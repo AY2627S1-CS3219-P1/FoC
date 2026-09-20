@@ -3,6 +3,8 @@ package main
 import (
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -35,24 +37,33 @@ func main() {
 	r := router.Setup(api.NewEnv(queries, app, pgxPool))
 	cors := getCorsConfig().Handler(r)
 
+	port := getPort()
+
 	server := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":" + port,
 		Handler:           cors,
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 	}
 
-	slog.Info("Listening on :8080")
+	slog.Info("Listening on :" + port)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed to start: %v", "error", err)
 		panic(err)
 	}
 }
 
+func getPort() string {
+	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+		return port
+	}
+	return "8080"
+}
+
 func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
-			// Allow localhost for development
-			if origin == "http://localhost:8081" {
+			// Allow localhost for development (any local port)
+			if strings.HasPrefix(origin, "http://localhost:") {
 				return true
 			}
 			// Allow Expo dev URLs matching pattern
