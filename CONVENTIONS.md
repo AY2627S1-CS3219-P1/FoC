@@ -13,17 +13,17 @@ Shape: `func(r *http.Request, env *api.Env) (*api.Response, error)`.
 
 ```go
 func CreateUser(r *http.Request, env *api.Env) (*api.Response, error) {
-	var req userview.CreateUserView
-	if err := api.Decode(r, &req); err != nil {
-		return nil, err
-	}
-	user, err := env.Queries.CreateUser(r.Context(), *req.ToCreateUserParams())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create user")
-	}
-	return api.NewResponse(userview.ToUserView(&user),
-		api.WithCode(http.StatusCreated),
-	)
+ var req userview.CreateUserView
+ if err := api.Decode(r, &req); err != nil {
+  return nil, err
+ }
+ user, err := env.Queries.CreateUser(r.Context(), *req.ToCreateUserParams())
+ if err != nil {
+  return nil, errors.Wrap(err, "failed to create user")
+ }
+ return api.NewResponse(userview.ToUserView(&user),
+  api.WithCode(http.StatusCreated),
+ )
 }
 ```
 
