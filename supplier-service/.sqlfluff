@@ -1,0 +1,22 @@
+[sqlfluff]
+dialect = postgres
+indent_unit = space
+tab_space_size = 4
+
+# --- 1. Align Data Types in CREATE TABLE ---
+# This aligns the data types (INT, VARCHAR) in column definitions
+[sqlfluff:layout:type:data_type]
+spacing_before = align
+align_within = bracketed
+
+# --- 2. Align Column Constraints (NOT NULL, DEFAULT) ---
+# This attempts to align the constraints after the data type
+[sqlfluff:layout:type:column_constraint_segment]
+spacing_before = align
+align_within = bracketed
+
+# --- Keep your existing SELECT rules (Optional) ---
+[sqlfluff:layout:type:alias_expression]
+spacing_before = align
+align_within = select_clause
+

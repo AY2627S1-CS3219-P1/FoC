@@ -1,0 +1,8 @@
+tmp/
+
+# firebase
+firebase-adminsdk.json
+
+# environment files
+.env
+!.env.template
