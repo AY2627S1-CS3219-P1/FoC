@@ -46,3 +46,38 @@ microservice (`user-service/`, `supplier-service/`, `order-service/`,
   one-service-per-folder skeleton** for core implementation.
 
 ---
+
+## Local Dev Setup
+
+Prerequisites: `docker` with the `docker-compose` plugin, `goose` for migrations.
+
+Services: `user-service` (`localhost:8081`), `supplier-service` (`localhost:8082`), shared `postgres:18` (`localhost:5432` with `user_dev` / `supplier_dev` DBs).
+
+1. Configure env:
+   ```bash
+   cp .env.example .env
+   # fill POSTGRES_PASSWORD and FIREBASE_CREDENTIALS_JSON
+   ```
+
+2. Start infra + services (live reload via Air):
+   ```bash
+   docker compose up --build
+   ```
+
+3. Run migrations from the host (not compose):
+   ```bash
+   DATABASE_URL=postgresql://foc:changeme@localhost:5432/user_dev?sslmode=disable make -C user-service migrate-up
+   DATABASE_URL=postgresql://foc:changeme@localhost:5432/supplier_dev?sslmode=disable make -C supplier-service migrate-up
+   ```
+
+4. Host-run alternative (without compose services):
+   ```bash
+   docker compose up -d postgres
+   PORT=8081 DATABASE_URL=postgresql://foc:changeme@localhost:5432/user_dev?sslmode=disable make -C user-service run
+   PORT=8082 DATABASE_URL=postgresql://foc:changeme@localhost:5432/supplier_dev?sslmode=disable make -C supplier-service run
+   ```
+
+Tear down (containers + images + DB data):
+```bash
+docker compose down -v --rmi all
+```
