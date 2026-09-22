@@ -5,13 +5,14 @@
 package sqlc
 
 import (
+	postgis "github.com/cridenour/go-postgis"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Building struct {
 	ID        pgtype.UUID
 	Name      string
-	Center    interface{}
+	Center    postgis.PointS
 	RadiusM   float64
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
@@ -29,7 +30,7 @@ type Location struct {
 	IsSupplier  bool
 	CategoryID  pgtype.UUID
 	BuildingID  pgtype.UUID
-	Coordinates interface{}
+	Coordinates postgis.PointS
 	Details     string
 	ArchivedAt  pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
@@ -61,7 +62,7 @@ type SupplierAdditionRequest struct {
 	Name                string
 	CategoryID          pgtype.UUID
 	BuildingID          pgtype.UUID
-	Coordinates         interface{}
+	Coordinates         *postgis.PointS
 	Details             string
 	Status              string
 	ReviewedBy          pgtype.Text

@@ -20,7 +20,8 @@ CREATE TABLE supplier_addition_requests (
     resulting_location_id  UUID                   UNIQUE REFERENCES locations (id) ON DELETE SET NULL,
     created_at             TIMESTAMPTZ            NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at             TIMESTAMPTZ            NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK ((status = 'pending') = (reviewed_by IS NULL AND reviewed_at IS NULL)),
+    CHECK ((status = 'pending') = (reviewed_by IS NULL)),
+    CHECK ((status = 'pending') = (reviewed_at IS NULL)),
     CHECK ((status = 'approved') = (resulting_location_id IS NOT NULL))
 );
 

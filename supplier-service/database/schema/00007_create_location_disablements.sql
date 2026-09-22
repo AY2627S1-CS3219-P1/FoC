@@ -10,7 +10,7 @@ CREATE TABLE location_disablements (
     location_id  UUID        NOT NULL REFERENCES locations (id) ON DELETE CASCADE,
     starts_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ends_at      TIMESTAMPTZ CHECK (ends_at IS NULL OR ends_at > starts_at),
-    cancelled_at TIMESTAMPTZ CHECK (cancelled_at IS NULL OR cancelled_at >= starts_at),
+    cancelled_at TIMESTAMPTZ,
     reason       TEXT,
     created_by   TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
