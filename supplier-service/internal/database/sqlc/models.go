@@ -13,7 +13,7 @@ type Building struct {
 	ID        pgtype.UUID
 	Name      string
 	Center    postgis.PointS
-	RadiusM   float64
+	RadiusM   float32
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }

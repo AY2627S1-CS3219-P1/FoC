@@ -6,7 +6,7 @@ CREATE TABLE buildings (
     id          UUID                 PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT                 UNIQUE NOT NULL CHECK (char_length(name) > 0),
     center      GEOGRAPHY(Point, 4326) NOT NULL,
-    radius_m    DOUBLE PRECISION     NOT NULL CHECK (radius_m > 0),
+    radius_m    REAL                 NOT NULL CHECK (radius_m > 0),
     created_at  TIMESTAMPTZ          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ          NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
