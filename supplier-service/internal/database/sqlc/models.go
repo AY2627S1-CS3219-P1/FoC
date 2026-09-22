@@ -8,6 +8,70 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Building struct {
+	ID        pgtype.UUID
+	Name      string
+	Center    interface{}
+	RadiusM   float64
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type Category struct {
+	ID        pgtype.UUID
+	Name      string
+	CreatedAt pgtype.Timestamptz
+}
+
+type Location struct {
+	ID          pgtype.UUID
+	Name        string
+	IsSupplier  bool
+	CategoryID  pgtype.UUID
+	BuildingID  pgtype.UUID
+	Coordinates interface{}
+	Details     string
+	ArchivedAt  pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type LocationDisablement struct {
+	ID          pgtype.UUID
+	LocationID  pgtype.UUID
+	StartsAt    pgtype.Timestamptz
+	EndsAt      pgtype.Timestamptz
+	CancelledAt pgtype.Timestamptz
+	Reason      pgtype.Text
+	CreatedBy   pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+}
+
+type LocationPhoto struct {
+	ID         pgtype.UUID
+	LocationID pgtype.UUID
+	PhotoUrl   string
+	SortOrder  int32
+	CreatedAt  pgtype.Timestamptz
+}
+
+type SupplierAdditionRequest struct {
+	ID                  pgtype.UUID
+	SubmittedBy         string
+	Name                string
+	CategoryID          pgtype.UUID
+	BuildingID          pgtype.UUID
+	Coordinates         interface{}
+	Details             string
+	Status              string
+	ReviewedBy          pgtype.Text
+	ReviewedAt          pgtype.Timestamptz
+	ReviewNote          pgtype.Text
+	ResultingLocationID pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
 type User struct {
 	ID          int32
 	FirebaseUid string

@@ -2,7 +2,7 @@
 # Live reload via Air + bind mounts. Migrations run from host (see .env.example).
 services:
   postgres:
-    image: postgres:18
+    image: postgis/postgis:18-3.6
     container_name: foc-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-foc}
