@@ -23,6 +23,8 @@ CREATE TABLE supplier_addition_requests (
     CHECK ((status = 'pending') = (reviewed_by IS NULL)),
     CHECK ((status = 'pending') = (reviewed_at IS NULL)),
     CHECK ((status = 'approved') = (resulting_location_id IS NOT NULL))
+    CHECK ((status = 'approved') = (reviewed_by IS NOT NULL))
+    CHECK ((status = 'approved') = (reviewed_at IS NOT NULL))
 );
 
 CREATE INDEX supplier_addition_requests_status_idx ON supplier_addition_requests (status);

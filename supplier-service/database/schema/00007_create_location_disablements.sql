@@ -11,8 +11,8 @@ CREATE TABLE location_disablements (
     starts_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ends_at      TIMESTAMPTZ CHECK (ends_at IS NULL OR ends_at > starts_at),
     cancelled_at TIMESTAMPTZ,
-    reason       TEXT,
-    created_by   TEXT,
+    reason       TEXT NOT NULL,
+    created_by   TEXT NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
