@@ -34,6 +34,7 @@ microservice (`user-service/`, `supplier-service/`, `order-service/`,
 ├── supplier-service/
 ├── order-service/
 ├── credit-service/
+├── frontend/
 ├── <n2h-service>/
 └── README.md
 ```
@@ -44,6 +45,8 @@ microservice (`user-service/`, `supplier-service/`, `order-service/`,
 - Files for agentic coding tools (e.g. agent configs, prompts, skills)
   may be added as needed, but must still **respect the
   one-service-per-folder skeleton** for core implementation.
+- `frontend/` is the SvelteKit web application; see its README for local
+  development and frontend ownership.
 
 ---
 

@@ -1,0 +1,103 @@
+:root {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	color: #17233b;
+	background: #f7f9fc;
+	font-synthesis: none;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+}
+
+a {
+	color: #174a99;
+}
+
+a:focus-visible {
+	outline: 3px solid #edaa32;
+	outline-offset: 3px;
+}
+
+.app-shell {
+	min-height: 100vh;
+}
+
+.site-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem max(1.5rem, calc((100vw - 68rem) / 2));
+	background: #fff;
+	border-bottom: 1px solid #dce3ee;
+}
+
+.brand {
+	color: #17233b;
+	font-weight: 750;
+	text-decoration: none;
+}
+
+nav {
+	display: flex;
+	gap: 1.25rem;
+}
+
+main {
+	max-width: 68rem;
+	margin: 0 auto;
+	padding: 3rem 1.5rem;
+}
+
+.intro,
+.page-content {
+	max-width: 42rem;
+}
+
+.eyebrow {
+	color: #527099;
+	font-size: 0.875rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+h1 {
+	font-size: clamp(2rem, 5vw, 3.5rem);
+	line-height: 1.1;
+	margin: 0.6rem 0 1rem;
+}
+
+p {
+	line-height: 1.6;
+}
+
+.button-link {
+	display: inline-block;
+	margin-top: 1rem;
+	padding: 0.75rem 1.1rem;
+	border-radius: 0.5rem;
+	background: #174a99;
+	color: #fff;
+	font-weight: 650;
+	text-decoration: none;
+}
+
+.button-link:hover {
+	background: #103a7c;
+}
+
+@media (max-width: 36rem) {
+	.site-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	main {
+		padding-top: 2rem;
+	}
+}
