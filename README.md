@@ -31,6 +31,11 @@ Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`),
 imported by services through a local `replace` directive. Each service keeps
 its own `internal/deps/deps.go` for database and Firebase dependencies and
 configures the default `slog` logger at startup.
+The root `go.work` lets Go commands resolve all three modules together during
+local development. The `replace` directives also support the current Docker
+layout, which builds each service without the root workspace. From the
+repository root, run
+`go test ./pkg/... ./supplier-service/... ./user-service/...`.
 
 ```text
 .
