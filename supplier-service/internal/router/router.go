@@ -3,6 +3,7 @@ package router
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
@@ -24,7 +25,7 @@ func Setup(env *deps.Env) *chi.Mux {
 func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(sharedmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 }
 
