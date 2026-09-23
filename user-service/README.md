@@ -1,7 +1,6 @@
-# Reminding
+# User Service
 
-This is the backend for [RemindMe](github.com/yihao03/remindme), an app made to
-support dementia caregivers through this difficult journey.
+This is the user service for [Friend on Campus (FoC)](../README.md).
 
 ## Setup
 

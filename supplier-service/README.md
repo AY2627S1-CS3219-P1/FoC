@@ -1,7 +1,6 @@
-# Reminding
+# Supplier Service
 
-This is the backend for [RemindMe](github.com/yihao03/remindme), an app made to
-support dementia caregivers through this difficult journey.
+This is the supplier service for [Friend on Campus (FoC)](../README.md).
 
 ## Setup
 
