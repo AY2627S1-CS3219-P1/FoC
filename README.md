@@ -39,6 +39,7 @@ configures the default `slog` logger at startup.
 ├── order-service/
 ├── credit-service/
 ├── pkg/
+├── frontend/
 ├── <n2h-service>/
 └── README.md
 ```
@@ -49,6 +50,8 @@ configures the default `slog` logger at startup.
 - Files for agentic coding tools (e.g. agent configs, prompts, skills)
   may be added as needed, but must still **respect the
   one-service-per-folder skeleton** for core implementation.
+- `frontend/` is the SvelteKit web application; see its README for local
+  development and frontend ownership.
 
 ---
 
