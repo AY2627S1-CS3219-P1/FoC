@@ -1,11 +1,17 @@
 package errs
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+)
 
 type NotFoundError struct {
 	Wrapped error
 	message string
 }
+
+var _ api.ExternalError = (*NotFoundError)(nil)
 
 func WrapNotFoundError(err error, message string) *NotFoundError {
 	return &NotFoundError{

@@ -2,7 +2,7 @@
 
 ## Handlers
 
-Shape: `func(r *http.Request, env *api.Env) (*api.Response, error)`.
+Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
 - App deps come from `env` (`Queries`, `Firebase`, `Pool`). Never take
   `http.ResponseWriter`; the envelope writer owns it.
@@ -12,7 +12,7 @@ Shape: `func(r *http.Request, env *api.Env) (*api.Response, error)`.
   anything else becomes 500 with a generic message.
 
 ```go
-func CreateUser(r *http.Request, env *api.Env) (*api.Response, error) {
+func CreateUser(r *http.Request, env *deps.Env) (*api.Response, error) {
  var req userview.CreateUserView
  if err := api.Decode(r, &req); err != nil {
   return nil, err
