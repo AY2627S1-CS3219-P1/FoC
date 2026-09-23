@@ -2,8 +2,8 @@ package adminroutes
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/handlers/user"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/user"
 )
 
 func SetupAuthRoutes(env *api.Env) func(r chi.Router) {

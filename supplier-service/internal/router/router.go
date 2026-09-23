@@ -4,11 +4,11 @@ package router
 import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/handlers/health"
-	appmiddleware "github.com/yihao03/reminding/internal/router/middleware"
-	"github.com/yihao03/reminding/internal/router/routes"
-	"github.com/yihao03/reminding/internal/router/routes/adminroutes"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/health"
+	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
 )
 
 func Setup(env *api.Env) *chi.Mux {

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yihao03/reminding/exterrors/errs"
-	"github.com/yihao03/reminding/internal/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/api"
 )
 
 const (

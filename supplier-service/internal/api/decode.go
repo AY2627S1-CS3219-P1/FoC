@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/yihao03/reminding/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
 )
 
 const maxBodyBytes = 1 << 20 // 1MB
