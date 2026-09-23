@@ -9,10 +9,10 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/database"
-	"github.com/yihao03/reminding/internal/firebase"
-	"github.com/yihao03/reminding/internal/router"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 )
 
 const (

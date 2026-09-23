@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yihao03/reminding/exterrors"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors"
 )
 
 var MsgInternalError = "An unknown error has occurred"

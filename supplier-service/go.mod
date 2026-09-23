@@ -1,4 +1,4 @@
-module github.com/yihao03/reminding
+module github.com/AY2627S1-CS3219-P1/FoC/supplier-service
 
 go 1.25.0
 
