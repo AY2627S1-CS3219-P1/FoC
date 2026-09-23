@@ -1,0 +1,11 @@
+.git
+.agents
+.codex
+data
+.env
+.env.*
+**/.env
+**/.env.*
+**/tmp
+*.pem
+*.key
