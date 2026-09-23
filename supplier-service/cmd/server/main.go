@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/rs/cors"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
+	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 )
 
 const (
@@ -20,6 +20,7 @@ const (
 )
 
 func main() {
+	slog.SetDefault(slog.Default().With("service", "supplier-service"))
 	slog.Info("Starting server...")
 	if err := godotenv.Load(".env"); err != nil {
 		slog.Error("Error loading .env file", "error", err)
@@ -34,7 +35,7 @@ func main() {
 	queries, pgxPool := database.Connect()
 	defer pgxPool.Close()
 
-	r := router.Setup(api.NewEnv(queries, app, pgxPool))
+	r := router.Setup(deps.New(queries, app, pgxPool))
 	cors := getCorsConfig().Handler(r)
 
 	port := getPort()
