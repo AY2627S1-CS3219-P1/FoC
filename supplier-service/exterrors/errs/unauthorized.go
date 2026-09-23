@@ -1,11 +1,17 @@
 package errs
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+)
 
 type UnauthorizedError struct {
 	Wrapped error
 	message string
 }
+
+var _ api.ExternalError = (*UnauthorizedError)(nil)
 
 func WrapUnauthorizedError(err error, message string) *UnauthorizedError {
 	return &UnauthorizedError{

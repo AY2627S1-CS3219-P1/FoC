@@ -79,3 +79,7 @@ require (
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 )
+
+require github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
+
+replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ../pkg

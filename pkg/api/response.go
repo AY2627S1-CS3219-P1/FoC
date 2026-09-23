@@ -43,8 +43,6 @@ type Response struct {
 	ContentType string `json:"-"`
 }
 
-type Handler = func(*http.Request, *Env) (*Response, error)
-
 // NewResponse creates a new Response with the given data and a default HTTP status code of 200 OK.
 func NewResponse(data any, opts ...Option) (*Response, error) {
 	r := &Response{

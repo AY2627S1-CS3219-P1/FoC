@@ -23,8 +23,8 @@ services:
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: user-service/Dockerfile.dev
     container_name: foc-user-service
     ports:
       - "${USER_PORT:-8081}:8080"
@@ -34,6 +34,7 @@ services:
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     volumes:
       - ./user-service:/app
+      - ./pkg:/pkg
       - /app/tmp
     depends_on:
       postgres:
@@ -42,8 +43,8 @@ services:
 
   supplier-service:
     build:
-      context: ./supplier-service
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: supplier-service/Dockerfile.dev
     container_name: foc-supplier-service
     ports:
       - "${SUPPLIER_PORT:-8082}:8080"
@@ -53,6 +54,7 @@ services:
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     volumes:
       - ./supplier-service:/app
+      - ./pkg:/pkg
       - /app/tmp
     depends_on:
       postgres:
