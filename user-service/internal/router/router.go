@@ -3,13 +3,14 @@ package router
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/chi/v5"
+	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/routes"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/routes/adminroutes"
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
 func Setup(env *deps.Env) *chi.Mux {
@@ -24,7 +25,7 @@ func Setup(env *deps.Env) *chi.Mux {
 func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(sharedmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 }
 
