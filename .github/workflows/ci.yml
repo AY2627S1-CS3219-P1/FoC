@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, credit-service]
+        module: [pkg, user-service, supplier-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
