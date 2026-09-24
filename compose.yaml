@@ -34,7 +34,7 @@ services:
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     volumes:
       - ./user-service:/app
-      - ./pkg:/pkg
+      - ./pkg:/app/pkg
       - /app/tmp
     depends_on:
       postgres:
@@ -54,7 +54,7 @@ services:
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     volumes:
       - ./supplier-service:/app
-      - ./pkg:/pkg
+      - ./pkg:/app/pkg
       - /app/tmp
     depends_on:
       postgres:
