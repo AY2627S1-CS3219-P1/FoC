@@ -4,7 +4,8 @@ FROM golang:1.26
 WORKDIR /app
 
 RUN go install github.com/air-verse/air@latest
+RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 
 EXPOSE 8080
 
-CMD ["air", "-c", ".air.toml"]
+CMD ["sh", "-c", "goose -dir database/schema postgres \"$DATABASE_URL\" up && exec air -c .air.toml"]
