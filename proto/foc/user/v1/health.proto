@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package foc.user.v1; // user service
+
+service HealthService {
+  rpc Check(CheckRequest) returns (CheckResponse) {}
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  string status = 1;
+}
