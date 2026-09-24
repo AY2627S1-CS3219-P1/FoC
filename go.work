@@ -1,0 +1,8 @@
+go 1.25.0
+
+use (
+	./supplier-service
+	./user-service
+)
+
+replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ./pkg

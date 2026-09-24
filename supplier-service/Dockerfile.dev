@@ -5,7 +5,7 @@ WORKDIR /app
 
 RUN go install github.com/air-verse/air@latest
 
-COPY pkg /pkg
+COPY pkg /app/pkg
 COPY supplier-service/go.mod supplier-service/go.sum ./
 RUN go mod download
 

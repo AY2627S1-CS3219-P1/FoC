@@ -27,8 +27,9 @@ withdrawn, or exchanged for money, and only circulate within the platform.
 This repository follows a **one-service-per-folder** structure: each
 microservice (`user-service/`, `supplier-service/`, `order-service/`,
 `credit-service/`) lives in its own top-level folder.
-Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`),
-imported by services through a local `replace` directive. Each service keeps
+Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`).
+The service modules use `./pkg` in containers; the root `go.work` resolves
+`pkg/` for builds run from the repository on the host. Each service keeps
 its own `internal/deps/deps.go` for database and Firebase dependencies and
 configures the default `slog` logger at startup.
 

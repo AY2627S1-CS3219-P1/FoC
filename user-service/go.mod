@@ -81,4 +81,4 @@ require (
 
 require github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
 
-replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ../pkg
+replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ./pkg
