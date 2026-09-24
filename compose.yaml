@@ -1,5 +1,5 @@
 # Local dev: one shared postgres server, one DB per service.
-# Live reload via Air + bind mounts. Migrations run from host (see .env.example).
+# Live reload via Air + bind mounts. Dev containers apply migrations on startup.
 services:
   postgres:
     image: postgres:18
