@@ -1,0 +1,25 @@
+version: v2
+
+clean: true # clear output dirs first before gen
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/AY2627S1-CS3219-P1/FoC/pkg/gen # for import path in generated Go code
+
+plugins:
+  - local: protoc-gen-go # data layer, i.e. structs and interfaces
+    out: pkg/gen
+    opt:
+      - paths=source_relative # preserve the schema’s directory structure inside the output directory
+
+  - local: protoc-gen-connect-go # handlers, i.e. Connect client/transport code
+    out: pkg/gen
+    opt:
+      - paths=source_relative # preserve the schema’s directory structure inside the output directory
+
+  - local: frontend/node_modules/.bin/protoc-gen-es # services and messages
+    out: frontend/src/lib/gen
+    opt:
+      - target=ts
