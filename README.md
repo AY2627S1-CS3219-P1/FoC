@@ -52,9 +52,10 @@ microservice (`user-service/`, `supplier-service/`, `order-service/`,
 
 ## Local Dev Setup
 
-Prerequisites: `docker` with the `docker-compose` plugin. Host-run migrations require `goose`.
+Prerequisites: `docker` with the `docker-compose` plugin.
 
 Services: `user-service` (`localhost:8081`), `supplier-service` (`localhost:8082`), shared `postgres:18` (`localhost:5432` with `user_dev` / `supplier_dev` DBs).
+If another process uses one of these host ports, set `USER_PORT`, `SUPPLIER_PORT`, or `POSTGRES_PORT` to an available port in `.env` before starting the services.
 
 1. Configure env:
    ```bash
@@ -69,14 +70,7 @@ Services: `user-service` (`localhost:8081`), `supplier-service` (`localhost:8082
    This is the complete Compose setup. Each service gets its `DATABASE_URL` from `.env` through `compose.yaml`; no separate migration command is needed.
    After adding a migration, restart the affected service to apply it.
 
-3. Optional: run services on the host instead of in Compose. These commands need host-facing database URLs because `postgres` is only a hostname inside the Compose network:
-   ```bash
-   make postgres
-   make user-migrate supplier-migrate
-   make user-run # in one terminal
-   make supplier-run # in another terminal
-   ```
-   The root Makefile builds the host database URLs from `.env` and calls each service's `migrate-up` target.
+   To run just one service with its Postgres dependency, use `docker compose up --build user-service` or `docker compose up --build supplier-service`.
 
 Tear down (containers + images + DB data):
 ```bash
