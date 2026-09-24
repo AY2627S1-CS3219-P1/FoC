@@ -4,9 +4,10 @@ package user
 import (
 	"net/http"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/views/userview"
 	"github.com/pkg/errors"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/views/userview"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 	ErrCreateUser    = "Error creating user"
 )
 
-func CreateUser(r *http.Request, env *api.Env) (*api.Response, error) {
+func CreateUser(r *http.Request, env *deps.Env) (*api.Response, error) {
 	var req userview.CreateUserView
 	if err := api.Decode(r, &req); err != nil {
 		return nil, err

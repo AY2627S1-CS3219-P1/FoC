@@ -1,11 +1,17 @@
 package errs
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+)
 
 type BadRequestError struct {
 	Wrapped error
 	message string
 }
+
+var _ api.ExternalError = (*BadRequestError)(nil)
 
 func WrapBadRequestError(err error, message string) *BadRequestError {
 	return &BadRequestError{

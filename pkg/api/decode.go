@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/yihao03/reminding/exterrors/errs"
 )
 
 const maxBodyBytes = 1 << 20 // 1MB
@@ -29,23 +28,23 @@ func init() {
 func Decode(r *http.Request, v any) error {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
 	if err != nil {
-		return errs.WrapBadRequestError(err, "invalid request body")
+		return &badRequestError{message: "invalid request body", cause: err}
 	}
 	if int64(len(body)) > maxBodyBytes {
-		return errs.NewBadRequestError("request body too large")
+		return &badRequestError{message: "request body too large"}
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		return errs.WrapBadRequestError(err, "invalid request body")
+		return &badRequestError{message: "invalid request body", cause: err}
 	}
 	if err := dec.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
-		return errs.NewBadRequestError("unexpected trailing data")
+		return &badRequestError{message: "unexpected trailing data"}
 	}
 
 	if err := validate.Struct(v); err != nil {
-		return errs.NewBadRequestError(err.Error())
+		return &badRequestError{message: err.Error()}
 	}
 
 	return nil

@@ -3,8 +3,8 @@ package userview
 import (
 	"time"
 
-	"github.com/yihao03/reminding/internal/database"
-	"github.com/yihao03/reminding/internal/database/sqlc"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/sqlc"
 )
 
 type CreateUserView struct {

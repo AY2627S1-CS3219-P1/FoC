@@ -3,11 +3,12 @@ package user
 import (
 	"net/http"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/views/userview"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
-	"github.com/yihao03/reminding/exterrors/errs"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/views/userview"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	ErrUserNotFound  = "user not found"
 )
 
-func HandleAuthorizeUser(r *http.Request, env *api.Env) (*api.Response, error) {
+func HandleAuthorizeUser(r *http.Request, env *deps.Env) (*api.Response, error) {
 	var authview userview.AuthView
 	if err := api.Decode(r, &authview); err != nil {
 		return nil, errors.Wrap(err, "failed to decode request body")

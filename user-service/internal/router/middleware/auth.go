@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yihao03/reminding/exterrors/errs"
-	"github.com/yihao03/reminding/internal/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	ErrInvalidToken           = "Invalid Firebase ID token"
 )
 
-func GetAuthMiddleware(env *api.Env) func(http.Handler) http.Handler {
+func GetAuthMiddleware(env *deps.Env) func(http.Handler) http.Handler {
 	client, err := env.Firebase.Auth(context.Background())
 	if err != nil {
 		slog.Error("Error getting firebase auth client", "error", err)

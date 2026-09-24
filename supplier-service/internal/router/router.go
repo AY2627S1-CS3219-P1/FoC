@@ -2,16 +2,18 @@
 package router
 
 import (
-	"github.com/go-chi/chi/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/health"
+	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/yihao03/reminding/internal/api"
-	"github.com/yihao03/reminding/internal/handlers/health"
-	appmiddleware "github.com/yihao03/reminding/internal/router/middleware"
-	"github.com/yihao03/reminding/internal/router/routes"
-	"github.com/yihao03/reminding/internal/router/routes/adminroutes"
 )
 
-func Setup(env *api.Env) *chi.Mux {
+func Setup(env *deps.Env) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
@@ -23,11 +25,11 @@ func Setup(env *api.Env) *chi.Mux {
 func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(sharedmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 }
 
-func SetupRoutes(r *chi.Mux, env *api.Env) {
+func SetupRoutes(r *chi.Mux, env *deps.Env) {
 	r.Route("/api", func(r chi.Router) {
 		// Unprotected routes
 		r.Get("/health", api.HTTPHandler(env, health.HandleCheckHealth))
@@ -40,7 +42,7 @@ func SetupRoutes(r *chi.Mux, env *api.Env) {
 	})
 }
 
-func SetupAdminRoutes(r chi.Router, env *api.Env) {
+func SetupAdminRoutes(r chi.Router, env *deps.Env) {
 	r.Route("/api/admin", func(r chi.Router) {
 		// Unprotected routes
 		r.Route("/auth", adminroutes.SetupAuthRoutes(env))

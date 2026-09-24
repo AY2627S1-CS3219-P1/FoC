@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yihao03/reminding/internal/database/sqlc"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/sqlc"
 )
 
 func Connect() (*sqlc.Queries, *pgxpool.Pool) {
