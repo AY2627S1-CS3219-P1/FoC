@@ -44,7 +44,8 @@ func TestRequestLoggerRecordsStartAndCompletion(t *testing.T) {
 			if err := json.Unmarshal([]byte(lines[1]), &completed); err != nil {
 				t.Fatal(err)
 			}
-			if start["msg"] != "request started" || start["method"] != http.MethodGet || start["path"] != "/health" || start["request_id"] == "" {
++			id, ok := start["request_id"].(string)
++			if start["msg"] != "request started" || start["method"] != http.MethodGet || start["path"] != "/health" || !ok || id == "" {
 				t.Fatalf("unexpected start log: %v", start)
 			}
 			if completed["msg"] != "request completed" || completed["level"] != test.level || completed["status"] != float64(test.status) || completed["request_id"] != start["request_id"] {
