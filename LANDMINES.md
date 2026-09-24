@@ -56,7 +56,11 @@ HTTP requests may fail with `Recv failure: Connection reset by peer` because the
 
 Do not commit the key, copy it into `.env`, or expose it in chat or logs.
 
-**Tracking issue:** [#11 Add Firebase Auth Emulator to local Compose](https://github.com/AY2627S1-CS3219-P1/FoC/issues/11)
+**Tracking issue:**
+
+[#11 Add Firebase Auth Emulator to local Compose](https://github.com/AY2627S1-CS3219-P1/FoC/issues/11)
+
+Note that we might just end up not using Firebase altogether, in which case would also render this landmine obsolete.
 
 **Remove this entry when:** A fresh checkout can serve both health endpoints through Compose without a service-account key:
 
@@ -64,3 +68,17 @@ Do not commit the key, copy it into `.env`, or expose it in chat or logs.
 curl --fail http://localhost:8081/api/health
 curl --fail http://localhost:8082/api/health
 ```
+
+## L3: Recreated services download Go dependencies again
+
+**Applies when:** Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`.
+
+**Symptom:** Air prints many `go: downloading` lines before its first build. Startup can take several minutes.
+
+**Cause:** Each container stores its Go module and build caches in its writable layer. Removing the container removes those caches.
+
+**Current workaround:** Keep the service containers running during normal development. Let Air rebuild the application without recreating the containers.
+
+**Tracking issue:** [#12 Persist Go caches across Compose container recreation](https://github.com/AY2627S1-CS3219-P1/FoC/issues/12)
+
+**Remove this entry when:** Recreated service containers reuse persistent Go module and build caches.
