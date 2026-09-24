@@ -49,6 +49,7 @@ func httpHandler[E any](env *E, handler Handler[E], timeout time.Duration) http.
 		go func() {
 			defer func() {
 				if value := recover(); value != nil {
+          slog.ErrorContext(r.Context(), "handler panic", "panic", value, "stack", string(debug.Stack()))
 					panics <- value
 				}
 			}()
