@@ -28,8 +28,10 @@ This repository follows a **one-service-per-folder** structure: each
 microservice (`user-service/`, `supplier-service/`, `order-service/`,
 `credit-service/`) lives in its own top-level folder.
 Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`).
-The service modules use `./pkg` in containers; the root `go.work` resolves
-`pkg/` for builds run from the repository on the host. Each service keeps
+Each service module refers to the shared module as `../pkg`. Compose mounts
+each service at `/app` and the shared package at `/pkg`, so the same relative
+path works inside the containers. Builds run from the repository use the root
+`go.work`. Each service keeps
 its own `internal/deps/deps.go` for database and Firebase dependencies and
 configures the default `slog` logger at startup.
 
