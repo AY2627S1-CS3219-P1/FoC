@@ -8,3 +8,21 @@ sql:
         package: "sqlc"
         out: "../internal/database/sqlc"
         sql_package: "pgx/v5"
+        overrides:
+          # PointS implements sql.Scanner for pgx's hex-encoded PostGIS output
+          # and retains the SRID. Use ST_GeogFromWKB($n) for query parameters;
+          # direct geography binding is not supported by pgx. Nullable values
+          # use nil pointers.
+          - db_type: "geography"
+            nullable: false
+            go_type:
+              import: "github.com/cridenour/go-postgis"
+              package: "postgis"
+              type: "PointS"
+          - db_type: "geography"
+            nullable: true
+            go_type:
+              import: "github.com/cridenour/go-postgis"
+              package: "postgis"
+              type: "PointS"
+              pointer: true
