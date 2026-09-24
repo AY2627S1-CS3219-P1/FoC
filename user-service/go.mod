@@ -1,6 +1,6 @@
 module github.com/AY2627S1-CS3219-P1/FoC/user-service
 
-go 1.25.0
+go 1.27.0
 
 require (
 	github.com/go-chi/chi v1.5.5
