@@ -13,12 +13,12 @@ type HealthServer struct {
 	supplierv1connect.UnimplementedHealthServiceHandler
 }
 
-// Constructor
+// NewHealthServer creates a supplier health RPC server with no external dependencies.
 func NewHealthServer() *HealthServer {
 	return &HealthServer{}
 }
 
-// Add Check method to HealthServer
+// Check reports status "ok" for every request without probing service dependencies.
 func (s *HealthServer) Check(
 	_ context.Context,
 	_ *connect.Request[supplierv1.CheckRequest],
