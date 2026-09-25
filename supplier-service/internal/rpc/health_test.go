@@ -19,23 +19,41 @@ func TestHealthService(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount(path, handler)
 
-	server := httptest.NewServer(router)
+	server := httptest.NewUnstartedServer(router)
+	server.EnableHTTP2 = true
+	server.StartTLS()
 	t.Cleanup(server.Close)
 
-	client := supplierv1connect.NewHealthServiceClient(
-		server.Client(),
-		server.URL,
-	)
-
-	response, err := client.Check(
-		context.Background(),
-		connect.NewRequest(&supplierv1.CheckRequest{}),
-	)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		options []connect.ClientOption
+	}{
+		{name: "connect"},
+		{
+			name:    "grpc",
+			options: []connect.ClientOption{connect.WithGRPC()},
+		},
 	}
 
-	if response.Msg.Status != "ok" {
-		t.Fatalf("expected status %q, got %q", "ok", response.Msg.Status)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := supplierv1connect.NewHealthServiceClient(
+				server.Client(),
+				server.URL,
+				test.options...,
+			)
+
+			response, err := client.Check(
+				context.Background(),
+				connect.NewRequest(&supplierv1.CheckRequest{}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if response.Msg.Status != "ok" {
+				t.Fatalf("expected status %q, got %q", "ok", response.Msg.Status)
+			}
+		})
 	}
 }
