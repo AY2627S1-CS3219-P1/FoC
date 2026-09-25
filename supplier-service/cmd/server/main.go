@@ -60,6 +60,9 @@ func getPort() string {
 	return "8080"
 }
 
+// getCorsConfig allows credentialed cross-origin requests from HTTP localhost
+// origins with a port and HTTPS yihao03*.expo.app origins. It allows Connect and
+// gRPC-Web request headers and exposes gRPC response status headers.
 func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {

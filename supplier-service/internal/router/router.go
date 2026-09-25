@@ -31,6 +31,8 @@ func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.Recoverer)
 }
 
+// SetupRoutes mounts the supplier health RPC at its generated path and the
+// public REST health and authentication routes under /api.
 func SetupRoutes(r *chi.Mux, env *deps.Env) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		supplierrpc.NewHealthServer(),
