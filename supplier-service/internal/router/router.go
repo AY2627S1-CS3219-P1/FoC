@@ -5,12 +5,12 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func Setup(env *deps.Env) *chi.Mux {

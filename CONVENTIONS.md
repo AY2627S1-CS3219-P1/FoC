@@ -1,6 +1,6 @@
 # Conventions
 
-## Handlers
+## REST handlers
 
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
@@ -31,7 +31,7 @@ Register with `api.HTTPHandler(env, Handler)`. Raw bytes/streams bypass the
 envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 (`api.HandlerTimeout`); no per-route timeout middleware.
 
-## Responses and errors
+## REST responses and errors
 
 - Success envelope: `{"status":[{"message","severity"}],"data"}`.
   `severity` is `info|success|warning|error`.
