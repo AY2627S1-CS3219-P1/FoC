@@ -3,12 +3,14 @@ package router
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
+	supplierrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -30,6 +32,11 @@ func SetupMiddleware(r *chi.Mux) {
 }
 
 func SetupRoutes(r *chi.Mux, env *deps.Env) {
+	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
+		supplierrpc.NewHealthServer(),
+	)
+	r.Mount(healthPath, healthHandler)
+
 	r.Route("/api", func(r chi.Router) {
 		// Unprotected routes
 		r.Get("/health", api.HTTPHandler(env, health.HandleCheckHealth))
