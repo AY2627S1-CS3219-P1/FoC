@@ -45,5 +45,6 @@ jobs:
       - run: npm run buf:lint
       - run: npm run buf:generate
       - run: git diff --exit-code -- ../pkg/gen src/lib/gen
+      - run: test -z "$(git ls-files --others --exclude-standard -- ../pkg/gen src/lib/gen)"
       - run: npm run check
       - run: npm run build
