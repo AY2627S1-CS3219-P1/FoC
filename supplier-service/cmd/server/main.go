@@ -40,16 +40,25 @@ func main() {
 
 	port := getPort()
 
-	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           cors,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-	}
+	server := newServer(":"+port, cors)
 
 	slog.Info("Listening on :" + port)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed to start: %v", "error", err)
 		panic(err)
+	}
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		Protocols:         protocols,
 	}
 }
 
