@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"user-service/migrations"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/migrations"
 )
 
 // Open connects to Postgres via GORM. TranslateError maps driver errors

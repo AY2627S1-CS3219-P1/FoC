@@ -1,22 +1,19 @@
 -include .env
 
 SERVER_PATH=./cmd/server/main.go
-SQLC_PATH=./database
+MIGRATIONS_DIR=./migrations
 
 run:
 	@air
 
-sqlc:
-	@cd $(SQLC_PATH) && sqlc generate
-
 migrate-up:
-	@cd database/schema && goose postgres "$(DATABASE_URL)" up
+	@goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" up
 
 migrate-down:
-	@cd database/schema && goose postgres "$(DATABASE_URL)" down
+	@goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" down
 
 goose-create:
-	@cd database/schema && goose create $(name) sql
+	@goose -dir $(MIGRATIONS_DIR) create $(name) sql
 
 seed:
 	@goose postgres "$(DATABASE_URL)" -dir ./database/seed -no-versioning up
