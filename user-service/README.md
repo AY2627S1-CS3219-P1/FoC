@@ -95,7 +95,8 @@ Other Go services set `USER_SERVICE_BASE_URL` and initialize one authenticator
 at startup. Register its `Authenticate` method on protected routes and
 read `AccessClaims` with `ClaimsFromContext`. The
 authenticator fetches keys at startup, refreshes its cache every five minutes,
-and fetches early when a token names an unknown key ID.
+and fetches early when a token names an unknown key ID. The base URL must use
+HTTPS unless `APP_ENV=local`; local mode permits the Compose network's HTTP URL.
 
 ```go
 import authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
