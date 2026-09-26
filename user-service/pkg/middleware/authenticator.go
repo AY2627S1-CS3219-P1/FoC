@@ -72,7 +72,11 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
-	a := &Authenticator{config: config, client: client}
+	clientCopy := *client
+	clientCopy.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	a := &Authenticator{config: config, client: &clientCopy}
 	cache, err := a.fetch(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load authentication keys: %w", err)

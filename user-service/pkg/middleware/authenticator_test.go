@@ -173,6 +173,37 @@ func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
 	}
 }
 
+func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
+	t.Setenv("APP_ENV", "local")
+	key := testSigningKey(t)
+	codec, err := auth.NewES256Codec(key, "key-1", TokenIssuer, TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetRequests := make(chan struct{}, 1)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		targetRequests <- struct{}{}
+		_ = json.NewEncoder(w).Encode(codec.PublicKeys())
+	}))
+	t.Cleanup(target.Close)
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	t.Cleanup(redirect.Close)
+
+	_, err = NewAuthenticator(context.Background(), AuthConfig{
+		JWKSURL: redirect.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+	})
+	if err == nil {
+		t.Fatal("expected redirecting JWKS endpoint to be rejected")
+	}
+	select {
+	case <-targetRequests:
+		t.Fatal("redirect target was contacted")
+	default:
+	}
+}
+
 func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	firstKey := testSigningKey(t)
