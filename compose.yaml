@@ -55,6 +55,7 @@ services:
       - "${SUPPLIER_PORT:-8082}:8080"
     environment:
       PORT: "8080"
+      APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
