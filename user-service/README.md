@@ -94,7 +94,7 @@ storage adapters are not configured, so stateful authentication routes return
 Other Go services set `USER_SERVICE_BASE_URL` and initialize one authenticator
 at startup. Register its `Authenticate` method on protected routes and
 read `AccessClaims` with `ClaimsFromContext`. The
-authenticator fetches keys at startup, refreshes its cache every five minutes,
+authenticator fetches keys at startup, refreshes its cache every hour,
 and fetches early when a token names an unknown key ID. The base URL must use
 HTTPS unless `APP_ENV=local`; local mode permits the Compose network's HTTP URL.
 
