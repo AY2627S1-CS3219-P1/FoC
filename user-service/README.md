@@ -54,12 +54,12 @@ The authentication routes are:
 - `POST /api/auth/refresh` rotates the refresh token.
 - `POST /api/auth/logout` revokes the refresh token.
 
-Successful login and registration set `foc_access` and `foc_refresh` as
-Secure, HttpOnly, SameSite=Lax cookies. Refresh and logout read the refresh
-cookie. The access and refresh lifetimes come from the two JWT TTL environment
-variables. In local mode, generated magic-link URLs are written to the service
-log as one line; keep those logs private because the URLs contain sign-in
-tokens.
+Successful login and registration set `__Host-foc-access-token` and
+`__Host-foc-refresh-token` as Secure, HttpOnly, SameSite=Lax cookies with the
+root path. Refresh and logout read the refresh cookie. The access and refresh
+lifetimes come from the two JWT TTL environment variables. In local mode,
+generated magic-link URLs are written to the service log as one line; keep those
+logs private because the URLs contain sign-in tokens.
 
 The service also provides `GET /.well-known/jwks.json` for its public signing
 key and `GET /api/health` for its health check. Authentication storage and
