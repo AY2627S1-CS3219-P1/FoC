@@ -3,14 +3,16 @@ package router
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
-	"github.com/go-chi/chi/v5/middleware"
+	supplierrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func Setup(env *deps.Env) *chi.Mux {
@@ -29,7 +31,14 @@ func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.Recoverer)
 }
 
+// SetupRoutes mounts the supplier health RPC at its generated path and the
+// public REST health and authentication routes under /api.
 func SetupRoutes(r *chi.Mux, env *deps.Env) {
+	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
+		supplierrpc.NewHealthServer(),
+	)
+	r.Mount(healthPath, healthHandler)
+
 	r.Route("/api", func(r chi.Router) {
 		// Unprotected routes
 		r.Get("/health", api.HTTPHandler(env, health.HandleCheckHealth))

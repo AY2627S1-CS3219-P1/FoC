@@ -118,9 +118,22 @@ func getPort() string {
 
 func getCorsConfig(origin string) *cors.Cors {
 	return cors.New(cors.Options{
-		AllowedOrigins:   []string{origin},
+		AllowedOrigins: []string{origin},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{
+			"Authorization",
+			"Content-Type",
+			"Connect-Protocol-Version",
+			"Connect-Timeout-Ms",
+			"Grpc-Timeout",
+			"X-Grpc-Web",
+			"X-User-Agent",
+		},
+		ExposedHeaders: []string{
+			"Grpc-Status",
+			"Grpc-Message",
+			"Grpc-Status-Details-Bin",
+		},
 		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 	})
 }

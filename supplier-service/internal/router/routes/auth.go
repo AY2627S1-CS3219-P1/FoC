@@ -3,7 +3,7 @@ package routes
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/user"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/user"
 	"github.com/go-chi/chi/v5"
 )
 

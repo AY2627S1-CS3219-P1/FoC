@@ -1,0 +1,16 @@
+version: v2  # version 2 of Buf's config format
+
+modules:
+  - path: proto # ./proto is the root of our schemas
+
+deps:
+  - buf.build/bufbuild/protovalidate # supports validation annotations, e.g. enforce email data type
+  - buf.build/googleapis/googleapis # standard messages, e.g. google.type.Date
+
+lint:
+  use:
+    - STANDARD # standard linting rules
+
+breaking:
+  use:
+    - FILE # level of detection when using `buf breaking ...`

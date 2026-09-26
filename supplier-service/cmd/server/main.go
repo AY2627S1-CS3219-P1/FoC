@@ -40,16 +40,25 @@ func main() {
 
 	port := getPort()
 
-	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           cors,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-	}
+	server := newServer(":"+port, cors)
 
 	slog.Info("Listening on :" + port)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed to start: %v", "error", err)
 		panic(err)
+	}
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		Protocols:         protocols,
 	}
 }
 
@@ -60,6 +69,9 @@ func getPort() string {
 	return "8080"
 }
 
+// getCorsConfig allows credentialed cross-origin requests from HTTP localhost
+// origins with a port and HTTPS yihao03*.expo.app origins. It allows Connect and
+// gRPC-Web request headers and exposes gRPC response status headers.
 func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
@@ -76,6 +88,19 @@ func getCorsConfig() *cors.Cors {
 		},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedHeaders: []string{
+			"Authorization",
+			"Content-Type",
+			"Connect-Protocol-Version",
+			"Connect-Timeout-Ms",
+			"Grpc-Timeout",
+			"X-Grpc-Web",
+			"X-User-Agent",
+		},
+		ExposedHeaders: []string{
+			"Grpc-Status",
+			"Grpc-Message",
+			"Grpc-Status-Details-Bin",
+		},
 	})
 }
