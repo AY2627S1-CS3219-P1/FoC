@@ -141,8 +141,8 @@ type Dependencies struct {
 	LoginTokens        LoginTokenStore
 	RegistrationTokens RegistrationTokenStore
 	Sessions           SessionStore
-	Tokens             TokenCodec
-	Email              email.EmailSender
+	TokenCodec         TokenCodec
+	EmailSender        email.EmailSender
 }
 
 type Config struct {
