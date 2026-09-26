@@ -46,9 +46,8 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 
 ## Connect RPC
 
-- API contracts live under `proto/foc/<service>/v1`. The `foc` segment is the
-  project namespace in protobuf package names and generated Connect routes.
-  Removing it would rename the external API, so keep it when adding services.
+- API contracts live under `proto/<service>/v1` and use the protobuf package
+  `<service>.v1`. Keep service names unique within this repository.
 - Buf generates Go messages and Connect handlers under `pkg/gen`, and
   TypeScript messages and service descriptors under `frontend/src/lib/gen`.
   Implementers and callers import generated types, but never edit generated

@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: foc/supplier/v1/health.proto
+// source: user/v1/health.proto
 
-package supplierv1
+package userv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -29,7 +29,7 @@ type CheckRequest struct {
 
 func (x *CheckRequest) Reset() {
 	*x = CheckRequest{}
-	mi := &file_foc_supplier_v1_health_proto_msgTypes[0]
+	mi := &file_user_v1_health_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +41,7 @@ func (x *CheckRequest) String() string {
 func (*CheckRequest) ProtoMessage() {}
 
 func (x *CheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_foc_supplier_v1_health_proto_msgTypes[0]
+	mi := &file_user_v1_health_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +54,7 @@ func (x *CheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRequest.ProtoReflect.Descriptor instead.
 func (*CheckRequest) Descriptor() ([]byte, []int) {
-	return file_foc_supplier_v1_health_proto_rawDescGZIP(), []int{0}
+	return file_user_v1_health_proto_rawDescGZIP(), []int{0}
 }
 
 type CheckResponse struct {
@@ -66,7 +66,7 @@ type CheckResponse struct {
 
 func (x *CheckResponse) Reset() {
 	*x = CheckResponse{}
-	mi := &file_foc_supplier_v1_health_proto_msgTypes[1]
+	mi := &file_user_v1_health_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -78,7 +78,7 @@ func (x *CheckResponse) String() string {
 func (*CheckResponse) ProtoMessage() {}
 
 func (x *CheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_foc_supplier_v1_health_proto_msgTypes[1]
+	mi := &file_user_v1_health_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -91,7 +91,7 @@ func (x *CheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckResponse.ProtoReflect.Descriptor instead.
 func (*CheckResponse) Descriptor() ([]byte, []int) {
-	return file_foc_supplier_v1_health_proto_rawDescGZIP(), []int{1}
+	return file_user_v1_health_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CheckResponse) GetStatus() string {
@@ -101,38 +101,38 @@ func (x *CheckResponse) GetStatus() string {
 	return ""
 }
 
-var File_foc_supplier_v1_health_proto protoreflect.FileDescriptor
+var File_user_v1_health_proto protoreflect.FileDescriptor
 
-const file_foc_supplier_v1_health_proto_rawDesc = "" +
+const file_user_v1_health_proto_rawDesc = "" +
 	"\n" +
-	"\x1cfoc/supplier/v1/health.proto\x12\x0ffoc.supplier.v1\"\x0e\n" +
+	"\x14user/v1/health.proto\x12\auser.v1\"\x0e\n" +
 	"\fCheckRequest\"'\n" +
 	"\rCheckResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status2Y\n" +
-	"\rHealthService\x12H\n" +
-	"\x05Check\x12\x1d.foc.supplier.v1.CheckRequest\x1a\x1e.foc.supplier.v1.CheckResponse\"\x00B\xc6\x01\n" +
-	"\x13com.foc.supplier.v1B\vHealthProtoP\x01ZDgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1;supplierv1\xa2\x02\x03FSX\xaa\x02\x0fFoc.Supplier.V1\xca\x02\x0fFoc\\Supplier\\V1\xe2\x02\x1bFoc\\Supplier\\V1\\GPBMetadata\xea\x02\x11Foc::Supplier::V1b\x06proto3"
+	"\x06status\x18\x01 \x01(\tR\x06status2I\n" +
+	"\rHealthService\x128\n" +
+	"\x05Check\x12\x15.user.v1.CheckRequest\x1a\x16.user.v1.CheckResponse\"\x00B\x91\x01\n" +
+	"\vcom.user.v1B\vHealthProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
 var (
-	file_foc_supplier_v1_health_proto_rawDescOnce sync.Once
-	file_foc_supplier_v1_health_proto_rawDescData []byte
+	file_user_v1_health_proto_rawDescOnce sync.Once
+	file_user_v1_health_proto_rawDescData []byte
 )
 
-func file_foc_supplier_v1_health_proto_rawDescGZIP() []byte {
-	file_foc_supplier_v1_health_proto_rawDescOnce.Do(func() {
-		file_foc_supplier_v1_health_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_foc_supplier_v1_health_proto_rawDesc), len(file_foc_supplier_v1_health_proto_rawDesc)))
+func file_user_v1_health_proto_rawDescGZIP() []byte {
+	file_user_v1_health_proto_rawDescOnce.Do(func() {
+		file_user_v1_health_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_user_v1_health_proto_rawDesc), len(file_user_v1_health_proto_rawDesc)))
 	})
-	return file_foc_supplier_v1_health_proto_rawDescData
+	return file_user_v1_health_proto_rawDescData
 }
 
-var file_foc_supplier_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_foc_supplier_v1_health_proto_goTypes = []any{
-	(*CheckRequest)(nil),  // 0: foc.supplier.v1.CheckRequest
-	(*CheckResponse)(nil), // 1: foc.supplier.v1.CheckResponse
+var file_user_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_user_v1_health_proto_goTypes = []any{
+	(*CheckRequest)(nil),  // 0: user.v1.CheckRequest
+	(*CheckResponse)(nil), // 1: user.v1.CheckResponse
 }
-var file_foc_supplier_v1_health_proto_depIdxs = []int32{
-	0, // 0: foc.supplier.v1.HealthService.Check:input_type -> foc.supplier.v1.CheckRequest
-	1, // 1: foc.supplier.v1.HealthService.Check:output_type -> foc.supplier.v1.CheckResponse
+var file_user_v1_health_proto_depIdxs = []int32{
+	0, // 0: user.v1.HealthService.Check:input_type -> user.v1.CheckRequest
+	1, // 1: user.v1.HealthService.Check:output_type -> user.v1.CheckResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -140,26 +140,26 @@ var file_foc_supplier_v1_health_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_foc_supplier_v1_health_proto_init() }
-func file_foc_supplier_v1_health_proto_init() {
-	if File_foc_supplier_v1_health_proto != nil {
+func init() { file_user_v1_health_proto_init() }
+func file_user_v1_health_proto_init() {
+	if File_user_v1_health_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_foc_supplier_v1_health_proto_rawDesc), len(file_foc_supplier_v1_health_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_health_proto_rawDesc), len(file_user_v1_health_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_foc_supplier_v1_health_proto_goTypes,
-		DependencyIndexes: file_foc_supplier_v1_health_proto_depIdxs,
-		MessageInfos:      file_foc_supplier_v1_health_proto_msgTypes,
+		GoTypes:           file_user_v1_health_proto_goTypes,
+		DependencyIndexes: file_user_v1_health_proto_depIdxs,
+		MessageInfos:      file_user_v1_health_proto_msgTypes,
 	}.Build()
-	File_foc_supplier_v1_health_proto = out.File
-	file_foc_supplier_v1_health_proto_goTypes = nil
-	file_foc_supplier_v1_health_proto_depIdxs = nil
+	File_user_v1_health_proto = out.File
+	file_user_v1_health_proto_goTypes = nil
+	file_user_v1_health_proto_depIdxs = nil
 }
