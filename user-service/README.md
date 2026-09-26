@@ -20,6 +20,26 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    the key persists across container restarts. The service derives its public
    key and publishes it at `/.well-known/jwks.json`.
 
+   The signing key must be an unencrypted P-256 private key in PKCS#8 PEM
+   format (`-----BEGIN PRIVATE KEY-----`). The dev container generates this
+   format automatically. For host development, run this from the repository
+   root when no key exists:
+
+   ```bash
+   umask 077
+   mkdir -p .local/secrets/auth
+   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out .local/secrets/auth/jwt-signing-private.pem
+   ```
+
+   If an existing dev key begins with `-----BEGIN EC PRIVATE KEY-----`,
+   convert it to PKCS#8 before restarting. This preserves the key material:
+
+   ```bash
+   umask 077
+   openssl pkcs8 -topk8 -nocrypt -in .local/secrets/auth/jwt-signing-private.pem -out .local/secrets/auth/jwt-signing-private.pkcs8.pem
+   mv .local/secrets/auth/jwt-signing-private.pkcs8.pem .local/secrets/auth/jwt-signing-private.pem
+   ```
+
    Signing key rotation and live key reload are not supported. Replacing the
    configured key invalidates tokens signed by the old key.
 
@@ -62,14 +82,14 @@ hold this token in memory and send it in the `Authorization: Bearer` header.
 The refresh token is only sent as a `foc-refresh-token` cookie with Secure,
 HttpOnly, SameSite=Strict and Path=/auth. Refresh and logout read that cookie;
 logout clears it. The access and refresh lifetimes come from the two JWT TTL
-environment variables. In local mode,
-generated magic-link URLs are written to the service log as one line; keep those
-logs private because the URLs contain sign-in tokens.
+environment variables. Link requests return a generic acknowledgment; the
+magic link is passed only to the injected email sender. The configured
+`EmptyEmailSender` discards it until an email delivery adapter is connected.
 
 The service also provides `GET /.well-known/jwks.json` for its public signing
 key and `GET /api/health` for its health check. Authentication storage and
-email delivery adapters are not configured, so stateful authentication routes
-return 503.
+storage adapters are not configured, so stateful authentication routes return
+503.
 
 Other Go services set `USER_SERVICE_BASE_URL` and initialize one authenticator
 at startup. Register its `Authenticate` method on protected routes and
