@@ -15,12 +15,6 @@ migrate-down:
 goose-create:
 	@goose -dir $(MIGRATIONS_DIR) create $(name) sql
 
-seed:
-	@goose postgres "$(DATABASE_URL)" -dir ./database/seed -no-versioning up
-
-unseed:
-	@goose postgres "$(DATABASE_URL)" -dir ./database/seed -no-versioning down
-
 dropDB:
 	@dropdb user_dev
 
