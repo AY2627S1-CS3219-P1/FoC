@@ -70,17 +70,17 @@ provides email magic-link authentication and ES256 access and refresh tokens.
 
 The authentication routes are:
 
-- `POST /auth` requests a login or registration link for an email address.
-- `POST /auth/login` consumes a login token.
-- `POST /auth/register` consumes a registration token and accepts a
+- `POST /api/auth` requests a login or registration link for an email address.
+- `POST /api/auth/login` consumes a login token.
+- `POST /api/auth/register` consumes a registration token and accepts a
   display name.
-- `POST /auth/refresh` rotates the refresh token.
-- `POST /auth/logout` revokes the refresh token.
+- `POST /api/auth/refresh` rotates the refresh token.
+- `POST /api/auth/logout` revokes the refresh token.
 
 Successful login, registration, and refresh return `data.accessToken`. Clients
 hold this token in memory and send it in the `Authorization: Bearer` header.
 The refresh token is only sent as a `foc-refresh-token` cookie with Secure,
-HttpOnly, SameSite=Strict and Path=/auth. Refresh and logout read that cookie;
+HttpOnly, SameSite=Strict and Path=/api/auth. Refresh and logout read that cookie;
 logout clears it. The access and refresh lifetimes come from the two JWT TTL
 environment variables. Link requests return a generic acknowledgment; the
 magic link is passed only to the injected email sender. The configured

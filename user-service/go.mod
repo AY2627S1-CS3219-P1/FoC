@@ -18,10 +18,13 @@ require (
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )
 
 require (
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
+	github.com/MicahParks/jwkset v0.11.3
+	github.com/MicahParks/keyfunc/v3 v3.8.2
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.7.6
