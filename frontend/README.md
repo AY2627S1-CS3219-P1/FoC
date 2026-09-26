@@ -6,7 +6,7 @@ connected to the Go services.
 
 ## Run locally
 
-Requires Node.js `^20.19.0 || ^22.12.0 || >=24` and npm.
+Requires Node.js `>=22.12.0` and npm.
 
 ```sh
 cd frontend
