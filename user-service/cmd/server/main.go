@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/rs/cors"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
+	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 )
 
 const (
@@ -60,6 +60,9 @@ func getPort() string {
 	return "8080"
 }
 
+// getCorsConfig allows credentialed cross-origin requests from HTTP localhost
+// origins with a port and HTTPS yihao03*.expo.app origins. It allows Connect and
+// gRPC-Web request headers and exposes gRPC response status headers.
 func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
@@ -76,6 +79,19 @@ func getCorsConfig() *cors.Cors {
 		},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedHeaders: []string{
+			"Authorization",
+			"Content-Type",
+			"Connect-Protocol-Version",
+			"Connect-Timeout-Ms",
+			"Grpc-Timeout",
+			"X-Grpc-Web",
+			"X-User-Agent",
+		},
+		ExposedHeaders: []string{
+			"Grpc-Status",
+			"Grpc-Message",
+			"Grpc-Status-Details-Bin",
+		},
 	})
 }
