@@ -56,7 +56,7 @@ pkg/gen/foc/supplier/v1/supplierv1connect/
 ```
 
 Do not edit generated files. Change the `.proto` source and run
-`buf generate` instead.
+`npm run buf:generate` from `frontend` instead.
 
 Handwritten behavior belongs in this package:
 
@@ -213,8 +213,8 @@ adapters return protobuf responses and Connect error codes.
 ## Adding an RPC
 
 1. Change the appropriate `.proto` file.
-2. Run `frontend/node_modules/.bin/buf lint`.
-3. Run `frontend/node_modules/.bin/buf generate`.
+2. Run `npm run buf:lint` from `frontend`.
+3. Run `npm run buf:generate` from `frontend`.
 4. Inspect, but do not edit, the generated interface.
 5. Implement the generated method in this package.
 6. Mount the generated handler in the supplier router.

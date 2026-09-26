@@ -9,12 +9,12 @@ managed:
       value: github.com/AY2627S1-CS3219-P1/FoC/pkg/gen # for import path in generated Go code
 
 plugins:
-  - local: protoc-gen-go # data layer, i.e. structs and interfaces
+  - remote: buf.build/protocolbuffers/go:v1.36.12 # data layer, i.e. structs and interfaces
     out: pkg/gen
     opt:
       - paths=source_relative # preserve the schema’s directory structure inside the output directory
 
-  - local: protoc-gen-connect-go # handlers, i.e. Connect client/transport code
+  - remote: buf.build/connectrpc/go:v1.21.0 # handlers, i.e. Connect client/transport code
     out: pkg/gen
     opt:
       - paths=source_relative # preserve the schema’s directory structure inside the output directory
