@@ -41,7 +41,8 @@ const (
 	MaxPageSize     = 100
 )
 
-// Normalize clamps paging params to sane bounds.
+// Normalize returns a copy with nonpositive limits set to DefaultPageSize,
+// limits above MaxPageSize capped, and negative offsets set to zero.
 func (p ListParams) Normalize() ListParams {
 	if p.Limit <= 0 {
 		p.Limit = DefaultPageSize
@@ -64,4 +65,6 @@ type SupplierChecker interface {
 
 type AllowAllSuppliers struct{}
 
+// SupplierExists accepts every supplier ID without contacting the supplier service
+// and always returns true, nil.
 func (AllowAllSuppliers) SupplierExists(context.Context, uuid.UUID) (bool, error) { return true, nil }

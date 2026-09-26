@@ -28,6 +28,7 @@ const (
 	DEFAULT_DB_MAX_IDLE     = 5
 )
 
+// main runs the user service and exits with status 1 if run returns an error.
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
 	if err := run(log); err != nil {
@@ -36,6 +37,10 @@ func main() {
 	}
 }
 
+// run loads optional .env settings, opens the database, and serves HTTP, applying
+// migrations unless RUN_MIGRATIONS is false. SIGINT or SIGTERM starts a shutdown
+// with a 10-second timeout. It returns configuration, database, migration,
+// serving, or shutdown errors; .env load errors do not prevent startup.
 func run(log *slog.Logger) error {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Warn("no .env file loaded", "err", err)
@@ -97,7 +102,8 @@ func run(log *slog.Logger) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// newRouter wires routes against the GORM handle. Add user routes here.
+// newRouter returns the API handler. GET /api/health returns 200 with "ok" when
+// the database ping succeeds, or 503 when the connection or ping fails.
 func newRouter(db *gorm.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -128,6 +134,8 @@ func getPort() string {
 	return "8080"
 }
 
+// getEnvInt parses the trimmed environment value as a decimal integer, returning
+// fallback if it is unset, empty, invalid, or out of range for int.
 func getEnvInt(key string, fallback int) int {
 	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key))); err == nil {
 		return v
@@ -135,6 +143,8 @@ func getEnvInt(key string, fallback int) int {
 	return fallback
 }
 
+// getEnvBool parses the trimmed environment value with strconv.ParseBool,
+// returning fallback if it is unset, empty, or invalid.
 func getEnvBool(key string, fallback bool) bool {
 	if v, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(key))); err == nil {
 		return v

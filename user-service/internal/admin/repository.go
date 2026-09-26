@@ -43,8 +43,11 @@ type Repository interface {
 
 type gormRepository struct{ db *gorm.DB }
 
+// NewRepository uses db for admin and moderation persistence.
 func NewRepository(db *gorm.DB) Repository { return &gormRepository{db: db} }
 
+// GetUser returns the user or errNotFound if absent. Other database errors
+// are returned unchanged.
 func (r *gormRepository) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var u models.User
 	err := r.db.WithContext(ctx).Take(&u, "id = ?", id).Error
@@ -57,12 +60,15 @@ func (r *gormRepository) GetUser(ctx context.Context, id uuid.UUID) (*models.Use
 	return &u, nil
 }
 
+// ListDomains returns allowed domains in domain order and any database error.
 func (r *gormRepository) ListDomains(ctx context.Context) ([]models.AllowedEmailDomain, error) {
 	var ds []models.AllowedEmailDomain
 	err := r.db.WithContext(ctx).Order("domain").Find(&ds).Error
 	return ds, err
 }
 
+// AddDomain inserts d, mapping GORM duplicate-key and check-constraint errors
+// to errDuplicate and errInvalidDomain. Other database errors are returned unchanged.
 func (r *gormRepository) AddDomain(ctx context.Context, d *models.AllowedEmailDomain) error {
 	err := r.db.WithContext(ctx).Create(d).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -74,6 +80,8 @@ func (r *gormRepository) AddDomain(ctx context.Context, d *models.AllowedEmailDo
 	return err
 }
 
+// DeleteDomain deletes the allowed domain or returns errNotFound if absent.
+// Other database errors are returned unchanged.
 func (r *gormRepository) DeleteDomain(ctx context.Context, id uuid.UUID) error {
 	res := r.db.WithContext(ctx).Delete(&models.AllowedEmailDomain{}, "id = ?", id)
 	if res.Error != nil {
@@ -85,6 +93,10 @@ func (r *gormRepository) DeleteDomain(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// ChangeRole atomically updates the user from c.FromRole to c.ToRole and records c.
+// A missing user or mismatched current role returns errRoleConflict; database errors
+// are propagated. A zero c.CreatedAt is filled with the current UTC time, which
+// also becomes the user's updated_at. Changes to c can remain after a rollback.
 func (r *gormRepository) ChangeRole(ctx context.Context, c *models.RoleChange) error {
 	// Set before the update so users.updated_at never gets the zero time.
 	if c.CreatedAt.IsZero() {
@@ -104,12 +116,17 @@ func (r *gormRepository) ChangeRole(ctx context.Context, c *models.RoleChange) e
 	})
 }
 
+// RoleChanges returns the user's role history, newest first, and any database error.
 func (r *gormRepository) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.RoleChange, error) {
 	var cs []models.RoleChange
 	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&cs).Error
 	return cs, err
 }
 
+// CreateWarning inserts w or loads the existing warning into w on a SourceEventID
+// conflict. With a nil error, the result is true for an insert and false for a replay.
+// A nil SourceEventID disables deduplication. Insert and lookup errors are propagated;
+// the boolean alone does not indicate success.
 func (r *gormRepository) CreateWarning(ctx context.Context, w *models.AccountWarning) (bool, error) {
 	db := r.db.WithContext(ctx)
 	if w.SourceEventID == nil {
@@ -125,6 +142,8 @@ func (r *gormRepository) CreateWarning(ctx context.Context, w *models.AccountWar
 	return false, db.Take(w, "source_event_id = ?", *w.SourceEventID).Error
 }
 
+// GetWarning returns a warning of either status or errNotFound if absent.
+// Other database errors are returned unchanged.
 func (r *gormRepository) GetWarning(ctx context.Context, id uuid.UUID) (*models.AccountWarning, error) {
 	var w models.AccountWarning
 	err := r.db.WithContext(ctx).Take(&w, "id = ?", id).Error
@@ -137,12 +156,17 @@ func (r *gormRepository) GetWarning(ctx context.Context, id uuid.UUID) (*models.
 	return &w, nil
 }
 
+// Warnings returns the user's active and removed warnings, newest first,
+// and any database error.
 func (r *gormRepository) Warnings(ctx context.Context, userID uuid.UUID) ([]models.AccountWarning, error) {
 	var ws []models.AccountWarning
 	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&ws).Error
 	return ws, err
 }
 
+// RemoveWarning marks an active warning removed at now, stores the optional
+// reason and appeal ID, and returns the updated warning. A missing or already
+// removed warning returns errNotFound; database errors are propagated.
 func (r *gormRepository) RemoveWarning(ctx context.Context, id uuid.UUID, now time.Time, reason *string, appealID *uuid.UUID) (*models.AccountWarning, error) {
 	var w models.AccountWarning
 	err := r.db.WithContext(ctx).Raw(`

@@ -17,6 +17,8 @@ import (
 
 // Open connects to Postgres via GORM. TranslateError maps driver errors
 // (e.g. unique violations) to gorm.ErrDuplicatedKey etc.
+// maxOpen and maxIdle configure the connection pool limits; GORM timestamps use UTC.
+// Connection setup and ping errors are returned, with their causes preserved.
 func Open(dsn string, maxOpen, maxIdle int) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		TranslateError: true,
@@ -50,6 +52,8 @@ func Open(dsn string, maxOpen, maxIdle int) (*gorm.DB, error) {
 // migrations/. The goose CLI works on the same files:
 //
 //	goose -dir migrations postgres "$DATABASE_URL" status|up|down
+//
+// It returns errors from obtaining the SQL handle or constructing the provider.
 func Migrator(db *gorm.DB) (*goose.Provider, error) {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -60,6 +64,7 @@ func Migrator(db *gorm.DB) (*goose.Provider, error) {
 
 // Migrate applies all pending up-migrations. Versioned SQL instead of GORM
 // AutoMigrate so schema changes are reviewable.
+// Provider errors are returned unchanged; migration errors are wrapped with "goose up".
 func Migrate(db *gorm.DB) error {
 	p, err := Migrator(db)
 	if err != nil {

@@ -24,6 +24,7 @@ type AllowedEmailDomain struct {
 	CreatedAt time.Time
 }
 
+// TableName maps AllowedEmailDomain to the allowed_email_domains table for GORM.
 func (AllowedEmailDomain) TableName() string { return "allowed_email_domains" }
 
 // AuthToken is a magic link. TokenHash = sha256(raw token); the raw token only
@@ -40,6 +41,7 @@ type AuthToken struct {
 	UsedAt      *time.Time
 }
 
+// TableName maps AuthToken to the auth_tokens table for GORM.
 func (AuthToken) TableName() string { return "auth_tokens" }
 
 // Session is an opaque server-side session (U2.2). TokenHash = sha256(cookie value).
@@ -55,9 +57,11 @@ type Session struct {
 	RevokedAt  *time.Time
 }
 
+// TableName maps Session to the sessions table for GORM.
 func (Session) TableName() string { return "sessions" }
 
-// IsActive reports whether the session can authenticate a request at t.
+// IsActive reports whether the session is unrevoked and t is strictly before
+// its expiry. It does not check the user's role.
 func (s *Session) IsActive(t time.Time) bool {
 	return s.RevokedAt == nil && t.Before(s.ExpiresAt)
 }

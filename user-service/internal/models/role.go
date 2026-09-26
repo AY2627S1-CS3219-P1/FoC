@@ -41,6 +41,7 @@ type Role struct {
 	CreatedAt   time.Time
 }
 
+// TableName maps Role to the roles table for GORM.
 func (Role) TableName() string { return "roles" }
 
 // AdminBootstrap is a singleton row guarding first-admin signup (U4.2).
@@ -50,4 +51,5 @@ type AdminBootstrap struct {
 	BootstrappedAt time.Time `gorm:"not null;autoCreateTime"`
 }
 
+// TableName maps AdminBootstrap to the admin_bootstrap table for GORM.
 func (AdminBootstrap) TableName() string { return "admin_bootstrap" }

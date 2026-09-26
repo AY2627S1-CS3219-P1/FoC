@@ -19,6 +19,7 @@ type RoleChange struct {
 	CreatedAt time.Time
 }
 
+// TableName maps RoleChange to the role_changes table for GORM.
 func (RoleChange) TableName() string { return "role_changes" }
 
 type WarningStatus string
@@ -44,4 +45,5 @@ type AccountWarning struct {
 	AppealID      *uuid.UUID `gorm:"type:uuid"`
 }
 
+// TableName maps AccountWarning to the account_warnings table for GORM.
 func (AccountWarning) TableName() string { return "account_warnings" }
