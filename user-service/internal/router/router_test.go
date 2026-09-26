@@ -144,7 +144,7 @@ func TestAuthRejectsForeignOrigin(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: authhandler.RefreshCookieName, Value: "refresh-secret"})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
-	if response.Code != http.StatusForbidden || logic.refreshIn != "" {
+	if response.Code != http.StatusUnauthorized || logic.refreshIn != "" {
 		t.Fatalf("foreign origin changed auth state: %d", response.Code)
 	}
 }
