@@ -23,8 +23,10 @@ type User struct {
 	UpdatedAt         time.Time
 }
 
+// TableName maps User to the users table for GORM.
 func (User) TableName() string { return "users" }
 
+// IsSuspended reports whether the user has the suspended role.
 func (u *User) IsSuspended() bool { return u.Role == RoleSuspended }
 
 // IsAdmin is true for admin and super_admin.
@@ -38,4 +40,5 @@ type FavouriteSupplier struct {
 	CreatedAt  time.Time
 }
 
+// TableName maps FavouriteSupplier to the favourite_suppliers table for GORM.
 func (FavouriteSupplier) TableName() string { return "favourite_suppliers" }
