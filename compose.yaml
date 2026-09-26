@@ -31,9 +31,11 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
-      APP_ENV: ${APP_ENV:local}
+      APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
     volumes:
       - ./user-service:/app
       - ./pkg:/pkg
