@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package foc.user.v1; // user service
+package supplier.v1; // supplier service
 
 service HealthService {
   rpc Check(CheckRequest) returns (CheckResponse) {}

@@ -45,14 +45,14 @@ grpcWebClient := supplierv1connect.NewHealthServiceClient(
 The contract is defined in:
 
 ```text
-proto/foc/supplier/v1/
+proto/supplier/v1/
 ```
 
 Buf generates the corresponding Go code in:
 
 ```text
-pkg/gen/foc/supplier/v1/
-pkg/gen/foc/supplier/v1/supplierv1connect/
+pkg/gen/supplier/v1/
+pkg/gen/supplier/v1/supplierv1connect/
 ```
 
 Do not edit generated files. Change the `.proto` source and run

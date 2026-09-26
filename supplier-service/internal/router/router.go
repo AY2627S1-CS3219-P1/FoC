@@ -3,7 +3,7 @@ package router
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1/supplierv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"

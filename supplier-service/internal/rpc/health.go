@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1/supplierv1connect"
+	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 )
 
 // Return unimplemented for generated methods that HealthServer has not implemented
