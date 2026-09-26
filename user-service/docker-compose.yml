@@ -1,0 +1,42 @@
+services:
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user_svc
+      POSTGRES_PASSWORD: user_svc
+      POSTGRES_DB: users
+    ports:
+      - "5433:5432"
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_svc -d users"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches all outgoing mail. Web UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  user-service:
+    build: .
+    environment:
+      DATABASE_URL: postgres://user_svc:user_svc@user-db:5432/users?sslmode=disable
+      HTTP_ADDR: ":8080"
+      SMTP_ADDR: mailpit:1025
+      MAIL_FROM: no-reply@localhost
+      APP_BASE_URL: http://localhost:5173
+    ports:
+      - "8081:8080"
+    depends_on:
+      user-db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+volumes:
+  user-db-data:

@@ -1,81 +1,88 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/rs/cors"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/firebase"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
-)
-
-const (
-	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
+	"user-service/internal/app"
+	"user-service/internal/clock"
+	"user-service/internal/config"
+	"user-service/internal/database"
+	"user-service/internal/mail"
 )
 
 func main() {
-	slog.SetDefault(slog.Default().With("service", "user-service"))
-	slog.Info("Starting server...")
-	if err := godotenv.Load(".env"); err != nil {
-		slog.Error("Error loading .env file", "error", err)
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if err := run(log); err != nil {
+		log.Error("fatal", "err", err)
+		os.Exit(1)
 	}
+}
 
-	app, err := firebase.InitFirebase()
+func run(log *slog.Logger) error {
+	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("Error initializing firebase", "error", err)
-		panic(err)
+		return err
 	}
 
-	queries, pgxPool := database.Connect()
-	defer pgxPool.Close()
+	db, err := database.Open(cfg.DatabaseURL, cfg.DBMaxOpen, cfg.DBMaxIdle)
+	if err != nil {
+		return err
+	}
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
 
-	r := router.Setup(deps.New(queries, app, pgxPool))
-	cors := getCorsConfig().Handler(r)
-
-	port := getPort()
-
-	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           cors,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+	if cfg.RunMigrations {
+		if err := database.Migrate(db); err != nil {
+			return err
+		}
+		log.Info("migrations applied")
 	}
 
-	slog.Info("Listening on :" + port)
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error("Server failed to start: %v", "error", err)
-		panic(err)
-	}
-}
-
-func getPort() string {
-	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
-		return port
-	}
-	return "8080"
-}
-
-func getCorsConfig() *cors.Cors {
-	return cors.New(cors.Options{
-		AllowOriginFunc: func(origin string) bool {
-			// Allow localhost for development (any local port)
-			if strings.HasPrefix(origin, "http://localhost:") {
-				return true
-			}
-			// Allow Expo dev URLs matching pattern
-			// This will match: https://yihao03-<project>-<hash>.expo.app
-			if len(origin) > 20 && origin[:15] == "https://yihao03" && origin[len(origin)-9:] == ".expo.app" {
-				return true
-			}
-			return false
+	handler := app.NewRouter(app.Deps{
+		DB:     db,
+		Config: cfg,
+		Log:    log,
+		Mailer: mail.SMTP{
+			Addr: cfg.Mail.SMTPAddr, From: cfg.Mail.From,
+			Username: cfg.Mail.Username, Password: cfg.Mail.Password,
 		},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		Clock:     clock.Real{},
+		AsyncMail: true,
 	})
+
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Info("listening", "addr", cfg.HTTPAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	log.Info("shutting down")
+	return srv.Shutdown(shutdownCtx)
 }

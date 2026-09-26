@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS admin_bootstrap;
+DROP INDEX IF EXISTS idx_users_role;
+ALTER TABLE users DROP COLUMN IF EXISTS role;
+DROP TABLE IF EXISTS roles;
