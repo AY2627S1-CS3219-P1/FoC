@@ -39,8 +39,11 @@ type Repository interface {
 
 type gormRepository struct{ db *gorm.DB }
 
+// NewRepository uses db for magic-link and session persistence.
 func NewRepository(db *gorm.DB) Repository { return &gormRepository{db: db} }
 
+// DomainAllowed reports whether the whitelist is empty or contains domain,
+// using the database's case-insensitive comparison. Query errors are propagated.
 func (r *gormRepository) DomainAllowed(ctx context.Context, domain string) (bool, error) {
 	var ok bool
 	err := r.db.WithContext(ctx).Raw(`
@@ -50,6 +53,8 @@ func (r *gormRepository) DomainAllowed(ctx context.Context, domain string) (bool
 	return ok, err
 }
 
+// UserByEmail looks up an email case-insensitively, returning nil, nil if absent.
+// Other database errors are returned unchanged.
 func (r *gormRepository) UserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var u models.User
 	err := r.db.WithContext(ctx).Take(&u, "email = ?", email).Error
@@ -62,6 +67,9 @@ func (r *gormRepository) UserByEmail(ctx context.Context, email string) (*models
 	return &u, nil
 }
 
+// RecentLinkCounts counts tokens created strictly after since for email and ip,
+// including used and expired tokens of either purpose. An empty ip yields a zero
+// IP count. Database errors, including invalid IP casts, are propagated.
 func (r *gormRepository) RecentLinkCounts(ctx context.Context, email, ip string, since time.Time) (int64, int64, error) {
 	var out struct{ ByEmail, ByIP int64 }
 	err := r.db.WithContext(ctx).Raw(`
@@ -72,12 +80,16 @@ func (r *gormRepository) RecentLinkCounts(ctx context.Context, email, ip string,
 	return out.ByEmail, out.ByIP, err
 }
 
+// CreateToken stores t with its supplied token hash and expiry without invalidating
+// older tokens. Database errors are returned unchanged.
 func (r *gormRepository) CreateToken(ctx context.Context, t *models.AuthToken) error {
 	return r.db.WithContext(ctx).Create(t).Error
 }
 
 // consume atomically marks a token used. Covers invalid, expired and reused
 // links in one statement and is race-free (U1.2.4-7, U2.1.3-5).
+// It returns the updated token, or errLinkInvalid if the hash or purpose does not
+// match an unused token expiring strictly after now. Database errors are propagated.
 func consume(tx *gorm.DB, hash []byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
 	var t models.AuthToken
 	err := tx.Raw(`
@@ -93,6 +105,13 @@ func consume(tx *gorm.DB, hash []byte, purpose models.TokenPurpose, now time.Tim
 	return &t, nil
 }
 
+// Register consumes an unused registration token identified by its SHA-256 hash,
+// valid strictly after now, and creates u and s in one transaction. It replaces
+// u.Email with the token email and sets u.Role to user, or super_admin when it claims
+// the bootstrap row (also recording that role change). It sets s.UserID to u.ID;
+// callers supply the session hash and expiry. Mutations to u and s can survive rollback.
+// Invalid, expired, or used links return errLinkInvalid. A GORM duplicate-key error
+// creating u becomes errEmailTaken; other database and transaction errors propagate.
 func (r *gormRepository) Register(ctx context.Context, hash []byte, now time.Time, u *models.User, s *models.Session) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		t, err := consume(tx, hash, models.TokenPurposeRegister, now)
@@ -131,6 +150,11 @@ func (r *gormRepository) Register(ctx context.Context, hash []byte, now time.Tim
 	})
 }
 
+// Login consumes an unused login token identified by its SHA-256 hash, valid
+// strictly after now, and creates s for the token's user in one transaction.
+// It returns that user and sets s.UserID; callers supply the session hash and expiry.
+// Mutations to s can survive rollback. Invalid, expired, or used links and missing
+// users return errLinkInvalid; other database and transaction errors propagate.
 func (r *gormRepository) Login(ctx context.Context, hash []byte, now time.Time, s *models.Session) (*models.User, error) {
 	var u models.User
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -153,6 +177,10 @@ func (r *gormRepository) Login(ctx context.Context, hash []byte, now time.Time, 
 	return &u, nil
 }
 
+// ActiveSession returns the unrevoked session matching the SHA-256 token hash
+// and its user, provided the session expires strictly after now. It returns
+// nil, nil, nil if either is absent. It does not filter by user role or touch
+// last_seen_at. Other database errors are propagated.
 func (r *gormRepository) ActiveSession(ctx context.Context, hash []byte, now time.Time) (*models.Session, *models.User, error) {
 	var s models.Session
 	err := r.db.WithContext(ctx).
@@ -173,21 +201,30 @@ func (r *gormRepository) ActiveSession(ctx context.Context, hash []byte, now tim
 	return &s, &u, nil
 }
 
+// TouchSession sets last_seen_at to now, even for expired or revoked sessions.
+// A missing session is a no-op; database errors are propagated.
 func (r *gormRepository) TouchSession(ctx context.Context, id uuid.UUID, now time.Time) error {
 	return r.db.WithContext(ctx).Model(&models.Session{}).Where("id = ?", id).Update("last_seen_at", now).Error
 }
 
+// RevokeSession sets revoked_at to now if the session has not been revoked,
+// including expired sessions. Missing or already revoked sessions are no-ops;
+// database errors are propagated.
 func (r *gormRepository) RevokeSession(ctx context.Context, id uuid.UUID, now time.Time) error {
 	return r.db.WithContext(ctx).Model(&models.Session{}).
 		Where("id = ? AND revoked_at IS NULL", id).Update("revoked_at", now).Error
 }
 
+// RevokeUserSessions sets revoked_at to now on all unrevoked sessions for the
+// user, including expired sessions. It returns the affected row count and any
+// database error.
 func (r *gormRepository) RevokeUserSessions(ctx context.Context, userID uuid.UUID, now time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Model(&models.Session{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).Update("revoked_at", now)
 	return res.RowsAffected, res.Error
 }
 
+// nullIfEmpty returns nil for an empty string, or a pointer to a copy of s.
 func nullIfEmpty(s string) *string {
 	if s == "" {
 		return nil
