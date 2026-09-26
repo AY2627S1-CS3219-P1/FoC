@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/foc/supplier/v1/supplierv1connect"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 )
 
 func TestHealthService(t *testing.T) {
