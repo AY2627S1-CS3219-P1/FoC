@@ -86,8 +86,9 @@ environment variables. Link requests return an empty typed response; the magic
 link is passed only to the injected email sender. The configured
 `EmptyEmailSender` discards it until an email delivery adapter is connected.
 
-Authentication storage and storage adapters are not configured, so stateful
-authentication methods return `unavailable`.
+Authentication persistence is wired to the user-service store. Email delivery
+is not configured yet, so `RequestLink` currently stores the challenge but the
+configured `EmptyEmailSender` discards the link instead of delivering it.
 
 Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
 and initialize one authenticator at startup. The authenticator fetches keys

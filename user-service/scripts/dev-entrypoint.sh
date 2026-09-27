@@ -15,5 +15,5 @@ if [ "${APP_ENV:-}" = local ]; then
 	fi
 fi
 
-goose -dir database/schema postgres "$DATABASE_URL" up
+goose -dir migrations postgres "$DATABASE_URL" up
 exec air -c .air.toml
