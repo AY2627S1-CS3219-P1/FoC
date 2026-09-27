@@ -1,7 +1,6 @@
 # Conventions
 
 ## REST handlers
-
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
 - App deps come from `env` (`Queries`, `Firebase`, `Pool`). Never take
@@ -46,23 +45,29 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 
 ## Connect RPC
 
+
 - API contracts live under `proto/<service>/v1` and use the protobuf package
   `<service>.v1`. Keep service names unique within this repository.
 - Buf generates Go messages and Connect handlers under `pkg/gen`, and
   TypeScript messages and service descriptors under `frontend/src/lib/gen`.
   Implementers and callers import generated types, but never edit generated
-  files. Protobuf messages are external API contracts; domain and sqlc types
-  remain internal.
+  files. Protobuf messages are external API contracts; domain, sqlc and GORM
+  types remain internal.
 - After changing a contract, run `npm run buf:lint` and
   `npm run buf:generate` from `frontend`. Commit the contract and generated
   output together.
-- Handwritten Go implementations live under the service's `internal/rpc`
-  package and embed the generated unimplemented handler. Mount the generated
-  handler in the service router.
-- Pass application dependencies to each RPC service constructor. Do not add a
-  generic wrapper around generated handlers. Reuse the request context for
-  database and network calls; request metadata comes from the Connect request
-  or context.
+- Handwritten Go implementations embed the generated unimplemented handler.
+  Mount the generated handler in the service router.
+  - supplier-service: implementations live under `internal/rpc`. Pass
+    application dependencies to each RPC service constructor.
+  - user-service: handlers live in `internal/handlers/<domain>`. A handler is
+    a struct that holds its dependencies as fields (see "Dependencies and
+    interfaces").
+- Do not add a generic wrapper around generated handlers. Reuse the request
+  context for database and network calls; request metadata comes from the
+  Connect request or context.
+- Handlers translate between protobuf and domain types and map domain errors
+  to Connect codes (`connect.NewError`). Business rules stay out of handlers.
 - Health RPCs are public. Before mounting a protected RPC, add
   authentication at the HTTP middleware boundary and method-level
   authorization through Connect interceptors. Generated RPC paths do not
@@ -76,18 +81,55 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
   server transport boundary. Add protocol-specific cases elsewhere only when
   behavior differs by protocol.
 
+## Dependencies and interfaces (user-service)
+
+- Inject dependencies as struct fields, set once in `cmd/server/main.go`
+  (the composition root), e.g. `&health.Handler{DB: sqlDB}`. Do not pass
+  shared dependencies as per-call function parameters or through a global
+  env struct.
+- Interfaces are declared by the package that consumes them and list only
+  the methods it calls (e.g. a handler's `Logic`, a logic package's
+  `UserStore`). Implementations return concrete types; never return an
+  interface from a constructor.
+- Layers: `internal/handlers/<domain>` (Connect adapter) →
+  `internal/<domain>` (business rules and the store interfaces they need) →
+  `internal/store` (GORM persistence over `internal/models`).
+- Errors are package-level sentinels checked with `errors.Is`. `store`
+  returns its own sentinels (`store.ErrNotFound`, ...); logic packages map
+  them to domain errors; handlers map domain errors to Connect codes.
+- Unit-test logic with fakes of the consumer-defined interfaces; test
+  `store` against a real database.
+
 ## Database
+
+Supplier Service uses sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
-- After changing either, run `make sqlc` in the affected service. Supplier
-  Service generates `internal/database/userdb` and `internal/database/seeddb`;
-  User Service generates `internal/database/sqlc`. Never hand-edit generated
-  files.
+- After changing either, run `make sqlc`. It generates
+  `internal/database/userdb` and `internal/database/seeddb`. Never hand-edit
+  generated files.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+User Service uses GORM:
+
+- `migrations/`: goose migrations, one `0000N_name.sql` per change with
+  `-- +goose Up` / `-- +goose Down`. They are embedded in the binary and
+  applied on startup unless `RUN_MIGRATIONS=false`. Never edit an applied
+  migration. `make migrate-up/down`, `make goose-create name=...`.
+- `internal/models`: GORM structs whose tags mirror the SQL. The migrations
+  own the schema; do not use `AutoMigrate`.
+- `internal/store`: GORM queries. Translate GORM errors (`gorm.ErrRecordNotFound`,
+  `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
+  become a 500.
+- `internal/models/schema_integration_test.go` runs every migration up, down
+  and up again and checks the constraints. It runs only when
+  `TEST_DATABASE_URL` points at a throwaway database, because it wipes the schema.
 
 Docs: [goose](https://github.com/pressly/goose),
 [sqlc](https://docs.sqlc.dev/en/stable/reference/config.html),
+[GORM](https://gorm.io/docs/),
+[Connect](https://connectrpc.com/docs/go/getting-started),
 [validator](https://github.com/go-playground/validator),
 [pgx](https://github.com/jackc/pgx).
 
