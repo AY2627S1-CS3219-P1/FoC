@@ -16,12 +16,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
-	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	userrpc "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/rpc"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 )
 
 const (
@@ -77,7 +76,7 @@ func run(log *slog.Logger) error {
 	addr := ":" + getPort()
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           getCorsConfig().Handler(newRouter(db)),
+		Handler:           getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})),
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 	}
 
@@ -105,35 +104,16 @@ func run(log *slog.Logger) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// newRouter returns the API handler. GET /api/health returns 200 with "ok" when
-// the database ping succeeds, or 503 when the connection or ping fails. The
-// user health RPC is mounted at its generated path, outside /api.
-func newRouter(db *gorm.DB) http.Handler {
+// newRouter mounts each Connect handler at its generated path. Handlers are
+// built in run with their dependencies set as fields.
+func newRouter(healthHandler *health.Handler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(sharedmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 
-	healthPath, healthHandler := userv1connect.NewHealthServiceHandler(
-		userrpc.NewHealthServer(),
-	)
-	r.Mount(healthPath, healthHandler)
-
-	r.Route("/api", func(r chi.Router) {
-		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-			sqlDB, err := db.DB()
-			if err == nil {
-				err = sqlDB.PingContext(r.Context())
-			}
-			if err != nil {
-				http.Error(w, "database unavailable", http.StatusServiceUnavailable)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-		})
-	})
+	r.Mount(userv1connect.NewHealthServiceHandler(healthHandler))
 	return r
 }
 
