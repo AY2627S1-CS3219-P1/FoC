@@ -28,6 +28,7 @@ require (
 	connectrpc.com/connect v1.21.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/rs/cors v1.11.1
