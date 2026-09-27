@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 )
 
 func TestES256Codec(t *testing.T) {
@@ -24,7 +26,7 @@ func TestES256Codec(t *testing.T) {
 	}
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	token, err := codec.Sign(Claims{Type: AccessToken, Subject: "u1", SessionID: "s1",
-		Role: RoleAdmin, IssuedAt: now, ExpiresAt: now.Add(AccessTokenLifetime), TokenID: "j1"})
+		Role: RoleAdmin, IssuedAt: now, ExpiresAt: now.Add(service.AccessTokenLifetime), TokenID: "j1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,11 +37,11 @@ func TestES256Codec(t *testing.T) {
 	if _, err := codec.Verify(token, RefreshToken, now); err == nil {
 		t.Fatal("access token accepted as refresh token")
 	}
-	if _, err := codec.Verify(token, AccessToken, now.Add(AccessTokenLifetime)); err == nil {
+	if _, err := codec.Verify(token, AccessToken, now.Add(service.AccessTokenLifetime)); err == nil {
 		t.Fatal("expired token accepted")
 	}
 	refreshToken, err := codec.Sign(Claims{Type: RefreshToken, Subject: "u1", SessionID: "s1",
-		IssuedAt: now, ExpiresAt: now.Add(RefreshTokenLifetime), TokenID: "j2"})
+		IssuedAt: now, ExpiresAt: now.Add(service.RefreshTokenLifetime), TokenID: "j2"})
 	if err != nil {
 		t.Fatal(err)
 	}

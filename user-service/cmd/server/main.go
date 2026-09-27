@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 
@@ -61,6 +62,10 @@ func run(log *slog.Logger) error {
 	if frontendURL == "" && local {
 		frontendURL = "http://localhost:5173"
 	}
+	frontend, err := url.Parse(frontendURL)
+	if err != nil {
+		return err
+	}
 
 	keyPath := strings.TrimSpace(os.Getenv("JWT_PRIVATE_KEY_FILE"))
 	if keyPath == "" && local {
@@ -77,21 +82,20 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	accessTTL, err := getDurationEnv("JWT_ACCESS_TOKEN_TTL", auth.AccessTokenLifetime)
+	accessTTL, err := getDurationEnv("JWT_ACCESS_TOKEN_TTL", service.AccessTokenLifetime)
 	if err != nil {
 		return err
 	}
-	refreshTTL, err := getDurationEnv("JWT_REFRESH_TOKEN_TTL", auth.RefreshTokenLifetime)
+	refreshTTL, err := getDurationEnv("JWT_REFRESH_TOKEN_TTL", service.RefreshTokenLifetime)
 	if err != nil {
 		return err
 	}
-	service, err := auth.NewService(auth.Dependencies{TokenCodec: codec, EmailSender: email.EmptyEmailSender{}}, auth.Config{
-		FrontendBaseURL: frontendURL, LocalDevelopment: local,
+	service, err := service.NewService(auth.Dependencies{TokenCodec: codec, EmailSender: email.EmptyEmailSender{}}, auth.Config{
+		FrontendBaseURL: *frontend, LocalDevelopment: local,
 		AccessTokenTTL: accessTTL, RefreshTokenTTL: refreshTTL})
 	if err != nil {
 		return err
 	}
-	frontend, _ := url.Parse(frontendURL) // validated by NewService
 	origin := frontend.Scheme + "://" + frontend.Host
 
 	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
