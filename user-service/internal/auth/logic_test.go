@@ -413,11 +413,139 @@ func TestProductionRequiresHTTPSFrontend(t *testing.T) {
 	}
 }
 
-func TestRequestLinkRequiresEmailSender(t *testing.T) {
+func TestMissingAuthDependenciesPanic(t *testing.T) {
+	ctx := context.Background()
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
-	service := setupService(t, newFakeStore(), &now, true, nil)
-	service.deps.EmailSender = nil
-	if err := service.RequestLink(context.Background(), "new@example.com"); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("missing email sender: %v", err)
+	newService := func(t *testing.T, store *fakeStore) *Service {
+		t.Helper()
+		return setupService(t, store, &now, true, nil)
 	}
+
+	t.Run("email sender", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.EmailSender = nil
+		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
+	})
+	t.Run("user store", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.Users = nil
+		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
+	})
+	t.Run("login token store while requesting link", func(t *testing.T) {
+		store := newFakeStore()
+		service := newService(t, store)
+		_ = addLoginChallenge(t, store, now)
+		service.deps.LoginTokens = nil
+		assertPanics(t, func() { _ = service.RequestLink(ctx, "user@example.com") })
+	})
+	t.Run("registration token store while requesting link", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.RegistrationTokens = nil
+		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
+	})
+	t.Run("login token store while completing login", func(t *testing.T) {
+		store := newFakeStore()
+		service := newService(t, store)
+		token := addLoginChallenge(t, store, now)
+		service.deps.LoginTokens = nil
+		assertPanics(t, func() { _, _, _ = service.Login(ctx, token) })
+	})
+	t.Run("token codec while completing login", func(t *testing.T) {
+		store := newFakeStore()
+		service := newService(t, store)
+		token := addLoginChallenge(t, store, now)
+		service.deps.TokenCodec = nil
+		assertPanics(t, func() { _, _, _ = service.Login(ctx, token) })
+	})
+	t.Run("registration token store while completing registration", func(t *testing.T) {
+		store := newFakeStore()
+		service := newService(t, store)
+		token := addRegistrationChallenge(t, store, now)
+		service.deps.RegistrationTokens = nil
+		assertPanics(t, func() { _, _, _ = service.Register(ctx, token, Profile{DisplayName: "New"}) })
+	})
+	t.Run("token codec while completing registration", func(t *testing.T) {
+		store := newFakeStore()
+		service := newService(t, store)
+		token := addRegistrationChallenge(t, store, now)
+		service.deps.TokenCodec = nil
+		assertPanics(t, func() { _, _, _ = service.Register(ctx, token, Profile{DisplayName: "New"}) })
+	})
+	t.Run("token codec while refreshing", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.TokenCodec = nil
+		assertPanics(t, func() { _, _ = service.Refresh(ctx, "refresh") })
+	})
+	t.Run("user store while refreshing", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Users = nil
+		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
+	})
+	t.Run("session store while refreshing", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Sessions = nil
+		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
+	})
+	t.Run("token codec while logging out", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.TokenCodec = nil
+		assertPanics(t, func() { _ = service.Logout(ctx, "refresh") })
+	})
+	t.Run("session store while logging out", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Sessions = nil
+		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
+	})
+	t.Run("token codec while reading public keys", func(t *testing.T) {
+		service := newService(t, newFakeStore())
+		service.deps.TokenCodec = nil
+		assertPanics(t, func() { _, _ = service.PublicKeys() })
+	})
+}
+
+func addLoginChallenge(t *testing.T, store *fakeStore, now time.Time) string {
+	t.Helper()
+	token, digest, err := randomToken(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := User{ID: "user-id", Email: "user@example.com", DisplayName: "User", Role: RoleUser}
+	store.users[user.ID] = user
+	store.logins[digest] = LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: now.Add(MagicLinkLifetime)}
+	return token
+}
+
+func addRegistrationChallenge(t *testing.T, store *fakeStore, now time.Time) string {
+	t.Helper()
+	token, digest, err := randomToken(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.registrations[digest] = RegistrationChallenge{
+		Digest: digest, Email: "new@example.com", ExpiresAt: now.Add(MagicLinkLifetime),
+	}
+	return token
+}
+
+func serviceWithRefreshToken(t *testing.T, now time.Time) (*Service, *fakeStore, string) {
+	t.Helper()
+	store := newFakeStore()
+	clock := now
+	service := setupService(t, store, &clock, true, nil)
+	token := addLoginChallenge(t, store, now)
+	_, tokens, err := service.Login(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service, store, tokens.RefreshToken
+}
+
+func assertPanics(t *testing.T, call func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected nil dependency to panic")
+		}
+	}()
+	call()
 }
