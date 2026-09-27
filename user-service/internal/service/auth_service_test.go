@@ -59,7 +59,7 @@ func (f *fakeStore) SaveLogin(_ context.Context, challenge auth.LoginChallenge) 
 	return nil
 }
 
-func (f *fakeStore) CompleteLogin(_ context.Context, digest [32]byte, now time.Time, factory auth.SessionFactory) (auth.User, auth.AuthTokens, error) {
+func (f *fakeStore) CompleteLogin(_ context.Context, digest [32]byte, now time.Time, factory SessionFactory) (auth.User, auth.AuthTokens, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	challenge, ok := f.logins[digest]
@@ -89,7 +89,7 @@ func (f *fakeStore) SaveRegistration(_ context.Context, challenge auth.Registrat
 	return nil
 }
 
-func (f *fakeStore) Complete(_ context.Context, digest [32]byte, profile auth.Profile, now time.Time, factory auth.SessionFactory) (auth.User, auth.AuthTokens, error) {
+func (f *fakeStore) Complete(_ context.Context, digest [32]byte, profile auth.Profile, now time.Time, factory SessionFactory) (auth.User, auth.AuthTokens, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	challenge, ok := f.registrations[digest]
@@ -145,7 +145,7 @@ func (a loginStoreAdapter) Save(ctx context.Context, c auth.LoginChallenge) erro
 	return a.SaveLogin(ctx, c)
 }
 
-func (a loginStoreAdapter) Complete(ctx context.Context, digest [32]byte, now time.Time, factory auth.SessionFactory) (auth.User, auth.AuthTokens, error) {
+func (a loginStoreAdapter) Complete(ctx context.Context, digest [32]byte, now time.Time, factory SessionFactory) (auth.User, auth.AuthTokens, error) {
 	return a.CompleteLogin(ctx, digest, now, factory)
 }
 
@@ -183,9 +183,9 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(auth.Dependencies{Users: store, LoginTokens: loginStoreAdapter{store},
+	service, err := NewService(Dependencies{Users: store, LoginTokens: loginStoreAdapter{store},
 		RegistrationTokens: registrationStoreAdapter{store}, Sessions: store, TokenCodec: codec, EmailSender: sender},
-		auth.Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
+		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestProductionLinkIsEmailOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	localEmailOnly, err := NewService(service.deps, auth.Config{FrontendBaseURL: *localURL,
+	localEmailOnly, err := NewService(service.deps, Config{FrontendBaseURL: *localURL,
 		LocalDevelopment: true, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatalf("local email-only mode rejected: %v", err)
@@ -421,7 +421,7 @@ func TestProductionRequiresHTTPSFrontend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewService(auth.Dependencies{}, auth.Config{FrontendBaseURL: *frontendURL}); err == nil {
+	if _, err := NewService(Dependencies{}, Config{FrontendBaseURL: *frontendURL}); err == nil {
 		t.Fatal("production configuration allowed an HTTP frontend")
 	}
 }
