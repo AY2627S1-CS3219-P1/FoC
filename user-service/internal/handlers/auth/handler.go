@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	logic "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
+	jwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 )
 
 var (
@@ -23,11 +23,11 @@ const (
 
 type Logic interface {
 	RequestLink(context.Context, string) error
-	Login(context.Context, string) (logic.User, logic.AuthTokens, error)
-	Register(context.Context, string, logic.Profile) (logic.User, logic.AuthTokens, error)
-	Refresh(context.Context, string) (logic.AuthTokens, error)
+	Login(context.Context, string) (jwt.User, jwt.AuthTokens, error)
+	Register(context.Context, string, jwt.Profile) (jwt.User, jwt.AuthTokens, error)
+	Refresh(context.Context, string) (jwt.AuthTokens, error)
 	Logout(context.Context, string) error
-	PublicKeys() (logic.JWKSet, error)
+	PublicKeys() (jwt.JWKSet, error)
 }
 
 // Handler adapts the authentication operations to the generated Connect APIs.
@@ -70,7 +70,7 @@ func (h *Handler) Register(
 	ctx context.Context,
 	req *connect.Request[userv1.RegisterRequest],
 ) (*connect.Response[userv1.RegisterResponse], error) {
-	user, tokens, err := h.Logic.Register(ctx, req.Msg.Token, logic.Profile{
+	user, tokens, err := h.Logic.Register(ctx, req.Msg.Token, jwt.Profile{
 		DisplayName: req.Msg.DisplayName,
 	})
 	if err != nil {
@@ -130,31 +130,31 @@ func (h *Handler) GetPublicKeys(
 	return result, nil
 }
 
-func userMessage(user logic.User) *userv1.User {
-	role := map[logic.Role]userv1.UserRole{
-		logic.RoleSuperAdmin:    userv1.UserRole_USER_ROLE_SUPER_ADMIN,
-		logic.RoleAdmin:         userv1.UserRole_USER_ROLE_ADMIN,
-		logic.RoleUser:          userv1.UserRole_USER_ROLE_USER,
-		logic.RoleSuspendedUser: userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+func userMessage(user jwt.User) *userv1.User {
+	role := map[jwt.Role]userv1.UserRole{
+		jwt.RoleSuperAdmin:    userv1.UserRole_USER_ROLE_SUPER_ADMIN,
+		jwt.RoleAdmin:         userv1.UserRole_USER_ROLE_ADMIN,
+		jwt.RoleUser:          userv1.UserRole_USER_ROLE_USER,
+		jwt.RoleSuspendedUser: userv1.UserRole_USER_ROLE_SUSPENDED_USER,
 	}[user.Role]
 	return &userv1.User{Id: user.ID, Email: user.Email, DisplayName: user.DisplayName, Role: role}
 }
 
-func setSessionHeaders(response interface{ Header() http.Header }, tokens logic.AuthTokens) {
+func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {
 	response.Header().Add("Set-Cookie", refreshCookie(tokens))
 	response.Header().Set("Cache-Control", "no-store")
 }
 
 func mapError(err error) error {
 	switch {
-	case errors.Is(err, logic.ErrUnavailable):
+	case errors.Is(err, jwt.ErrUnavailable):
 		return connect.NewError(connect.CodeUnavailable, errors.New("authentication service unavailable"))
-	case errors.Is(err, logic.ErrInvalidEmail), errors.Is(err, logic.ErrInvalidProfile):
+	case errors.Is(err, jwt.ErrInvalidEmail), errors.Is(err, jwt.ErrInvalidProfile):
 		return connect.NewError(connect.CodeInvalidArgument, err)
-	case errors.Is(err, logic.ErrLoginFailed), errors.Is(err, logic.ErrRegistrationFailed),
-		errors.Is(err, logic.ErrRefreshFailed):
+	case errors.Is(err, jwt.ErrLoginFailed), errors.Is(err, jwt.ErrRegistrationFailed),
+		errors.Is(err, jwt.ErrRefreshFailed):
 		return connect.NewError(connect.CodeUnauthenticated, err)
-	case errors.Is(err, logic.ErrAlreadyRegistered):
+	case errors.Is(err, jwt.ErrAlreadyRegistered):
 		return connect.NewError(connect.CodeAlreadyExists, errors.New("email already registered; request a login link"))
 	default:
 		return err

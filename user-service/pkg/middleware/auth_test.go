@@ -13,8 +13,8 @@ import (
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 )
 
@@ -23,17 +23,17 @@ func TestAccessMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	codec, err := auth.NewES256Codec(key, "test", middleware.TokenIssuer, middleware.TokenAudience)
+	codec, err := jwt.NewES256Codec(key, "test", middleware.TokenIssuer, middleware.TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	access, err := codec.Sign(auth.Claims{Type: auth.AccessToken, Subject: "u1", SessionID: "s1",
-		Role: auth.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j1"})
+	access, err := codec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: "u1", SessionID: "s1",
+		Role: jwt.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	refresh, err := codec.Sign(auth.Claims{Type: auth.RefreshToken, Subject: "u1", SessionID: "s1",
+	refresh, err := codec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: "u1", SessionID: "s1",
 		IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j2"})
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestAccessMiddleware(t *testing.T) {
 	}
 	protected := authenticator.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := middleware.ClaimsFromContext[middleware.AccessClaims](r.Context())
-		if !ok || claims.Subject != "u1" || claims.Role != string(auth.RoleUser) {
+		if !ok || claims.Subject != "u1" || claims.Role != string(jwt.RoleUser) {
 			t.Error("verified claims missing from context")
 		}
 		w.WriteHeader(http.StatusNoContent)

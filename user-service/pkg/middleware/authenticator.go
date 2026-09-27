@@ -16,7 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth/tokenclaims"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
 	"github.com/MicahParks/jwkset"
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"

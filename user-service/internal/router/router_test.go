@@ -13,13 +13,23 @@ import (
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
+	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/google/uuid"
 )
 
 const frontendOrigin = "https://app.example.test"
+
+// okPinger reports a reachable database to the health handler.
+type okPinger struct{}
+
+func (okPinger) PingContext(context.Context) error { return nil }
+
+func testHealth() *healthhandler.Handler { return &healthhandler.Handler{DB: okPinger{}} }
 
 type stubLogic struct {
 	requestErr      error
@@ -31,7 +41,7 @@ type stubLogic struct {
 	requestEmail    string
 	loginToken      string
 	registerToken   string
-	registerProfile auth.Profile
+	registerProfile jwt.Profile
 	refreshIn       string
 	logoutIn        string
 }
@@ -41,18 +51,18 @@ func (s *stubLogic) RequestLink(_ context.Context, email string) error {
 	return s.requestErr
 }
 
-func (s *stubLogic) Login(_ context.Context, token string) (auth.User, auth.AuthTokens, error) {
+func (s *stubLogic) Login(_ context.Context, token string) (models.User, jwt.AuthTokens, error) {
 	s.loginToken = token
 	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(_ context.Context, token string, profile auth.Profile) (auth.User, auth.AuthTokens, error) {
+func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	s.registerToken = token
 	s.registerProfile = profile
 	return testUser(), testTokens(), s.registerErr
 }
 
-func (s *stubLogic) Refresh(_ context.Context, token string) (auth.AuthTokens, error) {
+func (s *stubLogic) Refresh(_ context.Context, token string) (jwt.AuthTokens, error) {
 	s.refreshIn = token
 	return testTokens(), s.refreshErr
 }
@@ -62,16 +72,16 @@ func (s *stubLogic) Logout(_ context.Context, token string) error {
 	return s.logoutErr
 }
 
-func (s *stubLogic) PublicKeys() (auth.JWKSet, error) {
-	return auth.JWKSet{Keys: []auth.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
+func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
+	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
 }
 
-func testUser() auth.User {
-	return auth.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: auth.RoleUser}
+func testUser() models.User {
+	return models.User{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Email: "user@example.com", DisplayName: "User", Role: models.RoleUser}
 }
 
-func testTokens() auth.AuthTokens {
-	return auth.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
+func testTokens() jwt.AuthTokens {
+	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
 		AccessExpiry: time.Now().Add(service.AccessTokenLifetime), RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime)}
 }
 
@@ -80,7 +90,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal("unexpected refresh cookie name")
 	}
 	logic := &stubLogic{}
-	handler := router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin})
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
@@ -101,7 +111,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != "u1" ||
+	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {
 		t.Fatalf("unexpected login response: %+v", login.Msg)
@@ -158,7 +168,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 
 func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
@@ -180,7 +190,7 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 		t.Fatal("foreign origin reached auth logic")
 	}
 
-	logic.requestErr = auth.ErrUnavailable
+	logic.requestErr = jwt.ErrUnavailable
 	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
@@ -190,15 +200,15 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 		t.Fatalf("unexpected error was not normalized: %v", err)
 	}
 
-	logic.loginErr = auth.ErrLoginFailed
+	logic.loginErr = jwt.ErrLoginFailed
 	if _, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "bad"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed login returned %v", err)
 	}
-	logic.registerErr = auth.ErrAlreadyRegistered
+	logic.registerErr = jwt.ErrAlreadyRegistered
 	if _, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"})); connect.CodeOf(err) != connect.CodeAlreadyExists {
 		t.Fatalf("duplicate registration returned %v", err)
 	}
-	logic.refreshErr = auth.ErrRefreshFailed
+	logic.refreshErr = jwt.ErrRefreshFailed
 	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
 	}
@@ -206,7 +216,7 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 
 func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic}))
 	t.Cleanup(server.Close)
 
 	keysClient := userv1connect.NewPublicKeyServiceClient(server.Client(), server.URL)
@@ -236,7 +246,7 @@ func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 }
 
 func TestHealthRPCRejectsOversizedRequest(t *testing.T) {
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: &stubLogic{}}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}}))
 	t.Cleanup(server.Close)
 
 	body := bytes.NewReader(make([]byte, (1<<20)+1))
