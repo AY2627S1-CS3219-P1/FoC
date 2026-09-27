@@ -9,6 +9,12 @@ run:
 sqlc:
 	@cd $(SQLC_PATH) && sqlc generate
 
+test:
+	@go test ./...
+
+test-integration:
+	@go test -tags=integration ./internal/seed -count=1 -timeout=10m
+
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
 
@@ -19,10 +25,7 @@ goose-create:
 	@cd database/schema && goose create $(name) sql
 
 seed:
-	@goose postgres "$(DATABASE_URL)" -dir ./database/seed -no-versioning up
-
-unseed:
-	@goose postgres "$(DATABASE_URL)" -dir ./database/seed -no-versioning down
+	@go run ./cmd/seed
 
 dropDB:
 	@dropdb supplier_dev

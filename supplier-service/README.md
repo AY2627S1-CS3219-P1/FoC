@@ -22,3 +22,22 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
    1. Run `make migrate-up` in the project root to migrate database.
   
 1. Start the server: `make run`.
+
+## Seed data
+
+After applying migrations, run the repeatable Go importer from this directory:
+
+```sh
+DATABASE_URL='postgresql://username:password@host:5432/supplier_dev' make seed
+```
+
+It validates the committed Building, Supplier, and ordinary-Location CSV files before writing, imports them in one transaction, and reports inserted and updated counts. Rerunning it updates the same deterministic resources without creating duplicates.
+
+Run fast and PostgreSQL/PostGIS-backed tests separately:
+
+```sh
+make test
+make test-integration
+```
+
+See `.pi/docs/01-supplier-data-foundations/handoff.md` for the schema names, generated sqlc surface, source-key convention, and fixture assumptions used by downstream Location work.
