@@ -4,13 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	logic "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 )
-
-func refreshCookieHeader(tokens logic.AuthTokens) api.Option {
-	return api.WithHeader("Set-Cookie", authCookie(RefreshCookieName, tokens.RefreshToken, "/api/auth", tokens.RefreshExpiry))
-}
 
 func authCookie(name, value, path string, expiry time.Time) string {
 	maxAge := int(time.Until(expiry).Seconds())
@@ -22,14 +17,19 @@ func authCookie(name, value, path string, expiry time.Time) string {
 }
 
 func clearRefreshCookie() string {
-	return (&http.Cookie{Name: RefreshCookieName, Path: "/api/auth", Expires: time.Unix(0, 0),
+	return (&http.Cookie{Name: RefreshCookieName, Path: authServicePath, Expires: time.Unix(0, 0),
 		MaxAge: -1, Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode}).String()
 }
 
-func cookieValue(r *http.Request, name string) string {
-	cookie, err := r.Cookie(name)
+func cookieValue(header http.Header, name string) string {
+	request := &http.Request{Header: header}
+	cookie, err := request.Cookie(name)
 	if err != nil {
 		return ""
 	}
 	return cookie.Value
+}
+
+func refreshCookie(tokens logic.AuthTokens) string {
+	return authCookie(RefreshCookieName, tokens.RefreshToken, authServicePath, tokens.RefreshExpiry)
 }

@@ -5,7 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +14,79 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type publicKeyServiceStub struct {
+	mu            sync.Mutex
+	keys          []*userv1.JsonWebKey
+	err           error
+	requests      int
+	blockRefresh  bool
+	refreshOpened chan struct{}
+	allowRefresh  chan struct{}
+}
+
+func (s *publicKeyServiceStub) GetPublicKeys(
+	_ context.Context,
+	_ *connect.Request[userv1.GetPublicKeysRequest],
+) (*connect.Response[userv1.GetPublicKeysResponse], error) {
+	s.mu.Lock()
+	s.requests++
+	requestNumber := s.requests
+	keys := append([]*userv1.JsonWebKey(nil), s.keys...)
+	err := s.err
+	block := s.blockRefresh && requestNumber > 1
+	opened, release := s.refreshOpened, s.allowRefresh
+	s.mu.Unlock()
+	if block {
+		select {
+		case opened <- struct{}{}:
+		default:
+		}
+		<-release
+	}
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&userv1.GetPublicKeysResponse{Keys: keys}), nil
+}
+
+func connectKeyServer(t *testing.T, service userv1connect.PublicKeyServiceHandler) *httptest.Server {
+	t.Helper()
+	path, handler := userv1connect.NewPublicKeyServiceHandler(service)
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server
+}
+
+func protoKeys(set auth.JWKSet) []*userv1.JsonWebKey {
+	keys := make([]*userv1.JsonWebKey, 0, len(set.Keys))
+	for _, key := range set.Keys {
+		keys = append(keys, &userv1.JsonWebKey{
+			Kty: key.KeyType, Crv: key.Curve, X: key.X, Y: key.Y,
+			Use: key.Use, Alg: key.Algorithm, Kid: key.KeyID,
+		})
+	}
+	return keys
+}
+
+func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
+	t.Helper()
+	a, err := NewAuthenticator(context.Background(), AuthConfig{
+		UserServiceURL: baseURL, Issuer: TokenIssuer, Audience: TokenAudience,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
 
 func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
@@ -25,16 +95,8 @@ func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(codec.PublicKeys())
-	}))
-	t.Cleanup(server.Close)
-	a, err := NewAuthenticator(context.Background(), AuthConfig{
-		JWKSURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
+	a := newAuthenticator(t, server.URL)
 	now := time.Now().UTC().Truncate(time.Second)
 
 	t.Run("standard audience array", func(t *testing.T) {
@@ -88,7 +150,6 @@ func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
 			}
 		})
 	}
-
 	if _, err := a.verify(context.Background(), strings.Repeat("x", 8193)); !errors.Is(err, errInvalidAccessToken) {
 		t.Fatalf("oversized token: got %v, want invalid access token", err)
 	}
@@ -101,58 +162,36 @@ func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	valid, err := json.Marshal(codec.PublicKeys())
-	if err != nil {
+	valid := protoKeys(codec.PublicKeys())
+	duplicate := append(append([]*userv1.JsonWebKey(nil), valid...), valid[0])
+	malformed := append([]*userv1.JsonWebKey(nil), valid...)
+	malformed[0].X = "not-base64url"
+	wrongMetadata := append([]*userv1.JsonWebKey(nil), valid...)
+	wrongMetadata[0].Alg = "RS256"
+	oversized := append([]*userv1.JsonWebKey(nil), valid...)
+	noisy := make([]byte, 1_300_000)
+	if _, err := rand.Read(noisy); err != nil {
 		t.Fatal(err)
 	}
-	var duplicate auth.JWKSet
-	if err := json.Unmarshal(valid, &duplicate); err != nil {
-		t.Fatal(err)
-	}
-	duplicate.Keys = append(duplicate.Keys, duplicate.Keys[0])
-	duplicateJSON, err := json.Marshal(duplicate)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var malformed auth.JWKSet
-	if err := json.Unmarshal(valid, &malformed); err != nil {
-		t.Fatal(err)
-	}
-	malformed.Keys[0].X = "not-base64url"
-	malformedJSON, err := json.Marshal(malformed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var wrongMetadata auth.JWKSet
-	if err := json.Unmarshal(valid, &wrongMetadata); err != nil {
-		t.Fatal(err)
-	}
-	wrongMetadata.Keys[0].Algorithm = "RS256"
-	wrongMetadataJSON, err := json.Marshal(wrongMetadata)
-	if err != nil {
-		t.Fatal(err)
-	}
+	oversized[0].X = base64.RawURLEncoding.EncodeToString(noisy)
 
 	for _, tc := range []struct {
 		name string
-		body []byte
+		keys []*userv1.JsonWebKey
 	}{
-		{name: "empty set", body: []byte(`{"keys":[]}`)},
-		{name: "duplicate key ID", body: duplicateJSON},
-		{name: "malformed coordinate", body: malformedJSON},
-		{name: "wrong key metadata", body: wrongMetadataJSON},
-		{name: "trailing JSON", body: append(append([]byte{}, valid...), []byte(` {}`)...)},
-		{name: "oversized response", body: []byte(strings.Repeat(" ", (1<<20)+1))},
+		{name: "empty key set"},
+		{name: "duplicate key ID", keys: duplicate},
+		{name: "malformed coordinate", keys: malformed},
+		{name: "wrong key metadata", keys: wrongMetadata},
+		{name: "oversized response", keys: oversized},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = w.Write(tc.body)
-			}))
-			t.Cleanup(server.Close)
-			if _, err := NewAuthenticator(context.Background(), AuthConfig{
-				JWKSURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
-			}); err == nil {
-				t.Fatal("expected invalid JWKS to be rejected")
+			server := connectKeyServer(t, &publicKeyServiceStub{keys: tc.keys})
+			_, err := NewAuthenticator(context.Background(), AuthConfig{
+				UserServiceURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+			})
+			if err == nil {
+				t.Fatal("expected invalid key response to be rejected")
 			}
 		})
 	}
@@ -163,11 +202,11 @@ func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
 		t.Run(environment, func(t *testing.T) {
 			t.Setenv("APP_ENV", environment)
 			_, err := NewAuthenticator(context.Background(), AuthConfig{
-				JWKSURL: "http://user-service:8080/.well-known/jwks.json",
-				Issuer:  TokenIssuer, Audience: TokenAudience,
+				UserServiceURL: "http://user-service:8080",
+				Issuer:         TokenIssuer, Audience: TokenAudience,
 			})
-			if err == nil || err.Error() != "JWKS URL must use HTTPS outside local mode" {
-				t.Fatalf("got %v, want insecure JWKS URL rejection", err)
+			if err == nil || err.Error() != "user service URL must use HTTPS outside local mode" {
+				t.Fatalf("got %v, want insecure user service URL rejection", err)
 			}
 		})
 	}
@@ -180,27 +219,23 @@ func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	targetRequests := make(chan struct{}, 1)
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		targetRequests <- struct{}{}
-		_ = json.NewEncoder(w).Encode(codec.PublicKeys())
-	}))
-	t.Cleanup(target.Close)
+	service := &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())}
+	target := connectKeyServer(t, service)
 	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target.URL, http.StatusFound)
 	}))
 	t.Cleanup(redirect.Close)
 
 	_, err = NewAuthenticator(context.Background(), AuthConfig{
-		JWKSURL: redirect.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+		UserServiceURL: redirect.URL, Issuer: TokenIssuer, Audience: TokenAudience,
 	})
 	if err == nil {
-		t.Fatal("expected redirecting JWKS endpoint to be rejected")
+		t.Fatal("expected redirecting user service endpoint to be rejected")
 	}
-	select {
-	case <-targetRequests:
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if service.requests != 0 {
 		t.Fatal("redirect target was contacted")
-	default:
 	}
 }
 
@@ -216,48 +251,26 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	var state struct {
-		sync.Mutex
-		keys     auth.JWKSet
-		status   int
-		requests int
-	}
-	state.keys = firstCodec.PublicKeys()
-	state.status = http.StatusOK
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		state.Lock()
-		defer state.Unlock()
-		state.requests++
-		w.WriteHeader(state.status)
-		if state.status == http.StatusOK {
-			_ = json.NewEncoder(w).Encode(state.keys)
-		}
-	}))
-	t.Cleanup(server.Close)
-	a, err := NewAuthenticator(context.Background(), AuthConfig{
-		JWKSURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	service := &publicKeyServiceStub{keys: protoKeys(firstCodec.PublicKeys())}
+	server := connectKeyServer(t, service)
+	a := newAuthenticator(t, server.URL)
 	now := time.Now().UTC().Truncate(time.Second)
 	rotated, err := secondCodec.Sign(auth.Claims{Type: auth.AccessToken, Subject: "user-1", SessionID: "session-1",
 		Role: auth.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "token-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state.Lock()
-	state.keys = secondCodec.PublicKeys()
-	state.Unlock()
+	service.mu.Lock()
+	service.keys = protoKeys(secondCodec.PublicKeys())
+	service.mu.Unlock()
 	if _, err := a.verify(context.Background(), rotated); err != nil {
 		t.Fatalf("rotated key was not loaded: %v", err)
 	}
-	state.Lock()
-	if state.requests != 2 {
-		t.Fatalf("got %d JWKS requests after rotation, want 2", state.requests)
+	service.mu.Lock()
+	if service.requests != 2 {
+		t.Fatalf("got %d public-key requests after rotation, want 2", service.requests)
 	}
-	state.Unlock()
+	service.mu.Unlock()
 
 	a.refreshMu.Lock()
 	a.lastMiss = time.Time{}
@@ -270,12 +283,12 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 	if _, err := a.verify(context.Background(), unknown2); !errors.Is(err, errInvalidAccessToken) {
 		t.Fatalf("second unknown key: got %v, want invalid access token", err)
 	}
-	state.Lock()
-	if state.requests != 3 {
-		t.Fatalf("got %d JWKS requests after throttled misses, want 3", state.requests)
+	service.mu.Lock()
+	if service.requests != 3 {
+		t.Fatalf("got %d public-key requests after throttled misses, want 3", service.requests)
 	}
-	state.status = http.StatusServiceUnavailable
-	state.Unlock()
+	service.err = connect.NewError(connect.CodeUnavailable, errors.New("temporarily unavailable"))
+	service.mu.Unlock()
 
 	cache := a.cache.Load()
 	a.cache.Store(&keyCache{keys: cache.keys, expires: time.Now().Add(-time.Second)})
@@ -303,33 +316,10 @@ func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	refreshStarted := make(chan struct{})
-	releaseRefresh := make(chan struct{})
-	var requestMu sync.Mutex
-	requests := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requestMu.Lock()
-		requests++
-		requestNumber := requests
-		requestMu.Unlock()
-		if requestNumber > 1 {
-			close(refreshStarted)
-			<-releaseRefresh
-		}
-		_ = json.NewEncoder(w).Encode(knownCodec.PublicKeys())
-	}))
-	t.Cleanup(server.Close)
-	var releaseOnce sync.Once
-	release := func() { releaseOnce.Do(func() { close(releaseRefresh) }) }
-	t.Cleanup(release)
-
-	a, err := NewAuthenticator(context.Background(), AuthConfig{
-		JWKSURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	service := &publicKeyServiceStub{keys: protoKeys(knownCodec.PublicKeys()),
+		blockRefresh: true, refreshOpened: make(chan struct{}, 1), allowRefresh: make(chan struct{})}
+	server := connectKeyServer(t, service)
+	a := newAuthenticator(t, server.URL)
 	now := time.Now().UTC().Truncate(time.Second)
 	known, err := knownCodec.Sign(auth.Claims{Type: auth.AccessToken, Subject: "user-1", SessionID: "session-1",
 		Role: auth.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "known-token"})
@@ -347,7 +337,7 @@ func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
 		_, err := a.verify(context.Background(), unknown)
 		unknownDone <- err
 	}()
-	<-refreshStarted
+	<-service.refreshOpened
 
 	knownDone := make(chan error, 1)
 	go func() {
@@ -360,10 +350,10 @@ func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
 			t.Fatalf("known key failed during refresh: %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("known key verification blocked on JWKS refresh")
+		t.Fatal("known key verification blocked on public-key refresh")
 	}
 
-	release()
+	close(service.allowRefresh)
 	if err := <-unknownDone; !errors.Is(err, errInvalidAccessToken) {
 		t.Fatalf("unknown key: got %v, want invalid access token", err)
 	}

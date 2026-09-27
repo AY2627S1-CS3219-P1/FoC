@@ -15,7 +15,6 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
@@ -74,21 +73,29 @@ func main() {
 	}
 	frontend, _ := url.Parse(frontendURL) // validated by NewService
 	origin := frontend.Scheme + "://" + frontend.Host
-	r := router.Setup(&deps.Env{}, &authhandler.Handler{Logic: service, AllowedOrigin: origin})
+	r := router.Setup(&authhandler.Handler{Logic: service, AllowedOrigin: origin})
 	corsHandler := getCorsConfig(origin).Handler(r)
 
 	port := getPort()
 
-	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           corsHandler,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-	}
+	server := newServer(":"+port, corsHandler)
 
 	slog.Info("Listening on :" + port)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed to start", "error", err)
 		panic(err)
+	}
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		Protocols:         protocols,
 	}
 }
 

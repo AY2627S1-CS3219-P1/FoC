@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "buf/validate/validate.proto";
+service AuthService {
+  rpc RequestLink(RequestLinkRequest) returns (RequestLinkResponse) {}
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
+  rpc Refresh(RefreshRequest) returns (RefreshResponse) {}
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {}
+}
+
+service PublicKeyService {
+  rpc GetPublicKeys(GetPublicKeysRequest) returns (GetPublicKeysResponse) {}
+}
+
+message RequestLinkResponse {}
+
+message RequestLinkRequest {
+  string email = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.email = true
+  ];
+}
+
+message LoginRequest {
+  string token = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message RegisterRequest {
+  string token = 1 [(buf.validate.field).string.min_len = 1];
+  string display_name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 100
+  ];
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  UserRole role = 4;
+}
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_SUPER_ADMIN = 1;
+  USER_ROLE_ADMIN = 2;
+  USER_ROLE_USER = 3;
+  USER_ROLE_SUSPENDED_USER = 4;
+}
+
+message LoginResponse {
+  User user = 1;
+  string access_token = 2;
+}
+
+message RegisterResponse {
+  User user = 1;
+  string access_token = 2;
+}
+
+message RefreshRequest {}
+
+message RefreshResponse {
+  string access_token = 1;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message GetPublicKeysRequest {}
+
+message GetPublicKeysResponse {
+  repeated JsonWebKey keys = 1;
+}
+
+message JsonWebKey {
+  string kty = 1;
+  string crv = 2;
+  string x = 3;
+  string y = 4;
+  string use = 5;
+  string alg = 6;
+  string kid = 7;
+}

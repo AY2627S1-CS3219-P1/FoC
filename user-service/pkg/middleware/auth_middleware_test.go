@@ -5,12 +5,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
@@ -36,12 +38,18 @@ func TestAccessMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jwks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(codec.PublicKeys())
-	}))
-	defer jwks.Close()
+	keySet := codec.PublicKeys()
+	path, keyHandler := userv1connect.NewPublicKeyServiceHandler(publicKeyService{keys: &userv1.GetPublicKeysResponse{
+		Keys: []*userv1.JsonWebKey{{Kty: keySet.Keys[0].KeyType, Crv: keySet.Keys[0].Curve,
+			X: keySet.Keys[0].X, Y: keySet.Keys[0].Y, Use: keySet.Keys[0].Use,
+			Alg: keySet.Keys[0].Algorithm, Kid: keySet.Keys[0].KeyID}},
+	}})
+	mux := http.NewServeMux()
+	mux.Handle(path, keyHandler)
+	userService := httptest.NewServer(mux)
+	defer userService.Close()
 	t.Setenv("APP_ENV", "local")
-	t.Setenv("USER_SERVICE_BASE_URL", jwks.URL)
+	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
 	authenticator, err := middleware.NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -88,4 +96,13 @@ func TestAccessMiddleware(t *testing.T) {
 			}
 		})
 	}
+}
+
+type publicKeyService struct {
+	userv1connect.UnimplementedPublicKeyServiceHandler
+	keys *userv1.GetPublicKeysResponse
+}
+
+func (s publicKeyService) GetPublicKeys(context.Context, *connect.Request[userv1.GetPublicKeysRequest]) (*connect.Response[userv1.GetPublicKeysResponse], error) {
+	return connect.NewResponse(s.keys), nil
 }

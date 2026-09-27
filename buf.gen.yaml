@@ -4,6 +4,9 @@ clean: true # clear output dirs first before gen
 
 managed:
   enabled: true
+  disable:
+    - module: buf.build/bufbuild/protovalidate
+      file_option: go_package_prefix
   override:
     - file_option: go_package_prefix
       value: github.com/AY2627S1-CS3219-P1/FoC/pkg/gen # for import path in generated Go code
@@ -23,3 +26,4 @@ plugins:
     out: frontend/src/lib/gen
     opt:
       - target=ts
+    include_imports: true
