@@ -1,0 +1,338 @@
+package service
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"html"
+	"net/mail"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
+)
+
+const (
+	MagicLinkLifetime = 10 * time.Minute
+	// TODO: A revoked session may still have a valid access JWT for up to ten
+	// minutes. This does not satisfy backlog NFR-05.4.1's one-minute limit.
+	AccessTokenLifetime  = 10 * time.Minute
+	RefreshTokenLifetime = 30 * 24 * time.Hour
+)
+
+func (s *Service) RequestLink(ctx context.Context, email string) error {
+	normalizedEmail, err := normalizeEmail(email)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.deps.AuthStore.GetByEmail(ctx, normalizedEmail)
+	isLogin := err == nil
+	if isLogin {
+		if user.ID == uuid.Nil {
+			return errors.New("found user has no ID")
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("find user by email: %w", err)
+	}
+
+	token, digest, err := randomToken(32)
+	if err != nil {
+		return fmt.Errorf("generate magic link: %w", err)
+	}
+
+	expires := s.cfg.Now().UTC().Add(MagicLinkLifetime)
+	challenge := models.AuthToken{TokenHash: append([]byte(nil), digest[:]...), Email: normalizedEmail, ExpiresAt: expires}
+	if isLogin {
+		challenge.Purpose = models.TokenPurposeLogin
+		challenge.UserID = &user.ID
+	} else {
+		challenge.Purpose = models.TokenPurposeRegister
+	}
+	if err := s.deps.AuthStore.CreateToken(ctx, &challenge); err != nil {
+		return fmt.Errorf("save magic link: %w", err)
+	}
+
+	link := s.cfg.FrontendBaseURL
+	if isLogin {
+		link.Path = strings.TrimRight(link.Path, "/") + "/login"
+	} else {
+		link.Path = strings.TrimRight(link.Path, "/") + "/register"
+	}
+	query := link.Query()
+	query.Set("token", token)
+	link.RawQuery = query.Encode()
+	if err := s.sendMagicLinkEmail(ctx, normalizedEmail, link.String()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string) error {
+	err := s.deps.EmailSender.Send(ctx, email.Email{
+		To:       []string{recipient},
+		Subject:  "Your sign-in link",
+		HTMLBody: "<p>Use this link to sign in or create an account:</p><p><a href=\"" + html.EscapeString(link) + "\">Continue</a></p>",
+		TextBody: "Use this link to sign in or create an account:\n" + link,
+	})
+	if err != nil {
+		return jwt.ErrUnavailable
+	}
+
+	return nil
+}
+
+func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jwt.AuthTokens, error) {
+	digest, err := digestMagicToken(loginToken)
+	if err != nil {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
+	}
+
+	now := s.cfg.Now().UTC()
+	var (
+		user   models.User
+		tokens jwt.AuthTokens
+	)
+	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
+		challenge, err := tx.ConsumeToken(ctx, digest, models.TokenPurposeLogin, now)
+		if err != nil {
+			return err
+		}
+		if challenge.UserID == nil {
+			return store.ErrChallengeRejected
+		}
+		storedUser, err := tx.GetByID(ctx, *challenge.UserID)
+		if err != nil {
+			return err
+		}
+		if storedUser.ID == uuid.Nil || !storedUser.Role.Valid() {
+			return jwt.ErrLoginFailed
+		}
+		user = *storedUser
+		session, signed, err := s.newSession(user, now)
+		if err != nil {
+			return err
+		}
+		if err := tx.CreateSession(ctx, &session); err != nil {
+			return err
+		}
+		tokens = signed
+		return nil
+	})
+	if errors.Is(err, store.ErrChallengeRejected) || errors.Is(err, store.ErrNotFound) || errors.Is(err, jwt.ErrLoginFailed) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
+	}
+	if err != nil {
+		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("login transaction: %w", err)
+	}
+	return user, tokens, nil
+}
+
+func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
+	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
+	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	digest, err := digestMagicToken(registrationToken)
+	if err != nil {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
+	}
+	now := s.cfg.Now().UTC()
+	var (
+		user   models.User
+		tokens jwt.AuthTokens
+	)
+	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
+		challenge, err := tx.ConsumeToken(ctx, digest, models.TokenPurposeRegister, now)
+		if err != nil {
+			return err
+		}
+		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName, Role: models.RoleUser}
+		if err := tx.CreateUser(ctx, &user); err != nil {
+			if errors.Is(err, store.ErrDuplicate) {
+				return jwt.ErrAlreadyRegistered
+			}
+			return err
+		}
+		session, signed, err := s.newSession(user, now)
+		if err != nil {
+			return err
+		}
+		if err := tx.CreateSession(ctx, &session); err != nil {
+			return err
+		}
+		tokens = signed
+		return nil
+	})
+	if errors.Is(err, store.ErrChallengeRejected) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
+	}
+	if errors.Is(err, jwt.ErrAlreadyRegistered) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrAlreadyRegistered
+	}
+	if err != nil {
+		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("registration transaction: %w", err)
+	}
+	return user, tokens, nil
+}
+
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTokens, error) {
+	now := s.cfg.Now().UTC()
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	user, err := s.deps.AuthStore.GetByID(ctx, userID)
+	if errors.Is(err, store.ErrNotFound) {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
+	}
+	if user.ID != userID || !user.Role.Valid() {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	replacement, tokens, err := s.newSession(*user, now)
+	if err != nil {
+		return jwt.AuthTokens{}, err
+	}
+	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
+		if err := tx.RevokeSession(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
+			return err
+		}
+		return tx.CreateSession(ctx, &replacement)
+	})
+	if errors.Is(err, store.ErrSessionRejected) {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("replace refresh session: %w", err)
+	}
+	return tokens, nil
+}
+
+// Logout is idempotent. An unrecognizable or already revoked cookie is cleared
+// by the HTTP adapter; a valid cookie is revoked before success is returned.
+func (s *Service) Logout(ctx context.Context, refreshToken string) error {
+	now := s.cfg.Now().UTC()
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		return nil
+	}
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil {
+		return nil
+	}
+	err = s.deps.AuthStore.RevokeSession(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
+	if errors.Is(err, store.ErrSessionRejected) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("revoke refresh session: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) PublicKeys() (jwt.JWKSet, error) {
+	return s.deps.TokenCodec.PublicKeys(), nil
+}
+
+func (s *Service) newSession(user models.User, now time.Time) (models.Session, jwt.AuthTokens, error) {
+	sessionID, err := uuid.NewRandom()
+	if err != nil {
+		return models.Session{}, jwt.AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
+	}
+	tokens, err := s.signSessionTokens(user, sessionID, now)
+	if err != nil {
+		return models.Session{}, jwt.AuthTokens{}, err
+	}
+	digest := sha256.Sum256([]byte(tokens.RefreshToken))
+	return models.Session{ID: sessionID, UserID: user.ID, TokenHash: append([]byte(nil), digest[:]...),
+		CreatedAt: now, LastSeenAt: now, ExpiresAt: tokens.RefreshExpiry}, tokens, nil
+}
+
+func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now time.Time) (jwt.AuthTokens, error) {
+	role, ok := jwtRole(user.Role)
+	if !ok {
+		return jwt.AuthTokens{}, errors.New("user has invalid role")
+	}
+	accessID, _, err := randomToken(16)
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("generate access token ID: %w", err)
+	}
+	refreshID, _, err := randomToken(16)
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("generate refresh token ID: %w", err)
+	}
+	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
+	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
+	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: user.ID.String(),
+		SessionID: sessionID.String(), Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
+	}
+	refresh, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: user.ID.String(),
+		SessionID: sessionID.String(), IssuedAt: now, ExpiresAt: refreshExpiry, TokenID: refreshID})
+	if err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
+	}
+	return jwt.AuthTokens{AccessToken: access, RefreshToken: refresh,
+		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
+}
+
+func jwtRole(role models.RoleName) (jwt.Role, bool) {
+	switch role {
+	case models.RoleSuperAdmin:
+		return jwt.RoleSuperAdmin, true
+	case models.RoleAdmin:
+		return jwt.RoleAdmin, true
+	case models.RoleUser:
+		return jwt.RoleUser, true
+	case models.RoleSuspended:
+		return jwt.RoleSuspendedUser, true
+	default:
+		return "", false
+	}
+}
+
+func normalizeEmail(input string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(input))
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
+		return "", jwt.ErrInvalidEmail
+	}
+	return email, nil
+}
+
+func randomToken(size int) (string, [32]byte, error) {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return "", [32]byte{}, err
+	}
+	token := base64.RawURLEncoding.EncodeToString(buf)
+	return token, sha256.Sum256([]byte(token)), nil
+}
+
+func digestMagicToken(token string) ([32]byte, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != token {
+		return [32]byte{}, jwt.ErrChallengeRejected
+	}
+	return sha256.Sum256([]byte(token)), nil
+}

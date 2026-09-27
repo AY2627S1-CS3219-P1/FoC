@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -15,144 +16,150 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 type fakeStore struct {
 	mu            sync.Mutex
-	users         map[string]jwt.User
-	logins        map[[32]byte]jwt.LoginChallenge
-	registrations map[[32]byte]jwt.RegistrationChallenge
-	sessions      map[string]jwt.Session
+	users         map[uuid.UUID]models.User
+	logins        map[[32]byte]models.AuthToken
+	registrations map[[32]byte]models.AuthToken
+	sessions      map[uuid.UUID]models.Session
 	failSession   bool
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{users: map[string]jwt.User{}, logins: map[[32]byte]jwt.LoginChallenge{},
-		registrations: map[[32]byte]jwt.RegistrationChallenge{}, sessions: map[string]jwt.Session{}}
+	return &fakeStore{users: map[uuid.UUID]models.User{}, logins: map[[32]byte]models.AuthToken{},
+		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uuid.UUID]models.Session{}}
 }
 
-func (f *fakeStore) FindByEmail(_ context.Context, email string) (jwt.User, error) {
+func (f *fakeStore) GetByEmail(_ context.Context, email string) (*models.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, user := range f.users {
 		if user.Email == email {
-			return user, nil
+			found := user
+			return &found, nil
 		}
 	}
-	return jwt.User{}, jwt.ErrNotFound
+	return nil, storepkg.ErrNotFound
 }
 
-func (f *fakeStore) FindByID(_ context.Context, id string) (jwt.User, error) {
+func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	user, ok := f.users[id]
 	if !ok {
-		return jwt.User{}, jwt.ErrNotFound
+		return nil, storepkg.ErrNotFound
 	}
-	return user, nil
+	return &user, nil
 }
 
-func (f *fakeStore) SaveLogin(_ context.Context, challenge jwt.LoginChallenge) error {
+func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.logins[challenge.Digest] = challenge
-	return nil
-}
-
-func (f *fakeStore) CompleteLogin(_ context.Context, digest [32]byte, now time.Time, factory SessionFactory) (jwt.User, jwt.AuthTokens, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	challenge, ok := f.logins[digest]
-	if !ok || !now.Before(challenge.ExpiresAt) {
-		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrChallengeRejected
-	}
-	user, ok := f.users[challenge.UserID]
-	if !ok {
-		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrNotFound
-	}
-	session, tokens, err := factory(user)
-	if err != nil {
-		return jwt.User{}, jwt.AuthTokens{}, err
-	}
-	if f.failSession {
-		return jwt.User{}, jwt.AuthTokens{}, errors.New("session storage failed")
-	}
-	f.sessions[session.ID] = session
-	delete(f.logins, digest)
-	return user, tokens, nil
-}
-
-func (f *fakeStore) SaveRegistration(_ context.Context, challenge jwt.RegistrationChallenge) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.registrations[challenge.Digest] = challenge
-	return nil
-}
-
-func (f *fakeStore) Complete(_ context.Context, digest [32]byte, profile jwt.Profile, now time.Time, factory SessionFactory) (jwt.User, jwt.AuthTokens, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	challenge, ok := f.registrations[digest]
-	if !ok || !now.Before(challenge.ExpiresAt) {
-		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrChallengeRejected
-	}
-	for _, user := range f.users {
-		if user.Email == challenge.Email {
-			return jwt.User{}, jwt.AuthTokens{}, jwt.ErrAlreadyRegistered
+	for _, existing := range f.users {
+		if existing.Email == user.Email {
+			return storepkg.ErrDuplicate
 		}
 	}
-	user := jwt.User{ID: challenge.Email, Email: challenge.Email, DisplayName: profile.DisplayName, Role: jwt.RoleUser}
-	session, tokens, err := factory(user)
-	if err != nil {
-		return jwt.User{}, jwt.AuthTokens{}, err
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
 	}
-	if f.failSession {
-		return jwt.User{}, jwt.AuthTokens{}, errors.New("session storage failed")
-	}
-	f.users[user.ID] = user
-	f.sessions[session.ID] = session
-	delete(f.registrations, digest)
-	return user, tokens, nil
+	f.users[user.ID] = *user
+	return nil
 }
 
-func (f *fakeStore) Rotate(_ context.Context, id string, oldDigest, newDigest [32]byte, now, expiry time.Time) error {
+func (f *fakeStore) CreateToken(_ context.Context, challenge *models.AuthToken) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	digest := bytesToDigest(challenge.TokenHash)
+	switch challenge.Purpose {
+	case models.TokenPurposeLogin:
+		f.logins[digest] = *challenge
+	case models.TokenPurposeRegister:
+		f.registrations[digest] = *challenge
+	default:
+		return errors.New("invalid token purpose")
+	}
+	return nil
+}
+
+func (f *fakeStore) ConsumeToken(_ context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	challenges := f.registrations
+	if purpose == models.TokenPurposeLogin {
+		challenges = f.logins
+	}
+	challenge, ok := challenges[digest]
+	if !ok || !now.Before(challenge.ExpiresAt) {
+		return nil, storepkg.ErrChallengeRejected
+	}
+	delete(challenges, digest)
+	return &challenge, nil
+}
+
+func (f *fakeStore) CreateSession(_ context.Context, session *models.Session) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failSession {
+		return errors.New("session storage failed")
+	}
+	if _, exists := f.sessions[session.ID]; exists {
+		return storepkg.ErrDuplicate
+	}
+	f.sessions[session.ID] = *session
+	return nil
+}
+
+func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]byte, now time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	session, ok := f.sessions[id]
-	if !ok || !now.Before(session.ExpiresAt) || session.RefreshDigest != oldDigest {
-		return jwt.ErrSessionRejected
+	if !ok || session.RevokedAt != nil || !now.Before(session.ExpiresAt) || !bytes.Equal(session.TokenHash, digest[:]) {
+		return storepkg.ErrSessionRejected
 	}
-	session.RefreshDigest = newDigest
-	session.ExpiresAt = expiry
+	revokedAt := now
+	session.RevokedAt = &revokedAt
 	f.sessions[id] = session
 	return nil
 }
 
-func (f *fakeStore) Revoke(_ context.Context, id string, digest [32]byte, now time.Time) error {
+func (f *fakeStore) withTransaction(ctx context.Context, operation func(AuthStore) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	session, ok := f.sessions[id]
-	if !ok || !now.Before(session.ExpiresAt) || session.RefreshDigest != digest {
-		return jwt.ErrSessionRejected
+	tx := &fakeStore{
+		users:         cloneMap(f.users),
+		logins:        cloneMap(f.logins),
+		registrations: cloneMap(f.registrations),
+		sessions:      cloneMap(f.sessions),
+		failSession:   f.failSession,
 	}
-	delete(f.sessions, id)
+	if err := operation(tx); err != nil {
+		return err
+	}
+	f.users = tx.users
+	f.logins = tx.logins
+	f.registrations = tx.registrations
+	f.sessions = tx.sessions
 	return nil
 }
 
-type loginStoreAdapter struct{ *fakeStore }
-
-func (a loginStoreAdapter) Save(ctx context.Context, c jwt.LoginChallenge) error {
-	return a.SaveLogin(ctx, c)
+func cloneMap[K comparable, V any](source map[K]V) map[K]V {
+	clone := make(map[K]V, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
 }
 
-func (a loginStoreAdapter) Complete(ctx context.Context, digest [32]byte, now time.Time, factory SessionFactory) (jwt.User, jwt.AuthTokens, error) {
-	return a.CompleteLogin(ctx, digest, now, factory)
-}
-
-type registrationStoreAdapter struct{ *fakeStore }
-
-func (a registrationStoreAdapter) Save(ctx context.Context, c jwt.RegistrationChallenge) error {
-	return a.SaveRegistration(ctx, c)
+func bytesToDigest(value []byte) [32]byte {
+	var digest [32]byte
+	copy(digest[:], value)
+	return digest
 }
 
 type mockEmailSender struct{ messages []email.Email }
@@ -183,8 +190,8 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Users: store, LoginTokens: loginStoreAdapter{store},
-		RegistrationTokens: registrationStoreAdapter{store}, Sessions: store, TokenCodec: codec, EmailSender: sender},
+	service, err := NewService(Dependencies{AuthStore: store, WithTransaction: store.withTransaction,
+		TokenCodec: codec, EmailSender: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
 	if err != nil {
@@ -243,7 +250,15 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	oldRefresh := session.RefreshToken
 	rotated, err := service.Refresh(ctx, oldRefresh)
 	if err != nil || rotated.RefreshToken == oldRefresh {
-		t.Fatalf("refresh rotation: %+v, %v", rotated, err)
+		t.Fatalf("refresh replacement: %+v, %v", rotated, err)
+	}
+	oldClaims, err := service.deps.TokenCodec.Verify(oldRefresh, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newClaims, err := service.deps.TokenCodec.Verify(rotated.RefreshToken, jwt.RefreshToken, now)
+	if err != nil || newClaims.SessionID == oldClaims.SessionID {
+		t.Fatalf("refresh reused session ID: old=%q new=%q err=%v", oldClaims.SessionID, newClaims.SessionID, err)
 	}
 	if _, err := service.Refresh(ctx, oldRefresh); !errors.Is(err, jwt.ErrRefreshFailed) {
 		t.Fatalf("reused refresh token: %v", err)
@@ -262,7 +277,8 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 func TestIndependentLoginLinksAndExpiry(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore()
-	store.users["u1"] = jwt.User{ID: "u1", Email: "user@example.com", Role: jwt.RoleUser}
+	user := testModelUser("user@example.com", models.RoleUser)
+	store.users[user.ID] = user
 	service := setupService(t, store, &now, true, nil)
 	ctx := context.Background()
 	first := requestLink(t, service, "user@example.com")
@@ -288,7 +304,8 @@ func TestIndependentLoginLinksAndExpiry(t *testing.T) {
 func TestConcurrentLoginConsumesOnce(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore()
-	store.users["u1"] = jwt.User{ID: "u1", Email: "user@example.com", Role: jwt.RoleUser}
+	user := testModelUser("user@example.com", models.RoleUser)
+	store.users[user.ID] = user
 	service := setupService(t, store, &now, true, nil)
 	link := requestLink(t, service, "user@example.com")
 	token := linkToken(t, link)
@@ -309,7 +326,8 @@ func TestConcurrentLoginConsumesOnce(t *testing.T) {
 func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore()
-	store.users["u1"] = jwt.User{ID: "u1", Email: "user@example.com", Role: jwt.RoleSuspendedUser}
+	user := testModelUser("user@example.com", models.RoleSuspended)
+	store.users[user.ID] = user
 	service := setupService(t, store, &now, false, &mockEmailSender{})
 	link := requestLink(t, service, "user@example.com")
 	_, tokens, err := service.Login(context.Background(), linkToken(t, link))
@@ -324,9 +342,8 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("suspended user cannot refresh: %v", err)
 	}
-	user := store.users["u1"]
-	user.Role = jwt.RoleUser
-	store.users["u1"] = user
+	user.Role = models.RoleUser
+	store.users[user.ID] = user
 	tokens, err = service.Refresh(context.Background(), tokens.RefreshToken)
 	if err != nil {
 		t.Fatal(err)
@@ -416,6 +433,36 @@ func TestSessionStorageFailurePreservesMagicLink(t *testing.T) {
 	}
 }
 
+func TestSessionStorageFailurePreservesRefreshSession(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	store.failSession = true
+	if _, err := service.Refresh(context.Background(), refreshToken); err == nil {
+		t.Fatal("refresh succeeded despite replacement session storage failure")
+	}
+	store.failSession = false
+	if _, err := service.Refresh(context.Background(), refreshToken); err != nil {
+		t.Fatalf("failed refresh revoked the original session: %v", err)
+	}
+}
+
+func TestConcurrentRefreshReplacesSessionOnce(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, _, refreshToken := serviceWithRefreshToken(t, now)
+	results := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := service.Refresh(context.Background(), refreshToken)
+			results <- err
+		}()
+	}
+	first, second := <-results, <-results
+	if !((first == nil && errors.Is(second, jwt.ErrRefreshFailed)) ||
+		(second == nil && errors.Is(first, jwt.ErrRefreshFailed))) {
+		t.Fatalf("concurrent refresh results: %v, %v", first, second)
+	}
+}
+
 func TestProductionRequiresHTTPSFrontend(t *testing.T) {
 	frontendURL, err := url.Parse("http://example.test")
 	if err != nil {
@@ -439,28 +486,16 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.EmailSender = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
-	t.Run("user store", func(t *testing.T) {
+	t.Run("auth store while requesting link", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.Users = nil
+		service.deps.AuthStore = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
-	t.Run("login token store while requesting link", func(t *testing.T) {
-		store := newFakeStore()
-		service := newService(t, store)
-		_ = addLoginChallenge(t, store, now)
-		service.deps.LoginTokens = nil
-		assertPanics(t, func() { _ = service.RequestLink(ctx, "user@example.com") })
-	})
-	t.Run("registration token store while requesting link", func(t *testing.T) {
-		service := newService(t, newFakeStore())
-		service.deps.RegistrationTokens = nil
-		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
-	})
-	t.Run("login token store while completing login", func(t *testing.T) {
+	t.Run("transaction runner while completing login", func(t *testing.T) {
 		store := newFakeStore()
 		service := newService(t, store)
 		token := addLoginChallenge(t, store, now)
-		service.deps.LoginTokens = nil
+		service.deps.WithTransaction = nil
 		assertPanics(t, func() { _, _, _ = service.Login(ctx, token) })
 	})
 	t.Run("token codec while completing login", func(t *testing.T) {
@@ -470,11 +505,11 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _, _, _ = service.Login(ctx, token) })
 	})
-	t.Run("registration token store while completing registration", func(t *testing.T) {
+	t.Run("transaction runner while completing registration", func(t *testing.T) {
 		store := newFakeStore()
 		service := newService(t, store)
 		token := addRegistrationChallenge(t, store, now)
-		service.deps.RegistrationTokens = nil
+		service.deps.WithTransaction = nil
 		assertPanics(t, func() { _, _, _ = service.Register(ctx, token, jwt.Profile{DisplayName: "New"}) })
 	})
 	t.Run("token codec while completing registration", func(t *testing.T) {
@@ -489,14 +524,14 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _, _ = service.Refresh(ctx, "refresh") })
 	})
-	t.Run("user store while refreshing", func(t *testing.T) {
+	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Users = nil
+		service.deps.AuthStore = nil
 		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
 	})
-	t.Run("session store while refreshing", func(t *testing.T) {
+	t.Run("transaction runner while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Sessions = nil
+		service.deps.WithTransaction = nil
 		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("token codec while logging out", func(t *testing.T) {
@@ -504,9 +539,9 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, "refresh") })
 	})
-	t.Run("session store while logging out", func(t *testing.T) {
+	t.Run("auth store while logging out", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Sessions = nil
+		service.deps.AuthStore = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
 	})
 	t.Run("token codec while reading public keys", func(t *testing.T) {
@@ -522,9 +557,10 @@ func addLoginChallenge(t *testing.T, store *fakeStore, now time.Time) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user := jwt.User{ID: "user-id", Email: "user@example.com", DisplayName: "User", Role: jwt.RoleUser}
+	user := testModelUser("user@example.com", models.RoleUser)
 	store.users[user.ID] = user
-	store.logins[digest] = jwt.LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: now.Add(MagicLinkLifetime)}
+	store.logins[digest] = models.AuthToken{TokenHash: append([]byte(nil), digest[:]...), Purpose: models.TokenPurposeLogin,
+		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(MagicLinkLifetime)}
 	return token
 }
 
@@ -534,10 +570,15 @@ func addRegistrationChallenge(t *testing.T, store *fakeStore, now time.Time) str
 	if err != nil {
 		t.Fatal(err)
 	}
-	store.registrations[digest] = jwt.RegistrationChallenge{
-		Digest: digest, Email: "new@example.com", ExpiresAt: now.Add(MagicLinkLifetime),
+	store.registrations[digest] = models.AuthToken{
+		TokenHash: append([]byte(nil), digest[:]...), Purpose: models.TokenPurposeRegister,
+		Email: "new@example.com", ExpiresAt: now.Add(MagicLinkLifetime),
 	}
 	return token
+}
+
+func testModelUser(email string, role models.RoleName) models.User {
+	return models.User{ID: uuid.New(), Email: email, DisplayName: "User", Role: role}
 }
 
 func serviceWithRefreshToken(t *testing.T, now time.Time) (*Service, *fakeStore, string) {
