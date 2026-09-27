@@ -29,16 +29,16 @@ type Location struct {
 	Name        string
 	IsSupplier  bool
 	BuildingID  pgtype.UUID
+	Floor       pgtype.Text
 	Coordinates postgis.PointS
 	OpenFrom    pgtype.Time
 	OpenTo      pgtype.Time
 	Contact     pgtype.Text
 	Details     string
 	ArchivedAt  pgtype.Timestamptz
+	Revision    int64
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
-	Floor       pgtype.Text
-	Revision    int64
 }
 
 type LocationAdditionRequest struct {

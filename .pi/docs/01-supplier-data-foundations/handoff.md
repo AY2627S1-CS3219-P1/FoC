@@ -2,7 +2,7 @@
 
 ## Persistence surface
 
-Migration `00009_expand_location_classification.sql` adds:
+Migration `00005_create_locations.sql` creates the final Location model directly:
 
 - nullable `locations.floor TEXT`, limited to 50 trimmed characters;
 - `locations.revision BIGINT NOT NULL DEFAULT 1`, constrained to positive values;
@@ -10,9 +10,7 @@ Migration `00009_expand_location_classification.sql` adds:
 - `location_categories_category_idx` for Category-filtered discovery;
 - `locations_active_supplier_idx` for active Supplier-classification discovery.
 
-The migration copies every non-null `locations.category_id` value into `location_categories` before dropping the old column. It preserves legacy relationships even if an old row does not meet the new cross-row classification invariant; application operations enforce that invariant for subsequent writes. Existing Location IDs, Buildings, coordinates, archive state, hours, contact, details, and timestamps are unchanged. Downgrade refuses to collapse a Location with multiple Categories into the old single-Category column.
-
-Downstream work in #49 and #51 should use `locations`, `buildings`, `categories`, and `location_categories`. Supplier-classified Locations require one or more `location_categories` rows. Ordinary Locations require none. Those cross-row rules remain application invariants. #52 still owns the equivalent addition-request and disablement schema changes.
+There is no legacy `locations.category_id` column or upgrade path because this schema has not been deployed. Downstream work in #49 and #51 should use `locations`, `buildings`, `categories`, and `location_categories`. Supplier-classified Locations require one or more `location_categories` rows. Ordinary Locations require none. Those cross-row rules remain application invariants. #52 still owns the equivalent addition-request and disablement schema changes.
 
 The generated sqlc seed surface is in `internal/database/sqlc/seed.sql.go`:
 

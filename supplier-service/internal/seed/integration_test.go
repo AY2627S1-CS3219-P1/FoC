@@ -22,133 +22,77 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func TestLocationMigrationPreservesExistingData(t *testing.T) {
+func TestLocationSchemaCreatesCurrentClassificationModel(t *testing.T) {
 	databaseURL := startPostGIS(t)
 	db := openSQLDB(t, databaseURL)
-	migrateTo(t, db, 8)
+	migrateAll(t, db)
 	pool := openPool(t, databaseURL)
 	ctx := context.Background()
 
 	const (
-		categoryID                = "b526b558-e2ec-4db1-b873-13a9f490e07d"
-		buildingID                = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
-		locationID                = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
-		ordinaryWithCategoryID    = "263733f1-471c-4a14-9af5-a90487438083"
-		supplierWithoutCategoryID = "17fd604e-7aa3-467b-b407-09167538a48e"
+		categoryOneID = "b526b558-e2ec-4db1-b873-13a9f490e07d"
+		categoryTwoID = "29a7cb1e-44f2-4c68-825f-1ce39b78e44a"
+		buildingID    = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
+		locationID    = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
 	)
 	execSQL(t, pool, `
-		INSERT INTO categories (id, name, created_at)
-		VALUES ($1, 'Food', '2026-01-01T00:00:00Z')`, categoryID)
+		INSERT INTO categories (id, name)
+		VALUES ($1, 'Food'), ($2, 'Coffee')`, categoryOneID, categoryTwoID)
 	execSQL(t, pool, `
-		INSERT INTO buildings (id, name, center, radius_m, created_at, updated_at)
-		VALUES ($1, 'COM2', ST_SetSRID(ST_MakePoint(103.774, 1.294), 4326)::geography,
-			75, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z')`, buildingID)
+		INSERT INTO buildings (id, name, center, radius_m)
+		VALUES ($1, 'COM2', ST_SetSRID(ST_MakePoint(103.774, 1.294), 4326)::geography, 75)`, buildingID)
 	execSQL(t, pool, `
 		INSERT INTO locations (
-			id, name, is_supplier, category_id, building_id, coordinates,
-			open_from, open_to, contact, details, archived_at, created_at, updated_at
+			id, name, is_supplier, building_id, floor, coordinates, revision
 		) VALUES (
-			$1, 'Existing Supplier', TRUE, $2, $3,
-			ST_SetSRID(ST_MakePoint(103.7742, 1.2942), 4326)::geography,
-			'08:00', '08:00', '+65 6123 4567', 'Keep every field',
-			'2026-02-01T00:00:00Z', '2026-01-03T00:00:00Z', '2026-01-04T00:00:00Z'
-		)`, locationID, categoryID, buildingID)
+			$1, 'Current Supplier', TRUE, $2, 'B1',
+			ST_SetSRID(ST_MakePoint(103.7742, 1.2942), 4326)::geography, 7
+		)`, locationID, buildingID)
 	execSQL(t, pool, `
-		INSERT INTO locations (id, name, is_supplier, category_id, building_id, coordinates)
-		VALUES ($1, 'Legacy Ordinary Category', FALSE, $2, $3,
-			ST_SetSRID(ST_MakePoint(103.7743, 1.2943), 4326)::geography)`,
-		ordinaryWithCategoryID, categoryID, buildingID)
-	execSQL(t, pool, `
-		INSERT INTO locations (id, name, is_supplier, category_id, building_id, coordinates)
-		VALUES ($1, 'Legacy Supplier Without Category', TRUE, NULL, $2,
-			ST_SetSRID(ST_MakePoint(103.7744, 1.2944), 4326)::geography)`,
-		supplierWithoutCategoryID, buildingID)
-
-	migrateTo(t, db, 9)
+		INSERT INTO location_categories (location_id, category_id)
+		VALUES ($1, $2), ($1, $3)`, locationID, categoryOneID, categoryTwoID)
 
 	var (
-		name, contact, details, openFrom, openTo string
-		isSupplier                               bool
-		actualBuildingID                         string
-		floor                                    *string
-		revision                                 int64
-		longitude, latitude                      float64
-		archivedAt, createdAt, updatedAt         time.Time
+		floor             string
+		revision          int64
+		relationshipCount int
 	)
-	err := pool.QueryRow(ctx, `
-		SELECT name, is_supplier, building_id::text, floor, revision,
-			ST_X(coordinates::geometry), ST_Y(coordinates::geometry),
-			open_from::text, open_to::text, contact, details,
-			archived_at, created_at, updated_at
-		FROM locations
-		WHERE id = $1`, locationID).Scan(
-		&name, &isSupplier, &actualBuildingID, &floor, &revision,
-		&longitude, &latitude, &openFrom, &openTo, &contact, &details,
-		&archivedAt, &createdAt, &updatedAt,
-	)
-	if err != nil {
-		t.Fatalf("read migrated Location: %v", err)
-	}
-	if name != "Existing Supplier" || !isSupplier || actualBuildingID != buildingID {
-		t.Fatalf("identity fields changed: name=%q supplier=%v building=%s", name, isSupplier, actualBuildingID)
-	}
-	if floor != nil || revision != 1 {
-		t.Fatalf("new columns have unsafe values: floor=%v revision=%d", floor, revision)
-	}
-	if math.Abs(longitude-103.7742) > 0.0000001 || math.Abs(latitude-1.2942) > 0.0000001 {
-		t.Fatalf("coordinates changed: longitude=%f latitude=%f", longitude, latitude)
-	}
-	if openFrom != "08:00:00" || openTo != "08:00:00" || contact != "+65 6123 4567" || details != "Keep every field" {
-		t.Fatalf("metadata changed: from=%s to=%s contact=%q details=%q", openFrom, openTo, contact, details)
-	}
-	assertTime(t, archivedAt, "2026-02-01T00:00:00Z")
-	assertTime(t, createdAt, "2026-01-03T00:00:00Z")
-	assertTime(t, updatedAt, "2026-01-04T00:00:00Z")
-
-	var relationshipCount int
 	if err := pool.QueryRow(ctx, `
-		SELECT count(*)
-		FROM location_categories
-		WHERE location_id = $1 AND category_id = $2`, locationID, categoryID).Scan(&relationshipCount); err != nil {
-		t.Fatalf("read backfilled relationship: %v", err)
+		SELECT l.floor, l.revision, count(lc.category_id)
+		FROM locations l
+		JOIN location_categories lc ON lc.location_id = l.id
+		WHERE l.id = $1
+		GROUP BY l.id`, locationID).Scan(&floor, &revision, &relationshipCount); err != nil {
+		t.Fatalf("read current Location schema: %v", err)
 	}
-	if relationshipCount != 1 {
-		t.Fatalf("expected one backfilled Category relationship, got %d", relationshipCount)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*)
-		FROM location_categories
-		WHERE location_id = $1 AND category_id = $2`, ordinaryWithCategoryID, categoryID).Scan(&relationshipCount); err != nil {
-		t.Fatalf("read legacy ordinary relationship: %v", err)
-	}
-	if relationshipCount != 1 {
-		t.Fatalf("legacy ordinary Category was not preserved: count=%d", relationshipCount)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM location_categories WHERE location_id = $1`, supplierWithoutCategoryID).Scan(&relationshipCount); err != nil {
-		t.Fatalf("read legacy uncategorized Supplier: %v", err)
-	}
-	if relationshipCount != 0 {
-		t.Fatalf("migration invented a Category for legacy Supplier: count=%d", relationshipCount)
+	if floor != "B1" || revision != 7 || relationshipCount != 2 {
+		t.Fatalf("current Location fields = floor %q, revision %d, Categories %d", floor, revision, relationshipCount)
 	}
 
-	var oldColumnExists bool
+	var oldCategoryColumnExists bool
 	if err := pool.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1 FROM information_schema.columns
 			WHERE table_schema = 'public' AND table_name = 'locations' AND column_name = 'category_id'
-		)`).Scan(&oldColumnExists); err != nil {
-		t.Fatalf("inspect old Category column: %v", err)
+		)`).Scan(&oldCategoryColumnExists); err != nil {
+		t.Fatalf("inspect Location columns: %v", err)
 	}
-	if oldColumnExists {
-		t.Fatal("locations.category_id still exists after backfill")
+	if oldCategoryColumnExists {
+		t.Fatal("locations.category_id exists in the clean schema")
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE locations SET floor = ' ' WHERE id = $1`, locationID); err == nil {
+		t.Fatal("blank floor passed the schema constraint")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE locations SET revision = 0 WHERE id = $1`, locationID); err == nil {
+		t.Fatal("non-positive revision passed the schema constraint")
 	}
 }
 
 func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 	databaseURL := startPostGIS(t)
 	db := openSQLDB(t, databaseURL)
-	migrateTo(t, db, 9)
+	migrateAll(t, db)
 	pool := openPool(t, databaseURL)
 	ctx := context.Background()
 
@@ -295,7 +239,7 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 	databaseURL := startPostGIS(t)
 	db := openSQLDB(t, databaseURL)
-	migrateTo(t, db, 9)
+	migrateAll(t, db)
 	pool := openPool(t, databaseURL)
 	ctx := context.Background()
 	paths := committedSeedPaths(t)
@@ -376,16 +320,6 @@ func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 		if math.Abs(longitude-expected.longitude) > 0.0000001 || math.Abs(latitude-expected.latitude) > 0.0000001 {
 			t.Fatalf("%s coordinates changed: longitude=%f latitude=%f", expected.name, longitude, latitude)
 		}
-	}
-
-	if err := goose.DownTo(db, migrationDirectory(t), 8); err == nil || !strings.Contains(err.Error(), "cannot restore single-category schema") {
-		t.Fatalf("multi-Category downgrade error = %v", err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM location_categories`).Scan(&categoryCount); err != nil {
-		t.Fatalf("failed downgrade did not preserve join table: %v", err)
-	}
-	if categoryCount == 0 {
-		t.Fatal("failed downgrade removed Category relationships")
 	}
 }
 
@@ -517,13 +451,13 @@ func openPool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	return pool
 }
 
-func migrateTo(t *testing.T, db *sql.DB, version int64) {
+func migrateAll(t *testing.T, db *sql.DB) {
 	t.Helper()
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatalf("set Goose dialect: %v", err)
 	}
-	if err := goose.UpTo(db, migrationDirectory(t), version); err != nil {
-		t.Fatalf("migrate to version %d: %v", version, err)
+	if err := goose.Up(db, migrationDirectory(t)); err != nil {
+		t.Fatalf("migrate clean database: %v", err)
 	}
 }
 
@@ -564,16 +498,5 @@ func assertResourceCounts(t *testing.T, pool *pgxpool.Pool, buildings, categorie
 		if got != query.want {
 			t.Fatalf("%s count = %d, want %d", query.name, got, query.want)
 		}
-	}
-}
-
-func assertTime(t *testing.T, got time.Time, want string) {
-	t.Helper()
-	parsed, err := time.Parse(time.RFC3339, want)
-	if err != nil {
-		t.Fatalf("parse expected time: %v", err)
-	}
-	if !got.Equal(parsed) {
-		t.Fatalf("time = %s, want %s", got.Format(time.RFC3339), want)
 	}
 }
