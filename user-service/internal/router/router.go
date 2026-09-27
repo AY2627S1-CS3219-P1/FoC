@@ -10,7 +10,7 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 const maxRPCMessageBytes = 1 << 20
@@ -18,10 +18,10 @@ const maxRPCMessageBytes = 1 << 20
 // Setup mounts the Connect handlers built in main with their dependencies set.
 func Setup(health *healthhandler.Handler, auth *authhandler.Handler) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(chimiddleware.RequestID)
+	r.Use(chimiddleware.RealIP)
 	r.Use(sharedmiddleware.RequestLogger)
-	r.Use(middleware.Recoverer)
+	r.Use(chimiddleware.Recoverer)
 
 	healthPath, healthHandler := userv1connect.NewHealthServiceHandler(
 		health,
