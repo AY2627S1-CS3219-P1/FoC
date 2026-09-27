@@ -18,7 +18,7 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    container creates `.local/secrets/auth/jwt-signing-private.pem` if it is
    missing, before starting Goose and Air. Compose mounts this directory so
    the key persists across container restarts. The service derives its public
-   key and publishes it at `/.well-known/jwks.json`.
+   key and publishes it through `user.v1.PublicKeyService.GetPublicKeys`.
 
    The signing key must be an unencrypted P-256 private key in PKCS#8 PEM
    format (`-----BEGIN PRIVATE KEY-----`). The dev container generates this
@@ -68,31 +68,30 @@ provides email magic-link authentication and ES256 access and refresh tokens.
 
 ## Authentication
 
-The authentication routes are:
+The generated `user.v1.AuthService` provides `RequestLink`, `Login`,
+`Register`, `Refresh`, and `Logout`. `user.v1.PublicKeyService.GetPublicKeys`
+publishes the signing key set, and `user.v1.HealthService.Check` reports
+service health. These services use ConnectRPC; the former REST auth, health,
+and JWKS routes are no longer served.
 
-- `POST /api/auth` requests a login or registration link for an email address.
-- `POST /api/auth/login` consumes a login token.
-- `POST /api/auth/register` consumes a registration token and accepts a
-  display name.
-- `POST /api/auth/refresh` rotates the refresh token.
-- `POST /api/auth/logout` revokes the refresh token.
-
-Successful login, registration, and refresh return `data.accessToken`. Clients
-hold this token in memory and send it in the `Authorization: Bearer` header.
-The refresh token is only sent as a `foc-refresh-token` cookie with Secure,
-HttpOnly, SameSite=Strict and Path=/api/auth. Refresh and logout read that cookie;
-logout clears it. The access and refresh lifetimes come from the two JWT TTL
-environment variables. Link requests return a generic acknowledgment; the
-magic link is passed only to the injected email sender. The configured
+Login, registration, and refresh return an access token in their typed
+response. Clients hold it in memory and send it in the `Authorization: Bearer`
+header. The refresh token is only sent as a `foc-refresh-token` cookie with
+Secure, HttpOnly, SameSite=Strict and Path=/user.v1.AuthService/. Refresh and
+logout read that cookie; logout clears it. Browser clients must send credentials
+so the cookie can be stored and sent. Requests with an `Origin` must match the
+configured frontend origin; service-to-service requests without an `Origin`
+are permitted. The access and refresh lifetimes come from the two JWT TTL
+environment variables. Link requests return an empty typed response; the magic
+link is passed only to the injected email sender. The configured
 `EmptyEmailSender` discards it until an email delivery adapter is connected.
 
-The service also provides `GET /.well-known/jwks.json` for its public signing
-key and `GET /api/health` for its health check. Authentication storage and
-storage adapters are not configured, so stateful authentication routes return
-503.
+Authentication storage and storage adapters are not configured, so stateful
+authentication methods return `unavailable`.
 
-Other Go services set `USER_SERVICE_BASE_URL` and initialize one authenticator
-at startup. Register its `Authenticate` method on protected routes and
+Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
+and initialize one authenticator at startup. The authenticator fetches keys
+through `PublicKeyService.GetPublicKeys`. Register its `Authenticate` method on protected routes and
 read `AccessClaims` with `ClaimsFromContext`. The
 authenticator fetches keys at startup, refreshes its cache every hour,
 and fetches early when a token names an unknown key ID. The base URL must use

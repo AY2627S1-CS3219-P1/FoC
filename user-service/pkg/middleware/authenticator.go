@@ -2,10 +2,8 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,7 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth/tokenclaims"
 	"github.com/MicahParks/jwkset"
 	"github.com/MicahParks/keyfunc/v3"
@@ -32,10 +33,10 @@ type AccessClaims struct {
 }
 
 type AuthConfig struct {
-	JWKSURL  string
-	Issuer   string
-	Audience string
-	Client   *http.Client
+	UserServiceURL string
+	Issuer         string
+	Audience       string
+	Client         *http.Client
 }
 
 const (
@@ -52,7 +53,7 @@ type keyCache struct {
 // Authenticator owns the public-key cache for one service instance.
 type Authenticator struct {
 	config    AuthConfig
-	client    *http.Client
+	keyClient userv1connect.PublicKeyServiceClient
 	cache     atomic.Pointer[keyCache]
 	refreshMu sync.Mutex
 	lastMiss  time.Time
@@ -60,13 +61,14 @@ type Authenticator struct {
 
 // NewAuthenticator fetches the initial key set before protected routes are served.
 func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, error) {
-	parsed, err := url.Parse(config.JWKSURL)
+	parsed, err := url.Parse(config.UserServiceURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
 		config.Issuer == "" || config.Audience == "" {
 		return nil, errors.New("invalid authenticator configuration")
 	}
 	if parsed.Scheme == "http" && os.Getenv("APP_ENV") != "local" {
-		return nil, errors.New("JWKS URL must use HTTPS outside local mode")
+		return nil, errors.New("user service URL must use HTTPS outside local mode")
 	}
 	client := config.Client
 	if client == nil {
@@ -76,7 +78,9 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	clientCopy.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	a := &Authenticator{config: config, client: &clientCopy}
+	a := &Authenticator{config: config}
+	a.keyClient = userv1connect.NewPublicKeyServiceClient(&clientCopy, config.UserServiceURL,
+		connect.WithReadMaxBytes(maxJWKSSize))
 	cache, err := a.fetch(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load authentication keys: %w", err)
@@ -85,8 +89,8 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	return a, nil
 }
 
-// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and fetches the
-// public keys published by the user service.
+// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and fetches keys
+// through the user service's generated Connect client.
 func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 	baseURL := strings.TrimSpace(os.Getenv("USER_SERVICE_BASE_URL"))
 	if baseURL == "" {
@@ -97,11 +101,10 @@ func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, errors.New("invalid user service URL")
 	}
-	jwksURL, err := url.JoinPath(baseURL, ".well-known/jwks.json")
-	if err != nil {
-		return nil, fmt.Errorf("build user service JWKS URL: %w", err)
+	if parsed.Path != "" && parsed.Path != "/" {
+		return nil, errors.New("user service URL must not include a path")
 	}
-	return NewAuthenticator(ctx, AuthConfig{JWKSURL: jwksURL,
+	return NewAuthenticator(ctx, AuthConfig{UserServiceURL: baseURL,
 		Issuer: TokenIssuer, Audience: TokenAudience})
 }
 
@@ -215,30 +218,20 @@ func lookupKey(ctx context.Context, cache *keyCache, token *jwt.Token) (any, err
 	return cache.keys.KeyfuncCtx(ctx)(token)
 }
 
+const maxJWKSSize = 1 << 20
+
 func (a *Authenticator) fetch(ctx context.Context) (*keyCache, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.config.JWKSURL, nil)
+	response, err := a.keyClient.GetPublicKeys(ctx,
+		connect.NewRequest(&userv1.GetPublicKeysRequest{}))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS returned HTTP %d", resp.StatusCode)
-	}
-	const maxJWKSSize = 1 << 20
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxJWKSSize+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(body) > maxJWKSSize {
-		return nil, errors.New("JWKS response exceeds 1 MiB")
-	}
-	var set jwkset.JWKSMarshal
-	if err := json.Unmarshal(body, &set); err != nil {
-		return nil, err
+	set := jwkset.JWKSMarshal{Keys: make([]jwkset.JWKMarshal, 0, len(response.Msg.Keys))}
+	for _, key := range response.Msg.Keys {
+		set.Keys = append(set.Keys, jwkset.JWKMarshal{
+			KTY: jwkset.KTY(key.Kty), CRV: jwkset.CRV(key.Crv), X: key.X,
+			Y: key.Y, USE: jwkset.USE(key.Use), ALG: jwkset.ALG(key.Alg), KID: key.Kid,
+		})
 	}
 	storage := jwkset.NewMemoryStorage()
 	seen := make(map[string]struct{}, len(set.Keys))

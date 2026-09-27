@@ -2,7 +2,6 @@ package router_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,42 +9,63 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 )
 
+const frontendOrigin = "https://app.example.test"
+
 type stubLogic struct {
-	requestErr error
-	refreshIn  string
-	logoutIn   string
+	requestErr      error
+	loginErr        error
+	registerErr     error
+	refreshErr      error
+	logoutErr       error
+	keyErr          error
+	requestEmail    string
+	loginToken      string
+	registerToken   string
+	registerProfile auth.Profile
+	refreshIn       string
+	logoutIn        string
 }
 
-func (s *stubLogic) RequestLink(context.Context, string) error {
+func (s *stubLogic) RequestLink(_ context.Context, email string) error {
+	s.requestEmail = email
 	return s.requestErr
 }
 
-func (s *stubLogic) Login(context.Context, string) (auth.User, auth.AuthTokens, error) {
-	return auth.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: auth.RoleUser}, testTokens(), nil
+func (s *stubLogic) Login(_ context.Context, token string) (auth.User, auth.AuthTokens, error) {
+	s.loginToken = token
+	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(context.Context, string, auth.Profile) (auth.User, auth.AuthTokens, error) {
-	return auth.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: auth.RoleUser}, testTokens(), nil
+func (s *stubLogic) Register(_ context.Context, token string, profile auth.Profile) (auth.User, auth.AuthTokens, error) {
+	s.registerToken = token
+	s.registerProfile = profile
+	return testUser(), testTokens(), s.registerErr
 }
 
 func (s *stubLogic) Refresh(_ context.Context, token string) (auth.AuthTokens, error) {
 	s.refreshIn = token
-	return testTokens(), nil
+	return testTokens(), s.refreshErr
 }
 
 func (s *stubLogic) Logout(_ context.Context, token string) error {
 	s.logoutIn = token
-	return nil
+	return s.logoutErr
 }
 
 func (s *stubLogic) PublicKeys() (auth.JWKSet, error) {
-	return auth.JWKSet{Keys: []auth.JWK{{KeyType: "EC", KeyID: "test"}}}, nil
+	return auth.JWKSet{Keys: []auth.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
+}
+
+func testUser() auth.User {
+	return auth.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: auth.RoleUser}
 }
 
 func testTokens() auth.AuthTokens {
@@ -53,98 +73,174 @@ func testTokens() auth.AuthTokens {
 		AccessExpiry: time.Now().Add(auth.AccessTokenLifetime), RefreshExpiry: time.Now().Add(auth.RefreshTokenLifetime)}
 }
 
-func sendRequest(t *testing.T, handler http.Handler, method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	if body != "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
-	}
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, req)
-	return response
-}
-
-func TestAuthRoutesAndCookies(t *testing.T) {
+func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if authhandler.RefreshCookieName != "foc-refresh-token" {
-		t.Fatal("unexpected auth cookie names")
+		t.Fatal("unexpected refresh cookie name")
 	}
 	logic := &stubLogic{}
-	handler := router.Setup(&deps.Env{}, &authhandler.Handler{Logic: logic})
-	login := sendRequest(t, handler, http.MethodPost, "/api/auth/login", `{"token":"magic"}`)
-	if login.Code != http.StatusOK || !strings.Contains(login.Body.String(), `"accessToken":"access-secret"`) || strings.Contains(login.Body.String(), "refresh-secret") {
-		t.Fatalf("login response: %d %s", login.Code, login.Body.String())
+	handler := router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	requestLink := connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})
+	requestLink.Header().Set("Origin", frontendOrigin)
+	if _, err := client.RequestLink(ctx, requestLink); err != nil {
+		t.Fatal(err)
 	}
-	cookies := login.Result().Cookies()
+	if logic.requestEmail != "user@example.com" {
+		t.Fatalf("request link email = %q", logic.requestEmail)
+	}
+
+	loginReq := connect.NewRequest(&userv1.LoginRequest{Token: "magic"})
+	loginReq.Header().Set("Origin", frontendOrigin)
+	login, err := client.Login(ctx, loginReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != "u1" ||
+		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
+		strings.Contains(login.Msg.String(), "refresh-secret") {
+		t.Fatalf("unexpected login response: %+v", login.Msg)
+	}
+	loginCookies := (&http.Response{Header: login.Header()}).Cookies()
+	assertRefreshCookie(t, loginCookies, "refresh-secret")
+	if login.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("login response should not be cached")
+	}
+
+	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: "User"})
+	registerReq.Header().Set("Origin", frontendOrigin)
+	register, err := client.Register(ctx, registerReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" || logic.registerProfile.DisplayName != "User" {
+		t.Fatalf("unexpected registration response: %+v", register.Msg)
+	}
+	assertRefreshCookie(t, (&http.Response{Header: register.Header()}).Cookies(), "refresh-secret")
+
+	refreshReq := connect.NewRequest(&userv1.RefreshRequest{})
+	refreshReq.Header().Set("Origin", frontendOrigin)
+	refreshReq.Header().Set("Cookie", authhandler.RefreshCookieName+"=old-refresh")
+	refresh, err := client.Refresh(ctx, refreshReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refresh.Msg.AccessToken != "access-secret" || logic.refreshIn != "old-refresh" {
+		t.Fatalf("refresh did not use the cookie: %+v, %q", refresh.Msg, logic.refreshIn)
+	}
+	assertRefreshCookie(t, (&http.Response{Header: refresh.Header()}).Cookies(), "refresh-secret")
+	if refresh.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("refresh response should not be cached")
+	}
+
+	logoutReq := connect.NewRequest(&userv1.LogoutRequest{})
+	logoutReq.Header().Set("Origin", frontendOrigin)
+	logoutReq.Header().Set("Cookie", authhandler.RefreshCookieName+"=old-refresh")
+	logout, err := client.Logout(ctx, logoutReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logic.logoutIn != "old-refresh" || logout.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("logout did not use cookie or set cache policy: %q, %q", logic.logoutIn, logout.Header().Get("Cache-Control"))
+	}
+	cleared := (&http.Response{Header: logout.Header()}).Cookies()
+	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 ||
+		!cleared[0].Secure || !cleared[0].HttpOnly || cleared[0].SameSite != http.SameSiteStrictMode ||
+		cleared[0].Path != "/user.v1.AuthService/" {
+		t.Fatalf("refresh cookie was not safely cleared: %+v", cleared)
+	}
+}
+
+func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
+	logic := &stubLogic{}
+	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	invalid := connect.NewRequest(&userv1.RequestLinkRequest{Email: "not an email"})
+	if _, err := client.RequestLink(ctx, invalid); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid email returned %v", err)
+	}
+	if logic.requestEmail != "" {
+		t.Fatal("invalid request reached auth logic")
+	}
+
+	foreign := connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})
+	foreign.Header().Set("Origin", "https://foreign.example.test")
+	if _, err := client.RequestLink(ctx, foreign); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("foreign origin returned %v", err)
+	}
+	if logic.requestEmail != "" {
+		t.Fatal("foreign origin reached auth logic")
+	}
+
+	logic.requestErr = auth.ErrUnavailable
+	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("unavailable auth returned %v", err)
+	}
+	logic.requestErr = errors.New("database password details")
+	_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
+	if connect.CodeOf(err) != connect.CodeInternal || strings.Contains(err.Error(), "password details") {
+		t.Fatalf("unexpected error was not normalized: %v", err)
+	}
+
+	logic.loginErr = auth.ErrLoginFailed
+	if _, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "bad"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("failed login returned %v", err)
+	}
+	logic.registerErr = auth.ErrAlreadyRegistered
+	if _, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"})); connect.CodeOf(err) != connect.CodeAlreadyExists {
+		t.Fatalf("duplicate registration returned %v", err)
+	}
+	logic.refreshErr = auth.ErrRefreshFailed
+	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("failed refresh returned %v", err)
+	}
+}
+
+func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
+	logic := &stubLogic{}
+	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic}))
+	t.Cleanup(server.Close)
+
+	keysClient := userv1connect.NewPublicKeyServiceClient(server.Client(), server.URL)
+	keys, err := keysClient.GetPublicKeys(context.Background(), connect.NewRequest(&userv1.GetPublicKeysRequest{}))
+	if err != nil || len(keys.Msg.Keys) != 1 || keys.Msg.Keys[0].Kid != "test" {
+		t.Fatalf("public keys response: %+v, %v", keys, err)
+	}
+	if keys.Header().Get("Cache-Control") != "public, max-age=300" {
+		t.Fatalf("unexpected public-key cache header %q", keys.Header().Get("Cache-Control"))
+	}
+	healthClient := userv1connect.NewHealthServiceClient(server.Client(), server.URL)
+	health, err := healthClient.Check(context.Background(), connect.NewRequest(&userv1.CheckRequest{}))
+	if err != nil || health.Msg.Status != "ok" {
+		t.Fatalf("health response: %+v, %v", health, err)
+	}
+
+	for _, path := range []string{"/api/auth", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout", "/api/health", "/.well-known/jwks.json"} {
+		response, err := server.Client().Get(server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusNotFound {
+			t.Errorf("legacy route %s returned HTTP %d", path, response.StatusCode)
+		}
+	}
+}
+
+func assertRefreshCookie(t *testing.T, cookies []*http.Cookie, value string) {
+	t.Helper()
 	if len(cookies) != 1 {
 		t.Fatalf("got %d session cookies", len(cookies))
 	}
-	for _, cookie := range cookies {
-		if !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge <= 0 {
-			t.Fatalf("unsafe session cookie: %+v", cookie)
-		}
-	}
-	if cookies[0].Name != authhandler.RefreshCookieName || cookies[0].Path != "/api/auth" || cookies[0].Domain != "" {
-		t.Fatalf("unexpected cookie scope: %+v", cookies)
-	}
-	register := sendRequest(t, handler, http.MethodPost, "/api/auth/register", `{"token":"magic","displayName":"User"}`)
-	if register.Code != http.StatusCreated || len(register.Result().Cookies()) != 1 || !strings.Contains(register.Body.String(), `"accessToken":"access-secret"`) {
-		t.Fatalf("registration response: %d %s", register.Code, register.Body.String())
-	}
-	refreshCookie := &http.Cookie{Name: authhandler.RefreshCookieName, Value: "old-refresh"}
-	refresh := sendRequest(t, handler, http.MethodPost, "/api/auth/refresh", "", refreshCookie)
-	if refresh.Code != http.StatusOK || logic.refreshIn != "old-refresh" || len(refresh.Result().Cookies()) != 1 || !strings.Contains(refresh.Body.String(), `"accessToken":"access-secret"`) {
-		t.Fatalf("refresh response: %d %s", refresh.Code, refresh.Body.String())
-	}
-	logout := sendRequest(t, handler, http.MethodPost, "/api/auth/logout", "", refreshCookie)
-	if logout.Code != http.StatusOK || logic.logoutIn != "old-refresh" {
-		t.Fatalf("logout response: %d %s", logout.Code, logout.Body.String())
-	}
-	for _, cookie := range logout.Result().Cookies() {
-		if cookie.MaxAge >= 0 || !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/api/auth" {
-			t.Fatalf("cookie was not cleared safely: %+v", cookie)
-		}
-	}
-}
-
-func TestPublicKeysAndUnavailableAuth(t *testing.T) {
-	logic := &stubLogic{requestErr: auth.ErrUnavailable}
-	handler := router.Setup(&deps.Env{}, &authhandler.Handler{Logic: logic})
-	keys := sendRequest(t, handler, http.MethodGet, "/.well-known/jwks.json", "")
-	if keys.Code != http.StatusOK || keys.Header().Get("Cache-Control") != "public, max-age=300" {
-		t.Fatalf("JWKS response: %d %s", keys.Code, keys.Body.String())
-	}
-	var jwks auth.JWKSet
-	if err := json.Unmarshal(keys.Body.Bytes(), &jwks); err != nil || len(jwks.Keys) != 1 {
-		t.Fatalf("invalid raw JWKS: %+v, %v", jwks, err)
-	}
-	request := sendRequest(t, handler, http.MethodPost, "/api/auth", `{"email":"user@example.com"}`)
-	if request.Code != http.StatusServiceUnavailable || !strings.Contains(request.Body.String(), "authentication service unavailable") {
-		t.Fatalf("unavailable auth: %d %s", request.Code, request.Body.String())
-	}
-	logic.requestErr = nil
-	request = sendRequest(t, handler, http.MethodPost, "/api/auth", `{"email":"user@example.com"}`)
-	if request.Code != http.StatusAccepted || strings.Contains(request.Body.String(), "token") {
-		t.Fatalf("generic link acknowledgement: %d %s", request.Code, request.Body.String())
-	}
-	logic.requestErr = errors.New("unexpected failure")
-	request = sendRequest(t, handler, http.MethodPost, "/api/auth", `{"email":"user@example.com"}`)
-	if request.Code != http.StatusInternalServerError {
-		t.Fatalf("unexpected internal error code: %d", request.Code)
-	}
-}
-
-func TestAuthRejectsForeignOrigin(t *testing.T) {
-	logic := &stubLogic{}
-	handler := router.Setup(&deps.Env{}, &authhandler.Handler{Logic: logic, AllowedOrigin: "https://app.example.test"})
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
-	req.Header.Set("Origin", "https://other.example.test")
-	req.AddCookie(&http.Cookie{Name: authhandler.RefreshCookieName, Value: "refresh-secret"})
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, req)
-	if response.Code != http.StatusUnauthorized || logic.refreshIn != "" {
-		t.Fatalf("foreign origin changed auth state: %d", response.Code)
+	cookie := cookies[0]
+	if cookie.Name != authhandler.RefreshCookieName || cookie.Value != value || !cookie.Secure || !cookie.HttpOnly ||
+		cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge <= 0 || cookie.Path != "/user.v1.AuthService/" || cookie.Domain != "" {
+		t.Fatalf("unsafe or unexpected refresh cookie: %+v", cookie)
 	}
 }
