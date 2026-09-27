@@ -9,6 +9,7 @@ import (
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	jwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
 var (
@@ -23,8 +24,8 @@ const (
 
 type Logic interface {
 	RequestLink(context.Context, string) error
-	Login(context.Context, string) (jwt.User, jwt.AuthTokens, error)
-	Register(context.Context, string, jwt.Profile) (jwt.User, jwt.AuthTokens, error)
+	Login(context.Context, string) (models.User, jwt.AuthTokens, error)
+	Register(context.Context, string, jwt.Profile) (models.User, jwt.AuthTokens, error)
 	Refresh(context.Context, string) (jwt.AuthTokens, error)
 	Logout(context.Context, string) error
 	PublicKeys() (jwt.JWKSet, error)
@@ -130,14 +131,14 @@ func (h *Handler) GetPublicKeys(
 	return result, nil
 }
 
-func userMessage(user jwt.User) *userv1.User {
-	role := map[jwt.Role]userv1.UserRole{
-		jwt.RoleSuperAdmin:    userv1.UserRole_USER_ROLE_SUPER_ADMIN,
-		jwt.RoleAdmin:         userv1.UserRole_USER_ROLE_ADMIN,
-		jwt.RoleUser:          userv1.UserRole_USER_ROLE_USER,
-		jwt.RoleSuspendedUser: userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+func userMessage(user models.User) *userv1.User {
+	role := map[models.RoleName]userv1.UserRole{
+		models.RoleSuperAdmin: userv1.UserRole_USER_ROLE_SUPER_ADMIN,
+		models.RoleAdmin:      userv1.UserRole_USER_ROLE_ADMIN,
+		models.RoleUser:       userv1.UserRole_USER_ROLE_USER,
+		models.RoleSuspended:  userv1.UserRole_USER_ROLE_SUSPENDED_USER,
 	}[user.Role]
-	return &userv1.User{Id: user.ID, Email: user.Email, DisplayName: user.DisplayName, Role: role}
+	return &userv1.User{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName, Role: role}
 }
 
 func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {
