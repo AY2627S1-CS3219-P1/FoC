@@ -20,26 +20,26 @@ type Service struct {
 type UserStore interface {
 	GetByEmail(context.Context, string) (*models.User, error)
 	GetByID(context.Context, uuid.UUID) (*models.User, error)
-	CreateUser(context.Context, *models.User) error
+	Create(context.Context, *models.User) error
 }
 
 type AuthTokenStore interface {
-	CreateToken(context.Context, *models.AuthToken) error
-	ConsumeToken(context.Context, [32]byte, models.TokenPurpose, time.Time) (*models.AuthToken, error)
+	Create(context.Context, *models.AuthToken) error
+	Consume(context.Context, [32]byte, models.TokenPurpose, time.Time) (*models.AuthToken, error)
 }
 
 type SessionStore interface {
-	CreateSession(context.Context, *models.Session) error
-	RevokeSession(context.Context, uuid.UUID, [32]byte, time.Time) error
+	Create(context.Context, *models.Session) error
+	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
 }
 
-type AuthStore interface {
-	UserStore
-	AuthTokenStore
-	SessionStore
+type Store struct {
+	Users      UserStore
+	AuthTokens AuthTokenStore
+	Sessions   SessionStore
 }
 
-type WithTransaction func(context.Context, func(AuthStore) error) error
+type WithTransaction func(context.Context, func(Store) error) error
 
 // TokenCodec is the signing and verification logic consumed by Service.
 type TokenCodec interface {
@@ -49,7 +49,7 @@ type TokenCodec interface {
 }
 
 type Dependencies struct {
-	AuthStore       AuthStore
+	Store           Store
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
 	EmailSender     email.EmailSender

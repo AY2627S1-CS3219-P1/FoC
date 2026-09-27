@@ -15,7 +15,7 @@ type Sessions struct{ db *gorm.DB }
 
 func NewSessions(db *gorm.DB) *Sessions { return &Sessions{db: db} }
 
-func (s *Sessions) CreateSession(ctx context.Context, session *models.Session) error {
+func (s *Sessions) Create(ctx context.Context, session *models.Session) error {
 	err := s.db.WithContext(ctx).Create(session).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return ErrDuplicate
@@ -26,7 +26,7 @@ func (s *Sessions) CreateSession(ctx context.Context, session *models.Session) e
 	return err
 }
 
-func (s *Sessions) RevokeSession(
+func (s *Sessions) Revoke(
 	ctx context.Context,
 	id uuid.UUID,
 	hash [32]byte,

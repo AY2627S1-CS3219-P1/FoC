@@ -15,7 +15,7 @@ type AuthTokens struct{ db *gorm.DB }
 
 func NewAuthTokens(db *gorm.DB) *AuthTokens { return &AuthTokens{db: db} }
 
-func (s *AuthTokens) CreateToken(ctx context.Context, token *models.AuthToken) error {
+func (s *AuthTokens) Create(ctx context.Context, token *models.AuthToken) error {
 	err := s.db.WithContext(ctx).Create(token).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return ErrDuplicate
@@ -26,7 +26,7 @@ func (s *AuthTokens) CreateToken(ctx context.Context, token *models.AuthToken) e
 	return err
 }
 
-func (s *AuthTokens) ConsumeToken(
+func (s *AuthTokens) Consume(
 	ctx context.Context,
 	hash [32]byte,
 	purpose models.TokenPurpose,

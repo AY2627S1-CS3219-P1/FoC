@@ -58,8 +58,7 @@ func (s *Users) GetByEmail(ctx context.Context, email string) (*models.User, err
 	return &user, nil
 }
 
-// CreateUser inserts user, mapping a duplicate email to ErrDuplicate.
-func (s *Users) CreateUser(ctx context.Context, user *models.User) error {
+func (s *Users) Create(ctx context.Context, user *models.User) error {
 	err := s.db.WithContext(ctx).Create(user).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return ErrDuplicate
