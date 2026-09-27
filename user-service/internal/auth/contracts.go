@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/url"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
@@ -146,7 +147,7 @@ type Dependencies struct {
 }
 
 type Config struct {
-	FrontendBaseURL  string
+	FrontendBaseURL  url.URL
 	LocalDevelopment bool
 	AccessTokenTTL   time.Duration
 	RefreshTokenTTL  time.Duration
