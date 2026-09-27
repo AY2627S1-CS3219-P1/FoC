@@ -28,13 +28,44 @@ type Location struct {
 	ID          pgtype.UUID
 	Name        string
 	IsSupplier  bool
-	CategoryID  pgtype.UUID
 	BuildingID  pgtype.UUID
 	Coordinates postgis.PointS
+	OpenFrom    pgtype.Time
+	OpenTo      pgtype.Time
+	Contact     pgtype.Text
 	Details     string
 	ArchivedAt  pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+	Floor       pgtype.Text
+	Revision    int64
+}
+
+type LocationAdditionRequest struct {
+	ID                  pgtype.UUID
+	SubmittedBy         string
+	Name                string
+	IsSupplier          bool
+	CategoryID          pgtype.UUID
+	BuildingID          pgtype.UUID
+	Coordinates         *postgis.PointS
+	OpenFrom            pgtype.Time
+	OpenTo              pgtype.Time
+	Contact             pgtype.Text
+	Details             string
+	Status              string
+	ReviewedBy          pgtype.Text
+	ReviewedAt          pgtype.Timestamptz
+	ReviewNote          pgtype.Text
+	ResultingLocationID pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+type LocationCategory struct {
+	LocationID pgtype.UUID
+	CategoryID pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
 }
 
 type LocationDisablement struct {
@@ -43,8 +74,8 @@ type LocationDisablement struct {
 	StartsAt    pgtype.Timestamptz
 	EndsAt      pgtype.Timestamptz
 	CancelledAt pgtype.Timestamptz
-	Reason      pgtype.Text
-	CreatedBy   pgtype.Text
+	Reason      string
+	CreatedBy   string
 	CreatedAt   pgtype.Timestamptz
 }
 
@@ -54,23 +85,6 @@ type LocationPhoto struct {
 	PhotoUrl   string
 	SortOrder  int32
 	CreatedAt  pgtype.Timestamptz
-}
-
-type SupplierAdditionRequest struct {
-	ID                  pgtype.UUID
-	SubmittedBy         string
-	Name                string
-	CategoryID          pgtype.UUID
-	BuildingID          pgtype.UUID
-	Coordinates         *postgis.PointS
-	Details             string
-	Status              string
-	ReviewedBy          pgtype.Text
-	ReviewedAt          pgtype.Timestamptz
-	ReviewNote          pgtype.Text
-	ResultingLocationID pgtype.UUID
-	CreatedAt           pgtype.Timestamptz
-	UpdatedAt           pgtype.Timestamptz
 }
 
 type User struct {
