@@ -34,7 +34,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 		return err
 	}
 
-	user, err := s.deps.AuthStore.GetByEmail(ctx, normalizedEmail)
+	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
 		if user.ID == uuid.Nil {
@@ -57,7 +57,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	} else {
 		challenge.Purpose = models.TokenPurposeRegister
 	}
-	if err := s.deps.AuthStore.CreateToken(ctx, &challenge); err != nil {
+	if err := s.deps.Store.AuthTokens.Create(ctx, &challenge); err != nil {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 
@@ -101,15 +101,15 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
-		challenge, err := tx.ConsumeToken(ctx, digest, models.TokenPurposeLogin, now)
+	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeLogin, now)
 		if err != nil {
 			return err
 		}
 		if challenge.UserID == nil {
 			return store.ErrChallengeRejected
 		}
-		storedUser, err := tx.GetByID(ctx, *challenge.UserID)
+		storedUser, err := tx.Users.GetByID(ctx, *challenge.UserID)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if err != nil {
 			return err
 		}
-		if err := tx.CreateSession(ctx, &session); err != nil {
+		if err := tx.Sessions.Create(ctx, &session); err != nil {
 			return err
 		}
 		tokens = signed
@@ -150,13 +150,13 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
-		challenge, err := tx.ConsumeToken(ctx, digest, models.TokenPurposeRegister, now)
+	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeRegister, now)
 		if err != nil {
 			return err
 		}
 		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName, Role: models.RoleUser}
-		if err := tx.CreateUser(ctx, &user); err != nil {
+		if err := tx.Users.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
 				return jwt.ErrAlreadyRegistered
 			}
@@ -166,7 +166,7 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		if err != nil {
 			return err
 		}
-		if err := tx.CreateSession(ctx, &session); err != nil {
+		if err := tx.Sessions.Create(ctx, &session); err != nil {
 			return err
 		}
 		tokens = signed
@@ -198,7 +198,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTok
 	if err != nil {
 		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	user, err := s.deps.AuthStore.GetByID(ctx, userID)
+	user, err := s.deps.Store.Users.GetByID(ctx, userID)
 	if errors.Is(err, store.ErrNotFound) {
 		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
@@ -212,11 +212,11 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTok
 	if err != nil {
 		return jwt.AuthTokens{}, err
 	}
-	err = s.deps.WithTransaction(ctx, func(tx AuthStore) error {
-		if err := tx.RevokeSession(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
+	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
-		return tx.CreateSession(ctx, &replacement)
+		return tx.Sessions.Create(ctx, &replacement)
 	})
 	if errors.Is(err, store.ErrSessionRejected) {
 		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
@@ -239,7 +239,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return nil
 	}
-	err = s.deps.AuthStore.RevokeSession(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
+	err = s.deps.Store.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
 	if errors.Is(err, store.ErrSessionRejected) {
 		return nil
 	}

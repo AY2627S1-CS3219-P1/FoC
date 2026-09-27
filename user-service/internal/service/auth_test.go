@@ -128,7 +128,41 @@ func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]by
 	return nil
 }
 
-func (f *fakeStore) withTransaction(ctx context.Context, operation func(AuthStore) error) error {
+type fakeUsers struct{ *fakeStore }
+
+func (f fakeUsers) Create(ctx context.Context, user *models.User) error {
+	return f.CreateUser(ctx, user)
+}
+
+type fakeAuthTokens struct{ *fakeStore }
+
+func (f fakeAuthTokens) Create(ctx context.Context, token *models.AuthToken) error {
+	return f.CreateToken(ctx, token)
+}
+
+func (f fakeAuthTokens) Consume(ctx context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+	return f.ConsumeToken(ctx, digest, purpose, now)
+}
+
+type fakeSessions struct{ *fakeStore }
+
+func (f fakeSessions) Create(ctx context.Context, session *models.Session) error {
+	return f.CreateSession(ctx, session)
+}
+
+func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte, now time.Time) error {
+	return f.RevokeSession(ctx, id, digest, now)
+}
+
+func (f *fakeStore) stores() Store {
+	return Store{
+		Users:      fakeUsers{f},
+		AuthTokens: fakeAuthTokens{f},
+		Sessions:   fakeSessions{f},
+	}
+}
+
+func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
@@ -138,7 +172,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(AuthStor
 		sessions:      cloneMap(f.sessions),
 		failSession:   f.failSession,
 	}
-	if err := operation(tx); err != nil {
+	if err := operation(tx.stores()); err != nil {
 		return err
 	}
 	f.users = tx.users
@@ -190,7 +224,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{AuthStore: store, WithTransaction: store.withTransaction,
+	service, err := NewService(Dependencies{Store: store.stores(), WithTransaction: store.withTransaction,
 		TokenCodec: codec, EmailSender: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
@@ -488,7 +522,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while requesting link", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.AuthStore = nil
+		service.deps.Store.Users = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("transaction runner while completing login", func(t *testing.T) {
@@ -526,7 +560,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.AuthStore = nil
+		service.deps.Store.Users = nil
 		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
@@ -541,7 +575,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while logging out", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.AuthStore = nil
+		service.deps.Store.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
 	})
 	t.Run("token codec while reading public keys", func(t *testing.T) {
