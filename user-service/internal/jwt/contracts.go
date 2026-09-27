@@ -1,4 +1,4 @@
-// Package auth owns authentication domain types, roles, and errors.
+// Package jwt provides JWT types and authentication errors shared by the service.
 package jwt
 
 import (
@@ -9,10 +9,8 @@ import (
 )
 
 var (
-	ErrNotFound           = errors.New("user not found")
 	ErrChallengeRejected  = errors.New("challenge invalid, expired, or used")
 	ErrAlreadyRegistered  = errors.New("email already registered")
-	ErrSessionRejected    = errors.New("session invalid or revoked")
 	ErrInvalidEmail       = errors.New("invalid email address")
 	ErrInvalidProfile     = errors.New("invalid registration profile")
 	ErrLoginFailed        = errors.New("login verification failed")
@@ -30,34 +28,8 @@ const (
 	RoleSuspendedUser = tokenclaims.RoleSuspendedUser
 )
 
-type User struct {
-	ID          string
-	Email       string
-	DisplayName string
-	Role        Role
-}
-
 type Profile struct {
 	DisplayName string
-}
-
-type LoginChallenge struct {
-	Digest    [32]byte
-	UserID    string
-	ExpiresAt time.Time
-}
-
-type RegistrationChallenge struct {
-	Digest    [32]byte
-	Email     string
-	ExpiresAt time.Time
-}
-
-type Session struct {
-	ID            string
-	UserID        string
-	RefreshDigest [32]byte
-	ExpiresAt     time.Time
 }
 
 type TokenType = tokenclaims.TokenUse

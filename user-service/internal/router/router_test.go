@@ -16,8 +16,10 @@ import (
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/google/uuid"
 )
 
 const frontendOrigin = "https://app.example.test"
@@ -49,12 +51,12 @@ func (s *stubLogic) RequestLink(_ context.Context, email string) error {
 	return s.requestErr
 }
 
-func (s *stubLogic) Login(_ context.Context, token string) (jwt.User, jwt.AuthTokens, error) {
+func (s *stubLogic) Login(_ context.Context, token string) (models.User, jwt.AuthTokens, error) {
 	s.loginToken = token
 	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (jwt.User, jwt.AuthTokens, error) {
+func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	s.registerToken = token
 	s.registerProfile = profile
 	return testUser(), testTokens(), s.registerErr
@@ -74,8 +76,8 @@ func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
 	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
 }
 
-func testUser() jwt.User {
-	return jwt.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: jwt.RoleUser}
+func testUser() models.User {
+	return models.User{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Email: "user@example.com", DisplayName: "User", Role: models.RoleUser}
 }
 
 func testTokens() jwt.AuthTokens {
@@ -109,7 +111,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != "u1" ||
+	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {
 		t.Fatalf("unexpected login response: %+v", login.Msg)
