@@ -357,14 +357,25 @@ func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 		t.Fatalf("combined Food/Coffee produced %d Category relationships", categoryCount)
 	}
 
-	var longitude, latitude float64
-	if err := pool.QueryRow(ctx, `
-		SELECT ST_X(coordinates::geometry), ST_Y(coordinates::geometry)
-		FROM locations WHERE name = 'COM2 Foyer'`).Scan(&longitude, &latitude); err != nil {
-		t.Fatalf("read committed COM2 coordinates: %v", err)
+	expectedCoordinates := []struct {
+		name      string
+		latitude  float64
+		longitude float64
+	}{
+		{name: "Central Library Main Entrance", latitude: 1.2966455, longitude: 103.7732263},
+		{name: "COM2 Foyer", latitude: 1.293655617, longitude: 103.774299300},
+		{name: "Yusof Ishak House Foyer", latitude: 1.298410586, longitude: 103.774553900},
 	}
-	if math.Abs(longitude-103.774299300) > 0.0000001 || math.Abs(latitude-1.293655617) > 0.0000001 {
-		t.Fatalf("COM2 coordinates changed: longitude=%f latitude=%f", longitude, latitude)
+	for _, expected := range expectedCoordinates {
+		var longitude, latitude float64
+		if err := pool.QueryRow(ctx, `
+			SELECT ST_X(coordinates::geometry), ST_Y(coordinates::geometry)
+			FROM locations WHERE name = $1`, expected.name).Scan(&longitude, &latitude); err != nil {
+			t.Fatalf("read committed %s coordinates: %v", expected.name, err)
+		}
+		if math.Abs(longitude-expected.longitude) > 0.0000001 || math.Abs(latitude-expected.latitude) > 0.0000001 {
+			t.Fatalf("%s coordinates changed: longitude=%f latitude=%f", expected.name, longitude, latitude)
+		}
 	}
 
 	if err := goose.DownTo(db, migrationDirectory(t), 8); err == nil || !strings.Contains(err.Error(), "cannot restore single-category schema") {

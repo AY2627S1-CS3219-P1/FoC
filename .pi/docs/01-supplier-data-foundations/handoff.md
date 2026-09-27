@@ -59,12 +59,14 @@ Building aliases are explicit `|`-separated values in `building-seed-data.csv`. 
 - Opening hours are Asia/Singapore wall-clock values in `HHMMhrs` format. A closing time before opening time is an overnight range.
 - Supplier image URLs are accepted as input columns and ignored.
 - Floor values are strings so labels such as `B1` survive round trips.
-- The three ordinary Location coordinates use official NUS Map building pins. NUS does not publish distinct foyer pins for COM2 or Yusof Ishak House, so those foyer coordinates use the official building pins.
+- COM2 Foyer and Yusof Ishak House Foyer use the official NUS Map building pins because NUS does not publish distinct foyer pins.
+- Central Library Main Entrance uses a georeferenced entrance recommendation derived from the official Central Library building pin and the Level 1 floor plan's labelled main entrance facing Central Library Forum. NUS does not publish a separate entrance GPS point.
 
 Coordinate sources:
 
-- Central Library: https://nus.edu.sg/nuslibraries/spaces/our-libraries/temp_librarydetail
 - NUS Map search data for Central Library, COM2, and Yusof Ishak House: https://map.nus.edu.sg/index.php/search/ajax_auto
+- NUS Libraries Central Library Level 1 map: https://lib.nus.edu.sg/learning/gen_pub/outreach/cl/CLMap_2024.pdf
+- Central Library page: https://nus.edu.sg/nuslibraries/spaces/our-libraries/central-library
 - COM2 foyer context: https://uci.nus.edu.sg/notice-closure-of-car-park-13-and-amendment-of-isb-services-for-development-of-executive-centre/
 - Yusof Ishak House context: https://osa.nus.edu.sg/about-osa/contact-us/
 

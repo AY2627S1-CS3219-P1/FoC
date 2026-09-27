@@ -1,4 +1,4 @@
 SourceKey,Name,BuildingSourceKey,Floor,Location Description,Latitude,Longitude,StartingTime,ClosingTime
-location:central-library-main-entrance,Central Library Main Entrance,building:central-library,1,Main entrance on Level 1,1.296261755,103.773028900,,
+location:central-library-main-entrance,Central Library Main Entrance,building:central-library,1,Main entrance facing Central Library Forum,1.2966455,103.7732263,,
 location:com2-foyer,COM2 Foyer,building:com2,1,Foyer coordinates use the official COM2 building pin,1.293655617,103.774299300,,
 location:yusof-ishak-house-foyer,Yusof Ishak House Foyer,building:yusof-ishak-house,1,Foyer coordinates use the official Yusof Ishak House building pin,1.298410586,103.774553900,,
