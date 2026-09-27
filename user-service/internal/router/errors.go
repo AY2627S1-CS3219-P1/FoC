@@ -8,6 +8,7 @@ import (
 	"connectrpc.com/connect"
 )
 
+// TODO: standardise this into a project-level shared package
 func normalizeRPCError() connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
