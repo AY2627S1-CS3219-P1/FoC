@@ -22,11 +22,12 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 )
 
@@ -74,11 +75,11 @@ func run(log *slog.Logger) error {
 	if keyPath == "" {
 		return errors.New("JWT_PRIVATE_KEY_FILE is required")
 	}
-	key, err := auth.LoadPrivateKeyPEM(keyPath)
+	key, err := jwt.LoadPrivateKeyPEM(keyPath)
 	if err != nil {
 		return err
 	}
-	codec, err := auth.NewES256Codec(key, keyID(&key.PublicKey), authmiddleware.TokenIssuer, authmiddleware.TokenAudience)
+	codec, err := jwt.NewES256Codec(key, keyID(&key.PublicKey), authmiddleware.TokenIssuer, authmiddleware.TokenAudience)
 	if err != nil {
 		return err
 	}
@@ -87,12 +88,6 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	refreshTTL, err := getDurationEnv("JWT_REFRESH_TOKEN_TTL", service.RefreshTokenLifetime)
-	if err != nil {
-		return err
-	}
-	service, err := service.NewService(auth.Dependencies{TokenCodec: codec, EmailSender: email.EmptyEmailSender{}}, auth.Config{
-		FrontendBaseURL: *frontend, LocalDevelopment: local,
-		AccessTokenTTL: accessTTL, RefreshTokenTTL: refreshTTL})
 	if err != nil {
 		return err
 	}
@@ -122,9 +117,35 @@ func run(log *slog.Logger) error {
 		log.Info("migrations applied")
 	}
 
+	authStore := store.New(db)
+	authService, err := service.NewService(service.Dependencies{
+		Store: service.Store{
+			Users:      authStore.Users,
+			AuthTokens: authStore.AuthTokens,
+			Sessions:   authStore.Sessions,
+		},
+		WithTransaction: func(ctx context.Context, operation func(service.Store) error) error {
+			return authStore.WithTransaction(ctx, func(txStore *store.Store) error {
+				return operation(service.Store{
+					Users:      txStore.Users,
+					AuthTokens: txStore.AuthTokens,
+					Sessions:   txStore.Sessions,
+				})
+			})
+		},
+		TokenCodec:  codec,
+		EmailSender: email.EmptyEmailSender{},
+	}, service.Config{
+		FrontendBaseURL: *frontend, LocalDevelopment: local,
+		AccessTokenTTL: accessTTL, RefreshTokenTTL: refreshTTL,
+	})
+	if err != nil {
+		return err
+	}
+
 	r := router.Setup(
 		&healthhandler.Handler{DB: sqlDB},
-		&authhandler.Handler{Logic: service, AllowedOrigin: origin},
+		&authhandler.Handler{Logic: authService, AllowedOrigin: origin},
 	)
 	addr := ":" + getPort()
 	srv := newServer(addr, getCorsConfig(origin).Handler(r))
