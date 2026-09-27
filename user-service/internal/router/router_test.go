@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -230,6 +231,28 @@ func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 		if response.StatusCode != http.StatusNotFound {
 			t.Errorf("legacy route %s returned HTTP %d", path, response.StatusCode)
 		}
+	}
+}
+
+func TestHealthRPCRejectsOversizedRequest(t *testing.T) {
+	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: &stubLogic{}}))
+	t.Cleanup(server.Close)
+
+	body := bytes.NewReader(make([]byte, (1<<20)+1))
+	request, err := http.NewRequest(http.MethodPost,
+		server.URL+userv1connect.HealthServiceCheckProcedure, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/proto")
+	request.Header.Set("Connect-Protocol-Version", "1")
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("oversized health request returned HTTP %d, want %d", response.StatusCode, http.StatusTooManyRequests)
 	}
 }
 

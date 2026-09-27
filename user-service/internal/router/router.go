@@ -23,6 +23,7 @@ func Setup(auth *authhandler.Handler) *chi.Mux {
 
 	healthPath, healthHandler := userv1connect.NewHealthServiceHandler(
 		healthhandler.New(),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
 	)
 	r.Mount(healthPath, healthHandler)
 
