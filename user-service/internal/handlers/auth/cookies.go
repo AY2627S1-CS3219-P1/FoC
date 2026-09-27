@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	logic "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
+	logic "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 )
 
 func authCookie(name, value, path string, expiry time.Time) string {

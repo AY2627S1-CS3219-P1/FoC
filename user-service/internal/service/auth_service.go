@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 )
 
 const (
@@ -37,7 +37,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 		if user.ID == "" {
 			return errors.New("found user has no ID")
 		}
-	} else if !errors.Is(err, auth.ErrNotFound) {
+	} else if !errors.Is(err, jwt.ErrNotFound) {
 		return fmt.Errorf("find user by email: %w", err)
 	}
 
@@ -48,9 +48,9 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 
 	expires := s.cfg.Now().UTC().Add(MagicLinkLifetime)
 	if isLogin {
-		err = s.deps.LoginTokens.Save(ctx, auth.LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: expires})
+		err = s.deps.LoginTokens.Save(ctx, jwt.LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: expires})
 	} else {
-		err = s.deps.RegistrationTokens.Save(ctx, auth.RegistrationChallenge{Digest: digest, Email: normalizedEmail, ExpiresAt: expires})
+		err = s.deps.RegistrationTokens.Save(ctx, jwt.RegistrationChallenge{Digest: digest, Email: normalizedEmail, ExpiresAt: expires})
 	}
 	if err != nil {
 		return fmt.Errorf("save magic link: %w", err)
@@ -79,7 +79,7 @@ func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
-		return auth.ErrUnavailable
+		return jwt.ErrUnavailable
 	}
 
 	return nil
@@ -89,83 +89,83 @@ func (s *Service) sendEmail(ctx context.Context, message email.Email) error {
 	return s.deps.EmailSender.Send(ctx, message)
 }
 
-func (s *Service) Login(ctx context.Context, loginToken string) (auth.User, auth.AuthTokens, error) {
+func (s *Service) Login(ctx context.Context, loginToken string) (jwt.User, jwt.AuthTokens, error) {
 	digest, err := digestMagicToken(loginToken)
 	if err != nil {
-		return auth.User{}, auth.AuthTokens{}, auth.ErrLoginFailed
+		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
 	}
 
 	now := s.cfg.Now().UTC()
-	user, tokens, err := s.deps.LoginTokens.Complete(ctx, digest, now, func(user auth.User) (auth.Session, auth.AuthTokens, error) {
+	user, tokens, err := s.deps.LoginTokens.Complete(ctx, digest, now, func(user jwt.User) (jwt.Session, jwt.AuthTokens, error) {
 		if user.ID == "" || !user.Role.Valid() {
-			return auth.Session{}, auth.AuthTokens{}, auth.ErrLoginFailed
+			return jwt.Session{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
 		}
 		return s.newSession(user, now)
 	})
-	if errors.Is(err, auth.ErrChallengeRejected) || errors.Is(err, auth.ErrNotFound) || errors.Is(err, auth.ErrLoginFailed) {
-		return auth.User{}, auth.AuthTokens{}, auth.ErrLoginFailed
+	if errors.Is(err, jwt.ErrChallengeRejected) || errors.Is(err, jwt.ErrNotFound) || errors.Is(err, jwt.ErrLoginFailed) {
+		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
 	}
 	if err != nil {
-		return auth.User{}, auth.AuthTokens{}, fmt.Errorf("complete login: %w", err)
+		return jwt.User{}, jwt.AuthTokens{}, fmt.Errorf("complete login: %w", err)
 	}
 	return user, tokens, nil
 }
 
-func (s *Service) Register(ctx context.Context, registrationToken string, profile auth.Profile) (auth.User, auth.AuthTokens, error) {
+func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (jwt.User, jwt.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
 	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
-		return auth.User{}, auth.AuthTokens{}, auth.ErrInvalidProfile
+		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
 	digest, err := digestMagicToken(registrationToken)
 	if err != nil {
-		return auth.User{}, auth.AuthTokens{}, auth.ErrRegistrationFailed
+		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
 	}
 	now := s.cfg.Now().UTC()
-	user, tokens, err := s.deps.RegistrationTokens.Complete(ctx, digest, profile, now, func(user auth.User) (auth.Session, auth.AuthTokens, error) {
-		if user.ID == "" || user.Role != auth.RoleUser {
-			return auth.Session{}, auth.AuthTokens{}, errors.New("created user has invalid identity or role")
+	user, tokens, err := s.deps.RegistrationTokens.Complete(ctx, digest, profile, now, func(user jwt.User) (jwt.Session, jwt.AuthTokens, error) {
+		if user.ID == "" || user.Role != jwt.RoleUser {
+			return jwt.Session{}, jwt.AuthTokens{}, errors.New("created user has invalid identity or role")
 		}
 		return s.newSession(user, now)
 	})
-	if errors.Is(err, auth.ErrChallengeRejected) {
-		return auth.User{}, auth.AuthTokens{}, auth.ErrRegistrationFailed
+	if errors.Is(err, jwt.ErrChallengeRejected) {
+		return jwt.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
 	}
 	if err != nil {
-		if errors.Is(err, auth.ErrAlreadyRegistered) {
-			return auth.User{}, auth.AuthTokens{}, auth.ErrAlreadyRegistered
+		if errors.Is(err, jwt.ErrAlreadyRegistered) {
+			return jwt.User{}, jwt.AuthTokens{}, jwt.ErrAlreadyRegistered
 		}
-		return auth.User{}, auth.AuthTokens{}, fmt.Errorf("complete registration: %w", err)
+		return jwt.User{}, jwt.AuthTokens{}, fmt.Errorf("complete registration: %w", err)
 	}
 	return user, tokens, nil
 }
 
-func (s *Service) Refresh(ctx context.Context, refreshToken string) (auth.AuthTokens, error) {
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTokens, error) {
 	now := s.cfg.Now().UTC()
-	claims, err := s.deps.TokenCodec.Verify(refreshToken, auth.RefreshToken, now)
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
 	if err != nil {
-		return auth.AuthTokens{}, auth.ErrRefreshFailed
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	user, err := s.deps.Users.FindByID(ctx, claims.Subject)
-	if errors.Is(err, auth.ErrNotFound) {
-		return auth.AuthTokens{}, auth.ErrRefreshFailed
+	if errors.Is(err, jwt.ErrNotFound) {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
 	}
 	if user.ID != claims.Subject || !user.Role.Valid() {
-		return auth.AuthTokens{}, auth.ErrRefreshFailed
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	tokens, err := s.signSessionTokens(user, claims.SessionID, now)
 	if err != nil {
-		return auth.AuthTokens{}, err
+		return jwt.AuthTokens{}, err
 	}
 	err = s.deps.Sessions.Rotate(ctx, claims.SessionID, sha256.Sum256([]byte(refreshToken)),
 		sha256.Sum256([]byte(tokens.RefreshToken)), now, tokens.RefreshExpiry)
-	if errors.Is(err, auth.ErrSessionRejected) {
-		return auth.AuthTokens{}, auth.ErrRefreshFailed
+	if errors.Is(err, jwt.ErrSessionRejected) {
+		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("rotate refresh session: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("rotate refresh session: %w", err)
 	}
 	return tokens, nil
 }
@@ -174,12 +174,12 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (auth.AuthTo
 // by the HTTP adapter; a valid cookie is revoked before success is returned.
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	now := s.cfg.Now().UTC()
-	claims, err := s.deps.TokenCodec.Verify(refreshToken, auth.RefreshToken, now)
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
 	if err != nil {
 		return nil
 	}
 	err = s.deps.Sessions.Revoke(ctx, claims.SessionID, sha256.Sum256([]byte(refreshToken)), now)
-	if errors.Is(err, auth.ErrSessionRejected) {
+	if errors.Is(err, jwt.ErrSessionRejected) {
 		return nil
 	}
 	if err != nil {
@@ -188,45 +188,45 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-func (s *Service) PublicKeys() (auth.JWKSet, error) {
+func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) newSession(user auth.User, now time.Time) (auth.Session, auth.AuthTokens, error) {
+func (s *Service) newSession(user jwt.User, now time.Time) (jwt.Session, jwt.AuthTokens, error) {
 	sessionID, _, err := randomToken(16)
 	if err != nil {
-		return auth.Session{}, auth.AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
+		return jwt.Session{}, jwt.AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
 	}
 	tokens, err := s.signSessionTokens(user, sessionID, now)
 	if err != nil {
-		return auth.Session{}, auth.AuthTokens{}, err
+		return jwt.Session{}, jwt.AuthTokens{}, err
 	}
-	return auth.Session{ID: sessionID, UserID: user.ID,
+	return jwt.Session{ID: sessionID, UserID: user.ID,
 		RefreshDigest: sha256.Sum256([]byte(tokens.RefreshToken)), ExpiresAt: tokens.RefreshExpiry}, tokens, nil
 }
 
-func (s *Service) signSessionTokens(user auth.User, sessionID string, now time.Time) (auth.AuthTokens, error) {
+func (s *Service) signSessionTokens(user jwt.User, sessionID string, now time.Time) (jwt.AuthTokens, error) {
 	accessID, _, err := randomToken(16)
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("generate access token ID: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("generate access token ID: %w", err)
 	}
 	refreshID, _, err := randomToken(16)
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("generate refresh token ID: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("generate refresh token ID: %w", err)
 	}
 	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
-	access, err := s.deps.TokenCodec.Sign(auth.Claims{Type: auth.AccessToken, Subject: user.ID,
+	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: user.ID,
 		SessionID: sessionID, Role: user.Role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
 	}
-	refresh, err := s.deps.TokenCodec.Sign(auth.Claims{Type: auth.RefreshToken, Subject: user.ID,
+	refresh, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: user.ID,
 		SessionID: sessionID, IssuedAt: now, ExpiresAt: refreshExpiry, TokenID: refreshID})
 	if err != nil {
-		return auth.AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
+		return jwt.AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
 	}
-	return auth.AuthTokens{AccessToken: access, RefreshToken: refresh,
+	return jwt.AuthTokens{AccessToken: access, RefreshToken: refresh,
 		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
 }
 
@@ -234,7 +234,7 @@ func normalizeEmail(input string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(input))
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
-		return "", auth.ErrInvalidEmail
+		return "", jwt.ErrInvalidEmail
 	}
 	return email, nil
 }
@@ -251,7 +251,7 @@ func randomToken(size int) (string, [32]byte, error) {
 func digestMagicToken(token string) ([32]byte, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != token {
-		return [32]byte{}, auth.ErrChallengeRejected
+		return [32]byte{}, jwt.ErrChallengeRejected
 	}
 	return sha256.Sum256([]byte(token)), nil
 }

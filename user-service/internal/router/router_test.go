@@ -13,9 +13,9 @@ import (
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 )
@@ -39,7 +39,7 @@ type stubLogic struct {
 	requestEmail    string
 	loginToken      string
 	registerToken   string
-	registerProfile auth.Profile
+	registerProfile jwt.Profile
 	refreshIn       string
 	logoutIn        string
 }
@@ -49,18 +49,18 @@ func (s *stubLogic) RequestLink(_ context.Context, email string) error {
 	return s.requestErr
 }
 
-func (s *stubLogic) Login(_ context.Context, token string) (auth.User, auth.AuthTokens, error) {
+func (s *stubLogic) Login(_ context.Context, token string) (jwt.User, jwt.AuthTokens, error) {
 	s.loginToken = token
 	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(_ context.Context, token string, profile auth.Profile) (auth.User, auth.AuthTokens, error) {
+func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (jwt.User, jwt.AuthTokens, error) {
 	s.registerToken = token
 	s.registerProfile = profile
 	return testUser(), testTokens(), s.registerErr
 }
 
-func (s *stubLogic) Refresh(_ context.Context, token string) (auth.AuthTokens, error) {
+func (s *stubLogic) Refresh(_ context.Context, token string) (jwt.AuthTokens, error) {
 	s.refreshIn = token
 	return testTokens(), s.refreshErr
 }
@@ -70,16 +70,16 @@ func (s *stubLogic) Logout(_ context.Context, token string) error {
 	return s.logoutErr
 }
 
-func (s *stubLogic) PublicKeys() (auth.JWKSet, error) {
-	return auth.JWKSet{Keys: []auth.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
+func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
+	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
 }
 
-func testUser() auth.User {
-	return auth.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: auth.RoleUser}
+func testUser() jwt.User {
+	return jwt.User{ID: "u1", Email: "user@example.com", DisplayName: "User", Role: jwt.RoleUser}
 }
 
-func testTokens() auth.AuthTokens {
-	return auth.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
+func testTokens() jwt.AuthTokens {
+	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
 		AccessExpiry: time.Now().Add(service.AccessTokenLifetime), RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime)}
 }
 
@@ -188,7 +188,7 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 		t.Fatal("foreign origin reached auth logic")
 	}
 
-	logic.requestErr = auth.ErrUnavailable
+	logic.requestErr = jwt.ErrUnavailable
 	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
@@ -198,15 +198,15 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 		t.Fatalf("unexpected error was not normalized: %v", err)
 	}
 
-	logic.loginErr = auth.ErrLoginFailed
+	logic.loginErr = jwt.ErrLoginFailed
 	if _, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "bad"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed login returned %v", err)
 	}
-	logic.registerErr = auth.ErrAlreadyRegistered
+	logic.registerErr = jwt.ErrAlreadyRegistered
 	if _, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"})); connect.CodeOf(err) != connect.CodeAlreadyExists {
 		t.Fatalf("duplicate registration returned %v", err)
 	}
-	logic.refreshErr = auth.ErrRefreshFailed
+	logic.refreshErr = jwt.ErrRefreshFailed
 	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
 	}
