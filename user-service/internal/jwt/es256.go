@@ -1,4 +1,4 @@
-package auth
+package jwt
 
 import (
 	"crypto/ecdsa"
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth/tokenclaims"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
 	"github.com/golang-jwt/jwt/v5"
 )
 
