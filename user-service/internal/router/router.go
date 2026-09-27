@@ -8,6 +8,7 @@ import (
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -33,7 +34,7 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler) *chi.Mux {
 		connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
 		connect.WithReadMaxBytes(maxRPCMessageBytes),
 	)
-	r.With(checkOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
+	r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
 
 	keysPath, keysService := userv1connect.NewPublicKeyServiceHandler(
 		auth,

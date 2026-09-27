@@ -1,4 +1,4 @@
-package auth
+package service
 
 import (
 	"context"
@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"html"
 	"net/mail"
-	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 )
 
 const (
@@ -25,49 +25,19 @@ const (
 	RefreshTokenLifetime = 30 * 24 * time.Hour
 )
 
-type Service struct {
-	deps Dependencies
-	cfg  Config
-	base *url.URL
-}
-
-func NewService(deps Dependencies, cfg Config) (*Service, error) {
-	base, err := url.Parse(cfg.FrontendBaseURL)
-	if err != nil || base.Host == "" || base.User != nil || base.Opaque != "" ||
-		(base.Scheme != "https" && base.Scheme != "http") || base.RawQuery != "" || base.Fragment != "" {
-		return nil, errors.New("invalid frontend base URL")
-	}
-	if !cfg.LocalDevelopment && base.Scheme != "https" {
-		return nil, errors.New("frontend base URL must use HTTPS outside local mode")
-	}
-	if cfg.AccessTokenTTL == 0 {
-		cfg.AccessTokenTTL = AccessTokenLifetime
-	}
-	if cfg.RefreshTokenTTL == 0 {
-		cfg.RefreshTokenTTL = RefreshTokenLifetime
-	}
-	if cfg.AccessTokenTTL < time.Second || cfg.RefreshTokenTTL < time.Second {
-		return nil, errors.New("JWT token lifetimes must be at least one second")
-	}
-	if cfg.Now == nil {
-		cfg.Now = time.Now
-	}
-	return &Service{deps: deps, cfg: cfg, base: base}, nil
-}
-
 func (s *Service) RequestLink(ctx context.Context, email string) error {
-	email, err := normalizeEmail(email)
+	normalizedEmail, err := normalizeEmail(email)
 	if err != nil {
 		return err
 	}
 
-	user, err := s.deps.Users.FindByEmail(ctx, email)
+	user, err := s.deps.Users.FindByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
 		if user.ID == "" {
 			return errors.New("found user has no ID")
 		}
-	} else if !errors.Is(err, ErrNotFound) {
+	} else if !errors.Is(err, auth.ErrNotFound) {
 		return fmt.Errorf("find user by email: %w", err)
 	}
 
@@ -78,15 +48,15 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 
 	expires := s.cfg.Now().UTC().Add(MagicLinkLifetime)
 	if isLogin {
-		err = s.deps.LoginTokens.Save(ctx, LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: expires})
+		err = s.deps.LoginTokens.Save(ctx, auth.LoginChallenge{Digest: digest, UserID: user.ID, ExpiresAt: expires})
 	} else {
-		err = s.deps.RegistrationTokens.Save(ctx, RegistrationChallenge{Digest: digest, Email: email, ExpiresAt: expires})
+		err = s.deps.RegistrationTokens.Save(ctx, auth.RegistrationChallenge{Digest: digest, Email: normalizedEmail, ExpiresAt: expires})
 	}
 	if err != nil {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 
-	link := *s.base
+	link := s.cfg.FrontendBaseURL
 	if isLogin {
 		link.Path = strings.TrimRight(link.Path, "/") + "/login"
 	} else {
@@ -95,7 +65,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	query := link.Query()
 	query.Set("token", token)
 	link.RawQuery = query.Encode()
-	if err := s.sendMagicLinkEmail(ctx, email, link.String()); err != nil {
+	if err := s.sendMagicLinkEmail(ctx, normalizedEmail, link.String()); err != nil {
 		return err
 	}
 	return nil
@@ -109,7 +79,7 @@ func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
-		return ErrUnavailable
+		return auth.ErrUnavailable
 	}
 
 	return nil
@@ -119,83 +89,83 @@ func (s *Service) sendEmail(ctx context.Context, message email.Email) error {
 	return s.deps.EmailSender.Send(ctx, message)
 }
 
-func (s *Service) Login(ctx context.Context, loginToken string) (User, AuthTokens, error) {
+func (s *Service) Login(ctx context.Context, loginToken string) (auth.User, auth.AuthTokens, error) {
 	digest, err := digestMagicToken(loginToken)
 	if err != nil {
-		return User{}, AuthTokens{}, ErrLoginFailed
+		return auth.User{}, auth.AuthTokens{}, auth.ErrLoginFailed
 	}
 
 	now := s.cfg.Now().UTC()
-	user, tokens, err := s.deps.LoginTokens.Complete(ctx, digest, now, func(user User) (Session, AuthTokens, error) {
+	user, tokens, err := s.deps.LoginTokens.Complete(ctx, digest, now, func(user auth.User) (auth.Session, auth.AuthTokens, error) {
 		if user.ID == "" || !user.Role.Valid() {
-			return Session{}, AuthTokens{}, ErrLoginFailed
+			return auth.Session{}, auth.AuthTokens{}, auth.ErrLoginFailed
 		}
 		return s.newSession(user, now)
 	})
-	if errors.Is(err, ErrChallengeRejected) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrLoginFailed) {
-		return User{}, AuthTokens{}, ErrLoginFailed
+	if errors.Is(err, auth.ErrChallengeRejected) || errors.Is(err, auth.ErrNotFound) || errors.Is(err, auth.ErrLoginFailed) {
+		return auth.User{}, auth.AuthTokens{}, auth.ErrLoginFailed
 	}
 	if err != nil {
-		return User{}, AuthTokens{}, fmt.Errorf("complete login: %w", err)
+		return auth.User{}, auth.AuthTokens{}, fmt.Errorf("complete login: %w", err)
 	}
 	return user, tokens, nil
 }
 
-func (s *Service) Register(ctx context.Context, registrationToken string, profile Profile) (User, AuthTokens, error) {
+func (s *Service) Register(ctx context.Context, registrationToken string, profile auth.Profile) (auth.User, auth.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
 	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
-		return User{}, AuthTokens{}, ErrInvalidProfile
+		return auth.User{}, auth.AuthTokens{}, auth.ErrInvalidProfile
 	}
 	digest, err := digestMagicToken(registrationToken)
 	if err != nil {
-		return User{}, AuthTokens{}, ErrRegistrationFailed
+		return auth.User{}, auth.AuthTokens{}, auth.ErrRegistrationFailed
 	}
 	now := s.cfg.Now().UTC()
-	user, tokens, err := s.deps.RegistrationTokens.Complete(ctx, digest, profile, now, func(user User) (Session, AuthTokens, error) {
-		if user.ID == "" || user.Role != RoleUser {
-			return Session{}, AuthTokens{}, errors.New("created user has invalid identity or role")
+	user, tokens, err := s.deps.RegistrationTokens.Complete(ctx, digest, profile, now, func(user auth.User) (auth.Session, auth.AuthTokens, error) {
+		if user.ID == "" || user.Role != auth.RoleUser {
+			return auth.Session{}, auth.AuthTokens{}, errors.New("created user has invalid identity or role")
 		}
 		return s.newSession(user, now)
 	})
-	if errors.Is(err, ErrChallengeRejected) {
-		return User{}, AuthTokens{}, ErrRegistrationFailed
+	if errors.Is(err, auth.ErrChallengeRejected) {
+		return auth.User{}, auth.AuthTokens{}, auth.ErrRegistrationFailed
 	}
 	if err != nil {
-		if errors.Is(err, ErrAlreadyRegistered) {
-			return User{}, AuthTokens{}, ErrAlreadyRegistered
+		if errors.Is(err, auth.ErrAlreadyRegistered) {
+			return auth.User{}, auth.AuthTokens{}, auth.ErrAlreadyRegistered
 		}
-		return User{}, AuthTokens{}, fmt.Errorf("complete registration: %w", err)
+		return auth.User{}, auth.AuthTokens{}, fmt.Errorf("complete registration: %w", err)
 	}
 	return user, tokens, nil
 }
 
-func (s *Service) Refresh(ctx context.Context, refreshToken string) (AuthTokens, error) {
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (auth.AuthTokens, error) {
 	now := s.cfg.Now().UTC()
-	claims, err := s.deps.TokenCodec.Verify(refreshToken, RefreshToken, now)
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, auth.RefreshToken, now)
 	if err != nil {
-		return AuthTokens{}, ErrRefreshFailed
+		return auth.AuthTokens{}, auth.ErrRefreshFailed
 	}
 	user, err := s.deps.Users.FindByID(ctx, claims.Subject)
-	if errors.Is(err, ErrNotFound) {
-		return AuthTokens{}, ErrRefreshFailed
+	if errors.Is(err, auth.ErrNotFound) {
+		return auth.AuthTokens{}, auth.ErrRefreshFailed
 	}
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
 	}
 	if user.ID != claims.Subject || !user.Role.Valid() {
-		return AuthTokens{}, ErrRefreshFailed
+		return auth.AuthTokens{}, auth.ErrRefreshFailed
 	}
 	tokens, err := s.signSessionTokens(user, claims.SessionID, now)
 	if err != nil {
-		return AuthTokens{}, err
+		return auth.AuthTokens{}, err
 	}
 	err = s.deps.Sessions.Rotate(ctx, claims.SessionID, sha256.Sum256([]byte(refreshToken)),
 		sha256.Sum256([]byte(tokens.RefreshToken)), now, tokens.RefreshExpiry)
-	if errors.Is(err, ErrSessionRejected) {
-		return AuthTokens{}, ErrRefreshFailed
+	if errors.Is(err, auth.ErrSessionRejected) {
+		return auth.AuthTokens{}, auth.ErrRefreshFailed
 	}
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("rotate refresh session: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("rotate refresh session: %w", err)
 	}
 	return tokens, nil
 }
@@ -204,12 +174,12 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (AuthTokens,
 // by the HTTP adapter; a valid cookie is revoked before success is returned.
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	now := s.cfg.Now().UTC()
-	claims, err := s.deps.TokenCodec.Verify(refreshToken, RefreshToken, now)
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, auth.RefreshToken, now)
 	if err != nil {
 		return nil
 	}
 	err = s.deps.Sessions.Revoke(ctx, claims.SessionID, sha256.Sum256([]byte(refreshToken)), now)
-	if errors.Is(err, ErrSessionRejected) {
+	if errors.Is(err, auth.ErrSessionRejected) {
 		return nil
 	}
 	if err != nil {
@@ -218,45 +188,45 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-func (s *Service) PublicKeys() (JWKSet, error) {
+func (s *Service) PublicKeys() (auth.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) newSession(user User, now time.Time) (Session, AuthTokens, error) {
+func (s *Service) newSession(user auth.User, now time.Time) (auth.Session, auth.AuthTokens, error) {
 	sessionID, _, err := randomToken(16)
 	if err != nil {
-		return Session{}, AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
+		return auth.Session{}, auth.AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
 	}
 	tokens, err := s.signSessionTokens(user, sessionID, now)
 	if err != nil {
-		return Session{}, AuthTokens{}, err
+		return auth.Session{}, auth.AuthTokens{}, err
 	}
-	return Session{ID: sessionID, UserID: user.ID,
+	return auth.Session{ID: sessionID, UserID: user.ID,
 		RefreshDigest: sha256.Sum256([]byte(tokens.RefreshToken)), ExpiresAt: tokens.RefreshExpiry}, tokens, nil
 }
 
-func (s *Service) signSessionTokens(user User, sessionID string, now time.Time) (AuthTokens, error) {
+func (s *Service) signSessionTokens(user auth.User, sessionID string, now time.Time) (auth.AuthTokens, error) {
 	accessID, _, err := randomToken(16)
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("generate access token ID: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("generate access token ID: %w", err)
 	}
 	refreshID, _, err := randomToken(16)
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("generate refresh token ID: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("generate refresh token ID: %w", err)
 	}
 	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
-	access, err := s.deps.TokenCodec.Sign(Claims{Type: AccessToken, Subject: user.ID,
+	access, err := s.deps.TokenCodec.Sign(auth.Claims{Type: auth.AccessToken, Subject: user.ID,
 		SessionID: sessionID, Role: user.Role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("sign access token: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
 	}
-	refresh, err := s.deps.TokenCodec.Sign(Claims{Type: RefreshToken, Subject: user.ID,
+	refresh, err := s.deps.TokenCodec.Sign(auth.Claims{Type: auth.RefreshToken, Subject: user.ID,
 		SessionID: sessionID, IssuedAt: now, ExpiresAt: refreshExpiry, TokenID: refreshID})
 	if err != nil {
-		return AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
+		return auth.AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
 	}
-	return AuthTokens{AccessToken: access, RefreshToken: refresh,
+	return auth.AuthTokens{AccessToken: access, RefreshToken: refresh,
 		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
 }
 
@@ -264,7 +234,7 @@ func normalizeEmail(input string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(input))
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
-		return "", ErrInvalidEmail
+		return "", auth.ErrInvalidEmail
 	}
 	return email, nil
 }
@@ -281,7 +251,7 @@ func randomToken(size int) (string, [32]byte, error) {
 func digestMagicToken(token string) ([32]byte, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != token {
-		return [32]byte{}, ErrChallengeRejected
+		return [32]byte{}, auth.ErrChallengeRejected
 	}
 	return sha256.Sum256([]byte(token)), nil
 }
