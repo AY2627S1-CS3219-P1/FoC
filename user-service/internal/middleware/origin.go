@@ -1,4 +1,4 @@
-package router
+package middleware
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"connectrpc.com/connect"
 )
 
-func checkOrigin(allowedOrigin string) func(http.Handler) http.Handler {
+func CheckOrigin(allowedOrigin string) func(http.Handler) http.Handler {
 	errorWriter := connect.NewErrorWriter()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

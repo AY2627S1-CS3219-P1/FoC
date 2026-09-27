@@ -16,6 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 )
 
 const frontendOrigin = "https://app.example.test"
@@ -71,7 +72,7 @@ func testUser() auth.User {
 
 func testTokens() auth.AuthTokens {
 	return auth.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
-		AccessExpiry: time.Now().Add(auth.AccessTokenLifetime), RefreshExpiry: time.Now().Add(auth.RefreshTokenLifetime)}
+		AccessExpiry: time.Now().Add(service.AccessTokenLifetime), RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime)}
 }
 
 func TestAuthConnectMethodsAndCookies(t *testing.T) {
