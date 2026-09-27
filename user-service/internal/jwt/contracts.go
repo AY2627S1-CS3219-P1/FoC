@@ -1,11 +1,11 @@
 // Package auth owns authentication domain types, roles, and errors.
-package auth
+package jwt
 
 import (
 	"errors"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth/tokenclaims"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
 )
 
 var (
