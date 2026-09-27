@@ -3,16 +3,14 @@ package service
 import (
 	"errors"
 	"time"
-
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 )
 
 type Service struct {
-	deps auth.Dependencies
-	cfg  auth.Config
+	deps Dependencies
+	cfg  Config
 }
 
-func NewService(deps auth.Dependencies, cfg auth.Config) (*Service, error) {
+func NewService(deps Dependencies, cfg Config) (*Service, error) {
 	base := cfg.FrontendBaseURL
 	if base.Host == "" || base.User != nil || base.Opaque != "" ||
 		(base.Scheme != "https" && base.Scheme != "http") || base.RawQuery != "" || base.Fragment != "" {

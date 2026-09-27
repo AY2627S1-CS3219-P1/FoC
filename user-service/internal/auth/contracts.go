@@ -1,14 +1,10 @@
-// Package auth owns the authentication rules and the interfaces consumed by
-// those rules.
+// Package auth owns authentication domain types, roles, and errors.
 package auth
 
 import (
-	"context"
 	"errors"
-	"net/url"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth/tokenclaims"
 )
 
@@ -64,42 +60,6 @@ type Session struct {
 	ExpiresAt     time.Time
 }
 
-// UserStore is defined at its consumer. FindByEmail receives a lowercase,
-// trimmed email. Both lookups return ErrNotFound when the account is absent.
-type UserStore interface {
-	FindByEmail(context.Context, string) (User, error)
-	FindByID(context.Context, string) (User, error)
-}
-
-// SessionFactory signs tokens for a user chosen by a valid magic link. The
-// adapter persists the returned session in the same transaction as link use.
-type SessionFactory func(User) (Session, AuthTokens, error)
-
-// LoginTokenStore keeps challenges independently. Complete atomically
-// validates the digest, loads the linked user, invokes the factory with that
-// user, stores the session, and consumes the link. On failure it rolls back.
-type LoginTokenStore interface {
-	Save(context.Context, LoginChallenge) error
-	Complete(context.Context, [32]byte, time.Time, SessionFactory) (User, AuthTokens, error)
-}
-
-// RegistrationTokenStore has separate storage from LoginTokenStore. Complete
-// atomically validates the digest, creates a RoleUser using the email from the
-// challenge, invokes the factory, stores the session, and consumes the link.
-// On failure it rolls back all changes. Rejected links return
-// ErrChallengeRejected; duplicate users return ErrAlreadyRegistered.
-type RegistrationTokenStore interface {
-	Save(context.Context, RegistrationChallenge) error
-	Complete(context.Context, [32]byte, Profile, time.Time, SessionFactory) (User, AuthTokens, error)
-}
-
-// SessionStore operations must compare the currently stored refresh digest.
-// Rotate and Revoke return ErrSessionRejected for a reused, expired, or revoked token.
-type SessionStore interface {
-	Rotate(context.Context, string, [32]byte, [32]byte, time.Time, time.Time) error
-	Revoke(context.Context, string, [32]byte, time.Time) error
-}
-
 type TokenType = tokenclaims.TokenUse
 
 const (
@@ -129,29 +89,6 @@ type JWK struct {
 
 type JWKSet struct {
 	Keys []JWK `json:"keys"`
-}
-
-type TokenCodec interface {
-	Sign(Claims) (string, error)
-	Verify(string, TokenType, time.Time) (Claims, error)
-	PublicKeys() JWKSet
-}
-
-type Dependencies struct {
-	Users              UserStore
-	LoginTokens        LoginTokenStore
-	RegistrationTokens RegistrationTokenStore
-	Sessions           SessionStore
-	TokenCodec         TokenCodec
-	EmailSender        email.EmailSender
-}
-
-type Config struct {
-	FrontendBaseURL  url.URL
-	LocalDevelopment bool
-	AccessTokenTTL   time.Duration
-	RefreshTokenTTL  time.Duration
-	Now              func() time.Time
 }
 
 // AuthTokens must only be written as HttpOnly cookies by the HTTP adapter.
