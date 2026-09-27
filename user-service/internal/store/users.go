@@ -45,6 +45,27 @@ type Users struct{ db *gorm.DB }
 // NewUsers uses db for user profiles and favourites.
 func NewUsers(db *gorm.DB) *Users { return &Users{db: db} }
 
+// GetByEmail returns the user or ErrNotFound if absent.
+func (s *Users) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	var user models.User
+	err := s.db.WithContext(ctx).Take(&user, "email = ?", email).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *Users) Create(ctx context.Context, user *models.User) error {
+	err := s.db.WithContext(ctx).Create(user).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrDuplicate
+	}
+	return err
+}
+
 // GetByID returns the user or ErrNotFound if absent. Other database errors
 // are returned unchanged.
 func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
