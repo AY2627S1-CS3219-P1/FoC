@@ -15,10 +15,18 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/auth"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
+	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 )
 
 const frontendOrigin = "https://app.example.test"
+
+// okPinger reports a reachable database to the health handler.
+type okPinger struct{}
+
+func (okPinger) PingContext(context.Context) error { return nil }
+
+func testHealth() *healthhandler.Handler { return &healthhandler.Handler{DB: okPinger{}} }
 
 type stubLogic struct {
 	requestErr      error
@@ -79,7 +87,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal("unexpected refresh cookie name")
 	}
 	logic := &stubLogic{}
-	handler := router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin})
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
@@ -157,7 +165,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 
 func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
@@ -205,7 +213,7 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 
 func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: logic}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic}))
 	t.Cleanup(server.Close)
 
 	keysClient := userv1connect.NewPublicKeyServiceClient(server.Client(), server.URL)
@@ -235,7 +243,7 @@ func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 }
 
 func TestHealthRPCRejectsOversizedRequest(t *testing.T) {
-	server := httptest.NewServer(router.Setup(&authhandler.Handler{Logic: &stubLogic{}}))
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}}))
 	t.Cleanup(server.Close)
 
 	body := bytes.NewReader(make([]byte, (1<<20)+1))

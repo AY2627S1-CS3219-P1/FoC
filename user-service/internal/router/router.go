@@ -14,7 +14,8 @@ import (
 
 const maxRPCMessageBytes = 1 << 20
 
-func Setup(auth *authhandler.Handler) *chi.Mux {
+// Setup mounts the Connect handlers built in main with their dependencies set.
+func Setup(health *healthhandler.Handler, auth *authhandler.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -22,7 +23,7 @@ func Setup(auth *authhandler.Handler) *chi.Mux {
 	r.Use(middleware.Recoverer)
 
 	healthPath, healthHandler := userv1connect.NewHealthServiceHandler(
-		healthhandler.New(),
+		health,
 		connect.WithReadMaxBytes(maxRPCMessageBytes),
 	)
 	r.Mount(healthPath, healthHandler)

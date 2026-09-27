@@ -14,8 +14,13 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 )
 
+// okPinger reports a reachable database to the health handler.
+type okPinger struct{}
+
+func (okPinger) PingContext(context.Context) error { return nil }
+
 func TestServerServesConnectAndNativeGRPC(t *testing.T) {
-	path, handler := userv1connect.NewHealthServiceHandler(healthhandler.New())
+	path, handler := userv1connect.NewHealthServiceHandler(&healthhandler.Handler{DB: okPinger{}})
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
 

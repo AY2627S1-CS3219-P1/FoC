@@ -1,7 +1,9 @@
+// Package health implements the user health service.
 package health
 
 import (
 	"context"
+	"errors"
 
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
@@ -10,18 +12,28 @@ import (
 
 var _ userv1connect.HealthServiceHandler = (*Handler)(nil)
 
-// Handler implements the public health RPC without probing service dependencies.
+// Pinger is the database check the handler needs; *sql.DB satisfies it.
+type Pinger interface {
+	PingContext(context.Context) error
+}
+
+// Handler adapts the database check to the generated Connect API.
 type Handler struct {
 	userv1connect.UnimplementedHealthServiceHandler
+
+	DB Pinger
 }
 
-func New() *Handler {
-	return &Handler{}
-}
-
-func (*Handler) Check(
-	_ context.Context,
+// Check reports status "ok" when the database ping succeeds, or
+// CodeUnavailable when it fails.
+func (h *Handler) Check(
+	ctx context.Context,
 	_ *connect.Request[userv1.CheckRequest],
 ) (*connect.Response[userv1.CheckResponse], error) {
-	return connect.NewResponse(&userv1.CheckResponse{Status: "ok"}), nil
+	if err := h.DB.PingContext(ctx); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("database unavailable"))
+	}
+	return connect.NewResponse(&userv1.CheckResponse{
+		Status: "ok",
+	}), nil
 }
