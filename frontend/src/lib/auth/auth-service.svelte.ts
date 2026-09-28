@@ -1,5 +1,5 @@
 import { Code, ConnectError, type Interceptor } from '@connectrpc/connect';
-import type { AuthRpc, AuthSession, AuthUser } from './auth-rpc';
+import type { AuthApi, AuthSession, AuthUser } from './auth-api';
 
 export class AuthService {
 	#user = $state<AuthUser | null>(null);
@@ -12,7 +12,7 @@ export class AuthService {
 
 	readonly interceptor: Interceptor;
 
-	constructor(private readonly rpc: AuthRpc) {
+	constructor(private readonly api: AuthApi) {
 		this.interceptor = (next) => async (req) => {
 			if (this.#accessToken) {
 				req.header.set('Authorization', `Bearer ${this.#accessToken}`);
@@ -74,15 +74,15 @@ export class AuthService {
 	}
 
 	requestLink(email: string): Promise<void> {
-		return this.rpc.requestLink(email);
+		return this.api.requestLink(email);
 	}
 
 	login(token: string): Promise<void> {
-		return this.#runSessionOperation(() => this.rpc.login(token));
+		return this.#runSessionOperation(() => this.api.login(token));
 	}
 
 	register(token: string, displayName: string): Promise<void> {
-		return this.#runSessionOperation(() => this.rpc.register(token, displayName));
+		return this.#runSessionOperation(() => this.api.register(token, displayName));
 	}
 
 	refresh(): Promise<void> {
@@ -94,7 +94,7 @@ export class AuthService {
 		}
 
 		this.#setLoading(true);
-		const refresh = this.#runSessionOperation(() => this.rpc.refresh(), true).finally(() => {
+		const refresh = this.#runSessionOperation(() => this.api.refresh(), true).finally(() => {
 			if (this.#refreshInFlight === refresh) {
 				this.#refreshInFlight = undefined;
 			}
@@ -115,7 +115,7 @@ export class AuthService {
 		let logout: Promise<void>;
 		logout = Promise.resolve()
 			.then(() => Promise.allSettled([...this.#sessionOperations]))
-			.then(() => this.rpc.logout())
+			.then(() => this.api.logout())
 			.then(() => this.#clearSession())
 			.finally(() => this.#pendingLogouts.delete(logout));
 		this.#pendingLogouts.add(logout);

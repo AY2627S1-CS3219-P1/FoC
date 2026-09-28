@@ -3,7 +3,7 @@ import {
 	AuthService as AuthServiceDefinition,
 	type User as ProtoUser
 } from '$lib/gen/user/v1/auth_pb';
-import type { AuthRpc, AuthSession, AuthUser } from './auth-rpc';
+import type { AuthApi, AuthSession, AuthUser } from './auth-api';
 
 type AuthClient = Client<typeof AuthServiceDefinition>;
 
@@ -26,7 +26,7 @@ function toSession(accessToken: string, user: ProtoUser | undefined): AuthSessio
 	return { accessToken, user: toUser(user) };
 }
 
-export class ConnectAuthRpc implements AuthRpc {
+export class ConnectAuthApi implements AuthApi {
 	readonly #client: AuthClient;
 
 	constructor(client: AuthClient) {

@@ -12,7 +12,7 @@ export interface AuthSession {
 	user: AuthUser;
 }
 
-export interface AuthRpc {
+export interface AuthApi {
 	requestLink(email: string): Promise<void>;
 	login(token: string): Promise<AuthSession>;
 	register(token: string, displayName: string): Promise<AuthSession>;
