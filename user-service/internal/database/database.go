@@ -1,3 +1,4 @@
+// Package database opens the GORM connection and applies the embedded goose migrations.
 package database
 
 import (
@@ -15,18 +16,17 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/migrations"
 )
 
-// Open connects to Postgres via GORM. TranslateError maps driver errors
-// (e.g. unique violations) to gorm.ErrDuplicatedKey etc.
-// maxOpen and maxIdle configure the connection pool limits; GORM timestamps use UTC.
-// Connection setup and ping errors are returned, with their causes preserved.
+const pingTimeout = 10 * time.Second
+
 func Open(dsn string, maxOpen, maxIdle int) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		TranslateError: true,
+		TranslateError:       true,
+		DisableAutomaticPing: true,
 		Logger: logger.New(log.New(os.Stdout, "", log.LstdFlags), logger.Config{
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  logger.Warn,
-			IgnoreRecordNotFoundError: true, // 404s are not errors
-			ParameterizedQueries:      true, // keep emails/PII out of logs
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
 		}),
 		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
@@ -42,18 +42,15 @@ func Open(dsn string, maxOpen, maxIdle int) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(maxIdle)
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
-	if err := sqlDB.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+	defer cancel()
+	if err := sqlDB.PingContext(ctx); err != nil {
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
 	return db, nil
 }
 
-// Migrator returns a goose provider over the SQL files embedded from
-// migrations/. The goose CLI works on the same files:
-//
-//	goose -dir migrations postgres "$DATABASE_URL" status|up|down
-//
-// It returns errors from obtaining the SQL handle or constructing the provider.
 func Migrator(db *gorm.DB) (*goose.Provider, error) {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -62,9 +59,6 @@ func Migrator(db *gorm.DB) (*goose.Provider, error) {
 	return goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
 }
 
-// Migrate applies all pending up-migrations. Versioned SQL instead of GORM
-// AutoMigrate so schema changes are reviewable.
-// Provider errors are returned unchanged; migration errors are wrapped with "goose up".
 func Migrate(db *gorm.DB) error {
 	p, err := Migrator(db)
 	if err != nil {
