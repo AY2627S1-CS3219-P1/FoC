@@ -33,10 +33,15 @@ type SessionStore interface {
 	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
 }
 
+type DomainStore interface {
+	Allows(context.Context, string) (bool, error)
+}
+
 type Store struct {
 	Users      UserStore
 	AuthTokens AuthTokenStore
 	Sessions   SessionStore
+	Domains    DomainStore
 }
 
 type WithTransaction func(context.Context, func(Store) error) error

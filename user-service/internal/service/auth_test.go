@@ -22,12 +22,13 @@ import (
 )
 
 type fakeStore struct {
-	mu            sync.Mutex
-	users         map[uuid.UUID]models.User
-	logins        map[[32]byte]models.AuthToken
-	registrations map[[32]byte]models.AuthToken
-	sessions      map[uuid.UUID]models.Session
-	failSession   bool
+	mu             sync.Mutex
+	users          map[uuid.UUID]models.User
+	logins         map[[32]byte]models.AuthToken
+	registrations  map[[32]byte]models.AuthToken
+	sessions       map[uuid.UUID]models.Session
+	allowedDomains map[string]struct{}
+	failSession    bool
 }
 
 func newFakeStore() *fakeStore {
@@ -154,11 +155,22 @@ func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte,
 	return f.RevokeSession(ctx, id, digest, now)
 }
 
+type fakeDomains struct{ *fakeStore }
+
+func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
+	if len(f.allowedDomains) == 0 {
+		return true, nil
+	}
+	_, ok := f.allowedDomains[strings.ToLower(domain)]
+	return ok, nil
+}
+
 func (f *fakeStore) stores() Store {
 	return Store{
 		Users:      fakeUsers{f},
 		AuthTokens: fakeAuthTokens{f},
 		Sessions:   fakeSessions{f},
+		Domains:    fakeDomains{f},
 	}
 }
 
@@ -166,11 +178,12 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
-		users:         cloneMap(f.users),
-		logins:        cloneMap(f.logins),
-		registrations: cloneMap(f.registrations),
-		sessions:      cloneMap(f.sessions),
-		failSession:   f.failSession,
+		users:          cloneMap(f.users),
+		logins:         cloneMap(f.logins),
+		registrations:  cloneMap(f.registrations),
+		sessions:       cloneMap(f.sessions),
+		allowedDomains: cloneMap(f.allowedDomains),
+		failSession:    f.failSession,
 	}
 	if err := operation(tx.stores()); err != nil {
 		return err
@@ -179,6 +192,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 	f.logins = tx.logins
 	f.registrations = tx.registrations
 	f.sessions = tx.sessions
+	f.allowedDomains = tx.allowedDomains
 	return nil
 }
 
@@ -436,6 +450,31 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	}
 	if _, _, err := service.Register(ctx, linkToken(t, second), jwt.Profile{DisplayName: "Again"}); !errors.Is(err, jwt.ErrAlreadyRegistered) {
 		t.Fatalf("duplicate registration: %v", err)
+	}
+}
+
+func TestRegistrationRequiresAllowedDomain(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	store.allowedDomains = map[string]struct{}{"u.nus.edu": {}}
+	service := setupService(t, store, &now, true, nil)
+	ctx := context.Background()
+	registration := requestLink(t, service, "new@example.com")
+	token := linkToken(t, registration)
+
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+		t.Fatalf("registration with a disallowed domain: %v", err)
+	}
+	if len(store.users) != 0 {
+		t.Fatal("disallowed registration created a user")
+	}
+	if _, ok := store.registrations[sha256.Sum256([]byte(token))]; !ok {
+		t.Fatal("disallowed registration consumed its token")
+	}
+
+	store.allowedDomains["example.com"] = struct{}{}
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); err != nil {
+		t.Fatalf("registration after allowing the domain: %v", err)
 	}
 }
 

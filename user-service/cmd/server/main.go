@@ -123,6 +123,7 @@ func run(log *slog.Logger) error {
 			Users:      authStore.Users,
 			AuthTokens: authStore.AuthTokens,
 			Sessions:   authStore.Sessions,
+			Domains:    authStore.Admin,
 		},
 		WithTransaction: func(ctx context.Context, operation func(service.Store) error) error {
 			return authStore.WithTransaction(ctx, func(txStore *store.Store) error {
@@ -130,6 +131,7 @@ func run(log *slog.Logger) error {
 					Users:      txStore.Users,
 					AuthTokens: txStore.AuthTokens,
 					Sessions:   txStore.Sessions,
+					Domains:    txStore.Admin,
 				})
 			})
 		},

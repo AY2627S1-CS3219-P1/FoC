@@ -43,6 +43,15 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return fmt.Errorf("find user by email: %w", err)
 	}
+	if !isLogin {
+		allowed, err := registrationEmailAllowed(ctx, s.deps.Store.Domains, normalizedEmail)
+		if err != nil {
+			return fmt.Errorf("check registration domain: %w", err)
+		}
+		if !allowed {
+			return jwt.ErrRegistrationFailed
+		}
+	}
 
 	token, digest, err := randomToken(32)
 	if err != nil {
@@ -155,6 +164,16 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		if err != nil {
 			return err
 		}
+		allowed, err := registrationEmailAllowed(ctx, tx.Domains, challenge.Email)
+		if errors.Is(err, jwt.ErrInvalidEmail) {
+			return jwt.ErrRegistrationFailed
+		}
+		if err != nil {
+			return fmt.Errorf("check registration domain: %w", err)
+		}
+		if !allowed {
+			return jwt.ErrRegistrationFailed
+		}
 		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName, Role: models.RoleUser}
 		if err := tx.Users.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
@@ -173,6 +192,9 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		return nil
 	})
 	if errors.Is(err, store.ErrChallengeRejected) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
+	}
+	if errors.Is(err, jwt.ErrRegistrationFailed) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRegistrationFailed
 	}
 	if errors.Is(err, jwt.ErrAlreadyRegistered) {
@@ -318,6 +340,18 @@ func normalizeEmail(input string) (string, error) {
 		return "", jwt.ErrInvalidEmail
 	}
 	return email, nil
+}
+
+func registrationEmailAllowed(ctx context.Context, domains DomainStore, input string) (bool, error) {
+	email, err := normalizeEmail(input)
+	if err != nil {
+		return false, err
+	}
+	separator := strings.LastIndexByte(email, '@')
+	if separator <= 0 || separator == len(email)-1 {
+		return false, jwt.ErrInvalidEmail
+	}
+	return domains.Allows(ctx, email[separator+1:])
 }
 
 func randomToken(size int) (string, [32]byte, error) {
