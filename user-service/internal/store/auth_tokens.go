@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
@@ -41,7 +40,7 @@ func (s *AuthTokens) Consume(
 	if err != nil {
 		return nil, err
 	}
-	if token.ID == uuid.Nil {
+	if token.ID == 0 {
 		return nil, ErrChallengeRejected
 	}
 	return &token, nil

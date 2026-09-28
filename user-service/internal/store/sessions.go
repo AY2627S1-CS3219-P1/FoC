@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
@@ -28,7 +27,7 @@ func (s *Sessions) Create(ctx context.Context, session *models.Session) error {
 
 func (s *Sessions) Revoke(
 	ctx context.Context,
-	id uuid.UUID,
+	id uint,
 	hash [32]byte,
 	now time.Time,
 ) error {
