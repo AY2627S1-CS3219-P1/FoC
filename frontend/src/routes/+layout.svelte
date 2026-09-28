@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import AuthStatus from '$lib/components/AuthStatus.svelte';
-	import { authService } from '$lib/auth/auth-service.svelte';
+	import { authService } from '$lib/auth';
 
 	let { children } = $props();
 

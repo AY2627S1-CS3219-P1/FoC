@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { authService } from '$lib/auth/auth-service.svelte';
+	import { authService } from '$lib/auth';
 
 	let error = $state<string | null>(null);
 

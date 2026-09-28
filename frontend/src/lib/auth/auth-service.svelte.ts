@@ -1,5 +1,4 @@
 import { Code, ConnectError, type Interceptor } from '@connectrpc/connect';
-import { ConnectAuthRpc } from './connect-auth-rpc';
 import type { AuthRpc, AuthSession, AuthUser } from './auth-rpc';
 
 export class AuthService {
@@ -8,7 +7,7 @@ export class AuthService {
 	#isLoading = $state(false);
 	#sessionRevision = 0;
 	#refreshInFlight: Promise<void> | undefined;
-	#logoutInFlight: Promise<void> | undefined;
+	#pendingLogouts = new Set<Promise<void>>();
 	#sessionOperations = new Set<Promise<void>>();
 
 	readonly interceptor: Interceptor;
@@ -87,8 +86,8 @@ export class AuthService {
 	}
 
 	refresh(): Promise<void> {
-		if (this.#logoutInFlight) {
-			return this.#logoutInFlight.then(() => undefined);
+		if (this.#pendingLogouts.size > 0) {
+			return Promise.all([...this.#pendingLogouts]).then(() => undefined);
 		}
 		if (this.#refreshInFlight) {
 			return this.#refreshInFlight;
@@ -112,21 +111,14 @@ export class AuthService {
 	}
 
 	logout(): Promise<void> {
-		if (this.#logoutInFlight) {
-			return this.#logoutInFlight;
-		}
-
 		this.#sessionRevision += 1;
-		const logout = Promise.resolve()
+		let logout: Promise<void>;
+		logout = Promise.resolve()
 			.then(() => Promise.allSettled([...this.#sessionOperations]))
 			.then(() => this.rpc.logout())
 			.then(() => this.#clearSession())
-			.finally(() => {
-				if (this.#logoutInFlight === logout) {
-					this.#logoutInFlight = undefined;
-				}
-			});
-		this.#logoutInFlight = logout;
+			.finally(() => this.#pendingLogouts.delete(logout));
+		this.#pendingLogouts.add(logout);
 		return logout;
 	}
 
@@ -134,8 +126,10 @@ export class AuthService {
 		operation: () => Promise<AuthSession>,
 		clearOnFailure = false
 	): Promise<void> {
-		if (this.#logoutInFlight) {
-			return this.#logoutInFlight.then(() => this.#runSessionOperation(operation, clearOnFailure));
+		if (this.#pendingLogouts.size > 0) {
+			return Promise.allSettled([...this.#pendingLogouts]).then(() =>
+				this.#runSessionOperation(operation, clearOnFailure)
+			);
 		}
 
 		const revision = this.#sessionRevision;
@@ -177,5 +171,3 @@ export class AuthService {
 		this.#isLoading = loading;
 	}
 }
-
-export const authService = new AuthService(new ConnectAuthRpc());

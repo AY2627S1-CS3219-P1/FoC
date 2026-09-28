@@ -1,10 +1,11 @@
-import { createClient } from '@connectrpc/connect';
+import type { Client } from '@connectrpc/connect';
 import {
 	AuthService as AuthServiceDefinition,
 	type User as ProtoUser
 } from '$lib/gen/user/v1/auth_pb';
-import { createCookieTransport } from '$lib/api/cookie-transport';
 import type { AuthRpc, AuthSession, AuthUser } from './auth-rpc';
+
+type AuthClient = Client<typeof AuthServiceDefinition>;
 
 function toUser(user: ProtoUser | undefined): AuthUser {
 	if (!user) {
@@ -26,7 +27,11 @@ function toSession(accessToken: string, user: ProtoUser | undefined): AuthSessio
 }
 
 export class ConnectAuthRpc implements AuthRpc {
-	readonly #client = createClient(AuthServiceDefinition, createCookieTransport());
+	readonly #client: AuthClient;
+
+	constructor(client: AuthClient) {
+		this.#client = client;
+	}
 
 	async requestLink(email: string): Promise<void> {
 		await this.#client.requestLink({ email });

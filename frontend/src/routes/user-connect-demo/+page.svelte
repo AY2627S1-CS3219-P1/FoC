@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { userHealthClient } from '$lib/api/connect';
+	import { userHealthClient } from '$lib/api';
 
 	let requestState = $state<'idle' | 'loading' | 'success' | 'error'>('idle');
 	let message = $state('Not checked yet.');
