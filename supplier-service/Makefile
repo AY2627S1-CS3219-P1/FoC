@@ -25,7 +25,7 @@ goose-create:
 	@cd database/schema && goose create $(name) sql
 
 seed:
-	@go run ./cmd/seed
+	@DATABASE_URL="$(DATABASE_URL)" go run ./cmd/seed
 
 dropDB:
 	@dropdb supplier_dev
