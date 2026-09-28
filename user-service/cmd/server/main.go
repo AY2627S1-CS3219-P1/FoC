@@ -1,8 +1,10 @@
+// Command server runs the user service: load config, open and migrate the database, serve until SIGINT/SIGTERM.
 package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,66 +28,57 @@ import (
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
-	DEFAULT_DB_MAX_OPEN     = 10
-	DEFAULT_DB_MAX_IDLE     = 5
 )
 
-// main runs the user service and exits with status 1 if run returns an error.
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
-	if err := run(log); err != nil {
-		log.Error("fatal", "err", err)
-		os.Exit(1)
-	}
+type config struct {
+	port          string
+	databaseURL   string
+	dbMaxOpen     int
+	dbMaxIdle     int
+	runMigrations bool
 }
 
-// run loads optional .env settings, opens the database, and serves HTTP, applying
-// migrations unless RUN_MIGRATIONS is false. SIGINT or SIGTERM starts a shutdown
-// with a 10-second timeout. It returns configuration, database, migration,
-// serving, or shutdown errors; .env load errors do not prevent startup.
-func run(log *slog.Logger) error {
-	if err := godotenv.Load(".env"); err != nil {
-		log.Warn("no .env file loaded", "err", err)
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
+	fatal := func(msg string, err error) {
+		log.Error(msg, "err", err)
+		os.Exit(1)
 	}
 
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if dsn == "" {
-		return errors.New("DATABASE_URL is not set")
-	}
-
-	db, err := database.Open(dsn,
-		getEnvInt("DB_MAX_OPEN", DEFAULT_DB_MAX_OPEN),
-		getEnvInt("DB_MAX_IDLE", DEFAULT_DB_MAX_IDLE),
-	)
+	cfg, err := loadConfig()
 	if err != nil {
-		return err
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-	defer sqlDB.Close()
-
-	if getEnvBool("RUN_MIGRATIONS", true) {
-		if err := database.Migrate(db); err != nil {
-			return err
-		}
-		log.Info("migrations applied")
-	}
-
-	addr := ":" + getPort()
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})),
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		fatal("invalid config", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
+	if err != nil {
+		fatal("open database", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		fatal("database handle", err)
+	}
+	defer sqlDB.Close()
+
+	if cfg.runMigrations {
+		if err := database.Migrate(db); err != nil {
+			fatal("migrate", err)
+		}
+		log.Info("migrations applied")
+	}
+
+	srv := &http.Server{
+		Addr:              ":" + cfg.port,
+		Handler:           getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})),
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", addr)
+		log.Info("listening", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -94,18 +87,74 @@ func run(log *slog.Logger) error {
 
 	select {
 	case err := <-errCh:
-		return err
+		if err != nil {
+			fatal("serve", err)
+		}
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
 	log.Info("shutting down")
-	return srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("shutdown", "err", err)
+	}
 }
 
-// newRouter mounts each Connect handler at its generated path. Handlers are
-// built in run with their dependencies set as fields.
+// loadConfig reads .env (if present) and the environment once, applying
+// defaults and rejecting a missing DATABASE_URL or malformed values.
+func loadConfig() (config, error) {
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return config{}, fmt.Errorf("load .env: %w", err)
+	}
+
+	var errs []error
+	cfg := config{
+		port:          envString("PORT", "8080"),
+		databaseURL:   envString("DATABASE_URL", ""),
+		dbMaxOpen:     envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:     envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations: envBool("RUN_MIGRATIONS", true, &errs),
+	}
+	if cfg.databaseURL == "" {
+		errs = append(errs, errors.New("DATABASE_URL is not set"))
+	}
+	return cfg, errors.Join(errs...)
+}
+
+func envString(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envPositiveInt(key string, fallback int, errs *[]error) int {
+	v := envString(key, "")
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		*errs = append(*errs, fmt.Errorf("%s must be a positive integer, got %q", key, v))
+		return fallback
+	}
+	return n
+}
+
+func envBool(key string, fallback bool, errs *[]error) bool {
+	v := envString(key, "")
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("%s must be a boolean, got %q", key, v))
+		return fallback
+	}
+	return b
+}
+
 func newRouter(healthHandler *health.Handler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -117,47 +166,11 @@ func newRouter(healthHandler *health.Handler) http.Handler {
 	return r
 }
 
-func getPort() string {
-	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
-		return port
-	}
-	return "8080"
-}
-
-// getEnvInt parses the trimmed environment value as a decimal integer, returning
-// fallback if it is unset, empty, invalid, or out of range for int.
-func getEnvInt(key string, fallback int) int {
-	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key))); err == nil {
-		return v
-	}
-	return fallback
-}
-
-// getEnvBool parses the trimmed environment value with strconv.ParseBool,
-// returning fallback if it is unset, empty, or invalid.
-func getEnvBool(key string, fallback bool) bool {
-	if v, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(key))); err == nil {
-		return v
-	}
-	return fallback
-}
-
-// getCorsConfig allows credentialed cross-origin requests from HTTP localhost
-// origins with a port and HTTPS yihao03*.expo.app origins. It allows Connect and
-// gRPC-Web request headers and exposes gRPC response status headers.
+// getCorsConfig allows localhost dev origins.
 func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
-			// Allow localhost for development (any local port)
-			if strings.HasPrefix(origin, "http://localhost:") {
-				return true
-			}
-			// Allow Expo dev URLs matching pattern
-			// This will match: https://yihao03-<project>-<hash>.expo.app
-			if len(origin) > 20 && origin[:15] == "https://yihao03" && origin[len(origin)-9:] == ".expo.app" {
-				return true
-			}
-			return false
+			return strings.HasPrefix(origin, "http://localhost:")
 		},
 		AllowCredentials: true,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
