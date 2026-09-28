@@ -294,7 +294,7 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		t.Fatalf("reused registration token: %v", err)
 	}
 	oldRefresh := session.RefreshToken
-	rotated, err := service.Refresh(ctx, oldRefresh)
+	_, rotated, err := service.Refresh(ctx, oldRefresh)
 	if err != nil || rotated.RefreshToken == oldRefresh {
 		t.Fatalf("refresh replacement: %+v, %v", rotated, err)
 	}
@@ -306,13 +306,13 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	if err != nil || newClaims.SessionID == oldClaims.SessionID {
 		t.Fatalf("refresh reused session ID: old=%q new=%q err=%v", oldClaims.SessionID, newClaims.SessionID, err)
 	}
-	if _, err := service.Refresh(ctx, oldRefresh); !errors.Is(err, jwt.ErrRefreshFailed) {
+	if _, _, err := service.Refresh(ctx, oldRefresh); !errors.Is(err, jwt.ErrRefreshFailed) {
 		t.Fatalf("reused refresh token: %v", err)
 	}
 	if err := service.Logout(ctx, rotated.RefreshToken); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Refresh(ctx, rotated.RefreshToken); !errors.Is(err, jwt.ErrRefreshFailed) {
+	if _, _, err := service.Refresh(ctx, rotated.RefreshToken); !errors.Is(err, jwt.ErrRefreshFailed) {
 		t.Fatalf("refresh after logout: %v", err)
 	}
 	if err := service.Logout(ctx, rotated.RefreshToken); err != nil {
@@ -384,13 +384,13 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 	if err != nil || claims.Role != jwt.RoleSuspendedUser {
 		t.Fatalf("access token lost suspended role: %+v, %v", claims, err)
 	}
-	tokens, err = service.Refresh(context.Background(), tokens.RefreshToken)
+	_, tokens, err = service.Refresh(context.Background(), tokens.RefreshToken)
 	if err != nil {
 		t.Fatalf("suspended user cannot refresh: %v", err)
 	}
 	user.Role = models.RoleUser
 	store.users[user.ID] = user
-	tokens, err = service.Refresh(context.Background(), tokens.RefreshToken)
+	_, tokens, err = service.Refresh(context.Background(), tokens.RefreshToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,11 +507,11 @@ func TestSessionStorageFailurePreservesRefreshSession(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	service, store, refreshToken := serviceWithRefreshToken(t, now)
 	store.failSession = true
-	if _, err := service.Refresh(context.Background(), refreshToken); err == nil {
+	if _, _, err := service.Refresh(context.Background(), refreshToken); err == nil {
 		t.Fatal("refresh succeeded despite replacement session storage failure")
 	}
 	store.failSession = false
-	if _, err := service.Refresh(context.Background(), refreshToken); err != nil {
+	if _, _, err := service.Refresh(context.Background(), refreshToken); err != nil {
 		t.Fatalf("failed refresh revoked the original session: %v", err)
 	}
 }
@@ -522,7 +522,7 @@ func TestConcurrentRefreshReplacesSessionOnce(t *testing.T) {
 	results := make(chan error, 2)
 	for range 2 {
 		go func() {
-			_, err := service.Refresh(context.Background(), refreshToken)
+			_, _, err := service.Refresh(context.Background(), refreshToken)
 			results <- err
 		}()
 	}
@@ -592,17 +592,17 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	t.Run("token codec while refreshing", func(t *testing.T) {
 		service := newService(t, newFakeStore())
 		service.deps.TokenCodec = nil
-		assertPanics(t, func() { _, _ = service.Refresh(ctx, "refresh") })
+		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, "refresh") })
 	})
 	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
 		service.deps.Store.Users = nil
-		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
+		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
 		service.deps.WithTransaction = nil
-		assertPanics(t, func() { _, _ = service.Refresh(ctx, refreshToken) })
+		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("token codec while logging out", func(t *testing.T) {
 		service := newService(t, newFakeStore())

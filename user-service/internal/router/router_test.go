@@ -62,9 +62,9 @@ func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profil
 	return testUser(), testTokens(), s.registerErr
 }
 
-func (s *stubLogic) Refresh(_ context.Context, token string) (jwt.AuthTokens, error) {
+func (s *stubLogic) Refresh(_ context.Context, token string) (models.User, jwt.AuthTokens, error) {
 	s.refreshIn = token
-	return testTokens(), s.refreshErr
+	return testUser(), testTokens(), s.refreshErr
 }
 
 func (s *stubLogic) Logout(_ context.Context, token string) error {
@@ -140,7 +140,8 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refresh.Msg.AccessToken != "access-secret" || logic.refreshIn != "old-refresh" {
+	if refresh.Msg.AccessToken != "access-secret" || refresh.Msg.User == nil ||
+		refresh.Msg.User.DisplayName != testUser().DisplayName || logic.refreshIn != "old-refresh" {
 		t.Fatalf("refresh did not use the cookie: %+v, %q", refresh.Msg, logic.refreshIn)
 	}
 	assertRefreshCookie(t, (&http.Response{Header: refresh.Header()}).Cookies(), "refresh-secret")

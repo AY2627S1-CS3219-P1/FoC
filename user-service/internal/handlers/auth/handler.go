@@ -26,7 +26,7 @@ type Logic interface {
 	RequestLink(context.Context, string) error
 	Login(context.Context, string) (models.User, jwt.AuthTokens, error)
 	Register(context.Context, string, jwt.Profile) (models.User, jwt.AuthTokens, error)
-	Refresh(context.Context, string) (jwt.AuthTokens, error)
+	Refresh(context.Context, string) (models.User, jwt.AuthTokens, error)
 	Logout(context.Context, string) error
 	PublicKeys() (jwt.JWKSet, error)
 }
@@ -89,11 +89,11 @@ func (h *Handler) Refresh(
 	ctx context.Context,
 	req *connect.Request[userv1.RefreshRequest],
 ) (*connect.Response[userv1.RefreshResponse], error) {
-	tokens, err := h.Logic.Refresh(ctx, cookieValue(req.Header(), RefreshCookieName))
+	user, tokens, err := h.Logic.Refresh(ctx, cookieValue(req.Header(), RefreshCookieName))
 	if err != nil {
 		return nil, mapError(err)
 	}
-	response := connect.NewResponse(&userv1.RefreshResponse{AccessToken: tokens.AccessToken})
+	response := connect.NewResponse(&userv1.RefreshResponse{AccessToken: tokens.AccessToken, User: userMessage(user)})
 	setSessionHeaders(response, tokens)
 	return response, nil
 }

@@ -464,6 +464,7 @@ func (*RefreshRequest) Descriptor() ([]byte, []int) {
 type RefreshResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -503,6 +504,13 @@ func (x *RefreshResponse) GetAccessToken() string {
 		return x.AccessToken
 	}
 	return ""
+}
+
+func (x *RefreshResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
 }
 
 type LogoutRequest struct {
@@ -773,9 +781,10 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x10RegisterResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\x12!\n" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\"\x10\n" +
-	"\x0eRefreshRequest\"4\n" +
+	"\x0eRefreshRequest\"W\n" +
 	"\x0fRefreshResponse\x12!\n" +
-	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"\x0f\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12!\n" +
+	"\x04user\x18\x02 \x01(\v2\r.user.v1.UserR\x04user\"\x0f\n" +
 	"\rLogoutRequest\"\x10\n" +
 	"\x0eLogoutResponse\"\x16\n" +
 	"\x14GetPublicKeysRequest\"@\n" +
@@ -841,24 +850,25 @@ var file_user_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: user.v1.User.role:type_name -> user.v1.UserRole
 	5,  // 1: user.v1.LoginResponse.user:type_name -> user.v1.User
 	5,  // 2: user.v1.RegisterResponse.user:type_name -> user.v1.User
-	14, // 3: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
-	2,  // 4: user.v1.AuthService.RequestLink:input_type -> user.v1.RequestLinkRequest
-	3,  // 5: user.v1.AuthService.Login:input_type -> user.v1.LoginRequest
-	4,  // 6: user.v1.AuthService.Register:input_type -> user.v1.RegisterRequest
-	8,  // 7: user.v1.AuthService.Refresh:input_type -> user.v1.RefreshRequest
-	10, // 8: user.v1.AuthService.Logout:input_type -> user.v1.LogoutRequest
-	12, // 9: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
-	1,  // 10: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
-	6,  // 11: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
-	7,  // 12: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
-	9,  // 13: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
-	11, // 14: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
-	13, // 15: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	5,  // 3: user.v1.RefreshResponse.user:type_name -> user.v1.User
+	14, // 4: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
+	2,  // 5: user.v1.AuthService.RequestLink:input_type -> user.v1.RequestLinkRequest
+	3,  // 6: user.v1.AuthService.Login:input_type -> user.v1.LoginRequest
+	4,  // 7: user.v1.AuthService.Register:input_type -> user.v1.RegisterRequest
+	8,  // 8: user.v1.AuthService.Refresh:input_type -> user.v1.RefreshRequest
+	10, // 9: user.v1.AuthService.Logout:input_type -> user.v1.LogoutRequest
+	12, // 10: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
+	1,  // 11: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
+	6,  // 12: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
+	7,  // 13: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
+	9,  // 14: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
+	11, // 15: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
+	13, // 16: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
+	11, // [11:17] is the sub-list for method output_type
+	5,  // [5:11] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_auth_proto_init() }

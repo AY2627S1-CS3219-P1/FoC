@@ -206,33 +206,33 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 	return user, tokens, nil
 }
 
-func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTokens, error) {
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User, jwt.AuthTokens, error) {
 	now := s.cfg.Now().UTC()
 	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
 	if err != nil {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	sessionID, err := uuid.Parse(claims.SessionID)
 	if err != nil {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	user, err := s.deps.Store.Users.GetByID(ctx, userID)
 	if errors.Is(err, store.ErrNotFound) {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
-		return jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
+		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
 	}
 	if user.ID != userID || !user.Role.Valid() {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	replacement, tokens, err := s.newSession(*user, now)
 	if err != nil {
-		return jwt.AuthTokens{}, err
+		return models.User{}, jwt.AuthTokens{}, err
 	}
 	err = s.deps.WithTransaction(ctx, func(tx Store) error {
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
@@ -241,12 +241,12 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (jwt.AuthTok
 		return tx.Sessions.Create(ctx, &replacement)
 	})
 	if errors.Is(err, store.ErrSessionRejected) {
-		return jwt.AuthTokens{}, jwt.ErrRefreshFailed
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
-		return jwt.AuthTokens{}, fmt.Errorf("replace refresh session: %w", err)
+		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("replace refresh session: %w", err)
 	}
-	return tokens, nil
+	return *user, tokens, nil
 }
 
 // Logout is idempotent. An unrecognizable or already revoked cookie is cleared
