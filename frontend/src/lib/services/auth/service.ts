@@ -1,5 +1,5 @@
 import { Code, ConnectError, type Interceptor } from '@connectrpc/connect';
-import type { AuthApi, AuthSession, AuthUser } from './auth-api';
+import type { AuthApi, AuthSession, AuthUser } from './authApi.ts';
 
 export class AuthService {
 	#user = $state<AuthUser | null>(null);
@@ -87,9 +87,10 @@ export class AuthService {
 		return this.#runSessionOperation(() => this.#api.register(token, displayName));
 	}
 
-	refresh(): Promise<void> {
-		if (this.#pendingLogouts.size > 0) {
-			return Promise.all([...this.#pendingLogouts]).then(() => undefined);
+	async refresh(): Promise<void> {
+    if (this.#pendingLogouts.size > 0) {
+      await Promise.all([...this.#pendingLogouts]);
+      return undefined;
 		}
 		if (this.#refreshInFlight) {
 			return this.#refreshInFlight;
@@ -124,14 +125,13 @@ export class AuthService {
 		return logout;
 	}
 
-	#runSessionOperation(
-		operation: () => Promise<AuthSession>,
-		clearOnFailure = false
-	): Promise<void> {
-		if (this.#pendingLogouts.size > 0) {
-			return Promise.allSettled([...this.#pendingLogouts]).then(() =>
-				this.#runSessionOperation(operation, clearOnFailure)
-			);
+	async #runSessionOperation(
+    operation: () => Promise<AuthSession>,
+    clearOnFailure = false
+  ): Promise<void> {
+    if (this.#pendingLogouts.size > 0) {
+      await Promise.allSettled([...this.#pendingLogouts]);
+      return await this.#runSessionOperation(operation, clearOnFailure);
 		}
 
 		const revision = this.#sessionRevision;

@@ -3,7 +3,7 @@ import {
 	AuthService as AuthServiceDefinition,
 	type User as ProtoUser
 } from '$lib/gen/user/v1/auth_pb';
-import type { AuthApi, AuthSession, AuthUser } from './auth-api';
+import type { AuthApi, AuthSession, AuthUser } from './authApi.ts';
 
 type AuthClient = Client<typeof AuthServiceDefinition>;
 

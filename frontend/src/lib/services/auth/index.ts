@@ -1,8 +1,8 @@
 import { createClient } from '@connectrpc/connect';
-import { createCustomTransport } from '$lib/connect/custom-transport';
+import { createCustomTransport } from '$lib/connect/transport';
 import { AuthService as AuthServiceDefinition } from '$lib/gen/user/v1/auth_pb';
-import { AuthService } from './internal/auth-service.svelte';
-import { ConnectAuthApi } from './internal/connect-auth-api';
+import { AuthService } from './service.ts';
+import { ConnectAuthApi } from './connectAuthApi.ts';
 
 const authClient = createClient(AuthServiceDefinition, createCustomTransport());
 

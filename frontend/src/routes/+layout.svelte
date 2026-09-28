@@ -1,8 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import AuthStatus from '$lib/components/AuthStatus.svelte';
-	import { authService } from '$lib/auth';
+	import { authService } from '$lib/services/auth';
 
 	let { children } = $props();
 
@@ -24,7 +23,6 @@
 		<a class="brand" href="/" aria-label="Friend on Campus home">Friend on Campus</a>
 		<nav aria-label="Main navigation">
 			<a href="/suppliers">Suppliers</a>
-			<AuthStatus />
 		</nav>
 	</header>
 
