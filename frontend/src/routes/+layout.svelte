@@ -2,12 +2,12 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import AuthStatus from '$lib/components/AuthStatus.svelte';
-	import { restoreSession } from '$lib/api/transport';
+	import { authService } from '$lib/auth/auth-service.svelte';
 
 	let { children } = $props();
 
 	onMount(() => {
-		void restoreSession();
+		void authService.restoreSession();
 	});
 </script>
 

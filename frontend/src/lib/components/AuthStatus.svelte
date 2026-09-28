@@ -1,24 +1,22 @@
 <script lang="ts">
-	import { userAuthClient } from '$lib/api/connect';
-	import { auth } from '$lib/state/auth.svelte';
+	import { authService } from '$lib/auth/auth-service.svelte';
 
 	let error = $state<string | null>(null);
 
 	async function logout() {
 		error = null;
 		try {
-			await userAuthClient.logout({});
-			auth.logout();
+			await authService.logout();
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Unable to log out';
 		}
 	}
 </script>
 
-{#if auth.isLoading}
+{#if authService.isLoading}
 	<span>Checking session…</span>
-{:else if auth.isAuthenticated}
-	<span>Signed in as {auth.user?.displayName}</span>
+{:else if authService.isAuthenticated}
+	<span>Signed in as {authService.user?.displayName}</span>
 	<button onclick={logout}>Log out</button>
 {:else}
 	<a href="/login">Log in</a>
