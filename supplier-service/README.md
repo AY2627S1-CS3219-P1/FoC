@@ -39,5 +39,3 @@ Run fast and PostgreSQL/PostGIS-backed tests separately:
 make test
 make test-integration
 ```
-
-See `.pi/docs/01-supplier-data-foundations/handoff.md` for the schema names, generated sqlc surface, source-key convention, and fixture assumptions used by downstream Location work.
