@@ -47,4 +47,5 @@ jobs:
       - run: git diff --exit-code -- ../pkg/gen src/lib/gen
       - run: test -z "$(git ls-files --others --exclude-standard -- ../pkg/gen src/lib/gen)"
       - run: npm run check
+      - run: npm test
       - run: npm run build
