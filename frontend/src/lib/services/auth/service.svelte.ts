@@ -88,9 +88,9 @@ export class AuthService {
 	}
 
 	async refresh(): Promise<void> {
-    if (this.#pendingLogouts.size > 0) {
-      await Promise.all([...this.#pendingLogouts]);
-      return undefined;
+		if (this.#pendingLogouts.size > 0) {
+			await Promise.all([...this.#pendingLogouts]);
+			return;
 		}
 		if (this.#refreshInFlight) {
 			return this.#refreshInFlight;
@@ -126,12 +126,12 @@ export class AuthService {
 	}
 
 	async #runSessionOperation(
-    operation: () => Promise<AuthSession>,
-    clearOnFailure = false
-  ): Promise<void> {
-    if (this.#pendingLogouts.size > 0) {
-      await Promise.allSettled([...this.#pendingLogouts]);
-      return await this.#runSessionOperation(operation, clearOnFailure);
+		operation: () => Promise<AuthSession>,
+		clearOnFailure = false
+	): Promise<void> {
+		if (this.#pendingLogouts.size > 0) {
+			await Promise.allSettled([...this.#pendingLogouts]);
+			return this.#runSessionOperation(operation, clearOnFailure);
 		}
 
 		const revision = this.#sessionRevision;
