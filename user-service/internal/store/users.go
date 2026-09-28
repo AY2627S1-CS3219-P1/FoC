@@ -1,3 +1,5 @@
+// User profile and favourite supplier persistence.
+
 package store
 
 import (
@@ -12,11 +14,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
-// ListParams selects a page of users, optionally filtered by role.
 type ListParams struct {
 	Limit  int
 	Offset int
-	Role   *models.RoleName // optional filter
+	Role   *models.RoleName
 }
 
 const (
@@ -24,8 +25,6 @@ const (
 	MaxPageSize     = 100
 )
 
-// Normalize returns a copy with nonpositive limits set to DefaultPageSize,
-// limits above MaxPageSize capped, and negative offsets set to zero.
 func (p ListParams) Normalize() ListParams {
 	if p.Limit <= 0 {
 		p.Limit = DefaultPageSize
@@ -39,10 +38,18 @@ func (p ListParams) Normalize() ListParams {
 	return p
 }
 
-// Users persists user profiles and favourites.
+// UserUpdate is a partial profile update: nil leaves a field unchanged, and ""
+// clears TelegramHandle or PhoneNumber. UpdatedBy is the acting user (nil = system).
+type UserUpdate struct {
+	DisplayName    *string
+	Description    *string
+	TelegramHandle *string
+	PhoneNumber    *string
+	UpdatedBy      *uint
+}
+
 type Users struct{ db *gorm.DB }
 
-// NewUsers uses db for user profiles and favourites.
 func NewUsers(db *gorm.DB) *Users { return &Users{db: db} }
 
 // GetByEmail returns the user or ErrNotFound if absent.
@@ -66,11 +73,9 @@ func (s *Users) Create(ctx context.Context, user *models.User) error {
 	return err
 }
 
-// GetByID returns the user or ErrNotFound if absent. Other database errors
-// are returned unchanged.
-func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+func (s *Users) GetByID(ctx context.Context, id uint) (*models.User, error) {
 	var u models.User
-	err := s.db.WithContext(ctx).Take(&u, "id = ?", id).Error
+	err := s.db.WithContext(ctx).Take(&u, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -80,11 +85,8 @@ func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, nil
 }
 
-// List returns a page of users ordered by creation time descending, then ID,
-// and the total count before pagination, optionally filtered by role. It does
-// not normalize p. The count and page are separate queries; errors from either
-// are propagated.
 func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, error) {
+	p = p.Normalize()
 	var (
 		users []models.User
 		total int64
@@ -93,7 +95,6 @@ func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, e
 	if p.Role != nil {
 		q = q.Where("role = ?", *p.Role)
 	}
-	// New session so Count and Find don't share one mutable statement.
 	q = q.Session(&gorm.Session{})
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -102,13 +103,21 @@ func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, e
 	return users, total, err
 }
 
-// Update writes the mutable profile columns only; Select makes GORM persist
-// NULLs (e.g. clearing a phone number).
-// It returns ErrNotFound if no row is updated, or propagates the database error.
-func (s *Users) Update(ctx context.Context, u *models.User) error {
-	res := s.db.WithContext(ctx).Model(u).
-		Select("display_name", "description", "telegram_handle", "phone_number", "updated_at").
-		Updates(u)
+func (s *Users) Update(ctx context.Context, id uint, in UserUpdate) error {
+	fields := map[string]any{"updated_by": in.UpdatedBy}
+	if in.DisplayName != nil {
+		fields["display_name"] = *in.DisplayName
+	}
+	if in.Description != nil {
+		fields["description"] = *in.Description
+	}
+	if in.TelegramHandle != nil {
+		fields["telegram_handle"] = nullIfEmpty(*in.TelegramHandle)
+	}
+	if in.PhoneNumber != nil {
+		fields["phone_number"] = nullIfEmpty(*in.PhoneNumber)
+	}
+	res := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Updates(fields)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -118,34 +127,48 @@ func (s *Users) Update(ctx context.Context, u *models.User) error {
 	return nil
 }
 
-// Delete removes the user and dependent rows configured to cascade. It returns
-// ErrInUse for a GORM foreign-key violation, ErrNotFound if no user was deleted,
-// or the unchanged database error otherwise.
-func (s *Users) Delete(ctx context.Context, id uuid.UUID) error {
-	res := s.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id)
-	if errors.Is(res.Error, gorm.ErrForeignKeyViolated) {
-		return ErrInUse
+func nullIfEmpty(v string) any {
+	if v == "" {
+		return nil
 	}
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return v
 }
 
-// ListFavourites returns the user's favourites, newest first, and any database error.
-func (s *Users) ListFavourites(ctx context.Context, userID uuid.UUID) ([]models.FavouriteSupplier, error) {
+// Delete soft-deletes the user and their sessions and tokens, and removes
+// their favourites. Warnings and role changes are kept as history.
+func (s *Users) Delete(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var bootstraps int64
+		if err := tx.Model(&models.AdminBootstrap{}).Where("user_id = ?", id).Count(&bootstraps).Error; err != nil {
+			return err
+		}
+		if bootstraps > 0 {
+			return ErrInUse
+		}
+		res := tx.Delete(&models.User{}, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&models.Session{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&models.AuthToken{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", id).Delete(&models.FavouriteSupplier{}).Error
+	})
+}
+
+func (s *Users) ListFavourites(ctx context.Context, userID uint) ([]models.FavouriteSupplier, error) {
 	var favs []models.FavouriteSupplier
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&favs).Error
 	return favs, err
 }
 
-// AddFavourite records the supplier as a favourite at now. Existing favourites
-// are unchanged. Supplier existence is not checked. A GORM foreign-key violation
-// returns ErrNotFound; other database errors are propagated.
-func (s *Users) AddFavourite(ctx context.Context, userID, supplierID uuid.UUID, now time.Time) error {
+func (s *Users) AddFavourite(ctx context.Context, userID uint, supplierID uuid.UUID, now time.Time) error {
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&models.FavouriteSupplier{UserID: userID, SupplierID: supplierID, CreatedAt: now}).Error
 	if errors.Is(err, gorm.ErrForeignKeyViolated) {
@@ -154,9 +177,7 @@ func (s *Users) AddFavourite(ctx context.Context, userID, supplierID uuid.UUID, 
 	return err
 }
 
-// RemoveFavourite deletes the pair, succeeding if it is already absent.
-// Database errors are returned unchanged.
-func (s *Users) RemoveFavourite(ctx context.Context, userID, supplierID uuid.UUID) error {
+func (s *Users) RemoveFavourite(ctx context.Context, userID uint, supplierID uuid.UUID) error {
 	return s.db.WithContext(ctx).
 		Delete(&models.FavouriteSupplier{}, "user_id = ? AND supplier_id = ?", userID, supplierID).Error
 }
