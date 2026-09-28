@@ -79,8 +79,8 @@ func TestDomainWhitelist(t *testing.T) {
 	ctx := context.Background()
 	store, db := setupAuthStore(t)
 
-	if allowed, err := store.Admin.Allows(ctx, "example.com"); err != nil || !allowed {
-		t.Fatalf("empty whitelist should allow bootstrap registration: allowed=%v err=%v", allowed, err)
+	if allowed, err := store.Admin.Allows(ctx, "example.com"); err != nil || allowed {
+		t.Fatalf("empty whitelist should deny registration: allowed=%v err=%v", allowed, err)
 	}
 	if err := db.Create(&models.AllowedEmailDomain{Domain: "u.nus.edu"}).Error; err != nil {
 		t.Fatal(err)

@@ -82,7 +82,7 @@ erDiagram
 | Migration | Table | Backlog | Notes |
 |---|---|---|---|
 | 00001 | `users` | U1, U3 | `citext` email = case-insensitive unique |
-| 00002 | `allowed_email_domains` | U1.1.2 | empty table = no restriction |
+| 00002 | `allowed_email_domains` | U1.1.2 | registration denied until a domain is explicitly allowed |
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |

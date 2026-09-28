@@ -33,7 +33,8 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{users: map[uuid.UUID]models.User{}, logins: map[[32]byte]models.AuthToken{},
-		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uuid.UUID]models.Session{}}
+		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uuid.UUID]models.Session{},
+		allowedDomains: map[string]struct{}{"example.com": {}}}
 }
 
 func (f *fakeStore) GetByEmail(_ context.Context, email string) (*models.User, error) {
@@ -158,9 +159,6 @@ func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte,
 type fakeDomains struct{ *fakeStore }
 
 func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
-	if len(f.allowedDomains) == 0 {
-		return true, nil
-	}
 	_, ok := f.allowedDomains[strings.ToLower(domain)]
 	return ok, nil
 }
@@ -459,8 +457,7 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	store.allowedDomains = map[string]struct{}{"u.nus.edu": {}}
 	service := setupService(t, store, &now, true, nil)
 	ctx := context.Background()
-	registration := requestLink(t, service, "new@example.com")
-	token := linkToken(t, registration)
+	token := addRegistrationChallenge(t, store, now)
 
 	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
