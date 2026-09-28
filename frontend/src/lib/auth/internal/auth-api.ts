@@ -12,6 +12,7 @@ export interface AuthSession {
 	user: AuthUser;
 }
 
+/** Operations the auth service needs from its backend API. */
 export interface AuthApi {
 	requestLink(email: string): Promise<void>;
 	login(token: string): Promise<AuthSession>;

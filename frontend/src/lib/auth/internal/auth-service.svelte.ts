@@ -11,8 +11,10 @@ export class AuthService {
 	#sessionOperations = new Set<Promise<void>>();
 
 	readonly interceptor: Interceptor;
+	readonly #api: AuthApi;
 
-	constructor(private readonly api: AuthApi) {
+	constructor(api: AuthApi) {
+		this.#api = api;
 		this.interceptor = (next) => async (req) => {
 			if (this.#accessToken) {
 				req.header.set('Authorization', `Bearer ${this.#accessToken}`);
@@ -74,15 +76,15 @@ export class AuthService {
 	}
 
 	requestLink(email: string): Promise<void> {
-		return this.api.requestLink(email);
+		return this.#api.requestLink(email);
 	}
 
 	login(token: string): Promise<void> {
-		return this.#runSessionOperation(() => this.api.login(token));
+		return this.#runSessionOperation(() => this.#api.login(token));
 	}
 
 	register(token: string, displayName: string): Promise<void> {
-		return this.#runSessionOperation(() => this.api.register(token, displayName));
+		return this.#runSessionOperation(() => this.#api.register(token, displayName));
 	}
 
 	refresh(): Promise<void> {
@@ -94,7 +96,7 @@ export class AuthService {
 		}
 
 		this.#setLoading(true);
-		const refresh = this.#runSessionOperation(() => this.api.refresh(), true).finally(() => {
+		const refresh = this.#runSessionOperation(() => this.#api.refresh(), true).finally(() => {
 			if (this.#refreshInFlight === refresh) {
 				this.#refreshInFlight = undefined;
 			}
@@ -115,7 +117,7 @@ export class AuthService {
 		let logout: Promise<void>;
 		logout = Promise.resolve()
 			.then(() => Promise.allSettled([...this.#sessionOperations]))
-			.then(() => this.api.logout())
+			.then(() => this.#api.logout())
 			.then(() => this.#clearSession())
 			.finally(() => this.#pendingLogouts.delete(logout));
 		this.#pendingLogouts.add(logout);

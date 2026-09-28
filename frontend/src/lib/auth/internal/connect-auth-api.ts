@@ -26,6 +26,7 @@ function toSession(accessToken: string, user: ProtoUser | undefined): AuthSessio
 	return { accessToken, user: toUser(user) };
 }
 
+/** Connect-backed implementation of the internal auth API. */
 export class ConnectAuthApi implements AuthApi {
 	readonly #client: AuthClient;
 
