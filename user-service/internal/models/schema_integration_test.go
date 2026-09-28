@@ -1,3 +1,5 @@
+// Schema tests: run every migration up, down and up, then check constraints. Needs a throwaway TEST_DATABASE_URL.
+
 package models_test
 
 import (
@@ -16,23 +18,26 @@ import (
 	m "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
-// Runs only with TEST_DATABASE_URL set. Resets the schema: use a throwaway DB.
 func setup(t *testing.T) *gorm.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL not set")
 	}
+	ctx := context.Background()
 	db, err := database.Open(dsn, 5, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	p, err := database.Migrator(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
-	// Full down + up proves every down migration is reversible.
 	if _, err := p.Up(ctx); err != nil {
 		t.Fatalf("up: %v", err)
 	}
@@ -81,31 +86,62 @@ func TestSchema(t *testing.T) {
 				t.Errorf("DB role %q has no Go const", r.Name)
 			}
 		}
-		// Omit role on insert => DB default 'user'.
 		if err := db.Exec("INSERT INTO users (email, display_name) VALUES ('norole@u.nus.edu', 'N')").Error; err != nil {
 			t.Fatal(err)
 		}
 		var def m.User
-		db.First(&def, "email = ?", "norole@u.nus.edu")
+		if err := db.First(&def, "email = ?", "norole@u.nus.edu").Error; err != nil {
+			t.Fatal(err)
+		}
 		if def.Role != m.RoleUser || def.IsAdmin() || def.IsSuspended() {
 			t.Fatalf("default role = %q", def.Role)
 		}
-		// Promote to super_admin (bootstrap path).
 		if err := db.Model(admin).Update("role", m.RoleSuperAdmin).Error; err != nil {
 			t.Fatal(err)
 		}
 		var got m.User
-		db.First(&got, "id = ?", admin.ID)
+		if err := db.First(&got, admin.ID).Error; err != nil {
+			t.Fatal(err)
+		}
 		if got.Role != m.RoleSuperAdmin || !got.IsAdmin() {
 			t.Fatalf("promotion not persisted: %q", got.Role)
 		}
-		// Unknown role rejected by FK.
 		if err := db.Model(alice).Update("role", "root").Error; err == nil {
 			t.Fatal("expected FK violation for unknown role")
 		}
-		// Can't delete a role still in use.
 		if err := db.Delete(&m.Role{}, "name = ?", m.RoleUser).Error; err == nil {
 			t.Fatal("expected RESTRICT on deleting in-use role")
+		}
+	})
+
+	t.Run("users: profile checks", func(t *testing.T) {
+		short := "abc"
+		valid := "alice_01"
+		if err := db.Model(alice).Update("telegram_handle", short).Error; err == nil {
+			t.Fatal("expected short telegram handle to fail")
+		}
+		if err := db.Model(alice).Update("telegram_handle", "@"+valid).Error; err == nil {
+			t.Fatal("expected telegram handle with @ to fail")
+		}
+		if err := db.Model(alice).Update("telegram_handle", valid).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Model(alice).Update("display_name", "   ").Error; err == nil {
+			t.Fatal("expected blank display name to fail")
+		}
+	})
+
+	t.Run("users: soft delete frees the email", func(t *testing.T) {
+		gone := newUser(t, db, "gone@u.nus.edu")
+		if err := db.Delete(gone).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.First(&m.User{}, gone.ID).Error; err != gorm.ErrRecordNotFound {
+			t.Fatalf("soft-deleted user still visible: %v", err)
+		}
+		newUser(t, db, "gone@u.nus.edu")
+		if err := db.Create(&m.User{Email: "GONE@u.nus.edu", DisplayName: "Dup"}).Error; err == nil {
+			t.Fatal("expected duplicate live email to fail")
 		}
 	})
 
@@ -121,11 +157,15 @@ func TestSchema(t *testing.T) {
 		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleUser, Reason: &reason}).Error; err == nil {
 			t.Fatal("expected no-op change to fail")
 		}
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended, Reason: &reason, ActorID: &admin.ID}).Error; err != nil {
+		suspend := &m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended, Reason: &reason}
+		suspend.CreatedBy = &admin.ID
+		if err := db.Create(suspend).Error; err != nil {
 			t.Fatal(err)
 		}
-		// Promotion needs no reason.
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleAdmin, ActorID: &admin.ID}).Error; err != nil {
+		if suspend.CreatedBy == nil || *suspend.CreatedBy != admin.ID {
+			t.Fatalf("created_by = %v, want %d", suspend.CreatedBy, admin.ID)
+		}
+		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleAdmin}).Error; err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -156,13 +196,15 @@ func TestSchema(t *testing.T) {
 		if n := consume(h); n != 0 {
 			t.Fatalf("reuse consume = %d", n)
 		}
-		// Expired link.
 		h2 := hash()
-		db.Create(&m.AuthToken{TokenHash: h2, Purpose: m.TokenPurposeLogin, Email: alice.Email, UserID: &alice.ID, CreatedAt: now.Add(-20 * time.Minute), ExpiresAt: now.Add(-10 * time.Minute)})
+		expired := &m.AuthToken{TokenHash: h2, Purpose: m.TokenPurposeLogin, Email: alice.Email, UserID: &alice.ID, ExpiresAt: now.Add(-10 * time.Minute)}
+		expired.CreatedAt = now.Add(-20 * time.Minute)
+		if err := db.Create(expired).Error; err != nil {
+			t.Fatal(err)
+		}
 		if n := consume(h2); n != 0 {
 			t.Fatalf("expired consume = %d", n)
 		}
-		// Login token without user_id violates CHECK.
 		if err := db.Create(&m.AuthToken{TokenHash: hash(), Purpose: m.TokenPurposeLogin, Email: "x@y.com", ExpiresAt: now.Add(time.Minute)}).Error; err == nil {
 			t.Fatal("expected check violation for login token without user_id")
 		}
@@ -179,18 +221,27 @@ func TestSchema(t *testing.T) {
 			t.Fatalf("revoked %d", n)
 		}
 		var s m.Session
-		db.First(&s, "user_id = ?", alice.ID)
+		if err := db.First(&s, "user_id = ?", alice.ID).Error; err != nil {
+			t.Fatal(err)
+		}
 		if s.IsActive(now) {
 			t.Fatal("revoked session still active")
 		}
 	})
 
 	t.Run("domains, favourites, warnings", func(t *testing.T) {
-		if err := db.Create(&m.AllowedEmailDomain{Domain: "u.nus.edu", CreatedBy: &admin.ID}).Error; err != nil {
+		domain := &m.AllowedEmailDomain{Domain: "u.nus.edu"}
+		if err := db.Create(domain).Error; err != nil {
 			t.Fatal(err)
 		}
 		if err := db.Create(&m.AllowedEmailDomain{Domain: "U.NUS.EDU"}).Error; err == nil {
 			t.Fatal("expected case-insensitive duplicate domain to fail")
+		}
+		if err := db.Delete(domain).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&m.AllowedEmailDomain{Domain: "u.nus.edu"}).Error; err != nil {
+			t.Fatalf("re-adding soft-deleted domain: %v", err)
 		}
 		sup := uuid.New()
 		if err := db.Create(&m.FavouriteSupplier{UserID: alice.ID, SupplierID: sup}).Error; err != nil {
@@ -211,22 +262,23 @@ func TestSchema(t *testing.T) {
 		if dup.Error != nil || dup.RowsAffected != 0 {
 			t.Fatalf("replayed event created warning: %v/%d", dup.Error, dup.RowsAffected)
 		}
-		// removed status requires removed_at
 		if err := db.Model(w).Update("status", m.WarningRemoved).Error; err == nil {
 			t.Fatal("expected check violation")
 		}
 	})
 
-	t.Run("deleting a user cascades", func(t *testing.T) {
+	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)
 		}
-		if err := db.Delete(&m.User{}, "id = ?", alice.ID).Error; err != nil {
+		if err := db.Unscoped().Delete(&m.User{}, alice.ID).Error; err != nil {
 			t.Fatal(err)
 		}
 		for _, tbl := range []string{"sessions", "auth_tokens", "favourite_suppliers", "account_warnings", "role_changes"} {
 			var n int64
-			db.Table(tbl).Where("user_id = ?", alice.ID).Count(&n)
+			if err := db.Table(tbl).Where("user_id = ?", alice.ID).Count(&n).Error; err != nil {
+				t.Fatal(err)
+			}
 			if n != 0 {
 				t.Errorf("%s still has %d rows", tbl, n)
 			}
