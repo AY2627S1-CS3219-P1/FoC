@@ -2,10 +2,9 @@ package seed
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -52,12 +51,8 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 			ID:   candidateID,
 			Name: building.name,
 		})
-		existed := true
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-			id = candidateID
-			existed = false
-		case err != nil:
+		id, exists, err := resolveSeedID(candidateID, id, err)
+		if err != nil {
 			return Report{}, fmt.Errorf("find Building %q: %w", building.sourceKey, err)
 		}
 
@@ -71,11 +66,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 		if err != nil {
 			return Report{}, fmt.Errorf("upsert Building %q: %w", building.sourceKey, err)
 		}
-		if !existed {
-			report.Buildings.Inserted++
-		} else if changed > 0 {
-			report.Buildings.Updated++
-		}
+		recordSeedChange(&report.Buildings, exists, changed)
 		buildingIDs[building.sourceKey] = id
 	}
 
@@ -86,12 +77,8 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 			ID:   candidateID,
 			Name: category.name,
 		})
-		existed := true
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-			id = candidateID
-			existed = false
-		case err != nil:
+		id, exists, err := resolveSeedID(candidateID, id, err)
+		if err != nil {
 			return Report{}, fmt.Errorf("find Category %q: %w", category.sourceKey, err)
 		}
 
@@ -102,11 +89,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 		if err != nil {
 			return Report{}, fmt.Errorf("upsert Category %q: %w", category.sourceKey, err)
 		}
-		if !existed {
-			report.Categories.Inserted++
-		} else if changed > 0 {
-			report.Categories.Updated++
-		}
+		recordSeedChange(&report.Categories, exists, changed)
 		categoryIDs[category.sourceKey] = id
 	}
 
@@ -130,22 +113,18 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 			Name:       location.name,
 			IsSupplier: location.isSupplier,
 			BuildingID: buildingID,
-			Floor:      nullableText(location.floor),
+			Floor:      database.ToPGNullableText(location.floor),
 			Longitude:  location.longitude,
 			Latitude:   location.latitude,
-			OpenFrom:   nullableTime(location.openFrom),
-			OpenTo:     nullableTime(location.openTo),
-			Contact:    nullableText(location.contact),
+			OpenFrom:   database.ToPGTimeOfDay(location.openFrom),
+			OpenTo:     database.ToPGTimeOfDay(location.openTo),
+			Contact:    database.ToPGNullableText(location.contact),
 			Details:    location.details,
 		})
 		if err != nil {
 			return Report{}, fmt.Errorf("upsert Location %q: %w", location.sourceKey, err)
 		}
-		if !exists {
-			counts.Inserted++
-		} else if changed > 0 {
-			counts.Updated++
-		}
+		recordSeedChange(counts, exists, changed)
 
 		if !location.isSupplier {
 			removed, err := queries.DeleteAllSeedLocationCategories(ctx, locationID)
@@ -212,24 +191,4 @@ func syncLocationCategories(
 		report.LocationCategories.Updated++
 	}
 	return nil
-}
-
-func deterministicUUID(sourceKey string) pgtype.UUID {
-	id := uuid.NewSHA1(seedNamespace, []byte(sourceKey))
-	return pgtype.UUID{Bytes: id, Valid: true}
-}
-
-func nullableText(value *string) pgtype.Text {
-	if value == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: *value, Valid: true}
-}
-
-func nullableTime(value *time.Time) pgtype.Time {
-	if value == nil {
-		return pgtype.Time{}
-	}
-	microseconds := int64(value.Hour()*60*60+value.Minute()*60+value.Second()) * 1_000_000
-	return pgtype.Time{Microseconds: microseconds, Valid: true}
 }

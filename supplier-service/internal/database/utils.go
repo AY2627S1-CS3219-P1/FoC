@@ -13,6 +13,13 @@ func ToPGText(s string) pgtype.Text {
 	}
 }
 
+func ToPGNullableText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
+}
+
 func ToPGTime(t *time.Time) pgtype.Timestamptz {
 	if t == nil {
 		return pgtype.Timestamptz{Valid: false}
@@ -21,6 +28,14 @@ func ToPGTime(t *time.Time) pgtype.Timestamptz {
 		Time:  *t,
 		Valid: true,
 	}
+}
+
+func ToPGTimeOfDay(t *time.Time) pgtype.Time {
+	if t == nil {
+		return pgtype.Time{}
+	}
+	microseconds := int64(t.Hour()*60*60+t.Minute()*60+t.Second()) * 1_000_000
+	return pgtype.Time{Microseconds: microseconds, Valid: true}
 }
 
 func ToPGDate(t *time.Time) pgtype.Date {
@@ -42,4 +57,3 @@ func ToPGInt4(i *int32) pgtype.Int4 {
 		Valid: true,
 	}
 }
-
