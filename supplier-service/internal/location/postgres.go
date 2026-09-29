@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -33,6 +34,8 @@ func (r *PostgresReader) GetLocation(ctx context.Context, id string) (Location, 
 	if err != nil {
 		return Location{}, fmt.Errorf("get location: %w", err)
 	}
+	// GetLocation and ListLocations select identical columns, so their row
+	// types convert directly.
 	locations := []Location{fromRow(locationdb.ListLocationsRow(row))}
 	if err := r.attachDetails(ctx, locations); err != nil {
 		return Location{}, err
@@ -198,8 +201,7 @@ func parseOptionalUUID(s *string) (pgtype.UUID, error) {
 }
 
 func formatUUID(id pgtype.UUID) string {
-	b := id.Bytes
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	return uuid.UUID(id.Bytes).String()
 }
 
 func textPtr(t pgtype.Text) *string {
