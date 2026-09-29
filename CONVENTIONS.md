@@ -80,8 +80,10 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
-- After changing either, run `make sqlc` to regenerate
-  `internal/database/sqlc`. Never hand-edit generated files.
+- After changing either, run `make sqlc` in the affected service. Supplier
+  Service generates `internal/database/userdb` and `internal/database/seeddb`;
+  User Service generates `internal/database/sqlc`. Never hand-edit generated
+  files.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 Docs: [goose](https://github.com/pressly/goose),

@@ -3,7 +3,7 @@ package userview
 import (
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/sqlc"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/userdb"
 )
 
 type UserView struct {
@@ -13,7 +13,7 @@ type UserView struct {
 	DateOfBirth time.Time `json:"dateOfBirth"`
 }
 
-func ToUserView(user *sqlc.User) *UserView {
+func ToUserView(user *userdb.User) *UserView {
 	return &UserView{
 		FirebaseUID: user.FirebaseUid,
 		Email:       user.Email,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/sqlc"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/seeddb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -32,7 +32,7 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, paths Paths) (Report, error) 
 		_ = tx.Rollback(ctx)
 	}()
 
-	report, err := importDataset(ctx, sqlc.New(tx), data)
+	report, err := importDataset(ctx, seeddb.New(tx), data)
 	if err != nil {
 		return Report{}, err
 	}
@@ -42,12 +42,12 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, paths Paths) (Report, error) 
 	return report, nil
 }
 
-func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Report, error) {
+func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (Report, error) {
 	var report Report
 	buildingIDs := make(map[string]pgtype.UUID, len(data.buildings))
 	for _, building := range data.buildings {
 		candidateID := deterministicUUID(building.sourceKey)
-		id, err := queries.GetSeedBuilding(ctx, sqlc.GetSeedBuildingParams{
+		id, err := queries.GetBuilding(ctx, seeddb.GetBuildingParams{
 			ID:   candidateID,
 			Name: building.name,
 		})
@@ -56,7 +56,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 			return Report{}, fmt.Errorf("find Building %q: %w", building.sourceKey, err)
 		}
 
-		changed, err := queries.UpsertSeedBuilding(ctx, sqlc.UpsertSeedBuildingParams{
+		changed, err := queries.UpsertBuilding(ctx, seeddb.UpsertBuildingParams{
 			ID:        id,
 			Name:      building.name,
 			Longitude: building.longitude,
@@ -73,7 +73,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 	categoryIDs := make(map[string]pgtype.UUID, len(data.categories))
 	for _, category := range data.categories {
 		candidateID := deterministicUUID(category.sourceKey)
-		id, err := queries.GetSeedCategory(ctx, sqlc.GetSeedCategoryParams{
+		id, err := queries.GetCategory(ctx, seeddb.GetCategoryParams{
 			ID:   candidateID,
 			Name: category.name,
 		})
@@ -82,7 +82,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 			return Report{}, fmt.Errorf("find Category %q: %w", category.sourceKey, err)
 		}
 
-		changed, err := queries.UpsertSeedCategory(ctx, sqlc.UpsertSeedCategoryParams{
+		changed, err := queries.UpsertCategory(ctx, seeddb.UpsertCategoryParams{
 			ID:   id,
 			Name: category.name,
 		})
@@ -95,7 +95,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 
 	for _, location := range data.locations {
 		locationID := deterministicUUID(location.sourceKey)
-		exists, err := queries.SeedLocationExists(ctx, locationID)
+		exists, err := queries.LocationExists(ctx, locationID)
 		if err != nil {
 			return Report{}, fmt.Errorf("find Location %q: %w", location.sourceKey, err)
 		}
@@ -108,7 +108,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 		if !buildingExists {
 			return Report{}, fmt.Errorf("Location %q references unknown Building %q", location.sourceKey, location.buildingKey)
 		}
-		changed, err := queries.UpsertSeedLocation(ctx, sqlc.UpsertSeedLocationParams{
+		changed, err := queries.UpsertLocation(ctx, seeddb.UpsertLocationParams{
 			ID:         locationID,
 			Name:       location.name,
 			IsSupplier: location.isSupplier,
@@ -127,7 +127,7 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 		recordSeedChange(counts, exists, changed)
 
 		if !location.isSupplier {
-			removed, err := queries.DeleteAllSeedLocationCategories(ctx, locationID)
+			removed, err := queries.DeleteAllLocationCategories(ctx, locationID)
 			if err != nil {
 				return Report{}, fmt.Errorf("clear Categories for ordinary Location %q: %w", location.sourceKey, err)
 			}
@@ -144,13 +144,13 @@ func importDataset(ctx context.Context, queries *sqlc.Queries, data dataset) (Re
 
 func syncLocationCategories(
 	ctx context.Context,
-	queries *sqlc.Queries,
+	queries *seeddb.Queries,
 	location location,
 	locationID pgtype.UUID,
 	categoryIDs map[string]pgtype.UUID,
 	report *Report,
 ) error {
-	existingIDs, err := queries.ListSeedLocationCategoryIDs(ctx, locationID)
+	existingIDs, err := queries.ListLocationCategoryIDs(ctx, locationID)
 	if err != nil {
 		return fmt.Errorf("list Categories for Location %q: %w", location.sourceKey, err)
 	}
@@ -169,7 +169,7 @@ func syncLocationCategories(
 		if _, exists := existing[categoryID]; exists {
 			continue
 		}
-		if err := queries.AddSeedLocationCategory(ctx, sqlc.AddSeedLocationCategoryParams{
+		if err := queries.AddLocationCategory(ctx, seeddb.AddLocationCategoryParams{
 			LocationID: locationID,
 			CategoryID: categoryID,
 		}); err != nil {
@@ -182,7 +182,7 @@ func syncLocationCategories(
 		if _, keep := desired[categoryID]; keep {
 			continue
 		}
-		if err := queries.DeleteSeedLocationCategory(ctx, sqlc.DeleteSeedLocationCategoryParams{
+		if err := queries.DeleteLocationCategory(ctx, seeddb.DeleteLocationCategoryParams{
 			LocationID: locationID,
 			CategoryID: categoryID,
 		}); err != nil {
