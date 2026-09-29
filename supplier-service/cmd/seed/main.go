@@ -5,18 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/seed"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
 	paths := parseFlags()
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
-	}
+	databaseURL := env.Get().DatabaseURL
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, databaseURL)
