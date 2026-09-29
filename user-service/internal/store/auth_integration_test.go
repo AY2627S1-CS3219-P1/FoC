@@ -117,6 +117,26 @@ func TestAuthTokensPersistence(t *testing.T) {
 	}
 }
 
+func TestAuthTokensRejectDeletedUser(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	store, _ := setupAuthStore(t)
+	user := createStoreUser(t, store, "user@example.com")
+
+	loginHash := testDigest("deleted-user-login")
+	login := models.AuthToken{TokenHash: loginHash[:], Purpose: models.TokenPurposeLogin,
+		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(time.Minute)}
+	if err := store.AuthTokens.Create(ctx, &login); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Users.Delete(ctx, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeLogin, now); !errors.Is(err, ErrChallengeRejected) {
+		t.Fatalf("deleted user's token: %v", err)
+	}
+}
+
 func TestStoreTransactionRollback(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
