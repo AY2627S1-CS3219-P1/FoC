@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/google/uuid"
@@ -23,11 +22,11 @@ func NewPostgresReader(queries *locationdb.Queries) *PostgresReader {
 }
 
 func (r *PostgresReader) GetLocation(ctx context.Context, id string) (Location, error) {
-	uuid, err := parseUUID(id)
+	locationID, err := uuid.Parse(id)
 	if err != nil {
 		return Location{}, ErrNotFound
 	}
-	row, err := r.queries.GetLocation(ctx, uuid)
+	row, err := r.queries.GetLocation(ctx, locationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Location{}, ErrNotFound
 	}
@@ -36,8 +35,9 @@ func (r *PostgresReader) GetLocation(ctx context.Context, id string) (Location, 
 	}
 	// GetLocation and ListLocations select identical columns, so their row
 	// types convert directly.
-	locations := []Location{fromRow(locationdb.ListLocationsRow(row))}
-	if err := r.attachDetails(ctx, locations); err != nil {
+	rows := []locationdb.ListLocationsRow{locationdb.ListLocationsRow(row)}
+	locations, err := r.toLocations(ctx, rows)
+	if err != nil {
 		return Location{}, err
 	}
 	return locations[0], nil
@@ -80,12 +80,8 @@ func (r *PostgresReader) ListLocations(ctx context.Context, query Query) ([]Loca
 	if err != nil {
 		return nil, 0, fmt.Errorf("list locations: %w", err)
 	}
-
-	locations := make([]Location, len(rows))
-	for i, row := range rows {
-		locations[i] = fromRow(row)
-	}
-	if err := r.attachDetails(ctx, locations); err != nil {
+	locations, err := r.toLocations(ctx, rows)
+	if err != nil {
 		return nil, 0, err
 	}
 	return locations, total, nil
@@ -99,7 +95,7 @@ func (r *PostgresReader) ListBuildings(ctx context.Context) ([]Building, error) 
 	buildings := make([]Building, len(rows))
 	for i, row := range rows {
 		buildings[i] = Building{
-			ID:      formatUUID(row.ID),
+			ID:      row.ID.String(),
 			Name:    row.Name,
 			Center:  Coordinates{Latitude: row.Latitude, Longitude: row.Longitude},
 			RadiusM: row.RadiusM,
@@ -115,70 +111,71 @@ func (r *PostgresReader) ListCategories(ctx context.Context) ([]Category, error)
 	}
 	categories := make([]Category, len(rows))
 	for i, row := range rows {
-		categories[i] = Category{ID: formatUUID(row.ID), Name: row.Name}
+		categories[i] = Category{ID: row.ID.String(), Name: row.Name}
 	}
 	return categories, nil
 }
 
-// attachDetails loads Categories and current disablements for all locations
-// in two queries.
-func (r *PostgresReader) attachDetails(ctx context.Context, locations []Location) error {
-	if len(locations) == 0 {
-		return nil
+// toLocations converts rows and loads their Categories and current
+// disablements in one query each.
+func (r *PostgresReader) toLocations(ctx context.Context, rows []locationdb.ListLocationsRow) ([]Location, error) {
+	locations := make([]Location, len(rows))
+	ids := make([]uuid.UUID, len(rows))
+	index := make(map[uuid.UUID]*Location, len(rows))
+	for i, row := range rows {
+		locations[i] = fromRow(row)
+		ids[i] = row.ID
+		index[row.ID] = &locations[i]
 	}
-	ids := make([]pgtype.UUID, len(locations))
-	index := make(map[string]int, len(locations))
-	for i, location := range locations {
-		ids[i], _ = parseUUID(location.ID)
-		index[location.ID] = i
+	if len(rows) == 0 {
+		return locations, nil
 	}
 
 	categoryRows, err := r.queries.ListLocationCategories(ctx, ids)
 	if err != nil {
-		return fmt.Errorf("list location categories: %w", err)
+		return nil, fmt.Errorf("list location categories: %w", err)
 	}
 	for _, row := range categoryRows {
-		i := index[formatUUID(row.LocationID)]
-		locations[i].Categories = append(locations[i].Categories, Category{ID: formatUUID(row.ID), Name: row.Name})
+		loc := index[row.LocationID]
+		loc.Categories = append(loc.Categories, Category{ID: row.ID.String(), Name: row.Name})
 	}
 
 	disablementRows, err := r.queries.ListCurrentDisablements(ctx, ids)
 	if err != nil {
-		return fmt.Errorf("list current disablements: %w", err)
+		return nil, fmt.Errorf("list current disablements: %w", err)
 	}
 	for _, row := range disablementRows {
-		i := index[formatUUID(row.LocationID)]
-		locations[i].CurrentDisablement = &Disablement{
-			ID:       formatUUID(row.ID),
-			StartsAt: row.StartsAt.Time,
-			EndsAt:   timePtr(row.EndsAt),
+		index[row.LocationID].CurrentDisablement = &Disablement{
+			ID:       row.ID.String(),
+			StartsAt: row.StartsAt,
+			EndsAt:   row.EndsAt,
 			Reason:   row.Reason,
 		}
 	}
-	return nil
+	return locations, nil
 }
 
 func fromRow(row locationdb.ListLocationsRow) Location {
 	return Location{
-		ID:         formatUUID(row.ID),
+		ID:         row.ID.String(),
 		Name:       row.Name,
 		IsSupplier: row.IsSupplier,
 		Building: Building{
-			ID:      formatUUID(row.BuildingID),
+			ID:      row.BuildingID.String(),
 			Name:    row.BuildingName,
 			Center:  Coordinates{Latitude: row.BuildingLatitude, Longitude: row.BuildingLongitude},
 			RadiusM: row.BuildingRadiusM,
 		},
-		Floor:       textPtr(row.Floor),
+		Floor:       row.Floor,
 		Coordinates: Coordinates{Latitude: row.Latitude, Longitude: row.Longitude},
 		OpensAt:     clockPtr(row.OpenFrom),
 		ClosesAt:    clockPtr(row.OpenTo),
-		Contact:     textPtr(row.Contact),
+		Contact:     row.Contact,
 		Details:     row.Details,
-		ArchivedAt:  timePtr(row.ArchivedAt),
+		ArchivedAt:  row.ArchivedAt,
 		Revision:    row.Revision,
-		CreatedAt:   row.CreatedAt.Time,
-		UpdatedAt:   row.UpdatedAt.Time,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}
 }
 
@@ -187,37 +184,19 @@ func escapeLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
-func parseUUID(s string) (pgtype.UUID, error) {
-	var id pgtype.UUID
-	err := id.Scan(s)
-	return id, err
-}
-
-func parseOptionalUUID(s *string) (pgtype.UUID, error) {
+func parseOptionalUUID(s *string) (*uuid.UUID, error) {
 	if s == nil {
-		return pgtype.UUID{}, nil
+		return nil, nil
 	}
-	return parseUUID(*s)
-}
-
-func formatUUID(id pgtype.UUID) string {
-	return uuid.UUID(id.Bytes).String()
-}
-
-func textPtr(t pgtype.Text) *string {
-	if !t.Valid {
-		return nil
+	id, err := uuid.Parse(*s)
+	if err != nil {
+		return nil, err
 	}
-	return &t.String
+	return &id, nil
 }
 
-func timePtr(t pgtype.Timestamptz) *time.Time {
-	if !t.Valid {
-		return nil
-	}
-	return &t.Time
-}
-
+// clockPtr formats a Postgres TIME as "HH:MM". sqlc cannot express a nullable
+// formatted string, so TIME columns stay pgtype.Time.
 func clockPtr(t pgtype.Time) *string {
 	if !t.Valid {
 		return nil

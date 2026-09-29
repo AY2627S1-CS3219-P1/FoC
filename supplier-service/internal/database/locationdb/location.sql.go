@@ -7,7 +7,9 @@ package locationdb
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -30,8 +32,8 @@ WHERE ($1::TEXT = ''
 type CountLocationsParams struct {
 	Search        string
 	RawSearch     string
-	BuildingID    pgtype.UUID
-	CategoryID    pgtype.UUID
+	BuildingID    *uuid.UUID
+	CategoryID    *uuid.UUID
 	SuppliersOnly bool
 	ArchiveFilter string
 }
@@ -77,28 +79,28 @@ WHERE l.id = $1
 `
 
 type GetLocationRow struct {
-	ID                pgtype.UUID
+	ID                uuid.UUID
 	Name              string
 	IsSupplier        bool
-	Floor             pgtype.Text
+	Floor             *string
 	Latitude          float64
 	Longitude         float64
 	OpenFrom          pgtype.Time
 	OpenTo            pgtype.Time
-	Contact           pgtype.Text
+	Contact           *string
 	Details           string
-	ArchivedAt        pgtype.Timestamptz
+	ArchivedAt        *time.Time
 	Revision          int64
-	CreatedAt         pgtype.Timestamptz
-	UpdatedAt         pgtype.Timestamptz
-	BuildingID        pgtype.UUID
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	BuildingID        uuid.UUID
 	BuildingName      string
 	BuildingLatitude  float64
 	BuildingLongitude float64
 	BuildingRadiusM   float32
 }
 
-func (q *Queries) GetLocation(ctx context.Context, id pgtype.UUID) (GetLocationRow, error) {
+func (q *Queries) GetLocation(ctx context.Context, id uuid.UUID) (GetLocationRow, error) {
 	row := q.db.QueryRow(ctx, getLocation, id)
 	var i GetLocationRow
 	err := row.Scan(
@@ -137,7 +139,7 @@ ORDER BY lower(name), id
 `
 
 type ListBuildingsRow struct {
-	ID        pgtype.UUID
+	ID        uuid.UUID
 	Name      string
 	Latitude  float64
 	Longitude float64
@@ -177,7 +179,7 @@ ORDER BY lower(name), id
 `
 
 type ListCategoriesRow struct {
-	ID   pgtype.UUID
+	ID   uuid.UUID
 	Name string
 }
 
@@ -217,15 +219,15 @@ ORDER BY d.location_id, d.starts_at DESC
 `
 
 type ListCurrentDisablementsRow struct {
-	LocationID pgtype.UUID
-	ID         pgtype.UUID
-	StartsAt   pgtype.Timestamptz
-	EndsAt     pgtype.Timestamptz
+	LocationID uuid.UUID
+	ID         uuid.UUID
+	StartsAt   time.Time
+	EndsAt     *time.Time
 	Reason     string
 }
 
 // At most one per Location: the most recently started active interval.
-func (q *Queries) ListCurrentDisablements(ctx context.Context, locationIds []pgtype.UUID) ([]ListCurrentDisablementsRow, error) {
+func (q *Queries) ListCurrentDisablements(ctx context.Context, locationIds []uuid.UUID) ([]ListCurrentDisablementsRow, error) {
 	rows, err := q.db.Query(ctx, listCurrentDisablements, locationIds)
 	if err != nil {
 		return nil, err
@@ -260,12 +262,12 @@ ORDER BY lc.location_id, lower(c.name), c.id
 `
 
 type ListLocationCategoriesRow struct {
-	LocationID pgtype.UUID
-	ID         pgtype.UUID
+	LocationID uuid.UUID
+	ID         uuid.UUID
 	Name       string
 }
 
-func (q *Queries) ListLocationCategories(ctx context.Context, locationIds []pgtype.UUID) ([]ListLocationCategoriesRow, error) {
+func (q *Queries) ListLocationCategories(ctx context.Context, locationIds []uuid.UUID) ([]ListLocationCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, listLocationCategories, locationIds)
 	if err != nil {
 		return nil, err
@@ -332,8 +334,8 @@ LIMIT $10 OFFSET $9
 type ListLocationsParams struct {
 	Search        string
 	RawSearch     string
-	BuildingID    pgtype.UUID
-	CategoryID    pgtype.UUID
+	BuildingID    *uuid.UUID
+	CategoryID    *uuid.UUID
 	SuppliersOnly bool
 	ArchiveFilter string
 	SortField     string
@@ -343,21 +345,21 @@ type ListLocationsParams struct {
 }
 
 type ListLocationsRow struct {
-	ID                pgtype.UUID
+	ID                uuid.UUID
 	Name              string
 	IsSupplier        bool
-	Floor             pgtype.Text
+	Floor             *string
 	Latitude          float64
 	Longitude         float64
 	OpenFrom          pgtype.Time
 	OpenTo            pgtype.Time
-	Contact           pgtype.Text
+	Contact           *string
 	Details           string
-	ArchivedAt        pgtype.Timestamptz
+	ArchivedAt        *time.Time
 	Revision          int64
-	CreatedAt         pgtype.Timestamptz
-	UpdatedAt         pgtype.Timestamptz
-	BuildingID        pgtype.UUID
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	BuildingID        uuid.UUID
 	BuildingName      string
 	BuildingLatitude  float64
 	BuildingLongitude float64
