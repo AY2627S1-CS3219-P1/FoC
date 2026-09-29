@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
@@ -32,15 +33,13 @@ func (s *AuthTokens) Consume(
 	now time.Time,
 ) (*models.AuthToken, error) {
 	var token models.AuthToken
-	err := s.db.WithContext(ctx).Raw(`
-		UPDATE auth_tokens
-		SET used_at = ?
-		WHERE token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > ?
-		RETURNING *`, now, hash[:], purpose, now).Scan(&token).Error
-	if err != nil {
-		return nil, err
+	result := s.db.WithContext(ctx).Model(&token).Clauses(clause.Returning{}).
+		Where("token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > ?", hash[:], purpose, now).
+		Updates(map[string]any{"used_at": now, "updated_at": now})
+	if result.Error != nil {
+		return nil, result.Error
 	}
-	if token.ID == 0 {
+	if result.RowsAffected == 0 {
 		return nil, ErrChallengeRejected
 	}
 	return &token, nil
