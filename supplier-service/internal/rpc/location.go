@@ -9,6 +9,7 @@ import (
 	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -27,6 +28,9 @@ func (s *LocationServer) GetLocation(
 	ctx context.Context,
 	req *connect.Request[supplierv1.GetLocationRequest],
 ) (*connect.Response[supplierv1.GetLocationResponse], error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
 	loc, err := s.service.Get(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, toConnectError(ctx, err)
@@ -38,8 +42,12 @@ func (s *LocationServer) ListLocations(
 	ctx context.Context,
 	req *connect.Request[supplierv1.ListLocationsRequest],
 ) (*connect.Response[supplierv1.ListLocationsResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
 	msg := req.Msg
-	page, err := s.service.List(ctx, callerFromContext(ctx), location.ListRequest{
+	page, err := s.service.List(ctx, caller, location.ListRequest{
 		Search:        msg.GetSearch(),
 		BuildingID:    msg.BuildingId,
 		CategoryID:    msg.CategoryId,
@@ -71,6 +79,9 @@ func (s *LocationServer) ListBuildings(
 	ctx context.Context,
 	_ *connect.Request[supplierv1.ListBuildingsRequest],
 ) (*connect.Response[supplierv1.ListBuildingsResponse], error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
 	buildings, err := s.service.ListBuildings(ctx)
 	if err != nil {
 		return nil, toConnectError(ctx, err)
@@ -86,6 +97,9 @@ func (s *LocationServer) ListCategories(
 	ctx context.Context,
 	_ *connect.Request[supplierv1.ListCategoriesRequest],
 ) (*connect.Response[supplierv1.ListCategoriesResponse], error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
 	categories, err := s.service.ListCategories(ctx)
 	if err != nil {
 		return nil, toConnectError(ctx, err)
@@ -93,10 +107,21 @@ func (s *LocationServer) ListCategories(
 	return connect.NewResponse(&supplierv1.ListCategoriesResponse{Categories: toProtoCategories(categories)}), nil
 }
 
-// callerFromContext returns a non-admin Caller until JWT verification lands,
-// so admin-only views are denied rather than exposed.
-func callerFromContext(_ context.Context) location.Caller {
-	return location.Caller{}
+func callerFromContext(ctx context.Context) (location.Caller, bool) {
+	claims, ok := middleware.ClaimsFromContext[middleware.AccessClaims](ctx)
+	if !ok {
+		return location.Caller{}, false
+	}
+	admin := claims.Role == "admin" || claims.Role == "super_admin"
+	return location.Caller{Admin: admin}, true
+}
+
+func requireCaller(ctx context.Context) (location.Caller, error) {
+	caller, ok := callerFromContext(ctx)
+	if !ok {
+		return location.Caller{}, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthenticated"))
+	}
+	return caller, nil
 }
 
 var archiveFilters = map[supplierv1.LocationStatusView]location.ArchiveFilter{

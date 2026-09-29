@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
@@ -36,7 +38,14 @@ func main() {
 	queries, pgxPool := database.Connect(config.DatabaseURL)
 	defer pgxPool.Close()
 
-	r := router.Setup(deps.New(queries, app, pgxPool))
+	// Fetches User Service public keys, so User Service must be reachable.
+	authenticator, err := middleware.NewUserServiceAuthenticator(context.Background())
+	if err != nil {
+		slog.Error("Error initializing authentication", "error", err)
+		panic(err)
+	}
+
+	r := router.Setup(deps.New(queries, app, pgxPool), authenticator)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port
