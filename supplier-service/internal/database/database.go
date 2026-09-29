@@ -5,14 +5,12 @@ package database
 import (
 	"context"
 	"log/slog"
-	"os"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/sqlc"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Connect() (*sqlc.Queries, *pgxpool.Pool) {
-	connStr := os.Getenv("DATABASE_URL")
+func Connect(connStr string) (*sqlc.Queries, *pgxpool.Pool) {
 	pool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		slog.Error("Failed to connect to the database", "error", err)

@@ -8,8 +8,8 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
 
    1. Enable Authentication with Email/Password and Google Sign-In.
    1. Create a service account and copy its JSON key into `.env` as
-      `FIREBASE_CREDENTIALS_JSON='<json>'`. The server writes it to a temp
-      file and points `GOOGLE_APPLICATION_CREDENTIALS` at it on startup.
+      `FIREBASE_CREDENTIALS_JSON='<json>'`. The server passes it directly
+      to the Firebase SDK.
 
 1. This project uses [Air](github.com/air-verse/air) for live reloading.
    Install it with instructions on their GitHub page.
