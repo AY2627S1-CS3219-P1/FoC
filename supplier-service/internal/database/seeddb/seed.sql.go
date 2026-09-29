@@ -3,7 +3,7 @@
 //   sqlc v1.30.0
 // source: seed.sql
 
-package sqlc
+package seeddb
 
 import (
 	"context"
@@ -11,51 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addSeedLocationCategory = `-- name: AddSeedLocationCategory :exec
+const addLocationCategory = `-- name: AddLocationCategory :exec
 INSERT INTO location_categories (location_id, category_id)
 VALUES ($1, $2)
 ON CONFLICT (location_id, category_id) DO NOTHING
 `
 
-type AddSeedLocationCategoryParams struct {
+type AddLocationCategoryParams struct {
 	LocationID pgtype.UUID
 	CategoryID pgtype.UUID
 }
 
-func (q *Queries) AddSeedLocationCategory(ctx context.Context, arg AddSeedLocationCategoryParams) error {
-	_, err := q.db.Exec(ctx, addSeedLocationCategory, arg.LocationID, arg.CategoryID)
+func (q *Queries) AddLocationCategory(ctx context.Context, arg AddLocationCategoryParams) error {
+	_, err := q.db.Exec(ctx, addLocationCategory, arg.LocationID, arg.CategoryID)
 	return err
 }
 
-const deleteAllSeedLocationCategories = `-- name: DeleteAllSeedLocationCategories :execrows
+const deleteAllLocationCategories = `-- name: DeleteAllLocationCategories :execrows
 DELETE FROM location_categories
 WHERE location_id = $1
 `
 
-func (q *Queries) DeleteAllSeedLocationCategories(ctx context.Context, locationID pgtype.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAllSeedLocationCategories, locationID)
+func (q *Queries) DeleteAllLocationCategories(ctx context.Context, locationID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllLocationCategories, locationID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const deleteSeedLocationCategory = `-- name: DeleteSeedLocationCategory :exec
+const deleteLocationCategory = `-- name: DeleteLocationCategory :exec
 DELETE FROM location_categories
 WHERE location_id = $1 AND category_id = $2
 `
 
-type DeleteSeedLocationCategoryParams struct {
+type DeleteLocationCategoryParams struct {
 	LocationID pgtype.UUID
 	CategoryID pgtype.UUID
 }
 
-func (q *Queries) DeleteSeedLocationCategory(ctx context.Context, arg DeleteSeedLocationCategoryParams) error {
-	_, err := q.db.Exec(ctx, deleteSeedLocationCategory, arg.LocationID, arg.CategoryID)
+func (q *Queries) DeleteLocationCategory(ctx context.Context, arg DeleteLocationCategoryParams) error {
+	_, err := q.db.Exec(ctx, deleteLocationCategory, arg.LocationID, arg.CategoryID)
 	return err
 }
 
-const getSeedBuilding = `-- name: GetSeedBuilding :one
+const getBuilding = `-- name: GetBuilding :one
 SELECT id
 FROM buildings
 WHERE id = $1 OR name = $2
@@ -63,19 +63,19 @@ ORDER BY (id = $1) DESC
 LIMIT 1
 `
 
-type GetSeedBuildingParams struct {
+type GetBuildingParams struct {
 	ID   pgtype.UUID
 	Name string
 }
 
-func (q *Queries) GetSeedBuilding(ctx context.Context, arg GetSeedBuildingParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getSeedBuilding, arg.ID, arg.Name)
+func (q *Queries) GetBuilding(ctx context.Context, arg GetBuildingParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getBuilding, arg.ID, arg.Name)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const getSeedCategory = `-- name: GetSeedCategory :one
+const getCategory = `-- name: GetCategory :one
 SELECT id
 FROM categories
 WHERE id = $1 OR name = $2
@@ -83,27 +83,27 @@ ORDER BY (id = $1) DESC
 LIMIT 1
 `
 
-type GetSeedCategoryParams struct {
+type GetCategoryParams struct {
 	ID   pgtype.UUID
 	Name string
 }
 
-func (q *Queries) GetSeedCategory(ctx context.Context, arg GetSeedCategoryParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getSeedCategory, arg.ID, arg.Name)
+func (q *Queries) GetCategory(ctx context.Context, arg GetCategoryParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getCategory, arg.ID, arg.Name)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const listSeedLocationCategoryIDs = `-- name: ListSeedLocationCategoryIDs :many
+const listLocationCategoryIDs = `-- name: ListLocationCategoryIDs :many
 SELECT category_id
 FROM location_categories
 WHERE location_id = $1
 ORDER BY category_id
 `
 
-func (q *Queries) ListSeedLocationCategoryIDs(ctx context.Context, locationID pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := q.db.Query(ctx, listSeedLocationCategoryIDs, locationID)
+func (q *Queries) ListLocationCategoryIDs(ctx context.Context, locationID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listLocationCategoryIDs, locationID)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (q *Queries) ListSeedLocationCategoryIDs(ctx context.Context, locationID pg
 	return items, nil
 }
 
-const seedLocationExists = `-- name: SeedLocationExists :one
+const locationExists = `-- name: LocationExists :one
 SELECT EXISTS (
     SELECT 1
     FROM locations
@@ -130,14 +130,14 @@ SELECT EXISTS (
 )
 `
 
-func (q *Queries) SeedLocationExists(ctx context.Context, id pgtype.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, seedLocationExists, id)
+func (q *Queries) LocationExists(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, locationExists, id)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
-const upsertSeedBuilding = `-- name: UpsertSeedBuilding :execrows
+const upsertBuilding = `-- name: UpsertBuilding :execrows
 INSERT INTO buildings (id, name, center, radius_m)
 VALUES (
     $1,
@@ -160,7 +160,7 @@ WHERE buildings.name IS DISTINCT FROM EXCLUDED.name
    OR buildings.radius_m IS DISTINCT FROM EXCLUDED.radius_m
 `
 
-type UpsertSeedBuildingParams struct {
+type UpsertBuildingParams struct {
 	ID        pgtype.UUID
 	Name      string
 	Longitude float64
@@ -168,8 +168,8 @@ type UpsertSeedBuildingParams struct {
 	RadiusM   float32
 }
 
-func (q *Queries) UpsertSeedBuilding(ctx context.Context, arg UpsertSeedBuildingParams) (int64, error) {
-	result, err := q.db.Exec(ctx, upsertSeedBuilding,
+func (q *Queries) UpsertBuilding(ctx context.Context, arg UpsertBuildingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertBuilding,
 		arg.ID,
 		arg.Name,
 		arg.Longitude,
@@ -182,7 +182,7 @@ func (q *Queries) UpsertSeedBuilding(ctx context.Context, arg UpsertSeedBuilding
 	return result.RowsAffected(), nil
 }
 
-const upsertSeedCategory = `-- name: UpsertSeedCategory :execrows
+const upsertCategory = `-- name: UpsertCategory :execrows
 INSERT INTO categories (id, name)
 VALUES ($1, $2)
 ON CONFLICT (id) DO UPDATE
@@ -190,20 +190,20 @@ SET name = EXCLUDED.name
 WHERE categories.name IS DISTINCT FROM EXCLUDED.name
 `
 
-type UpsertSeedCategoryParams struct {
+type UpsertCategoryParams struct {
 	ID   pgtype.UUID
 	Name string
 }
 
-func (q *Queries) UpsertSeedCategory(ctx context.Context, arg UpsertSeedCategoryParams) (int64, error) {
-	result, err := q.db.Exec(ctx, upsertSeedCategory, arg.ID, arg.Name)
+func (q *Queries) UpsertCategory(ctx context.Context, arg UpsertCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertCategory, arg.ID, arg.Name)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const upsertSeedLocation = `-- name: UpsertSeedLocation :execrows
+const upsertLocation = `-- name: UpsertLocation :execrows
 INSERT INTO locations (
     id,
     name,
@@ -256,7 +256,7 @@ WHERE locations.name IS DISTINCT FROM EXCLUDED.name
    OR locations.details IS DISTINCT FROM EXCLUDED.details
 `
 
-type UpsertSeedLocationParams struct {
+type UpsertLocationParams struct {
 	ID         pgtype.UUID
 	Name       string
 	IsSupplier bool
@@ -270,8 +270,8 @@ type UpsertSeedLocationParams struct {
 	Details    string
 }
 
-func (q *Queries) UpsertSeedLocation(ctx context.Context, arg UpsertSeedLocationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, upsertSeedLocation,
+func (q *Queries) UpsertLocation(ctx context.Context, arg UpsertLocationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertLocation,
 		arg.ID,
 		arg.Name,
 		arg.IsSupplier,
