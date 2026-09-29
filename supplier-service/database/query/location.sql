@@ -91,7 +91,8 @@ WHERE lc.location_id = ANY(@location_ids::UUID[])
 ORDER BY lc.location_id, lower(c.name), c.id;
 
 -- name: ListCurrentDisablements :many
--- At most one per Location: the most recently started active interval.
+-- At most one per Location: the most recently started active interval, then
+-- the most recently created, then id so ties resolve the same way every time.
 SELECT DISTINCT ON (d.location_id)
     d.location_id,
     d.id,
@@ -103,7 +104,7 @@ WHERE d.location_id = ANY(@location_ids::UUID[])
     AND d.cancelled_at IS NULL
     AND d.starts_at <= now()
     AND (d.ends_at IS NULL OR d.ends_at > now())
-ORDER BY d.location_id, d.starts_at DESC;
+ORDER BY d.location_id, d.starts_at DESC, d.created_at DESC, d.id DESC;
 
 -- name: ListBuildings :many
 SELECT

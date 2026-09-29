@@ -62,6 +62,15 @@ func TestPostgresReader(t *testing.T) {
 		}
 	})
 
+	t.Run("disablements with equal start times resolve to the newest", func(t *testing.T) {
+		for range 5 {
+			loc, err := service.Get(ctx, cafeID)
+			if err != nil || loc.CurrentDisablement == nil || loc.CurrentDisablement.Reason != "Newer" {
+				t.Fatalf("location = %+v, err %v", loc, err)
+			}
+		}
+	})
+
 	t.Run("expired and cancelled disablements are not current", func(t *testing.T) {
 		loc, err := service.Get(ctx, coopID)
 		if err != nil || loc.CurrentDisablement != nil {
@@ -194,7 +203,10 @@ func setupDatabase(t *testing.T) *pgxpool.Pool {
 		INSERT INTO location_disablements (location_id, starts_at, ends_at, cancelled_at, reason, created_by) VALUES
 			('10000000-0000-4000-8000-000000000002', now() - interval '1 hour', NULL, NULL, 'Renovation', 'admin'),
 			('10000000-0000-4000-8000-000000000001', now() - interval '2 days', now() - interval '1 day', NULL, 'Expired', 'admin'),
-			('10000000-0000-4000-8000-000000000001', now() - interval '1 hour', NULL, now(), 'Cancelled', 'admin');`); err != nil {
+			('10000000-0000-4000-8000-000000000001', now() - interval '1 hour', NULL, now(), 'Cancelled', 'admin');
+		INSERT INTO location_disablements (location_id, starts_at, created_at, reason, created_by) VALUES
+			('10000000-0000-4000-8000-000000000003', date_trunc('hour', now()) - interval '1 hour', now() - interval '1 minute', 'Older', 'admin'),
+			('10000000-0000-4000-8000-000000000003', date_trunc('hour', now()) - interval '1 hour', now(), 'Newer', 'admin');`); err != nil {
 		t.Fatalf("insert fixtures: %v", err)
 	}
 	return pool
