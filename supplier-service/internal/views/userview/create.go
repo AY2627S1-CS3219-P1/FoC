@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/sqlc"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/userdb"
 )
 
 type CreateUserView struct {
@@ -14,8 +14,8 @@ type CreateUserView struct {
 	DateOfBirth time.Time `json:"dateOfBirth" validate:"required,notfuture"`
 }
 
-func (v *CreateUserView) ToCreateUserParams() *sqlc.CreateUserParams {
-	return &sqlc.CreateUserParams{
+func (v *CreateUserView) ToCreateUserParams() *userdb.CreateUserParams {
+	return &userdb.CreateUserParams{
 		FirebaseUid: v.FirebaseUID,
 		Email:       v.Email,
 		DisplayName: v.DisplayName,
