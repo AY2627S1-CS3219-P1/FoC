@@ -146,7 +146,7 @@ export const CoordinatesSchema: GenMessage<Coordinates> = /*@__PURE__*/
   messageDesc(file_supplier_v1_location, 1);
 
 /**
- * Seed-managed.
+ * Read-only; not editable through the API.
  *
  * @generated from message supplier.v1.Building
  */
@@ -180,7 +180,7 @@ export const BuildingSchema: GenMessage<Building> = /*@__PURE__*/
   messageDesc(file_supplier_v1_location, 2);
 
 /**
- * Seed-managed, e.g. "Food" or "Printing".
+ * Read-only; not editable through the API. E.g. "Food" or "Printing".
  *
  * @generated from message supplier.v1.Category
  */

@@ -405,7 +405,7 @@ func (x *Coordinates) GetLongitude() float64 {
 	return 0
 }
 
-// Seed-managed.
+// Read-only; not editable through the API.
 type Building struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -474,7 +474,7 @@ func (x *Building) GetRadiusM() float32 {
 	return 0
 }
 
-// Seed-managed, e.g. "Food" or "Printing".
+// Read-only; not editable through the API. E.g. "Food" or "Printing".
 type Category struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
