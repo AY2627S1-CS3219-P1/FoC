@@ -41,11 +41,19 @@ func main() {
 }
 
 func printReport(report seed.Report) {
-	printCounts("buildings", report.Buildings)
-	printCounts("categories", report.Categories)
-	printCounts("supplier_locations", report.SupplierLocations)
-	printCounts("ordinary_locations", report.OrdinaryLocations)
-	printCounts("location_categories", report.LocationCategories)
+	resources := []struct {
+		name   string
+		counts seed.Counts
+	}{
+		{"buildings", report.Buildings},
+		{"categories", report.Categories},
+		{"supplier_locations", report.SupplierLocations},
+		{"ordinary_locations", report.OrdinaryLocations},
+		{"location_categories", report.LocationCategories},
+	}
+	for _, resource := range resources {
+		printCounts(resource.name, resource.counts)
+	}
 }
 
 func printCounts(resource string, counts seed.Counts) {
