@@ -686,7 +686,8 @@ func (x *GetLocationResponse) GetLocation() *Location {
 
 type ListLocationsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Fuzzy, case-insensitive name match. Trimmed; empty matches all.
+	// Fuzzy, case-insensitive name match. Trimmed; empty matches all. The
+	// length limit applies before trimming.
 	Search        string             `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
 	BuildingId    *string            `protobuf:"bytes,2,opt,name=building_id,json=buildingId,proto3,oneof" json:"building_id,omitempty"`
 	CategoryId    *string            `protobuf:"bytes,3,opt,name=category_id,json=categoryId,proto3,oneof" json:"category_id,omitempty"`
@@ -1034,18 +1035,17 @@ func (x *ListCategoriesResponse) GetCategories() []*Category {
 	return nil
 }
 
-// Writable Location fields. Strings are trimmed before length checks.
+// Writable Location fields. Length limits apply before trimming.
 type LocationInput struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Suppliers need at least one Category; ordinary Locations have none.
+	// Must contain a non-whitespace character.
+	Name        string       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	IsSupplier  bool         `protobuf:"varint,2,opt,name=is_supplier,json=isSupplier,proto3" json:"is_supplier,omitempty"`
 	CategoryIds []string     `protobuf:"bytes,3,rep,name=category_ids,json=categoryIds,proto3" json:"category_ids,omitempty"`
 	BuildingId  string       `protobuf:"bytes,4,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
 	Floor       *string      `protobuf:"bytes,5,opt,name=floor,proto3,oneof" json:"floor,omitempty"`
 	Coordinates *Coordinates `protobuf:"bytes,6,opt,name=coordinates,proto3" json:"coordinates,omitempty"`
-	// Asia/Singapore "HH:MM". Set together with closes_at, or neither is set.
-	// Must differ from closes_at; closing before opening means overnight.
+	// Asia/Singapore "HH:MM". Closing before opening means overnight.
 	OpensAt       *string `protobuf:"bytes,7,opt,name=opens_at,json=opensAt,proto3,oneof" json:"opens_at,omitempty"`
 	ClosesAt      *string `protobuf:"bytes,8,opt,name=closes_at,json=closesAt,proto3,oneof" json:"closes_at,omitempty"`
 	Contact       *string `protobuf:"bytes,9,opt,name=contact,proto3,oneof" json:"contact,omitempty"`
@@ -1256,10 +1256,11 @@ type UpdateLocationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Must match the current revision, otherwise aborted.
-	ExpectedRevision int64          `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	Location         *LocationInput `protobuf:"bytes,3,opt,name=location,proto3" json:"location,omitempty"`
-	// Paths into LocationInput to change, e.g. "name". A masked optional field
-	// left unset is cleared. opens_at and closes_at must be masked together.
+	ExpectedRevision int64 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	// Not validated on its own; the handler applies update_mask to the current
+	// Location and validates the merged LocationInput.
+	Location *LocationInput `protobuf:"bytes,3,opt,name=location,proto3" json:"location,omitempty"`
+	// Masked fields left unset are cleared.
 	UpdateMask    *fieldmaskpb.FieldMask `protobuf:"bytes,4,opt,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1629,10 +1630,9 @@ const file_supplier_v1_location_proto_rawDesc = "" +
 	"\x16ListCategoriesResponse\x125\n" +
 	"\n" +
 	"categories\x18\x01 \x03(\v2\x15.supplier.v1.CategoryR\n" +
-	"categories\"\xa7\x04\n" +
-	"\rLocationInput\x12\x1e\n" +
-	"\x04name\x18\x01 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xc8\x01R\x04name\x12\x1f\n" +
+	"categories\"\x9e\a\n" +
+	"\rLocationInput\x12\"\n" +
+	"\x04name\x18\x01 \x01(\tB\x0e\xbaH\vr\t\x10\x01\x18\xc8\x012\x02\\SR\x04name\x12\x1f\n" +
 	"\vis_supplier\x18\x02 \x01(\bR\n" +
 	"isSupplier\x122\n" +
 	"\fcategory_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x18\x01\"\x05r\x03\xb0\x01\x01R\vcategoryIds\x12)\n" +
@@ -1644,7 +1644,9 @@ const file_supplier_v1_location_proto_rawDesc = "" +
 	"\tcloses_at\x18\b \x01(\tB&\xbaH#r!2\x1f^([01][0-9]|2[0-3]):[0-5][0-9]$H\x02R\bclosesAt\x88\x01\x01\x12'\n" +
 	"\acontact\x18\t \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x03R\acontact\x88\x01\x01\x12\"\n" +
 	"\adetails\x18\n" +
-	" \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\adetailsB\b\n" +
+	" \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\adetails:\xf0\x02\xbaH\xec\x02\x1a\x9b\x01\n" +
+	"\"location_input.supplier_categories\x12BSuppliers need at least one category; ordinary Locations have none\x1a1this.is_supplier == (size(this.category_ids) > 0)\x1a\xcb\x01\n" +
+	"\x1clocation_input.opening_hours\x12Dopens_at and closes_at must both be set and differ, or both be unset\x1aehas(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)B\b\n" +
 	"\x06_floorB\v\n" +
 	"\t_opens_atB\f\n" +
 	"\n" +
@@ -1655,12 +1657,12 @@ const file_supplier_v1_location_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\x12>\n" +
 	"\blocation\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation\"K\n" +
 	"\x16CreateLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"\xec\x01\n" +
+	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"\xd9\x02\n" +
 	"\x15UpdateLocationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x124\n" +
 	"\x11expected_revision\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\x12>\n" +
-	"\blocation\x18\x03 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation\x12C\n" +
-	"\vupdate_mask\x18\x04 \x01(\v2\x1a.google.protobuf.FieldMaskB\x06\xbaH\x03\xc8\x01\x01R\n" +
+	"\blocation\x18\x03 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xd8\x01\x03R\blocation\x12\xaf\x01\n" +
+	"\vupdate_mask\x18\x04 \x01(\v2\x1a.google.protobuf.FieldMaskBr\xbaHo\xc8\x01\x01\xe2\x01i\x12\x04name\x12\vis_supplier\x12\fcategory_ids\x12\vbuilding_id\x12\x05floor\x12\vcoordinates\x12\bopens_at\x12\tcloses_at\x12\acontact\x12\adetailsR\n" +
 	"updateMask\"K\n" +
 	"\x16UpdateLocationResponse\x121\n" +
 	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"2\n" +

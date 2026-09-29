@@ -134,7 +134,8 @@ message GetLocationResponse {
 }
 
 message ListLocationsRequest {
-  // Fuzzy, case-insensitive name match. Trimmed; empty matches all.
+  // Fuzzy, case-insensitive name match. Trimmed; empty matches all. The
+  // length limit applies before trimming.
   string search = 1 [(buf.validate.field).string.max_len = 200];
   optional string building_id = 2 [(buf.validate.field).string.uuid = true];
   optional string category_id = 3 [(buf.validate.field).string.uuid = true];
@@ -174,13 +175,25 @@ message ListCategoriesResponse {
   repeated Category categories = 1;
 }
 
-// Writable Location fields. Strings are trimmed before length checks.
+// Writable Location fields. Length limits apply before trimming.
 message LocationInput {
+  option (buf.validate.message).cel = {
+    id: "location_input.supplier_categories"
+    message: "Suppliers need at least one category; ordinary Locations have none"
+    expression: "this.is_supplier == (size(this.category_ids) > 0)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_input.opening_hours"
+    message: "opens_at and closes_at must both be set and differ, or both be unset"
+    expression: "has(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)"
+  };
+
+  // Must contain a non-whitespace character.
   string name = 1 [(buf.validate.field).string = {
     min_len: 1
     max_len: 200
+    pattern: "\\S"
   }];
-  // Suppliers need at least one Category; ordinary Locations have none.
   bool is_supplier = 2;
   repeated string category_ids = 3 [(buf.validate.field).repeated = {
     unique: true
@@ -191,8 +204,7 @@ message LocationInput {
   string building_id = 4 [(buf.validate.field).string.uuid = true];
   optional string floor = 5 [(buf.validate.field).string.max_len = 50];
   Coordinates coordinates = 6 [(buf.validate.field).required = true];
-  // Asia/Singapore "HH:MM". Set together with closes_at, or neither is set.
-  // Must differ from closes_at; closing before opening means overnight.
+  // Asia/Singapore "HH:MM". Closing before opening means overnight.
   optional string opens_at = 7 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
   optional string closes_at = 8 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
   optional string contact = 9 [(buf.validate.field).string.max_len = 500];
@@ -214,10 +226,23 @@ message UpdateLocationRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   // Must match the current revision, otherwise aborted.
   int64 expected_revision = 2 [(buf.validate.field).int64.gt = 0];
-  LocationInput location = 3 [(buf.validate.field).required = true];
-  // Paths into LocationInput to change, e.g. "name". A masked optional field
-  // left unset is cleared. opens_at and closes_at must be masked together.
-  google.protobuf.FieldMask update_mask = 4 [(buf.validate.field).required = true];
+  // Not validated on its own; the handler applies update_mask to the current
+  // Location and validates the merged LocationInput.
+  LocationInput location = 3 [(buf.validate.field).ignore = IGNORE_ALWAYS];
+  // Masked fields left unset are cleared.
+  google.protobuf.FieldMask update_mask = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).field_mask.in = "name",
+    (buf.validate.field).field_mask.in = "is_supplier",
+    (buf.validate.field).field_mask.in = "category_ids",
+    (buf.validate.field).field_mask.in = "building_id",
+    (buf.validate.field).field_mask.in = "floor",
+    (buf.validate.field).field_mask.in = "coordinates",
+    (buf.validate.field).field_mask.in = "opens_at",
+    (buf.validate.field).field_mask.in = "closes_at",
+    (buf.validate.field).field_mask.in = "contact",
+    (buf.validate.field).field_mask.in = "details"
+  ];
 }
 
 message UpdateLocationResponse {
