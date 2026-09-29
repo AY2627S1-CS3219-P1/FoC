@@ -215,7 +215,7 @@ WHERE d.location_id = ANY($1::UUID[])
     AND d.cancelled_at IS NULL
     AND d.starts_at <= now()
     AND (d.ends_at IS NULL OR d.ends_at > now())
-ORDER BY d.location_id, d.starts_at DESC
+ORDER BY d.location_id, d.starts_at DESC, d.created_at DESC, d.id DESC
 `
 
 type ListCurrentDisablementsRow struct {
@@ -226,7 +226,8 @@ type ListCurrentDisablementsRow struct {
 	Reason     string
 }
 
-// At most one per Location: the most recently started active interval.
+// At most one per Location: the most recently started active interval, then
+// the most recently created, then id so ties resolve the same way every time.
 func (q *Queries) ListCurrentDisablements(ctx context.Context, locationIds []uuid.UUID) ([]ListCurrentDisablementsRow, error) {
 	rows, err := q.db.Query(ctx, listCurrentDisablements, locationIds)
 	if err != nil {
