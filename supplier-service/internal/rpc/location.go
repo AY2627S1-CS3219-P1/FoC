@@ -1,0 +1,180 @@
+package rpc
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+
+	"connectrpc.com/connect"
+	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+// LocationServer implements Location discovery. Mutations return
+// unimplemented until #51.
+type LocationServer struct {
+	supplierv1connect.UnimplementedLocationServiceHandler
+	service *location.Service
+}
+
+func NewLocationServer(service *location.Service) *LocationServer {
+	return &LocationServer{service: service}
+}
+
+func (s *LocationServer) GetLocation(
+	ctx context.Context,
+	req *connect.Request[supplierv1.GetLocationRequest],
+) (*connect.Response[supplierv1.GetLocationResponse], error) {
+	loc, err := s.service.Get(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	return connect.NewResponse(&supplierv1.GetLocationResponse{Location: toProtoLocation(loc)}), nil
+}
+
+func (s *LocationServer) ListLocations(
+	ctx context.Context,
+	req *connect.Request[supplierv1.ListLocationsRequest],
+) (*connect.Response[supplierv1.ListLocationsResponse], error) {
+	msg := req.Msg
+	page, err := s.service.List(ctx, callerFromContext(ctx), location.ListRequest{
+		Search:        msg.GetSearch(),
+		BuildingID:    msg.BuildingId,
+		CategoryID:    msg.CategoryId,
+		SuppliersOnly: msg.GetSuppliersOnly(),
+		Archive:       archiveFilters[msg.GetStatusView()],
+		Sort:          sortFields[msg.GetSortField()],
+		Descending:    msg.GetSortDirection() == supplierv1.SortDirection_SORT_DIRECTION_DESCENDING,
+		Page:          msg.GetPage(),
+		PageSize:      msg.GetPageSize(),
+	})
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+
+	locations := make([]*supplierv1.Location, len(page.Locations))
+	for i, loc := range page.Locations {
+		locations[i] = toProtoLocation(loc)
+	}
+	return connect.NewResponse(&supplierv1.ListLocationsResponse{
+		Locations:  locations,
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalItems: page.TotalItems,
+		TotalPages: page.TotalPages,
+	}), nil
+}
+
+func (s *LocationServer) ListBuildings(
+	ctx context.Context,
+	_ *connect.Request[supplierv1.ListBuildingsRequest],
+) (*connect.Response[supplierv1.ListBuildingsResponse], error) {
+	buildings, err := s.service.ListBuildings(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	out := make([]*supplierv1.Building, len(buildings))
+	for i, b := range buildings {
+		out[i] = toProtoBuilding(b)
+	}
+	return connect.NewResponse(&supplierv1.ListBuildingsResponse{Buildings: out}), nil
+}
+
+func (s *LocationServer) ListCategories(
+	ctx context.Context,
+	_ *connect.Request[supplierv1.ListCategoriesRequest],
+) (*connect.Response[supplierv1.ListCategoriesResponse], error) {
+	categories, err := s.service.ListCategories(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	return connect.NewResponse(&supplierv1.ListCategoriesResponse{Categories: toProtoCategories(categories)}), nil
+}
+
+// callerFromContext returns a non-admin Caller until JWT verification lands,
+// so admin-only views are denied rather than exposed.
+func callerFromContext(_ context.Context) location.Caller {
+	return location.Caller{}
+}
+
+var archiveFilters = map[supplierv1.LocationStatusView]location.ArchiveFilter{
+	supplierv1.LocationStatusView_LOCATION_STATUS_VIEW_ACTIVE:   location.ArchiveActive,
+	supplierv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED: location.ArchiveArchived,
+	supplierv1.LocationStatusView_LOCATION_STATUS_VIEW_ALL:      location.ArchiveAll,
+}
+
+var sortFields = map[supplierv1.LocationSortField]location.SortField{
+	supplierv1.LocationSortField_LOCATION_SORT_FIELD_NAME:     location.SortByName,
+	supplierv1.LocationSortField_LOCATION_SORT_FIELD_BUILDING: location.SortByBuilding,
+}
+
+// toConnectError returns stable public errors and logs unexpected causes.
+func toConnectError(ctx context.Context, err error) error {
+	switch {
+	case errors.Is(err, location.ErrNotFound):
+		return connect.NewError(connect.CodeNotFound, location.ErrNotFound)
+	case errors.Is(err, location.ErrPermissionDenied):
+		return connect.NewError(connect.CodePermissionDenied, location.ErrPermissionDenied)
+	case errors.Is(err, location.ErrInvalidArgument):
+		return connect.NewError(connect.CodeInvalidArgument, location.ErrInvalidArgument)
+	default:
+		slog.ErrorContext(ctx, "location rpc failed", "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
+	}
+}
+
+func toProtoLocation(loc location.Location) *supplierv1.Location {
+	out := &supplierv1.Location{
+		Id:          loc.ID,
+		Name:        loc.Name,
+		IsSupplier:  loc.IsSupplier,
+		Building:    toProtoBuilding(loc.Building),
+		Categories:  toProtoCategories(loc.Categories),
+		Floor:       loc.Floor,
+		Coordinates: toProtoCoordinates(loc.Coordinates),
+		OpensAt:     loc.OpensAt,
+		ClosesAt:    loc.ClosesAt,
+		Contact:     loc.Contact,
+		Details:     loc.Details,
+		Revision:    loc.Revision,
+		CreatedAt:   timestamppb.New(loc.CreatedAt),
+		UpdatedAt:   timestamppb.New(loc.UpdatedAt),
+	}
+	if loc.ArchivedAt != nil {
+		out.ArchivedAt = timestamppb.New(*loc.ArchivedAt)
+	}
+	if d := loc.CurrentDisablement; d != nil {
+		out.CurrentDisablement = &supplierv1.Disablement{
+			Id:       d.ID,
+			StartsAt: timestamppb.New(d.StartsAt),
+			Reason:   d.Reason,
+		}
+		if d.EndsAt != nil {
+			out.CurrentDisablement.EndsAt = timestamppb.New(*d.EndsAt)
+		}
+	}
+	return out
+}
+
+func toProtoBuilding(b location.Building) *supplierv1.Building {
+	return &supplierv1.Building{
+		Id:      b.ID,
+		Name:    b.Name,
+		Center:  toProtoCoordinates(b.Center),
+		RadiusM: b.RadiusM,
+	}
+}
+
+func toProtoCategories(categories []location.Category) []*supplierv1.Category {
+	out := make([]*supplierv1.Category, len(categories))
+	for i, c := range categories {
+		out[i] = &supplierv1.Category{Id: c.ID, Name: c.Name}
+	}
+	return out
+}
+
+func toProtoCoordinates(c location.Coordinates) *supplierv1.Coordinates {
+	return &supplierv1.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
+}

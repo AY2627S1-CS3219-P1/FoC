@@ -40,3 +40,13 @@ sql:
         out: "../internal/database/seeddb"
         sql_package: "pgx/v5"
         omit_unused_structs: true
+  - name: "location"
+    engine: "postgresql"
+    queries: "query/location.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "locationdb"
+        out: "../internal/database/locationdb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true
