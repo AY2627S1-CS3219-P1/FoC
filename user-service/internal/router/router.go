@@ -1,64 +1,46 @@
-// Package router sets up the HTTP router with middleware and routes.
+// Package router sets up the HTTP router with middleware and Connect services.
 package router
 
 import (
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"connectrpc.com/connect"
+	"connectrpc.com/validate"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
-	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/middleware"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/routes"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router/routes/adminroutes"
-	userrpc "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/rpc"
+	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
+	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env) *chi.Mux {
+const maxRPCMessageBytes = 1 << 20
+
+// Setup mounts the Connect handlers built in main with their dependencies set.
+func Setup(health *healthhandler.Handler, auth *authhandler.Handler) *chi.Mux {
 	r := chi.NewRouter()
-
-	SetupMiddleware(r)
-	SetupRoutes(r, env)
-	SetupAdminRoutes(r, env)
-	return r
-}
-
-func SetupMiddleware(r *chi.Mux) {
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(chimiddleware.RequestID)
+	r.Use(chimiddleware.RealIP)
 	r.Use(sharedmiddleware.RequestLogger)
-	r.Use(middleware.Recoverer)
-}
+	r.Use(chimiddleware.Recoverer)
 
-// SetupRoutes mounts the user health RPC at its generated path and the public
-// REST health and authentication routes under /api.
-func SetupRoutes(r *chi.Mux, env *deps.Env) {
 	healthPath, healthHandler := userv1connect.NewHealthServiceHandler(
-		userrpc.NewHealthServer(),
+		health,
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
 	)
 	r.Mount(healthPath, healthHandler)
 
-	r.Route("/api", func(r chi.Router) {
-		// Unprotected routes
-		r.Get("/health", api.HTTPHandler(env, health.HandleCheckHealth))
-		r.Route("/auth", routes.SetupAuthRoutes(env))
+	authPath, authService := userv1connect.NewAuthServiceHandler(
+		auth,
+		connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
+	)
+	r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
 
-		// Protected routes
-		r.Route("/", func(r chi.Router) {
-			r.Use(appmiddleware.GetAuthMiddleware(env))
-		})
-	})
-}
-
-func SetupAdminRoutes(r chi.Router, env *deps.Env) {
-	r.Route("/api/admin", func(r chi.Router) {
-		// Unprotected routes
-		r.Route("/auth", adminroutes.SetupAuthRoutes(env))
-
-		// Protected routes
-		r.Route("/", func(r chi.Router) {
-			r.Use(appmiddleware.GetAuthMiddleware(env))
-		})
-	})
+	keysPath, keysService := userv1connect.NewPublicKeyServiceHandler(
+		auth,
+		connect.WithInterceptors(normalizeRPCError()),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
+	)
+	r.Mount(keysPath, keysService)
+	return r
 }
