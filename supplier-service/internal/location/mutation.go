@@ -220,6 +220,9 @@ func canonicalID(raw string) (string, error) {
 
 func normalizeInput(in Input) (Input, error) {
 	in.CategoryIDs = slices.Clone(in.CategoryIDs)
+	if len(in.CategoryIDs) == 0 {
+		in.CategoryIDs = nil
+	}
 	in.Name = strings.TrimSpace(in.Name)
 	if n := utf8.RuneCountInString(in.Name); n < 1 || n > 200 {
 		return Input{}, ErrInvalidArgument

@@ -191,6 +191,22 @@ func TestMutationCreateConcurrentRetry(t *testing.T) {
 	}
 }
 
+func TestMutationCreateEmptyCategoriesHaveOneHash(t *testing.T) {
+	f := &mutationFake{}
+	s := NewMutationService(f, func() time.Time { return mutationNow })
+	in := goodInput()
+	in.IsSupplier, in.CategoryIDs = false, nil
+	first, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.CategoryIDs = []string{}
+	retry, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	if err != nil || retry.ID != first.ID || f.creates != 1 {
+		t.Fatalf("empty category replay = %+v, %v; creates=%d", retry, err, f.creates)
+	}
+}
+
 func TestMutationAuthorizationAndInputValidation(t *testing.T) {
 	f := &mutationFake{}
 	s := NewMutationService(f, func() time.Time { return mutationNow })
