@@ -1,5 +1,58 @@
 # Conventions
 
+## Git branches
+
+- Use `<owner>/<type>/<description>` with a lowercase kebab-case description.
+- Andrew's feature branches use `andrew/feat/<description>`, for example
+  `andrew/feat/location-workflows`. Use `fix`, `refactor`, `chore`, or `docs`
+  instead of `feat` when appropriate.
+
+## REST handlers
+
+Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
+
+- App deps come from `env` (`Queries`, `Firebase`, `Pool`). Never take
+  `http.ResponseWriter`; the envelope writer owns it.
+- Per-request values (auth UID) come from context, e.g.
+  `middleware.GetUserUIDFromContext`.
+- Return `nil, err` on failure. `ExternalError` sets the status/message;
+  anything else becomes 500 with a generic message.
+
+```go
+func CreateUser(r *http.Request, env *deps.Env) (*api.Response, error) {
+ var req userview.CreateUserView
+ if err := api.Decode(r, &req); err != nil {
+  return nil, err
+ }
+ user, err := env.Queries.CreateUser(r.Context(), *req.ToCreateUserParams())
+ if err != nil {
+  return nil, errors.Wrap(err, "failed to create user")
+ }
+ return api.NewResponse(userview.ToUserView(&user),
+  api.WithCode(http.StatusCreated),
+ )
+}
+```
+
+Register with `api.HTTPHandler(env, Handler)`. Raw bytes/streams bypass the
+envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
+(`api.HandlerTimeout`); no per-route timeout middleware.
+
+## REST responses and errors
+
+- Success envelope: `{"status":[{"message","severity"}],"data"}`.
+  `severity` is `info|success|warning|error`.
+- Decode with `api.Decode(r, &v)`: 1MB cap, unknown fields and trailing data
+  rejected, `validator` tags enforced. All failures are 400.
+- Views live in `internal/views/<domain>view`, one file per direction
+  (`create.go`, `read.go`, `auth.go`). Request structs carry `validate` tags;
+  conversion to `sqlc` params lives in `ToXParams` methods.
+- Shared external error types live in `pkg/api/errs`: `BadRequest` (400),
+  `Unauthorized` (401), `Forbidden` (403), and `NotFound` (404). Keep
+  service-specific error values and messages in the service. Wrap with context
+  (`WrapXError`); log via `ErrorTrace`.
+  Map `pgx.ErrNoRows` to `NotFound`, never 500.
+
 ## Connect RPC
 
 All service APIs, for the frontend and between services, are Connect RPCs.
@@ -47,48 +100,23 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 - Layers: `internal/handlers/<domain>` (Connect adapter) →
   `internal/<domain>` (business rules and the store interfaces they need) →
   `internal/store` (GORM persistence over `internal/models`).
-- Errors are package-level sentinels checked with `errors.Is`. `store`
-  returns its own sentinels (`store.ErrNotFound`, ...); logic packages map
-  them to domain errors; handlers map domain errors to Connect codes.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
 
 ## Database
 
-- Supplier Service uses `database/schema` for goose migrations and
-  `database/query` for sqlc queries. After changing either, run `make sqlc` in
-  the service. It generates `internal/database/userdb` and
-  `internal/database/seeddb`; never hand-edit generated files. Its
-  `internal/database/utils.go` contains `pgtype` converters such as `ToPGDate`.
-- User Service uses `migrations/` for goose migrations, one `0000N_name.sql`
-  per change with `-- +goose Up` / `-- +goose Down`. Migrations are embedded in
-  the binary and applied on startup unless `RUN_MIGRATIONS=false`. Never edit
-  an applied migration. `make migrate-up/down` and `make goose-create name=...`
-  manage migrations.
-- User Service `internal/models` contains GORM structs whose tags mirror the
-  SQL. Migrations own the schema; do not use `AutoMigrate`. `internal/store`
-  contains GORM queries and translates GORM errors (`gorm.ErrRecordNotFound`,
-  `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
-  become a 500.
-- `internal/models/schema_integration_test.go` runs every User Service
-  migration up, down and up again and checks the constraints. It runs only
-  when `TEST_DATABASE_URL` points at a throwaway database, because it wipes
-  the schema.
+- `database/schema`: goose migrations (`make migrate-up/down`,
+  `make goose-create name=...`). `database/query`: sqlc queries.
+- After changing either, run `make sqlc` in the affected service. Supplier
+  Service generates `internal/database/userdb` and `internal/database/seeddb`;
+  User Service generates `internal/database/sqlc`. Never hand-edit generated
+  files.
+- `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 Docs: [goose](https://github.com/pressly/goose),
 [sqlc](https://docs.sqlc.dev/en/stable/reference/config.html),
 [validator](https://github.com/go-playground/validator),
-[pgx](https://github.com/jackc/pgx),
-[GORM](https://gorm.io/docs/),
-[Connect](https://connectrpc.com/docs/go/getting-started).
-
-## Legacy REST (supplier-service)
-
-supplier-service still serves REST through `pkg/api` (handlers in
-`internal/rest` using `api.HTTPHandler` and `deps.Env`, views in
-`internal/views`, errors in `exterrors/errs`) and uses
-sqlc, with Connect handlers in `internal/rpc`. Do not add new REST endpoints;
-migrate them to Connect handlers following the sections above.
+[pgx](https://github.com/jackc/pgx).
 
 ## Run and lint
 

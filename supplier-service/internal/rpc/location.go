@@ -2,10 +2,9 @@ package rpc
 
 import (
 	"context"
-	"errors"
-	"log/slog"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
@@ -28,7 +27,7 @@ func (s *LocationServer) GetLocation(
 ) (*connect.Response[supplierv1.GetLocationResponse], error) {
 	loc, err := s.service.Get(ctx, req.Msg.GetId())
 	if err != nil {
-		return nil, toConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&supplierv1.GetLocationResponse{Location: toProtoLocation(loc)}), nil
 }
@@ -50,7 +49,7 @@ func (s *LocationServer) ListLocations(
 		PageSize:      msg.GetPageSize(),
 	})
 	if err != nil {
-		return nil, toConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 
 	locations := make([]*supplierv1.Location, len(page.Locations))
@@ -72,7 +71,7 @@ func (s *LocationServer) ListBuildings(
 ) (*connect.Response[supplierv1.ListBuildingsResponse], error) {
 	buildings, err := s.service.ListBuildings(ctx)
 	if err != nil {
-		return nil, toConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	out := make([]*supplierv1.Building, len(buildings))
 	for i, b := range buildings {
@@ -87,7 +86,7 @@ func (s *LocationServer) ListCategories(
 ) (*connect.Response[supplierv1.ListCategoriesResponse], error) {
 	categories, err := s.service.ListCategories(ctx)
 	if err != nil {
-		return nil, toConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&supplierv1.ListCategoriesResponse{Categories: toProtoCategories(categories)}), nil
 }
@@ -107,19 +106,4 @@ var archiveFilters = map[supplierv1.LocationStatusView]location.ArchiveFilter{
 var sortFields = map[supplierv1.LocationSortField]location.SortField{
 	supplierv1.LocationSortField_LOCATION_SORT_FIELD_NAME:     location.SortByName,
 	supplierv1.LocationSortField_LOCATION_SORT_FIELD_BUILDING: location.SortByBuilding,
-}
-
-// toConnectError returns stable public errors and logs unexpected causes.
-func toConnectError(ctx context.Context, err error) error {
-	switch {
-	case errors.Is(err, location.ErrNotFound):
-		return connect.NewError(connect.CodeNotFound, location.ErrNotFound)
-	case errors.Is(err, location.ErrPermissionDenied):
-		return connect.NewError(connect.CodePermissionDenied, location.ErrPermissionDenied)
-	case errors.Is(err, location.ErrInvalidArgument):
-		return connect.NewError(connect.CodeInvalidArgument, location.ErrInvalidArgument)
-	default:
-		slog.ErrorContext(ctx, "location rpc failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
-	}
 }

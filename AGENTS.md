@@ -1,4 +1,4 @@
-Read `CONVENTIONS.md` before changing or reviewing implementation. If the user's request conflicts with a convention, explain the conflict and ask which to follow. If the decision changes the convention rather than making a one-time exception, update `CONVENTIONS.md`.
+Read `CONVENTIONS.md` before creating or renaming branches, or changing or reviewing implementation. If the user's request conflicts with a convention, explain the conflict and ask which to follow. If the decision changes the convention rather than making a one-time exception, update `CONVENTIONS.md`.
 
 Read `LANDMINES/README.md` before starting a task. Follow each linked entry whose **Applies when** condition matches the task or environment. Remove landmines that no longer apply.
 
