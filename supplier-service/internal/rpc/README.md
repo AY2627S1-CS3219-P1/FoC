@@ -1,5 +1,7 @@
 # Supplier RPC adapters
 
+[Location administration: client handoff and API behavior](location-admin.md)
+
 This package contains handwritten RPC implementations for `supplier-service`. The existing REST adapters remain under `internal/rest` during the migration.
 
 Connect generates the HTTP handler, and a handwritten RPC method (for example, `HealthServer.Check`) runs when a matching RPC request reaches it. The generated handler decodes the request, calls the method, then encodes and sends the response.

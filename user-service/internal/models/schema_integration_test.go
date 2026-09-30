@@ -163,7 +163,7 @@ func TestSchema(t *testing.T) {
 			t.Fatal(err)
 		}
 		if suspend.CreatedBy == nil || *suspend.CreatedBy != admin.ID {
-			t.Fatalf("created_by = %v, want %d", suspend.CreatedBy, admin.ID)
+			t.Fatalf("created_by = %v, want %v", suspend.CreatedBy, admin.ID)
 		}
 		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleAdmin}).Error; err != nil {
 			t.Fatal(err)

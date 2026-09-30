@@ -13,7 +13,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
-const missingID uint = 1 << 40
+var missingID = uuid.New()
 
 func TestUsersUpdateAndList(t *testing.T) {
 	ctx := context.Background()
@@ -113,14 +113,14 @@ func TestAdminWarningsAndUserstamps(t *testing.T) {
 		t.Fatalf("create warning: %v, %v", created, err)
 	}
 	if first.CreatedBy == nil || *first.CreatedBy != admin.ID {
-		t.Fatalf("created_by = %v, want %d", first.CreatedBy, admin.ID)
+		t.Fatalf("created_by = %v, want %v", first.CreatedBy, admin.ID)
 	}
 
 	replay := &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "late", SourceEventID: &ev}
 	replay.ID = missingID
 	created, err = store.CreateWarning(ctx, replay)
 	if err != nil || created || replay.ID != first.ID {
-		t.Fatalf("replay: created=%v id=%d err=%v, want id %d", created, replay.ID, err, first.ID)
+		t.Fatalf("replay: created=%v id=%v err=%v, want id %v", created, replay.ID, err, first.ID)
 	}
 
 	reason := "overturned"

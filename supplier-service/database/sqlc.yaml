@@ -69,14 +69,14 @@ sql:
               import: "time"
               type: "Time"
               pointer: true
-  - name: "workflow"
+  - name: "lifecycle"
     engine: "postgresql"
-    queries: "query/workflow.sql"
+    queries: "query/lifecycle.sql"
     schema: "schema"
     gen:
       go:
-        package: "workflowdb"
-        out: "../internal/database/workflowdb"
+        package: "lifecycledb"
+        out: "../internal/database/lifecycledb"
         sql_package: "pgx/v5"
         omit_unused_structs: true
   - name: "idempotency"
