@@ -403,8 +403,6 @@ export const AuthService: GenService<{
     output: typeof LogoutResponseSchema;
   },
   /**
-   * LogoutAll revokes every session of the refresh cookie's user.
-   *
    * @generated from rpc user.v1.AuthService.LogoutAll
    */
   logoutAll: {
