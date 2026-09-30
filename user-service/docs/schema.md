@@ -1,6 +1,6 @@
 # User Service – Database Schema
 
-PostgreSQL 16. Source of truth: `migrations/*.sql` (goose). GORM entities: `internal/models`.
+PostgreSQL 18. Source of truth: `migrations/*.sql` (goose). GORM entities: `internal/models`.
 
 Every table with a single `id` follows `gorm.Model` plus userstamps:
 `id BIGSERIAL`, `created_at`, `updated_at`, `deleted_at` (soft delete),

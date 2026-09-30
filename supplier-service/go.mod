@@ -8,6 +8,7 @@ require (
 	connectrpc.com/validate v0.7.0
 	firebase.google.com/go/v4 v4.18.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
+	github.com/AY2627S1-CS3219-P1/FoC/user-service v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
@@ -16,7 +17,7 @@ require (
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/rs/cors v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
 	google.golang.org/api v0.264.0
 	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409
 	google.golang.org/protobuf v1.36.12
@@ -126,3 +127,5 @@ require (
 )
 
 replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ../pkg
+
+replace github.com/AY2627S1-CS3219-P1/FoC/user-service => ../user-service
