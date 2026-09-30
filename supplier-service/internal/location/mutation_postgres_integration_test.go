@@ -242,13 +242,13 @@ func waitForLocationLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	t.Fatal("second transaction did not wait on the Location lock")
 }
 
-func TestLocationAdminMigrationUpDown(t *testing.T) {
+func TestLocationMigrationUpDown(t *testing.T) {
 	pool := setupDatabase(t)
 	ctx := context.Background()
 	invalid := `INSERT INTO locations (name, is_supplier, building_id, coordinates, open_from, open_to)
 		VALUES ('Invalid hours', false, $1, ST_SetSRID(ST_MakePoint(103.774, 1.294), 4326)::geography, '24:00', '01:00')`
 	if _, err := pool.Exec(ctx, invalid, com2ID); err == nil {
-		t.Fatal("24:00 hours passed the new constraint")
+		t.Fatal("24:00 hours passed the constraint")
 	}
 	db, err := sql.Open("pgx", pool.Config().ConnString())
 	if err != nil {
@@ -257,14 +257,11 @@ func TestLocationAdminMigrationUpDown(t *testing.T) {
 	defer db.Close()
 	_, file, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(file), "..", "..", "database", "schema")
-	if err := goose.Down(db, dir); err != nil {
+	if err := goose.DownTo(db, dir, 4); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, invalid, com2ID); err != nil {
-		t.Fatalf("old schema rejected valid legacy TIME: %v", err)
-	}
 	if err := goose.Up(db, dir); err != nil {
-		t.Fatalf("NOT VALID migration rejected legacy row: %v", err)
+		t.Fatalf("recreate Location schema: %v", err)
 	}
 	if _, err := pool.Exec(ctx, invalid, com2ID); err == nil {
 		t.Fatal("24:00 hours passed after migration replay")
