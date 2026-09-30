@@ -35,4 +35,8 @@ plugins:
     out: docs/api/supplier/v1
     opt:
       - path=openapi.yaml
-      - services=supplier.v1.HealthService;supplier.v1.LocationDiscoveryService;supplier.v1.LocationAdminService;supplier.v1.LocationDisablementService;supplier.v1.LocationAdditionRequestService
+      - services=supplier.v1.HealthService
+      - services=supplier.v1.LocationDiscoveryService
+      - services=supplier.v1.LocationAdminService
+      - services=supplier.v1.LocationDisablementService
+      - services=supplier.v1.LocationAdditionRequestService

@@ -145,3 +145,30 @@ func TestLocationServiceContracts(t *testing.T) {
 		}
 	}
 }
+
+func TestDisablementUpdateValidation(t *testing.T) {
+	validator, err := protovalidate.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "9dbda827-5a46-4089-9209-a2bde43f18a0"
+	for _, row := range []struct {
+		name   string
+		paths  []string
+		reason string
+		valid  bool
+	}{
+		{"accept reason update", []string{"reason"}, "Maintenance", true},
+		{"reject empty selected reason", []string{"reason"}, "", false},
+		{"accept omitted unselected reason", []string{"ends_at"}, "", true},
+		{"reject unknown path", []string{"revision"}, "", false},
+		{"reject empty mask", []string{}, "", false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			request := &pb.UpdateDisablementRequest{Id: id, ExpectedRevision: 1, Reason: row.reason, UpdateMask: &fieldmaskpb.FieldMask{Paths: row.paths}}
+			if err := validator.Validate(request); (err == nil) != row.valid {
+				t.Fatalf("expected valid=%v, got %v", row.valid, err)
+			}
+		})
+	}
+}

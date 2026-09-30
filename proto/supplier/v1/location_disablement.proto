@@ -42,13 +42,28 @@ message ListDisablementsRequest {
 }
 // Updates only a scheduled Disablement.
 message UpdateDisablementRequest {
+  option (buf.validate.message).cel = {
+    id: "disablement.update_reason",
+    message: "reason must not be empty when selected",
+    expression: "!('reason' in this.update_mask.paths) || this.reason.size() > 0"
+  };
   string id = 1 [(buf.validate.field).string.uuid = true];
   google.protobuf.Timestamp starts_at = 2;
   // Absent and masked clears the natural end.
   google.protobuf.Timestamp ends_at = 3;
   string reason = 4 [(buf.validate.field).string.max_len = 500];
   // Non-empty paths from starts_at, ends_at, reason.
-  google.protobuf.FieldMask update_mask = 5 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 5 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).field_mask.in = "starts_at",
+    (buf.validate.field).field_mask.in = "ends_at",
+    (buf.validate.field).field_mask.in = "reason",
+    (buf.validate.field).cel = {
+      id: "disablement.update_paths",
+      message: "select at least one field",
+      expression: "this.paths.size() > 0"
+    }
+  ];
   int64 expected_revision = 6 [(buf.validate.field).int64.gt = 0];
 }
 // Idempotent terminal command. A different terminal state is rejected.

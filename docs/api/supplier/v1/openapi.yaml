@@ -3,9 +3,875 @@ info:
   title: API
   description: API documentation for API
   version: 1.0.0
-paths: {}
+paths:
+  /supplier.v1.HealthService/Check:
+    post:
+      tags:
+        - supplier.v1.HealthService
+      summary: Check
+      operationId: supplier.v1.HealthService.Check
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.CheckRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.CheckResponse'
+  /supplier.v1.LocationAdditionRequestService/ApproveLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: ApproveLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.ApproveLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ApproveLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ApproveLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdditionRequestService/GetLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: GetLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.GetLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.GetLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.GetLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdditionRequestService/ListLocationAdditionRequests:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: ListLocationAdditionRequests
+      operationId: supplier.v1.LocationAdditionRequestService.ListLocationAdditionRequests
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ListLocationAdditionRequestsRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ListLocationAdditionRequestsResponse'
+  /supplier.v1.LocationAdditionRequestService/RejectLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: RejectLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.RejectLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.RejectLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.RejectLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdditionRequestService/SubmitLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: SubmitLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.SubmitLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.SubmitLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.SubmitLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdditionRequestService/UpdateLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: UpdateLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.UpdateLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.UpdateLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.UpdateLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdditionRequestService/WithdrawLocationAdditionRequest:
+    post:
+      tags:
+        - supplier.v1.LocationAdditionRequestService
+      summary: WithdrawLocationAdditionRequest
+      operationId: supplier.v1.LocationAdditionRequestService.WithdrawLocationAdditionRequest
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.WithdrawLocationAdditionRequestRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.WithdrawLocationAdditionRequestResponse'
+  /supplier.v1.LocationAdminService/ArchiveLocation:
+    post:
+      tags:
+        - supplier.v1.LocationAdminService
+      summary: ArchiveLocation
+      description: Soft delete; Locations are never physically deleted.
+      operationId: supplier.v1.LocationAdminService.ArchiveLocation
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ArchiveLocationRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ArchiveLocationResponse'
+  /supplier.v1.LocationAdminService/CreateLocation:
+    post:
+      tags:
+        - supplier.v1.LocationAdminService
+      summary: CreateLocation
+      operationId: supplier.v1.LocationAdminService.CreateLocation
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.CreateLocationRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.CreateLocationResponse'
+  /supplier.v1.LocationAdminService/UnarchiveLocation:
+    post:
+      tags:
+        - supplier.v1.LocationAdminService
+      summary: UnarchiveLocation
+      operationId: supplier.v1.LocationAdminService.UnarchiveLocation
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.UnarchiveLocationRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.UnarchiveLocationResponse'
+  /supplier.v1.LocationAdminService/UpdateLocation:
+    post:
+      tags:
+        - supplier.v1.LocationAdminService
+      summary: UpdateLocation
+      operationId: supplier.v1.LocationAdminService.UpdateLocation
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.UpdateLocationRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.UpdateLocationResponse'
+  /supplier.v1.LocationDisablementService/CancelDisablement:
+    post:
+      tags:
+        - supplier.v1.LocationDisablementService
+      summary: CancelDisablement
+      operationId: supplier.v1.LocationDisablementService.CancelDisablement
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.CancelDisablementRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.CancelDisablementResponse'
+  /supplier.v1.LocationDisablementService/CreateDisablement:
+    post:
+      tags:
+        - supplier.v1.LocationDisablementService
+      summary: CreateDisablement
+      operationId: supplier.v1.LocationDisablementService.CreateDisablement
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.CreateDisablementRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.CreateDisablementResponse'
+  /supplier.v1.LocationDisablementService/EndDisablement:
+    post:
+      tags:
+        - supplier.v1.LocationDisablementService
+      summary: EndDisablement
+      operationId: supplier.v1.LocationDisablementService.EndDisablement
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.EndDisablementRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.EndDisablementResponse'
+  /supplier.v1.LocationDisablementService/ListDisablements:
+    post:
+      tags:
+        - supplier.v1.LocationDisablementService
+      summary: ListDisablements
+      operationId: supplier.v1.LocationDisablementService.ListDisablements
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ListDisablementsRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ListDisablementsResponse'
+  /supplier.v1.LocationDisablementService/UpdateDisablement:
+    post:
+      tags:
+        - supplier.v1.LocationDisablementService
+      summary: UpdateDisablement
+      operationId: supplier.v1.LocationDisablementService.UpdateDisablement
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.UpdateDisablementRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.UpdateDisablementResponse'
+  /supplier.v1.LocationDiscoveryService/GetLocation:
+    post:
+      tags:
+        - supplier.v1.LocationDiscoveryService
+      summary: GetLocation
+      description: Also returns archived Locations, so old references still resolve.
+      operationId: supplier.v1.LocationDiscoveryService.GetLocation
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.GetLocationRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.GetLocationResponse'
+  /supplier.v1.LocationDiscoveryService/ListBuildings:
+    post:
+      tags:
+        - supplier.v1.LocationDiscoveryService
+      summary: ListBuildings
+      operationId: supplier.v1.LocationDiscoveryService.ListBuildings
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ListBuildingsRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ListBuildingsResponse'
+  /supplier.v1.LocationDiscoveryService/ListCategories:
+    post:
+      tags:
+        - supplier.v1.LocationDiscoveryService
+      summary: ListCategories
+      operationId: supplier.v1.LocationDiscoveryService.ListCategories
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ListCategoriesRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ListCategoriesResponse'
+  /supplier.v1.LocationDiscoveryService/ListLocations:
+    post:
+      tags:
+        - supplier.v1.LocationDiscoveryService
+      summary: ListLocations
+      operationId: supplier.v1.LocationDiscoveryService.ListLocations
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          description: Define the version of the Connect protocol
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+          example: 1
+        - name: Connect-Timeout-Ms
+          in: header
+          description: Define the timeout, in ms
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+          example: 1000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/supplier.v1.ListLocationsRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/supplier.v1.ListLocationsResponse'
 components:
   schemas:
+    connect-protocol-version:
+      type: number
+      examples:
+        - 1
+      title: Connect-Protocol-Version
+      description: Define the version of the Connect protocol
+      const: 1
+    connect-timeout-header:
+      type: number
+      examples:
+        - 1000
+      title: Connect-Timeout-Ms
+      description: Define the timeout, in ms
+    connect.error:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - not_found
+          enum:
+            - canceled
+            - unknown
+            - invalid_argument
+            - deadline_exceeded
+            - not_found
+            - already_exists
+            - permission_denied
+            - resource_exhausted
+            - failed_precondition
+            - aborted
+            - out_of_range
+            - unimplemented
+            - internal
+            - unavailable
+            - data_loss
+            - unauthenticated
+          description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+        message:
+          type: string
+          description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/connect.error_details.Any'
+          description: A list of messages that carry the error details. There is no limit on the number of messages.
+      title: Connect Error
+      additionalProperties: true
+      description: 'Error type returned by Connect: https://connectrpc.com/docs/go/errors/#http-representation'
+    connect.error_details.Any:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 'A URL that acts as a globally unique identifier for the type of the serialized message. For example: `type.googleapis.com/google.rpc.ErrorInfo`.'
+        value:
+          type: string
+          format: binary
+          description: The Protobuf message, serialized as bytes and base64-encoded. The specific message type is identified by the `type` field.
+        debug:
+          type: object
+          title: Debug
+          additionalProperties: true
+          description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
+      additionalProperties: true
+      description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
     google.protobuf.FieldMask:
       type: string
       description: Comma-separated field paths in lowerCamelCase (for example, `user.displayName,photo`).
@@ -923,7 +1789,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/google.protobuf.FieldMask'
           title: update_mask
-          description: Non-empty paths from starts_at, ends_at, reason.
+          description: |
+            Non-empty paths from starts_at, ends_at, reason.
+            field_mask.in = ["starts_at", "ends_at", "reason"]
+            disablement.update_paths // select at least one field
         expectedRevision:
           exclusiveMinimum: 0
           type: string
@@ -933,7 +1802,9 @@ components:
       required:
         - updateMask
       additionalProperties: false
-      description: Updates only a scheduled Disablement.
+      description: |
+        Updates only a scheduled Disablement.
+        disablement.update_reason // reason must not be empty when selected
     supplier.v1.UpdateDisablementResponse:
       type: object
       properties:
@@ -1052,3 +1923,13 @@ components:
       title: CheckResponse
       additionalProperties: false
 security: []
+tags:
+  - name: supplier.v1.HealthService
+  - name: supplier.v1.LocationAdditionRequestService
+    description: Owner maintenance and administrator review of Location proposals.
+  - name: supplier.v1.LocationAdminService
+    description: Administrator-only Location management.
+  - name: supplier.v1.LocationDisablementService
+    description: Administrator-only Disablement operations.
+  - name: supplier.v1.LocationDiscoveryService
+    description: Authenticated Location discovery.
