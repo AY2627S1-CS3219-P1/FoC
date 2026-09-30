@@ -37,6 +37,7 @@ type stubLogic struct {
 	registerErr     error
 	refreshErr      error
 	logoutErr       error
+	logoutAllErr    error
 	keyErr          error
 	requestEmail    string
 	loginToken      string
@@ -44,6 +45,7 @@ type stubLogic struct {
 	registerProfile jwt.Profile
 	refreshIn       string
 	logoutIn        string
+	logoutAllIn     string
 }
 
 func (s *stubLogic) RequestLink(_ context.Context, email string) error {
@@ -70,6 +72,11 @@ func (s *stubLogic) Refresh(_ context.Context, token string) (models.User, jwt.A
 func (s *stubLogic) Logout(_ context.Context, token string) error {
 	s.logoutIn = token
 	return s.logoutErr
+}
+
+func (s *stubLogic) LogoutAll(_ context.Context, token string) error {
+	s.logoutAllIn = token
+	return s.logoutAllErr
 }
 
 func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
@@ -176,6 +183,21 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		cleared[0].Path != "/user.v1.AuthService/" {
 		t.Fatalf("refresh cookie was not safely cleared: %+v", cleared)
 	}
+
+	logoutAllReq := connect.NewRequest(&userv1.LogoutAllRequest{})
+	logoutAllReq.Header().Set("Origin", frontendOrigin)
+	logoutAllReq.Header().Set("Cookie", authhandler.RefreshCookieName+"=device-refresh")
+	logoutAll, err := client.LogoutAll(ctx, logoutAllReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logic.logoutAllIn != "device-refresh" || logoutAll.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("logout all did not use cookie or set cache policy: %q, %q", logic.logoutAllIn, logoutAll.Header().Get("Cache-Control"))
+	}
+	cleared = (&http.Response{Header: logoutAll.Header()}).Cookies()
+	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 {
+		t.Fatalf("logout all did not clear the refresh cookie: %+v", cleared)
+	}
 }
 
 func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
@@ -223,6 +245,10 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic.refreshErr = jwt.ErrRefreshFailed
 	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
+	}
+	logic.logoutAllErr = jwt.ErrRefreshFailed
+	if _, err := client.LogoutAll(ctx, connect.NewRequest(&userv1.LogoutAllRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("failed logout all returned %v", err)
 	}
 }
 

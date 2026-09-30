@@ -619,6 +619,78 @@ func (*LogoutResponse) Descriptor() ([]byte, []int) {
 	return file_user_v1_auth_proto_rawDescGZIP(), []int{10}
 }
 
+type LogoutAllRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogoutAllRequest) Reset() {
+	*x = LogoutAllRequest{}
+	mi := &file_user_v1_auth_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogoutAllRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogoutAllRequest) ProtoMessage() {}
+
+func (x *LogoutAllRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_auth_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogoutAllRequest.ProtoReflect.Descriptor instead.
+func (*LogoutAllRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{11}
+}
+
+type LogoutAllResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogoutAllResponse) Reset() {
+	*x = LogoutAllResponse{}
+	mi := &file_user_v1_auth_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogoutAllResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogoutAllResponse) ProtoMessage() {}
+
+func (x *LogoutAllResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_auth_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogoutAllResponse.ProtoReflect.Descriptor instead.
+func (*LogoutAllResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{12}
+}
+
 type GetPublicKeysRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -627,7 +699,7 @@ type GetPublicKeysRequest struct {
 
 func (x *GetPublicKeysRequest) Reset() {
 	*x = GetPublicKeysRequest{}
-	mi := &file_user_v1_auth_proto_msgTypes[11]
+	mi := &file_user_v1_auth_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +711,7 @@ func (x *GetPublicKeysRequest) String() string {
 func (*GetPublicKeysRequest) ProtoMessage() {}
 
 func (x *GetPublicKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[11]
+	mi := &file_user_v1_auth_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +724,7 @@ func (x *GetPublicKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeysRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicKeysRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{11}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{13}
 }
 
 type GetPublicKeysResponse struct {
@@ -664,7 +736,7 @@ type GetPublicKeysResponse struct {
 
 func (x *GetPublicKeysResponse) Reset() {
 	*x = GetPublicKeysResponse{}
-	mi := &file_user_v1_auth_proto_msgTypes[12]
+	mi := &file_user_v1_auth_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -676,7 +748,7 @@ func (x *GetPublicKeysResponse) String() string {
 func (*GetPublicKeysResponse) ProtoMessage() {}
 
 func (x *GetPublicKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[12]
+	mi := &file_user_v1_auth_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -689,7 +761,7 @@ func (x *GetPublicKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeysResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicKeysResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{12}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetPublicKeysResponse) GetKeys() []*JsonWebKey {
@@ -714,7 +786,7 @@ type JsonWebKey struct {
 
 func (x *JsonWebKey) Reset() {
 	*x = JsonWebKey{}
-	mi := &file_user_v1_auth_proto_msgTypes[13]
+	mi := &file_user_v1_auth_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -726,7 +798,7 @@ func (x *JsonWebKey) String() string {
 func (*JsonWebKey) ProtoMessage() {}
 
 func (x *JsonWebKey) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[13]
+	mi := &file_user_v1_auth_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -739,7 +811,7 @@ func (x *JsonWebKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JsonWebKey.ProtoReflect.Descriptor instead.
 func (*JsonWebKey) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{13}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *JsonWebKey) GetKty() string {
@@ -828,7 +900,9 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12!\n" +
 	"\x04user\x18\x02 \x01(\v2\r.user.v1.UserR\x04user\"\x0f\n" +
 	"\rLogoutRequest\"\x10\n" +
-	"\x0eLogoutResponse\"\x16\n" +
+	"\x0eLogoutResponse\"\x12\n" +
+	"\x10LogoutAllRequest\"\x13\n" +
+	"\x11LogoutAllResponse\"\x16\n" +
 	"\x14GetPublicKeysRequest\"@\n" +
 	"\x15GetPublicKeysResponse\x12'\n" +
 	"\x04keys\x18\x01 \x03(\v2\x13.user.v1.JsonWebKeyR\x04keys\"\x82\x01\n" +
@@ -846,13 +920,14 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x15USER_ROLE_SUPER_ADMIN\x10\x01\x12\x13\n" +
 	"\x0fUSER_ROLE_ADMIN\x10\x02\x12\x12\n" +
 	"\x0eUSER_ROLE_USER\x10\x03\x12\x1c\n" +
-	"\x18USER_ROLE_SUSPENDED_USER\x10\x042\xd3\x02\n" +
+	"\x18USER_ROLE_SUSPENDED_USER\x10\x042\x99\x03\n" +
 	"\vAuthService\x12J\n" +
 	"\vRequestLink\x12\x1b.user.v1.RequestLinkRequest\x1a\x1c.user.v1.RequestLinkResponse\"\x00\x128\n" +
 	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x16.user.v1.LoginResponse\"\x00\x12A\n" +
 	"\bRegister\x12\x18.user.v1.RegisterRequest\x1a\x19.user.v1.RegisterResponse\"\x00\x12>\n" +
 	"\aRefresh\x12\x17.user.v1.RefreshRequest\x1a\x18.user.v1.RefreshResponse\"\x00\x12;\n" +
-	"\x06Logout\x12\x16.user.v1.LogoutRequest\x1a\x17.user.v1.LogoutResponse\"\x002d\n" +
+	"\x06Logout\x12\x16.user.v1.LogoutRequest\x1a\x17.user.v1.LogoutResponse\"\x00\x12D\n" +
+	"\tLogoutAll\x12\x19.user.v1.LogoutAllRequest\x1a\x1a.user.v1.LogoutAllResponse\"\x002d\n" +
 	"\x10PublicKeyService\x12P\n" +
 	"\rGetPublicKeys\x12\x1d.user.v1.GetPublicKeysRequest\x1a\x1e.user.v1.GetPublicKeysResponse\"\x00B\x8f\x01\n" +
 	"\vcom.user.v1B\tAuthProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
@@ -870,7 +945,7 @@ func file_user_v1_auth_proto_rawDescGZIP() []byte {
 }
 
 var file_user_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_user_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_user_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_user_v1_auth_proto_goTypes = []any{
 	(UserRole)(0),                 // 0: user.v1.UserRole
 	(*RequestLinkResponse)(nil),   // 1: user.v1.RequestLinkResponse
@@ -884,30 +959,34 @@ var file_user_v1_auth_proto_goTypes = []any{
 	(*RefreshResponse)(nil),       // 9: user.v1.RefreshResponse
 	(*LogoutRequest)(nil),         // 10: user.v1.LogoutRequest
 	(*LogoutResponse)(nil),        // 11: user.v1.LogoutResponse
-	(*GetPublicKeysRequest)(nil),  // 12: user.v1.GetPublicKeysRequest
-	(*GetPublicKeysResponse)(nil), // 13: user.v1.GetPublicKeysResponse
-	(*JsonWebKey)(nil),            // 14: user.v1.JsonWebKey
+	(*LogoutAllRequest)(nil),      // 12: user.v1.LogoutAllRequest
+	(*LogoutAllResponse)(nil),     // 13: user.v1.LogoutAllResponse
+	(*GetPublicKeysRequest)(nil),  // 14: user.v1.GetPublicKeysRequest
+	(*GetPublicKeysResponse)(nil), // 15: user.v1.GetPublicKeysResponse
+	(*JsonWebKey)(nil),            // 16: user.v1.JsonWebKey
 }
 var file_user_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: user.v1.User.role:type_name -> user.v1.UserRole
 	5,  // 1: user.v1.LoginResponse.user:type_name -> user.v1.User
 	5,  // 2: user.v1.RegisterResponse.user:type_name -> user.v1.User
 	5,  // 3: user.v1.RefreshResponse.user:type_name -> user.v1.User
-	14, // 4: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
+	16, // 4: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
 	2,  // 5: user.v1.AuthService.RequestLink:input_type -> user.v1.RequestLinkRequest
 	3,  // 6: user.v1.AuthService.Login:input_type -> user.v1.LoginRequest
 	4,  // 7: user.v1.AuthService.Register:input_type -> user.v1.RegisterRequest
 	8,  // 8: user.v1.AuthService.Refresh:input_type -> user.v1.RefreshRequest
 	10, // 9: user.v1.AuthService.Logout:input_type -> user.v1.LogoutRequest
-	12, // 10: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
-	1,  // 11: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
-	6,  // 12: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
-	7,  // 13: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
-	9,  // 14: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
-	11, // 15: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
-	13, // 16: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
+	12, // 10: user.v1.AuthService.LogoutAll:input_type -> user.v1.LogoutAllRequest
+	14, // 11: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
+	1,  // 12: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
+	6,  // 13: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
+	7,  // 14: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
+	9,  // 15: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
+	11, // 16: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
+	13, // 17: user.v1.AuthService.LogoutAll:output_type -> user.v1.LogoutAllResponse
+	15, // 18: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
+	12, // [12:19] is the sub-list for method output_type
+	5,  // [5:12] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -926,7 +1005,7 @@ func file_user_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_auth_proto_rawDesc), len(file_user_v1_auth_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

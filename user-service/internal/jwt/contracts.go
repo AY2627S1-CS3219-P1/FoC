@@ -5,18 +5,19 @@ import (
 	"errors"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
 )
 
 var (
 	ErrChallengeRejected  = errors.New("challenge invalid, expired, or used")
-	ErrAlreadyRegistered  = errors.New("email already registered")
-	ErrInvalidEmail       = errors.New("invalid email address")
-	ErrInvalidProfile     = errors.New("invalid registration profile")
-	ErrLoginFailed        = errors.New("login verification failed")
-	ErrRegistrationFailed = errors.New("registration verification failed")
-	ErrRefreshFailed      = errors.New("refresh failed")
-	ErrUnavailable        = errors.New("service unavailable")
+	ErrAlreadyRegistered  = errs.NewAlreadyExistsError("email already registered; request a login link")
+	ErrInvalidEmail       = errs.NewBadRequestError("invalid email address")
+	ErrInvalidProfile     = errs.NewBadRequestError("invalid registration profile")
+	ErrLoginFailed        = errs.NewUnauthorizedError("login verification failed")
+	ErrRegistrationFailed = errs.NewUnauthorizedError("registration verification failed")
+	ErrRefreshFailed      = errs.NewUnauthorizedError("refresh failed")
+	ErrUnavailable        = errs.NewUnavailableError("authentication service unavailable")
 )
 
 type Role = tokenclaims.Role

@@ -8,19 +8,20 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrUnauthenticated    = errors.New("user is not authenticated")
-	ErrPermissionDenied   = errors.New("permission denied")
-	ErrInvalidProfile     = errors.New("invalid profile")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrInvalidRoleChange  = errors.New("invalid role change")
-	ErrRoleUnchanged      = errors.New("role is unchanged")
-	ErrConcurrentRoleEdit = errors.New("role changed concurrently")
+	ErrUnauthenticated    = errs.NewUnauthorizedError("invalid or missing access token")
+	ErrPermissionDenied   = errs.NewForbiddenError("permission denied")
+	ErrInvalidProfile     = errs.NewBadRequestError("invalid profile")
+	ErrUserNotFound       = errs.NewNotFoundError("user not found")
+	ErrInvalidRoleChange  = errs.NewBadRequestError("invalid role change")
+	ErrRoleUnchanged      = errs.NewFailedPreconditionError("role is unchanged")
+	ErrConcurrentRoleEdit = errs.NewAbortedError("role changed concurrently")
 )
 
 // MaxDisplayNameLength matches the users.display_name database constraint.

@@ -2,15 +2,15 @@ package userdto
 
 import (
 	"context"
-	"errors"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/google/uuid"
 )
 
-var ErrMissingActor = errors.New("missing authenticated actor")
+var ErrMissingActor = errs.NewUnauthorizedError("invalid or missing access token")
 
 func ActorID(ctx context.Context) (uuid.UUID, error) {
 	claims, ok := authmiddleware.ClaimsFromContext[authmiddleware.AccessClaims](ctx)

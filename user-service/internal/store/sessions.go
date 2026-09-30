@@ -55,3 +55,12 @@ func (s *Sessions) Revoke(
 	}
 	return nil
 }
+
+// RevokeAllForUser revokes every unrevoked session of userID and returns how
+// many were revoked. Expired sessions are included; revoking them is harmless.
+func (s *Sessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+	result := s.db.WithContext(ctx).Model(&models.Session{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Updates(map[string]any{"revoked_at": now, "updated_at": now})
+	return result.RowsAffected, result.Error
+}

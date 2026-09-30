@@ -24,6 +24,7 @@ func TestMutationExternalErrors(t *testing.T) {
 		{"failed precondition", errs.NewFailedPreconditionError("missing reference"), errs.WrapFailedPreconditionError(cause, "missing reference"), http.StatusPreconditionFailed, connect.CodeFailedPrecondition},
 		{"already exists", errs.NewAlreadyExistsError("key conflict"), errs.WrapAlreadyExistsError(cause, "key conflict"), http.StatusConflict, connect.CodeAlreadyExists},
 		{"aborted", errs.NewAbortedError("stale revision"), errs.WrapAbortedError(cause, "stale revision"), http.StatusConflict, connect.CodeAborted},
+		{"unavailable", errs.NewUnavailableError("temporarily unavailable"), errs.WrapUnavailableError(cause, "temporarily unavailable"), http.StatusServiceUnavailable, connect.CodeUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.plain.Code() != tc.status || tc.plain.GetConnectCode() != tc.code || tc.plain.ErrorTrace() != tc.plain.Error() {

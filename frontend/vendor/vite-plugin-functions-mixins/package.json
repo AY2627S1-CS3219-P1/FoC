@@ -1,0 +1,22 @@
+{
+	"name": "vite-plugin-functions-mixins",
+	"version": "0.4.1+foc.vite8",
+	"description": "Use @function and @mixin today",
+	"type": "module",
+	"license": "MIT",
+	"homepage": "https://github.com/KTibow/vite-plugin-functions-mixins#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/KTibow/vite-plugin-functions-mixins.git"
+	},
+	"main": "./dist/index.mjs",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
+	"exports": {
+		".": "./dist/index.mjs",
+		"./package.json": "./package.json"
+	},
+	"peerDependencies": {
+		"vite": "^8.0.0"
+	}
+}
