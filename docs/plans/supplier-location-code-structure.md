@@ -156,9 +156,6 @@ go test -p 1 -race -tags=integration ./internal/location/... ./internal/rpc/... 
 go test -p 1 -race -tags=integration ./cmd/server -count=1 -timeout=5m -v
 ```
 
-Local raw evidence is retained in /tmp/foc-location-orchestration/restructure-final-e2e.log and /tmp/foc-location-orchestration/restructure-production-proof.log. The latter command exited 0. The final source test is the durable repeatable proof.
-
-
 ### Domain boundary correction verification
 
 - **V5: Corrected parent.** At `dbc5e48`, full Supplier race units and vet passed. Generated-client tests preserve exact codes and messages for 72 cases across all discovery/admin methods: plain/wrapped shared errors, plain/wrapped validation, sanitized unknown errors and existing wrapped cancellation/deadline fallback. Production composition, discovery persistence, signed admin RPC/database operations and domain admin round-trip/reference rollback/locked relationships/concurrent revision all passed serialized race/PostGIS reruns. All three verification processes exited 0.
@@ -172,4 +169,4 @@ go test -p 1 -race -tags=integration ./cmd/server ./internal/location/discovery 
 go test -p 1 -race -tags=integration ./internal/location/lifecycle -run '^TestPostgresAdmin' -count=1 -timeout=10m -v
 ```
 
-Raw evidence: /tmp/foc-location-orchestration/restructure-domain-boundary-units.log, /tmp/foc-location-orchestration/restructure-domain-boundary-postgis.log and /tmp/foc-location-orchestration/restructure-domain-boundary-admin-postgis.log. Domain boundary source: supplier-service/internal/location/shared/boundary_test.go. Adapter regressions: supplier-service/internal/rpc/location/discovery/handler_test.go and supplier-service/internal/rpc/location/lifecycle/admin_test.go.
+Domain boundary source: supplier-service/internal/location/shared/boundary_test.go. Adapter regressions: supplier-service/internal/rpc/location/discovery/handler_test.go and supplier-service/internal/rpc/location/lifecycle/admin_test.go.
