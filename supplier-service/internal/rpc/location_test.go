@@ -171,7 +171,7 @@ func TestLocationErrors(t *testing.T) {
 			if got := connect.CodeOf(err); got != tc.want {
 				t.Fatalf("code = %v, want %v (err %v)", got, tc.want, err)
 			}
-			if tc.want == connect.CodeInternal && err.Error() != "internal: internal error" {
+			if tc.want == connect.CodeInternal && err.Error() != "internal: An unknown error has occurred" {
 				t.Fatalf("internal error leaked details: %v", err)
 			}
 		})
