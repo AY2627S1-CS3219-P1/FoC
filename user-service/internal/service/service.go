@@ -32,6 +32,7 @@ type SessionStore interface {
 	Create(context.Context, *models.Session) error
 	UpdateTokenHash(context.Context, uuid.UUID, []byte) error
 	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
+	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
 }
 
 type DomainStore interface {

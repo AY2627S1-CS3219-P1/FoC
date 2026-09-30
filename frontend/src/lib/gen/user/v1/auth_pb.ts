@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/auth.proto.
  */
 export const file_user_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChJ1c2VyL3YxL2F1dGgucHJvdG8SB3VzZXIudjEiFQoTUmVxdWVzdExpbmtSZXNwb25zZSIuChJSZXF1ZXN0TGlua1JlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASImCgxMb2dpblJlcXVlc3QSFgoFdG9rZW4YASABKAlCB7pIBHICEAEiSgoPUmVnaXN0ZXJSZXF1ZXN0EhYKBXRva2VuGAEgASgJQge6SARyAhABEh8KDGRpc3BsYXlfbmFtZRgCIAEoCUIJukgGcgQQARhkIlgKBFVzZXISCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEh8KBHJvbGUYBCABKA4yES51c2VyLnYxLlVzZXJSb2xlIkIKDUxvZ2luUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLnVzZXIudjEuVXNlchIUCgxhY2Nlc3NfdG9rZW4YAiABKAkiRQoQUmVnaXN0ZXJSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0udXNlci52MS5Vc2VyEhQKDGFjY2Vzc190b2tlbhgCIAEoCSIQCg5SZWZyZXNoUmVxdWVzdCJECg9SZWZyZXNoUmVzcG9uc2USFAoMYWNjZXNzX3Rva2VuGAEgASgJEhsKBHVzZXIYAiABKAsyDS51c2VyLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSIWChRHZXRQdWJsaWNLZXlzUmVxdWVzdCI6ChVHZXRQdWJsaWNLZXlzUmVzcG9uc2USIQoEa2V5cxgBIAMoCzITLnVzZXIudjEuSnNvbldlYktleSJjCgpKc29uV2ViS2V5EgsKA2t0eRgBIAEoCRILCgNjcnYYAiABKAkSCQoBeBgDIAEoCRIJCgF5GAQgASgJEgsKA3VzZRgFIAEoCRILCgNhbGcYBiABKAkSCwoDa2lkGAcgASgJKocBCghVc2VyUm9sZRIZChVVU0VSX1JPTEVfVU5TUEVDSUZJRUQQABIZChVVU0VSX1JPTEVfU1VQRVJfQURNSU4QARITCg9VU0VSX1JPTEVfQURNSU4QAhISCg5VU0VSX1JPTEVfVVNFUhADEhwKGFVTRVJfUk9MRV9TVVNQRU5ERURfVVNFUhAEMtMCCgtBdXRoU2VydmljZRJKCgtSZXF1ZXN0TGluaxIbLnVzZXIudjEuUmVxdWVzdExpbmtSZXF1ZXN0GhwudXNlci52MS5SZXF1ZXN0TGlua1Jlc3BvbnNlIgASOAoFTG9naW4SFS51c2VyLnYxLkxvZ2luUmVxdWVzdBoWLnVzZXIudjEuTG9naW5SZXNwb25zZSIAEkEKCFJlZ2lzdGVyEhgudXNlci52MS5SZWdpc3RlclJlcXVlc3QaGS51c2VyLnYxLlJlZ2lzdGVyUmVzcG9uc2UiABI+CgdSZWZyZXNoEhcudXNlci52MS5SZWZyZXNoUmVxdWVzdBoYLnVzZXIudjEuUmVmcmVzaFJlc3BvbnNlIgASOwoGTG9nb3V0EhYudXNlci52MS5Mb2dvdXRSZXF1ZXN0GhcudXNlci52MS5Mb2dvdXRSZXNwb25zZSIAMmQKEFB1YmxpY0tleVNlcnZpY2USUAoNR2V0UHVibGljS2V5cxIdLnVzZXIudjEuR2V0UHVibGljS2V5c1JlcXVlc3QaHi51c2VyLnYxLkdldFB1YmxpY0tleXNSZXNwb25zZSIAQo8BCgtjb20udXNlci52MUIJQXV0aFByb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate]);
+  fileDesc("ChJ1c2VyL3YxL2F1dGgucHJvdG8SB3VzZXIudjEiFQoTUmVxdWVzdExpbmtSZXNwb25zZSIuChJSZXF1ZXN0TGlua1JlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASImCgxMb2dpblJlcXVlc3QSFgoFdG9rZW4YASABKAlCB7pIBHICEAEiSgoPUmVnaXN0ZXJSZXF1ZXN0EhYKBXRva2VuGAEgASgJQge6SARyAhABEh8KDGRpc3BsYXlfbmFtZRgCIAEoCUIJukgGcgQQARhkIlgKBFVzZXISCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEh8KBHJvbGUYBCABKA4yES51c2VyLnYxLlVzZXJSb2xlIkIKDUxvZ2luUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLnVzZXIudjEuVXNlchIUCgxhY2Nlc3NfdG9rZW4YAiABKAkiRQoQUmVnaXN0ZXJSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0udXNlci52MS5Vc2VyEhQKDGFjY2Vzc190b2tlbhgCIAEoCSIQCg5SZWZyZXNoUmVxdWVzdCJECg9SZWZyZXNoUmVzcG9uc2USFAoMYWNjZXNzX3Rva2VuGAEgASgJEhsKBHVzZXIYAiABKAsyDS51c2VyLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMb2dvdXRBbGxSZXF1ZXN0IhMKEUxvZ291dEFsbFJlc3BvbnNlIhYKFEdldFB1YmxpY0tleXNSZXF1ZXN0IjoKFUdldFB1YmxpY0tleXNSZXNwb25zZRIhCgRrZXlzGAEgAygLMhMudXNlci52MS5Kc29uV2ViS2V5ImMKCkpzb25XZWJLZXkSCwoDa3R5GAEgASgJEgsKA2NydhgCIAEoCRIJCgF4GAMgASgJEgkKAXkYBCABKAkSCwoDdXNlGAUgASgJEgsKA2FsZxgGIAEoCRILCgNraWQYByABKAkqhwEKCFVzZXJSb2xlEhkKFVVTRVJfUk9MRV9VTlNQRUNJRklFRBAAEhkKFVVTRVJfUk9MRV9TVVBFUl9BRE1JThABEhMKD1VTRVJfUk9MRV9BRE1JThACEhIKDlVTRVJfUk9MRV9VU0VSEAMSHAoYVVNFUl9ST0xFX1NVU1BFTkRFRF9VU0VSEAQymQMKC0F1dGhTZXJ2aWNlEkoKC1JlcXVlc3RMaW5rEhsudXNlci52MS5SZXF1ZXN0TGlua1JlcXVlc3QaHC51c2VyLnYxLlJlcXVlc3RMaW5rUmVzcG9uc2UiABI4CgVMb2dpbhIVLnVzZXIudjEuTG9naW5SZXF1ZXN0GhYudXNlci52MS5Mb2dpblJlc3BvbnNlIgASQQoIUmVnaXN0ZXISGC51c2VyLnYxLlJlZ2lzdGVyUmVxdWVzdBoZLnVzZXIudjEuUmVnaXN0ZXJSZXNwb25zZSIAEj4KB1JlZnJlc2gSFy51c2VyLnYxLlJlZnJlc2hSZXF1ZXN0GhgudXNlci52MS5SZWZyZXNoUmVzcG9uc2UiABI7CgZMb2dvdXQSFi51c2VyLnYxLkxvZ291dFJlcXVlc3QaFy51c2VyLnYxLkxvZ291dFJlc3BvbnNlIgASRAoJTG9nb3V0QWxsEhkudXNlci52MS5Mb2dvdXRBbGxSZXF1ZXN0GhoudXNlci52MS5Mb2dvdXRBbGxSZXNwb25zZSIAMmQKEFB1YmxpY0tleVNlcnZpY2USUAoNR2V0UHVibGljS2V5cxIdLnVzZXIudjEuR2V0UHVibGljS2V5c1JlcXVlc3QaHi51c2VyLnYxLkdldFB1YmxpY0tleXNSZXNwb25zZSIAQo8BCgtjb20udXNlci52MUIJQXV0aFByb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate]);
 
 /**
  * @generated from message user.v1.RequestLinkResponse
@@ -220,6 +220,32 @@ export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
   messageDesc(file_user_v1_auth, 10);
 
 /**
+ * @generated from message user.v1.LogoutAllRequest
+ */
+export type LogoutAllRequest = Message<"user.v1.LogoutAllRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.LogoutAllRequest.
+ * Use `create(LogoutAllRequestSchema)` to create a new message.
+ */
+export const LogoutAllRequestSchema: GenMessage<LogoutAllRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_auth, 11);
+
+/**
+ * @generated from message user.v1.LogoutAllResponse
+ */
+export type LogoutAllResponse = Message<"user.v1.LogoutAllResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.LogoutAllResponse.
+ * Use `create(LogoutAllResponseSchema)` to create a new message.
+ */
+export const LogoutAllResponseSchema: GenMessage<LogoutAllResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_auth, 12);
+
+/**
  * @generated from message user.v1.GetPublicKeysRequest
  */
 export type GetPublicKeysRequest = Message<"user.v1.GetPublicKeysRequest"> & {
@@ -230,7 +256,7 @@ export type GetPublicKeysRequest = Message<"user.v1.GetPublicKeysRequest"> & {
  * Use `create(GetPublicKeysRequestSchema)` to create a new message.
  */
 export const GetPublicKeysRequestSchema: GenMessage<GetPublicKeysRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 11);
+  messageDesc(file_user_v1_auth, 13);
 
 /**
  * @generated from message user.v1.GetPublicKeysResponse
@@ -247,7 +273,7 @@ export type GetPublicKeysResponse = Message<"user.v1.GetPublicKeysResponse"> & {
  * Use `create(GetPublicKeysResponseSchema)` to create a new message.
  */
 export const GetPublicKeysResponseSchema: GenMessage<GetPublicKeysResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 12);
+  messageDesc(file_user_v1_auth, 14);
 
 /**
  * @generated from message user.v1.JsonWebKey
@@ -294,7 +320,7 @@ export type JsonWebKey = Message<"user.v1.JsonWebKey"> & {
  * Use `create(JsonWebKeySchema)` to create a new message.
  */
 export const JsonWebKeySchema: GenMessage<JsonWebKey> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 13);
+  messageDesc(file_user_v1_auth, 15);
 
 /**
  * @generated from enum user.v1.UserRole
@@ -375,6 +401,14 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof LogoutRequestSchema;
     output: typeof LogoutResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.AuthService.LogoutAll
+   */
+  logoutAll: {
+    methodKind: "unary";
+    input: typeof LogoutAllRequestSchema;
+    output: typeof LogoutAllResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_auth, 0);

@@ -45,6 +45,8 @@ const (
 	AuthServiceRefreshProcedure = "/user.v1.AuthService/Refresh"
 	// AuthServiceLogoutProcedure is the fully-qualified name of the AuthService's Logout RPC.
 	AuthServiceLogoutProcedure = "/user.v1.AuthService/Logout"
+	// AuthServiceLogoutAllProcedure is the fully-qualified name of the AuthService's LogoutAll RPC.
+	AuthServiceLogoutAllProcedure = "/user.v1.AuthService/LogoutAll"
 	// PublicKeyServiceGetPublicKeysProcedure is the fully-qualified name of the PublicKeyService's
 	// GetPublicKeys RPC.
 	PublicKeyServiceGetPublicKeysProcedure = "/user.v1.PublicKeyService/GetPublicKeys"
@@ -57,6 +59,7 @@ type AuthServiceClient interface {
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
 	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the user.v1.AuthService service. By default, it uses
@@ -100,6 +103,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("Logout")),
 			connect.WithClientOptions(opts...),
 		),
+		logoutAll: connect.NewClient[v1.LogoutAllRequest, v1.LogoutAllResponse](
+			httpClient,
+			baseURL+AuthServiceLogoutAllProcedure,
+			connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -110,6 +119,7 @@ type authServiceClient struct {
 	register    *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
 	refresh     *connect.Client[v1.RefreshRequest, v1.RefreshResponse]
 	logout      *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	logoutAll   *connect.Client[v1.LogoutAllRequest, v1.LogoutAllResponse]
 }
 
 // RequestLink calls user.v1.AuthService.RequestLink.
@@ -137,6 +147,11 @@ func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.
 	return c.logout.CallUnary(ctx, req)
 }
 
+// LogoutAll calls user.v1.AuthService.LogoutAll.
+func (c *authServiceClient) LogoutAll(ctx context.Context, req *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error) {
+	return c.logoutAll.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the user.v1.AuthService service.
 type AuthServiceHandler interface {
 	RequestLink(context.Context, *connect.Request[v1.RequestLinkRequest]) (*connect.Response[v1.RequestLinkResponse], error)
@@ -144,6 +159,7 @@ type AuthServiceHandler interface {
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
 	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -183,6 +199,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("Logout")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceLogoutAllHandler := connect.NewUnaryHandler(
+		AuthServiceLogoutAllProcedure,
+		svc.LogoutAll,
+		connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceRequestLinkProcedure:
@@ -195,6 +217,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceRefreshHandler.ServeHTTP(w, r)
 		case AuthServiceLogoutProcedure:
 			authServiceLogoutHandler.ServeHTTP(w, r)
+		case AuthServiceLogoutAllProcedure:
+			authServiceLogoutAllHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -222,6 +246,10 @@ func (UnimplementedAuthServiceHandler) Refresh(context.Context, *connect.Request
 
 func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AuthService.Logout is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AuthService.LogoutAll is not implemented"))
 }
 
 // PublicKeyServiceClient is a client for the user.v1.PublicKeyService service.
