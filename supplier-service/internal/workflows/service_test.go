@@ -215,6 +215,36 @@ func TestRequestWithdrawRejectAndApprovalRollback(t *testing.T) {
 	expectError(t, e, workflows.ErrFailedPrecondition)
 }
 
+func TestApprovalRollsBackLocationWhenRequestSaveFails(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepository()
+	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
+	app := workflows.New(repo, func() time.Time { return now })
+	request, err := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo.failSaveRequest = true
+	_, err = app.ApproveRequest(ctx, admin, request.ID)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("approval error: got %v, want injected save failure", err)
+	}
+	if repo.locationsAtFailedSave != 1 {
+		t.Fatalf("locations before save failure: got %d, want 1", repo.locationsAtFailedSave)
+	}
+	if len(repo.locations) != 0 {
+		t.Fatalf("rollback left %d orphaned Locations", len(repo.locations))
+	}
+	stored, err := app.GetRequest(ctx, owner, request.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != workflows.Pending || stored.Revision != 1 || stored.ResultingLocationID != nil || stored.ReviewedBy != nil || stored.ReviewedAt != nil || stored.ReviewNote != nil {
+		t.Fatalf("rollback changed pending request: %+v", stored)
+	}
+}
+
 func TestRequestIdempotencyScopesExpiryAndPagination(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()

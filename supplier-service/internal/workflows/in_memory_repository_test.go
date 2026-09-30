@@ -25,12 +25,14 @@ func ptr[T any](v T) *T { return &v }
 
 // In memory test repository
 type TestRepository struct {
-	mu           sync.Mutex
-	locations    map[string]w.Location
-	disablements map[string]w.Disablement
-	requests     map[string]w.AdditionRequest
-	keys         map[w.IdempotencyScope]w.IdempotencyRecord
-	failCreate   bool
+	mu                    sync.Mutex
+	locations             map[string]w.Location
+	disablements          map[string]w.Disablement
+	requests              map[string]w.AdditionRequest
+	keys                  map[w.IdempotencyScope]w.IdempotencyRecord
+	failCreate            bool
+	failSaveRequest       bool
+	locationsAtFailedSave int
 }
 
 func newTestRepository() *TestRepository {
@@ -132,6 +134,10 @@ func (r *TestRepository) Request(_ context.Context, id string) (w.AdditionReques
 	return copyValue(v), nil
 }
 func (r *TestRepository) SaveRequest(_ context.Context, v w.AdditionRequest, expected int64) error {
+	if r.failSaveRequest {
+		r.locationsAtFailedSave = len(r.locations)
+		return w.DependencyError("save request", context.DeadlineExceeded)
+	}
 	if expected > 0 {
 		old := r.requests[v.ID]
 		if old.Status != w.Pending {
