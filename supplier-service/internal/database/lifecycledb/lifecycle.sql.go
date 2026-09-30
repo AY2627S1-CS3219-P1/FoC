@@ -83,29 +83,6 @@ func (q *Queries) CurrentWorkflowDisablement(ctx context.Context, arg CurrentWor
 	return i, err
 }
 
-const deleteExpiredWorkflowIdempotency = `-- name: DeleteExpiredWorkflowIdempotency :exec
-DELETE FROM supplier_idempotency
-WHERE caller_id=$1 AND method=$2 AND key=$3::uuid
-    AND expires_at<=$4::timestamptz
-`
-
-type DeleteExpiredWorkflowIdempotencyParams struct {
-	CallerID string
-	Method   string
-	Key      pgtype.UUID
-	NowAt    pgtype.Timestamptz
-}
-
-func (q *Queries) DeleteExpiredWorkflowIdempotency(ctx context.Context, arg DeleteExpiredWorkflowIdempotencyParams) error {
-	_, err := q.db.Exec(ctx, deleteExpiredWorkflowIdempotency,
-		arg.CallerID,
-		arg.Method,
-		arg.Key,
-		arg.NowAt,
-	)
-	return err
-}
-
 const deleteWorkflowRequestCategories = `-- name: DeleteWorkflowRequestCategories :exec
 DELETE FROM location_addition_request_categories WHERE request_id=$1
 `
@@ -113,30 +90,6 @@ DELETE FROM location_addition_request_categories WHERE request_id=$1
 func (q *Queries) DeleteWorkflowRequestCategories(ctx context.Context, requestID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkflowRequestCategories, requestID)
 	return err
-}
-
-const getWorkflowIdempotency = `-- name: GetWorkflowIdempotency :one
-SELECT caller_id, method, key, request_hash, resource_id, expires_at FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3
-`
-
-type GetWorkflowIdempotencyParams struct {
-	CallerID string
-	Method   string
-	Key      pgtype.UUID
-}
-
-func (q *Queries) GetWorkflowIdempotency(ctx context.Context, arg GetWorkflowIdempotencyParams) (SupplierIdempotency, error) {
-	row := q.db.QueryRow(ctx, getWorkflowIdempotency, arg.CallerID, arg.Method, arg.Key)
-	var i SupplierIdempotency
-	err := row.Scan(
-		&i.CallerID,
-		&i.Method,
-		&i.Key,
-		&i.RequestHash,
-		&i.ResourceID,
-		&i.ExpiresAt,
-	)
-	return i, err
 }
 
 const insertWorkflowDisablement = `-- name: InsertWorkflowDisablement :exec
@@ -167,31 +120,6 @@ func (q *Queries) InsertWorkflowDisablement(ctx context.Context, arg InsertWorkf
 		arg.Revision,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-	)
-	return err
-}
-
-const insertWorkflowIdempotency = `-- name: InsertWorkflowIdempotency :exec
-INSERT INTO supplier_idempotency (caller_id,method,key,request_hash,resource_id,expires_at) VALUES ($1,$2,$3,$4,$5,$6)
-`
-
-type InsertWorkflowIdempotencyParams struct {
-	CallerID    string
-	Method      string
-	Key         pgtype.UUID
-	RequestHash string
-	ResourceID  pgtype.UUID
-	ExpiresAt   pgtype.Timestamptz
-}
-
-func (q *Queries) InsertWorkflowIdempotency(ctx context.Context, arg InsertWorkflowIdempotencyParams) error {
-	_, err := q.db.Exec(ctx, insertWorkflowIdempotency,
-		arg.CallerID,
-		arg.Method,
-		arg.Key,
-		arg.RequestHash,
-		arg.ResourceID,
-		arg.ExpiresAt,
 	)
 	return err
 }
@@ -472,15 +400,6 @@ func (q *Queries) LockWorkflowDisablement(ctx context.Context, id pgtype.UUID) (
 		&i.Revision,
 	)
 	return i, err
-}
-
-const lockWorkflowIdempotency = `-- name: LockWorkflowIdempotency :exec
-SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))
-`
-
-func (q *Queries) LockWorkflowIdempotency(ctx context.Context, scope string) error {
-	_, err := q.db.Exec(ctx, lockWorkflowIdempotency, scope)
-	return err
 }
 
 const lockWorkflowLocation = `-- name: LockWorkflowLocation :one

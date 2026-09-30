@@ -3,11 +3,11 @@ package lifecycle
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
 	db "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/lifecycledb"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,8 +25,9 @@ func NewPostgresRepository(pool *pgxpool.Pool, clock func() time.Time) *Postgres
 }
 
 type transaction struct {
-	q     *db.Queries
-	clock func() time.Time
+	q          *db.Queries
+	retryStore idempotency.Store
+	clock      func() time.Time
 }
 
 func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error {
@@ -35,7 +36,7 @@ func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error
 		return mapError(err)
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
-	if err = f(&transaction{q: db.New(tx), clock: r.clock}); err != nil {
+	if err = f(&transaction{q: db.New(tx), clock: r.clock, retryStore: mappedIdempotencyStore{idempotency.NewPostgresStore(tx)}}); err != nil {
 		return err
 	}
 	return mapError(tx.Commit(ctx))
@@ -274,27 +275,20 @@ func (t *transaction) CreateLocation(ctx context.Context, p Proposal, now time.T
 	}
 	return t.Location(ctx, resourceID)
 }
-func (t *transaction) Idempotency(ctx context.Context, s IdempotencyScope, now time.Time) (*IdempotencyRecord, error) {
-	// A structured scope prevents delimiter collisions; the advisory lock also
-	// serializes the case where no idempotency row exists yet.
-	scope, _ := json.Marshal(s)
-	if e := t.q.LockWorkflowIdempotency(ctx, string(scope)); e != nil {
-		return nil, mapError(e)
-	}
-	if e := t.q.DeleteExpiredWorkflowIdempotency(ctx, db.DeleteExpiredWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key), NowAt: stamp(now)}); e != nil {
-		return nil, mapError(e)
-	}
-	v, e := t.q.GetWorkflowIdempotency(ctx, db.GetWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key)})
-	if errors.Is(e, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if e != nil {
-		return nil, mapError(e)
-	}
-	return &IdempotencyRecord{Hash: v.RequestHash, ResourceID: idString(v.ResourceID), ExpiresAt: v.ExpiresAt.Time.UTC()}, nil
+func (t *transaction) Idempotency() idempotency.Store { return t.retryStore }
+
+// Preserve lifecycle error semantics while sharing retry storage and policy.
+type mappedIdempotencyStore struct{ idempotency.Store }
+
+func (s mappedIdempotencyStore) Lock(ctx context.Context, scope idempotency.Scope) error {
+	return mapError(s.Store.Lock(ctx, scope))
 }
-func (t *transaction) SaveIdempotency(ctx context.Context, s IdempotencyScope, v IdempotencyRecord) error {
-	return mapError(t.q.InsertWorkflowIdempotency(ctx, db.InsertWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key), RequestHash: v.Hash, ResourceID: id(v.ResourceID), ExpiresAt: stamp(v.ExpiresAt)}))
+func (s mappedIdempotencyStore) Find(ctx context.Context, scope idempotency.Scope, now time.Time) (*idempotency.Record, error) {
+	record, err := s.Store.Find(ctx, scope, now)
+	return record, mapError(err)
+}
+func (s mappedIdempotencyStore) Save(ctx context.Context, scope idempotency.Scope, record idempotency.Record) error {
+	return mapError(s.Store.Save(ctx, scope, record))
 }
 
 var _ Repository = (*PostgresRepository)(nil)

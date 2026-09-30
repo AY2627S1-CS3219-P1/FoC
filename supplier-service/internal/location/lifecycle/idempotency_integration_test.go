@@ -4,10 +4,12 @@ package lifecycle_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
@@ -19,15 +21,15 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 	expired := now.Add(-time.Hour)
 	const requestHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	repository := workflowrepo.NewPostgresRepository(f.pool, func() time.Time { return now })
-	insert := func(t *testing.T, scope workflows.IdempotencyScope, expiresAt time.Time) {
+	insert := func(t *testing.T, scope idempotency.Scope, expiresAt time.Time) {
 		t.Helper()
 		f.exec(t, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, requestHash, uuid.NewString(), expiresAt)
 	}
 
 	t.Run("expired cleanup preserves other scopes and active keys", func(t *testing.T) {
 		f.reset(t)
-		scope := workflows.IdempotencyScope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
-		others := []workflows.IdempotencyScope{
+		scope := idempotency.Scope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
+		others := []idempotency.Scope{
 			{Caller: "other", Method: scope.Method, Key: scope.Key},
 			{Caller: scope.Caller, Method: "create", Key: scope.Key},
 			{Caller: scope.Caller, Method: scope.Method, Key: uuid.NewString()},
@@ -36,10 +38,13 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		for _, other := range others {
 			insert(t, other, expired)
 		}
-		active := workflows.IdempotencyScope{Caller: scope.Caller, Method: scope.Method, Key: uuid.NewString()}
+		active := idempotency.Scope{Caller: scope.Caller, Method: scope.Method, Key: uuid.NewString()}
 		insert(t, active, now.Add(time.Hour))
 		if err := repository.Within(f.ctx, func(tx workflows.Tx) error {
-			record, err := tx.Idempotency(f.ctx, scope, now)
+			if err := tx.Idempotency().Lock(f.ctx, scope); err != nil {
+				return err
+			}
+			record, err := tx.Idempotency().Find(f.ctx, scope, now)
 			if err == nil && record != nil {
 				return fmt.Errorf("expired retry was replayed")
 			}
@@ -54,7 +59,10 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 			}
 		}
 		if err := repository.Within(f.ctx, func(tx workflows.Tx) error {
-			record, err := tx.Idempotency(f.ctx, active, now)
+			if err := tx.Idempotency().Lock(f.ctx, active); err != nil {
+				return err
+			}
+			record, err := tx.Idempotency().Find(f.ctx, active, now)
 			if err == nil && (record == nil || record.Hash != requestHash) {
 				return fmt.Errorf("cleanup lost an active retry")
 			}
@@ -66,8 +74,8 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 
 	t.Run("expired cleanup does not block another scope", func(t *testing.T) {
 		f.reset(t)
-		first := workflows.IdempotencyScope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
-		second := workflows.IdempotencyScope{Caller: "other", Method: first.Method, Key: first.Key}
+		first := idempotency.Scope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
+		second := idempotency.Scope{Caller: "other", Method: first.Method, Key: first.Key}
 		insert(t, first, expired)
 		insert(t, second, expired)
 		ready := make(chan error, 1)
@@ -75,7 +83,10 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			done <- repository.Within(f.ctx, func(tx workflows.Tx) error {
-				record, err := tx.Idempotency(f.ctx, first, now)
+				if err := tx.Idempotency().Lock(f.ctx, first); err != nil {
+					return err
+				}
+				record, err := tx.Idempotency().Find(f.ctx, first, now)
 				if err == nil && record != nil {
 					err = fmt.Errorf("expired retry was replayed")
 				}
@@ -116,7 +127,10 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
 		defer cancel()
 		if err := repository.Within(ctx, func(tx workflows.Tx) error {
-			record, err := tx.Idempotency(ctx, second, now)
+			if err := tx.Idempotency().Lock(ctx, second); err != nil {
+				return err
+			}
+			record, err := tx.Idempotency().Find(ctx, second, now)
 			if err == nil && record != nil {
 				return fmt.Errorf("expired retry was replayed")
 			}
@@ -129,4 +143,32 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 			t.Fatalf("first transaction did not remain uncommitted: count=%d error=%v", count, err)
 		}
 	})
+	t.Run("shared retry save constraint retains code and rolls back Location", func(t *testing.T) {
+		f.reset(t)
+		scope := idempotency.Scope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
+		runner := idempotency.New(func() time.Time { return now })
+		var createdID string
+		err := repository.Within(f.ctx, func(tx workflows.Tx) error {
+			_, err := runner.Run(f.ctx, tx.Idempotency(), scope, "invalid hash", func(createdAt time.Time) (string, error) {
+				location, err := tx.CreateLocation(f.ctx, workflows.Proposal{Name: "Rolled back retry", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, createdAt)
+				createdID = location.ID
+				return location.ID, err
+			})
+			return err
+		})
+		if createdID == "" || !errors.Is(err, workflows.ErrFailedPrecondition) {
+			t.Fatalf("createdID=%s error=%v", createdID, err)
+		}
+		var locations, keys int
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM locations WHERE id=$1", createdID).Scan(&locations); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency").Scan(&keys); err != nil {
+			t.Fatal(err)
+		}
+		if locations != 0 || keys != 0 {
+			t.Fatalf("retry save did not roll back: locations=%d keys=%d", locations, keys)
+		}
+	})
+
 }

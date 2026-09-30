@@ -3,6 +3,8 @@ package lifecycle
 import (
 	"context"
 	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 )
 
 // Repository serializes a unit of work and rolls it back on any error.
@@ -21,6 +23,5 @@ type Tx interface {
 	ListRequests(context.Context, Caller, RequestStatus, Page) ([]AdditionRequest, int64, error)
 	ValidateReferences(context.Context, Proposal) error
 	CreateLocation(context.Context, Proposal, time.Time) (Location, error)
-	Idempotency(context.Context, IdempotencyScope, time.Time) (*IdempotencyRecord, error)
-	SaveIdempotency(context.Context, IdempotencyScope, IdempotencyRecord) error
+	Idempotency() idempotency.Store
 }

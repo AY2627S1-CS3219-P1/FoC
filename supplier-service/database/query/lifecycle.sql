@@ -97,20 +97,6 @@ VALUES ($1,$2,$3,$4,$5,ST_SetSRID(ST_MakePoint(sqlc.arg(longitude)::float8,sqlc.
 -- name: InsertWorkflowLocationCategory :exec
 INSERT INTO location_categories (location_id,category_id) VALUES ($1,$2);
 
--- name: LockWorkflowIdempotency :exec
-SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(scope)::text,0));
-
--- name: DeleteExpiredWorkflowIdempotency :exec
-DELETE FROM supplier_idempotency
-WHERE caller_id=sqlc.arg(caller_id) AND method=sqlc.arg(method) AND key=sqlc.arg(key)::uuid
-    AND expires_at<=sqlc.arg(now_at)::timestamptz;
-
--- name: GetWorkflowIdempotency :one
-SELECT * FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3;
-
--- name: InsertWorkflowIdempotency :exec
-INSERT INTO supplier_idempotency (caller_id,method,key,request_hash,resource_id,expires_at) VALUES ($1,$2,$3,$4,$5,$6);
-
 -- name: CurrentWorkflowDisablement :one
 SELECT * FROM location_disablements WHERE location_id=$1 AND cancelled_at IS NULL AND ended_at IS NULL
 AND starts_at<=sqlc.arg(now_at)::timestamptz AND (ends_at IS NULL OR ends_at>sqlc.arg(now_at)::timestamptz)

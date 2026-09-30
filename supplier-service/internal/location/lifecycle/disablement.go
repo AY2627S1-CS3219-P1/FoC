@@ -43,8 +43,7 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 		Reason           string
 	}{in.LocationID, in.StartsAt, in.EndsAt, in.Reason}
 	err = s.repo.Within(ctx, func(tx Tx) error {
-		now := s.clock().UTC()
-		id, e := idempotent(ctx, tx, c, "CreateDisablement", in.Key, payload, now, func() (string, error) {
+		id, e := s.idempotent(ctx, tx, c, "CreateDisablement", in.Key, payload, func(now time.Time) (string, error) {
 			l, e := tx.Location(ctx, in.LocationID)
 			if e != nil {
 				return "", e

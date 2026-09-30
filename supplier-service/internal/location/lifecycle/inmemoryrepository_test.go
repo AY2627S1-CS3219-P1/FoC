@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
 )
@@ -29,14 +30,16 @@ type TestRepository struct {
 	locations             map[string]w.Location
 	disablements          map[string]w.Disablement
 	requests              map[string]w.AdditionRequest
-	keys                  map[w.IdempotencyScope]w.IdempotencyRecord
+	keys                  map[idempotency.Scope]idempotency.Record
+	onRetryLock           func()
+	failRetrySave         bool
 	failCreate            bool
 	failSaveRequest       bool
 	locationsAtFailedSave int
 }
 
 func newTestRepository() *TestRepository {
-	return &TestRepository{locations: map[string]w.Location{}, disablements: map[string]w.Disablement{}, requests: map[string]w.AdditionRequest{}, keys: map[w.IdempotencyScope]w.IdempotencyRecord{}}
+	return &TestRepository{locations: map[string]w.Location{}, disablements: map[string]w.Disablement{}, requests: map[string]w.AdditionRequest{}, keys: map[idempotency.Scope]idempotency.Record{}}
 }
 func copyValue[T any](v T) T {
 	b, _ := json.Marshal(v)
@@ -51,7 +54,7 @@ func (r *TestRepository) Within(ctx context.Context, f func(w.Tx) error) error {
 		return e
 	}
 	locations, disablements, requests := copyValue(r.locations), copyValue(r.disablements), copyValue(r.requests)
-	keys := map[w.IdempotencyScope]w.IdempotencyRecord{}
+	keys := map[idempotency.Scope]idempotency.Record{}
 	for k, v := range r.keys {
 		keys[k] = v
 	}
@@ -184,18 +187,33 @@ func (r *TestRepository) CreateLocation(_ context.Context, p w.Proposal, now tim
 	r.locations[v.ID] = v
 	return copyValue(v), nil
 }
-func (r *TestRepository) Idempotency(_ context.Context, s w.IdempotencyScope, now time.Time) (*w.IdempotencyRecord, error) {
-	for k, v := range r.keys {
-		if !now.Before(v.ExpiresAt) {
-			delete(r.keys, k)
-		}
+func (r *TestRepository) Find(_ context.Context, s idempotency.Scope, now time.Time) (*idempotency.Record, error) {
+	if v, ok := r.keys[s]; ok && !now.Before(v.ExpiresAt) {
+		delete(r.keys, s)
 	}
 	if v, ok := r.keys[s]; ok {
 		return &v, nil
 	}
 	return nil, nil
 }
-func (r *TestRepository) SaveIdempotency(_ context.Context, s w.IdempotencyScope, v w.IdempotencyRecord) error {
+func (r *TestRepository) Save(ctx context.Context, s idempotency.Scope, v idempotency.Record) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.failRetrySave {
+		return w.ErrFailedPrecondition
+	}
 	r.keys[s] = v
+	return nil
+}
+
+func (r *TestRepository) Idempotency() idempotency.Store { return r }
+func (r *TestRepository) Lock(ctx context.Context, _ idempotency.Scope) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.onRetryLock != nil {
+		r.onRetryLock()
+	}
 	return nil
 }
