@@ -34,7 +34,9 @@ func ToPGTimeOfDay(t *time.Time) pgtype.Time {
 	if t == nil {
 		return pgtype.Time{}
 	}
-	microseconds := int64(t.Hour()*60*60+t.Minute()*60+t.Second()) * 1_000_000
+microseconds := int64(t.Hour())*time.Hour.Microseconds() +
+		int64(t.Minute())*time.Minute.Microseconds() +
+		int64(t.Second())*time.Second.Microseconds()
 	return pgtype.Time{Microseconds: microseconds, Valid: true}
 }
 

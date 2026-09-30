@@ -3,6 +3,7 @@ package errs
 import (
 	"net/http"
 
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 )
 
@@ -26,21 +27,14 @@ func NewNotFoundError(message string) *NotFoundError {
 	}
 }
 
-func (e *NotFoundError) Error() string {
-	return e.message
-}
-
-func (e *NotFoundError) Unwrap() error {
-	return e.Wrapped
-}
+func (e *NotFoundError) Error() string                { return e.message }
+func (e *NotFoundError) Unwrap() error                { return e.Wrapped }
+func (e *NotFoundError) Code() int                    { return http.StatusNotFound }
+func (e *NotFoundError) GetConnectCode() connect.Code { return connect.CodeNotFound }
 
 func (e *NotFoundError) ErrorTrace() string {
 	if e.Wrapped == nil {
 		return e.Error()
 	}
 	return e.Error() + "\n" + e.Wrapped.Error()
-}
-
-func (e *NotFoundError) Code() int {
-	return http.StatusNotFound
 }

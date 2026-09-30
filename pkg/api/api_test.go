@@ -10,13 +10,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"connectrpc.com/connect"
 )
 
 type serviceError struct{}
 
-func (serviceError) Error() string      { return "service rejected request" }
-func (serviceError) ErrorTrace() string { return "service rejected request" }
-func (serviceError) Code() int          { return http.StatusUnauthorized }
+func (serviceError) Error() string                { return "service rejected request" }
+func (serviceError) ErrorTrace() string           { return "service rejected request" }
+func (serviceError) Code() int                    { return http.StatusUnauthorized }
+func (serviceError) GetConnectCode() connect.Code { return connect.CodeUnauthenticated }
 
 func TestHTTPHandlerUsesConfiguredLoggerAndError(t *testing.T) {
 	var logs bytes.Buffer
