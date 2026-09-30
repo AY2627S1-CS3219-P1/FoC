@@ -72,7 +72,7 @@ func visible(c Caller, r AdditionRequest) bool {
 	return c.IsAdmin() || r.SubmittedBy == c.ID || r.Status == Approved
 }
 
-func project(c Caller, r AdditionRequest) AdditionRequest {
+func redactRequestForCaller(c Caller, r AdditionRequest) AdditionRequest {
 	if !c.IsAdmin() && r.SubmittedBy != c.ID {
 		r.SubmittedBy = ""
 		r.ReviewedBy = nil
@@ -82,7 +82,7 @@ func project(c Caller, r AdditionRequest) AdditionRequest {
 }
 
 func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest) (out AdditionRequest, err error) {
-	if err = authenticate(c); err != nil {
+	if err = requireAuthenticated(c); err != nil {
 		return
 	}
 	if c.Role == "suspended_user" {
@@ -111,7 +111,7 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 }
 
 func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out AdditionRequest, err error) {
-	if err = authenticate(c); err != nil {
+	if err = requireAuthenticated(c); err != nil {
 		return
 	}
 	if err = validID(id); err != nil {
@@ -125,14 +125,14 @@ func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out Addi
 		if !visible(c, r) {
 			return ErrNotFound
 		}
-		out = project(c, r)
+		out = redactRequestForCaller(c, r)
 		return nil
 	})
 	return
 }
 
 func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStatus, p Page) (out RequestPage, err error) {
-	if err = authenticate(c); err != nil {
+	if err = requireAuthenticated(c); err != nil {
 		return
 	}
 	if status != "" && status != Pending && status != Approved && status != Rejected && status != Withdrawn {
@@ -145,7 +145,7 @@ func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStat
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		items, n, e := tx.ListRequests(ctx, c, status, p)
 		for i := range items {
-			items[i] = project(c, items[i])
+			items[i] = redactRequestForCaller(c, items[i])
 		}
 		out = RequestPage{Items: items, PageInfo: pageInfo(p, n)}
 		return e
@@ -154,7 +154,7 @@ func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStat
 }
 
 func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest) (out AdditionRequest, err error) {
-	if err = authenticate(c); err != nil {
+	if err = requireAuthenticated(c); err != nil {
 		return
 	}
 	if validID(in.ID) != nil || in.ExpectedRevision <= 0 {
@@ -184,46 +184,46 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		if r.Revision != in.ExpectedRevision {
 			return ErrAborted
 		}
-		p := r.Proposal
-		q := in.Proposal
+		proposal := r.Proposal
+		patch := in.Proposal
 		if m["name"] {
-			p.Name = q.Name
+			proposal.Name = patch.Name
 		}
 		if m["is_supplier"] {
-			p.IsSupplier = q.IsSupplier
+			proposal.IsSupplier = patch.IsSupplier
 		}
 		if m["category_ids"] {
-			p.CategoryIDs = q.CategoryIDs
+			proposal.CategoryIDs = patch.CategoryIDs
 		}
 		if m["building_id"] {
-			p.BuildingID = q.BuildingID
+			proposal.BuildingID = patch.BuildingID
 		}
 		if m["floor"] {
-			p.Floor = q.Floor
+			proposal.Floor = patch.Floor
 		}
 		if m["coordinates"] {
-			p.CoordinatesMissing = q.CoordinatesMissing
-			p.Latitude = q.Latitude
-			p.Longitude = q.Longitude
+			proposal.CoordinatesMissing = patch.CoordinatesMissing
+			proposal.Latitude = patch.Latitude
+			proposal.Longitude = patch.Longitude
 		}
 		if m["open_from"] {
-			p.OpenFrom = q.OpenFrom
-			p.OpenTo = q.OpenTo
+			proposal.OpenFrom = patch.OpenFrom
+			proposal.OpenTo = patch.OpenTo
 		}
 		if m["contact"] {
-			p.Contact = q.Contact
+			proposal.Contact = patch.Contact
 		}
 		if m["details"] {
-			p.Details = q.Details
+			proposal.Details = patch.Details
 		}
-		p, e = normalizeProposal(p)
+		proposal, e = normalizeProposal(proposal)
 		if e != nil {
 			return e
 		}
-		if e = tx.ValidateReferences(ctx, p); e != nil {
+		if e = tx.ValidateReferences(ctx, proposal); e != nil {
 			return e
 		}
-		r.Proposal = p
+		r.Proposal = proposal
 		r.Revision++
 		r.UpdatedAt = s.clock().UTC()
 		out = r
@@ -247,7 +247,7 @@ func (s *Service) ApproveRequest(ctx context.Context, c Caller, id string) (Appr
 }
 
 func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, target RequestStatus, note string) (out Approval, err error) {
-	if err = authenticate(c); err != nil {
+	if err = requireAuthenticated(c); err != nil {
 		return
 	}
 	if target != Withdrawn && !c.IsAdmin() {
@@ -274,7 +274,7 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 			return ErrPermissionDenied
 		}
 		if r.Status == target {
-			out.Request = project(c, r)
+			out.Request = redactRequestForCaller(c, r)
 			if target == Approved {
 				out.Location, e = tx.Location(ctx, *r.ResultingLocationID)
 			}

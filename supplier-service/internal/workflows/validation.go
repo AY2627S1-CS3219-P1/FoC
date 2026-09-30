@@ -9,15 +9,15 @@ import (
 	"github.com/google/uuid"
 )
 
-func authenticate(c Caller) error {
+func requireAuthenticated(c Caller) error {
 	if !c.Authenticated() {
 		return ErrUnauthenticated
 	}
 	return nil
 }
 
-func administrator(c Caller) error {
-	if err := authenticate(c); err != nil {
+func requireAdmin(c Caller) error {
+	if err := requireAuthenticated(c); err != nil {
 		return err
 	}
 	if !c.IsAdmin() {

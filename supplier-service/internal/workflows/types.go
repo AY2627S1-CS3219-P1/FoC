@@ -18,6 +18,8 @@ var (
 	ErrAborted            = errors.New("stale revision")
 )
 
+// Caller contains identity and role supplied by a trusted authentication layer.
+// Application rules check access but do not verify credentials.
 type Caller struct{ ID, Role string }
 
 func (c Caller) IsAdmin() bool { return c.Role == "admin" || c.Role == "super_admin" }

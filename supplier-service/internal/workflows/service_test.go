@@ -3,13 +3,13 @@ package workflows_test
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	"github.com/google/uuid"
 )
 
 func TestScheduledDisablementCannotEndEarly(t *testing.T) {

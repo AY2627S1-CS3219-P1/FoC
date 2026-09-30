@@ -22,7 +22,7 @@ func validateDisablement(d *Disablement) error {
 }
 
 func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisablement) (out Disablement, err error) {
-	if err = administrator(c); err != nil {
+	if err = requireAdmin(c); err != nil {
 		return
 	}
 	if err = validID(in.LocationID); err != nil {
@@ -78,7 +78,7 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 }
 
 func (s *Service) ListDisablements(ctx context.Context, c Caller, locationID string, state DisablementState, p Page) (out DisablementPage, err error) {
-	if err = administrator(c); err != nil {
+	if err = requireAdmin(c); err != nil {
 		return
 	}
 	if err = validID(locationID); err != nil {
@@ -103,7 +103,7 @@ func (s *Service) ListDisablements(ctx context.Context, c Caller, locationID str
 }
 
 func (s *Service) UpdateDisablement(ctx context.Context, c Caller, in UpdateDisablement) (out Disablement, err error) {
-	if err = administrator(c); err != nil {
+	if err = requireAdmin(c); err != nil {
 		return
 	}
 	if validID(in.ID) != nil || in.ExpectedRevision <= 0 {
@@ -167,7 +167,7 @@ func (s *Service) CancelDisablement(ctx context.Context, c Caller, id string) (D
 }
 
 func (s *Service) transitionDisablement(ctx context.Context, c Caller, id string, target DisablementState) (out Disablement, err error) {
-	if err = administrator(c); err != nil {
+	if err = requireAdmin(c); err != nil {
 		return
 	}
 	if err = validID(id); err != nil {
