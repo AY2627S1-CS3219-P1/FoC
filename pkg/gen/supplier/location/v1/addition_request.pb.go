@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: supplier/v1/location_addition_request.proto
+// source: supplier/location/v1/addition_request.proto
 
-package supplierv1
+package locationv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -65,11 +65,11 @@ func (x LocationAdditionRequestStatus) String() string {
 }
 
 func (LocationAdditionRequestStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_supplier_v1_location_addition_request_proto_enumTypes[0].Descriptor()
+	return file_supplier_location_v1_addition_request_proto_enumTypes[0].Descriptor()
 }
 
 func (LocationAdditionRequestStatus) Type() protoreflect.EnumType {
-	return &file_supplier_v1_location_addition_request_proto_enumTypes[0]
+	return &file_supplier_location_v1_addition_request_proto_enumTypes[0]
 }
 
 func (x LocationAdditionRequestStatus) Number() protoreflect.EnumNumber {
@@ -78,7 +78,7 @@ func (x LocationAdditionRequestStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LocationAdditionRequestStatus.Descriptor instead.
 func (LocationAdditionRequestStatus) EnumDescriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{0}
 }
 
 type LocationAdditionRequest struct {
@@ -87,7 +87,7 @@ type LocationAdditionRequest struct {
 	Proposal *LocationInput         `protobuf:"bytes,2,opt,name=proposal,proto3" json:"proposal,omitempty"`
 	// Redacted from generally visible approved responses.
 	SubmittedBy string                        `protobuf:"bytes,3,opt,name=submitted_by,json=submittedBy,proto3" json:"submitted_by,omitempty"`
-	Status      LocationAdditionRequestStatus `protobuf:"varint,4,opt,name=status,proto3,enum=supplier.v1.LocationAdditionRequestStatus" json:"status,omitempty"`
+	Status      LocationAdditionRequestStatus `protobuf:"varint,4,opt,name=status,proto3,enum=supplier.location.v1.LocationAdditionRequestStatus" json:"status,omitempty"`
 	// Redacted from generally visible approved responses.
 	ReviewedBy *string                `protobuf:"bytes,5,opt,name=reviewed_by,json=reviewedBy,proto3,oneof" json:"reviewed_by,omitempty"`
 	ReviewedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=reviewed_at,json=reviewedAt,proto3" json:"reviewed_at,omitempty"`
@@ -103,7 +103,7 @@ type LocationAdditionRequest struct {
 
 func (x *LocationAdditionRequest) Reset() {
 	*x = LocationAdditionRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -115,7 +115,7 @@ func (x *LocationAdditionRequest) String() string {
 func (*LocationAdditionRequest) ProtoMessage() {}
 
 func (x *LocationAdditionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -128,7 +128,7 @@ func (x *LocationAdditionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocationAdditionRequest.ProtoReflect.Descriptor instead.
 func (*LocationAdditionRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *LocationAdditionRequest) GetId() string {
@@ -220,7 +220,7 @@ type SubmitLocationAdditionRequestRequest struct {
 
 func (x *SubmitLocationAdditionRequestRequest) Reset() {
 	*x = SubmitLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -232,7 +232,7 @@ func (x *SubmitLocationAdditionRequestRequest) String() string {
 func (*SubmitLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *SubmitLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -245,7 +245,7 @@ func (x *SubmitLocationAdditionRequestRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use SubmitLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*SubmitLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SubmitLocationAdditionRequestRequest) GetProposal() *LocationInput {
@@ -265,7 +265,7 @@ func (x *SubmitLocationAdditionRequestRequest) GetIdempotencyKey() string {
 // Counts and filters apply after caller visibility.
 type ListLocationAdditionRequestsRequest struct {
 	state  protoimpl.MessageState        `protogen:"open.v1"`
-	Status LocationAdditionRequestStatus `protobuf:"varint,1,opt,name=status,proto3,enum=supplier.v1.LocationAdditionRequestStatus" json:"status,omitempty"`
+	Status LocationAdditionRequestStatus `protobuf:"varint,1,opt,name=status,proto3,enum=supplier.location.v1.LocationAdditionRequestStatus" json:"status,omitempty"`
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
@@ -276,7 +276,7 @@ type ListLocationAdditionRequestsRequest struct {
 
 func (x *ListLocationAdditionRequestsRequest) Reset() {
 	*x = ListLocationAdditionRequestsRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -288,7 +288,7 @@ func (x *ListLocationAdditionRequestsRequest) String() string {
 func (*ListLocationAdditionRequestsRequest) ProtoMessage() {}
 
 func (x *ListLocationAdditionRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -301,7 +301,7 @@ func (x *ListLocationAdditionRequestsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ListLocationAdditionRequestsRequest.ProtoReflect.Descriptor instead.
 func (*ListLocationAdditionRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListLocationAdditionRequestsRequest) GetStatus() LocationAdditionRequestStatus {
@@ -340,7 +340,7 @@ type UpdateLocationAdditionRequestRequest struct {
 
 func (x *UpdateLocationAdditionRequestRequest) Reset() {
 	*x = UpdateLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -352,7 +352,7 @@ func (x *UpdateLocationAdditionRequestRequest) String() string {
 func (*UpdateLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *UpdateLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -365,7 +365,7 @@ func (x *UpdateLocationAdditionRequestRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use UpdateLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{3}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UpdateLocationAdditionRequestRequest) GetId() string {
@@ -405,7 +405,7 @@ type GetLocationAdditionRequestRequest struct {
 
 func (x *GetLocationAdditionRequestRequest) Reset() {
 	*x = GetLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +417,7 @@ func (x *GetLocationAdditionRequestRequest) String() string {
 func (*GetLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *GetLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +430,7 @@ func (x *GetLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use GetLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*GetLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{4}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetLocationAdditionRequestRequest) GetId() string {
@@ -449,7 +449,7 @@ type WithdrawLocationAdditionRequestRequest struct {
 
 func (x *WithdrawLocationAdditionRequestRequest) Reset() {
 	*x = WithdrawLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +461,7 @@ func (x *WithdrawLocationAdditionRequestRequest) String() string {
 func (*WithdrawLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *WithdrawLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +474,7 @@ func (x *WithdrawLocationAdditionRequestRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use WithdrawLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*WithdrawLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{5}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WithdrawLocationAdditionRequestRequest) GetId() string {
@@ -493,7 +493,7 @@ type ApproveLocationAdditionRequestRequest struct {
 
 func (x *ApproveLocationAdditionRequestRequest) Reset() {
 	*x = ApproveLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +505,7 @@ func (x *ApproveLocationAdditionRequestRequest) String() string {
 func (*ApproveLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *ApproveLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +518,7 @@ func (x *ApproveLocationAdditionRequestRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use ApproveLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*ApproveLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{6}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ApproveLocationAdditionRequestRequest) GetId() string {
@@ -538,7 +538,7 @@ type RejectLocationAdditionRequestRequest struct {
 
 func (x *RejectLocationAdditionRequestRequest) Reset() {
 	*x = RejectLocationAdditionRequestRequest{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -550,7 +550,7 @@ func (x *RejectLocationAdditionRequestRequest) String() string {
 func (*RejectLocationAdditionRequestRequest) ProtoMessage() {}
 
 func (x *RejectLocationAdditionRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -563,7 +563,7 @@ func (x *RejectLocationAdditionRequestRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use RejectLocationAdditionRequestRequest.ProtoReflect.Descriptor instead.
 func (*RejectLocationAdditionRequestRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{7}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RejectLocationAdditionRequestRequest) GetId() string {
@@ -589,7 +589,7 @@ type SubmitLocationAdditionRequestResponse struct {
 
 func (x *SubmitLocationAdditionRequestResponse) Reset() {
 	*x = SubmitLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[8]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +601,7 @@ func (x *SubmitLocationAdditionRequestResponse) String() string {
 func (*SubmitLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *SubmitLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[8]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +614,7 @@ func (x *SubmitLocationAdditionRequestResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use SubmitLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*SubmitLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{8}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SubmitLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -633,7 +633,7 @@ type GetLocationAdditionRequestResponse struct {
 
 func (x *GetLocationAdditionRequestResponse) Reset() {
 	*x = GetLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[9]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -645,7 +645,7 @@ func (x *GetLocationAdditionRequestResponse) String() string {
 func (*GetLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *GetLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[9]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -658,7 +658,7 @@ func (x *GetLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use GetLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*GetLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{9}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -677,7 +677,7 @@ type UpdateLocationAdditionRequestResponse struct {
 
 func (x *UpdateLocationAdditionRequestResponse) Reset() {
 	*x = UpdateLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[10]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +689,7 @@ func (x *UpdateLocationAdditionRequestResponse) String() string {
 func (*UpdateLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *UpdateLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[10]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +702,7 @@ func (x *UpdateLocationAdditionRequestResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use UpdateLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*UpdateLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{10}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -721,7 +721,7 @@ type WithdrawLocationAdditionRequestResponse struct {
 
 func (x *WithdrawLocationAdditionRequestResponse) Reset() {
 	*x = WithdrawLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[11]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -733,7 +733,7 @@ func (x *WithdrawLocationAdditionRequestResponse) String() string {
 func (*WithdrawLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *WithdrawLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[11]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -746,7 +746,7 @@ func (x *WithdrawLocationAdditionRequestResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use WithdrawLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*WithdrawLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{11}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WithdrawLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -767,7 +767,7 @@ type ApproveLocationAdditionRequestResponse struct {
 
 func (x *ApproveLocationAdditionRequestResponse) Reset() {
 	*x = ApproveLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[12]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -779,7 +779,7 @@ func (x *ApproveLocationAdditionRequestResponse) String() string {
 func (*ApproveLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *ApproveLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[12]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -792,7 +792,7 @@ func (x *ApproveLocationAdditionRequestResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use ApproveLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*ApproveLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{12}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ApproveLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -818,7 +818,7 @@ type RejectLocationAdditionRequestResponse struct {
 
 func (x *RejectLocationAdditionRequestResponse) Reset() {
 	*x = RejectLocationAdditionRequestResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[13]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -830,7 +830,7 @@ func (x *RejectLocationAdditionRequestResponse) String() string {
 func (*RejectLocationAdditionRequestResponse) ProtoMessage() {}
 
 func (x *RejectLocationAdditionRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[13]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -843,7 +843,7 @@ func (x *RejectLocationAdditionRequestResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use RejectLocationAdditionRequestResponse.ProtoReflect.Descriptor instead.
 func (*RejectLocationAdditionRequestResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{13}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RejectLocationAdditionRequestResponse) GetRequest() *LocationAdditionRequest {
@@ -864,7 +864,7 @@ type ListLocationAdditionRequestsResponse struct {
 
 func (x *ListLocationAdditionRequestsResponse) Reset() {
 	*x = ListLocationAdditionRequestsResponse{}
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[14]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +876,7 @@ func (x *ListLocationAdditionRequestsResponse) String() string {
 func (*ListLocationAdditionRequestsResponse) ProtoMessage() {}
 
 func (x *ListLocationAdditionRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_addition_request_proto_msgTypes[14]
+	mi := &file_supplier_location_v1_addition_request_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +889,7 @@ func (x *ListLocationAdditionRequestsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ListLocationAdditionRequestsResponse.ProtoReflect.Descriptor instead.
 func (*ListLocationAdditionRequestsResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_addition_request_proto_rawDescGZIP(), []int{14}
+	return file_supplier_location_v1_addition_request_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListLocationAdditionRequestsResponse) GetRequests() []*LocationAdditionRequest {
@@ -906,16 +906,16 @@ func (x *ListLocationAdditionRequestsResponse) GetPageInfo() *PageInfo {
 	return nil
 }
 
-var File_supplier_v1_location_addition_request_proto protoreflect.FileDescriptor
+var File_supplier_location_v1_addition_request_proto protoreflect.FileDescriptor
 
-const file_supplier_v1_location_addition_request_proto_rawDesc = "" +
+const file_supplier_location_v1_addition_request_proto_rawDesc = "" +
 	"\n" +
-	"+supplier/v1/location_addition_request.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'supplier/v1/location_shared_types.proto\"\xd6\x04\n" +
+	"+supplier/location/v1/addition_request.proto\x12\x14supplier.location.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'supplier/location/v1/shared_types.proto\"\xe8\x04\n" +
 	"\x17LocationAdditionRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
-	"\bproposal\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputR\bproposal\x12!\n" +
-	"\fsubmitted_by\x18\x03 \x01(\tR\vsubmittedBy\x12B\n" +
-	"\x06status\x18\x04 \x01(\x0e2*.supplier.v1.LocationAdditionRequestStatusR\x06status\x12$\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12?\n" +
+	"\bproposal\x18\x02 \x01(\v2#.supplier.location.v1.LocationInputR\bproposal\x12!\n" +
+	"\fsubmitted_by\x18\x03 \x01(\tR\vsubmittedBy\x12K\n" +
+	"\x06status\x18\x04 \x01(\x0e23.supplier.location.v1.LocationAdditionRequestStatusR\x06status\x12$\n" +
 	"\vreviewed_by\x18\x05 \x01(\tH\x00R\n" +
 	"reviewedBy\x88\x01\x01\x12;\n" +
 	"\vreviewed_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
@@ -931,18 +931,18 @@ const file_supplier_v1_location_addition_request_proto_rawDesc = "" +
 	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\x0e\n" +
 	"\f_reviewed_byB\x0e\n" +
 	"\f_review_noteB\x18\n" +
-	"\x16_resulting_location_id\"\xff\x02\n" +
-	"$SubmitLocationAdditionRequestRequest\x12>\n" +
-	"\bproposal\x18\x01 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\bproposal\x121\n" +
+	"\x16_resulting_location_id\"\x88\x03\n" +
+	"$SubmitLocationAdditionRequestRequest\x12G\n" +
+	"\bproposal\x18\x01 \x01(\v2#.supplier.location.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\bproposal\x121\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey:\xe3\x01\xbaH\xdf\x01\x1a\xdc\x01\n" +
-	"\x11complete_proposal\x12;name, classification, Building and coordinates are required\x1a\x89\x01this.proposal.name.size() > 0 && has(this.proposal.is_supplier) && this.proposal.building_id.size() > 0 && has(this.proposal.coordinates)\"\xb8\x01\n" +
-	"#ListLocationAdditionRequestsRequest\x12L\n" +
-	"\x06status\x18\x01 \x01(\x0e2*.supplier.v1.LocationAdditionRequestStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
+	"\x11complete_proposal\x12;name, classification, Building and coordinates are required\x1a\x89\x01this.proposal.name.size() > 0 && has(this.proposal.is_supplier) && this.proposal.building_id.size() > 0 && has(this.proposal.coordinates)\"\xc1\x01\n" +
+	"#ListLocationAdditionRequestsRequest\x12U\n" +
+	"\x06status\x18\x01 \x01(\x0e23.supplier.location.v1.LocationAdditionRequestStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x03 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"\xe8\x02\n" +
+	"\tpage_size\x18\x03 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"\xf1\x02\n" +
 	"$UpdateLocationAdditionRequestRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12>\n" +
-	"\bproposal\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xd8\x01\x03R\bproposal\x12\xaf\x01\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12G\n" +
+	"\bproposal\x18\x02 \x01(\v2#.supplier.location.v1.LocationInputB\x06\xbaH\x03\xd8\x01\x03R\bproposal\x12\xaf\x01\n" +
 	"\vupdate_mask\x18\x03 \x01(\v2\x1a.google.protobuf.FieldMaskBr\xbaHo\xc8\x01\x01\xe2\x01i\x12\x04name\x12\vis_supplier\x12\fcategory_ids\x12\vbuilding_id\x12\x05floor\x12\vcoordinates\x12\bopens_at\x12\tcloses_at\x12\acontact\x12\adetailsR\n" +
 	"updateMask\x124\n" +
 	"\x11expected_revision\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\"=\n" +
@@ -956,109 +956,109 @@ const file_supplier_v1_location_addition_request_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12+\n" +
 	"\vreview_note\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fR\n" +
-	"reviewNote\"g\n" +
-	"%SubmitLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\"d\n" +
-	"\"GetLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\"g\n" +
-	"%UpdateLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\"i\n" +
-	"'WithdrawLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\"\x9b\x01\n" +
-	"&ApproveLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\x121\n" +
-	"\blocation\x18\x02 \x01(\v2\x15.supplier.v1.LocationR\blocation\"g\n" +
-	"%RejectLocationAdditionRequestResponse\x12>\n" +
-	"\arequest\x18\x01 \x01(\v2$.supplier.v1.LocationAdditionRequestR\arequest\"\x9c\x01\n" +
-	"$ListLocationAdditionRequestsResponse\x12@\n" +
-	"\brequests\x18\x01 \x03(\v2$.supplier.v1.LocationAdditionRequestR\brequests\x122\n" +
-	"\tpage_info\x18\x02 \x01(\v2\x15.supplier.v1.PageInfoR\bpageInfo*\x8d\x02\n" +
+	"reviewNote\"p\n" +
+	"%SubmitLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"m\n" +
+	"\"GetLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"p\n" +
+	"%UpdateLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"r\n" +
+	"'WithdrawLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"\xad\x01\n" +
+	"&ApproveLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\x12:\n" +
+	"\blocation\x18\x02 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"p\n" +
+	"%RejectLocationAdditionRequestResponse\x12G\n" +
+	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"\xae\x01\n" +
+	"$ListLocationAdditionRequestsResponse\x12I\n" +
+	"\brequests\x18\x01 \x03(\v2-.supplier.location.v1.LocationAdditionRequestR\brequests\x12;\n" +
+	"\tpage_info\x18\x02 \x01(\v2\x1e.supplier.location.v1.PageInfoR\bpageInfo*\x8d\x02\n" +
 	"\x1dLocationAdditionRequestStatus\x120\n" +
 	",LOCATION_ADDITION_REQUEST_STATUS_UNSPECIFIED\x10\x00\x12,\n" +
 	"(LOCATION_ADDITION_REQUEST_STATUS_PENDING\x10\x01\x12-\n" +
 	")LOCATION_ADDITION_REQUEST_STATUS_APPROVED\x10\x02\x12-\n" +
 	")LOCATION_ADDITION_REQUEST_STATUS_REJECTED\x10\x03\x12.\n" +
-	"*LOCATION_ADDITION_REQUEST_STATUS_WITHDRAWN\x10\x042\xf9\a\n" +
-	"\x1eLocationAdditionRequestService\x12\x88\x01\n" +
-	"\x1dSubmitLocationAdditionRequest\x121.supplier.v1.SubmitLocationAdditionRequestRequest\x1a2.supplier.v1.SubmitLocationAdditionRequestResponse\"\x00\x12\x88\x01\n" +
-	"\x1cListLocationAdditionRequests\x120.supplier.v1.ListLocationAdditionRequestsRequest\x1a1.supplier.v1.ListLocationAdditionRequestsResponse\"\x03\x90\x02\x01\x12\x82\x01\n" +
-	"\x1aGetLocationAdditionRequest\x12..supplier.v1.GetLocationAdditionRequestRequest\x1a/.supplier.v1.GetLocationAdditionRequestResponse\"\x03\x90\x02\x01\x12\x88\x01\n" +
-	"\x1dUpdateLocationAdditionRequest\x121.supplier.v1.UpdateLocationAdditionRequestRequest\x1a2.supplier.v1.UpdateLocationAdditionRequestResponse\"\x00\x12\x91\x01\n" +
-	"\x1fWithdrawLocationAdditionRequest\x123.supplier.v1.WithdrawLocationAdditionRequestRequest\x1a4.supplier.v1.WithdrawLocationAdditionRequestResponse\"\x03\x90\x02\x02\x12\x8e\x01\n" +
-	"\x1eApproveLocationAdditionRequest\x122.supplier.v1.ApproveLocationAdditionRequestRequest\x1a3.supplier.v1.ApproveLocationAdditionRequestResponse\"\x03\x90\x02\x02\x12\x8b\x01\n" +
-	"\x1dRejectLocationAdditionRequest\x121.supplier.v1.RejectLocationAdditionRequestRequest\x1a2.supplier.v1.RejectLocationAdditionRequestResponse\"\x03\x90\x02\x02B\xbe\x01\n" +
-	"\x0fcom.supplier.v1B\x1cLocationAdditionRequestProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
+	"*LOCATION_ADDITION_REQUEST_STATUS_WITHDRAWN\x10\x042\xf7\b\n" +
+	"\x1eLocationAdditionRequestService\x12\x9a\x01\n" +
+	"\x1dSubmitLocationAdditionRequest\x12:.supplier.location.v1.SubmitLocationAdditionRequestRequest\x1a;.supplier.location.v1.SubmitLocationAdditionRequestResponse\"\x00\x12\x9a\x01\n" +
+	"\x1cListLocationAdditionRequests\x129.supplier.location.v1.ListLocationAdditionRequestsRequest\x1a:.supplier.location.v1.ListLocationAdditionRequestsResponse\"\x03\x90\x02\x01\x12\x94\x01\n" +
+	"\x1aGetLocationAdditionRequest\x127.supplier.location.v1.GetLocationAdditionRequestRequest\x1a8.supplier.location.v1.GetLocationAdditionRequestResponse\"\x03\x90\x02\x01\x12\x9a\x01\n" +
+	"\x1dUpdateLocationAdditionRequest\x12:.supplier.location.v1.UpdateLocationAdditionRequestRequest\x1a;.supplier.location.v1.UpdateLocationAdditionRequestResponse\"\x00\x12\xa3\x01\n" +
+	"\x1fWithdrawLocationAdditionRequest\x12<.supplier.location.v1.WithdrawLocationAdditionRequestRequest\x1a=.supplier.location.v1.WithdrawLocationAdditionRequestResponse\"\x03\x90\x02\x02\x12\xa0\x01\n" +
+	"\x1eApproveLocationAdditionRequest\x12;.supplier.location.v1.ApproveLocationAdditionRequestRequest\x1a<.supplier.location.v1.ApproveLocationAdditionRequestResponse\"\x03\x90\x02\x02\x12\x9d\x01\n" +
+	"\x1dRejectLocationAdditionRequest\x12:.supplier.location.v1.RejectLocationAdditionRequestRequest\x1a;.supplier.location.v1.RejectLocationAdditionRequestResponse\"\x03\x90\x02\x02B\xed\x01\n" +
+	"\x18com.supplier.location.v1B\x14AdditionRequestProtoP\x01ZIgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1;locationv1\xa2\x02\x03SLX\xaa\x02\x14Supplier.Location.V1\xca\x02\x14Supplier\\Location\\V1\xe2\x02 Supplier\\Location\\V1\\GPBMetadata\xea\x02\x16Supplier::Location::V1b\x06proto3"
 
 var (
-	file_supplier_v1_location_addition_request_proto_rawDescOnce sync.Once
-	file_supplier_v1_location_addition_request_proto_rawDescData []byte
+	file_supplier_location_v1_addition_request_proto_rawDescOnce sync.Once
+	file_supplier_location_v1_addition_request_proto_rawDescData []byte
 )
 
-func file_supplier_v1_location_addition_request_proto_rawDescGZIP() []byte {
-	file_supplier_v1_location_addition_request_proto_rawDescOnce.Do(func() {
-		file_supplier_v1_location_addition_request_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_v1_location_addition_request_proto_rawDesc), len(file_supplier_v1_location_addition_request_proto_rawDesc)))
+func file_supplier_location_v1_addition_request_proto_rawDescGZIP() []byte {
+	file_supplier_location_v1_addition_request_proto_rawDescOnce.Do(func() {
+		file_supplier_location_v1_addition_request_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_location_v1_addition_request_proto_rawDesc), len(file_supplier_location_v1_addition_request_proto_rawDesc)))
 	})
-	return file_supplier_v1_location_addition_request_proto_rawDescData
+	return file_supplier_location_v1_addition_request_proto_rawDescData
 }
 
-var file_supplier_v1_location_addition_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_supplier_v1_location_addition_request_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
-var file_supplier_v1_location_addition_request_proto_goTypes = []any{
-	(LocationAdditionRequestStatus)(0),              // 0: supplier.v1.LocationAdditionRequestStatus
-	(*LocationAdditionRequest)(nil),                 // 1: supplier.v1.LocationAdditionRequest
-	(*SubmitLocationAdditionRequestRequest)(nil),    // 2: supplier.v1.SubmitLocationAdditionRequestRequest
-	(*ListLocationAdditionRequestsRequest)(nil),     // 3: supplier.v1.ListLocationAdditionRequestsRequest
-	(*UpdateLocationAdditionRequestRequest)(nil),    // 4: supplier.v1.UpdateLocationAdditionRequestRequest
-	(*GetLocationAdditionRequestRequest)(nil),       // 5: supplier.v1.GetLocationAdditionRequestRequest
-	(*WithdrawLocationAdditionRequestRequest)(nil),  // 6: supplier.v1.WithdrawLocationAdditionRequestRequest
-	(*ApproveLocationAdditionRequestRequest)(nil),   // 7: supplier.v1.ApproveLocationAdditionRequestRequest
-	(*RejectLocationAdditionRequestRequest)(nil),    // 8: supplier.v1.RejectLocationAdditionRequestRequest
-	(*SubmitLocationAdditionRequestResponse)(nil),   // 9: supplier.v1.SubmitLocationAdditionRequestResponse
-	(*GetLocationAdditionRequestResponse)(nil),      // 10: supplier.v1.GetLocationAdditionRequestResponse
-	(*UpdateLocationAdditionRequestResponse)(nil),   // 11: supplier.v1.UpdateLocationAdditionRequestResponse
-	(*WithdrawLocationAdditionRequestResponse)(nil), // 12: supplier.v1.WithdrawLocationAdditionRequestResponse
-	(*ApproveLocationAdditionRequestResponse)(nil),  // 13: supplier.v1.ApproveLocationAdditionRequestResponse
-	(*RejectLocationAdditionRequestResponse)(nil),   // 14: supplier.v1.RejectLocationAdditionRequestResponse
-	(*ListLocationAdditionRequestsResponse)(nil),    // 15: supplier.v1.ListLocationAdditionRequestsResponse
-	(*LocationInput)(nil),                           // 16: supplier.v1.LocationInput
+var file_supplier_location_v1_addition_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_supplier_location_v1_addition_request_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_supplier_location_v1_addition_request_proto_goTypes = []any{
+	(LocationAdditionRequestStatus)(0),              // 0: supplier.location.v1.LocationAdditionRequestStatus
+	(*LocationAdditionRequest)(nil),                 // 1: supplier.location.v1.LocationAdditionRequest
+	(*SubmitLocationAdditionRequestRequest)(nil),    // 2: supplier.location.v1.SubmitLocationAdditionRequestRequest
+	(*ListLocationAdditionRequestsRequest)(nil),     // 3: supplier.location.v1.ListLocationAdditionRequestsRequest
+	(*UpdateLocationAdditionRequestRequest)(nil),    // 4: supplier.location.v1.UpdateLocationAdditionRequestRequest
+	(*GetLocationAdditionRequestRequest)(nil),       // 5: supplier.location.v1.GetLocationAdditionRequestRequest
+	(*WithdrawLocationAdditionRequestRequest)(nil),  // 6: supplier.location.v1.WithdrawLocationAdditionRequestRequest
+	(*ApproveLocationAdditionRequestRequest)(nil),   // 7: supplier.location.v1.ApproveLocationAdditionRequestRequest
+	(*RejectLocationAdditionRequestRequest)(nil),    // 8: supplier.location.v1.RejectLocationAdditionRequestRequest
+	(*SubmitLocationAdditionRequestResponse)(nil),   // 9: supplier.location.v1.SubmitLocationAdditionRequestResponse
+	(*GetLocationAdditionRequestResponse)(nil),      // 10: supplier.location.v1.GetLocationAdditionRequestResponse
+	(*UpdateLocationAdditionRequestResponse)(nil),   // 11: supplier.location.v1.UpdateLocationAdditionRequestResponse
+	(*WithdrawLocationAdditionRequestResponse)(nil), // 12: supplier.location.v1.WithdrawLocationAdditionRequestResponse
+	(*ApproveLocationAdditionRequestResponse)(nil),  // 13: supplier.location.v1.ApproveLocationAdditionRequestResponse
+	(*RejectLocationAdditionRequestResponse)(nil),   // 14: supplier.location.v1.RejectLocationAdditionRequestResponse
+	(*ListLocationAdditionRequestsResponse)(nil),    // 15: supplier.location.v1.ListLocationAdditionRequestsResponse
+	(*LocationInput)(nil),                           // 16: supplier.location.v1.LocationInput
 	(*timestamppb.Timestamp)(nil),                   // 17: google.protobuf.Timestamp
 	(*fieldmaskpb.FieldMask)(nil),                   // 18: google.protobuf.FieldMask
-	(*Location)(nil),                                // 19: supplier.v1.Location
-	(*PageInfo)(nil),                                // 20: supplier.v1.PageInfo
+	(*Location)(nil),                                // 19: supplier.location.v1.Location
+	(*PageInfo)(nil),                                // 20: supplier.location.v1.PageInfo
 }
-var file_supplier_v1_location_addition_request_proto_depIdxs = []int32{
-	16, // 0: supplier.v1.LocationAdditionRequest.proposal:type_name -> supplier.v1.LocationInput
-	0,  // 1: supplier.v1.LocationAdditionRequest.status:type_name -> supplier.v1.LocationAdditionRequestStatus
-	17, // 2: supplier.v1.LocationAdditionRequest.reviewed_at:type_name -> google.protobuf.Timestamp
-	17, // 3: supplier.v1.LocationAdditionRequest.created_at:type_name -> google.protobuf.Timestamp
-	17, // 4: supplier.v1.LocationAdditionRequest.updated_at:type_name -> google.protobuf.Timestamp
-	16, // 5: supplier.v1.SubmitLocationAdditionRequestRequest.proposal:type_name -> supplier.v1.LocationInput
-	0,  // 6: supplier.v1.ListLocationAdditionRequestsRequest.status:type_name -> supplier.v1.LocationAdditionRequestStatus
-	16, // 7: supplier.v1.UpdateLocationAdditionRequestRequest.proposal:type_name -> supplier.v1.LocationInput
-	18, // 8: supplier.v1.UpdateLocationAdditionRequestRequest.update_mask:type_name -> google.protobuf.FieldMask
-	1,  // 9: supplier.v1.SubmitLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	1,  // 10: supplier.v1.GetLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	1,  // 11: supplier.v1.UpdateLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	1,  // 12: supplier.v1.WithdrawLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	1,  // 13: supplier.v1.ApproveLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	19, // 14: supplier.v1.ApproveLocationAdditionRequestResponse.location:type_name -> supplier.v1.Location
-	1,  // 15: supplier.v1.RejectLocationAdditionRequestResponse.request:type_name -> supplier.v1.LocationAdditionRequest
-	1,  // 16: supplier.v1.ListLocationAdditionRequestsResponse.requests:type_name -> supplier.v1.LocationAdditionRequest
-	20, // 17: supplier.v1.ListLocationAdditionRequestsResponse.page_info:type_name -> supplier.v1.PageInfo
-	2,  // 18: supplier.v1.LocationAdditionRequestService.SubmitLocationAdditionRequest:input_type -> supplier.v1.SubmitLocationAdditionRequestRequest
-	3,  // 19: supplier.v1.LocationAdditionRequestService.ListLocationAdditionRequests:input_type -> supplier.v1.ListLocationAdditionRequestsRequest
-	5,  // 20: supplier.v1.LocationAdditionRequestService.GetLocationAdditionRequest:input_type -> supplier.v1.GetLocationAdditionRequestRequest
-	4,  // 21: supplier.v1.LocationAdditionRequestService.UpdateLocationAdditionRequest:input_type -> supplier.v1.UpdateLocationAdditionRequestRequest
-	6,  // 22: supplier.v1.LocationAdditionRequestService.WithdrawLocationAdditionRequest:input_type -> supplier.v1.WithdrawLocationAdditionRequestRequest
-	7,  // 23: supplier.v1.LocationAdditionRequestService.ApproveLocationAdditionRequest:input_type -> supplier.v1.ApproveLocationAdditionRequestRequest
-	8,  // 24: supplier.v1.LocationAdditionRequestService.RejectLocationAdditionRequest:input_type -> supplier.v1.RejectLocationAdditionRequestRequest
-	9,  // 25: supplier.v1.LocationAdditionRequestService.SubmitLocationAdditionRequest:output_type -> supplier.v1.SubmitLocationAdditionRequestResponse
-	15, // 26: supplier.v1.LocationAdditionRequestService.ListLocationAdditionRequests:output_type -> supplier.v1.ListLocationAdditionRequestsResponse
-	10, // 27: supplier.v1.LocationAdditionRequestService.GetLocationAdditionRequest:output_type -> supplier.v1.GetLocationAdditionRequestResponse
-	11, // 28: supplier.v1.LocationAdditionRequestService.UpdateLocationAdditionRequest:output_type -> supplier.v1.UpdateLocationAdditionRequestResponse
-	12, // 29: supplier.v1.LocationAdditionRequestService.WithdrawLocationAdditionRequest:output_type -> supplier.v1.WithdrawLocationAdditionRequestResponse
-	13, // 30: supplier.v1.LocationAdditionRequestService.ApproveLocationAdditionRequest:output_type -> supplier.v1.ApproveLocationAdditionRequestResponse
-	14, // 31: supplier.v1.LocationAdditionRequestService.RejectLocationAdditionRequest:output_type -> supplier.v1.RejectLocationAdditionRequestResponse
+var file_supplier_location_v1_addition_request_proto_depIdxs = []int32{
+	16, // 0: supplier.location.v1.LocationAdditionRequest.proposal:type_name -> supplier.location.v1.LocationInput
+	0,  // 1: supplier.location.v1.LocationAdditionRequest.status:type_name -> supplier.location.v1.LocationAdditionRequestStatus
+	17, // 2: supplier.location.v1.LocationAdditionRequest.reviewed_at:type_name -> google.protobuf.Timestamp
+	17, // 3: supplier.location.v1.LocationAdditionRequest.created_at:type_name -> google.protobuf.Timestamp
+	17, // 4: supplier.location.v1.LocationAdditionRequest.updated_at:type_name -> google.protobuf.Timestamp
+	16, // 5: supplier.location.v1.SubmitLocationAdditionRequestRequest.proposal:type_name -> supplier.location.v1.LocationInput
+	0,  // 6: supplier.location.v1.ListLocationAdditionRequestsRequest.status:type_name -> supplier.location.v1.LocationAdditionRequestStatus
+	16, // 7: supplier.location.v1.UpdateLocationAdditionRequestRequest.proposal:type_name -> supplier.location.v1.LocationInput
+	18, // 8: supplier.location.v1.UpdateLocationAdditionRequestRequest.update_mask:type_name -> google.protobuf.FieldMask
+	1,  // 9: supplier.location.v1.SubmitLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	1,  // 10: supplier.location.v1.GetLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	1,  // 11: supplier.location.v1.UpdateLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	1,  // 12: supplier.location.v1.WithdrawLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	1,  // 13: supplier.location.v1.ApproveLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	19, // 14: supplier.location.v1.ApproveLocationAdditionRequestResponse.location:type_name -> supplier.location.v1.Location
+	1,  // 15: supplier.location.v1.RejectLocationAdditionRequestResponse.request:type_name -> supplier.location.v1.LocationAdditionRequest
+	1,  // 16: supplier.location.v1.ListLocationAdditionRequestsResponse.requests:type_name -> supplier.location.v1.LocationAdditionRequest
+	20, // 17: supplier.location.v1.ListLocationAdditionRequestsResponse.page_info:type_name -> supplier.location.v1.PageInfo
+	2,  // 18: supplier.location.v1.LocationAdditionRequestService.SubmitLocationAdditionRequest:input_type -> supplier.location.v1.SubmitLocationAdditionRequestRequest
+	3,  // 19: supplier.location.v1.LocationAdditionRequestService.ListLocationAdditionRequests:input_type -> supplier.location.v1.ListLocationAdditionRequestsRequest
+	5,  // 20: supplier.location.v1.LocationAdditionRequestService.GetLocationAdditionRequest:input_type -> supplier.location.v1.GetLocationAdditionRequestRequest
+	4,  // 21: supplier.location.v1.LocationAdditionRequestService.UpdateLocationAdditionRequest:input_type -> supplier.location.v1.UpdateLocationAdditionRequestRequest
+	6,  // 22: supplier.location.v1.LocationAdditionRequestService.WithdrawLocationAdditionRequest:input_type -> supplier.location.v1.WithdrawLocationAdditionRequestRequest
+	7,  // 23: supplier.location.v1.LocationAdditionRequestService.ApproveLocationAdditionRequest:input_type -> supplier.location.v1.ApproveLocationAdditionRequestRequest
+	8,  // 24: supplier.location.v1.LocationAdditionRequestService.RejectLocationAdditionRequest:input_type -> supplier.location.v1.RejectLocationAdditionRequestRequest
+	9,  // 25: supplier.location.v1.LocationAdditionRequestService.SubmitLocationAdditionRequest:output_type -> supplier.location.v1.SubmitLocationAdditionRequestResponse
+	15, // 26: supplier.location.v1.LocationAdditionRequestService.ListLocationAdditionRequests:output_type -> supplier.location.v1.ListLocationAdditionRequestsResponse
+	10, // 27: supplier.location.v1.LocationAdditionRequestService.GetLocationAdditionRequest:output_type -> supplier.location.v1.GetLocationAdditionRequestResponse
+	11, // 28: supplier.location.v1.LocationAdditionRequestService.UpdateLocationAdditionRequest:output_type -> supplier.location.v1.UpdateLocationAdditionRequestResponse
+	12, // 29: supplier.location.v1.LocationAdditionRequestService.WithdrawLocationAdditionRequest:output_type -> supplier.location.v1.WithdrawLocationAdditionRequestResponse
+	13, // 30: supplier.location.v1.LocationAdditionRequestService.ApproveLocationAdditionRequest:output_type -> supplier.location.v1.ApproveLocationAdditionRequestResponse
+	14, // 31: supplier.location.v1.LocationAdditionRequestService.RejectLocationAdditionRequest:output_type -> supplier.location.v1.RejectLocationAdditionRequestResponse
 	25, // [25:32] is the sub-list for method output_type
 	18, // [18:25] is the sub-list for method input_type
 	18, // [18:18] is the sub-list for extension type_name
@@ -1066,29 +1066,29 @@ var file_supplier_v1_location_addition_request_proto_depIdxs = []int32{
 	0,  // [0:18] is the sub-list for field type_name
 }
 
-func init() { file_supplier_v1_location_addition_request_proto_init() }
-func file_supplier_v1_location_addition_request_proto_init() {
-	if File_supplier_v1_location_addition_request_proto != nil {
+func init() { file_supplier_location_v1_addition_request_proto_init() }
+func file_supplier_location_v1_addition_request_proto_init() {
+	if File_supplier_location_v1_addition_request_proto != nil {
 		return
 	}
-	file_supplier_v1_location_shared_types_proto_init()
-	file_supplier_v1_location_addition_request_proto_msgTypes[0].OneofWrappers = []any{}
+	file_supplier_location_v1_shared_types_proto_init()
+	file_supplier_location_v1_addition_request_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_addition_request_proto_rawDesc), len(file_supplier_v1_location_addition_request_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_location_v1_addition_request_proto_rawDesc), len(file_supplier_location_v1_addition_request_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_supplier_v1_location_addition_request_proto_goTypes,
-		DependencyIndexes: file_supplier_v1_location_addition_request_proto_depIdxs,
-		EnumInfos:         file_supplier_v1_location_addition_request_proto_enumTypes,
-		MessageInfos:      file_supplier_v1_location_addition_request_proto_msgTypes,
+		GoTypes:           file_supplier_location_v1_addition_request_proto_goTypes,
+		DependencyIndexes: file_supplier_location_v1_addition_request_proto_depIdxs,
+		EnumInfos:         file_supplier_location_v1_addition_request_proto_enumTypes,
+		MessageInfos:      file_supplier_location_v1_addition_request_proto_msgTypes,
 	}.Build()
-	File_supplier_v1_location_addition_request_proto = out.File
-	file_supplier_v1_location_addition_request_proto_goTypes = nil
-	file_supplier_v1_location_addition_request_proto_depIdxs = nil
+	File_supplier_location_v1_addition_request_proto = out.File
+	file_supplier_location_v1_addition_request_proto_goTypes = nil
+	file_supplier_location_v1_addition_request_proto_depIdxs = nil
 }

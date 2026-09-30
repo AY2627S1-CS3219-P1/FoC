@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package supplier.v1;
+package supplier.location.v1;
 
 import "buf/validate/validate.proto";
-import "supplier/v1/location_shared_types.proto";
+import "supplier/location/v1/shared_types.proto";
 
 // Authenticated Location discovery.
 service LocationDiscoveryService {

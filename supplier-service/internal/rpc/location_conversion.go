@@ -1,14 +1,14 @@
 package rpc
 
 import (
-	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
+	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toProtoLocation(loc location.Location) *supplierv1.Location {
-	out := &supplierv1.Location{
+func toProtoLocation(loc location.Location) *locationv1.Location {
+	out := &locationv1.Location{
 		Id:          loc.ID,
 		Name:        loc.Name,
 		IsSupplier:  loc.IsSupplier,
@@ -28,7 +28,7 @@ func toProtoLocation(loc location.Location) *supplierv1.Location {
 		out.ArchivedAt = timestamppb.New(*loc.ArchivedAt)
 	}
 	if d := loc.CurrentDisablement; d != nil {
-		out.CurrentDisablement = &supplierv1.Disablement{
+		out.CurrentDisablement = &locationv1.Disablement{
 			Id:       d.ID,
 			StartsAt: timestamppb.New(d.StartsAt),
 			Reason:   d.Reason,
@@ -40,8 +40,8 @@ func toProtoLocation(loc location.Location) *supplierv1.Location {
 	return out
 }
 
-func toProtoBuilding(b location.Building) *supplierv1.Building {
-	return &supplierv1.Building{
+func toProtoBuilding(b location.Building) *locationv1.Building {
+	return &locationv1.Building{
 		Id:      b.ID,
 		Name:    b.Name,
 		Center:  toProtoCoordinates(b.Center),
@@ -49,16 +49,16 @@ func toProtoBuilding(b location.Building) *supplierv1.Building {
 	}
 }
 
-func toProtoCategories(categories []location.Category) []*supplierv1.Category {
-	out := make([]*supplierv1.Category, len(categories))
+func toProtoCategories(categories []location.Category) []*locationv1.Category {
+	out := make([]*locationv1.Category, len(categories))
 	for i, c := range categories {
-		out[i] = &supplierv1.Category{Id: c.ID, Name: c.Name}
+		out[i] = &locationv1.Category{Id: c.ID, Name: c.Name}
 	}
 	return out
 }
 
-func toProtoCoordinates(c location.Coordinates) *supplierv1.Coordinates {
-	return &supplierv1.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
+func toProtoCoordinates(c location.Coordinates) *locationv1.Coordinates {
+	return &locationv1.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
 }
 
 func toProtoTimeOfDay(c *location.Clock) *timeofday.TimeOfDay {

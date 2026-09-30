@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package supplier.v1;
+package supplier.location.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
