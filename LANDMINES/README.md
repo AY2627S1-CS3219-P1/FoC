@@ -6,4 +6,3 @@ This directory records non-obvious failures that can affect future work. Each en
 | -- | -- |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
 | [Recreated services download Go dependencies again](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |
-| [User database keeps pre-UUID bigint IDs](user-db-bigint-ids.md) | The user-service database was migrated before `e96ae74` and `users.id` is `bigint`. |
