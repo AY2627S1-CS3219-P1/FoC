@@ -306,14 +306,14 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
 	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ",
-		TelegramHandle: ptr(" @new_handle "), PhoneNumber: ptr(" +12345678 ")})
+		TelegramHandle: ptr(" new_handle "), PhoneNumber: ptr(" +12345678 ")})
 	if err != nil || user.Email != "new@example.com" || user.DisplayName != "New" ||
-		user.TelegramHandle == nil || *user.TelegramHandle != "@new_handle" ||
+		user.TelegramHandle == nil || *user.TelegramHandle != "new_handle" ||
 		user.PhoneNumber == nil || *user.PhoneNumber != "+12345678" || session.AccessToken == "" {
 		t.Fatalf("registration: %+v, %+v, %v", user, session, err)
 	}
 	stored := store.users[user.ID]
-	if stored.TelegramHandle == nil || *stored.TelegramHandle != "@new_handle" ||
+	if stored.TelegramHandle == nil || *stored.TelegramHandle != "new_handle" ||
 		stored.PhoneNumber == nil || *stored.PhoneNumber != "+12345678" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
