@@ -3,11 +3,10 @@ syntax = "proto3";
 package supplier.v1;
 
 import "buf/validate/validate.proto";
-import "supplier/v1/location_admin.proto";
-import "supplier/v1/location_types.proto";
+import "supplier/v1/location_shared_types.proto";
 
-// Requires authentication. Mutations are admin only.
-service LocationService {
+// Authenticated Location discovery.
+service LocationDiscoveryService {
   // Also returns archived Locations, so old references still resolve.
   rpc GetLocation(GetLocationRequest) returns (GetLocationResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -23,19 +22,6 @@ service LocationService {
 
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
-  }
-
-  rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse) {}
-
-  rpc UpdateLocation(UpdateLocationRequest) returns (UpdateLocationResponse) {}
-
-  // Soft delete; Locations are never physically deleted.
-  rpc ArchiveLocation(ArchiveLocationRequest) returns (ArchiveLocationResponse) {
-    option idempotency_level = IDEMPOTENT;
-  }
-
-  rpc UnarchiveLocation(UnarchiveLocationRequest) returns (UnarchiveLocationResponse) {
-    option idempotency_level = IDEMPOTENT;
   }
 }
 

@@ -1,0 +1,1054 @@
+openapi: 3.1.0
+info:
+  title: API
+  description: API documentation for API
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    google.protobuf.FieldMask:
+      type: string
+      description: Comma-separated field paths in lowerCamelCase (for example, `user.displayName,photo`).
+    google.protobuf.Timestamp:
+      type: string
+      examples:
+        - "2023-01-15T01:30:15.01Z"
+        - "2024-12-25T12:00:00Z"
+      format: date-time
+      description: A point in time in RFC 3339 format, with up to nanosecond precision. Output uses UTC (`Z`); input may use an offset from UTC.
+    google.type.TimeOfDay:
+      type: object
+      properties:
+        hours:
+          type: integer
+          title: hours
+          format: int32
+          description: |-
+            Hours of a day in 24 hour format. Must be greater than or equal to 0 and
+             typically must be less than or equal to 23. An API may choose to allow the
+             value "24:00:00" for scenarios like business closing time.
+        minutes:
+          type: integer
+          title: minutes
+          format: int32
+          description: |-
+            Minutes of an hour. Must be greater than or equal to 0 and less than or
+             equal to 59.
+        seconds:
+          type: integer
+          title: seconds
+          format: int32
+          description: |-
+            Seconds of a minute. Must be greater than or equal to 0 and typically must
+             be less than or equal to 59. An API may allow the value 60 if it allows
+             leap-seconds.
+        nanos:
+          type: integer
+          title: nanos
+          format: int32
+          description: |-
+            Fractions of seconds, in nanoseconds. Must be greater than or equal to 0
+             and less than or equal to 999,999,999.
+      title: TimeOfDay
+      additionalProperties: false
+      description: |-
+        Represents a time of day. The date and time zone are either not significant
+         or are specified elsewhere. An API may choose to allow leap seconds. Related
+         types are [google.type.Date][google.type.Date] and
+         `google.protobuf.Timestamp`.
+    supplier.v1.ApproveLocationAdditionRequestRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: ApproveLocationAdditionRequestRequest
+      additionalProperties: false
+    supplier.v1.ApproveLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+          description: Location created atomically with approval, or the original on retry.
+      title: ApproveLocationAdditionRequestResponse
+      additionalProperties: false
+    supplier.v1.ArchiveLocationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: ArchiveLocationRequest
+      additionalProperties: false
+    supplier.v1.ArchiveLocationResponse:
+      type: object
+      properties:
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+      title: ArchiveLocationResponse
+      additionalProperties: false
+    supplier.v1.Building:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        name:
+          type: string
+          title: name
+        center:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Coordinates'
+          title: center
+        radiusM:
+          type: number
+          title: radius_m
+          format: float
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: created_at
+        updatedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: updated_at
+      title: Building
+      additionalProperties: false
+      description: Read-only; not editable through the API.
+    supplier.v1.CancelDisablementRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: CancelDisablementRequest
+      additionalProperties: false
+      description: Idempotent terminal command. A different terminal state is rejected.
+    supplier.v1.CancelDisablementResponse:
+      type: object
+      properties:
+        disablement:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: disablement
+      title: CancelDisablementResponse
+      additionalProperties: false
+    supplier.v1.Category:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        name:
+          type: string
+          title: name
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: created_at
+      title: Category
+      additionalProperties: false
+      description: Read-only; not editable through the API. E.g. "Food" or "Printing".
+    supplier.v1.CheckRequest:
+      type: object
+      title: CheckRequest
+      additionalProperties: false
+    supplier.v1.CheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          title: status
+      title: CheckResponse
+      additionalProperties: false
+    supplier.v1.Coordinates:
+      type: object
+      properties:
+        latitude:
+          type: number
+          title: latitude
+          maximum: 90
+          minimum: -90
+          format: double
+        longitude:
+          type: number
+          title: longitude
+          maximum: 180
+          minimum: -180
+          format: double
+      title: Coordinates
+      additionalProperties: false
+      description: WGS 84 degrees.
+    supplier.v1.CreateDisablementRequest:
+      type: object
+      properties:
+        locationId:
+          type: string
+          title: location_id
+          format: uuid
+        startsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: starts_at
+          description: Omitted means now.
+        endsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: ends_at
+          description: Omitted means indefinite; otherwise later than start.
+        reason:
+          type: string
+          title: reason
+          maxLength: 500
+          minLength: 1
+        idempotencyKey:
+          type: string
+          title: idempotency_key
+          format: uuid
+          description: UUID retry key scoped by caller and method for 24 hours.
+      title: CreateDisablementRequest
+      additionalProperties: false
+      description: Creates a non-overlapping interval on an unarchived Location.
+    supplier.v1.CreateDisablementResponse:
+      type: object
+      properties:
+        disablement:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: disablement
+      title: CreateDisablementResponse
+      additionalProperties: false
+    supplier.v1.CreateLocationRequest:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          title: idempotency_key
+          format: uuid
+          description: |-
+            Client-generated. Retrying with the same key and payload within 24 hours
+             returns the original Location; a different payload is already_exists.
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationInput'
+          title: location
+      title: CreateLocationRequest
+      required:
+        - location
+      additionalProperties: false
+      description: |
+        complete_location_input // explicit classification is required
+    supplier.v1.CreateLocationResponse:
+      type: object
+      properties:
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+      title: CreateLocationResponse
+      additionalProperties: false
+    supplier.v1.Disablement:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        startsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: starts_at
+        endsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: ends_at
+          description: Natural end, absent for indefinite intervals.
+        reason:
+          type: string
+          title: reason
+        locationId:
+          type: string
+          title: location_id
+        endedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: ended_at
+          description: Explicit early end, if any.
+        cancelledAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: cancelled_at
+        createdBy:
+          type: string
+          title: created_by
+        state:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.DisablementState'
+          title: state
+          description: Lifecycle state at response time.
+        revision:
+          type: string
+          title: revision
+          format: int64
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: created_at
+        updatedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: updated_at
+      title: Disablement
+      additionalProperties: false
+    supplier.v1.DisablementState:
+      type: string
+      title: DisablementState
+      enum:
+        - DISABLEMENT_STATE_UNSPECIFIED
+        - DISABLEMENT_STATE_SCHEDULED
+        - DISABLEMENT_STATE_ACTIVE
+        - DISABLEMENT_STATE_ENDED
+        - DISABLEMENT_STATE_CANCELLED
+      description: Lifecycle state derived from the interval and terminal timestamps.
+    supplier.v1.EndDisablementRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: EndDisablementRequest
+      additionalProperties: false
+      description: Idempotent terminal command. A different terminal state is rejected.
+    supplier.v1.EndDisablementResponse:
+      type: object
+      properties:
+        disablement:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: disablement
+      title: EndDisablementResponse
+      additionalProperties: false
+    supplier.v1.GetLocationAdditionRequestRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: GetLocationAdditionRequestRequest
+      additionalProperties: false
+    supplier.v1.GetLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+      title: GetLocationAdditionRequestResponse
+      additionalProperties: false
+    supplier.v1.GetLocationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: GetLocationRequest
+      additionalProperties: false
+    supplier.v1.GetLocationResponse:
+      type: object
+      properties:
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+      title: GetLocationResponse
+      additionalProperties: false
+    supplier.v1.ListBuildingsRequest:
+      type: object
+      title: ListBuildingsRequest
+      additionalProperties: false
+    supplier.v1.ListBuildingsResponse:
+      type: object
+      properties:
+        buildings:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.Building'
+          title: buildings
+      title: ListBuildingsResponse
+      additionalProperties: false
+      description: Sorted by name.
+    supplier.v1.ListCategoriesRequest:
+      type: object
+      title: ListCategoriesRequest
+      additionalProperties: false
+    supplier.v1.ListCategoriesResponse:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.Category'
+          title: categories
+      title: ListCategoriesResponse
+      additionalProperties: false
+      description: Sorted by name.
+    supplier.v1.ListDisablementsRequest:
+      type: object
+      properties:
+        locationId:
+          type: string
+          title: location_id
+          format: uuid
+        state:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.DisablementState'
+          title: state
+          description: |
+            enum.defined_only = true
+        page:
+          type: integer
+          title: page
+          minimum: 0
+          format: int32
+          description: One-based; zero means 1.
+        pageSize:
+          type: integer
+          title: page_size
+          maximum: 100
+          minimum: 0
+          format: int32
+          description: Zero means 20; maximum 100.
+      title: ListDisablementsRequest
+      additionalProperties: false
+      description: Lists one Location's intervals, ordered by start descending then ID.
+    supplier.v1.ListDisablementsResponse:
+      type: object
+      properties:
+        disablements:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: disablements
+        pageInfo:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.PageInfo'
+          title: page_info
+      title: ListDisablementsResponse
+      additionalProperties: false
+    supplier.v1.ListLocationAdditionRequestsRequest:
+      type: object
+      properties:
+        status:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequestStatus'
+          title: status
+          description: |
+            enum.defined_only = true
+        page:
+          type: integer
+          title: page
+          minimum: 0
+          format: int32
+          description: One-based; zero means 1.
+        pageSize:
+          type: integer
+          title: page_size
+          maximum: 100
+          minimum: 0
+          format: int32
+          description: Zero means 20; maximum 100.
+      title: ListLocationAdditionRequestsRequest
+      additionalProperties: false
+      description: Counts and filters apply after caller visibility.
+    supplier.v1.ListLocationAdditionRequestsResponse:
+      type: object
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: requests
+        pageInfo:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.PageInfo'
+          title: page_info
+      title: ListLocationAdditionRequestsResponse
+      additionalProperties: false
+      description: Visible requests ordered by creation descending then ID.
+    supplier.v1.ListLocationsRequest:
+      type: object
+      properties:
+        search:
+          type: string
+          title: search
+          maxLength: 200
+          description: |-
+            Fuzzy, case-insensitive name match. Trimmed; empty matches all. The
+             length limit applies before trimming.
+        buildingId:
+          type:
+            - string
+            - "null"
+          title: building_id
+          format: uuid
+        categoryId:
+          type:
+            - string
+            - "null"
+          title: category_id
+          format: uuid
+        suppliersOnly:
+          type: boolean
+          title: suppliers_only
+        statusView:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationStatusView'
+          title: status_view
+          description: |
+            enum.defined_only = true
+        sortField:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationSortField'
+          title: sort_field
+          description: |
+            enum.defined_only = true
+        sortDirection:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.SortDirection'
+          title: sort_direction
+          description: |
+            enum.defined_only = true
+        page:
+          type: integer
+          title: page
+          minimum: 0
+          format: int32
+          description: One-based; 0 means 1.
+        pageSize:
+          type: integer
+          title: page_size
+          maximum: 100
+          minimum: 0
+          format: int32
+          description: 0 means 20.
+      title: ListLocationsRequest
+      additionalProperties: false
+    supplier.v1.ListLocationsResponse:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.Location'
+          title: locations
+        page:
+          type: integer
+          title: page
+          format: int32
+        pageSize:
+          type: integer
+          title: page_size
+          format: int32
+        totalItems:
+          type: string
+          title: total_items
+          format: int64
+          description: Matches visible to the caller.
+        totalPages:
+          type: integer
+          title: total_pages
+          format: int32
+      title: ListLocationsResponse
+      additionalProperties: false
+    supplier.v1.Location:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        name:
+          type: string
+          title: name
+          description: Not unique.
+        isSupplier:
+          type: boolean
+          title: is_supplier
+        building:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Building'
+          title: building
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/supplier.v1.Category'
+          title: categories
+          description: Empty for non-Supplier Locations.
+        floor:
+          type:
+            - string
+            - "null"
+          title: floor
+        coordinates:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Coordinates'
+          title: coordinates
+        opensAt:
+          allOf:
+            - $ref: '#/components/schemas/google.type.TimeOfDay'
+          title: opens_at
+          description: |-
+            Asia/Singapore wall-clock time. Set together with closes_at, or neither
+             is set. Closing before opening means overnight.
+        closesAt:
+          allOf:
+            - $ref: '#/components/schemas/google.type.TimeOfDay'
+          title: closes_at
+        contact:
+          type:
+            - string
+            - "null"
+          title: contact
+        details:
+          type: string
+          title: details
+          description: Directions and remote-purchase instructions.
+        archivedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: archived_at
+        currentDisablement:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: current_disablement
+          description: In effect now, if any. Disabled Locations stay selectable.
+        revision:
+          type: string
+          title: revision
+          format: int64
+          description: For optimistic concurrency.
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: created_at
+        updatedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: updated_at
+      title: Location
+      additionalProperties: false
+      description: A Supplier is a Location with is_supplier set, not a separate resource.
+    supplier.v1.LocationAdditionRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        proposal:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationInput'
+          title: proposal
+        submittedBy:
+          type: string
+          title: submitted_by
+          description: Redacted from generally visible approved responses.
+        status:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequestStatus'
+          title: status
+        reviewedBy:
+          type:
+            - string
+            - "null"
+          title: reviewed_by
+          description: Redacted from generally visible approved responses.
+        reviewedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: reviewed_at
+        reviewNote:
+          type:
+            - string
+            - "null"
+          title: review_note
+          description: Redacted from generally visible approved responses.
+        resultingLocationId:
+          type:
+            - string
+            - "null"
+          title: resulting_location_id
+        revision:
+          type: string
+          title: revision
+          format: int64
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: created_at
+        updatedAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: updated_at
+      title: LocationAdditionRequest
+      additionalProperties: false
+    supplier.v1.LocationAdditionRequestStatus:
+      type: string
+      title: LocationAdditionRequestStatus
+      enum:
+        - LOCATION_ADDITION_REQUEST_STATUS_UNSPECIFIED
+        - LOCATION_ADDITION_REQUEST_STATUS_PENDING
+        - LOCATION_ADDITION_REQUEST_STATUS_APPROVED
+        - LOCATION_ADDITION_REQUEST_STATUS_REJECTED
+        - LOCATION_ADDITION_REQUEST_STATUS_WITHDRAWN
+      description: Terminal status is immutable.
+    supplier.v1.LocationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 200
+          minLength: 1
+          pattern: \S
+          description: Must contain a non-whitespace character.
+        isSupplier:
+          type:
+            - boolean
+            - "null"
+          title: is_supplier
+        categoryIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          title: category_ids
+          uniqueItems: true
+        buildingId:
+          type: string
+          title: building_id
+          format: uuid
+        floor:
+          type:
+            - string
+            - "null"
+          title: floor
+          maxLength: 50
+        coordinates:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Coordinates'
+          title: coordinates
+        opensAt:
+          allOf:
+            - $ref: '#/components/schemas/google.type.TimeOfDay'
+          title: opens_at
+          description: |-
+            Asia/Singapore wall-clock time, whole minutes. Closing before opening
+             means overnight.
+        closesAt:
+          allOf:
+            - $ref: '#/components/schemas/google.type.TimeOfDay'
+          title: closes_at
+        contact:
+          type:
+            - string
+            - "null"
+          title: contact
+          maxLength: 500
+        details:
+          type: string
+          title: details
+          maxLength: 2000
+      title: LocationInput
+      required:
+        - coordinates
+      additionalProperties: false
+      description: |
+        Writable Location fields. Admins and users supply the same Location details,
+         but admin operations change Locations directly and user addition requests need
+         approval. Permissions apply to the operation, not the input fields.
+         Length limits apply before trimming.
+        location_input.opening_hours // opens_at and closes_at must both be set and differ, or both be unset
+        location_input.opening_hours_format // opens_at and closes_at must be whole minutes between 00:00 and 23:59
+        location_input.supplier_categories // Suppliers need at least one category; ordinary Locations have none
+    supplier.v1.LocationSortField:
+      type: string
+      title: LocationSortField
+      enum:
+        - LOCATION_SORT_FIELD_UNSPECIFIED
+        - LOCATION_SORT_FIELD_NAME
+        - LOCATION_SORT_FIELD_BUILDING
+      description: Ties are broken by Location ID so pagination is stable.
+    supplier.v1.LocationStatusView:
+      type: string
+      title: LocationStatusView
+      enum:
+        - LOCATION_STATUS_VIEW_UNSPECIFIED
+        - LOCATION_STATUS_VIEW_ACTIVE
+        - LOCATION_STATUS_VIEW_ARCHIVED
+        - LOCATION_STATUS_VIEW_ALL
+    supplier.v1.PageInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          title: page
+          format: int32
+          description: One-based current page.
+        pageSize:
+          type: integer
+          title: page_size
+          format: int32
+          description: Effective size, default 20, maximum 100.
+        totalItems:
+          type: string
+          title: total_items
+          format: int64
+        totalPages:
+          type: integer
+          title: total_pages
+          format: int32
+          description: Total pages, zero for an empty result.
+      title: PageInfo
+      additionalProperties: false
+      description: Counts include only resources visible to the caller after filtering.
+    supplier.v1.RejectLocationAdditionRequestRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+        reviewNote:
+          type: string
+          title: review_note
+          maxLength: 2000
+          minLength: 1
+      title: RejectLocationAdditionRequestRequest
+      additionalProperties: false
+    supplier.v1.RejectLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+      title: RejectLocationAdditionRequestResponse
+      additionalProperties: false
+    supplier.v1.SortDirection:
+      type: string
+      title: SortDirection
+      enum:
+        - SORT_DIRECTION_UNSPECIFIED
+        - SORT_DIRECTION_ASCENDING
+        - SORT_DIRECTION_DESCENDING
+    supplier.v1.SubmitLocationAdditionRequestRequest:
+      type: object
+      properties:
+        proposal:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationInput'
+          title: proposal
+        idempotencyKey:
+          type: string
+          title: idempotency_key
+          format: uuid
+          description: UUID retry key scoped by caller and method for 24 hours.
+      title: SubmitLocationAdditionRequestRequest
+      required:
+        - proposal
+      additionalProperties: false
+      description: |
+        Submit a complete Location proposal. Suspended users are denied.
+        complete_proposal // name, classification, Building and coordinates are required
+    supplier.v1.SubmitLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+      title: SubmitLocationAdditionRequestResponse
+      additionalProperties: false
+    supplier.v1.UnarchiveLocationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: UnarchiveLocationRequest
+      additionalProperties: false
+    supplier.v1.UnarchiveLocationResponse:
+      type: object
+      properties:
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+      title: UnarchiveLocationResponse
+      additionalProperties: false
+    supplier.v1.UpdateDisablementRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+        startsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: starts_at
+        endsAt:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.Timestamp'
+          title: ends_at
+          description: Absent and masked clears the natural end.
+        reason:
+          type: string
+          title: reason
+          maxLength: 500
+        updateMask:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.FieldMask'
+          title: update_mask
+          description: Non-empty paths from starts_at, ends_at, reason.
+        expectedRevision:
+          exclusiveMinimum: 0
+          type: string
+          title: expected_revision
+          format: int64
+      title: UpdateDisablementRequest
+      required:
+        - updateMask
+      additionalProperties: false
+      description: Updates only a scheduled Disablement.
+    supplier.v1.UpdateDisablementResponse:
+      type: object
+      properties:
+        disablement:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Disablement'
+          title: disablement
+      title: UpdateDisablementResponse
+      additionalProperties: false
+    supplier.v1.UpdateLocationAdditionRequestRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+        proposal:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationInput'
+          title: proposal
+          description: Validate selected fields and the merged proposal, not a complete patch input.
+        updateMask:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.FieldMask'
+          title: update_mask
+          description: |
+            Writable proposal paths. Opening and closing must be masked together.
+            field_mask.in = ["name", "is_supplier", "category_ids", "building_id", "floor", "coordinates", "opens_at", "closes_at", "contact", "details"]
+        expectedRevision:
+          exclusiveMinimum: 0
+          type: string
+          title: expected_revision
+          format: int64
+      title: UpdateLocationAdditionRequestRequest
+      required:
+        - updateMask
+      additionalProperties: false
+      description: Updates a pending request without overwriting unmasked fields.
+    supplier.v1.UpdateLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+      title: UpdateLocationAdditionRequestResponse
+      additionalProperties: false
+    supplier.v1.UpdateLocationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+        expectedRevision:
+          exclusiveMinimum: 0
+          type: string
+          title: expected_revision
+          format: int64
+          description: Must match the current revision, otherwise aborted.
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationInput'
+          title: location
+          description: |-
+            Not validated on its own; the handler applies update_mask to the current
+             Location and validates the merged LocationInput.
+        updateMask:
+          allOf:
+            - $ref: '#/components/schemas/google.protobuf.FieldMask'
+          title: update_mask
+          description: |
+            Masked fields left unset are cleared.
+            field_mask.in = ["name", "is_supplier", "category_ids", "building_id", "floor", "coordinates", "opens_at", "closes_at", "contact", "details"]
+      title: UpdateLocationRequest
+      required:
+        - updateMask
+      additionalProperties: false
+    supplier.v1.UpdateLocationResponse:
+      type: object
+      properties:
+        location:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.Location'
+          title: location
+      title: UpdateLocationResponse
+      additionalProperties: false
+    supplier.v1.WithdrawLocationAdditionRequestRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          format: uuid
+      title: WithdrawLocationAdditionRequestRequest
+      additionalProperties: false
+    supplier.v1.WithdrawLocationAdditionRequestResponse:
+      type: object
+      properties:
+        request:
+          allOf:
+            - $ref: '#/components/schemas/supplier.v1.LocationAdditionRequest'
+          title: request
+      title: WithdrawLocationAdditionRequestResponse
+      additionalProperties: false
+    user.v1.CheckRequest:
+      type: object
+      title: CheckRequest
+      additionalProperties: false
+    user.v1.CheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          title: status
+      title: CheckResponse
+      additionalProperties: false
+security: []

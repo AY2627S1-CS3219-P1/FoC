@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "supplier/v1/location_shared_types.proto";
+
+// Administrator-only Disablement operations.
+service LocationDisablementService {
+  rpc CreateDisablement(CreateDisablementRequest) returns (CreateDisablementResponse) {}
+
+  rpc ListDisablements(ListDisablementsRequest) returns (ListDisablementsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+
+  rpc UpdateDisablement(UpdateDisablementRequest) returns (UpdateDisablementResponse) {}
+
+  rpc EndDisablement(EndDisablementRequest) returns (EndDisablementResponse) { option idempotency_level = IDEMPOTENT; }
+
+  rpc CancelDisablement(CancelDisablementRequest) returns (CancelDisablementResponse) { option idempotency_level = IDEMPOTENT; }
+}
+
+// Creates a non-overlapping interval on an unarchived Location.
+message CreateDisablementRequest {
+  string location_id = 1 [(buf.validate.field).string.uuid = true];
+  // Omitted means now.
+  google.protobuf.Timestamp starts_at = 2;
+  // Omitted means indefinite; otherwise later than start.
+  google.protobuf.Timestamp ends_at = 3;
+  string reason = 4 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  // UUID retry key scoped by caller and method for 24 hours.
+  string idempotency_key = 5 [(buf.validate.field).string.uuid = true];
+}
+// Lists one Location's intervals, ordered by start descending then ID.
+message ListDisablementsRequest {
+  string location_id = 1 [(buf.validate.field).string.uuid = true];
+  DisablementState state = 2 [(buf.validate.field).enum.defined_only = true];
+  // One-based; zero means 1.
+  int32 page = 3 [(buf.validate.field).int32.gte = 0];
+  // Zero means 20; maximum 100.
+  int32 page_size = 4 [(buf.validate.field).int32 = {gte: 0, lte: 100}];
+}
+// Updates only a scheduled Disablement.
+message UpdateDisablementRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  google.protobuf.Timestamp starts_at = 2;
+  // Absent and masked clears the natural end.
+  google.protobuf.Timestamp ends_at = 3;
+  string reason = 4 [(buf.validate.field).string.max_len = 500];
+  // Non-empty paths from starts_at, ends_at, reason.
+  google.protobuf.FieldMask update_mask = 5 [(buf.validate.field).required = true];
+  int64 expected_revision = 6 [(buf.validate.field).int64.gt = 0];
+}
+// Idempotent terminal command. A different terminal state is rejected.
+message EndDisablementRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Idempotent terminal command. A different terminal state is rejected.
+message CancelDisablementRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message CreateDisablementResponse {
+  Disablement disablement = 1;
+}
+message UpdateDisablementResponse {
+  Disablement disablement = 1;
+}
+message EndDisablementResponse {
+  Disablement disablement = 1;
+}
+message CancelDisablementResponse {
+  Disablement disablement = 1;
+}
+message ListDisablementsResponse {
+  repeated Disablement disablements = 1;
+  PageInfo page_info = 2;
+}
