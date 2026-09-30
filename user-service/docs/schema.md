@@ -12,7 +12,7 @@ erDiagram
     roles ||--o{ users : "users.role"
     users ||--o{ sessions : has
     users ||--o{ auth_tokens : "login links"
-    users ||--o| admin_bootstrap : "first signup"
+    users ||--o| admin_bootstrap : "first super_admin"
     users ||--o{ role_changes : "promote/suspend/..."
     roles ||--o{ role_changes : "from/to"
     users ||--o{ account_warnings : receives
@@ -88,7 +88,7 @@ erDiagram
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
-| 00003 | `admin_bootstrap` | U4.2 | singleton row; first signup wins it and becomes `super_admin` |
+| 00003 | `admin_bootstrap` | U4.2 | singleton row; written once by the startup bootstrap (`BOOTSTRAP_SUPERADMIN_EMAIL`), whose user becomes `super_admin` |
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
@@ -116,8 +116,11 @@ WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > $now
   AND deleted_at IS NULL
 RETURNING *;
 
--- First signup (same tx as user insert): 1 row => set role = 'super_admin'
-INSERT INTO admin_bootstrap (user_id) VALUES ($1) ON CONFLICT DO NOTHING;
+-- Admin bootstrap (one tx): serialise instances, then no-op if already done;
+-- otherwise create or promote the user to 'super_admin' and claim the row
+LOCK TABLE admin_bootstrap IN EXCLUSIVE MODE;
+SELECT count(*) FROM admin_bootstrap;
+INSERT INTO admin_bootstrap (user_id) VALUES ($1);
 
 -- Change role (same tx), optimistic on current role
 UPDATE users SET role = $to, updated_at = now() WHERE id = $1 AND role = $from AND deleted_at IS NULL;
@@ -142,7 +145,7 @@ and decides. Shared rules live in `internal/auth`:
 | `user` | – | – |
 | `suspended` | – | – |
 
-Nobody can change their own role. `super_admin` is only granted by first-signup bootstrap.
+Nobody can change their own role. `super_admin` is only granted by the startup admin bootstrap.
 
 ## Conventions
 

@@ -90,6 +90,22 @@ Authentication persistence is wired to the user-service store. Email delivery
 is not configured yet, so `RequestLink` currently stores the challenge but the
 configured `EmptyEmailSender` discards the link instead of delivering it.
 
+## First super admin
+
+Set `BOOTSTRAP_SUPERADMIN_EMAIL` (and optionally
+`BOOTSTRAP_SUPERADMIN_DISPLAY_NAME`, default `Admin`) before starting the
+service. After migrations, startup creates that user as `super_admin`, or
+promotes an existing user with that email and records the role change. The
+admin then signs in with the normal magic-link login. The registration domain
+whitelist does not apply.
+
+The bootstrap runs once. It records the admin in the `admin_bootstrap` table,
+and later starts log that it was already done and ignore the variables, even if
+the email changes or the admin was demoted. Concurrent instances are serialised
+by a table lock, so only one bootstrap succeeds. An invalid email or display
+name stops startup. To bootstrap again, delete the `admin_bootstrap` row by
+hand.
+
 Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
 and initialize one authenticator at startup. The authenticator fetches keys
 through `PublicKeyService.GetPublicKeys`. Register its `Authenticate` method on protected routes and

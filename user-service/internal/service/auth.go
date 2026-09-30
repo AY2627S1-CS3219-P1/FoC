@@ -29,7 +29,7 @@ const (
 )
 
 func (s *Service) RequestLink(ctx context.Context, email string) error {
-	normalizedEmail, err := normalizeEmail(email)
+	normalizedEmail, err := NormalizeEmail(email)
 	if err != nil {
 		return err
 	}
@@ -339,7 +339,8 @@ func jwtRole(role models.RoleName) (jwt.Role, bool) {
 	}
 }
 
-func normalizeEmail(input string) (string, error) {
+// NormalizeEmail trims and lowercases a bare address, or returns jwt.ErrInvalidEmail.
+func NormalizeEmail(input string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(input))
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
@@ -349,7 +350,7 @@ func normalizeEmail(input string) (string, error) {
 }
 
 func registrationEmailAllowed(ctx context.Context, domains DomainStore, input string) (bool, error) {
-	email, err := normalizeEmail(input)
+	email, err := NormalizeEmail(input)
 	if err != nil {
 		return false, err
 	}
