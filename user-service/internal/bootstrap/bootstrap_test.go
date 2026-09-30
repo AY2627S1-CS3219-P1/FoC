@@ -6,16 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 )
 
+var createdID = uuid.New()
+
 type fakeStore struct{ got *models.User }
 
 func (f *fakeStore) Bootstrap(_ context.Context, u *models.User) (store.BootstrapOutcome, error) {
 	f.got = u
-	u.ID = 1
+	u.ID = createdID
 	return store.BootstrapCreated, nil
 }
 
@@ -25,7 +29,7 @@ func TestRunNormalizesInput(t *testing.T) {
 	if err != nil || outcome != store.BootstrapCreated {
 		t.Fatalf("run: %v, %v", outcome, err)
 	}
-	if user.ID != 1 || fake.got.Email != "admin@example.com" || fake.got.DisplayName != DefaultDisplayName {
+	if user.ID != createdID || fake.got.Email != "admin@example.com" || fake.got.DisplayName != DefaultDisplayName {
 		t.Fatalf("user: %+v", fake.got)
 	}
 

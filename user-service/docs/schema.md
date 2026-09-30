@@ -2,8 +2,8 @@
 
 PostgreSQL 18. Source of truth: `migrations/*.sql` (goose). GORM entities: `internal/models`.
 
-Every table with a single `id` follows `gorm.Model` plus userstamps:
-`id BIGSERIAL`, `created_at`, `updated_at`, `deleted_at` (soft delete),
+Every table with a single `id` embeds `models.BaseModel` plus userstamps:
+`id UUID`, `created_at`, `updated_at`, `deleted_at` (soft delete),
 `created_by` and `updated_by` (FK to `users.id`, `NULL` = system). The diagram
 leaves these columns out.
 
@@ -19,7 +19,7 @@ erDiagram
     users ||--o{ favourite_suppliers : saves
 
     users {
-        bigint id PK
+        uuid id PK
         citext email UK "among live rows"
         text display_name "1-50 chars"
         text description "max 500"
@@ -34,47 +34,47 @@ erDiagram
     }
     admin_bootstrap {
         bool singleton PK
-        bigint user_id FK
+        uuid user_id FK
     }
     allowed_email_domains {
-        bigint id PK
+        uuid id PK
         citext domain UK "among live rows"
     }
     auth_tokens {
-        bigint id PK
+        uuid id PK
         bytea token_hash UK "sha256"
         text purpose "register|login"
         citext email
-        bigint user_id FK
+        uuid user_id FK
         inet requested_ip
         timestamptz expires_at
         timestamptz used_at
     }
     sessions {
-        bigint id PK
+        uuid id PK
         bytea token_hash UK "sha256"
-        bigint user_id FK
+        uuid user_id FK
         timestamptz expires_at
         timestamptz revoked_at
     }
     role_changes {
-        bigint id PK
-        bigint user_id FK
+        uuid id PK
+        uuid user_id FK
         text from_role FK
         text to_role FK
         text reason
         uuid report_id "no FK"
     }
     account_warnings {
-        bigint id PK
-        bigint user_id FK
+        uuid id PK
+        uuid user_id FK
         uuid request_id "no FK"
         text reason
         text status "active|removed"
         uuid source_event_id UK
     }
     favourite_suppliers {
-        bigint user_id PK
+        uuid user_id PK
         uuid supplier_id PK "no FK"
     }
 ```
@@ -95,7 +95,7 @@ erDiagram
 
 ## Soft delete
 
-GORM adds `deleted_at IS NULL` to every query on a model with `gorm.Model`,
+GORM adds `deleted_at IS NULL` to every query on a model with `BaseModel`,
 and `Delete` only sets `deleted_at`. So database `ON DELETE CASCADE` fires only
 for `Unscoped()` (hard) deletes. `store.Users.Delete` cascades in the
 application instead: it soft-deletes the user's sessions and auth tokens and

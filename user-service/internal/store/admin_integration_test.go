@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
@@ -31,7 +33,7 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 
 	admin := bootstrapUser("admin@example.com")
 	outcome, err := store.Admin.Bootstrap(ctx, admin)
-	if err != nil || outcome != BootstrapCreated || admin.ID == 0 || admin.Role != models.RoleSuperAdmin {
+	if err != nil || outcome != BootstrapCreated || admin.ID == uuid.Nil || admin.Role != models.RoleSuperAdmin {
 		t.Fatalf("bootstrap: %v, %v, %+v", outcome, err, admin)
 	}
 	if row := bootstrapRow(t, store); row.UserID != admin.ID {

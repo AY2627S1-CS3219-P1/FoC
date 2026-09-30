@@ -20,7 +20,7 @@ CREATE INDEX idx_users_role ON users (role);
 
 CREATE TABLE admin_bootstrap (
     singleton       BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    user_id         BIGINT NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    user_id         UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     bootstrapped_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
