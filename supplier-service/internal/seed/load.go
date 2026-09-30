@@ -169,34 +169,31 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 		if err != nil {
 			return nil, nil, nil, pathError(path, record.line, err)
 		}
-		if parsed.openFrom == nil {
-			return nil, nil, nil, pathError(path, record.line, errors.New("Supplier opening hours are required"))
-		}
 
-		categoryValues := strings.Split(record.values["Type"], "/")
-		if len(categoryValues) == 0 {
-			return nil, nil, nil, pathError(path, record.line, errors.New("Type is required"))
-		}
-		seenCategories := make(map[string]struct{})
-		for _, value := range categoryValues {
-			name := strings.TrimSpace(value)
-			if name == "" {
-				return nil, nil, nil, pathError(path, record.line, errors.New("Type contains an empty Category"))
+		categoryValue := strings.TrimSpace(record.values["Type"])
+		if categoryValue != "" {
+			parsed.categoriesProvided = true
+			seenCategories := make(map[string]struct{})
+			for _, value := range strings.Split(categoryValue, "/") {
+				name := strings.TrimSpace(value)
+				if name == "" {
+					return nil, nil, nil, pathError(path, record.line, errors.New("Type contains an empty Category"))
+				}
+				if utf8.RuneCountInString(name) > 200 {
+					return nil, nil, nil, pathError(path, record.line, errors.New("Type Category exceeds 200 characters"))
+				}
+				normalized := normalizeAlias(name)
+				if _, duplicate := seenCategories[normalized]; duplicate {
+					return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Type repeats Category %q", name))
+				}
+				definition, exists := categoryDefinitions[normalized]
+				if !exists {
+					return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Type Category %q has no explicit stable source key", name))
+				}
+				seenCategories[normalized] = struct{}{}
+				usedCategories[normalized] = struct{}{}
+				parsed.categories = append(parsed.categories, definition.sourceKey)
 			}
-			if utf8.RuneCountInString(name) > 200 {
-				return nil, nil, nil, pathError(path, record.line, errors.New("Type Category exceeds 200 characters"))
-			}
-			normalized := normalizeAlias(name)
-			if _, duplicate := seenCategories[normalized]; duplicate {
-				return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Type repeats Category %q", name))
-			}
-			definition, exists := categoryDefinitions[normalized]
-			if !exists {
-				return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Type Category %q has no explicit stable source key", name))
-			}
-			seenCategories[normalized] = struct{}{}
-			usedCategories[normalized] = struct{}{}
-			parsed.categories = append(parsed.categories, definition.sourceKey)
 		}
 		locations = append(locations, parsed)
 	}
@@ -277,21 +274,18 @@ func parseLocation(record csvRecord, sourceKey, buildingKey string, isSupplier b
 		return location{}, err
 	}
 
-	detailValue := ""
-	if details != nil {
-		detailValue = *details
-	}
 	return location{
-		sourceKey:   sourceKey,
-		name:        name,
-		buildingKey: buildingKey,
-		floor:       floor,
-		latitude:    latitude,
-		longitude:   longitude,
-		openFrom:    openFrom,
-		openTo:      openTo,
-		details:     detailValue,
-		isSupplier:  isSupplier,
+		sourceKey:          sourceKey,
+		name:               name,
+		buildingKey:        buildingKey,
+		floor:              floor,
+		latitude:           latitude,
+		longitude:          longitude,
+		openFrom:           openFrom,
+		openTo:             openTo,
+		details:            details,
+		categoriesProvided: !isSupplier,
+		isSupplier:         isSupplier,
 	}, nil
 }
 

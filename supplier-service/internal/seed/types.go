@@ -45,16 +45,16 @@ type category struct {
 }
 
 type location struct {
-	sourceKey   string
-	name        string
-	buildingKey string
-	floor       *string
-	latitude    float64
-	longitude   float64
-	openFrom    *time.Time
-	openTo      *time.Time
-	contact     *string
-	details     string
-	categories  []string
-	isSupplier  bool
+	sourceKey          string
+	name               string
+	buildingKey        string
+	floor              *string
+	latitude           float64
+	longitude          float64
+	openFrom           *time.Time
+	openTo             *time.Time
+	details            *string
+	categories         []string
+	categoriesProvided bool
+	isSupplier         bool
 }
