@@ -70,11 +70,7 @@ func main() {
 		log.Info("migrations applied")
 	}
 
-	srv := &http.Server{
-		Addr:              ":" + cfg.port,
-		Handler:           getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})),
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-	}
+	srv := newServer(":"+cfg.port, getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})))
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -98,6 +94,18 @@ func main() {
 	log.Info("shutting down")
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("shutdown", "err", err)
+	}
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		Protocols:         protocols,
 	}
 }
 

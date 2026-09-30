@@ -9,6 +9,7 @@ out/
 .env.*.local
 *.pem
 *.key
+.local/
 
 # OS
 .DS_Store
@@ -16,3 +17,6 @@ Thumbs.db
 
 # Agents
 .pi
+
+# IDE
+.idea

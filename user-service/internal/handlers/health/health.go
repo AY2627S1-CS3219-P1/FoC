@@ -15,16 +15,20 @@ const pingTimeout = 2 * time.Second
 
 var _ userv1connect.HealthServiceHandler = (*Handler)(nil)
 
+// Pinger is the database check the handler needs; *sql.DB satisfies it.
 type Pinger interface {
 	PingContext(context.Context) error
 }
 
+// Handler adapts the database check to the generated Connect API.
 type Handler struct {
 	userv1connect.UnimplementedHealthServiceHandler
 
 	DB Pinger
 }
 
+// Check reports status "ok" when the database ping succeeds, or
+// CodeUnavailable when it fails.
 func (h *Handler) Check(
 	ctx context.Context,
 	_ *connect.Request[userv1.CheckRequest],

@@ -54,6 +54,7 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 
 ## Connect RPC
 
+All service APIs, for the frontend and between services, are Connect RPCs.
 
 - API contracts live under `proto/<service>/v1` and use the protobuf package
   `<service>.v1`. Keep service names unique within this repository.
@@ -90,7 +91,7 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
   server transport boundary. Add protocol-specific cases elsewhere only when
   behavior differs by protocol.
 
-## Dependencies and interfaces (user-service)
+## Dependencies and interfaces
 
 - Inject dependencies as struct fields, set once in `cmd/server/main.go`
   (the composition root), e.g. `&health.Handler{DB: sqlDB}`. Do not pass
@@ -103,9 +104,6 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 - Layers: `internal/handlers/<domain>` (Connect adapter) →
   `internal/<domain>` (business rules and the store interfaces they need) →
   `internal/store` (GORM persistence over `internal/models`).
-- Errors are package-level sentinels checked with `errors.Is`. `store`
-  returns its own sentinels (`store.ErrNotFound`, ...); logic packages map
-  them to domain errors; handlers map domain errors to Connect codes.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
 

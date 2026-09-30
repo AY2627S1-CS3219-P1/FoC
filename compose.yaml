@@ -31,10 +31,15 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
-      FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
+      APP_ENV: ${APP_ENV:-local}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
     volumes:
       - ./user-service:/app
       - ./pkg:/pkg
+      - ./.local/secrets/auth:/app/.local/secrets/auth
       - /app/tmp
     depends_on:
       postgres:
@@ -50,7 +55,9 @@ services:
       - "${SUPPLIER_PORT:-8082}:8080"
     environment:
       PORT: "8080"
+      APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     volumes:
       - ./supplier-service:/app
