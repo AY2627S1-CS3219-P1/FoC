@@ -152,8 +152,3 @@ type UpdateRequest struct {
 	Paths            []string
 	ExpectedRevision int64
 }
-type IdempotencyScope struct{ Caller, Method, Key string }
-type IdempotencyRecord struct {
-	Hash, ResourceID string
-	ExpiresAt        time.Time
-}

@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -18,8 +19,7 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 		return
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
-		now := s.clock().UTC()
-		id, e := idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, in.Proposal, now, func() (string, error) {
+		id, e := s.idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, in.Proposal, func(now time.Time) (string, error) {
 			if e := tx.ValidateReferences(ctx, in.Proposal); e != nil {
 				return "", e
 			}

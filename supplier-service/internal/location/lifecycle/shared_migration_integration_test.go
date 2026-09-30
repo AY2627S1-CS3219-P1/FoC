@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
@@ -27,10 +28,10 @@ func TestWorkflowMigrationVersions(t *testing.T) {
 func TestWorkflowDowngradePreservesSharedRetriesPostGIS(t *testing.T) {
 	f := newFixture(t)
 	f.reset(t)
-	scope := w.IdempotencyScope{Caller: "shared owner", Method: "shared method", Key: uuid.NewString()}
-	record := w.IdempotencyRecord{Hash: strings.Repeat("a", 64), ResourceID: uuid.NewString(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
+	scope := idempotency.Scope{Caller: "shared owner", Method: "shared method", Key: uuid.NewString()}
+	record := idempotency.Record{Hash: strings.Repeat("a", 64), ResourceID: uuid.NewString(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
 	r := repo.NewPostgresRepository(f.pool, time.Now)
-	if err := r.Within(f.ctx, func(tx w.Tx) error { return tx.SaveIdempotency(f.ctx, scope, record) }); err != nil {
+	if err := r.Within(f.ctx, func(tx w.Tx) error { return tx.Idempotency().Save(f.ctx, scope, record) }); err != nil {
 		t.Fatal(err)
 	}
 	if err := goose.DownContext(f.ctx, f.db, f.migrations); err != nil {
@@ -47,7 +48,10 @@ func TestWorkflowDowngradePreservesSharedRetriesPostGIS(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := r.Within(f.ctx, func(tx w.Tx) error {
-		got, err := tx.Idempotency(f.ctx, scope, time.Now())
+		if err := tx.Idempotency().Lock(f.ctx, scope); err != nil {
+			return err
+		}
+		got, err := tx.Idempotency().Find(f.ctx, scope, time.Now())
 		if err != nil {
 			return err
 		}

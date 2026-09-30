@@ -27,12 +27,3 @@ type LocationDisablement struct {
 	UpdatedAt   pgtype.Timestamptz
 	Revision    int64
 }
-
-type SupplierIdempotency struct {
-	CallerID    string
-	Method      string
-	Key         pgtype.UUID
-	RequestHash string
-	ResourceID  pgtype.UUID
-	ExpiresAt   pgtype.Timestamptz
-}
