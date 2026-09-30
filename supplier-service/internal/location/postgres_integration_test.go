@@ -203,7 +203,7 @@ func setupDatabase(t *testing.T) *pgxpool.Pool {
 		INSERT INTO location_disablements (location_id, starts_at, ends_at, cancelled_at, reason, created_by) VALUES
 			('10000000-0000-4000-8000-000000000002', now() - interval '1 hour', NULL, NULL, 'Renovation', 'admin'),
 			('10000000-0000-4000-8000-000000000001', now() - interval '2 days', now() - interval '1 day', NULL, 'Expired', 'admin'),
-			('10000000-0000-4000-8000-000000000001', now() - interval '1 hour', NULL, now(), 'Cancelled', 'admin');
+			('10000000-0000-4000-8000-000000000001', now() - interval '1 hour', NULL, now() - interval '2 hours', 'Cancelled', 'admin');
 		INSERT INTO location_disablements (location_id, starts_at, created_at, reason, created_by) VALUES
 			('10000000-0000-4000-8000-000000000003', date_trunc('hour', now()) - interval '1 hour', now() - interval '1 minute', 'Older', 'admin'),
 			('10000000-0000-4000-8000-000000000003', date_trunc('hour', now()) - interval '1 hour', now(), 'Newer', 'admin');`); err != nil {
