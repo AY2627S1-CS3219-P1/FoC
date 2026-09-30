@@ -56,14 +56,18 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 
 
 - API contracts live under `proto/<service>/v1` and use the protobuf package
-  `<service>.v1`. Keep service names unique within this repository.
+  `<service>.v1`. A distinct domain API may live under
+  `proto/<service>/<domain>/v1` with package `<service>.<domain>.v1` (for example,
+  `supplier.location.v1`). Keep service names unique within this repository.
 - Buf generates Go messages and Connect handlers under `pkg/gen`, and
   TypeScript messages and service descriptors under `frontend/src/lib/gen`.
   Implementers and callers import generated types, but never edit generated
   files. Protobuf messages are external API contracts; domain, sqlc and GORM
   types remain internal.
-- After changing a contract, run `npm run buf:lint` and
-  `npm run buf:generate` from `frontend`. Commit the contract and generated
+- After changing a contract, run `make buf-lint` and
+  `make buf-generate` from the repository root (install frontend npm dependencies
+  first for the TypeScript generator). The Makefile pins and installs Buf. Commit
+  the contract and generated
   output together.
 - Handwritten Go implementations embed the generated unimplemented handler.
   Mount the generated handler in the service router.
