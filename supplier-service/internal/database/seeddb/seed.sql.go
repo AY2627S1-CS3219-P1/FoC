@@ -213,6 +213,7 @@ INSERT INTO locations (
     coordinates,
     open_from,
     open_to,
+    contact,
     details
 )
 VALUES (
@@ -230,7 +231,8 @@ VALUES (
     )::GEOGRAPHY,
     $8,
     $9,
-    COALESCE($10::TEXT, '')
+    $10,
+    COALESCE($11::TEXT, '')
 )
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
@@ -240,7 +242,8 @@ SET name = EXCLUDED.name,
     coordinates = EXCLUDED.coordinates,
     open_from = COALESCE($8, locations.open_from),
     open_to = COALESCE($9, locations.open_to),
-    details = COALESCE($10::TEXT, locations.details),
+    contact = COALESCE(EXCLUDED.contact, locations.contact),
+    details = COALESCE($11::TEXT, locations.details),
     revision = locations.revision + 1
 WHERE locations.name IS DISTINCT FROM EXCLUDED.name
    OR locations.is_supplier IS DISTINCT FROM EXCLUDED.is_supplier
@@ -249,7 +252,8 @@ WHERE locations.name IS DISTINCT FROM EXCLUDED.name
    OR NOT ST_Equals(locations.coordinates::GEOMETRY, EXCLUDED.coordinates::GEOMETRY)
    OR locations.open_from IS DISTINCT FROM COALESCE($8, locations.open_from)
    OR locations.open_to IS DISTINCT FROM COALESCE($9, locations.open_to)
-   OR locations.details IS DISTINCT FROM COALESCE($10::TEXT, locations.details)
+   OR locations.contact IS DISTINCT FROM COALESCE(EXCLUDED.contact, locations.contact)
+   OR locations.details IS DISTINCT FROM COALESCE($11::TEXT, locations.details)
 `
 
 type UpsertLocationParams struct {
@@ -262,6 +266,7 @@ type UpsertLocationParams struct {
 	Latitude   float64
 	OpenFrom   pgtype.Time
 	OpenTo     pgtype.Time
+	Contact    pgtype.Text
 	Details    pgtype.Text
 }
 
@@ -276,6 +281,7 @@ func (q *Queries) UpsertLocation(ctx context.Context, arg UpsertLocationParams) 
 		arg.Latitude,
 		arg.OpenFrom,
 		arg.OpenTo,
+		arg.Contact,
 		arg.Details,
 	)
 	if err != nil {

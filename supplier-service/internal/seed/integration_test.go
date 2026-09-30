@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/seeddb"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -335,6 +336,44 @@ func TestSeedTreatsEmptySupplierFieldsAsUnspecified(t *testing.T) {
 	}
 	if revision != 3 {
 		t.Fatalf("empty-field patch rerun incremented revision to %d", revision)
+	}
+
+	// The importer accepts contact independently of the CSV column set.
+	data, err := load(paths)
+	if err != nil {
+		t.Fatalf("load contact patch: %v", err)
+	}
+	newContact := "seed@example.com"
+	data.locations[0].contact = &newContact
+	for attempt := 0; attempt < 2; attempt++ {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin contact patch: %v", err)
+		}
+		report, err := importDataset(ctx, seeddb.New(tx), data)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatalf("import contact patch: %v", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("commit contact patch: %v", err)
+		}
+		want := Report{}
+		if attempt == 0 {
+			want.SupplierLocations.Updated = 1
+		}
+		if !reflect.DeepEqual(report, want) {
+			t.Fatalf("contact patch attempt %d report = %#v, want %#v", attempt, report, want)
+		}
+		if err := pool.QueryRow(ctx, `SELECT contact, revision FROM locations WHERE id = $1`, locationID).Scan(&contact, &revision); err != nil {
+			t.Fatalf("read supplied contact: %v", err)
+		}
+		if contact != newContact || revision != 4 {
+			t.Fatalf("supplied contact patch failed: contact=%q revision=%d", contact, revision)
+		}
+	}
+	if report, err := Seed(ctx, pool, paths); err != nil || !reflect.DeepEqual(report, Report{}) {
+		t.Fatalf("CSV without contact changed patched row: report=%#v error=%v", report, err)
 	}
 }
 

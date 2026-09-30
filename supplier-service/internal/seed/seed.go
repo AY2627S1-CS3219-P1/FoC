@@ -126,6 +126,7 @@ func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (
 			Latitude:   location.latitude,
 			OpenFrom:   database.ToPGTimeOfDay(location.openFrom),
 			OpenTo:     database.ToPGTimeOfDay(location.openTo),
+			Contact:    database.ToPGNullableText(location.contact),
 			Details:    database.ToPGNullableText(location.details),
 		})
 		if err != nil {

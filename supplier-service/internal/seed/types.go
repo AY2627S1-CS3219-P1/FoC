@@ -53,6 +53,7 @@ type location struct {
 	longitude          float64
 	openFrom           *time.Time
 	openTo             *time.Time
+	contact            *string
 	details            *string
 	categories         []string
 	categoriesProvided bool
