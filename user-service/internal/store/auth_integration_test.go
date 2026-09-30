@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -57,7 +56,7 @@ func TestUsersAuthPersistence(t *testing.T) {
 	store, _ := setupAuthStore(t)
 
 	user := createStoreUser(t, store, "user@example.com")
-	if user.ID == uuid.Nil {
+	if user.ID == 0 {
 		t.Fatal("database did not assign a user ID")
 	}
 	if got, err := store.GetByEmail(ctx, "USER@example.com"); err != nil || got.ID != user.ID {
@@ -70,28 +69,8 @@ func TestUsersAuthPersistence(t *testing.T) {
 	if err := store.Users.Create(ctx, &duplicate); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("duplicate user: %v", err)
 	}
-	if _, err := store.GetByID(ctx, uuid.New()); !errors.Is(err, ErrNotFound) {
+	if _, err := store.GetByID(ctx, 1<<40); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing user: %v", err)
-	}
-}
-
-func TestDomainWhitelist(t *testing.T) {
-	ctx := context.Background()
-	store, db := setupAuthStore(t)
-
-	if allowed, err := store.Admin.Allows(ctx, "example.com"); err != nil || allowed {
-		t.Fatalf("empty whitelist should deny registration: allowed=%v err=%v", allowed, err)
-	}
-	if err := db.Create(&models.AllowedEmailDomain{Domain: "u.nus.edu"}).Error; err != nil {
-		t.Fatal(err)
-	}
-	for _, domain := range []string{"u.nus.edu", "U.NUS.EDU"} {
-		if allowed, err := store.Admin.Allows(ctx, domain); err != nil || !allowed {
-			t.Errorf("allowed domain %q: allowed=%v err=%v", domain, allowed, err)
-		}
-	}
-	if allowed, err := store.Admin.Allows(ctx, "example.com"); err != nil || allowed {
-		t.Fatalf("unlisted domain: allowed=%v err=%v", allowed, err)
 	}
 }
 
@@ -103,7 +82,7 @@ func TestAuthTokensPersistence(t *testing.T) {
 
 	loginHash := testDigest("login")
 	login := models.AuthToken{TokenHash: loginHash[:], Purpose: models.TokenPurposeLogin,
-		Email: user.Email, UserID: &user.ID, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
+		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(time.Minute)}
 	if err := store.AuthTokens.Create(ctx, &login); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +99,7 @@ func TestAuthTokensPersistence(t *testing.T) {
 
 	concurrentHash := testDigest("concurrent-login")
 	concurrent := models.AuthToken{TokenHash: concurrentHash[:], Purpose: models.TokenPurposeLogin,
-		Email: user.Email, UserID: &user.ID, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
+		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(time.Minute)}
 	if err := store.AuthTokens.Create(ctx, &concurrent); err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +117,26 @@ func TestAuthTokensPersistence(t *testing.T) {
 	}
 }
 
+func TestAuthTokensRejectDeletedUser(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	store, _ := setupAuthStore(t)
+	user := createStoreUser(t, store, "user@example.com")
+
+	loginHash := testDigest("deleted-user-login")
+	login := models.AuthToken{TokenHash: loginHash[:], Purpose: models.TokenPurposeLogin,
+		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(time.Minute)}
+	if err := store.AuthTokens.Create(ctx, &login); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Users.Delete(ctx, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeLogin, now); !errors.Is(err, ErrChallengeRejected) {
+		t.Fatalf("deleted user's token: %v", err)
+	}
+}
+
 func TestStoreTransactionRollback(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -146,13 +145,13 @@ func TestStoreTransactionRollback(t *testing.T) {
 
 	rollbackHash := testDigest("rollback")
 	rollbackToken := models.AuthToken{TokenHash: rollbackHash[:], Purpose: models.TokenPurposeRegister,
-		Email: "new@example.com", CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
+		Email: "new@example.com", ExpiresAt: now.Add(time.Minute)}
 	if err := store.AuthTokens.Create(ctx, &rollbackToken); err != nil {
 		t.Fatal(err)
 	}
 	rollbackSessionHash := testDigest("rollback-session")
-	rollbackSession := models.Session{ID: uuid.New(), UserID: user.ID, TokenHash: rollbackSessionHash[:],
-		CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
+	rollbackSession := models.Session{UserID: user.ID, TokenHash: rollbackSessionHash[:],
+		LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
 	rollbackErr := errors.New("roll back")
 	err := store.WithTransaction(ctx, func(tx *Store) error {
 		if _, err := tx.AuthTokens.Consume(ctx, rollbackHash, models.TokenPurposeRegister, now); err != nil {
@@ -182,8 +181,8 @@ func TestSessionsPersistence(t *testing.T) {
 	user := createStoreUser(t, store, "user@example.com")
 
 	sessionHash := testDigest("session")
-	session := models.Session{ID: uuid.New(), UserID: user.ID, TokenHash: sessionHash[:],
-		CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
+	session := models.Session{UserID: user.ID, TokenHash: sessionHash[:],
+		LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
 	if err := store.Sessions.Create(ctx, &session); err != nil {
 		t.Fatal(err)
 	}

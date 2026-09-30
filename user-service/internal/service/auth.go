@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,7 +18,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"github.com/google/uuid"
 )
 
 const (
@@ -37,7 +37,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
-		if user.ID == uuid.Nil {
+		if user.ID == 0 {
 			return errors.New("found user has no ID")
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -122,15 +122,12 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if err != nil {
 			return err
 		}
-		if storedUser.ID == uuid.Nil || !storedUser.Role.Valid() {
+		if storedUser.ID == 0 || !storedUser.Role.Valid() {
 			return jwt.ErrLoginFailed
 		}
 		user = *storedUser
-		session, signed, err := s.newSession(user, now)
+		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {
-			return err
-		}
-		if err := tx.Sessions.Create(ctx, &session); err != nil {
 			return err
 		}
 		tokens = signed
@@ -181,11 +178,8 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 			}
 			return err
 		}
-		session, signed, err := s.newSession(user, now)
+		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {
-			return err
-		}
-		if err := tx.Sessions.Create(ctx, &session); err != nil {
 			return err
 		}
 		tokens = signed
@@ -212,11 +206,11 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	userID, err := uuid.Parse(claims.Subject)
+	userID, err := parseID(claims.Subject)
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	sessionID, err := uuid.Parse(claims.SessionID)
+	sessionID, err := parseID(claims.SessionID)
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
@@ -230,15 +224,14 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if user.ID != userID || !user.Role.Valid() {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	replacement, tokens, err := s.newSession(*user, now)
-	if err != nil {
-		return models.User{}, jwt.AuthTokens{}, err
-	}
+	var tokens jwt.AuthTokens
 	err = s.deps.WithTransaction(ctx, func(tx Store) error {
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
-		return tx.Sessions.Create(ctx, &replacement)
+		var err error
+		tokens, err = s.createSession(ctx, tx, *user, now)
+		return err
 	})
 	if errors.Is(err, store.ErrSessionRejected) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
@@ -257,7 +250,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return nil
 	}
-	sessionID, err := uuid.Parse(claims.SessionID)
+	sessionID, err := parseID(claims.SessionID)
 	if err != nil {
 		return nil
 	}
@@ -275,21 +268,28 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) newSession(user models.User, now time.Time) (models.Session, jwt.AuthTokens, error) {
-	sessionID, err := uuid.NewRandom()
-	if err != nil {
-		return models.Session{}, jwt.AuthTokens{}, fmt.Errorf("generate session ID: %w", err)
+func (s *Service) createSession(ctx context.Context, tx Store, user models.User, now time.Time) (jwt.AuthTokens, error) {
+	placeholderHash := make([]byte, sha256.Size)
+	if _, err := rand.Read(placeholderHash); err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("generate session placeholder: %w", err)
 	}
-	tokens, err := s.signSessionTokens(user, sessionID, now)
+	session := models.Session{UserID: user.ID, TokenHash: placeholderHash,
+		LastSeenAt: now, ExpiresAt: now.Add(s.cfg.RefreshTokenTTL)}
+	if err := tx.Sessions.Create(ctx, &session); err != nil {
+		return jwt.AuthTokens{}, err
+	}
+	tokens, err := s.signSessionTokens(user, session.ID, now)
 	if err != nil {
-		return models.Session{}, jwt.AuthTokens{}, err
+		return jwt.AuthTokens{}, err
 	}
 	digest := sha256.Sum256([]byte(tokens.RefreshToken))
-	return models.Session{ID: sessionID, UserID: user.ID, TokenHash: append([]byte(nil), digest[:]...),
-		CreatedAt: now, LastSeenAt: now, ExpiresAt: tokens.RefreshExpiry}, tokens, nil
+	if err := tx.Sessions.UpdateTokenHash(ctx, session.ID, digest[:]); err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("save refresh token hash: %w", err)
+	}
+	return tokens, nil
 }
 
-func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.Time) (jwt.AuthTokens, error) {
 	role, ok := jwtRole(user.Role)
 	if !ok {
 		return jwt.AuthTokens{}, errors.New("user has invalid role")
@@ -304,18 +304,25 @@ func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now t
 	}
 	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
-	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: user.ID.String(),
-		SessionID: sessionID.String(), Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
+	subject := strconv.FormatUint(uint64(user.ID), 10)
+	sessionSubject := strconv.FormatUint(uint64(sessionID), 10)
+	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: subject,
+		SessionID: sessionSubject, Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
 	}
-	refresh, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: user.ID.String(),
-		SessionID: sessionID.String(), IssuedAt: now, ExpiresAt: refreshExpiry, TokenID: refreshID})
+	refresh, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: subject,
+		SessionID: sessionSubject, IssuedAt: now, ExpiresAt: refreshExpiry, TokenID: refreshID})
 	if err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("sign refresh token: %w", err)
 	}
 	return jwt.AuthTokens{AccessToken: access, RefreshToken: refresh,
 		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
+}
+
+func parseID(value string) (uint, error) {
+	id, err := strconv.ParseUint(value, 10, strconv.IntSize)
+	return uint(id), err
 }
 
 func jwtRole(role models.RoleName) (jwt.Role, bool) {
