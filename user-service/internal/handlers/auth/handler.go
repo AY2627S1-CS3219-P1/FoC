@@ -28,6 +28,7 @@ type Logic interface {
 	Register(context.Context, string, jwt.Profile) (models.User, jwt.AuthTokens, error)
 	Refresh(context.Context, string) (models.User, jwt.AuthTokens, error)
 	Logout(context.Context, string) error
+	LogoutAll(context.Context, string) error
 	PublicKeys() (jwt.JWKSet, error)
 }
 
@@ -106,6 +107,19 @@ func (h *Handler) Logout(
 		return nil, mapError(err)
 	}
 	response := connect.NewResponse(&userv1.LogoutResponse{})
+	response.Header().Add("Set-Cookie", clearRefreshCookie())
+	response.Header().Set("Cache-Control", "no-store")
+	return response, nil
+}
+
+func (h *Handler) LogoutAll(
+	ctx context.Context,
+	req *connect.Request[userv1.LogoutAllRequest],
+) (*connect.Response[userv1.LogoutAllResponse], error) {
+	if err := h.Logic.LogoutAll(ctx, cookieValue(req.Header(), RefreshCookieName)); err != nil {
+		return nil, mapError(err)
+	}
+	response := connect.NewResponse(&userv1.LogoutAllResponse{})
 	response.Header().Add("Set-Cookie", clearRefreshCookie())
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
