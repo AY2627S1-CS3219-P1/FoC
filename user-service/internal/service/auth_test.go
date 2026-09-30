@@ -447,7 +447,7 @@ func TestProductionLinkIsEmailOnly(t *testing.T) {
 	if _, ok := store.registrations[digest]; !ok {
 		t.Fatal("emailed token digest was not stored")
 	}
-	if _, err := normalizeEmail("Name <user@example.com>"); !errors.Is(err, jwt.ErrInvalidEmail) {
+	if _, err := NormalizeEmail("Name <user@example.com>"); !errors.Is(err, jwt.ErrInvalidEmail) {
 		t.Fatalf("display-name email accepted: %v", err)
 	}
 	localURL, err := url.Parse("http://localhost:5173")
