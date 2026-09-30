@@ -143,12 +143,13 @@ func (t *transaction) Location(ctx context.Context, resourceID string) (w.Locati
 	if e != nil {
 		return w.Location{}, mapError(e)
 	}
-	l := w.Location{ID: idString(v.ID), Proposal: w.Proposal{Name: v.Name, IsSupplier: v.IsSupplier, CategoryIDs: ids(v.CategoryIds), BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, Building: w.Building{ID: idString(v.BuildingID), Name: v.BuildingName, Latitude: v.BuildingLatitude, Longitude: v.BuildingLongitude, RadiusM: v.RadiusM, CreatedAt: v.BuildingCreatedAt.Time.UTC(), UpdatedAt: v.BuildingUpdatedAt.Time.UTC()}, ArchivedAt: timePointer(v.ArchivedAt), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+	l := w.Location{ID: idString(v.ID), Proposal: w.Proposal{Name: v.Name, IsSupplier: v.IsSupplier, BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, Building: w.Building{ID: idString(v.BuildingID), Name: v.BuildingName, Latitude: v.BuildingLatitude, Longitude: v.BuildingLongitude, RadiusM: v.RadiusM, CreatedAt: v.BuildingCreatedAt.Time.UTC(), UpdatedAt: v.BuildingUpdatedAt.Time.UTC()}, ArchivedAt: timePointer(v.ArchivedAt), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
 	cats, e := t.q.WorkflowLocationCategories(ctx, v.ID)
 	if e != nil {
 		return l, mapError(e)
 	}
 	for _, c := range cats {
+		l.Proposal.CategoryIDs = append(l.Proposal.CategoryIDs, idString(c.ID))
 		l.Categories = append(l.Categories, w.Category{ID: idString(c.ID), Name: c.Name, CreatedAt: c.CreatedAt.Time.UTC()})
 	}
 	d, e := t.q.CurrentWorkflowDisablement(ctx, db.CurrentWorkflowDisablementParams{LocationID: v.ID, NowAt: stamp(t.clock())})

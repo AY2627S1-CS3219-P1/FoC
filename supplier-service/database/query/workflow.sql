@@ -3,8 +3,7 @@ SELECT l.*, ST_Y(l.coordinates::geometry)::float8 AS latitude,
     ST_X(l.coordinates::geometry)::float8 AS longitude,
     b.name AS building_name, ST_Y(b.center::geometry)::float8 AS building_latitude,
     ST_X(b.center::geometry)::float8 AS building_longitude, b.radius_m,
-    b.created_at AS building_created_at, b.updated_at AS building_updated_at,
-    ARRAY(SELECT category_id FROM location_categories WHERE location_id=l.id ORDER BY category_id)::uuid[] AS category_ids
+    b.created_at AS building_created_at, b.updated_at AS building_updated_at
 FROM locations l JOIN buildings b ON b.id=l.building_id WHERE l.id=$1 FOR UPDATE OF l;
 
 -- name: WorkflowLocationCategories :many
