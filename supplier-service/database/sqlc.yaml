@@ -79,3 +79,18 @@ sql:
         out: "../internal/database/workflowdb"
         sql_package: "pgx/v5"
         omit_unused_structs: true
+  - name: "idempotency"
+    engine: "postgresql"
+    queries: "query/idempotency.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "idempotencydb"
+        out: "../internal/database/idempotencydb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "timestamptz"
+            go_type: "time.Time"

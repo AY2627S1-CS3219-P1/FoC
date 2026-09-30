@@ -50,7 +50,7 @@ func TestWorkflowDowngradeWaitsForWriterPostGIS(t *testing.T) {
 	if err := f.pool.QueryRow(f.ctx, "SELECT floor FROM location_addition_requests WHERE id=$1", requestID).Scan(&floor); err != nil || floor != "B1" {
 		t.Fatalf("concurrent floor was not retained: floor=%q error=%v", floor, err)
 	}
-	if version, err := goose.GetDBVersion(f.db); err != nil || version != 9 {
+	if version, err := goose.GetDBVersion(f.db); err != nil || version != 10 {
 		t.Fatalf("refused concurrent downgrade changed version: version=%d error=%v", version, err)
 	}
 }

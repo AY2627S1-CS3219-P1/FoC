@@ -91,7 +91,7 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 		if err := f.pool.QueryRow(f.ctx, "SELECT floor,status FROM location_addition_requests WHERE id=$1", id).Scan(&floor, &status); err != nil || floor != "2" || status != "pending" {
 			t.Fatalf("request changed after refused downgrade: floor=%q status=%q error=%v", floor, status, err)
 		}
-		if version, err := goose.GetDBVersion(f.db); err != nil || version != 9 {
+		if version, err := goose.GetDBVersion(f.db); err != nil || version != 10 {
 			t.Fatalf("migration version=%d error=%v", version, err)
 		}
 	})
