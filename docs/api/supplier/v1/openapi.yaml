@@ -1922,6 +1922,158 @@ components:
           title: status
       title: CheckResponse
       additionalProperties: false
+    user.v1.GetPublicKeysRequest:
+      type: object
+      title: GetPublicKeysRequest
+      additionalProperties: false
+    user.v1.GetPublicKeysResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/user.v1.JsonWebKey'
+          title: keys
+      title: GetPublicKeysResponse
+      additionalProperties: false
+    user.v1.JsonWebKey:
+      type: object
+      properties:
+        kty:
+          type: string
+          title: kty
+        crv:
+          type: string
+          title: crv
+        x:
+          type: string
+          title: x
+        y:
+          type: string
+          title: y
+        use:
+          type: string
+          title: use
+        alg:
+          type: string
+          title: alg
+        kid:
+          type: string
+          title: kid
+      title: JsonWebKey
+      additionalProperties: false
+    user.v1.LoginRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          title: token
+          minLength: 1
+      title: LoginRequest
+      additionalProperties: false
+    user.v1.LoginResponse:
+      type: object
+      properties:
+        user:
+          allOf:
+            - $ref: '#/components/schemas/user.v1.User'
+          title: user
+        accessToken:
+          type: string
+          title: access_token
+      title: LoginResponse
+      additionalProperties: false
+    user.v1.LogoutRequest:
+      type: object
+      title: LogoutRequest
+      additionalProperties: false
+    user.v1.LogoutResponse:
+      type: object
+      title: LogoutResponse
+      additionalProperties: false
+    user.v1.RefreshRequest:
+      type: object
+      title: RefreshRequest
+      additionalProperties: false
+    user.v1.RefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          title: access_token
+        user:
+          allOf:
+            - $ref: '#/components/schemas/user.v1.User'
+          title: user
+      title: RefreshResponse
+      additionalProperties: false
+    user.v1.RegisterRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          title: token
+          minLength: 1
+        displayName:
+          type: string
+          title: display_name
+          maxLength: 100
+          minLength: 1
+      title: RegisterRequest
+      additionalProperties: false
+    user.v1.RegisterResponse:
+      type: object
+      properties:
+        user:
+          allOf:
+            - $ref: '#/components/schemas/user.v1.User'
+          title: user
+        accessToken:
+          type: string
+          title: access_token
+      title: RegisterResponse
+      additionalProperties: false
+    user.v1.RequestLinkRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          title: email
+          minLength: 1
+          format: email
+      title: RequestLinkRequest
+      additionalProperties: false
+    user.v1.RequestLinkResponse:
+      type: object
+      title: RequestLinkResponse
+      additionalProperties: false
+    user.v1.User:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+        email:
+          type: string
+          title: email
+        displayName:
+          type: string
+          title: display_name
+        role:
+          allOf:
+            - $ref: '#/components/schemas/user.v1.UserRole'
+          title: role
+      title: User
+      additionalProperties: false
+    user.v1.UserRole:
+      type: string
+      title: UserRole
+      enum:
+        - USER_ROLE_UNSPECIFIED
+        - USER_ROLE_SUPER_ADMIN
+        - USER_ROLE_ADMIN
+        - USER_ROLE_USER
+        - USER_ROLE_SUSPENDED_USER
 security: []
 tags:
   - name: supplier.v1.HealthService
