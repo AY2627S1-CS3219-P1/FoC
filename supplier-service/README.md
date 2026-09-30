@@ -43,6 +43,24 @@ Some notes on rerun behavior:
 - Supplier Category links are synchronized, including removing obsolete links.
 - Removing an entire Building, Category, or Location from CSV does not remove it from the database.
 
+## API demo
+
+`scripts/api-demo.sh` shows the Location APIs working without the frontend. It
+checks discovery, role checks, and the admin create, update, archive, and
+restore lifecycle against a running, seeded service, and exits non-zero on the
+first unexpected response. It needs `curl`, `jq`, and `uuidgen`, plus User
+Service access tokens for a `user` and an `admin`:
+
+```sh
+USER_TOKEN='<token>' ADMIN_TOKEN='<token>' scripts/api-demo.sh
+```
+
+Set `SUPPLIER_BASE_URL` if the service is not on `http://localhost:8082`, and
+`PAUSE=1` to step through it while presenting. Each run archives the Location it
+creates, so it can be rerun.
+
+## Tests
+
 Run fast and PostgreSQL/PostGIS-backed tests separately:
 
 ```sh
