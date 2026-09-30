@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "supplier/v1/resources.proto";
+
+// Administrator-only operational workflows. Discovery and CRUD integrate from #49/#51.
+service LocationService {
+  // CreateDisablement obeys scheduled/active/terminal lifecycle rules.
+  rpc CreateDisablement(CreateDisablementRequest) returns (CreateDisablementResponse) {}
+  // ListDisablements obeys scheduled/active/terminal lifecycle rules.
+  rpc ListDisablements(ListDisablementsRequest) returns (ListDisablementsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  // UpdateDisablement obeys scheduled/active/terminal lifecycle rules.
+  rpc UpdateDisablement(UpdateDisablementRequest) returns (UpdateDisablementResponse) {}
+  // EndDisablement obeys scheduled/active/terminal lifecycle rules.
+  rpc EndDisablement(EndDisablementRequest) returns (EndDisablementResponse) { option idempotency_level = IDEMPOTENT; }
+  // CancelDisablement obeys scheduled/active/terminal lifecycle rules.
+  rpc CancelDisablement(CancelDisablementRequest) returns (CancelDisablementResponse) { option idempotency_level = IDEMPOTENT; }
+}
+
+// Creates a non-overlapping interval on an unarchived Location.
+message CreateDisablementRequest {
+  // Existing unarchived Location.
+  string location_id = 1 [(buf.validate.field).string.uuid = true];
+  // Omitted means now.
+  google.protobuf.Timestamp starts_at = 2;
+  // Omitted means indefinite; otherwise later than start.
+  google.protobuf.Timestamp ends_at = 3;
+  // Trimmed reason, 1-500 characters.
+  string reason = 4 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  // UUID retry key scoped by caller and method for 24 hours.
+  string idempotency_key = 5 [(buf.validate.field).string.uuid = true];
+}
+// Lists one Location's intervals, ordered by start descending then ID.
+message ListDisablementsRequest {
+  // Existing Location.
+  string location_id = 1 [(buf.validate.field).string.uuid = true];
+  // Unspecified includes all states.
+  DisablementState state = 2 [(buf.validate.field).enum.defined_only = true];
+  // One-based; zero means 1.
+  int32 page = 3 [(buf.validate.field).int32.gte = 0];
+  // Zero means 20; maximum 100.
+  int32 page_size = 4 [(buf.validate.field).int32 = {gte: 0, lte: 100}];
+}
+// Updates only a scheduled Disablement.
+message UpdateDisablementRequest {
+  // Existing Disablement.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Required when starts_at is masked. Only scheduled intervals may be edited.
+  google.protobuf.Timestamp starts_at = 2;
+  // Absent and masked clears the natural end.
+  google.protobuf.Timestamp ends_at = 3;
+  // Trimmed reason when masked.
+  string reason = 4 [(buf.validate.field).string.max_len = 500];
+  // Non-empty paths from starts_at, ends_at, reason.
+  google.protobuf.FieldMask update_mask = 5 [(buf.validate.field).required = true];
+  // Revision observed before this update.
+  int64 expected_revision = 6 [(buf.validate.field).int64.gt = 0];
+}
+// Idempotent terminal command. A different terminal state is rejected.
+message EndDisablementRequest {
+  // Existing Disablement identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Idempotent terminal command. A different terminal state is rejected.
+message CancelDisablementRequest {
+  // Existing Disablement identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Resulting Disablement.
+message CreateDisablementResponse {
+  // Current persisted interval and lifecycle state.
+  Disablement disablement = 1;
+}
+// Resulting Disablement.
+message UpdateDisablementResponse {
+  // Current persisted interval and lifecycle state.
+  Disablement disablement = 1;
+}
+// Resulting Disablement.
+message EndDisablementResponse {
+  // Current persisted interval and lifecycle state.
+  Disablement disablement = 1;
+}
+// Resulting Disablement.
+message CancelDisablementResponse {
+  // Current persisted interval and lifecycle state.
+  Disablement disablement = 1;
+}
+// Matching intervals and caller-visible counts.
+message ListDisablementsResponse {
+  // Intervals in stable order.
+  repeated Disablement disablements = 1;
+  // Pagination metadata.
+  PageInfo page_info = 2;
+}

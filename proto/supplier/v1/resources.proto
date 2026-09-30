@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/timeofday.proto";
+
+// WGS84 coordinates, in degrees.
+message Coordinates {
+  // Latitude north of the equator.
+  double latitude = 1 [(buf.validate.field).double = {gte: -90, lte: 90}];
+  // Longitude east of Greenwich.
+  double longitude = 2 [(buf.validate.field).double = {gte: -180, lte: 180}];
+}
+// Seed-managed campus Building.
+message Building {
+  // Stable Building identity.
+  string id = 1;
+  // Display name.
+  string name = 2;
+  // Coverage center.
+  Coordinates center = 3;
+  // Coverage radius in meters.
+  float radius_m = 4;
+  // Creation time in UTC.
+  google.protobuf.Timestamp created_at = 5;
+  // Last modification in UTC.
+  google.protobuf.Timestamp updated_at = 6;
+}
+// Seed-managed classification of a Supplier Location.
+message Category {
+  // Stable Category identity.
+  string id = 1;
+  // Display name.
+  string name = 2;
+  // Creation time in UTC.
+  google.protobuf.Timestamp created_at = 3;
+}
+// Mutable proposal fields. Masked empty optional fields clear existing values.
+message LocationProposal {
+  // Trimmed display name, required on submission.
+  string name = 1 [(buf.validate.field).string.max_len = 200];
+  // Explicit Supplier classification, required on submission.
+  optional bool is_supplier = 2;
+  // Suppliers require at least one existing Category. Ordinary Locations have none.
+  repeated string category_ids = 3 [(buf.validate.field).repeated = {unique: true, items: {string: {uuid: true}}}];
+  // Existing Building identity, required on submission.
+  string building_id = 4 [(buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE, (buf.validate.field).string.uuid = true];
+  // Optional trimmed floor. Empty or absent clears a masked field.
+  optional string floor = 5 [(buf.validate.field).string.max_len = 50];
+  // Required on submission and when coordinates are masked.
+  Coordinates coordinates = 6;
+  // Asia/Singapore local opening time. Set or clear with open_to.
+  google.type.TimeOfDay open_from = 7;
+  // Asia/Singapore local closing time. Earlier than open_from means overnight.
+  google.type.TimeOfDay open_to = 8;
+  // Optional trimmed contact information.
+  optional string contact = 9 [(buf.validate.field).string.max_len = 500];
+  // Optional directions or remote-purchase information. Empty clears the field.
+  string details = 10 [(buf.validate.field).string.max_len = 2000];
+  option (buf.validate.message).cel = {
+    id: "hours_precision"
+    message: "opening times must have valid hours and microsecond precision"
+    expression: "[this.open_from, this.open_to].all(t, t.hours >= 0 && t.hours <= 23 && t.minutes >= 0 && t.minutes <= 59 && t.seconds >= 0 && t.seconds <= 59 && t.nanos >= 0 && t.nanos <= 999999999 && t.nanos % 1000 == 0)"
+  };
+}
+// One campus Location. Archive excludes selection; disablement only warns.
+message Location {
+  // Stable identity shared by ordinary and Supplier Locations.
+  string id = 1;
+  // Non-unique display name.
+  string name = 2;
+  // Whether the Location supplies items.
+  bool is_supplier = 3;
+  // Owning Building.
+  Building building = 4;
+  // Empty for ordinary Locations.
+  repeated Category categories = 5;
+  // Optional floor.
+  optional string floor = 6;
+  // WGS84 point.
+  Coordinates coordinates = 7;
+  // Asia/Singapore wall-clock opening time.
+  google.type.TimeOfDay open_from = 8;
+  // Asia/Singapore wall-clock closing time.
+  google.type.TimeOfDay open_to = 9;
+  // Optional contact information.
+  optional string contact = 10;
+  // Directions and remote-purchase information.
+  string details = 11;
+  // Set only when archived.
+  google.protobuf.Timestamp archived_at = 12;
+  // Currently active warning, if any. Location remains selectable.
+  Disablement current_disablement = 13;
+  // Optimistic concurrency revision.
+  int64 revision = 14;
+  // Creation time in UTC.
+  google.protobuf.Timestamp created_at = 15;
+  // Modification time in UTC.
+  google.protobuf.Timestamp updated_at = 16;
+}
+// Lifecycle state derived from the interval and terminal timestamps.
+enum DisablementState {
+  // No state filter when used in a list request.
+  DISABLEMENT_STATE_UNSPECIFIED = 0;
+  // Starts in the future.
+  DISABLEMENT_STATE_SCHEDULED = 1;
+  // Interval contains now.
+  DISABLEMENT_STATE_ACTIVE = 2;
+  // Naturally or explicitly ended.
+  DISABLEMENT_STATE_ENDED = 3;
+  // Cancelled before start.
+  DISABLEMENT_STATE_CANCELLED = 4;
+}
+// Temporary operational warning for one Location.
+message Disablement {
+  // Stable Disablement identity.
+  string id = 1;
+  // Location receiving the warning.
+  string location_id = 2;
+  // Absolute start, normalized to UTC.
+  google.protobuf.Timestamp starts_at = 3;
+  // Natural end, absent for indefinite intervals.
+  google.protobuf.Timestamp ends_at = 4;
+  // Explicit early end, if any.
+  google.protobuf.Timestamp ended_at = 5;
+  // Cancellation before start, if any.
+  google.protobuf.Timestamp cancelled_at = 6;
+  // Trimmed operational reason.
+  string reason = 7;
+  // Administrator who created the interval.
+  string created_by = 8;
+  // Lifecycle state at response time.
+  DisablementState state = 9;
+  // Optimistic concurrency revision.
+  int64 revision = 10;
+  // Creation time in UTC.
+  google.protobuf.Timestamp created_at = 11;
+  // Modification time in UTC.
+  google.protobuf.Timestamp updated_at = 12;
+}
+// Terminal status is immutable.
+enum LocationAdditionRequestStatus {
+  // No status filter in list requests.
+  LOCATION_ADDITION_REQUEST_STATUS_UNSPECIFIED = 0;
+  // Awaiting review.
+  LOCATION_ADDITION_REQUEST_STATUS_PENDING = 1;
+  // Created a Location.
+  LOCATION_ADDITION_REQUEST_STATUS_APPROVED = 2;
+  // Rejected with a review note.
+  LOCATION_ADDITION_REQUEST_STATUS_REJECTED = 3;
+  // Withdrawn by its submitter.
+  LOCATION_ADDITION_REQUEST_STATUS_WITHDRAWN = 4;
+}
+// Caller-projected Location proposal and lifecycle metadata.
+message LocationAdditionRequest {
+  // Stable request identity.
+  string id = 1;
+  // Mutable proposal fields.
+  LocationProposal proposal = 2;
+  // Redacted from generally visible approved responses.
+  string submitted_by = 3;
+  // Current review status.
+  LocationAdditionRequestStatus status = 4;
+  // Redacted from generally visible approved responses.
+  optional string reviewed_by = 5;
+  // Time of administrative review, if any.
+  google.protobuf.Timestamp reviewed_at = 6;
+  // Redacted from generally visible approved responses.
+  optional string review_note = 7;
+  // Created Location identity, only after approval.
+  optional string resulting_location_id = 8;
+  // Optimistic concurrency revision.
+  int64 revision = 9;
+  // Creation time in UTC.
+  google.protobuf.Timestamp created_at = 10;
+  // Modification time in UTC.
+  google.protobuf.Timestamp updated_at = 11;
+}
+// Counts include only resources visible to the caller after filtering.
+message PageInfo {
+  // One-based current page.
+  int32 page = 1;
+  // Effective size, default 20, maximum 100.
+  int32 page_size = 2;
+  // Total visible matching resources.
+  int64 total_items = 3;
+  // Total pages, zero for an empty result.
+  int32 total_pages = 4;
+}

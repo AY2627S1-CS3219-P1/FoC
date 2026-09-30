@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/field_mask.proto";
+import "supplier/v1/resources.proto";
+
+// Owner maintenance and administrator review of Location proposals.
+service LocationAdditionRequestService {
+  // Submit caller-visible proposals under owner and administrator authorization.
+  rpc SubmitLocationAdditionRequest(SubmitLocationAdditionRequestRequest) returns (SubmitLocationAdditionRequestResponse) {}
+  // List caller-visible proposals under owner and administrator authorization.
+  rpc ListLocationAdditionRequests(ListLocationAdditionRequestsRequest) returns (ListLocationAdditionRequestsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  // Get caller-visible proposals under owner and administrator authorization.
+  rpc GetLocationAdditionRequest(GetLocationAdditionRequestRequest) returns (GetLocationAdditionRequestResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  // Update caller-visible proposals under owner and administrator authorization.
+  rpc UpdateLocationAdditionRequest(UpdateLocationAdditionRequestRequest) returns (UpdateLocationAdditionRequestResponse) {}
+  // Withdraw caller-visible proposals under owner and administrator authorization.
+  rpc WithdrawLocationAdditionRequest(WithdrawLocationAdditionRequestRequest) returns (WithdrawLocationAdditionRequestResponse) { option idempotency_level = IDEMPOTENT; }
+  // Approve caller-visible proposals under owner and administrator authorization.
+  rpc ApproveLocationAdditionRequest(ApproveLocationAdditionRequestRequest) returns (ApproveLocationAdditionRequestResponse) { option idempotency_level = IDEMPOTENT; }
+  // Reject caller-visible proposals under owner and administrator authorization.
+  rpc RejectLocationAdditionRequest(RejectLocationAdditionRequestRequest) returns (RejectLocationAdditionRequestResponse) { option idempotency_level = IDEMPOTENT; }
+}
+// Submit a complete Location proposal. Suspended users are denied.
+message SubmitLocationAdditionRequestRequest {
+  // Complete proposal, including explicit classification and coordinates.
+  LocationProposal proposal = 1 [(buf.validate.field).required = true];
+  // UUID retry key scoped by caller and method for 24 hours.
+  string idempotency_key = 2 [(buf.validate.field).string.uuid = true];
+  option (buf.validate.message).cel = {
+    id: "complete_proposal"
+    message: "name, classification, Building and coordinates are required"
+    expression: "this.proposal.name.size() > 0 && has(this.proposal.is_supplier) && this.proposal.building_id.size() > 0 && has(this.proposal.coordinates)"
+  };
+}
+// Counts and filters apply after caller visibility.
+message ListLocationAdditionRequestsRequest {
+  // Unspecified includes all visible states.
+  LocationAdditionRequestStatus status = 1 [(buf.validate.field).enum.defined_only = true];
+  // One-based; zero means 1.
+  int32 page = 2 [(buf.validate.field).int32.gte = 0];
+  // Zero means 20; maximum 100.
+  int32 page_size = 3 [(buf.validate.field).int32 = {gte: 0, lte: 100}];
+}
+// Updates a pending request without overwriting unmasked fields.
+message UpdateLocationAdditionRequestRequest {
+  // Existing request identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Patch values. Masked optional empty fields are cleared.
+  LocationProposal proposal = 2 [(buf.validate.field).required = true];
+  // Writable proposal paths. Opening and closing must be masked together.
+  google.protobuf.FieldMask update_mask = 3 [(buf.validate.field).required = true];
+  // Revision observed before this update.
+  int64 expected_revision = 4 [(buf.validate.field).int64.gt = 0];
+}
+// Get one caller-visible request.
+message GetLocationAdditionRequestRequest {
+  // Existing request identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Withdraw one caller-visible request.
+message WithdrawLocationAdditionRequestRequest {
+  // Existing request identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Approve one caller-visible request.
+message ApproveLocationAdditionRequestRequest {
+  // Existing request identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+// Reject one caller-visible request.
+message RejectLocationAdditionRequestRequest {
+  // Existing request identity.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Required trimmed explanation, 1-2000 characters.
+  string review_note = 2 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
+}
+// Resulting caller-projected request.
+message SubmitLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+}
+// Resulting caller-projected request.
+message GetLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+}
+// Resulting caller-projected request.
+message UpdateLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+}
+// Resulting caller-projected request.
+message WithdrawLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+}
+// Resulting caller-projected request.
+message ApproveLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+  // Location created atomically with approval, or the original on retry.
+  Location location = 2;
+}
+// Resulting caller-projected request.
+message RejectLocationAdditionRequestResponse {
+  // Full for submitters/admins; approved public views redact identities and notes.
+  LocationAdditionRequest request = 1;
+}
+// Visible requests ordered by creation descending then ID.
+message ListLocationAdditionRequestsResponse {
+  // Caller-projected resources.
+  repeated LocationAdditionRequest requests = 1;
+  // Counts include only visible matching rows.
+  PageInfo page_info = 2;
+}
