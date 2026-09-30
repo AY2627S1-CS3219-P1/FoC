@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: supplier/v1/location_shared_types.proto
+// source: supplier/location/v1/shared_types.proto
 
-package supplierv1
+package locationv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -65,11 +65,11 @@ func (x DisablementState) String() string {
 }
 
 func (DisablementState) Descriptor() protoreflect.EnumDescriptor {
-	return file_supplier_v1_location_shared_types_proto_enumTypes[0].Descriptor()
+	return file_supplier_location_v1_shared_types_proto_enumTypes[0].Descriptor()
 }
 
 func (DisablementState) Type() protoreflect.EnumType {
-	return &file_supplier_v1_location_shared_types_proto_enumTypes[0]
+	return &file_supplier_location_v1_shared_types_proto_enumTypes[0]
 }
 
 func (x DisablementState) Number() protoreflect.EnumNumber {
@@ -78,7 +78,7 @@ func (x DisablementState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DisablementState.Descriptor instead.
 func (DisablementState) EnumDescriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{0}
 }
 
 // A Supplier is a Location with is_supplier set, not a separate resource.
@@ -113,7 +113,7 @@ type Location struct {
 
 func (x *Location) Reset() {
 	*x = Location{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -125,7 +125,7 @@ func (x *Location) String() string {
 func (*Location) ProtoMessage() {}
 
 func (x *Location) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -138,7 +138,7 @@ func (x *Location) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Location.ProtoReflect.Descriptor instead.
 func (*Location) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Location) GetId() string {
@@ -264,7 +264,7 @@ type Coordinates struct {
 
 func (x *Coordinates) Reset() {
 	*x = Coordinates{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -276,7 +276,7 @@ func (x *Coordinates) String() string {
 func (*Coordinates) ProtoMessage() {}
 
 func (x *Coordinates) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -289,7 +289,7 @@ func (x *Coordinates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Coordinates.ProtoReflect.Descriptor instead.
 func (*Coordinates) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Coordinates) GetLatitude() float64 {
@@ -321,7 +321,7 @@ type Building struct {
 
 func (x *Building) Reset() {
 	*x = Building{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -333,7 +333,7 @@ func (x *Building) String() string {
 func (*Building) ProtoMessage() {}
 
 func (x *Building) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -346,7 +346,7 @@ func (x *Building) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Building.ProtoReflect.Descriptor instead.
 func (*Building) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Building) GetId() string {
@@ -403,7 +403,7 @@ type Category struct {
 
 func (x *Category) Reset() {
 	*x = Category{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -415,7 +415,7 @@ func (x *Category) String() string {
 func (*Category) ProtoMessage() {}
 
 func (x *Category) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -428,7 +428,7 @@ func (x *Category) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Category.ProtoReflect.Descriptor instead.
 func (*Category) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{3}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Category) GetId() string {
@@ -477,7 +477,7 @@ type LocationInput struct {
 
 func (x *LocationInput) Reset() {
 	*x = LocationInput{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +489,7 @@ func (x *LocationInput) String() string {
 func (*LocationInput) ProtoMessage() {}
 
 func (x *LocationInput) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +502,7 @@ func (x *LocationInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocationInput.ProtoReflect.Descriptor instead.
 func (*LocationInput) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{4}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *LocationInput) GetName() string {
@@ -591,7 +591,7 @@ type PageInfo struct {
 
 func (x *PageInfo) Reset() {
 	*x = PageInfo{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -603,7 +603,7 @@ func (x *PageInfo) String() string {
 func (*PageInfo) ProtoMessage() {}
 
 func (x *PageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -616,7 +616,7 @@ func (x *PageInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
 func (*PageInfo) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{5}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PageInfo) GetPage() int32 {
@@ -660,7 +660,7 @@ type Disablement struct {
 	CancelledAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=cancelled_at,json=cancelledAt,proto3" json:"cancelled_at,omitempty"`
 	CreatedBy   string                 `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	// Lifecycle state at response time.
-	State         DisablementState       `protobuf:"varint,9,opt,name=state,proto3,enum=supplier.v1.DisablementState" json:"state,omitempty"`
+	State         DisablementState       `protobuf:"varint,9,opt,name=state,proto3,enum=supplier.location.v1.DisablementState" json:"state,omitempty"`
 	Revision      int64                  `protobuf:"varint,10,opt,name=revision,proto3" json:"revision,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -670,7 +670,7 @@ type Disablement struct {
 
 func (x *Disablement) Reset() {
 	*x = Disablement{}
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -682,7 +682,7 @@ func (x *Disablement) String() string {
 func (*Disablement) ProtoMessage() {}
 
 func (x *Disablement) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_shared_types_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_shared_types_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -695,7 +695,7 @@ func (x *Disablement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disablement.ProtoReflect.Descriptor instead.
 func (*Disablement) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_shared_types_proto_rawDescGZIP(), []int{6}
+	return file_supplier_location_v1_shared_types_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Disablement) GetId() string {
@@ -782,30 +782,30 @@ func (x *Disablement) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-var File_supplier_v1_location_shared_types_proto protoreflect.FileDescriptor
+var File_supplier_location_v1_shared_types_proto protoreflect.FileDescriptor
 
-const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
+const file_supplier_location_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"'supplier/v1/location_shared_types.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/type/timeofday.proto\"\xe1\x05\n" +
+	"'supplier/location/v1/shared_types.proto\x12\x14supplier.location.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/type/timeofday.proto\"\x85\x06\n" +
 	"\bLocation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
 	"\vis_supplier\x18\x03 \x01(\bR\n" +
-	"isSupplier\x121\n" +
-	"\bbuilding\x18\x04 \x01(\v2\x15.supplier.v1.BuildingR\bbuilding\x125\n" +
+	"isSupplier\x12:\n" +
+	"\bbuilding\x18\x04 \x01(\v2\x1e.supplier.location.v1.BuildingR\bbuilding\x12>\n" +
 	"\n" +
-	"categories\x18\x05 \x03(\v2\x15.supplier.v1.CategoryR\n" +
+	"categories\x18\x05 \x03(\v2\x1e.supplier.location.v1.CategoryR\n" +
 	"categories\x12\x19\n" +
-	"\x05floor\x18\x06 \x01(\tH\x00R\x05floor\x88\x01\x01\x12:\n" +
-	"\vcoordinates\x18\a \x01(\v2\x18.supplier.v1.CoordinatesR\vcoordinates\x121\n" +
+	"\x05floor\x18\x06 \x01(\tH\x00R\x05floor\x88\x01\x01\x12C\n" +
+	"\vcoordinates\x18\a \x01(\v2!.supplier.location.v1.CoordinatesR\vcoordinates\x121\n" +
 	"\bopens_at\x18\b \x01(\v2\x16.google.type.TimeOfDayR\aopensAt\x123\n" +
 	"\tcloses_at\x18\t \x01(\v2\x16.google.type.TimeOfDayR\bclosesAt\x12\x1d\n" +
 	"\acontact\x18\n" +
 	" \x01(\tH\x01R\acontact\x88\x01\x01\x12\x18\n" +
 	"\adetails\x18\v \x01(\tR\adetails\x12;\n" +
 	"\varchived_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"archivedAt\x12I\n" +
-	"\x13current_disablement\x18\r \x01(\v2\x18.supplier.v1.DisablementR\x12currentDisablement\x12\x1a\n" +
+	"archivedAt\x12R\n" +
+	"\x13current_disablement\x18\r \x01(\v2!.supplier.location.v1.DisablementR\x12currentDisablement\x12\x1a\n" +
 	"\brevision\x18\x0e \x01(\x03R\brevision\x129\n" +
 	"\n" +
 	"created_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
@@ -816,11 +816,11 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\b_contact\"y\n" +
 	"\vCoordinates\x123\n" +
 	"\blatitude\x18\x01 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80V@)\x00\x00\x00\x00\x00\x80V\xc0R\blatitude\x125\n" +
-	"\tlongitude\x18\x02 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80f@)\x00\x00\x00\x00\x00\x80f\xc0R\tlongitude\"\xf1\x01\n" +
+	"\tlongitude\x18\x02 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80f@)\x00\x00\x00\x00\x00\x80f\xc0R\tlongitude\"\xfa\x01\n" +
 	"\bBuilding\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x120\n" +
-	"\x06center\x18\x03 \x01(\v2\x18.supplier.v1.CoordinatesR\x06center\x12\x19\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
+	"\x06center\x18\x03 \x01(\v2!.supplier.location.v1.CoordinatesR\x06center\x12\x19\n" +
 	"\bradius_m\x18\x04 \x01(\x02R\aradiusM\x129\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
@@ -830,7 +830,7 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xe9\b\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xf2\b\n" +
 	"\rLocationInput\x12\"\n" +
 	"\x04name\x18\x01 \x01(\tB\x0e\xbaH\vr\t\x10\x01\x18\xc8\x012\x02\\SR\x04name\x12$\n" +
 	"\vis_supplier\x18\x02 \x01(\bH\x00R\n" +
@@ -838,8 +838,8 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\fcategory_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x18\x01\"\x05r\x03\xb0\x01\x01R\vcategoryIds\x12)\n" +
 	"\vbuilding_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
 	"buildingId\x12\"\n" +
-	"\x05floor\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182H\x01R\x05floor\x88\x01\x01\x12B\n" +
-	"\vcoordinates\x18\x06 \x01(\v2\x18.supplier.v1.CoordinatesB\x06\xbaH\x03\xc8\x01\x01R\vcoordinates\x121\n" +
+	"\x05floor\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182H\x01R\x05floor\x88\x01\x01\x12K\n" +
+	"\vcoordinates\x18\x06 \x01(\v2!.supplier.location.v1.CoordinatesB\x06\xbaH\x03\xc8\x01\x01R\vcoordinates\x121\n" +
 	"\bopens_at\x18\a \x01(\v2\x16.google.type.TimeOfDayR\aopensAt\x123\n" +
 	"\tcloses_at\x18\b \x01(\v2\x16.google.type.TimeOfDayR\bclosesAt\x12'\n" +
 	"\acontact\x18\t \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x02R\acontact\x88\x01\x01\x12\"\n" +
@@ -858,7 +858,7 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\vtotal_items\x18\x03 \x01(\x03R\n" +
 	"totalItems\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xa0\x04\n" +
+	"totalPages\"\xa9\x04\n" +
 	"\vDisablement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x127\n" +
 	"\tstarts_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x123\n" +
@@ -869,8 +869,8 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\bended_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendedAt\x12=\n" +
 	"\fcancelled_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\vcancelledAt\x12\x1d\n" +
 	"\n" +
-	"created_by\x18\b \x01(\tR\tcreatedBy\x123\n" +
-	"\x05state\x18\t \x01(\x0e2\x1d.supplier.v1.DisablementStateR\x05state\x12\x1a\n" +
+	"created_by\x18\b \x01(\tR\tcreatedBy\x12<\n" +
+	"\x05state\x18\t \x01(\x0e2&.supplier.location.v1.DisablementStateR\x05state\x12\x1a\n" +
 	"\brevision\x18\n" +
 	" \x01(\x03R\brevision\x129\n" +
 	"\n" +
@@ -882,59 +882,59 @@ const file_supplier_v1_location_shared_types_proto_rawDesc = "" +
 	"\x1bDISABLEMENT_STATE_SCHEDULED\x10\x01\x12\x1c\n" +
 	"\x18DISABLEMENT_STATE_ACTIVE\x10\x02\x12\x1b\n" +
 	"\x17DISABLEMENT_STATE_ENDED\x10\x03\x12\x1f\n" +
-	"\x1bDISABLEMENT_STATE_CANCELLED\x10\x04B\xba\x01\n" +
-	"\x0fcom.supplier.v1B\x18LocationSharedTypesProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
+	"\x1bDISABLEMENT_STATE_CANCELLED\x10\x04B\xe9\x01\n" +
+	"\x18com.supplier.location.v1B\x10SharedTypesProtoP\x01ZIgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1;locationv1\xa2\x02\x03SLX\xaa\x02\x14Supplier.Location.V1\xca\x02\x14Supplier\\Location\\V1\xe2\x02 Supplier\\Location\\V1\\GPBMetadata\xea\x02\x16Supplier::Location::V1b\x06proto3"
 
 var (
-	file_supplier_v1_location_shared_types_proto_rawDescOnce sync.Once
-	file_supplier_v1_location_shared_types_proto_rawDescData []byte
+	file_supplier_location_v1_shared_types_proto_rawDescOnce sync.Once
+	file_supplier_location_v1_shared_types_proto_rawDescData []byte
 )
 
-func file_supplier_v1_location_shared_types_proto_rawDescGZIP() []byte {
-	file_supplier_v1_location_shared_types_proto_rawDescOnce.Do(func() {
-		file_supplier_v1_location_shared_types_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_v1_location_shared_types_proto_rawDesc), len(file_supplier_v1_location_shared_types_proto_rawDesc)))
+func file_supplier_location_v1_shared_types_proto_rawDescGZIP() []byte {
+	file_supplier_location_v1_shared_types_proto_rawDescOnce.Do(func() {
+		file_supplier_location_v1_shared_types_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_location_v1_shared_types_proto_rawDesc), len(file_supplier_location_v1_shared_types_proto_rawDesc)))
 	})
-	return file_supplier_v1_location_shared_types_proto_rawDescData
+	return file_supplier_location_v1_shared_types_proto_rawDescData
 }
 
-var file_supplier_v1_location_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_supplier_v1_location_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_supplier_v1_location_shared_types_proto_goTypes = []any{
-	(DisablementState)(0),         // 0: supplier.v1.DisablementState
-	(*Location)(nil),              // 1: supplier.v1.Location
-	(*Coordinates)(nil),           // 2: supplier.v1.Coordinates
-	(*Building)(nil),              // 3: supplier.v1.Building
-	(*Category)(nil),              // 4: supplier.v1.Category
-	(*LocationInput)(nil),         // 5: supplier.v1.LocationInput
-	(*PageInfo)(nil),              // 6: supplier.v1.PageInfo
-	(*Disablement)(nil),           // 7: supplier.v1.Disablement
+var file_supplier_location_v1_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_supplier_location_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_supplier_location_v1_shared_types_proto_goTypes = []any{
+	(DisablementState)(0),         // 0: supplier.location.v1.DisablementState
+	(*Location)(nil),              // 1: supplier.location.v1.Location
+	(*Coordinates)(nil),           // 2: supplier.location.v1.Coordinates
+	(*Building)(nil),              // 3: supplier.location.v1.Building
+	(*Category)(nil),              // 4: supplier.location.v1.Category
+	(*LocationInput)(nil),         // 5: supplier.location.v1.LocationInput
+	(*PageInfo)(nil),              // 6: supplier.location.v1.PageInfo
+	(*Disablement)(nil),           // 7: supplier.location.v1.Disablement
 	(*timeofday.TimeOfDay)(nil),   // 8: google.type.TimeOfDay
 	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
 }
-var file_supplier_v1_location_shared_types_proto_depIdxs = []int32{
-	3,  // 0: supplier.v1.Location.building:type_name -> supplier.v1.Building
-	4,  // 1: supplier.v1.Location.categories:type_name -> supplier.v1.Category
-	2,  // 2: supplier.v1.Location.coordinates:type_name -> supplier.v1.Coordinates
-	8,  // 3: supplier.v1.Location.opens_at:type_name -> google.type.TimeOfDay
-	8,  // 4: supplier.v1.Location.closes_at:type_name -> google.type.TimeOfDay
-	9,  // 5: supplier.v1.Location.archived_at:type_name -> google.protobuf.Timestamp
-	7,  // 6: supplier.v1.Location.current_disablement:type_name -> supplier.v1.Disablement
-	9,  // 7: supplier.v1.Location.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 8: supplier.v1.Location.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 9: supplier.v1.Building.center:type_name -> supplier.v1.Coordinates
-	9,  // 10: supplier.v1.Building.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 11: supplier.v1.Building.updated_at:type_name -> google.protobuf.Timestamp
-	9,  // 12: supplier.v1.Category.created_at:type_name -> google.protobuf.Timestamp
-	2,  // 13: supplier.v1.LocationInput.coordinates:type_name -> supplier.v1.Coordinates
-	8,  // 14: supplier.v1.LocationInput.opens_at:type_name -> google.type.TimeOfDay
-	8,  // 15: supplier.v1.LocationInput.closes_at:type_name -> google.type.TimeOfDay
-	9,  // 16: supplier.v1.Disablement.starts_at:type_name -> google.protobuf.Timestamp
-	9,  // 17: supplier.v1.Disablement.ends_at:type_name -> google.protobuf.Timestamp
-	9,  // 18: supplier.v1.Disablement.ended_at:type_name -> google.protobuf.Timestamp
-	9,  // 19: supplier.v1.Disablement.cancelled_at:type_name -> google.protobuf.Timestamp
-	0,  // 20: supplier.v1.Disablement.state:type_name -> supplier.v1.DisablementState
-	9,  // 21: supplier.v1.Disablement.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 22: supplier.v1.Disablement.updated_at:type_name -> google.protobuf.Timestamp
+var file_supplier_location_v1_shared_types_proto_depIdxs = []int32{
+	3,  // 0: supplier.location.v1.Location.building:type_name -> supplier.location.v1.Building
+	4,  // 1: supplier.location.v1.Location.categories:type_name -> supplier.location.v1.Category
+	2,  // 2: supplier.location.v1.Location.coordinates:type_name -> supplier.location.v1.Coordinates
+	8,  // 3: supplier.location.v1.Location.opens_at:type_name -> google.type.TimeOfDay
+	8,  // 4: supplier.location.v1.Location.closes_at:type_name -> google.type.TimeOfDay
+	9,  // 5: supplier.location.v1.Location.archived_at:type_name -> google.protobuf.Timestamp
+	7,  // 6: supplier.location.v1.Location.current_disablement:type_name -> supplier.location.v1.Disablement
+	9,  // 7: supplier.location.v1.Location.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 8: supplier.location.v1.Location.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 9: supplier.location.v1.Building.center:type_name -> supplier.location.v1.Coordinates
+	9,  // 10: supplier.location.v1.Building.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 11: supplier.location.v1.Building.updated_at:type_name -> google.protobuf.Timestamp
+	9,  // 12: supplier.location.v1.Category.created_at:type_name -> google.protobuf.Timestamp
+	2,  // 13: supplier.location.v1.LocationInput.coordinates:type_name -> supplier.location.v1.Coordinates
+	8,  // 14: supplier.location.v1.LocationInput.opens_at:type_name -> google.type.TimeOfDay
+	8,  // 15: supplier.location.v1.LocationInput.closes_at:type_name -> google.type.TimeOfDay
+	9,  // 16: supplier.location.v1.Disablement.starts_at:type_name -> google.protobuf.Timestamp
+	9,  // 17: supplier.location.v1.Disablement.ends_at:type_name -> google.protobuf.Timestamp
+	9,  // 18: supplier.location.v1.Disablement.ended_at:type_name -> google.protobuf.Timestamp
+	9,  // 19: supplier.location.v1.Disablement.cancelled_at:type_name -> google.protobuf.Timestamp
+	0,  // 20: supplier.location.v1.Disablement.state:type_name -> supplier.location.v1.DisablementState
+	9,  // 21: supplier.location.v1.Disablement.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 22: supplier.location.v1.Disablement.updated_at:type_name -> google.protobuf.Timestamp
 	23, // [23:23] is the sub-list for method output_type
 	23, // [23:23] is the sub-list for method input_type
 	23, // [23:23] is the sub-list for extension type_name
@@ -942,29 +942,29 @@ var file_supplier_v1_location_shared_types_proto_depIdxs = []int32{
 	0,  // [0:23] is the sub-list for field type_name
 }
 
-func init() { file_supplier_v1_location_shared_types_proto_init() }
-func file_supplier_v1_location_shared_types_proto_init() {
-	if File_supplier_v1_location_shared_types_proto != nil {
+func init() { file_supplier_location_v1_shared_types_proto_init() }
+func file_supplier_location_v1_shared_types_proto_init() {
+	if File_supplier_location_v1_shared_types_proto != nil {
 		return
 	}
-	file_supplier_v1_location_shared_types_proto_msgTypes[0].OneofWrappers = []any{}
-	file_supplier_v1_location_shared_types_proto_msgTypes[4].OneofWrappers = []any{}
+	file_supplier_location_v1_shared_types_proto_msgTypes[0].OneofWrappers = []any{}
+	file_supplier_location_v1_shared_types_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_shared_types_proto_rawDesc), len(file_supplier_v1_location_shared_types_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_location_v1_shared_types_proto_rawDesc), len(file_supplier_location_v1_shared_types_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_supplier_v1_location_shared_types_proto_goTypes,
-		DependencyIndexes: file_supplier_v1_location_shared_types_proto_depIdxs,
-		EnumInfos:         file_supplier_v1_location_shared_types_proto_enumTypes,
-		MessageInfos:      file_supplier_v1_location_shared_types_proto_msgTypes,
+		GoTypes:           file_supplier_location_v1_shared_types_proto_goTypes,
+		DependencyIndexes: file_supplier_location_v1_shared_types_proto_depIdxs,
+		EnumInfos:         file_supplier_location_v1_shared_types_proto_enumTypes,
+		MessageInfos:      file_supplier_location_v1_shared_types_proto_msgTypes,
 	}.Build()
-	File_supplier_v1_location_shared_types_proto = out.File
-	file_supplier_v1_location_shared_types_proto_goTypes = nil
-	file_supplier_v1_location_shared_types_proto_depIdxs = nil
+	File_supplier_location_v1_shared_types_proto = out.File
+	file_supplier_location_v1_shared_types_proto_goTypes = nil
+	file_supplier_location_v1_shared_types_proto_depIdxs = nil
 }

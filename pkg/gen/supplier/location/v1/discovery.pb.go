@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: supplier/v1/location_discovery.proto
+// source: supplier/location/v1/discovery.proto
 
-package supplierv1
+package locationv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -58,11 +58,11 @@ func (x LocationSortField) String() string {
 }
 
 func (LocationSortField) Descriptor() protoreflect.EnumDescriptor {
-	return file_supplier_v1_location_discovery_proto_enumTypes[0].Descriptor()
+	return file_supplier_location_v1_discovery_proto_enumTypes[0].Descriptor()
 }
 
 func (LocationSortField) Type() protoreflect.EnumType {
-	return &file_supplier_v1_location_discovery_proto_enumTypes[0]
+	return &file_supplier_location_v1_discovery_proto_enumTypes[0]
 }
 
 func (x LocationSortField) Number() protoreflect.EnumNumber {
@@ -71,7 +71,7 @@ func (x LocationSortField) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LocationSortField.Descriptor instead.
 func (LocationSortField) EnumDescriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{0}
 }
 
 type SortDirection int32
@@ -108,11 +108,11 @@ func (x SortDirection) String() string {
 }
 
 func (SortDirection) Descriptor() protoreflect.EnumDescriptor {
-	return file_supplier_v1_location_discovery_proto_enumTypes[1].Descriptor()
+	return file_supplier_location_v1_discovery_proto_enumTypes[1].Descriptor()
 }
 
 func (SortDirection) Type() protoreflect.EnumType {
-	return &file_supplier_v1_location_discovery_proto_enumTypes[1]
+	return &file_supplier_location_v1_discovery_proto_enumTypes[1]
 }
 
 func (x SortDirection) Number() protoreflect.EnumNumber {
@@ -121,7 +121,7 @@ func (x SortDirection) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SortDirection.Descriptor instead.
 func (SortDirection) EnumDescriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{1}
 }
 
 type LocationStatusView int32
@@ -163,11 +163,11 @@ func (x LocationStatusView) String() string {
 }
 
 func (LocationStatusView) Descriptor() protoreflect.EnumDescriptor {
-	return file_supplier_v1_location_discovery_proto_enumTypes[2].Descriptor()
+	return file_supplier_location_v1_discovery_proto_enumTypes[2].Descriptor()
 }
 
 func (LocationStatusView) Type() protoreflect.EnumType {
-	return &file_supplier_v1_location_discovery_proto_enumTypes[2]
+	return &file_supplier_location_v1_discovery_proto_enumTypes[2]
 }
 
 func (x LocationStatusView) Number() protoreflect.EnumNumber {
@@ -176,7 +176,7 @@ func (x LocationStatusView) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LocationStatusView.Descriptor instead.
 func (LocationStatusView) EnumDescriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{2}
 }
 
 type GetLocationRequest struct {
@@ -188,7 +188,7 @@ type GetLocationRequest struct {
 
 func (x *GetLocationRequest) Reset() {
 	*x = GetLocationRequest{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -200,7 +200,7 @@ func (x *GetLocationRequest) String() string {
 func (*GetLocationRequest) ProtoMessage() {}
 
 func (x *GetLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -213,7 +213,7 @@ func (x *GetLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocationRequest.ProtoReflect.Descriptor instead.
 func (*GetLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetLocationRequest) GetId() string {
@@ -232,7 +232,7 @@ type GetLocationResponse struct {
 
 func (x *GetLocationResponse) Reset() {
 	*x = GetLocationResponse{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -244,7 +244,7 @@ func (x *GetLocationResponse) String() string {
 func (*GetLocationResponse) ProtoMessage() {}
 
 func (x *GetLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -257,7 +257,7 @@ func (x *GetLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLocationResponse.ProtoReflect.Descriptor instead.
 func (*GetLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetLocationResponse) GetLocation() *Location {
@@ -275,9 +275,9 @@ type ListLocationsRequest struct {
 	BuildingId    *string            `protobuf:"bytes,2,opt,name=building_id,json=buildingId,proto3,oneof" json:"building_id,omitempty"`
 	CategoryId    *string            `protobuf:"bytes,3,opt,name=category_id,json=categoryId,proto3,oneof" json:"category_id,omitempty"`
 	SuppliersOnly bool               `protobuf:"varint,4,opt,name=suppliers_only,json=suppliersOnly,proto3" json:"suppliers_only,omitempty"`
-	StatusView    LocationStatusView `protobuf:"varint,5,opt,name=status_view,json=statusView,proto3,enum=supplier.v1.LocationStatusView" json:"status_view,omitempty"`
-	SortField     LocationSortField  `protobuf:"varint,6,opt,name=sort_field,json=sortField,proto3,enum=supplier.v1.LocationSortField" json:"sort_field,omitempty"`
-	SortDirection SortDirection      `protobuf:"varint,7,opt,name=sort_direction,json=sortDirection,proto3,enum=supplier.v1.SortDirection" json:"sort_direction,omitempty"`
+	StatusView    LocationStatusView `protobuf:"varint,5,opt,name=status_view,json=statusView,proto3,enum=supplier.location.v1.LocationStatusView" json:"status_view,omitempty"`
+	SortField     LocationSortField  `protobuf:"varint,6,opt,name=sort_field,json=sortField,proto3,enum=supplier.location.v1.LocationSortField" json:"sort_field,omitempty"`
+	SortDirection SortDirection      `protobuf:"varint,7,opt,name=sort_direction,json=sortDirection,proto3,enum=supplier.location.v1.SortDirection" json:"sort_direction,omitempty"`
 	// One-based; 0 means 1.
 	Page int32 `protobuf:"varint,8,opt,name=page,proto3" json:"page,omitempty"`
 	// 0 means 20.
@@ -288,7 +288,7 @@ type ListLocationsRequest struct {
 
 func (x *ListLocationsRequest) Reset() {
 	*x = ListLocationsRequest{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -300,7 +300,7 @@ func (x *ListLocationsRequest) String() string {
 func (*ListLocationsRequest) ProtoMessage() {}
 
 func (x *ListLocationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -313,7 +313,7 @@ func (x *ListLocationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLocationsRequest.ProtoReflect.Descriptor instead.
 func (*ListLocationsRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListLocationsRequest) GetSearch() string {
@@ -393,7 +393,7 @@ type ListLocationsResponse struct {
 
 func (x *ListLocationsResponse) Reset() {
 	*x = ListLocationsResponse{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -405,7 +405,7 @@ func (x *ListLocationsResponse) String() string {
 func (*ListLocationsResponse) ProtoMessage() {}
 
 func (x *ListLocationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -418,7 +418,7 @@ func (x *ListLocationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLocationsResponse.ProtoReflect.Descriptor instead.
 func (*ListLocationsResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{3}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListLocationsResponse) GetLocations() []*Location {
@@ -464,7 +464,7 @@ type ListBuildingsRequest struct {
 
 func (x *ListBuildingsRequest) Reset() {
 	*x = ListBuildingsRequest{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +476,7 @@ func (x *ListBuildingsRequest) String() string {
 func (*ListBuildingsRequest) ProtoMessage() {}
 
 func (x *ListBuildingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +489,7 @@ func (x *ListBuildingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBuildingsRequest.ProtoReflect.Descriptor instead.
 func (*ListBuildingsRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{4}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{4}
 }
 
 // Sorted by name.
@@ -502,7 +502,7 @@ type ListBuildingsResponse struct {
 
 func (x *ListBuildingsResponse) Reset() {
 	*x = ListBuildingsResponse{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +514,7 @@ func (x *ListBuildingsResponse) String() string {
 func (*ListBuildingsResponse) ProtoMessage() {}
 
 func (x *ListBuildingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,7 +527,7 @@ func (x *ListBuildingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBuildingsResponse.ProtoReflect.Descriptor instead.
 func (*ListBuildingsResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{5}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListBuildingsResponse) GetBuildings() []*Building {
@@ -545,7 +545,7 @@ type ListCategoriesRequest struct {
 
 func (x *ListCategoriesRequest) Reset() {
 	*x = ListCategoriesRequest{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -557,7 +557,7 @@ func (x *ListCategoriesRequest) String() string {
 func (*ListCategoriesRequest) ProtoMessage() {}
 
 func (x *ListCategoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -570,7 +570,7 @@ func (x *ListCategoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCategoriesRequest.ProtoReflect.Descriptor instead.
 func (*ListCategoriesRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{6}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{6}
 }
 
 // Sorted by name.
@@ -583,7 +583,7 @@ type ListCategoriesResponse struct {
 
 func (x *ListCategoriesResponse) Reset() {
 	*x = ListCategoriesResponse{}
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -595,7 +595,7 @@ func (x *ListCategoriesResponse) String() string {
 func (*ListCategoriesResponse) ProtoMessage() {}
 
 func (x *ListCategoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_discovery_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_discovery_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -608,7 +608,7 @@ func (x *ListCategoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCategoriesResponse.ProtoReflect.Descriptor instead.
 func (*ListCategoriesResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_discovery_proto_rawDescGZIP(), []int{7}
+	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListCategoriesResponse) GetCategories() []*Category {
@@ -618,46 +618,46 @@ func (x *ListCategoriesResponse) GetCategories() []*Category {
 	return nil
 }
 
-var File_supplier_v1_location_discovery_proto protoreflect.FileDescriptor
+var File_supplier_location_v1_discovery_proto protoreflect.FileDescriptor
 
-const file_supplier_v1_location_discovery_proto_rawDesc = "" +
+const file_supplier_location_v1_discovery_proto_rawDesc = "" +
 	"\n" +
-	"$supplier/v1/location_discovery.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a'supplier/v1/location_shared_types.proto\".\n" +
+	"$supplier/location/v1/discovery.proto\x12\x14supplier.location.v1\x1a\x1bbuf/validate/validate.proto\x1a'supplier/location/v1/shared_types.proto\".\n" +
 	"\x12GetLocationRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"H\n" +
-	"\x13GetLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"\x86\x04\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"Q\n" +
+	"\x13GetLocationResponse\x12:\n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"\xa1\x04\n" +
 	"\x14ListLocationsRequest\x12 \n" +
 	"\x06search\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12.\n" +
 	"\vbuilding_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\n" +
 	"buildingId\x88\x01\x01\x12.\n" +
 	"\vcategory_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\n" +
 	"categoryId\x88\x01\x01\x12%\n" +
-	"\x0esuppliers_only\x18\x04 \x01(\bR\rsuppliersOnly\x12J\n" +
-	"\vstatus_view\x18\x05 \x01(\x0e2\x1f.supplier.v1.LocationStatusViewB\b\xbaH\x05\x82\x01\x02\x10\x01R\n" +
-	"statusView\x12G\n" +
+	"\x0esuppliers_only\x18\x04 \x01(\bR\rsuppliersOnly\x12S\n" +
+	"\vstatus_view\x18\x05 \x01(\x0e2(.supplier.location.v1.LocationStatusViewB\b\xbaH\x05\x82\x01\x02\x10\x01R\n" +
+	"statusView\x12P\n" +
 	"\n" +
-	"sort_field\x18\x06 \x01(\x0e2\x1e.supplier.v1.LocationSortFieldB\b\xbaH\x05\x82\x01\x02\x10\x01R\tsortField\x12K\n" +
-	"\x0esort_direction\x18\a \x01(\x0e2\x1a.supplier.v1.SortDirectionB\b\xbaH\x05\x82\x01\x02\x10\x01R\rsortDirection\x12\x1b\n" +
+	"sort_field\x18\x06 \x01(\x0e2'.supplier.location.v1.LocationSortFieldB\b\xbaH\x05\x82\x01\x02\x10\x01R\tsortField\x12T\n" +
+	"\x0esort_direction\x18\a \x01(\x0e2#.supplier.location.v1.SortDirectionB\b\xbaH\x05\x82\x01\x02\x10\x01R\rsortDirection\x12\x1b\n" +
 	"\x04page\x18\b \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\t \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSizeB\x0e\n" +
 	"\f_building_idB\x0e\n" +
-	"\f_category_id\"\xbf\x01\n" +
-	"\x15ListLocationsResponse\x123\n" +
-	"\tlocations\x18\x01 \x03(\v2\x15.supplier.v1.LocationR\tlocations\x12\x12\n" +
+	"\f_category_id\"\xc8\x01\n" +
+	"\x15ListLocationsResponse\x12<\n" +
+	"\tlocations\x18\x01 \x03(\v2\x1e.supplier.location.v1.LocationR\tlocations\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
 	"\vtotal_items\x18\x04 \x01(\x03R\n" +
 	"totalItems\x12\x1f\n" +
 	"\vtotal_pages\x18\x05 \x01(\x05R\n" +
 	"totalPages\"\x16\n" +
-	"\x14ListBuildingsRequest\"L\n" +
-	"\x15ListBuildingsResponse\x123\n" +
-	"\tbuildings\x18\x01 \x03(\v2\x15.supplier.v1.BuildingR\tbuildings\"\x17\n" +
-	"\x15ListCategoriesRequest\"O\n" +
-	"\x16ListCategoriesResponse\x125\n" +
+	"\x14ListBuildingsRequest\"U\n" +
+	"\x15ListBuildingsResponse\x12<\n" +
+	"\tbuildings\x18\x01 \x03(\v2\x1e.supplier.location.v1.BuildingR\tbuildings\"\x17\n" +
+	"\x15ListCategoriesRequest\"X\n" +
+	"\x16ListCategoriesResponse\x12>\n" +
 	"\n" +
-	"categories\x18\x01 \x03(\v2\x15.supplier.v1.CategoryR\n" +
+	"categories\x18\x01 \x03(\v2\x1e.supplier.location.v1.CategoryR\n" +
 	"categories*x\n" +
 	"\x11LocationSortField\x12#\n" +
 	"\x1fLOCATION_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x1c\n" +
@@ -671,60 +671,60 @@ const file_supplier_v1_location_discovery_proto_rawDesc = "" +
 	" LOCATION_STATUS_VIEW_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bLOCATION_STATUS_VIEW_ACTIVE\x10\x01\x12!\n" +
 	"\x1dLOCATION_STATUS_VIEW_ARCHIVED\x10\x02\x12\x1c\n" +
-	"\x18LOCATION_STATUS_VIEW_ALL\x10\x032\x8b\x03\n" +
-	"\x18LocationDiscoveryService\x12U\n" +
-	"\vGetLocation\x12\x1f.supplier.v1.GetLocationRequest\x1a .supplier.v1.GetLocationResponse\"\x03\x90\x02\x01\x12[\n" +
-	"\rListLocations\x12!.supplier.v1.ListLocationsRequest\x1a\".supplier.v1.ListLocationsResponse\"\x03\x90\x02\x01\x12[\n" +
-	"\rListBuildings\x12!.supplier.v1.ListBuildingsRequest\x1a\".supplier.v1.ListBuildingsResponse\"\x03\x90\x02\x01\x12^\n" +
-	"\x0eListCategories\x12\".supplier.v1.ListCategoriesRequest\x1a#.supplier.v1.ListCategoriesResponse\"\x03\x90\x02\x01B\xb8\x01\n" +
-	"\x0fcom.supplier.v1B\x16LocationDiscoveryProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
+	"\x18LOCATION_STATUS_VIEW_ALL\x10\x032\xd3\x03\n" +
+	"\x18LocationDiscoveryService\x12g\n" +
+	"\vGetLocation\x12(.supplier.location.v1.GetLocationRequest\x1a).supplier.location.v1.GetLocationResponse\"\x03\x90\x02\x01\x12m\n" +
+	"\rListLocations\x12*.supplier.location.v1.ListLocationsRequest\x1a+.supplier.location.v1.ListLocationsResponse\"\x03\x90\x02\x01\x12m\n" +
+	"\rListBuildings\x12*.supplier.location.v1.ListBuildingsRequest\x1a+.supplier.location.v1.ListBuildingsResponse\"\x03\x90\x02\x01\x12p\n" +
+	"\x0eListCategories\x12+.supplier.location.v1.ListCategoriesRequest\x1a,.supplier.location.v1.ListCategoriesResponse\"\x03\x90\x02\x01B\xe7\x01\n" +
+	"\x18com.supplier.location.v1B\x0eDiscoveryProtoP\x01ZIgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1;locationv1\xa2\x02\x03SLX\xaa\x02\x14Supplier.Location.V1\xca\x02\x14Supplier\\Location\\V1\xe2\x02 Supplier\\Location\\V1\\GPBMetadata\xea\x02\x16Supplier::Location::V1b\x06proto3"
 
 var (
-	file_supplier_v1_location_discovery_proto_rawDescOnce sync.Once
-	file_supplier_v1_location_discovery_proto_rawDescData []byte
+	file_supplier_location_v1_discovery_proto_rawDescOnce sync.Once
+	file_supplier_location_v1_discovery_proto_rawDescData []byte
 )
 
-func file_supplier_v1_location_discovery_proto_rawDescGZIP() []byte {
-	file_supplier_v1_location_discovery_proto_rawDescOnce.Do(func() {
-		file_supplier_v1_location_discovery_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_v1_location_discovery_proto_rawDesc), len(file_supplier_v1_location_discovery_proto_rawDesc)))
+func file_supplier_location_v1_discovery_proto_rawDescGZIP() []byte {
+	file_supplier_location_v1_discovery_proto_rawDescOnce.Do(func() {
+		file_supplier_location_v1_discovery_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_location_v1_discovery_proto_rawDesc), len(file_supplier_location_v1_discovery_proto_rawDesc)))
 	})
-	return file_supplier_v1_location_discovery_proto_rawDescData
+	return file_supplier_location_v1_discovery_proto_rawDescData
 }
 
-var file_supplier_v1_location_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_supplier_v1_location_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
-var file_supplier_v1_location_discovery_proto_goTypes = []any{
-	(LocationSortField)(0),         // 0: supplier.v1.LocationSortField
-	(SortDirection)(0),             // 1: supplier.v1.SortDirection
-	(LocationStatusView)(0),        // 2: supplier.v1.LocationStatusView
-	(*GetLocationRequest)(nil),     // 3: supplier.v1.GetLocationRequest
-	(*GetLocationResponse)(nil),    // 4: supplier.v1.GetLocationResponse
-	(*ListLocationsRequest)(nil),   // 5: supplier.v1.ListLocationsRequest
-	(*ListLocationsResponse)(nil),  // 6: supplier.v1.ListLocationsResponse
-	(*ListBuildingsRequest)(nil),   // 7: supplier.v1.ListBuildingsRequest
-	(*ListBuildingsResponse)(nil),  // 8: supplier.v1.ListBuildingsResponse
-	(*ListCategoriesRequest)(nil),  // 9: supplier.v1.ListCategoriesRequest
-	(*ListCategoriesResponse)(nil), // 10: supplier.v1.ListCategoriesResponse
-	(*Location)(nil),               // 11: supplier.v1.Location
-	(*Building)(nil),               // 12: supplier.v1.Building
-	(*Category)(nil),               // 13: supplier.v1.Category
+var file_supplier_location_v1_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_supplier_location_v1_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_supplier_location_v1_discovery_proto_goTypes = []any{
+	(LocationSortField)(0),         // 0: supplier.location.v1.LocationSortField
+	(SortDirection)(0),             // 1: supplier.location.v1.SortDirection
+	(LocationStatusView)(0),        // 2: supplier.location.v1.LocationStatusView
+	(*GetLocationRequest)(nil),     // 3: supplier.location.v1.GetLocationRequest
+	(*GetLocationResponse)(nil),    // 4: supplier.location.v1.GetLocationResponse
+	(*ListLocationsRequest)(nil),   // 5: supplier.location.v1.ListLocationsRequest
+	(*ListLocationsResponse)(nil),  // 6: supplier.location.v1.ListLocationsResponse
+	(*ListBuildingsRequest)(nil),   // 7: supplier.location.v1.ListBuildingsRequest
+	(*ListBuildingsResponse)(nil),  // 8: supplier.location.v1.ListBuildingsResponse
+	(*ListCategoriesRequest)(nil),  // 9: supplier.location.v1.ListCategoriesRequest
+	(*ListCategoriesResponse)(nil), // 10: supplier.location.v1.ListCategoriesResponse
+	(*Location)(nil),               // 11: supplier.location.v1.Location
+	(*Building)(nil),               // 12: supplier.location.v1.Building
+	(*Category)(nil),               // 13: supplier.location.v1.Category
 }
-var file_supplier_v1_location_discovery_proto_depIdxs = []int32{
-	11, // 0: supplier.v1.GetLocationResponse.location:type_name -> supplier.v1.Location
-	2,  // 1: supplier.v1.ListLocationsRequest.status_view:type_name -> supplier.v1.LocationStatusView
-	0,  // 2: supplier.v1.ListLocationsRequest.sort_field:type_name -> supplier.v1.LocationSortField
-	1,  // 3: supplier.v1.ListLocationsRequest.sort_direction:type_name -> supplier.v1.SortDirection
-	11, // 4: supplier.v1.ListLocationsResponse.locations:type_name -> supplier.v1.Location
-	12, // 5: supplier.v1.ListBuildingsResponse.buildings:type_name -> supplier.v1.Building
-	13, // 6: supplier.v1.ListCategoriesResponse.categories:type_name -> supplier.v1.Category
-	3,  // 7: supplier.v1.LocationDiscoveryService.GetLocation:input_type -> supplier.v1.GetLocationRequest
-	5,  // 8: supplier.v1.LocationDiscoveryService.ListLocations:input_type -> supplier.v1.ListLocationsRequest
-	7,  // 9: supplier.v1.LocationDiscoveryService.ListBuildings:input_type -> supplier.v1.ListBuildingsRequest
-	9,  // 10: supplier.v1.LocationDiscoveryService.ListCategories:input_type -> supplier.v1.ListCategoriesRequest
-	4,  // 11: supplier.v1.LocationDiscoveryService.GetLocation:output_type -> supplier.v1.GetLocationResponse
-	6,  // 12: supplier.v1.LocationDiscoveryService.ListLocations:output_type -> supplier.v1.ListLocationsResponse
-	8,  // 13: supplier.v1.LocationDiscoveryService.ListBuildings:output_type -> supplier.v1.ListBuildingsResponse
-	10, // 14: supplier.v1.LocationDiscoveryService.ListCategories:output_type -> supplier.v1.ListCategoriesResponse
+var file_supplier_location_v1_discovery_proto_depIdxs = []int32{
+	11, // 0: supplier.location.v1.GetLocationResponse.location:type_name -> supplier.location.v1.Location
+	2,  // 1: supplier.location.v1.ListLocationsRequest.status_view:type_name -> supplier.location.v1.LocationStatusView
+	0,  // 2: supplier.location.v1.ListLocationsRequest.sort_field:type_name -> supplier.location.v1.LocationSortField
+	1,  // 3: supplier.location.v1.ListLocationsRequest.sort_direction:type_name -> supplier.location.v1.SortDirection
+	11, // 4: supplier.location.v1.ListLocationsResponse.locations:type_name -> supplier.location.v1.Location
+	12, // 5: supplier.location.v1.ListBuildingsResponse.buildings:type_name -> supplier.location.v1.Building
+	13, // 6: supplier.location.v1.ListCategoriesResponse.categories:type_name -> supplier.location.v1.Category
+	3,  // 7: supplier.location.v1.LocationDiscoveryService.GetLocation:input_type -> supplier.location.v1.GetLocationRequest
+	5,  // 8: supplier.location.v1.LocationDiscoveryService.ListLocations:input_type -> supplier.location.v1.ListLocationsRequest
+	7,  // 9: supplier.location.v1.LocationDiscoveryService.ListBuildings:input_type -> supplier.location.v1.ListBuildingsRequest
+	9,  // 10: supplier.location.v1.LocationDiscoveryService.ListCategories:input_type -> supplier.location.v1.ListCategoriesRequest
+	4,  // 11: supplier.location.v1.LocationDiscoveryService.GetLocation:output_type -> supplier.location.v1.GetLocationResponse
+	6,  // 12: supplier.location.v1.LocationDiscoveryService.ListLocations:output_type -> supplier.location.v1.ListLocationsResponse
+	8,  // 13: supplier.location.v1.LocationDiscoveryService.ListBuildings:output_type -> supplier.location.v1.ListBuildingsResponse
+	10, // 14: supplier.location.v1.LocationDiscoveryService.ListCategories:output_type -> supplier.location.v1.ListCategoriesResponse
 	11, // [11:15] is the sub-list for method output_type
 	7,  // [7:11] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
@@ -732,29 +732,29 @@ var file_supplier_v1_location_discovery_proto_depIdxs = []int32{
 	0,  // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_supplier_v1_location_discovery_proto_init() }
-func file_supplier_v1_location_discovery_proto_init() {
-	if File_supplier_v1_location_discovery_proto != nil {
+func init() { file_supplier_location_v1_discovery_proto_init() }
+func file_supplier_location_v1_discovery_proto_init() {
+	if File_supplier_location_v1_discovery_proto != nil {
 		return
 	}
-	file_supplier_v1_location_shared_types_proto_init()
-	file_supplier_v1_location_discovery_proto_msgTypes[2].OneofWrappers = []any{}
+	file_supplier_location_v1_shared_types_proto_init()
+	file_supplier_location_v1_discovery_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_discovery_proto_rawDesc), len(file_supplier_v1_location_discovery_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_location_v1_discovery_proto_rawDesc), len(file_supplier_location_v1_discovery_proto_rawDesc)),
 			NumEnums:      3,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_supplier_v1_location_discovery_proto_goTypes,
-		DependencyIndexes: file_supplier_v1_location_discovery_proto_depIdxs,
-		EnumInfos:         file_supplier_v1_location_discovery_proto_enumTypes,
-		MessageInfos:      file_supplier_v1_location_discovery_proto_msgTypes,
+		GoTypes:           file_supplier_location_v1_discovery_proto_goTypes,
+		DependencyIndexes: file_supplier_location_v1_discovery_proto_depIdxs,
+		EnumInfos:         file_supplier_location_v1_discovery_proto_enumTypes,
+		MessageInfos:      file_supplier_location_v1_discovery_proto_msgTypes,
 	}.Build()
-	File_supplier_v1_location_discovery_proto = out.File
-	file_supplier_v1_location_discovery_proto_goTypes = nil
-	file_supplier_v1_location_discovery_proto_depIdxs = nil
+	File_supplier_location_v1_discovery_proto = out.File
+	file_supplier_location_v1_discovery_proto_goTypes = nil
+	file_supplier_location_v1_discovery_proto_depIdxs = nil
 }
