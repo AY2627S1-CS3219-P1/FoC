@@ -159,6 +159,12 @@ func connectError(ctx context.Context, err error) error {
 	if connect.CodeOf(err) == connect.CodeUnimplemented {
 		return connect.NewError(connect.CodeUnimplemented, errors.New("method not implemented"))
 	}
+	if errors.Is(err, context.Canceled) {
+		return connect.NewError(connect.CodeCanceled, context.Canceled)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return connect.NewError(connect.CodeDeadlineExceeded, context.DeadlineExceeded)
+	}
 	code := connect.CodeInternal
 	message := "internal error"
 	for _, entry := range []struct {
