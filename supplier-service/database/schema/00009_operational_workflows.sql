@@ -76,6 +76,9 @@ CREATE TABLE supplier_idempotency (
 CREATE INDEX supplier_idempotency_expiry_idx ON supplier_idempotency (expires_at);
 
 -- +goose Down
+-- Lock guarded tables before checking data that rollback cannot retain.
+LOCK TABLE location_addition_requests, location_addition_request_categories,
+    location_disablements IN ACCESS EXCLUSIVE MODE;
 -- Refuse rollback when the earlier schema cannot retain workflow data.
 -- +goose StatementBegin
 DO $$ BEGIN
