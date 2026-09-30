@@ -73,7 +73,7 @@ func TestSignedTokenReachesDatabase(t *testing.T) {
 	}
 }
 
-func TestAdminMutationThroughSignedRPCAndDatabase(t *testing.T) {
+func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	pool := startDatabase(t)
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO buildings (id, name, center, radius_m) VALUES
@@ -84,8 +84,8 @@ func TestAdminMutationThroughSignedRPCAndDatabase(t *testing.T) {
 	}
 	auth := newTestAuth(t)
 	router := chi.NewRouter()
-	mutations := location.NewMutationService(location.NewPostgresMutationStore(pool), time.Now)
-	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(mutations),
+	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pool), time.Now)
+	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(locationAdmin),
 		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))

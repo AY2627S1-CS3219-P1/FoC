@@ -48,8 +48,8 @@ func main() {
 		panic(err)
 	}
 
-	mutations := location.NewMutationService(location.NewPostgresMutationStore(pgxPool), time.Now)
-	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, mutations)
+	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pgxPool), time.Now)
+	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, locationAdmin)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port

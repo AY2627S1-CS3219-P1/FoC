@@ -19,10 +19,10 @@ const (
 	requestKey  = "50000000-0000-4000-8000-000000000000"
 )
 
-var mutationNow = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-var mutationAdmin = Caller{ID: "admin-user", Admin: true}
+var adminNow = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+var adminCaller = Caller{ID: "admin-user", Admin: true}
 
-type mutationFake struct {
+type adminFake struct {
 	mu                                     sync.Mutex
 	location                               Location
 	records                                map[idempotency.Scope]idempotency.Record
@@ -30,10 +30,10 @@ type mutationFake struct {
 	failSave                               bool
 }
 
-func (f *mutationFake) Within(_ context.Context, fn func(MutationTx) error) error {
+func (f *adminFake) Within(_ context.Context, fn func(AdminTx) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	clone := mutationFake{location: f.location, creates: f.creates, updates: f.updates,
+	clone := adminFake{location: f.location, creates: f.creates, updates: f.updates,
 		archives: f.archives, references: f.references, failSave: f.failSave}
 	clone.records = make(map[idempotency.Scope]idempotency.Record, len(f.records))
 	for k, v := range f.records {
@@ -46,28 +46,28 @@ func (f *mutationFake) Within(_ context.Context, fn func(MutationTx) error) erro
 	f.creates, f.updates, f.archives, f.references = clone.creates, clone.updates, clone.archives, clone.references
 	return nil
 }
-func (f *mutationFake) Lock(context.Context, idempotency.Scope) error { return nil }
-func (f *mutationFake) Find(_ context.Context, scope idempotency.Scope, now time.Time) (*idempotency.Record, error) {
+func (f *adminFake) Lock(context.Context, idempotency.Scope) error { return nil }
+func (f *adminFake) Find(_ context.Context, scope idempotency.Scope, now time.Time) (*idempotency.Record, error) {
 	r, ok := f.records[scope]
 	if !ok || !r.ExpiresAt.After(now) {
 		return nil, nil
 	}
 	return &r, nil
 }
-func (f *mutationFake) Save(_ context.Context, scope idempotency.Scope, record idempotency.Record) error {
+func (f *adminFake) Save(_ context.Context, scope idempotency.Scope, record idempotency.Record) error {
 	if f.failSave {
 		return errors.New("save failed")
 	}
 	f.records[scope] = record
 	return nil
 }
-func (f *mutationFake) GetForUpdate(_ context.Context, id string) (Location, error) {
+func (f *adminFake) GetForUpdate(_ context.Context, id string) (Location, error) {
 	if f.location.ID != id {
 		return Location{}, ErrNotFound
 	}
 	return f.location, nil
 }
-func (f *mutationFake) ValidateReferences(_ context.Context, in Input) error {
+func (f *adminFake) ValidateReferences(_ context.Context, in Input) error {
 	f.references++
 	if in.BuildingID != buildingID {
 		return ErrFailedPrecondition
@@ -79,12 +79,12 @@ func (f *mutationFake) ValidateReferences(_ context.Context, in Input) error {
 	}
 	return nil
 }
-func (f *mutationFake) Create(_ context.Context, in Input, now time.Time) (Location, error) {
+func (f *adminFake) Create(_ context.Context, in Input, now time.Time) (Location, error) {
 	f.creates++
 	f.location = fakeLocation(in, now)
 	return f.location, nil
 }
-func (f *mutationFake) Update(_ context.Context, id string, in Input, expected int64, now time.Time) (Location, error) {
+func (f *adminFake) Update(_ context.Context, id string, in Input, expected int64, now time.Time) (Location, error) {
 	if f.location.ID != id {
 		return Location{}, ErrNotFound
 	}
@@ -98,7 +98,7 @@ func (f *mutationFake) Update(_ context.Context, id string, in Input, expected i
 	f.location.ArchivedAt, f.location.CreatedAt = archived, created
 	return f.location, nil
 }
-func (f *mutationFake) SetArchived(_ context.Context, id string, at *time.Time, expected int64, now time.Time) (Location, error) {
+func (f *adminFake) SetArchived(_ context.Context, id string, at *time.Time, expected int64, now time.Time) (Location, error) {
 	if f.location.ID != id {
 		return Location{}, ErrNotFound
 	}
@@ -129,36 +129,36 @@ func goodInput() Input {
 		BuildingID: buildingID, Coordinates: &Coordinates{Latitude: 1.3, Longitude: 103.8}}
 }
 
-func TestMutationCreateIdempotencyAndRollback(t *testing.T) {
+func TestAdminCreateIdempotencyAndRollback(t *testing.T) {
 	ctx := context.Background()
-	f := &mutationFake{records: map[idempotency.Scope]idempotency.Record{}}
-	s := NewMutationService(f, func() time.Time { return mutationNow })
+	f := &adminFake{records: map[idempotency.Scope]idempotency.Record{}}
+	s := NewAdminService(f, func() time.Time { return adminNow })
 	in := goodInput()
 	in.Floor = strPtr("  2  ")
 	in.Contact = strPtr("   ")
-	first, err := s.Create(ctx, mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	first, err := s.Create(ctx, adminCaller, CreateRequest{Key: requestKey, Input: in})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.Name != "Shop" || first.Floor == nil || *first.Floor != "2" || first.Contact != nil || f.creates != 1 {
 		t.Fatalf("first = %+v; creates = %d", first, f.creates)
 	}
-	replay, err := s.Create(ctx, mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	replay, err := s.Create(ctx, adminCaller, CreateRequest{Key: requestKey, Input: in})
 	if err != nil || replay.ID != first.ID || f.creates != 1 || f.references != 1 {
 		t.Fatalf("replay = %+v, %v; creates=%d references=%d", replay, err, f.creates, f.references)
 	}
 	changed := in
 	changed.Name = "Other"
-	if _, err := s.Create(ctx, mutationAdmin, CreateRequest{Key: requestKey, Input: changed}); !errors.Is(err, ErrAlreadyExists) {
+	if _, err := s.Create(ctx, adminCaller, CreateRequest{Key: requestKey, Input: changed}); !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("conflict = %v", err)
 	}
 	badRef := goodInput()
 	badRef.BuildingID = "60000000-0000-4000-8000-000000000000"
-	if _, err := s.Create(ctx, mutationAdmin, CreateRequest{Key: "70000000-0000-4000-8000-000000000000", Input: badRef}); !errors.Is(err, ErrFailedPrecondition) {
+	if _, err := s.Create(ctx, adminCaller, CreateRequest{Key: "70000000-0000-4000-8000-000000000000", Input: badRef}); !errors.Is(err, ErrFailedPrecondition) {
 		t.Fatalf("missing reference = %v", err)
 	}
 	f.failSave = true
-	if _, err := s.Create(ctx, mutationAdmin, CreateRequest{Key: "80000000-0000-4000-8000-000000000000", Input: goodInput()}); err == nil {
+	if _, err := s.Create(ctx, adminCaller, CreateRequest{Key: "80000000-0000-4000-8000-000000000000", Input: goodInput()}); err == nil {
 		t.Fatal("expected record save failure")
 	}
 	if f.creates != 1 || len(f.records) != 1 {
@@ -166,16 +166,16 @@ func TestMutationCreateIdempotencyAndRollback(t *testing.T) {
 	}
 }
 
-func TestMutationCreateConcurrentRetry(t *testing.T) {
-	f := &mutationFake{records: map[idempotency.Scope]idempotency.Record{}}
-	s := NewMutationService(f, func() time.Time { return mutationNow })
+func TestAdminCreateConcurrentRetry(t *testing.T) {
+	f := &adminFake{records: map[idempotency.Scope]idempotency.Record{}}
+	s := NewAdminService(f, func() time.Time { return adminNow })
 	var wg sync.WaitGroup
 	results := make(chan error, 16)
 	for range 16 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: goodInput()})
+			_, err := s.Create(context.Background(), adminCaller, CreateRequest{Key: requestKey, Input: goodInput()})
 			results <- err
 		}()
 	}
@@ -191,25 +191,25 @@ func TestMutationCreateConcurrentRetry(t *testing.T) {
 	}
 }
 
-func TestMutationCreateEmptyCategoriesHaveOneHash(t *testing.T) {
-	f := &mutationFake{}
-	s := NewMutationService(f, func() time.Time { return mutationNow })
+func TestAdminCreateEmptyCategoriesHaveOneHash(t *testing.T) {
+	f := &adminFake{}
+	s := NewAdminService(f, func() time.Time { return adminNow })
 	in := goodInput()
 	in.IsSupplier, in.CategoryIDs = false, nil
-	first, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	first, err := s.Create(context.Background(), adminCaller, CreateRequest{Key: requestKey, Input: in})
 	if err != nil {
 		t.Fatal(err)
 	}
 	in.CategoryIDs = []string{}
-	retry, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+	retry, err := s.Create(context.Background(), adminCaller, CreateRequest{Key: requestKey, Input: in})
 	if err != nil || retry.ID != first.ID || f.creates != 1 {
 		t.Fatalf("empty category replay = %+v, %v; creates=%d", retry, err, f.creates)
 	}
 }
 
-func TestMutationAuthorizationAndInputValidation(t *testing.T) {
-	f := &mutationFake{}
-	s := NewMutationService(f, func() time.Time { return mutationNow })
+func TestAdminAuthorizationAndInputValidation(t *testing.T) {
+	f := &adminFake{}
+	s := NewAdminService(f, func() time.Time { return adminNow })
 	for _, tc := range []struct {
 		caller Caller
 		want   error
@@ -243,7 +243,7 @@ func TestMutationAuthorizationAndInputValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := goodInput()
 			tc.change(&in)
-			_, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: in})
+			_, err := s.Create(context.Background(), adminCaller, CreateRequest{Key: requestKey, Input: in})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v want %v", err, tc.want)
 			}
@@ -256,62 +256,62 @@ func TestMutationAuthorizationAndInputValidation(t *testing.T) {
 	valid.OpensAt = &Clock{Hour: 23, Minute: 59}
 	valid.ClosesAt = &Clock{Hour: 0}
 	valid.Name = "  " + stringOf('n', 200) + "  "
-	if _, err := s.Create(context.Background(), mutationAdmin, CreateRequest{Key: requestKey, Input: valid}); err != nil {
+	if _, err := s.Create(context.Background(), adminCaller, CreateRequest{Key: requestKey, Input: valid}); err != nil {
 		t.Fatalf("valid boundary input: %v", err)
 	}
 }
 
-func TestMutationUpdateMasksAndRevision(t *testing.T) {
-	f := &mutationFake{location: fakeLocation(goodInput(), mutationNow), records: map[idempotency.Scope]idempotency.Record{}}
-	s := NewMutationService(f, func() time.Time { return mutationNow.Add(time.Hour) })
+func TestAdminUpdateMasksAndRevision(t *testing.T) {
+	f := &adminFake{location: fakeLocation(goodInput(), adminNow), records: map[idempotency.Scope]idempotency.Record{}}
+	s := NewAdminService(f, func() time.Time { return adminNow.Add(time.Hour) })
 	for _, paths := range [][]string{nil, {"name", "name"}, {"id"}, {"opens_at"}, {"closes_at"}} {
-		_, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: paths, Input: goodInput()})
+		_, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: paths, Input: goodInput()})
 		if !errors.Is(err, ErrInvalidArgument) {
 			t.Fatalf("paths %v: %v", paths, err)
 		}
 	}
-	if _, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrAborted) {
+	if _, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrAborted) {
 		t.Fatalf("stale revision: %v", err)
 	}
-	if _, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 0, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrInvalidArgument) {
+	if _, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 0, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("invalid revision: %v", err)
 	}
-	got, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: []string{"name", "contact", "floor", "opens_at", "closes_at"}, Input: Input{Name: "  New ", Contact: strPtr(" "), Floor: nil}})
+	got, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: []string{"name", "contact", "floor", "opens_at", "closes_at"}, Input: Input{Name: "  New ", Contact: strPtr(" "), Floor: nil}})
 	if err != nil || got.Name != "New" || got.Contact != nil || got.Floor != nil || got.Revision != 2 || got.IsSupplier != true || len(got.Categories) != 1 {
 		t.Fatalf("masked update: %+v, %v", got, err)
 	}
-	if _, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier"}, Input: Input{IsSupplier: false}}); !errors.Is(err, ErrFailedPrecondition) {
+	if _, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier"}, Input: Input{IsSupplier: false}}); !errors.Is(err, ErrFailedPrecondition) {
 		t.Fatalf("classification invariant: %v", err)
 	}
 	if f.updates != 1 {
 		t.Fatalf("updates = %d", f.updates)
 	}
-	got, err = s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier", "category_ids"}, Input: Input{IsSupplier: false}})
+	got, err = s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier", "category_ids"}, Input: Input{IsSupplier: false}})
 	if err != nil || got.IsSupplier || len(got.Categories) != 0 {
 		t.Fatalf("atomic classification update: %+v %v", got, err)
 	}
 }
 
-func TestMutationArchiveIdempotentAndEditable(t *testing.T) {
-	f := &mutationFake{location: fakeLocation(goodInput(), mutationNow)}
-	s := NewMutationService(f, func() time.Time { return mutationNow.Add(time.Hour) })
-	first, err := s.Archive(context.Background(), mutationAdmin, locationID)
+func TestAdminArchiveIdempotentAndEditable(t *testing.T) {
+	f := &adminFake{location: fakeLocation(goodInput(), adminNow)}
+	s := NewAdminService(f, func() time.Time { return adminNow.Add(time.Hour) })
+	first, err := s.Archive(context.Background(), adminCaller, locationID)
 	if err != nil || first.ArchivedAt == nil || first.Revision != 2 {
 		t.Fatalf("archive: %+v %v", first, err)
 	}
-	again, err := s.Archive(context.Background(), mutationAdmin, locationID)
+	again, err := s.Archive(context.Background(), adminCaller, locationID)
 	if err != nil || again.Revision != 2 || f.archives != 1 || !again.UpdatedAt.Equal(first.UpdatedAt) {
 		t.Fatalf("repeat archive: %+v %v count=%d", again, err, f.archives)
 	}
-	updated, err := s.Update(context.Background(), mutationAdmin, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"details"}, Input: Input{Details: "  Archived details "}})
+	updated, err := s.Update(context.Background(), adminCaller, UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"details"}, Input: Input{Details: "  Archived details "}})
 	if err != nil || updated.ArchivedAt == nil || updated.Details != "Archived details" {
 		t.Fatalf("edit archived: %+v %v", updated, err)
 	}
-	unarchived, err := s.Unarchive(context.Background(), mutationAdmin, locationID)
+	unarchived, err := s.Unarchive(context.Background(), adminCaller, locationID)
 	if err != nil || unarchived.ArchivedAt != nil || unarchived.Revision != 4 {
 		t.Fatalf("unarchive: %+v %v", unarchived, err)
 	}
-	again, err = s.Unarchive(context.Background(), mutationAdmin, locationID)
+	again, err = s.Unarchive(context.Background(), adminCaller, locationID)
 	if err != nil || again.Revision != 4 || f.archives != 2 {
 		t.Fatalf("repeat unarchive: %+v %v count=%d", again, err, f.archives)
 	}

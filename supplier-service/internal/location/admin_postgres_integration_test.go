@@ -16,11 +16,11 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func adminMutationService(pool *pgxpool.Pool) *MutationService {
-	return NewMutationService(NewPostgresMutationStore(pool), time.Now)
+func newTestAdminService(pool *pgxpool.Pool) *AdminService {
+	return NewAdminService(NewPostgresAdminStore(pool), time.Now)
 }
 
-func mutationInput() Input {
+func adminInput() Input {
 	return Input{
 		Name: "New supplier", IsSupplier: true, CategoryIDs: []string{foodID},
 		BuildingID: com2ID, Coordinates: &Coordinates{Latitude: 1.294, Longitude: 103.774},
@@ -28,12 +28,12 @@ func mutationInput() Input {
 	}
 }
 
-func TestPostgresMutationRoundTrip(t *testing.T) {
+func TestPostgresAdminRoundTrip(t *testing.T) {
 	pool := setupDatabase(t)
 	ctx := context.Background()
-	svc := adminMutationService(pool)
+	svc := newTestAdminService(pool)
 	admin := Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(ctx, admin, CreateRequest{Key: uuid.NewString(), Input: mutationInput()})
+	created, err := svc.Create(ctx, admin, CreateRequest{Key: uuid.NewString(), Input: adminInput()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,10 +73,10 @@ func TestPostgresMutationRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPostgresMutationReferenceFailuresAndRollback(t *testing.T) {
+func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 	pool := setupDatabase(t)
 	ctx := context.Background()
-	svc := adminMutationService(pool)
+	svc := newTestAdminService(pool)
 	admin := Caller{ID: "admin", Admin: true}
 	for _, tc := range []struct {
 		name string
@@ -89,7 +89,7 @@ func TestPostgresMutationReferenceFailuresAndRollback(t *testing.T) {
 		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, ErrFailedPrecondition},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			input := mutationInput()
+			input := adminInput()
 			tc.edit(&input)
 			if _, err := svc.Create(ctx, admin, CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
@@ -98,13 +98,13 @@ func TestPostgresMutationReferenceFailuresAndRollback(t *testing.T) {
 	}
 	// A valid scalar update followed by a Category FK failure must leave the
 	// Location row and its old links unchanged.
-	store := NewPostgresMutationStore(pool)
-	err := store.Within(ctx, func(tx MutationTx) error {
+	store := NewPostgresAdminStore(pool)
+	err := store.Within(ctx, func(tx AdminTx) error {
 		current, err := tx.GetForUpdate(ctx, coopID)
 		if err != nil {
 			return err
 		}
-		input := mutationInput()
+		input := adminInput()
 		input.Name = "Must roll back"
 		input.CategoryIDs = []string{uuid.NewString()}
 		_, err = tx.Update(ctx, coopID, input, current.Revision, time.Now())
@@ -127,7 +127,7 @@ func TestPostgresMutationReferenceFailuresAndRollback(t *testing.T) {
 	}
 }
 
-func TestPostgresMutationLockedRelationshipIsFresh(t *testing.T) {
+func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	pool := setupDatabase(t)
 	ctx := context.Background()
 	first, err := pool.Begin(ctx)
@@ -147,7 +147,7 @@ func TestPostgresMutationLockedRelationshipIsFresh(t *testing.T) {
 	result := make(chan Location, 1)
 	failure := make(chan error, 1)
 	go func() {
-		err := NewPostgresMutationStore(pool).Within(ctx, func(tx MutationTx) error {
+		err := NewPostgresAdminStore(pool).Within(ctx, func(tx AdminTx) error {
 			location, err := tx.GetForUpdate(ctx, coopID)
 			if err == nil {
 				result <- location
@@ -174,7 +174,7 @@ func TestPostgresMutationLockedRelationshipIsFresh(t *testing.T) {
 	}
 }
 
-func TestPostgresMutationConcurrentRevision(t *testing.T) {
+func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	pool := setupDatabase(t)
 	ctx := context.Background()
 	first, err := pool.Begin(ctx)
@@ -187,7 +187,7 @@ func TestPostgresMutationConcurrentRevision(t *testing.T) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := adminMutationService(pool).Update(ctx, Caller{ID: "admin", Admin: true}, UpdateRequest{
+		_, err := newTestAdminService(pool).Update(ctx, Caller{ID: "admin", Admin: true}, UpdateRequest{
 			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
 		})
 		result <- err

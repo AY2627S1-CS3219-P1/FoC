@@ -21,11 +21,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, mutations *location.MutationService) *chi.Mux {
+func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
-	SetupRoutes(r, env, authenticator, mutations)
+	SetupRoutes(r, env, authenticator, locationAdmin)
 	SetupAdminRoutes(r, env)
 	return r
 }
@@ -39,7 +39,7 @@ func SetupMiddleware(r *chi.Mux) {
 
 // SetupRoutes mounts the supplier health RPC at its generated path and the
 // public REST health and authentication routes under /api.
-func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, mutations *location.MutationService) {
+func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		supplierrpc.NewHealthServer(),
 	)
@@ -54,7 +54,7 @@ func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authen
 	r.Mount(locationPath, authenticator.Authenticate(locationHandler))
 
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(
-		supplierrpc.NewLocationAdminServer(mutations),
+		supplierrpc.NewLocationAdminServer(locationAdmin),
 		connect.WithInterceptors(supplierrpc.AdminAuthorizationInterceptor(), validate.NewInterceptor()),
 	)
 	r.Mount(adminPath, authenticator.Authenticate(adminHandler))

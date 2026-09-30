@@ -18,7 +18,7 @@ import (
 
 const buildingID = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
 
-type fakeMutation struct {
+type fakeAdmin struct {
 	called  string
 	caller  location.Caller
 	created location.CreateRequest
@@ -26,31 +26,31 @@ type fakeMutation struct {
 	err     error
 }
 
-func (f *fakeMutation) Create(_ context.Context, caller location.Caller, req location.CreateRequest) (location.Location, error) {
+func (f *fakeAdmin) Create(_ context.Context, caller location.Caller, req location.CreateRequest) (location.Location, error) {
 	f.called, f.caller, f.created = "create", caller, req
-	return testMutationLocation(), f.err
+	return testAdminLocation(), f.err
 }
-func (f *fakeMutation) Update(_ context.Context, caller location.Caller, req location.UpdateRequest) (location.Location, error) {
+func (f *fakeAdmin) Update(_ context.Context, caller location.Caller, req location.UpdateRequest) (location.Location, error) {
 	f.called, f.caller, f.updated = "update", caller, req
-	return testMutationLocation(), f.err
+	return testAdminLocation(), f.err
 }
-func (f *fakeMutation) Archive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
+func (f *fakeAdmin) Archive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
 	f.called, f.caller = "archive", caller
-	return testMutationLocation(), f.err
+	return testAdminLocation(), f.err
 }
-func (f *fakeMutation) Unarchive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
+func (f *fakeAdmin) Unarchive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
 	f.called, f.caller = "unarchive", caller
-	return testMutationLocation(), f.err
+	return testAdminLocation(), f.err
 }
 
-func testMutationLocation() location.Location {
+func testAdminLocation() location.Location {
 	return location.Location{ID: locationID, Name: "Cafe", Building: location.Building{ID: buildingID}, Coordinates: location.Coordinates{Latitude: 1.294, Longitude: 103.774}, Revision: 1}
 }
 
-func adminClient(t *testing.T, mutation LocationMutation, role string) locationv1connect.LocationAdminServiceClient {
+func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1connect.LocationAdminServiceClient {
 	t.Helper()
 	auth := newTestAuth(t)
-	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(mutation),
+	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(admin),
 		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
 	router := chi.NewRouter()
 	router.Mount(path, auth.authenticator.Authenticate(handler))
@@ -72,7 +72,7 @@ func validCreateRequest() *locationv1.CreateLocationRequest {
 func TestAdminRPCOnlyAdministratorRoles(t *testing.T) {
 	for _, role := range []string{"admin", "super_admin", "user", "suspended_user", ""} {
 		t.Run(role, func(t *testing.T) {
-			fake := &fakeMutation{}
+			fake := &fakeAdmin{}
 			client := adminClient(t, fake, role)
 			ctx := context.Background()
 			calls := []struct {
@@ -120,7 +120,7 @@ func TestAdminRPCOnlyAdministratorRoles(t *testing.T) {
 }
 
 func TestAdminAuthorizationPrecedesValidation(t *testing.T) {
-	client := adminClient(t, &fakeMutation{}, "user")
+	client := adminClient(t, &fakeAdmin{}, "user")
 	_, err := client.CreateLocation(context.Background(), connect.NewRequest(&locationv1.CreateLocationRequest{}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("code=%v", connect.CodeOf(err))
@@ -128,7 +128,7 @@ func TestAdminAuthorizationPrecedesValidation(t *testing.T) {
 }
 
 func TestAdminRPCClockPrecisionChecksOnlyMaskedFields(t *testing.T) {
-	fake := &fakeMutation{}
+	fake := &fakeAdmin{}
 	client := adminClient(t, fake, "admin")
 	create := validCreateRequest()
 	create.Location.OpensAt = &timeofday.TimeOfDay{Hours: 8, Seconds: 1}
@@ -161,7 +161,7 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 		{location.ErrAborted, connect.CodeAborted},
 		{location.ErrNotFound, connect.CodeNotFound},
 	} {
-		fake := &fakeMutation{err: row.err}
+		fake := &fakeAdmin{err: row.err}
 		client := adminClient(t, fake, "admin")
 		_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
 		if connect.CodeOf(err) != row.code {

@@ -16,28 +16,28 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PostgresMutationStore keeps idempotency, Location, and Category writes in
+// PostgresAdminStore keeps idempotency, Location, and Category writes in
 // the same transaction.
-type PostgresMutationStore struct{ pool *pgxpool.Pool }
+type PostgresAdminStore struct{ pool *pgxpool.Pool }
 
-func NewPostgresMutationStore(pool *pgxpool.Pool) *PostgresMutationStore {
-	return &PostgresMutationStore{pool: pool}
+func NewPostgresAdminStore(pool *pgxpool.Pool) *PostgresAdminStore {
+	return &PostgresAdminStore{pool: pool}
 }
 
-type postgresMutationTx struct {
+type postgresAdminTx struct {
 	*idempotency.PostgresStore
 	queries *locationdb.Queries
 	reader  *PostgresReader
 }
 
-func (s *PostgresMutationStore) Within(ctx context.Context, run func(MutationTx) error) error {
+func (s *PostgresAdminStore) Within(ctx context.Context, run func(AdminTx) error) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return mapMutationPostgresError("begin location mutation", err)
+		return mapAdminPostgresError("begin location transaction", err)
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
 	queries := locationdb.New(tx)
-	unit := &postgresMutationTx{
+	unit := &postgresAdminTx{
 		PostgresStore: idempotency.NewPostgresStore(tx),
 		queries:       queries,
 		reader:        NewPostgresReader(queries),
@@ -45,36 +45,36 @@ func (s *PostgresMutationStore) Within(ctx context.Context, run func(MutationTx)
 	if err := run(unit); err != nil {
 		return err
 	}
-	return mapMutationPostgresError("commit location mutation", tx.Commit(ctx))
+	return mapAdminPostgresError("commit location transaction", tx.Commit(ctx))
 }
 
 // GetForUpdate locks the Location alone. A second statement loads Categories
 // after a competing writer releases that lock, avoiding a stale relationship
 // snapshot under READ COMMITTED.
-func (t *postgresMutationTx) GetForUpdate(ctx context.Context, id string) (Location, error) {
+func (t *postgresAdminTx) GetForUpdate(ctx context.Context, id string) (Location, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return Location{}, ErrNotFound
 	}
 	if _, err := t.queries.LockLocation(ctx, parsed); err != nil {
-		return Location{}, mapMutationPostgresError("lock location", err)
+		return Location{}, mapAdminPostgresError("lock location", err)
 	}
 	return t.reader.GetLocation(ctx, id)
 }
 
-func (t *postgresMutationTx) ValidateReferences(ctx context.Context, input Input) error {
-	building, err := mutationUUID(input.BuildingID, "building")
+func (t *postgresAdminTx) ValidateReferences(ctx context.Context, input Input) error {
+	building, err := parseUUID(input.BuildingID, "building")
 	if err != nil {
 		return err
 	}
 	present, err := t.queries.BuildingExists(ctx, building)
 	if err != nil {
-		return mapMutationPostgresError("check building", err)
+		return mapAdminPostgresError("check building", err)
 	}
 	if !present {
 		return ErrFailedPrecondition
 	}
-	categories, err := mutationCategoryIDs(input.CategoryIDs)
+	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (t *postgresMutationTx) ValidateReferences(ctx context.Context, input Input
 	}
 	found, err := t.queries.ExistingCategoryIDs(ctx, categories)
 	if err != nil {
-		return mapMutationPostgresError("check categories", err)
+		return mapAdminPostgresError("check categories", err)
 	}
 	if len(found) != len(categories) {
 		return ErrFailedPrecondition
@@ -91,12 +91,12 @@ func (t *postgresMutationTx) ValidateReferences(ctx context.Context, input Input
 	return nil
 }
 
-func (t *postgresMutationTx) Create(ctx context.Context, input Input, now time.Time) (Location, error) {
-	building, err := mutationUUID(input.BuildingID, "building")
+func (t *postgresAdminTx) Create(ctx context.Context, input Input, now time.Time) (Location, error) {
+	building, err := parseUUID(input.BuildingID, "building")
 	if err != nil {
 		return Location{}, err
 	}
-	categories, err := mutationCategoryIDs(input.CategoryIDs)
+	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
 		return Location{}, err
 	}
@@ -108,11 +108,11 @@ func (t *postgresMutationTx) Create(ctx context.Context, input Input, now time.T
 		ID: id, Name: input.Name, IsSupplier: input.IsSupplier,
 		BuildingID: building, Floor: input.Floor,
 		Longitude: input.Coordinates.Longitude, Latitude: input.Coordinates.Latitude,
-		OpenFrom: mutationClock(input.OpensAt), OpenTo: mutationClock(input.ClosesAt),
+		OpenFrom: toPGTime(input.OpensAt), OpenTo: toPGTime(input.ClosesAt),
 		Contact: input.Contact, Details: input.Details, CreatedAt: now.UTC(),
 	})
 	if err != nil {
-		return Location{}, mapMutationPostgresError("insert location", err)
+		return Location{}, mapAdminPostgresError("insert location", err)
 	}
 	if err := t.insertCategories(ctx, id, categories); err != nil {
 		return Location{}, err
@@ -120,16 +120,16 @@ func (t *postgresMutationTx) Create(ctx context.Context, input Input, now time.T
 	return t.reader.GetLocation(ctx, id.String())
 }
 
-func (t *postgresMutationTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (Location, error) {
-	parsed, err := mutationUUID(id, "location")
+func (t *postgresAdminTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (Location, error) {
+	parsed, err := parseUUID(id, "location")
 	if err != nil {
 		return Location{}, err
 	}
-	building, err := mutationUUID(input.BuildingID, "building")
+	building, err := parseUUID(input.BuildingID, "building")
 	if err != nil {
 		return Location{}, err
 	}
-	categories, err := mutationCategoryIDs(input.CategoryIDs)
+	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
 		return Location{}, err
 	}
@@ -140,17 +140,17 @@ func (t *postgresMutationTx) Update(ctx context.Context, id string, input Input,
 		ID: parsed, ExpectedRevision: expected,
 		Name: input.Name, IsSupplier: input.IsSupplier, BuildingID: building, Floor: input.Floor,
 		Longitude: input.Coordinates.Longitude, Latitude: input.Coordinates.Latitude,
-		OpenFrom: mutationClock(input.OpensAt), OpenTo: mutationClock(input.ClosesAt),
+		OpenFrom: toPGTime(input.OpensAt), OpenTo: toPGTime(input.ClosesAt),
 		Contact: input.Contact, Details: input.Details,
 	})
 	if err != nil {
-		return Location{}, mapMutationPostgresError("update location", err)
+		return Location{}, mapAdminPostgresError("update location", err)
 	}
 	if count == 0 {
 		return Location{}, ErrAborted
 	}
 	if err := t.queries.DeleteLocationCategories(ctx, parsed); err != nil {
-		return Location{}, mapMutationPostgresError("delete location categories", err)
+		return Location{}, mapAdminPostgresError("delete location categories", err)
 	}
 	if err := t.insertCategories(ctx, parsed, categories); err != nil {
 		return Location{}, err
@@ -158,8 +158,8 @@ func (t *postgresMutationTx) Update(ctx context.Context, id string, input Input,
 	return t.reader.GetLocation(ctx, id)
 }
 
-func (t *postgresMutationTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (Location, error) {
-	parsed, err := mutationUUID(id, "location")
+func (t *postgresAdminTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (Location, error) {
+	parsed, err := parseUUID(id, "location")
 	if err != nil {
 		return Location{}, err
 	}
@@ -167,7 +167,7 @@ func (t *postgresMutationTx) SetArchived(ctx context.Context, id string, archive
 		ID: parsed, ArchivedAt: archivedAt, ExpectedRevision: expected,
 	})
 	if err != nil {
-		return Location{}, mapMutationPostgresError("archive location", err)
+		return Location{}, mapAdminPostgresError("archive location", err)
 	}
 	if count == 0 {
 		return Location{}, ErrAborted
@@ -175,18 +175,18 @@ func (t *postgresMutationTx) SetArchived(ctx context.Context, id string, archive
 	return t.reader.GetLocation(ctx, id)
 }
 
-func (t *postgresMutationTx) insertCategories(ctx context.Context, id uuid.UUID, categories []uuid.UUID) error {
+func (t *postgresAdminTx) insertCategories(ctx context.Context, id uuid.UUID, categories []uuid.UUID) error {
 	for _, category := range categories {
 		if err := t.queries.InsertLocationCategory(ctx, locationdb.InsertLocationCategoryParams{
 			LocationID: id, CategoryID: category,
 		}); err != nil {
-			return mapMutationPostgresError("insert location category", err)
+			return mapAdminPostgresError("insert location category", err)
 		}
 	}
 	return nil
 }
 
-func mutationUUID(value, label string) (uuid.UUID, error) {
+func parseUUID(value, label string) (uuid.UUID, error) {
 	parsed, err := uuid.Parse(value)
 	if err != nil {
 		return uuid.UUID{}, errs.NewBadRequestError("invalid " + label + " ID")
@@ -194,11 +194,11 @@ func mutationUUID(value, label string) (uuid.UUID, error) {
 	return parsed, nil
 }
 
-func mutationCategoryIDs(values []string) ([]uuid.UUID, error) {
+func parseCategoryIDs(values []string) ([]uuid.UUID, error) {
 	ids := make([]uuid.UUID, 0, len(values))
 	seen := make(map[uuid.UUID]bool, len(values))
 	for _, value := range values {
-		id, err := mutationUUID(value, "category")
+		id, err := parseUUID(value, "category")
 		if err != nil {
 			return nil, err
 		}
@@ -210,14 +210,14 @@ func mutationCategoryIDs(values []string) ([]uuid.UUID, error) {
 	return ids, nil
 }
 
-func mutationClock(value *Clock) pgtype.Time {
+func toPGTime(value *Clock) pgtype.Time {
 	if value == nil {
 		return pgtype.Time{}
 	}
 	return pgtype.Time{Microseconds: (int64(value.Hour)*60 + int64(value.Minute)) * time.Minute.Microseconds(), Valid: true}
 }
 
-func mapMutationPostgresError(operation string, err error) error {
+func mapAdminPostgresError(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -240,5 +240,5 @@ func mapMutationPostgresError(operation string, err error) error {
 	return fmt.Errorf("%s: %w", operation, err)
 }
 
-var _ MutationStore = (*PostgresMutationStore)(nil)
-var _ MutationTx = (*postgresMutationTx)(nil)
+var _ AdminStore = (*PostgresAdminStore)(nil)
+var _ AdminTx = (*postgresAdminTx)(nil)

@@ -12,8 +12,8 @@ import (
 	"google.golang.org/genproto/googleapis/type/timeofday"
 )
 
-// LocationMutation is the domain operation set consumed by this adapter.
-type LocationMutation interface {
+// LocationAdmin is the domain operation set consumed by this adapter.
+type LocationAdmin interface {
 	Create(context.Context, location.Caller, location.CreateRequest) (location.Location, error)
 	Update(context.Context, location.Caller, location.UpdateRequest) (location.Location, error)
 	Archive(context.Context, location.Caller, string) (location.Location, error)
@@ -22,10 +22,10 @@ type LocationMutation interface {
 
 type LocationAdminServer struct {
 	locationv1connect.UnimplementedLocationAdminServiceHandler
-	service LocationMutation
+	service LocationAdmin
 }
 
-func NewLocationAdminServer(service LocationMutation) *LocationAdminServer {
+func NewLocationAdminServer(service LocationAdmin) *LocationAdminServer {
 	return &LocationAdminServer{service: service}
 }
 
