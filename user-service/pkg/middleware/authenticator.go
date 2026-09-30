@@ -141,7 +141,7 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			}
 			return
 		}
-		ctx := withAccessClaims(r.Context(), claims)
+		ctx := context.WithValue(r.Context(), authorization.ClaimsKey{}, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

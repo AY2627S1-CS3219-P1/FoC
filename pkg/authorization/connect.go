@@ -6,6 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 )
 
 // NewConnectInterceptor enforces the policy assigned to each protected unary
@@ -17,9 +18,9 @@ func NewConnectInterceptor(policies map[string]Policy) connect.UnaryInterceptorF
 			if !ok {
 				return nil, api.ToConnectError(ctx, errors.New("protected RPC authorization is not configured"))
 			}
-			principal, err := PrincipalFromContext(ctx)
-			if err != nil {
-				return nil, api.ToConnectError(ctx, err)
+			principal, ok := ctx.Value(ClaimsKey{}).(Principal)
+			if !ok || principal == nil {
+				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
 			}
 			if err := Enforce(ctx, principal, policy); err != nil {
 				return nil, api.ToConnectError(ctx, err)

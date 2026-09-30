@@ -1,12 +1,14 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 )
 
@@ -37,7 +39,7 @@ func AuthenticateLocal(verifier AccessVerifier) func(http.Handler) http.Handler 
 			access := AccessClaims{Subject: claims.Subject, SessionID: claims.SessionID,
 				Role: string(claims.Role), IssuedAt: claims.IssuedAt,
 				ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
-			ctx := withAccessClaims(r.Context(), access)
+			ctx := context.WithValue(r.Context(), authorization.ClaimsKey{}, access)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
