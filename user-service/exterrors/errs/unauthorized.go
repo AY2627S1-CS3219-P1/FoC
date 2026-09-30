@@ -3,6 +3,7 @@ package errs
 import (
 	"net/http"
 
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 )
 
@@ -43,4 +44,8 @@ func (e *UnauthorizedError) ErrorTrace() string {
 
 func (e *UnauthorizedError) Code() int {
 	return http.StatusUnauthorized
+}
+
+func (e *UnauthorizedError) GetConnectCode() connect.Code {
+	return connect.CodeUnauthenticated
 }

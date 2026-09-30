@@ -4,11 +4,13 @@ package location
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
 )
 
 const (
@@ -18,9 +20,8 @@ const (
 )
 
 var (
-	ErrNotFound         = errors.New("location not found")
-	ErrPermissionDenied = errors.New("permission denied")
-	ErrInvalidArgument  = errors.New("invalid argument")
+	ErrNotFound         = errs.NewNotFoundError("location not found")
+	ErrPermissionDenied = errs.NewForbiddenError("permission denied")
 )
 
 type Location struct {
@@ -149,8 +150,21 @@ func (s *Service) Get(ctx context.Context, id string) (Location, error) {
 
 func (s *Service) List(ctx context.Context, caller Caller, req ListRequest) (Page, error) {
 	search := strings.TrimSpace(req.Search)
-	if utf8.RuneCountInString(search) > MaxSearchLength || req.Page < 0 || req.PageSize < 0 || req.PageSize > MaxPageSize {
-		return Page{}, ErrInvalidArgument
+	if length := utf8.RuneCountInString(search); length > MaxSearchLength {
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("search has %d characters; maximum is %d", length, MaxSearchLength))
+	}
+	if req.Page < 0 {
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("page is %d; it cannot be negative", req.Page))
+	}
+	if req.PageSize < 0 {
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("page_size is %d; it cannot be negative", req.PageSize))
+	}
+	if req.PageSize > MaxPageSize {
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("page_size is %d; maximum is %d", req.PageSize, MaxPageSize))
 	}
 
 	archive := req.Archive
@@ -163,7 +177,8 @@ func (s *Service) List(ctx context.Context, caller Caller, req ListRequest) (Pag
 			return Page{}, ErrPermissionDenied
 		}
 	default:
-		return Page{}, ErrInvalidArgument
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("archive value %q is invalid; use active, archived, or all", archive))
 	}
 
 	sort := req.Sort
@@ -172,7 +187,8 @@ func (s *Service) List(ctx context.Context, caller Caller, req ListRequest) (Pag
 		sort = SortByName
 	case SortByName, SortByBuilding:
 	default:
-		return Page{}, ErrInvalidArgument
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("sort value %q is invalid; use name or building", sort))
 	}
 
 	page := max(req.Page, 1)
@@ -181,7 +197,8 @@ func (s *Service) List(ctx context.Context, caller Caller, req ListRequest) (Pag
 		pageSize = DefaultPageSize
 	}
 	if int64(page-1)*int64(pageSize) > math.MaxInt32 {
-		return Page{}, ErrInvalidArgument
+		return Page{}, errs.NewBadRequestError(
+			fmt.Sprintf("page %d with page_size %d exceeds the supported offset range", page, pageSize))
 	}
 
 	locations, total, err := s.reader.ListLocations(ctx, Query{

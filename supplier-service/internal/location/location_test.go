@@ -3,8 +3,11 @@ package location
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 )
 
 type fakeReader struct {
@@ -80,18 +83,26 @@ func TestListArchiveViewsRequireAdmin(t *testing.T) {
 }
 
 func TestListRejectsInvalidRequests(t *testing.T) {
-	cases := map[string]ListRequest{
-		"long search":     {Search: strings.Repeat("a", MaxSearchLength+1)},
-		"negative page":   {Page: -1},
-		"large page":      {PageSize: MaxPageSize + 1},
-		"offset overflow": {Page: 1 << 30, PageSize: MaxPageSize},
-		"unknown sort":    {Sort: "rating"},
-		"unknown filter":  {Archive: "deleted"},
+	cases := map[string]struct {
+		req     ListRequest
+		message string
+	}{
+		"long search":        {ListRequest{Search: strings.Repeat("a", MaxSearchLength+1)}, "search has 201 characters; maximum is 200"},
+		"negative page":      {ListRequest{Page: -1}, "page is -1; it cannot be negative"},
+		"negative page size": {ListRequest{PageSize: -1}, "page_size is -1; it cannot be negative"},
+		"large page":         {ListRequest{PageSize: MaxPageSize + 1}, "page_size is 101; maximum is 100"},
+		"offset overflow":    {ListRequest{Page: 1 << 30, PageSize: MaxPageSize}, "exceeds the supported offset range"},
+		"unknown sort":       {ListRequest{Sort: "rating"}, "sort value \"rating\" is invalid"},
+		"unknown filter":     {ListRequest{Archive: "deleted"}, "archive value \"deleted\" is invalid"},
 	}
-	for name, req := range cases {
-		_, err := NewService(&fakeReader{}).List(context.Background(), Caller{Admin: true}, req)
-		if !errors.Is(err, ErrInvalidArgument) {
-			t.Errorf("%s: err = %v, want invalid argument", name, err)
+	for name, tc := range cases {
+		_, err := NewService(&fakeReader{}).List(context.Background(), Caller{Admin: true}, tc.req)
+		var external api.ExternalError
+		if !errors.As(err, &external) || external.Code() != http.StatusBadRequest {
+			t.Errorf("%s: err = %v, want bad request", name, err)
+		}
+		if err == nil || !strings.Contains(err.Error(), tc.message) {
+			t.Errorf("%s: err = %v, want message containing %q", name, err, tc.message)
 		}
 	}
 }

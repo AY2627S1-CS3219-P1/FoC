@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -47,11 +48,11 @@ func (r *PostgresReader) GetLocation(ctx context.Context, id string) (Location, 
 func (r *PostgresReader) ListLocations(ctx context.Context, query Query) ([]Location, int64, error) {
 	buildingID, err := parseOptionalUUID(query.BuildingID)
 	if err != nil {
-		return nil, 0, ErrInvalidArgument
+		return nil, 0, errs.NewBadRequestError("invalid building ID")
 	}
 	categoryID, err := parseOptionalUUID(query.CategoryID)
 	if err != nil {
-		return nil, 0, ErrInvalidArgument
+		return nil, 0, errs.NewBadRequestError("invalid category ID")
 	}
 	filters := locationdb.CountLocationsParams{
 		Search:        escapeLike(query.Search),
