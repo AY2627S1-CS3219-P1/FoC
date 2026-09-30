@@ -86,6 +86,11 @@ func TestPostgresReader(t *testing.T) {
 		if err != nil || len(page.Locations) != 1 || page.Locations[0].CurrentDisablement != nil {
 			t.Fatalf("early-ended list warning = %+v, err %v", page, err)
 		}
+		active, err := service.List(ctx, user, ListRequest{Search: "Supper Stretch"})
+		if err != nil || len(active.Locations) != 1 || active.Locations[0].CurrentDisablement == nil ||
+			active.Locations[0].CurrentDisablement.Reason != "Renovation" {
+			t.Fatalf("active list warning = %+v, err %v", active, err)
+		}
 	})
 
 	list := func(t *testing.T, caller Caller, req ListRequest) Page {
