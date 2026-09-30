@@ -106,12 +106,12 @@ discovery excludes archived Locations; direct lookup returns them with
 archived Location, or unarchive on an active Location, preserves its revision
 and timestamps.
 
-Consumers creating new requests or disablements must reject an archived
+Disablement and addition-request mutation APIs are mounted through
+`router.MountLocationServices`. Creating a Disablement rejects an archived
 Location with `failed_precondition`, checking its archive state in the same
-transaction as the new write. Those workflow mutation APIs are not implemented
-on this branch's `main` base; this change does not add them. Existing historical
-references remain valid. A disablement itself does not make a Location
-unselectable.
+transaction as the new write. Addition requests propose new Locations rather
+than select existing ones. Existing historical references remain valid. A
+disablement itself does not make a Location unselectable.
 
 ## Stable errors
 
