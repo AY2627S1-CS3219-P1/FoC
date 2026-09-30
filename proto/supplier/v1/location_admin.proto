@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/field_mask.proto";
+import "google/type/timeofday.proto";
+import "supplier/v1/location_types.proto";
+
+// Writable Location fields. Length limits apply before trimming.
+message LocationInput {
+  option (buf.validate.message).cel = {
+    id: "location_input.supplier_categories"
+    message: "Suppliers need at least one category; ordinary Locations have none"
+    expression: "this.is_supplier == (size(this.category_ids) > 0)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_input.opening_hours_format"
+    message: "opens_at and closes_at must be whole minutes between 00:00 and 23:59"
+    expression: "[this.opens_at, this.closes_at].all(t, t.hours >= 0 && t.hours < 24 && t.minutes >= 0 && t.minutes < 60 && t.seconds == 0 && t.nanos == 0)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_input.opening_hours"
+    message: "opens_at and closes_at must both be set and differ, or both be unset"
+    expression: "has(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)"
+  };
+
+  // Must contain a non-whitespace character.
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 200
+    pattern: "\\S"
+  }];
+  bool is_supplier = 2;
+  repeated string category_ids = 3 [(buf.validate.field).repeated = {
+    unique: true
+    items: {
+      string: {uuid: true}
+    }
+  }];
+  string building_id = 4 [(buf.validate.field).string.uuid = true];
+  optional string floor = 5 [(buf.validate.field).string.max_len = 50];
+  Coordinates coordinates = 6 [(buf.validate.field).required = true];
+  // Asia/Singapore wall-clock time, whole minutes. Closing before opening
+  // means overnight.
+  google.type.TimeOfDay opens_at = 7;
+  google.type.TimeOfDay closes_at = 8;
+  optional string contact = 9 [(buf.validate.field).string.max_len = 500];
+  string details = 10 [(buf.validate.field).string.max_len = 2000];
+}
+
+message CreateLocationRequest {
+  // Client-generated. Retrying with the same key and payload within 24 hours
+  // returns the original Location; a different payload is already_exists.
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  LocationInput location = 2 [(buf.validate.field).required = true];
+}
+
+message CreateLocationResponse {
+  Location location = 1;
+}
+
+message UpdateLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Must match the current revision, otherwise aborted.
+  int64 expected_revision = 2 [(buf.validate.field).int64.gt = 0];
+  // Not validated on its own; the handler applies update_mask to the current
+  // Location and validates the merged LocationInput.
+  LocationInput location = 3 [(buf.validate.field).ignore = IGNORE_ALWAYS];
+  // Masked fields left unset are cleared.
+  google.protobuf.FieldMask update_mask = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).field_mask.in = "name",
+    (buf.validate.field).field_mask.in = "is_supplier",
+    (buf.validate.field).field_mask.in = "category_ids",
+    (buf.validate.field).field_mask.in = "building_id",
+    (buf.validate.field).field_mask.in = "floor",
+    (buf.validate.field).field_mask.in = "coordinates",
+    (buf.validate.field).field_mask.in = "opens_at",
+    (buf.validate.field).field_mask.in = "closes_at",
+    (buf.validate.field).field_mask.in = "contact",
+    (buf.validate.field).field_mask.in = "details"
+  ];
+}
+
+message UpdateLocationResponse {
+  Location location = 1;
+}
+
+message ArchiveLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ArchiveLocationResponse {
+  Location location = 1;
+}
+
+message UnarchiveLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UnarchiveLocationResponse {
+  Location location = 1;
+}
