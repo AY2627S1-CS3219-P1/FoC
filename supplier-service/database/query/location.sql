@@ -120,3 +120,49 @@ ORDER BY lower(name), id;
 SELECT id, name
 FROM categories
 ORDER BY lower(name), id;
+
+-- Lock only the parent. Relationship reads must use a later statement after
+-- any concurrent holder of this lock commits.
+-- name: LockLocation :one
+SELECT id FROM locations WHERE id = @id FOR UPDATE;
+
+-- name: BuildingExists :one
+SELECT EXISTS(SELECT 1 FROM buildings WHERE id = @id) AS present;
+
+-- name: ExistingCategoryIDs :many
+SELECT id FROM categories WHERE id = ANY(@ids::UUID[]);
+
+-- name: InsertLocation :exec
+INSERT INTO locations (
+    id, name, is_supplier, building_id, floor, coordinates,
+    open_from, open_to, contact, details, revision, created_at
+) VALUES (
+    @id, @name, @is_supplier, @building_id, @floor,
+    ST_SetSRID(ST_MakePoint(@longitude::DOUBLE PRECISION, @latitude::DOUBLE PRECISION), 4326)::geography,
+    @open_from, @open_to, @contact, @details, 1, @created_at
+);
+
+-- name: UpdateLocation :execrows
+UPDATE locations SET
+    name = @name,
+    is_supplier = @is_supplier,
+    building_id = @building_id,
+    floor = @floor,
+    coordinates = ST_SetSRID(ST_MakePoint(@longitude::DOUBLE PRECISION, @latitude::DOUBLE PRECISION), 4326)::geography,
+    open_from = @open_from,
+    open_to = @open_to,
+    contact = @contact,
+    details = @details,
+    revision = revision + 1
+WHERE id = @id AND revision = @expected_revision;
+
+-- name: SetLocationArchived :execrows
+UPDATE locations SET archived_at = @archived_at, revision = revision + 1
+WHERE id = @id AND revision = @expected_revision;
+
+-- name: DeleteLocationCategories :exec
+DELETE FROM location_categories WHERE location_id = @location_id;
+
+-- name: InsertLocationCategory :exec
+INSERT INTO location_categories (location_id, category_id)
+VALUES (@location_id, @category_id);

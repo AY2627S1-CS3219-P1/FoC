@@ -65,13 +65,10 @@ message Category {
 // Writable Location fields. Admins and users supply the same Location details,
 // but admin operations change Locations directly and user addition requests need
 // approval. Permissions apply to the operation, not the input fields.
-// Length limits apply before trimming.
+// Length limits apply after trimming.
 message LocationInput {
-  option (buf.validate.message).cel = {
-    id: "location_input.supplier_categories"
-    message: "Suppliers need at least one category; ordinary Locations have none"
-    expression: "this.is_supplier == (size(this.category_ids) > 0)"
-  };
+  // The supplier/category invariant is checked by the Location domain so it
+  // can return failed_precondition on the merged resource.
   option (buf.validate.message).cel = {
     id: "location_input.opening_hours_format"
     message: "opens_at and closes_at must be whole minutes between 00:00 and 23:59"
@@ -82,29 +79,38 @@ message LocationInput {
     message: "opens_at and closes_at must both be set and differ, or both be unset"
     expression: "has(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)"
   };
-
   // Must contain a non-whitespace character.
-  string name = 1 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 200
-    pattern: "\\S"
+  string name = 1 [(buf.validate.field).cel = {
+    id: "location_input.name_length"
+    message: "name must be 1-200 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) >= 1 && size(this.trim()) <= 200"
   }];
   optional bool is_supplier = 2;
   repeated string category_ids = 3 [(buf.validate.field).repeated = {
     unique: true
-    items: {
-      string: {uuid: true}
-    }
+    items: {string: {uuid: true}}
   }];
   string building_id = 4 [(buf.validate.field).string.uuid = true];
-  optional string floor = 5 [(buf.validate.field).string.max_len = 50];
+  optional string floor = 5 [(buf.validate.field).cel = {
+    id: "location_input.floor_length"
+    message: "floor must be at most 50 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) <= 50"
+  }];
   Coordinates coordinates = 6 [(buf.validate.field).required = true];
   // Asia/Singapore wall-clock time, whole minutes. Closing before opening
   // means overnight.
   google.type.TimeOfDay opens_at = 7;
   google.type.TimeOfDay closes_at = 8;
-  optional string contact = 9 [(buf.validate.field).string.max_len = 500];
-  string details = 10 [(buf.validate.field).string.max_len = 2000];
+  optional string contact = 9 [(buf.validate.field).cel = {
+    id: "location_input.contact_length"
+    message: "contact must be at most 500 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) <= 500"
+  }];
+  string details = 10 [(buf.validate.field).cel = {
+    id: "location_input.details_length"
+    message: "details must be at most 2000 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) <= 2000"
+  }];
 }
 
 // Counts include only resources visible to the caller after filtering.

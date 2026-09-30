@@ -220,17 +220,6 @@ func TestListReferenceData(t *testing.T) {
 	}
 }
 
-func TestLocationAdminMutationNotImplemented(t *testing.T) {
-	_, handler := locationv1connect.NewLocationAdminServiceHandler(&locationv1connect.UnimplementedLocationAdminServiceHandler{})
-	server := httptest.NewServer(handler)
-	defer server.Close()
-	client := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL)
-	_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
-	if connect.CodeOf(err) != connect.CodeUnimplemented {
-		t.Fatalf("expected unimplemented mutation: %v", err)
-	}
-}
-
 func TestArchivedViewRequiresAdmin(t *testing.T) {
 	cases := map[string]connect.Code{
 		"super_admin":    0,
