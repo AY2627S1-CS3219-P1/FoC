@@ -67,7 +67,7 @@ func newLocationClient(t *testing.T, reader location.Reader) supplierv1connect.L
 
 func TestGetLocationReturnsLocation(t *testing.T) {
 	archivedAt := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	opens, closes, floor := "22:00", "02:00", "B1"
+	floor := "B1"
 	client := newLocationClient(t, &fakeLocationReader{locations: map[string]location.Location{
 		locationID: {
 			ID:          locationID,
@@ -77,8 +77,8 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 			Categories:  []location.Category{{ID: "c", Name: "Food"}},
 			Floor:       &floor,
 			Coordinates: location.Coordinates{Latitude: 1.29, Longitude: 103.78},
-			OpensAt:     &opens,
-			ClosesAt:    &closes,
+			OpensAt:     &location.Clock{Hour: 22},
+			ClosesAt:    &location.Clock{Hour: 2},
 			ArchivedAt:  &archivedAt,
 			CurrentDisablement: &location.Disablement{
 				ID: "d", StartsAt: archivedAt, Reason: "Renovation",
@@ -93,7 +93,7 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 	}
 	got := res.Msg.Location
 	if got.Name != "Supper Stretch" || got.Building.Name != "PGP" || len(got.Categories) != 1 ||
-		got.GetFloor() != "B1" || got.GetOpensAt() != "22:00" || got.GetClosesAt() != "02:00" ||
+		got.GetFloor() != "B1" || got.GetOpensAt().GetHours() != 22 || got.GetClosesAt().GetHours() != 2 ||
 		got.Coordinates.Latitude != 1.29 || !got.ArchivedAt.AsTime().Equal(archivedAt) ||
 		got.CurrentDisablement.GetReason() != "Renovation" || got.CurrentDisablement.EndsAt != nil ||
 		got.Revision != 3 {

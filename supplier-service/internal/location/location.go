@@ -31,8 +31,8 @@ type Location struct {
 	Categories         []Category
 	Floor              *string
 	Coordinates        Coordinates
-	OpensAt            *string // "HH:MM"
-	ClosesAt           *string // "HH:MM"
+	OpensAt            *Clock
+	ClosesAt           *Clock
 	Contact            *string
 	Details            string
 	ArchivedAt         *time.Time
@@ -40,6 +40,12 @@ type Location struct {
 	Revision           int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// Clock is an Asia/Singapore wall-clock time of day.
+type Clock struct {
+	Hour   int32
+	Minute int32
 }
 
 type Coordinates struct {

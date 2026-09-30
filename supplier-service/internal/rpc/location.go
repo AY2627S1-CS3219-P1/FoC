@@ -9,6 +9,7 @@ import (
 	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -134,8 +135,8 @@ func toProtoLocation(loc location.Location) *supplierv1.Location {
 		Categories:  toProtoCategories(loc.Categories),
 		Floor:       loc.Floor,
 		Coordinates: toProtoCoordinates(loc.Coordinates),
-		OpensAt:     loc.OpensAt,
-		ClosesAt:    loc.ClosesAt,
+		OpensAt:     toProtoTimeOfDay(loc.OpensAt),
+		ClosesAt:    toProtoTimeOfDay(loc.ClosesAt),
 		Contact:     loc.Contact,
 		Details:     loc.Details,
 		Revision:    loc.Revision,
@@ -177,4 +178,11 @@ func toProtoCategories(categories []location.Category) []*supplierv1.Category {
 
 func toProtoCoordinates(c location.Coordinates) *supplierv1.Coordinates {
 	return &supplierv1.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
+}
+
+func toProtoTimeOfDay(c *location.Clock) *timeofday.TimeOfDay {
+	if c == nil {
+		return nil
+	}
+	return &timeofday.TimeOfDay{Hours: c.Hour, Minutes: c.Minute}
 }

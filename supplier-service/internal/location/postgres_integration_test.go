@@ -45,7 +45,7 @@ func TestPostgresReader(t *testing.T) {
 		}
 		if loc.Name != "Supper Stretch" || loc.Building.Name != "PGP" || !loc.IsSupplier ||
 			len(loc.Categories) != 2 || loc.Categories[0].Name != "Coffee" ||
-			loc.OpensAt == nil || *loc.OpensAt != "22:00" || *loc.ClosesAt != "02:00" ||
+			loc.OpensAt == nil || *loc.OpensAt != (Clock{Hour: 22}) || *loc.ClosesAt != (Clock{Hour: 2}) ||
 			loc.Coordinates.Latitude != 1.2915 || loc.Coordinates.Longitude != 103.7805 ||
 			loc.CurrentDisablement == nil || loc.CurrentDisablement.Reason != "Renovation" {
 			t.Fatalf("location = %+v", loc)
