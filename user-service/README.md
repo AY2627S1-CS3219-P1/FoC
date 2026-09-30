@@ -46,6 +46,13 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `JWT_ACCESS_TOKEN_TTL` and `JWT_REFRESH_TOKEN_TTL` accept Go duration
    values. Their defaults are `10m` and `720h` (30 days).
 
+   Magic links are sent over SMTP. `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
+   (an address such as `FoC <no-reply@foc.local>`) are required outside
+   local mode. With `APP_ENV=local` they default to Mailpit on
+   `localhost:1025`; Compose points the container at `mailpit:1025`.
+   `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
+   the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
+
 2. Set up the database.
 
    The service uses PostgreSQL 18 and
@@ -63,13 +70,16 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    docker compose up --build user-service
    ```
 
-   For host development, run `make run` from this directory after setting up
-   the environment and database.
+   Compose also starts [Mailpit](https://mailpit.axllent.org/), which
+   catches every email the service sends. Open http://localhost:8025 to
+   read login and registration links. For host development, run
+   `docker compose up -d mailpit`, then `make run` from this directory after
+   setting up the environment and database.
 
 ## Authentication
 
 The generated `user.v1.AuthService` provides `RequestLink`, `Login`,
-`Register`, `Refresh`, and `Logout`. `user.v1.PublicKeyService.GetPublicKeys`
+`Register`, `Refresh`, `Logout`, and `LogoutAll`. `user.v1.PublicKeyService.GetPublicKeys`
 publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
@@ -78,13 +88,24 @@ Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`
 header. The refresh token is only sent as a `foc-refresh-token` cookie with
 Secure, HttpOnly, SameSite=Strict and Path=/user.v1.AuthService/. Refresh and
-logout read that cookie; logout clears it. Browser clients must send credentials
+both logouts read that cookie and the logouts clear it. `LogoutAll` revokes
+every session of the cookie's user (sign out of all devices) and, unlike
+`Logout`, returns `Unauthenticated` when the cookie is not a live session.
+Access tokens already issued remain valid until they expire. Browser clients must send credentials
 so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
 environment variables. Link requests return an empty typed response; the magic
-link is passed only to the injected email sender. The configured
-`EmptyEmailSender` discards it until an email delivery adapter is connected.
+link is only emailed, through `pkg/email.SMTPSender`. If delivery fails,
+`RequestLink` returns `Unavailable` and logs the SMTP error. An existing
+account receives a `/login?token=` link and a new address a
+`/register?token=` link; both expire after ten minutes and work once.
+
+Registration only accepts addresses whose domain is in
+`allowed_email_domains`; an empty table rejects every registration. For local
+testing, add a domain, for example
+`INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
+bootstrapped admin can log in without one.
 
 `RegisterRequest` accepts a display name plus optional `telegram_handle` and
 `phone_number`, matching the nullable user columns. The service trims the

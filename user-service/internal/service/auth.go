@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -93,6 +94,7 @@ func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
+		slog.WarnContext(ctx, "send magic link email failed", "err", err)
 		return jwt.ErrUnavailable
 	}
 
@@ -273,6 +275,39 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("revoke refresh session: %w", err)
+	}
+	return nil
+}
+
+// LogoutAll revokes every session of the refresh cookie's user, signing them
+// out of all devices. Unlike Logout, the cookie must belong to a live session,
+// so an unauthenticated caller cannot sign anyone out.
+func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
+	now := s.cfg.Now().UTC()
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	userID, err := parseID(claims.Subject)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	sessionID, err := parseID(claims.SessionID)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
+			return err
+		}
+		_, err := tx.Sessions.RevokeAllForUser(ctx, userID, now)
+		return err
+	})
+	if errors.Is(err, store.ErrSessionRejected) {
+		return jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return fmt.Errorf("revoke all sessions: %w", err)
 	}
 	return nil
 }

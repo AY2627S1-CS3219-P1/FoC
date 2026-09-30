@@ -9,6 +9,7 @@ service AuthService {
   rpc Register(RegisterRequest) returns (RegisterResponse) {}
   rpc Refresh(RefreshRequest) returns (RefreshResponse) {}
   rpc Logout(LogoutRequest) returns (LogoutResponse) {}
+  rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse) {}
 }
 
 service PublicKeyService {
@@ -74,6 +75,10 @@ message RefreshResponse {
 message LogoutRequest {}
 
 message LogoutResponse {}
+
+message LogoutAllRequest {}
+
+message LogoutAllResponse {}
 
 message GetPublicKeysRequest {}
 

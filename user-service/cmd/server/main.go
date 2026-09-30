@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"os/signal"
@@ -53,6 +54,7 @@ type config struct {
 	privateKey      string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
+	smtp            email.SMTPSender
 	bootstrap       bootstrap.Config
 }
 
@@ -178,6 +180,13 @@ func loadConfig() (config, error) {
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		smtp: email.SMTPSender{
+			Addr:     envString("SMTP_ADDR", ""),
+			From:     envString("SMTP_FROM", ""),
+			Username: envString("SMTP_USERNAME", ""),
+			Password: os.Getenv("SMTP_PASSWORD"),
+			Timeout:  envDuration("SMTP_TIMEOUT", 5*time.Second, &errs),
+		},
 		bootstrap: bootstrap.Config{
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
@@ -189,6 +198,13 @@ func loadConfig() (config, error) {
 	if cfg.privateKey == "" && cfg.appEnv == "local" {
 		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
 	}
+	// Local mail goes to Mailpit; `docker compose` overrides the host to mailpit.
+	if cfg.smtp.Addr == "" && cfg.appEnv == "local" {
+		cfg.smtp.Addr = "localhost:1025"
+	}
+	if cfg.smtp.From == "" && cfg.appEnv == "local" {
+		cfg.smtp.From = "FoC <no-reply@foc.local>"
+	}
 	if cfg.databaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is not set"))
 	}
@@ -197,6 +213,14 @@ func loadConfig() (config, error) {
 	}
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
+	}
+	if cfg.smtp.Addr == "" {
+		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.smtp.From == "" {
+		errs = append(errs, errors.New("SMTP_FROM is not set"))
+	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
+		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
 	}
 	return cfg, errors.Join(errs...)
 }
@@ -281,7 +305,7 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 	}
 	logic, err := service.NewService(service.Dependencies{
 		Store: serviceStore, WithTransaction: withTransaction,
-		TokenCodec: codec, EmailSender: email.EmptyEmailSender{},
+		TokenCodec: codec, EmailSender: cfg.smtp,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

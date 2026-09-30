@@ -145,6 +145,22 @@ func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]by
 	return nil
 }
 
+func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var count int64
+	for id, session := range f.sessions {
+		if session.UserID != userID || session.RevokedAt != nil {
+			continue
+		}
+		revokedAt := now
+		session.RevokedAt = &revokedAt
+		f.sessions[id] = session
+		count++
+	}
+	return count, nil
+}
+
 type fakeUsers struct{ *fakeStore }
 
 func (f fakeUsers) Create(ctx context.Context, user *models.User) error {
@@ -173,6 +189,10 @@ func (f fakeSessions) UpdateTokenHash(ctx context.Context, id uuid.UUID, tokenHa
 
 func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte, now time.Time) error {
 	return f.RevokeSession(ctx, id, digest, now)
+}
+
+func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+	return f.RevokeUserSessions(ctx, userID, now)
 }
 
 type fakeDomains struct{ *fakeStore }
@@ -371,6 +391,46 @@ func TestIndependentLoginLinksAndExpiry(t *testing.T) {
 	now = now.Add(MagicLinkLifetime)
 	if _, _, err := service.Login(ctx, linkToken(t, expiring)); !errors.Is(err, jwt.ErrLoginFailed) {
 		t.Fatalf("expired login link: %v", err)
+	}
+}
+
+func TestLogoutAllRevokesEveryDevice(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	user := testModelUser("user@example.com", models.RoleUser)
+	other := testModelUser("other@example.com", models.RoleUser)
+	store.users[user.ID] = user
+	store.users[other.ID] = other
+	service := setupService(t, store, &now, true, nil)
+	ctx := context.Background()
+	login := func(email string) string {
+		t.Helper()
+		_, tokens, err := service.Login(ctx, linkToken(t, requestLink(t, service, email)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tokens.RefreshToken
+	}
+	laptop, phone, otherDevice := login(user.Email), login(user.Email), login(other.Email)
+
+	for _, bad := range []string{"", "garbage"} {
+		if err := service.LogoutAll(ctx, bad); !errors.Is(err, jwt.ErrRefreshFailed) {
+			t.Fatalf("LogoutAll(%q): %v", bad, err)
+		}
+	}
+	if err := service.LogoutAll(ctx, laptop); err != nil {
+		t.Fatal(err)
+	}
+	for _, refresh := range []string{laptop, phone} {
+		if _, _, err := service.Refresh(ctx, refresh); !errors.Is(err, jwt.ErrRefreshFailed) {
+			t.Fatalf("refresh after logout all: %v", err)
+		}
+	}
+	if err := service.LogoutAll(ctx, phone); !errors.Is(err, jwt.ErrRefreshFailed) {
+		t.Fatalf("logout all with a revoked session: %v", err)
+	}
+	if _, _, err := service.Refresh(ctx, otherDevice); err != nil {
+		t.Fatalf("logout all revoked another user's session: %v", err)
 	}
 }
 
@@ -654,6 +714,11 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
 		service.deps.Store.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
+	})
+	t.Run("transaction runner while logging out everywhere", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.WithTransaction = nil
+		assertPanics(t, func() { _ = service.LogoutAll(ctx, refreshToken) })
 	})
 	t.Run("token codec while reading public keys", func(t *testing.T) {
 		service := newService(t, newFakeStore())
