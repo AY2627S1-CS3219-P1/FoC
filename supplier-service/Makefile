@@ -13,7 +13,7 @@ test:
 	@go test ./...
 
 test-integration:
-	@go test -tags=integration ./internal/seed -count=1 -timeout=10m
+	@go test -tags=integration ./internal/seed ./internal/handlers/workflows -count=1 -timeout=10m
 
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
