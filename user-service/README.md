@@ -3,6 +3,9 @@
 This is the user service for [Friend on Campus (FoC)](../README.md). It
 provides email magic-link authentication and ES256 access and refresh tokens.
 
+Design docs: [design](docs/design.md) (roles, authorization, role lifecycle),
+[schema](docs/schema.md), and the [demo runbook](docs/demo.md).
+
 ## Setup
 
 1. Configure the environment.

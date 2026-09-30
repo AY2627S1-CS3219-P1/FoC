@@ -21,7 +21,7 @@ erDiagram
     users {
         uuid id PK
         citext email UK "among live rows"
-        text display_name "1-50 chars"
+        text display_name "1-100 chars"
         text description "max 500"
         text telegram_handle "5-32 of A-Za-z0-9_, no @"
         text phone_number "max 20"
@@ -84,7 +84,7 @@ erDiagram
 | Migration | Table | Backlog | Notes |
 |---|---|---|---|
 | 00001 | `users` | U1, U3 | `citext` email = case-insensitive unique |
-| 00002 | `allowed_email_domains` | U1.1.2 | empty table = no restriction |
+| 00002 | `allowed_email_domains` | U1.1.2 | empty table rejects every registration; the bootstrap admin is exempt |
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
@@ -133,19 +133,12 @@ UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
 INSERT INTO account_warnings (...) VALUES (...) ON CONFLICT (source_event_id) DO NOTHING;
 ```
 
-## Roles & authorisation (planned)
+## Roles & authorisation
 
-No permissions table. Each handler reads the caller's role (`auth.Require`)
-and decides. Shared rules live in `internal/auth`:
-
-| Caller | Can manage (`CanManage`) | Role changes (`CanAssignRole`) |
-|---|---|---|
-| `super_admin` | `admin`, `user`, `suspended` | anything among those three, incl. promote user → admin, demote admin |
-| `admin` | `user`, `suspended` | user ↔ suspended (suspend / reinstate) |
-| `user` | – | – |
-| `suspended` | – | – |
-
-Nobody can change their own role. `super_admin` is only granted by the startup admin bootstrap.
+There is no permissions table. Each protected RPC has a role policy, and
+privileged operations re-check the actor's current role in the database.
+Role capabilities, transition rules and edge cases are in
+[design.md](design.md#1-role-design).
 
 ## Conventions
 
