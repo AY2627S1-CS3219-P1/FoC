@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -93,6 +94,7 @@ func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
+		slog.WarnContext(ctx, "send magic link email failed", "err", err)
 		return jwt.ErrUnavailable
 	}
 
