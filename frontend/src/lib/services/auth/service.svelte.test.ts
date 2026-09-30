@@ -181,11 +181,11 @@ describe('AuthService', () => {
 			expect(service.accessToken).toBe('later-token');
 		});
 
-		it('clears the session and loading state after failure', async () => {
+		it('clears the session and loading state when refresh credentials are rejected', async () => {
 			const api = createAuthApi();
 			const service = new AuthService(api);
 			await service.login('valid-token');
-			const error = new Error('refresh failed');
+			const error = new ConnectError('refresh credentials rejected', Code.Unauthenticated);
 			api.refresh.mockRejectedValueOnce(error);
 
 			await expect(service.refresh()).rejects.toBe(error);
@@ -200,6 +200,25 @@ describe('AuthService', () => {
 
 			expect(api.refresh).toHaveBeenCalledTimes(2);
 			expect(service.accessToken).toBe('recovered-token');
+		});
+
+		it.each([
+			new ConnectError('temporarily unavailable', Code.Unavailable),
+			new Error('network failure')
+		])('preserves an existing session when refresh fails transiently: %s', async (error) => {
+			const api = createAuthApi();
+			const session = createSession('existing-token');
+			api.login.mockResolvedValueOnce(session);
+			const service = new AuthService(api);
+			await service.login('valid-token');
+			api.refresh.mockRejectedValueOnce(error);
+
+			await expect(service.refresh()).rejects.toBe(error);
+
+			expect(service.accessToken).toBe(session.accessToken);
+			expect(service.user).toEqual(session.user);
+			expect(service.isAuthenticated).toBe(true);
+			expect(service.isLoading).toBe(false);
 		});
 
 		it('allows restoreSession to absorb refresh failure', async () => {

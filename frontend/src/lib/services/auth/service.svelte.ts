@@ -143,7 +143,12 @@ export class AuthService {
 				}
 			})
 			.catch((error: unknown) => {
-				if (clearOnFailure && revision === this.#sessionRevision) {
+				if (
+					clearOnFailure &&
+					revision === this.#sessionRevision &&
+					error instanceof ConnectError &&
+					error.code === Code.Unauthenticated
+				) {
 					this.#clearSession();
 				}
 				throw error;
