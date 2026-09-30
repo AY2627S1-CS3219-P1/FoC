@@ -2,30 +2,30 @@
 package router
 
 import (
+	"net/http"
+
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
 	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
-	supplierrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
+	rpcshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/shared"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) *chi.Mux {
+func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, services RPCServices) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
-	SetupRoutes(r, env, authenticator, locationAdmin)
+	SetupRoutes(r, env, authenticator, services)
 	SetupAdminRoutes(r, env)
 	return r
 }
@@ -39,25 +39,13 @@ func SetupMiddleware(r *chi.Mux) {
 
 // SetupRoutes mounts the supplier health RPC at its generated path and the
 // public REST health and authentication routes under /api.
-func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) {
+func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, services RPCServices) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
-		supplierrpc.NewHealthServer(),
+		services.Health,
 	)
 	r.Mount(healthPath, healthHandler)
 
-	locationPath, locationHandler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		supplierrpc.NewLocationServer(location.NewService(
-			location.NewPostgresReader(locationdb.New(env.Pool)),
-		)),
-		connect.WithInterceptors(validate.NewInterceptor()),
-	)
-	r.Mount(locationPath, authenticator.Authenticate(locationHandler))
-
-	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(
-		supplierrpc.NewLocationAdminServer(locationAdmin),
-		connect.WithInterceptors(supplierrpc.AdminAuthorizationInterceptor(), validate.NewInterceptor()),
-	)
-	r.Mount(adminPath, authenticator.Authenticate(adminHandler))
+	MountLocationServices(r, authenticator.Authenticate, services)
 
 	r.Route("/api", func(r chi.Router) {
 		// Unprotected routes
@@ -81,4 +69,29 @@ func SetupAdminRoutes(r chi.Router, env *deps.Env) {
 			r.Use(appmiddleware.GetAuthMiddleware(env))
 		})
 	})
+}
+
+// RPCServices contains dependencies constructed at the application composition root.
+type RPCServices struct {
+	Health              supplierv1connect.HealthServiceHandler
+	Discovery           locationv1connect.LocationDiscoveryServiceHandler
+	Admin               locationv1connect.LocationAdminServiceHandler
+	Disablement         locationv1connect.LocationDisablementServiceHandler
+	AdditionRequest     locationv1connect.LocationAdditionRequestServiceHandler
+	WorkflowInterceptor connect.Interceptor
+}
+
+// MountLocationServices mounts each implemented capability exactly once.
+func MountLocationServices(r chi.Router, authenticate func(http.Handler) http.Handler, services RPCServices) {
+	locationPath, locationHandler := locationv1connect.NewLocationDiscoveryServiceHandler(services.Discovery,
+		connect.WithInterceptors(validate.NewInterceptor()))
+	r.Mount(locationPath, authenticate(locationHandler))
+	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(services.Admin,
+		connect.WithInterceptors(rpcshared.AdminAuthorizationInterceptor(), validate.NewInterceptor()))
+	r.Mount(adminPath, authenticate(adminHandler))
+	options := connect.WithInterceptors(services.WorkflowInterceptor)
+	disablementPath, disablementHandler := locationv1connect.NewLocationDisablementServiceHandler(services.Disablement, options)
+	r.Mount(disablementPath, authenticate(disablementHandler))
+	requestPath, requestHandler := locationv1connect.NewLocationAdditionRequestServiceHandler(services.AdditionRequest, options)
+	r.Mount(requestPath, authenticate(requestHandler))
 }

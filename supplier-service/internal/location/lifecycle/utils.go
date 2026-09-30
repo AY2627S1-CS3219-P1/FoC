@@ -1,9 +1,9 @@
 package lifecycle
 
 import (
-	"math"
 	"sort"
 
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/google/uuid"
 )
 
@@ -37,7 +37,7 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 		return p, err
 	}
 	p.BuildingID = uuid.MustParse(p.BuildingID).String()
-	if p.CoordinatesMissing || !isValidCoordinates(p.Latitude, p.Longitude) {
+	if p.CoordinatesMissing || !shared.ValidCoordinates(p.Latitude, p.Longitude) {
 		return p, ErrInvalidArgument
 	}
 	if !isValidOpeningHours(p.OpenFrom, p.OpenTo) {
@@ -62,11 +62,6 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 		return p, ErrFailedPrecondition
 	}
 	return p, nil
-}
-
-func isValidCoordinates(latitude, longitude float64) bool {
-	return !math.IsNaN(latitude) && !math.IsInf(latitude, 0) && latitude >= -90 && latitude <= 90 &&
-		!math.IsNaN(longitude) && !math.IsInf(longitude, 0) && longitude >= -180 && longitude <= 180
 }
 
 func isValidOpeningHours(from, to *int64) bool {

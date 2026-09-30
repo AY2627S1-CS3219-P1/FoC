@@ -1,0 +1,246 @@
+package lifecycle
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
+	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// PostgresAdminStore keeps idempotency, Location, and Category writes in
+// the same transaction.
+type PostgresAdminStore struct{ pool *pgxpool.Pool }
+
+func NewPostgresAdminStore(pool *pgxpool.Pool) *PostgresAdminStore {
+	return &PostgresAdminStore{pool: pool}
+}
+
+type postgresAdminTx struct {
+	*idempotency.PostgresStore
+	queries *locationdb.Queries
+	reader  *discovery.PostgresReader
+}
+
+func (s *PostgresAdminStore) Within(ctx context.Context, run func(AdminTx) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return mapAdminPostgresError("begin location transaction", err)
+	}
+	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
+	queries := locationdb.New(tx)
+	unit := &postgresAdminTx{
+		PostgresStore: idempotency.NewPostgresStore(tx),
+		queries:       queries,
+		reader:        discovery.NewPostgresReader(queries),
+	}
+	if err := run(unit); err != nil {
+		return err
+	}
+	return mapAdminPostgresError("commit location transaction", tx.Commit(ctx))
+}
+
+// GetForUpdate locks the Location alone. A second statement loads Categories
+// after a competing writer releases that lock, avoiding a stale relationship
+// snapshot under READ COMMITTED.
+func (t *postgresAdminTx) GetForUpdate(ctx context.Context, id string) (shared.Location, error) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return shared.Location{}, AdminErrNotFound
+	}
+	if _, err := t.queries.LockLocation(ctx, parsed); err != nil {
+		return shared.Location{}, mapAdminPostgresError("lock location", err)
+	}
+	return t.reader.GetLocation(ctx, id)
+}
+
+func (t *postgresAdminTx) ValidateReferences(ctx context.Context, input Input) error {
+	building, err := parseUUID(input.BuildingID, "building")
+	if err != nil {
+		return err
+	}
+	present, err := t.queries.BuildingExists(ctx, building)
+	if err != nil {
+		return mapAdminPostgresError("check building", err)
+	}
+	if !present {
+		return AdminErrFailedPrecondition
+	}
+	categories, err := parseCategoryIDs(input.CategoryIDs)
+	if err != nil {
+		return err
+	}
+	if len(categories) == 0 {
+		return nil
+	}
+	found, err := t.queries.ExistingCategoryIDs(ctx, categories)
+	if err != nil {
+		return mapAdminPostgresError("check categories", err)
+	}
+	if len(found) != len(categories) {
+		return AdminErrFailedPrecondition
+	}
+	return nil
+}
+
+func (t *postgresAdminTx) Create(ctx context.Context, input Input, now time.Time) (shared.Location, error) {
+	building, err := parseUUID(input.BuildingID, "building")
+	if err != nil {
+		return shared.Location{}, err
+	}
+	categories, err := parseCategoryIDs(input.CategoryIDs)
+	if err != nil {
+		return shared.Location{}, err
+	}
+	if input.Coordinates == nil {
+		return shared.Location{}, errs.NewBadRequestError("coordinates are required")
+	}
+	id := uuid.New()
+	err = t.queries.InsertLocation(ctx, locationdb.InsertLocationParams{
+		ID: id, Name: input.Name, IsSupplier: input.IsSupplier,
+		BuildingID: building, Floor: input.Floor,
+		Longitude: input.Coordinates.Longitude, Latitude: input.Coordinates.Latitude,
+		OpenFrom: toPGTime(input.OpensAt), OpenTo: toPGTime(input.ClosesAt),
+		Contact: input.Contact, Details: input.Details, CreatedAt: now.UTC(),
+	})
+	if err != nil {
+		return shared.Location{}, mapAdminPostgresError("insert location", err)
+	}
+	if err := t.insertCategories(ctx, id, categories); err != nil {
+		return shared.Location{}, err
+	}
+	return t.reader.GetLocation(ctx, id.String())
+}
+
+func (t *postgresAdminTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (shared.Location, error) {
+	parsed, err := parseUUID(id, "location")
+	if err != nil {
+		return shared.Location{}, err
+	}
+	building, err := parseUUID(input.BuildingID, "building")
+	if err != nil {
+		return shared.Location{}, err
+	}
+	categories, err := parseCategoryIDs(input.CategoryIDs)
+	if err != nil {
+		return shared.Location{}, err
+	}
+	if input.Coordinates == nil {
+		return shared.Location{}, errs.NewBadRequestError("coordinates are required")
+	}
+	count, err := t.queries.UpdateLocation(ctx, locationdb.UpdateLocationParams{
+		ID: parsed, ExpectedRevision: expected,
+		Name: input.Name, IsSupplier: input.IsSupplier, BuildingID: building, Floor: input.Floor,
+		Longitude: input.Coordinates.Longitude, Latitude: input.Coordinates.Latitude,
+		OpenFrom: toPGTime(input.OpensAt), OpenTo: toPGTime(input.ClosesAt),
+		Contact: input.Contact, Details: input.Details,
+	})
+	if err != nil {
+		return shared.Location{}, mapAdminPostgresError("update location", err)
+	}
+	if count == 0 {
+		return shared.Location{}, AdminErrAborted
+	}
+	if err := t.queries.DeleteLocationCategories(ctx, parsed); err != nil {
+		return shared.Location{}, mapAdminPostgresError("delete location categories", err)
+	}
+	if err := t.insertCategories(ctx, parsed, categories); err != nil {
+		return shared.Location{}, err
+	}
+	return t.reader.GetLocation(ctx, id)
+}
+
+func (t *postgresAdminTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (shared.Location, error) {
+	parsed, err := parseUUID(id, "location")
+	if err != nil {
+		return shared.Location{}, err
+	}
+	count, err := t.queries.SetLocationArchived(ctx, locationdb.SetLocationArchivedParams{
+		ID: parsed, ArchivedAt: archivedAt, ExpectedRevision: expected,
+	})
+	if err != nil {
+		return shared.Location{}, mapAdminPostgresError("archive location", err)
+	}
+	if count == 0 {
+		return shared.Location{}, AdminErrAborted
+	}
+	return t.reader.GetLocation(ctx, id)
+}
+
+func (t *postgresAdminTx) insertCategories(ctx context.Context, id uuid.UUID, categories []uuid.UUID) error {
+	for _, category := range categories {
+		if err := t.queries.InsertLocationCategory(ctx, locationdb.InsertLocationCategoryParams{
+			LocationID: id, CategoryID: category,
+		}); err != nil {
+			return mapAdminPostgresError("insert location category", err)
+		}
+	}
+	return nil
+}
+
+func parseUUID(value, label string) (uuid.UUID, error) {
+	parsed, err := uuid.Parse(value)
+	if err != nil {
+		return uuid.UUID{}, errs.NewBadRequestError("invalid " + label + " ID")
+	}
+	return parsed, nil
+}
+
+func parseCategoryIDs(values []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(values))
+	seen := make(map[uuid.UUID]bool, len(values))
+	for _, value := range values {
+		id, err := parseUUID(value, "category")
+		if err != nil {
+			return nil, err
+		}
+		if !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	return ids, nil
+}
+
+func toPGTime(value *shared.Clock) pgtype.Time {
+	if value == nil {
+		return pgtype.Time{}
+	}
+	return pgtype.Time{Microseconds: (int64(value.Hour)*60 + int64(value.Minute)) * time.Minute.Microseconds(), Valid: true}
+}
+
+func mapAdminPostgresError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminErrNotFound
+	}
+	var postgresErr *pgconn.PgError
+	if errors.As(err, &postgresErr) {
+		switch postgresErr.Code {
+		case "23503":
+			return AdminErrFailedPrecondition
+		case "23505", "23P01":
+			return AdminErrAlreadyExists
+		case "23514", "22003", "22007", "22008":
+			return AdminErrInvalidArgument
+		case "40001", "40P01":
+			return AdminErrAborted
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+var _ AdminStore = (*PostgresAdminStore)(nil)
+var _ AdminTx = (*postgresAdminTx)(nil)

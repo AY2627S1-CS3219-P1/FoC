@@ -1,5 +1,5 @@
-// Package workflows owns temporary disablements and Location-addition requests.
-// Transport and persistence representations remain outside this package.
+// Package lifecycle owns temporary disablements and Location-addition requests.
+// Transport representations remain outside this package.
 package lifecycle
 
 import (
