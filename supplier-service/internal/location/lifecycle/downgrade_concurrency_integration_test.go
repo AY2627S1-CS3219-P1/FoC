@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflowrepo_test
+package lifecycle_test
 
 import (
 	"context"

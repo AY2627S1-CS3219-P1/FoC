@@ -1,6 +1,5 @@
-// Package workflowrepo implements the workflow persistence boundary with sqlc
-// and PostgreSQL. All lifecycle writes and approval are one transaction.
-package workflowrepo
+// All lifecycle writes and approval are one PostgreSQL transaction.
+package lifecycle
 
 import (
 	"context"
@@ -8,8 +7,7 @@ import (
 	"errors"
 	"time"
 
-	db "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowdb"
-	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	db "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/lifecycledb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,13 +15,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Repository struct {
+type PostgresRepository struct {
 	pool  *pgxpool.Pool
 	clock func() time.Time
 }
 
-func New(pool *pgxpool.Pool, clock func() time.Time) *Repository {
-	return &Repository{pool: pool, clock: clock}
+func NewPostgresRepository(pool *pgxpool.Pool, clock func() time.Time) *PostgresRepository {
+	return &PostgresRepository{pool: pool, clock: clock}
 }
 
 type transaction struct {
@@ -31,7 +29,7 @@ type transaction struct {
 	clock func() time.Time
 }
 
-func (r *Repository) Within(ctx context.Context, f func(w.Tx) error) error {
+func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return mapError(err)
@@ -47,20 +45,20 @@ func mapError(err error) error {
 		return nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return w.ErrNotFound
+		return ErrNotFound
 	}
 	var e *pgconn.PgError
 	if errors.As(err, &e) {
 		switch e.Code {
 		case "23503", "23514":
-			return w.ErrFailedPrecondition
+			return ErrFailedPrecondition
 		case "23505", "23P01":
-			return w.ErrAlreadyExists
+			return ErrAlreadyExists
 		case "40001":
-			return w.ErrAborted
+			return ErrAborted
 		}
 	}
-	return w.DependencyError("workflow persistence", err)
+	return DependencyError("workflow persistence", err)
 }
 func id(v string) pgtype.UUID {
 	if v == "" {
@@ -132,25 +130,25 @@ func ids(v []pgtype.UUID) []string {
 	}
 	return out
 }
-func disablement(v db.LocationDisablement) w.Disablement {
-	return w.Disablement{ID: idString(v.ID), LocationID: idString(v.LocationID), StartsAt: v.StartsAt.Time.UTC(), EndsAt: timePointer(v.EndsAt), EndedAt: timePointer(v.EndedAt), CancelledAt: timePointer(v.CancelledAt), Reason: v.Reason, CreatedBy: v.CreatedBy, Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+func disablement(v db.LocationDisablement) Disablement {
+	return Disablement{ID: idString(v.ID), LocationID: idString(v.LocationID), StartsAt: v.StartsAt.Time.UTC(), EndsAt: timePointer(v.EndsAt), EndedAt: timePointer(v.EndedAt), CancelledAt: timePointer(v.CancelledAt), Reason: v.Reason, CreatedBy: v.CreatedBy, Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
 }
-func request(v db.LockWorkflowRequestRow) w.AdditionRequest {
-	return w.AdditionRequest{ID: idString(v.ID), Proposal: w.Proposal{Name: v.Name, IsSupplier: v.IsSupplier, CategoryIDs: ids(v.CategoryIds), BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, CoordinatesMissing: v.Coordinates == nil, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, SubmittedBy: v.SubmittedBy, Status: w.RequestStatus(v.Status), ReviewedBy: textPointer(v.ReviewedBy), ReviewedAt: timePointer(v.ReviewedAt), ReviewNote: textPointer(v.ReviewNote), ResultingLocationID: idPointer(v.ResultingLocationID), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+func request(v db.LockWorkflowRequestRow) AdditionRequest {
+	return AdditionRequest{ID: idString(v.ID), Proposal: Proposal{Name: v.Name, IsSupplier: v.IsSupplier, CategoryIDs: ids(v.CategoryIds), BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, CoordinatesMissing: v.Coordinates == nil, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, SubmittedBy: v.SubmittedBy, Status: RequestStatus(v.Status), ReviewedBy: textPointer(v.ReviewedBy), ReviewedAt: timePointer(v.ReviewedAt), ReviewNote: textPointer(v.ReviewNote), ResultingLocationID: idPointer(v.ResultingLocationID), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
 }
-func (t *transaction) Location(ctx context.Context, resourceID string) (w.Location, error) {
+func (t *transaction) Location(ctx context.Context, resourceID string) (Location, error) {
 	v, e := t.q.LockWorkflowLocation(ctx, id(resourceID))
 	if e != nil {
-		return w.Location{}, mapError(e)
+		return Location{}, mapError(e)
 	}
-	l := w.Location{ID: idString(v.ID), Proposal: w.Proposal{Name: v.Name, IsSupplier: v.IsSupplier, BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, Building: w.Building{ID: idString(v.BuildingID), Name: v.BuildingName, Latitude: v.BuildingLatitude, Longitude: v.BuildingLongitude, RadiusM: v.RadiusM, CreatedAt: v.BuildingCreatedAt.Time.UTC(), UpdatedAt: v.BuildingUpdatedAt.Time.UTC()}, ArchivedAt: timePointer(v.ArchivedAt), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+	l := Location{ID: idString(v.ID), Proposal: Proposal{Name: v.Name, IsSupplier: v.IsSupplier, BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, Building: Building{ID: idString(v.BuildingID), Name: v.BuildingName, Latitude: v.BuildingLatitude, Longitude: v.BuildingLongitude, RadiusM: v.RadiusM, CreatedAt: v.BuildingCreatedAt.Time.UTC(), UpdatedAt: v.BuildingUpdatedAt.Time.UTC()}, ArchivedAt: timePointer(v.ArchivedAt), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
 	cats, e := t.q.WorkflowLocationCategories(ctx, v.ID)
 	if e != nil {
 		return l, mapError(e)
 	}
 	for _, c := range cats {
 		l.Proposal.CategoryIDs = append(l.Proposal.CategoryIDs, idString(c.ID))
-		l.Categories = append(l.Categories, w.Category{ID: idString(c.ID), Name: c.Name, CreatedAt: c.CreatedAt.Time.UTC()})
+		l.Categories = append(l.Categories, Category{ID: idString(c.ID), Name: c.Name, CreatedAt: c.CreatedAt.Time.UTC()})
 	}
 	d, e := t.q.CurrentWorkflowDisablement(ctx, db.CurrentWorkflowDisablementParams{LocationID: v.ID, NowAt: stamp(t.clock())})
 	if e == nil {
@@ -161,11 +159,11 @@ func (t *transaction) Location(ctx context.Context, resourceID string) (w.Locati
 	}
 	return l, nil
 }
-func (t *transaction) Disablement(ctx context.Context, resourceID string) (w.Disablement, error) {
+func (t *transaction) Disablement(ctx context.Context, resourceID string) (Disablement, error) {
 	v, e := t.q.LockWorkflowDisablement(ctx, id(resourceID))
 	return disablement(v), mapError(e)
 }
-func (t *transaction) SaveDisablement(ctx context.Context, d w.Disablement, expected int64) error {
+func (t *transaction) SaveDisablement(ctx context.Context, d Disablement, expected int64) error {
 	if expected == 0 {
 		return mapError(t.q.InsertWorkflowDisablement(ctx, db.InsertWorkflowDisablementParams{ID: id(d.ID), LocationID: id(d.LocationID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt), Reason: d.Reason, CreatedBy: d.CreatedBy, Revision: d.Revision, CreatedAt: stamp(d.CreatedAt), UpdatedAt: stamp(d.UpdatedAt)}))
 	}
@@ -174,35 +172,35 @@ func (t *transaction) SaveDisablement(ctx context.Context, d w.Disablement, expe
 		return mapError(e)
 	}
 	if n != 1 {
-		return w.ErrAborted
+		return ErrAborted
 	}
 	return nil
 }
-func (t *transaction) Overlaps(ctx context.Context, d w.Disablement) (bool, error) {
+func (t *transaction) Overlaps(ctx context.Context, d Disablement) (bool, error) {
 	v, e := t.q.WorkflowDisablementOverlap(ctx, db.WorkflowDisablementOverlapParams{LocationID: id(d.LocationID), ID: id(d.ID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt)})
 	return v, mapError(e)
 }
-func (t *transaction) ListDisablements(ctx context.Context, locationID string, state w.DisablementState, now time.Time, p w.Page) ([]w.Disablement, int64, error) {
+func (t *transaction) ListDisablements(ctx context.Context, locationID string, state DisablementState, now time.Time, p Page) ([]Disablement, int64, error) {
 	rows, e := t.q.ListWorkflowDisablements(ctx, db.ListWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now), PageSize: p.Size, PageOffset: int64(p.Number-1) * int64(p.Size)})
 	if e != nil {
 		return nil, 0, mapError(e)
 	}
 	n, e := t.q.CountWorkflowDisablements(ctx, db.CountWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now)})
-	out := make([]w.Disablement, len(rows))
+	out := make([]Disablement, len(rows))
 	for i, v := range rows {
 		out[i] = disablement(v)
 	}
 	return out, n, mapError(e)
 }
-func (t *transaction) Request(ctx context.Context, resourceID string) (w.AdditionRequest, error) {
+func (t *transaction) Request(ctx context.Context, resourceID string) (AdditionRequest, error) {
 	v, e := t.q.LockWorkflowRequest(ctx, id(resourceID))
 	if e != nil {
-		return w.AdditionRequest{}, mapError(e)
+		return AdditionRequest{}, mapError(e)
 	}
 	v.CategoryIds, e = t.q.WorkflowRequestCategoryIDs(ctx, v.ID)
 	return request(v), mapError(e)
 }
-func (t *transaction) SaveRequest(ctx context.Context, r w.AdditionRequest, expected int64) error {
+func (t *transaction) SaveRequest(ctx context.Context, r AdditionRequest, expected int64) error {
 	p := r.Proposal
 	if expected == 0 {
 		e := t.q.InsertWorkflowRequest(ctx, db.InsertWorkflowRequestParams{ID: id(r.ID), SubmittedBy: r.SubmittedBy, Name: p.Name, IsSupplier: p.IsSupplier, BuildingID: id(p.BuildingID), Floor: text(p.Floor), Latitude: p.Latitude, Longitude: p.Longitude, OpenFrom: wall(p.OpenFrom), OpenTo: wall(p.OpenTo), Contact: text(p.Contact), Details: p.Details, CreatedAt: stamp(r.CreatedAt)})
@@ -219,7 +217,7 @@ func (t *transaction) SaveRequest(ctx context.Context, r w.AdditionRequest, expe
 			return mapError(e)
 		}
 		if n != 1 {
-			return w.ErrFailedPrecondition
+			return ErrFailedPrecondition
 		}
 	}
 	if e := t.q.DeleteWorkflowRequestCategories(ctx, id(r.ID)); e != nil {
@@ -232,25 +230,25 @@ func (t *transaction) SaveRequest(ctx context.Context, r w.AdditionRequest, expe
 	}
 	return nil
 }
-func (t *transaction) ListRequests(ctx context.Context, c w.Caller, status w.RequestStatus, p w.Page) ([]w.AdditionRequest, int64, error) {
+func (t *transaction) ListRequests(ctx context.Context, c Caller, status RequestStatus, p Page) ([]AdditionRequest, int64, error) {
 	rows, e := t.q.ListWorkflowRequests(ctx, db.ListWorkflowRequestsParams{IsAdmin: c.IsAdmin(), CallerID: c.ID, StatusFilter: string(status), PageSize: p.Size, PageOffset: int64(p.Number-1) * int64(p.Size)})
 	if e != nil {
 		return nil, 0, mapError(e)
 	}
 	n, e := t.q.CountWorkflowRequests(ctx, db.CountWorkflowRequestsParams{IsAdmin: c.IsAdmin(), CallerID: c.ID, StatusFilter: string(status)})
-	out := make([]w.AdditionRequest, len(rows))
+	out := make([]AdditionRequest, len(rows))
 	for i, v := range rows {
 		out[i] = request(db.LockWorkflowRequestRow(v))
 	}
 	return out, n, mapError(e)
 }
-func (t *transaction) ValidateReferences(ctx context.Context, p w.Proposal) error {
+func (t *transaction) ValidateReferences(ctx context.Context, p Proposal) error {
 	exists, e := t.q.WorkflowBuildingExists(ctx, id(p.BuildingID))
 	if e != nil {
 		return mapError(e)
 	}
 	if !exists {
-		return w.ErrFailedPrecondition
+		return ErrFailedPrecondition
 	}
 	for _, c := range p.CategoryIDs {
 		exists, e = t.q.WorkflowCategoryExists(ctx, id(c))
@@ -258,25 +256,25 @@ func (t *transaction) ValidateReferences(ctx context.Context, p w.Proposal) erro
 			return mapError(e)
 		}
 		if !exists {
-			return w.ErrFailedPrecondition
+			return ErrFailedPrecondition
 		}
 	}
 	return nil
 }
-func (t *transaction) CreateLocation(ctx context.Context, p w.Proposal, now time.Time) (w.Location, error) {
+func (t *transaction) CreateLocation(ctx context.Context, p Proposal, now time.Time) (Location, error) {
 	resourceID := uuid.NewString()
 	e := t.q.InsertWorkflowLocation(ctx, db.InsertWorkflowLocationParams{ID: id(resourceID), Name: p.Name, IsSupplier: p.IsSupplier, BuildingID: id(p.BuildingID), Floor: text(p.Floor), Latitude: p.Latitude, Longitude: p.Longitude, OpenFrom: wall(p.OpenFrom), OpenTo: wall(p.OpenTo), Contact: text(p.Contact), Details: p.Details, CreatedAt: stamp(now)})
 	if e != nil {
-		return w.Location{}, mapError(e)
+		return Location{}, mapError(e)
 	}
 	for _, c := range p.CategoryIDs {
 		if e = t.q.InsertWorkflowLocationCategory(ctx, db.InsertWorkflowLocationCategoryParams{LocationID: id(resourceID), CategoryID: id(c)}); e != nil {
-			return w.Location{}, mapError(e)
+			return Location{}, mapError(e)
 		}
 	}
 	return t.Location(ctx, resourceID)
 }
-func (t *transaction) Idempotency(ctx context.Context, s w.IdempotencyScope, now time.Time) (*w.IdempotencyRecord, error) {
+func (t *transaction) Idempotency(ctx context.Context, s IdempotencyScope, now time.Time) (*IdempotencyRecord, error) {
 	// A structured scope prevents delimiter collisions; the advisory lock also
 	// serializes the case where no idempotency row exists yet.
 	scope, _ := json.Marshal(s)
@@ -293,11 +291,11 @@ func (t *transaction) Idempotency(ctx context.Context, s w.IdempotencyScope, now
 	if e != nil {
 		return nil, mapError(e)
 	}
-	return &w.IdempotencyRecord{Hash: v.RequestHash, ResourceID: idString(v.ResourceID), ExpiresAt: v.ExpiresAt.Time.UTC()}, nil
+	return &IdempotencyRecord{Hash: v.RequestHash, ResourceID: idString(v.ResourceID), ExpiresAt: v.ExpiresAt.Time.UTC()}, nil
 }
-func (t *transaction) SaveIdempotency(ctx context.Context, s w.IdempotencyScope, v w.IdempotencyRecord) error {
+func (t *transaction) SaveIdempotency(ctx context.Context, s IdempotencyScope, v IdempotencyRecord) error {
 	return mapError(t.q.InsertWorkflowIdempotency(ctx, db.InsertWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key), RequestHash: v.Hash, ResourceID: id(v.ResourceID), ExpiresAt: stamp(v.ExpiresAt)}))
 }
 
-var _ w.Repository = (*Repository)(nil)
-var _ w.Tx = (*transaction)(nil)
+var _ Repository = (*PostgresRepository)(nil)
+var _ Tx = (*transaction)(nil)

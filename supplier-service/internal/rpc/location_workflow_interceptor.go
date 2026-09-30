@@ -10,7 +10,7 @@ import (
 	"connectrpc.com/connect"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"google.golang.org/protobuf/proto"
 )
 

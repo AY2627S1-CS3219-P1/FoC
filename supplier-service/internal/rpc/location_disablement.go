@@ -5,7 +5,7 @@ import (
 
 	"connectrpc.com/connect"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
-	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 )
 
 func (h *WorkflowServer) CreateDisablement(ctx context.Context, r *connect.Request[pb.CreateDisablementRequest]) (*connect.Response[pb.CreateDisablementResponse], error) {

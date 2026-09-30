@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflowrepo_test
+package lifecycle_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
 )
 
@@ -18,7 +18,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	expired := now.Add(-time.Hour)
 	const requestHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	repository := workflowrepo.New(f.pool, func() time.Time { return now })
+	repository := workflowrepo.NewPostgresRepository(f.pool, func() time.Time { return now })
 	insert := func(t *testing.T, scope workflows.IdempotencyScope, expiresAt time.Time) {
 		t.Helper()
 		f.exec(t, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, requestHash, uuid.NewString(), expiresAt)

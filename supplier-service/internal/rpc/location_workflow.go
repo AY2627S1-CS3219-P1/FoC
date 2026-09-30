@@ -9,7 +9,7 @@ import (
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 )
 
 // WorkflowOperations is the application boundary consumed by this transport.

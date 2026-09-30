@@ -18,9 +18,9 @@ import (
 	"connectrpc.com/connect"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	rpc "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
+	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	handler "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
-	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -141,7 +141,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 		_, e = f.location.CreateDisablement(f.ctx, req(input, "admin"))
 		code(t, e, connect.CodeAlreadyExists)
 		// Observe the shared Location result through the repository boundary.
-		real := repo.New(f.pool, f.time)
+		real := repo.NewPostgresRepository(f.pool, f.time)
 		e = real.Within(f.ctx, func(tx w.Tx) error {
 			l, e := tx.Location(f.ctx, location)
 			if e == nil && (l.CurrentDisablement == nil || l.ArchivedAt != nil) {
@@ -635,7 +635,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(pool.Close)
 	f := &fixture{pool: pool, ctx: context.Background(), migrationDB: db, migrations: filepath.Join(filepath.Dir(file), "../../database/schema")}
 	f.now.Store(time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC).UnixMicro())
-	operations := w.New(repo.New(pool, f.time), f.time)
+	operations := w.New(repo.NewPostgresRepository(pool, f.time), f.time)
 	// This tests the authenticated mounting seam, not the production JWT
 	// verifier. Only fixture-owned tokens produce a verified test Principal.
 	principal := func(ctx context.Context) w.Caller { c, _ := ctx.Value(principalKey{}).(w.Caller); return c }

@@ -1,4 +1,4 @@
-package workflows_test
+package lifecycle_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
 )
 

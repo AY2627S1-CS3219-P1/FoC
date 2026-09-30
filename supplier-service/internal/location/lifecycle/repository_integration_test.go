@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflowrepo_test
+package lifecycle_test
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -59,7 +59,7 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 		errors := make(chan error, 1)
 		go func() {
 			var got workflows.Location
-			err := workflowrepo.New(f.pool, time.Now).Within(f.ctx, func(tx workflows.Tx) error {
+			err := workflowrepo.NewPostgresRepository(f.pool, time.Now).Within(f.ctx, func(tx workflows.Tx) error {
 				var err error
 				got, err = tx.Location(f.ctx, locationID)
 				return err

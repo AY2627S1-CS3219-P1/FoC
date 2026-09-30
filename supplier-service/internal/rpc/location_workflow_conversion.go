@@ -4,7 +4,7 @@ import (
 	"time"
 
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
-	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflowrepo_test
+package lifecycle_test
 
 import (
 	"path/filepath"
@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
-	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 )
@@ -29,7 +29,7 @@ func TestWorkflowDowngradePreservesSharedRetriesPostGIS(t *testing.T) {
 	f.reset(t)
 	scope := w.IdempotencyScope{Caller: "shared owner", Method: "shared method", Key: uuid.NewString()}
 	record := w.IdempotencyRecord{Hash: strings.Repeat("a", 64), ResourceID: uuid.NewString(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
-	r := repo.New(f.pool, time.Now)
+	r := repo.NewPostgresRepository(f.pool, time.Now)
 	if err := r.Within(f.ctx, func(tx w.Tx) error { return tx.SaveIdempotency(f.ctx, scope, record) }); err != nil {
 		t.Fatal(err)
 	}

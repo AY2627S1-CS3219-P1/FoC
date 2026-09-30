@@ -1,4 +1,4 @@
-package workflows
+package lifecycle
 
 import (
 	"fmt"

@@ -1,20 +1,20 @@
 //go:build integration
 
-package workflowrepo_test
+package lifecycle_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
+	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 )
 
 func TestWorkflowCallbackErrorsPostGIS(t *testing.T) {
 	f := newFixture(t)
 	now := time.Now().UTC()
-	repository := workflowrepo.New(f.pool, func() time.Time { return now })
+	repository := workflowrepo.NewPostgresRepository(f.pool, func() time.Time { return now })
 	for _, tc := range []struct {
 		name string
 		err  error
