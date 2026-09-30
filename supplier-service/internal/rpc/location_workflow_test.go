@@ -1,4 +1,4 @@
-package workflows_test
+package rpc_test
 
 import (
 	"context"
@@ -12,14 +12,14 @@ import (
 	"connectrpc.com/connect"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	rpc "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	handler "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/workflows"
+	handler "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
 	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 type applicationStub struct {
-	handler.Operations
+	handler.WorkflowOperations
 	err      error
 	proposal w.Proposal
 }
@@ -49,7 +49,7 @@ type fastLocationClients struct {
 func fastClients(t *testing.T, s *applicationStub) (fastLocationClients, rpc.LocationAdditionRequestServiceClient) {
 	t.Helper()
 	principal := func(ctx context.Context) w.Caller { c, _ := ctx.Value(fastPrincipalKey{}).(w.Caller); return c }
-	h := handler.New(s, principal, time.Now)
+	h := handler.NewWorkflowServer(s, principal, time.Now)
 	mux := http.NewServeMux()
 	auth := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,7 @@ func fastClients(t *testing.T, s *applicationStub) (fastLocationClients, rpc.Loc
 			next.ServeHTTP(rw, r.WithContext(context.WithValue(r.Context(), fastPrincipalKey{}, c)))
 		})
 	}
-	if e := handler.Mount(mux, h, auth); e != nil {
+	if e := handler.MountWorkflowServices(mux, h, auth); e != nil {
 		t.Fatal(e)
 	}
 	server := httptest.NewServer(mux)
@@ -141,8 +141,8 @@ func TestHandlerAuthorizationAndPresenceValidation(t *testing.T) {
 }
 func TestMountRequiresAuthenticationBoundary(t *testing.T) {
 	s := &applicationStub{}
-	h := handler.New(s, func(context.Context) w.Caller { return w.Caller{} }, time.Now)
-	if e := handler.Mount(http.NewServeMux(), h, nil); e == nil {
+	h := handler.NewWorkflowServer(s, func(context.Context) w.Caller { return w.Caller{} }, time.Now)
+	if e := handler.MountWorkflowServices(http.NewServeMux(), h, nil); e == nil {
 		t.Fatal("mounted without authentication")
 	}
 }

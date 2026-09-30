@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflows_test
+package rpc_test
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	rpc "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	repo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/workflowrepo"
-	handler "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/handlers/workflows"
+	handler "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
 	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -625,7 +625,7 @@ func newFixture(t *testing.T) *fixture {
 	if e = goose.SetDialect("postgres"); e != nil {
 		t.Fatal(e)
 	}
-	if e = goose.Up(db, filepath.Join(filepath.Dir(file), "../../../database/schema")); e != nil {
+	if e = goose.Up(db, filepath.Join(filepath.Dir(file), "../../database/schema")); e != nil {
 		t.Fatal(e)
 	}
 	pool, e := pgxpool.New(context.Background(), url)
@@ -633,7 +633,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	t.Cleanup(pool.Close)
-	f := &fixture{pool: pool, ctx: context.Background(), migrationDB: db, migrations: filepath.Join(filepath.Dir(file), "../../../database/schema")}
+	f := &fixture{pool: pool, ctx: context.Background(), migrationDB: db, migrations: filepath.Join(filepath.Dir(file), "../../database/schema")}
 	f.now.Store(time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC).UnixMicro())
 	operations := w.New(repo.New(pool, f.time), f.time)
 	// This tests the authenticated mounting seam, not the production JWT
@@ -653,7 +653,7 @@ func newFixture(t *testing.T) *fixture {
 		})
 	}
 	mux := http.NewServeMux()
-	if e = handler.Mount(mux, handler.New(operations, principal, f.time), authenticate); e != nil {
+	if e = handler.MountWorkflowServices(mux, handler.NewWorkflowServer(operations, principal, f.time), authenticate); e != nil {
 		t.Fatal(e)
 	}
 	server := httptest.NewServer(mux)

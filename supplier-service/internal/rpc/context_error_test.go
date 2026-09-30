@@ -1,4 +1,4 @@
-package workflows_test
+package rpc_test
 
 import (
 	"bytes"
