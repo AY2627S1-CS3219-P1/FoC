@@ -38,5 +38,8 @@
 		"sveltekit-superforms": "^2.31.0",
 		"valibot": "^1.5.0",
 		"zod": "^4.6.5"
+	},
+	"optionalDependencies": {
+		"class-validator": "^0.14.4"
 	}
 }
