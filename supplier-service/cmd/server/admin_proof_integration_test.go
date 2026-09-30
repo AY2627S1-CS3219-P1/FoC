@@ -327,6 +327,31 @@ func proveAdminIntegration(t *testing.T, pool *pgxpool.Pool, admin rpc.LocationA
 			t.Fatalf("ended list warning: %v %v", visible, err)
 		}
 	})
+	t.Run("restore does not reactivate naturally expired intervals", func(t *testing.T) {
+		_, loc := create(t, "Natural expiry proof")
+		d, err := disablement.CreateDisablement(ctx, connect.NewRequest(&pb.CreateDisablementRequest{
+			LocationId: loc.Id, Reason: "finite warning", IdempotencyKey: uuid.NewString(),
+			StartsAt: timestamppb.New(time.Now().Add(-2 * time.Hour)), EndsAt: timestamppb.New(time.Now().Add(time.Hour)),
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.ArchiveLocation(ctx, connect.NewRequest(&pb.ArchiveLocationRequest{Id: loc.Id})); err != nil {
+			t.Fatal(err)
+		}
+		// Stage elapsed database time without sleeping or changing production clocks.
+		if _, err := pool.Exec(ctx, `UPDATE location_disablements SET ends_at=now()-interval '1 hour' WHERE id=$1`, d.Msg.Disablement.Id); err != nil {
+			t.Fatal(err)
+		}
+		restored, err := admin.UnarchiveLocation(ctx, connect.NewRequest(&pb.UnarchiveLocationRequest{Id: loc.Id}))
+		if err != nil || restored.Msg.Location.ArchivedAt != nil || restored.Msg.Location.CurrentDisablement != nil {
+			t.Fatalf("naturally expired restore: %v %v", restored, err)
+		}
+		history, err := disablement.ListDisablements(ctx, connect.NewRequest(&pb.ListDisablementsRequest{LocationId: loc.Id}))
+		if err != nil || len(history.Msg.Disablements) != 1 || history.Msg.Disablements[0].State != pb.DisablementState_DISABLEMENT_STATE_ENDED || history.Msg.Disablements[0].EndedAt != nil {
+			t.Fatalf("natural terminal history: %v %v", history, err)
+		}
+	})
 	t.Run("archive and disablement share the Location row lock", func(t *testing.T) {
 		for _, archiveFirst := range []bool{true, false} {
 			_, loc := create(t, "Lock proof "+uuid.NewString())
@@ -392,9 +417,15 @@ func waitForDatabaseBlock(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	defer cancel()
 	for {
 		var blocked int
-		err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)) AND query LIKE $2`, pid, query).Scan(&blocked)
+		err := pool.QueryRow(ctx, `WITH RECURSIVE blocked AS (
+			SELECT pid FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))
+			UNION
+			SELECT activity.pid FROM pg_stat_activity activity JOIN blocked
+				ON blocked.pid=ANY(pg_blocking_pids(activity.pid))
+		) SELECT count(*) FROM pg_stat_activity
+			WHERE pid IN (SELECT pid FROM blocked) AND query LIKE $2`, pid, query).Scan(&blocked)
 		if err != nil {
-			t.Fatalf("observe Location row lock: %v", err)
+			t.Fatalf("observe database lock wait for %q (%d clients): %v", query, want, err)
 		}
 		if blocked >= want {
 			return
