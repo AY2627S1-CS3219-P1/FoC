@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
@@ -27,7 +26,7 @@ func (s *LocationServer) GetLocation(
 ) (*connect.Response[locationv1.GetLocationResponse], error) {
 	loc, err := s.service.Get(ctx, req.Msg.GetId())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.GetLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -53,7 +52,7 @@ func (s *LocationServer) ListLocations(
 		PageSize:      msg.GetPageSize(),
 	})
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 
 	locations := make([]*locationv1.Location, len(page.Locations))
@@ -75,7 +74,7 @@ func (s *LocationServer) ListBuildings(
 ) (*connect.Response[locationv1.ListBuildingsResponse], error) {
 	buildings, err := s.service.ListBuildings(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	out := make([]*locationv1.Building, len(buildings))
 	for i, b := range buildings {
@@ -90,7 +89,7 @@ func (s *LocationServer) ListCategories(
 ) (*connect.Response[locationv1.ListCategoriesResponse], error) {
 	categories, err := s.service.ListCategories(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.ListCategoriesResponse{Categories: rpcshared.ToProtoCategories(categories)}), nil
 }
