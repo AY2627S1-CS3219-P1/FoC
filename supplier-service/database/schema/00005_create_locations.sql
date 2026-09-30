@@ -7,7 +7,7 @@
 -- archived locations (S2.1.5/6) cannot be selected for new requests.
 CREATE TABLE locations (
     id           UUID                   PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         TEXT                   NOT NULL CHECK (char_length(name) > 0),
+    name         TEXT                   NOT NULL,
     is_supplier  BOOLEAN                NOT NULL DEFAULT FALSE,
     building_id  UUID                   NOT NULL REFERENCES buildings (id) ON DELETE RESTRICT,
     floor        TEXT,
@@ -20,9 +20,25 @@ CREATE TABLE locations (
     revision     BIGINT                 NOT NULL DEFAULT 1,
     created_at   TIMESTAMPTZ            NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT locations_name_length_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 200),
     CONSTRAINT locations_hours_pair_check CHECK ((open_from IS NULL) = (open_to IS NULL)),
+    CONSTRAINT locations_hours_value_check CHECK (open_from IS NULL OR (
+        open_from <> open_to
+        AND open_from < TIME '24:00'
+        AND open_to < TIME '24:00'
+        AND EXTRACT(SECOND FROM open_from) = 0
+        AND EXTRACT(SECOND FROM open_to) = 0
+    )),
     CONSTRAINT locations_floor_length_check CHECK (
         floor IS NULL OR char_length(btrim(floor)) BETWEEN 1 AND 50
+    ),
+    CONSTRAINT locations_contact_length_check CHECK (
+        contact IS NULL OR char_length(btrim(contact)) <= 500
+    ),
+    CONSTRAINT locations_details_length_check CHECK (char_length(btrim(details)) <= 2000),
+    CONSTRAINT locations_coordinates_check CHECK (
+        ST_Y(coordinates::geometry) BETWEEN -90 AND 90
+        AND ST_X(coordinates::geometry) BETWEEN -180 AND 180
     ),
     CONSTRAINT locations_revision_positive_check CHECK (revision > 0)
 );

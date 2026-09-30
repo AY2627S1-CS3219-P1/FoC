@@ -455,7 +455,7 @@ func (x *Category) GetCreatedAt() *timestamppb.Timestamp {
 // Writable Location fields. Admins and users supply the same Location details,
 // but admin operations change Locations directly and user addition requests need
 // approval. Permissions apply to the operation, not the input fields.
-// Length limits apply before trimming.
+// Length limits apply after trimming.
 type LocationInput struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Must contain a non-whitespace character.
@@ -830,22 +830,25 @@ const file_supplier_location_v1_shared_types_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xf2\b\n" +
-	"\rLocationInput\x12\"\n" +
-	"\x04name\x18\x01 \x01(\tB\x0e\xbaH\vr\t\x10\x01\x18\xc8\x012\x02\\SR\x04name\x12$\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x8d\f\n" +
+	"\rLocationInput\x12\xb6\x01\n" +
+	"\x04name\x18\x01 \x01(\tB\xa1\x01\xbaH\x9d\x01\xba\x01\x99\x01\n" +
+	"\x1alocation_input.name_length\x12Gname must be 1-200 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 200R\x04name\x12$\n" +
 	"\vis_supplier\x18\x02 \x01(\bH\x00R\n" +
 	"isSupplier\x88\x01\x01\x122\n" +
 	"\fcategory_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x18\x01\"\x05r\x03\xb0\x01\x01R\vcategoryIds\x12)\n" +
 	"\vbuilding_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
-	"buildingId\x12\"\n" +
-	"\x05floor\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182H\x01R\x05floor\x88\x01\x01\x12K\n" +
+	"buildingId\x12\xa9\x01\n" +
+	"\x05floor\x18\x05 \x01(\tB\x8d\x01\xbaH\x89\x01\xba\x01\x85\x01\n" +
+	"\x1blocation_input.floor_length\x12Mfloor must be at most 50 characters excluding leading and trailing whitespace\x1a\x17size(this.trim()) <= 50H\x01R\x05floor\x88\x01\x01\x12K\n" +
 	"\vcoordinates\x18\x06 \x01(\v2!.supplier.location.v1.CoordinatesB\x06\xbaH\x03\xc8\x01\x01R\vcoordinates\x121\n" +
 	"\bopens_at\x18\a \x01(\v2\x16.google.type.TimeOfDayR\aopensAt\x123\n" +
-	"\tcloses_at\x18\b \x01(\v2\x16.google.type.TimeOfDayR\bclosesAt\x12'\n" +
-	"\acontact\x18\t \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x02R\acontact\x88\x01\x01\x12\"\n" +
+	"\tcloses_at\x18\b \x01(\v2\x16.google.type.TimeOfDayR\bclosesAt\x12\xb3\x01\n" +
+	"\acontact\x18\t \x01(\tB\x93\x01\xbaH\x8f\x01\xba\x01\x8b\x01\n" +
+	"\x1dlocation_input.contact_length\x12Pcontact must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x02R\acontact\x88\x01\x01\x12\xb0\x01\n" +
 	"\adetails\x18\n" +
-	" \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\adetails:\xeb\x04\xbaH\xe7\x04\x1a\x9b\x01\n" +
-	"\"location_input.supplier_categories\x12BSuppliers need at least one category; ordinary Locations have none\x1a1this.is_supplier == (size(this.category_ids) > 0)\x1a\xf8\x01\n" +
+	" \x01(\tB\x95\x01\xbaH\x91\x01\xba\x01\x8d\x01\n" +
+	"\x1dlocation_input.details_length\x12Qdetails must be at most 2000 characters excluding leading and trailing whitespace\x1a\x19size(this.trim()) <= 2000R\adetails:\xcd\x03\xbaH\xc9\x03\x1a\xf8\x01\n" +
 	"#location_input.opening_hours_format\x12Dopens_at and closes_at must be whole minutes between 00:00 and 23:59\x1a\x8a\x01[this.opens_at, this.closes_at].all(t, t.hours >= 0 && t.hours < 24 && t.minutes >= 0 && t.minutes < 60 && t.seconds == 0 && t.nanos == 0)\x1a\xcb\x01\n" +
 	"\x1clocation_input.opening_hours\x12Dopens_at and closes_at must both be set and differ, or both be unset\x1aehas(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)B\x0e\n" +
 	"\f_is_supplierB\b\n" +

@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type RoleChange struct {
-	gorm.Model
+	BaseModel
 	Userstamps
-	UserID   uint
+	UserID   uuid.UUID
 	FromRole RoleName
 	ToRole   RoleName
 	Reason   *string
@@ -27,9 +26,9 @@ const (
 )
 
 type AccountWarning struct {
-	gorm.Model
+	BaseModel
 	Userstamps
-	UserID        uint
+	UserID        uuid.UUID
 	RequestID     uuid.UUID
 	ReportID      *uuid.UUID
 	Reason        string

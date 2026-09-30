@@ -23,6 +23,7 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -50,6 +51,7 @@ type config struct {
 	privateKey      string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
+	bootstrap       bootstrap.Config
 }
 
 func main() {
@@ -82,6 +84,18 @@ func main() {
 			fatal("migrate", err)
 		}
 		log.Info("migrations applied")
+	}
+
+	if cfg.bootstrap.Email != "" {
+		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
+		if err != nil {
+			fatal("admin bootstrap", err)
+		}
+		if outcome == store.BootstrapAlreadyDone {
+			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
+		} else {
+			log.Info("admin bootstrapped", "outcome", outcome.String(), "user_id", admin.ID)
+		}
 	}
 
 	auth, err := newAuthHandler(db, cfg)
@@ -147,6 +161,10 @@ func loadConfig() (config, error) {
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		bootstrap: bootstrap.Config{
+			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
+			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
+		},
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"

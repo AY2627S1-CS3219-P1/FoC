@@ -5,7 +5,7 @@ package models
 import (
 	"time"
 
-	"gorm.io/gorm"
+	"github.com/google/uuid"
 )
 
 type TokenPurpose string
@@ -18,28 +18,28 @@ const (
 const MagicLinkTTL = 10 * time.Minute
 
 type AllowedEmailDomain struct {
-	gorm.Model
+	BaseModel
 	Userstamps
 	Domain string
 }
 
 type AuthToken struct {
-	gorm.Model
+	BaseModel
 	Userstamps
 	TokenHash   []byte
 	Purpose     TokenPurpose
 	Email       string
-	UserID      *uint
+	UserID      *uuid.UUID
 	RequestedIP *string
 	ExpiresAt   time.Time
 	UsedAt      *time.Time
 }
 
 type Session struct {
-	gorm.Model
+	BaseModel
 	Userstamps
 	TokenHash  []byte
-	UserID     uint
+	UserID     uuid.UUID
 	UserAgent  *string
 	IP         *string
 	LastSeenAt time.Time `gorm:"default:now()"`

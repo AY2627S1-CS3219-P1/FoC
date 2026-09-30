@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,15 @@ func TestSharedLocationInputValidation(t *testing.T) {
 		valid   bool
 	}{
 		{"accept overnight opening hours", create(func(*pb.LocationInput) {}), true},
+		{"accept 200 Unicode name characters after trimming", create(func(p *pb.LocationInput) { p.Name = "\u2003" + strings.Repeat("é", 200) + "\u2003" }), true},
+		{"reject 201 Unicode name characters after trimming", create(func(p *pb.LocationInput) { p.Name = strings.Repeat("é", 201) }), false},
+		{"reject whitespace name", create(func(p *pb.LocationInput) { p.Name = " \u2003 " }), false},
+		{"accept 50 character floor after trimming", create(func(p *pb.LocationInput) { p.Floor = proto.String(" " + strings.Repeat("F", 50) + " ") }), true},
+		{"reject 51 character floor after trimming", create(func(p *pb.LocationInput) { p.Floor = proto.String(strings.Repeat("F", 51)) }), false},
+		{"accept 500 character contact after trimming", create(func(p *pb.LocationInput) { p.Contact = proto.String(" " + strings.Repeat("c", 500) + " ") }), true},
+		{"reject 501 character contact after trimming", create(func(p *pb.LocationInput) { p.Contact = proto.String(strings.Repeat("c", 501)) }), false},
+		{"accept 2000 character details after trimming", create(func(p *pb.LocationInput) { p.Details = " " + strings.Repeat("d", 2000) + " " }), true},
+		{"reject 2001 character details after trimming", create(func(p *pb.LocationInput) { p.Details = strings.Repeat("d", 2001) }), false},
 		{"accept omitted opening hours", create(func(p *pb.LocationInput) { p.OpensAt, p.ClosesAt = nil, nil }), true},
 		{"reject opening time without closing time", create(func(p *pb.LocationInput) { p.ClosesAt = nil }), false},
 		{"reject equal opening and closing times", create(func(p *pb.LocationInput) { p.ClosesAt = proto.Clone(p.OpensAt).(*timeofday.TimeOfDay) }), false},
@@ -86,8 +96,8 @@ func TestSharedLocationInputValidation(t *testing.T) {
 		{"reject seconds in opening hours", create(func(p *pb.LocationInput) { p.OpensAt.Seconds = 3 }), false},
 		{"reject microseconds in opening hours", create(func(p *pb.LocationInput) { p.OpensAt.Nanos = 456000 }), false},
 		{"reject nanoseconds in opening hours", create(func(p *pb.LocationInput) { p.OpensAt.Nanos = 1 }), false},
-		{"reject supplier without Categories", create(func(p *pb.LocationInput) { p.CategoryIds = nil }), false},
-		{"reject non-supplier Location with Categories", create(func(p *pb.LocationInput) { p.IsSupplier = proto.Bool(false) }), false},
+		{"defer supplier without Categories to domain", create(func(p *pb.LocationInput) { p.CategoryIds = nil }), true},
+		{"defer non-supplier Location with Categories to domain", create(func(p *pb.LocationInput) { p.IsSupplier = proto.Bool(false) }), true},
 		{"accept non-supplier Location without Categories", create(func(p *pb.LocationInput) { p.IsSupplier = proto.Bool(false); p.CategoryIds = nil }), true},
 		{"reject missing supplier classification", create(func(p *pb.LocationInput) { p.IsSupplier = nil }), false},
 		{"reject missing coordinates", create(func(p *pb.LocationInput) { p.Coordinates = nil }), false},
