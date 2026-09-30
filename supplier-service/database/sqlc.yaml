@@ -69,3 +69,13 @@ sql:
               import: "time"
               type: "Time"
               pointer: true
+  - name: "workflow"
+    engine: "postgresql"
+    queries: "query/workflow.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "workflowdb"
+        out: "../internal/database/workflowdb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true
