@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
-	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
+	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/go-chi/chi/v5"
 )
@@ -52,9 +52,9 @@ func (f *fakeLocationReader) ListCategories(context.Context) ([]location.Categor
 	return []location.Category{{ID: "c", Name: "Food"}}, f.err
 }
 
-func newLocationClient(t *testing.T, reader location.Reader) supplierv1connect.LocationDiscoveryServiceClient {
+func newLocationClient(t *testing.T, reader location.Reader) locationv1connect.LocationDiscoveryServiceClient {
 	t.Helper()
-	path, handler := supplierv1connect.NewLocationDiscoveryServiceHandler(
+	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
 		NewLocationServer(location.NewService(reader)),
 		connect.WithInterceptors(validate.NewInterceptor()),
 	)
@@ -62,7 +62,7 @@ func newLocationClient(t *testing.T, reader location.Reader) supplierv1connect.L
 	router.Mount(path, handler)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return supplierv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL)
+	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL)
 }
 
 func TestGetLocationReturnsLocation(t *testing.T) {
@@ -87,7 +87,7 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 		},
 	}})
 
-	res, err := client.GetLocation(context.Background(), connect.NewRequest(&supplierv1.GetLocationRequest{Id: locationID}))
+	res, err := client.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,14 +105,14 @@ func TestLocationErrors(t *testing.T) {
 	cases := []struct {
 		name   string
 		reader *fakeLocationReader
-		call   func(supplierv1connect.LocationDiscoveryServiceClient) error
+		call   func(locationv1connect.LocationDiscoveryServiceClient) error
 		want   connect.Code
 	}{
 		{
 			name:   "missing location",
 			reader: &fakeLocationReader{},
-			call: func(c supplierv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.GetLocation(context.Background(), connect.NewRequest(&supplierv1.GetLocationRequest{Id: locationID}))
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
 				return err
 			},
 			want: connect.CodeNotFound,
@@ -120,8 +120,8 @@ func TestLocationErrors(t *testing.T) {
 		{
 			name:   "malformed id",
 			reader: &fakeLocationReader{},
-			call: func(c supplierv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.GetLocation(context.Background(), connect.NewRequest(&supplierv1.GetLocationRequest{Id: "nope"}))
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: "nope"}))
 				return err
 			},
 			want: connect.CodeInvalidArgument,
@@ -129,8 +129,8 @@ func TestLocationErrors(t *testing.T) {
 		{
 			name:   "page size above maximum",
 			reader: &fakeLocationReader{},
-			call: func(c supplierv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&supplierv1.ListLocationsRequest{PageSize: 101}))
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{PageSize: 101}))
 				return err
 			},
 			want: connect.CodeInvalidArgument,
@@ -138,9 +138,9 @@ func TestLocationErrors(t *testing.T) {
 		{
 			name:   "archived view without admin",
 			reader: &fakeLocationReader{},
-			call: func(c supplierv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&supplierv1.ListLocationsRequest{
-					StatusView: supplierv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED,
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{
+					StatusView: locationv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED,
 				}))
 				return err
 			},
@@ -149,8 +149,8 @@ func TestLocationErrors(t *testing.T) {
 		{
 			name:   "database failure",
 			reader: &fakeLocationReader{err: errors.New("connection refused to 10.0.0.5")},
-			call: func(c supplierv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&supplierv1.ListLocationsRequest{}))
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 				return err
 			},
 			want: connect.CodeInternal,
@@ -173,7 +173,7 @@ func TestListLocationsReturnsPagination(t *testing.T) {
 	client := newLocationClient(t, &fakeLocationReader{locations: map[string]location.Location{
 		locationID: {ID: locationID, Name: "NUS Co-op"},
 	}})
-	res, err := client.ListLocations(context.Background(), connect.NewRequest(&supplierv1.ListLocationsRequest{}))
+	res, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,22 +185,22 @@ func TestListLocationsReturnsPagination(t *testing.T) {
 
 func TestListReferenceData(t *testing.T) {
 	client := newLocationClient(t, &fakeLocationReader{})
-	buildings, err := client.ListBuildings(context.Background(), connect.NewRequest(&supplierv1.ListBuildingsRequest{}))
+	buildings, err := client.ListBuildings(context.Background(), connect.NewRequest(&locationv1.ListBuildingsRequest{}))
 	if err != nil || len(buildings.Msg.Buildings) != 1 || buildings.Msg.Buildings[0].Name != "COM2" {
 		t.Fatalf("buildings = %v, err %v", buildings, err)
 	}
-	categories, err := client.ListCategories(context.Background(), connect.NewRequest(&supplierv1.ListCategoriesRequest{}))
+	categories, err := client.ListCategories(context.Background(), connect.NewRequest(&locationv1.ListCategoriesRequest{}))
 	if err != nil || len(categories.Msg.Categories) != 1 || categories.Msg.Categories[0].Name != "Food" {
 		t.Fatalf("categories = %v, err %v", categories, err)
 	}
 }
 
 func TestLocationAdminMutationNotImplemented(t *testing.T) {
-	_, handler := supplierv1connect.NewLocationAdminServiceHandler(&supplierv1connect.UnimplementedLocationAdminServiceHandler{})
+	_, handler := locationv1connect.NewLocationAdminServiceHandler(&locationv1connect.UnimplementedLocationAdminServiceHandler{})
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	client := supplierv1connect.NewLocationAdminServiceClient(server.Client(), server.URL)
-	_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&supplierv1.ArchiveLocationRequest{Id: locationID}))
+	client := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL)
+	_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
 	if connect.CodeOf(err) != connect.CodeUnimplemented {
 		t.Fatalf("expected unimplemented mutation: %v", err)
 	}

@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: supplier/v1/location_admin.proto
+// source: supplier/location/v1/admin.proto
 
-package supplierv1
+package locationv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -35,7 +35,7 @@ type CreateLocationRequest struct {
 
 func (x *CreateLocationRequest) Reset() {
 	*x = CreateLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -47,7 +47,7 @@ func (x *CreateLocationRequest) String() string {
 func (*CreateLocationRequest) ProtoMessage() {}
 
 func (x *CreateLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60,7 +60,7 @@ func (x *CreateLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLocationRequest.ProtoReflect.Descriptor instead.
 func (*CreateLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CreateLocationRequest) GetIdempotencyKey() string {
@@ -86,7 +86,7 @@ type CreateLocationResponse struct {
 
 func (x *CreateLocationResponse) Reset() {
 	*x = CreateLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +98,7 @@ func (x *CreateLocationResponse) String() string {
 func (*CreateLocationResponse) ProtoMessage() {}
 
 func (x *CreateLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +111,7 @@ func (x *CreateLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLocationResponse.ProtoReflect.Descriptor instead.
 func (*CreateLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateLocationResponse) GetLocation() *Location {
@@ -137,7 +137,7 @@ type UpdateLocationRequest struct {
 
 func (x *UpdateLocationRequest) Reset() {
 	*x = UpdateLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -149,7 +149,7 @@ func (x *UpdateLocationRequest) String() string {
 func (*UpdateLocationRequest) ProtoMessage() {}
 
 func (x *UpdateLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -162,7 +162,7 @@ func (x *UpdateLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLocationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UpdateLocationRequest) GetId() string {
@@ -202,7 +202,7 @@ type UpdateLocationResponse struct {
 
 func (x *UpdateLocationResponse) Reset() {
 	*x = UpdateLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -214,7 +214,7 @@ func (x *UpdateLocationResponse) String() string {
 func (*UpdateLocationResponse) ProtoMessage() {}
 
 func (x *UpdateLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -227,7 +227,7 @@ func (x *UpdateLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLocationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{3}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UpdateLocationResponse) GetLocation() *Location {
@@ -246,7 +246,7 @@ type ArchiveLocationRequest struct {
 
 func (x *ArchiveLocationRequest) Reset() {
 	*x = ArchiveLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +258,7 @@ func (x *ArchiveLocationRequest) String() string {
 func (*ArchiveLocationRequest) ProtoMessage() {}
 
 func (x *ArchiveLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +271,7 @@ func (x *ArchiveLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveLocationRequest.ProtoReflect.Descriptor instead.
 func (*ArchiveLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{4}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ArchiveLocationRequest) GetId() string {
@@ -290,7 +290,7 @@ type ArchiveLocationResponse struct {
 
 func (x *ArchiveLocationResponse) Reset() {
 	*x = ArchiveLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -302,7 +302,7 @@ func (x *ArchiveLocationResponse) String() string {
 func (*ArchiveLocationResponse) ProtoMessage() {}
 
 func (x *ArchiveLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -315,7 +315,7 @@ func (x *ArchiveLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveLocationResponse.ProtoReflect.Descriptor instead.
 func (*ArchiveLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{5}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ArchiveLocationResponse) GetLocation() *Location {
@@ -334,7 +334,7 @@ type UnarchiveLocationRequest struct {
 
 func (x *UnarchiveLocationRequest) Reset() {
 	*x = UnarchiveLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -346,7 +346,7 @@ func (x *UnarchiveLocationRequest) String() string {
 func (*UnarchiveLocationRequest) ProtoMessage() {}
 
 func (x *UnarchiveLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -359,7 +359,7 @@ func (x *UnarchiveLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnarchiveLocationRequest.ProtoReflect.Descriptor instead.
 func (*UnarchiveLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{6}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UnarchiveLocationRequest) GetId() string {
@@ -378,7 +378,7 @@ type UnarchiveLocationResponse struct {
 
 func (x *UnarchiveLocationResponse) Reset() {
 	*x = UnarchiveLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -390,7 +390,7 @@ func (x *UnarchiveLocationResponse) String() string {
 func (*UnarchiveLocationResponse) ProtoMessage() {}
 
 func (x *UnarchiveLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_admin_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -403,7 +403,7 @@ func (x *UnarchiveLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnarchiveLocationResponse.ProtoReflect.Descriptor instead.
 func (*UnarchiveLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{7}
+	return file_supplier_location_v1_admin_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UnarchiveLocationResponse) GetLocation() *Location {
@@ -413,82 +413,83 @@ func (x *UnarchiveLocationResponse) GetLocation() *Location {
 	return nil
 }
 
-var File_supplier_v1_location_admin_proto protoreflect.FileDescriptor
+var File_supplier_location_v1_admin_proto protoreflect.FileDescriptor
 
-const file_supplier_v1_location_admin_proto_rawDesc = "" +
+const file_supplier_location_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	" supplier/v1/location_admin.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a'supplier/v1/location_shared_types.proto\"\xef\x01\n" +
+	" supplier/location/v1/admin.proto\x12\x14supplier.location.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a'supplier/location/v1/shared_types.proto\"\xf8\x01\n" +
 	"\x15CreateLocationRequest\x121\n" +
-	"\x0fidempotency_key\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\x12>\n" +
-	"\blocation\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation:c\xbaH`\x1a^\n" +
-	"\x17complete_location_input\x12#explicit classification is required\x1a\x1ehas(this.location.is_supplier)\"K\n" +
-	"\x16CreateLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"\xd9\x02\n" +
+	"\x0fidempotency_key\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\x12G\n" +
+	"\blocation\x18\x02 \x01(\v2#.supplier.location.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation:c\xbaH`\x1a^\n" +
+	"\x17complete_location_input\x12#explicit classification is required\x1a\x1ehas(this.location.is_supplier)\"T\n" +
+	"\x16CreateLocationResponse\x12:\n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"\xe2\x02\n" +
 	"\x15UpdateLocationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x124\n" +
-	"\x11expected_revision\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\x12>\n" +
-	"\blocation\x18\x03 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xd8\x01\x03R\blocation\x12\xaf\x01\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\x12G\n" +
+	"\blocation\x18\x03 \x01(\v2#.supplier.location.v1.LocationInputB\x06\xbaH\x03\xd8\x01\x03R\blocation\x12\xaf\x01\n" +
 	"\vupdate_mask\x18\x04 \x01(\v2\x1a.google.protobuf.FieldMaskBr\xbaHo\xc8\x01\x01\xe2\x01i\x12\x04name\x12\vis_supplier\x12\fcategory_ids\x12\vbuilding_id\x12\x05floor\x12\vcoordinates\x12\bopens_at\x12\tcloses_at\x12\acontact\x12\adetailsR\n" +
-	"updateMask\"K\n" +
-	"\x16UpdateLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"2\n" +
+	"updateMask\"T\n" +
+	"\x16UpdateLocationResponse\x12:\n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"2\n" +
 	"\x16ArchiveLocationRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"L\n" +
-	"\x17ArchiveLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"4\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"U\n" +
+	"\x17ArchiveLocationResponse\x12:\n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"4\n" +
 	"\x18UnarchiveLocationRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"N\n" +
-	"\x19UnarchiveLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation2\x9c\x03\n" +
-	"\x14LocationAdminService\x12[\n" +
-	"\x0eCreateLocation\x12\".supplier.v1.CreateLocationRequest\x1a#.supplier.v1.CreateLocationResponse\"\x00\x12[\n" +
-	"\x0eUpdateLocation\x12\".supplier.v1.UpdateLocationRequest\x1a#.supplier.v1.UpdateLocationResponse\"\x00\x12a\n" +
-	"\x0fArchiveLocation\x12#.supplier.v1.ArchiveLocationRequest\x1a$.supplier.v1.ArchiveLocationResponse\"\x03\x90\x02\x02\x12g\n" +
-	"\x11UnarchiveLocation\x12%.supplier.v1.UnarchiveLocationRequest\x1a&.supplier.v1.UnarchiveLocationResponse\"\x03\x90\x02\x02B\xb4\x01\n" +
-	"\x0fcom.supplier.v1B\x12LocationAdminProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"W\n" +
+	"\x19UnarchiveLocationResponse\x12:\n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation2\xe4\x03\n" +
+	"\x14LocationAdminService\x12m\n" +
+	"\x0eCreateLocation\x12+.supplier.location.v1.CreateLocationRequest\x1a,.supplier.location.v1.CreateLocationResponse\"\x00\x12m\n" +
+	"\x0eUpdateLocation\x12+.supplier.location.v1.UpdateLocationRequest\x1a,.supplier.location.v1.UpdateLocationResponse\"\x00\x12s\n" +
+	"\x0fArchiveLocation\x12,.supplier.location.v1.ArchiveLocationRequest\x1a-.supplier.location.v1.ArchiveLocationResponse\"\x03\x90\x02\x02\x12y\n" +
+	"\x11UnarchiveLocation\x12..supplier.location.v1.UnarchiveLocationRequest\x1a/.supplier.location.v1.UnarchiveLocationResponse\"\x03\x90\x02\x02B\xe3\x01\n" +
+	"\x18com.supplier.location.v1B\n" +
+	"AdminProtoP\x01ZIgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1;locationv1\xa2\x02\x03SLX\xaa\x02\x14Supplier.Location.V1\xca\x02\x14Supplier\\Location\\V1\xe2\x02 Supplier\\Location\\V1\\GPBMetadata\xea\x02\x16Supplier::Location::V1b\x06proto3"
 
 var (
-	file_supplier_v1_location_admin_proto_rawDescOnce sync.Once
-	file_supplier_v1_location_admin_proto_rawDescData []byte
+	file_supplier_location_v1_admin_proto_rawDescOnce sync.Once
+	file_supplier_location_v1_admin_proto_rawDescData []byte
 )
 
-func file_supplier_v1_location_admin_proto_rawDescGZIP() []byte {
-	file_supplier_v1_location_admin_proto_rawDescOnce.Do(func() {
-		file_supplier_v1_location_admin_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_v1_location_admin_proto_rawDesc), len(file_supplier_v1_location_admin_proto_rawDesc)))
+func file_supplier_location_v1_admin_proto_rawDescGZIP() []byte {
+	file_supplier_location_v1_admin_proto_rawDescOnce.Do(func() {
+		file_supplier_location_v1_admin_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_location_v1_admin_proto_rawDesc), len(file_supplier_location_v1_admin_proto_rawDesc)))
 	})
-	return file_supplier_v1_location_admin_proto_rawDescData
+	return file_supplier_location_v1_admin_proto_rawDescData
 }
 
-var file_supplier_v1_location_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
-var file_supplier_v1_location_admin_proto_goTypes = []any{
-	(*CreateLocationRequest)(nil),     // 0: supplier.v1.CreateLocationRequest
-	(*CreateLocationResponse)(nil),    // 1: supplier.v1.CreateLocationResponse
-	(*UpdateLocationRequest)(nil),     // 2: supplier.v1.UpdateLocationRequest
-	(*UpdateLocationResponse)(nil),    // 3: supplier.v1.UpdateLocationResponse
-	(*ArchiveLocationRequest)(nil),    // 4: supplier.v1.ArchiveLocationRequest
-	(*ArchiveLocationResponse)(nil),   // 5: supplier.v1.ArchiveLocationResponse
-	(*UnarchiveLocationRequest)(nil),  // 6: supplier.v1.UnarchiveLocationRequest
-	(*UnarchiveLocationResponse)(nil), // 7: supplier.v1.UnarchiveLocationResponse
-	(*LocationInput)(nil),             // 8: supplier.v1.LocationInput
-	(*Location)(nil),                  // 9: supplier.v1.Location
+var file_supplier_location_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_supplier_location_v1_admin_proto_goTypes = []any{
+	(*CreateLocationRequest)(nil),     // 0: supplier.location.v1.CreateLocationRequest
+	(*CreateLocationResponse)(nil),    // 1: supplier.location.v1.CreateLocationResponse
+	(*UpdateLocationRequest)(nil),     // 2: supplier.location.v1.UpdateLocationRequest
+	(*UpdateLocationResponse)(nil),    // 3: supplier.location.v1.UpdateLocationResponse
+	(*ArchiveLocationRequest)(nil),    // 4: supplier.location.v1.ArchiveLocationRequest
+	(*ArchiveLocationResponse)(nil),   // 5: supplier.location.v1.ArchiveLocationResponse
+	(*UnarchiveLocationRequest)(nil),  // 6: supplier.location.v1.UnarchiveLocationRequest
+	(*UnarchiveLocationResponse)(nil), // 7: supplier.location.v1.UnarchiveLocationResponse
+	(*LocationInput)(nil),             // 8: supplier.location.v1.LocationInput
+	(*Location)(nil),                  // 9: supplier.location.v1.Location
 	(*fieldmaskpb.FieldMask)(nil),     // 10: google.protobuf.FieldMask
 }
-var file_supplier_v1_location_admin_proto_depIdxs = []int32{
-	8,  // 0: supplier.v1.CreateLocationRequest.location:type_name -> supplier.v1.LocationInput
-	9,  // 1: supplier.v1.CreateLocationResponse.location:type_name -> supplier.v1.Location
-	8,  // 2: supplier.v1.UpdateLocationRequest.location:type_name -> supplier.v1.LocationInput
-	10, // 3: supplier.v1.UpdateLocationRequest.update_mask:type_name -> google.protobuf.FieldMask
-	9,  // 4: supplier.v1.UpdateLocationResponse.location:type_name -> supplier.v1.Location
-	9,  // 5: supplier.v1.ArchiveLocationResponse.location:type_name -> supplier.v1.Location
-	9,  // 6: supplier.v1.UnarchiveLocationResponse.location:type_name -> supplier.v1.Location
-	0,  // 7: supplier.v1.LocationAdminService.CreateLocation:input_type -> supplier.v1.CreateLocationRequest
-	2,  // 8: supplier.v1.LocationAdminService.UpdateLocation:input_type -> supplier.v1.UpdateLocationRequest
-	4,  // 9: supplier.v1.LocationAdminService.ArchiveLocation:input_type -> supplier.v1.ArchiveLocationRequest
-	6,  // 10: supplier.v1.LocationAdminService.UnarchiveLocation:input_type -> supplier.v1.UnarchiveLocationRequest
-	1,  // 11: supplier.v1.LocationAdminService.CreateLocation:output_type -> supplier.v1.CreateLocationResponse
-	3,  // 12: supplier.v1.LocationAdminService.UpdateLocation:output_type -> supplier.v1.UpdateLocationResponse
-	5,  // 13: supplier.v1.LocationAdminService.ArchiveLocation:output_type -> supplier.v1.ArchiveLocationResponse
-	7,  // 14: supplier.v1.LocationAdminService.UnarchiveLocation:output_type -> supplier.v1.UnarchiveLocationResponse
+var file_supplier_location_v1_admin_proto_depIdxs = []int32{
+	8,  // 0: supplier.location.v1.CreateLocationRequest.location:type_name -> supplier.location.v1.LocationInput
+	9,  // 1: supplier.location.v1.CreateLocationResponse.location:type_name -> supplier.location.v1.Location
+	8,  // 2: supplier.location.v1.UpdateLocationRequest.location:type_name -> supplier.location.v1.LocationInput
+	10, // 3: supplier.location.v1.UpdateLocationRequest.update_mask:type_name -> google.protobuf.FieldMask
+	9,  // 4: supplier.location.v1.UpdateLocationResponse.location:type_name -> supplier.location.v1.Location
+	9,  // 5: supplier.location.v1.ArchiveLocationResponse.location:type_name -> supplier.location.v1.Location
+	9,  // 6: supplier.location.v1.UnarchiveLocationResponse.location:type_name -> supplier.location.v1.Location
+	0,  // 7: supplier.location.v1.LocationAdminService.CreateLocation:input_type -> supplier.location.v1.CreateLocationRequest
+	2,  // 8: supplier.location.v1.LocationAdminService.UpdateLocation:input_type -> supplier.location.v1.UpdateLocationRequest
+	4,  // 9: supplier.location.v1.LocationAdminService.ArchiveLocation:input_type -> supplier.location.v1.ArchiveLocationRequest
+	6,  // 10: supplier.location.v1.LocationAdminService.UnarchiveLocation:input_type -> supplier.location.v1.UnarchiveLocationRequest
+	1,  // 11: supplier.location.v1.LocationAdminService.CreateLocation:output_type -> supplier.location.v1.CreateLocationResponse
+	3,  // 12: supplier.location.v1.LocationAdminService.UpdateLocation:output_type -> supplier.location.v1.UpdateLocationResponse
+	5,  // 13: supplier.location.v1.LocationAdminService.ArchiveLocation:output_type -> supplier.location.v1.ArchiveLocationResponse
+	7,  // 14: supplier.location.v1.LocationAdminService.UnarchiveLocation:output_type -> supplier.location.v1.UnarchiveLocationResponse
 	11, // [11:15] is the sub-list for method output_type
 	7,  // [7:11] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
@@ -496,27 +497,27 @@ var file_supplier_v1_location_admin_proto_depIdxs = []int32{
 	0,  // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_supplier_v1_location_admin_proto_init() }
-func file_supplier_v1_location_admin_proto_init() {
-	if File_supplier_v1_location_admin_proto != nil {
+func init() { file_supplier_location_v1_admin_proto_init() }
+func file_supplier_location_v1_admin_proto_init() {
+	if File_supplier_location_v1_admin_proto != nil {
 		return
 	}
-	file_supplier_v1_location_shared_types_proto_init()
+	file_supplier_location_v1_shared_types_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_admin_proto_rawDesc), len(file_supplier_v1_location_admin_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_location_v1_admin_proto_rawDesc), len(file_supplier_location_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_supplier_v1_location_admin_proto_goTypes,
-		DependencyIndexes: file_supplier_v1_location_admin_proto_depIdxs,
-		MessageInfos:      file_supplier_v1_location_admin_proto_msgTypes,
+		GoTypes:           file_supplier_location_v1_admin_proto_goTypes,
+		DependencyIndexes: file_supplier_location_v1_admin_proto_depIdxs,
+		MessageInfos:      file_supplier_location_v1_admin_proto_msgTypes,
 	}.Build()
-	File_supplier_v1_location_admin_proto = out.File
-	file_supplier_v1_location_admin_proto_goTypes = nil
-	file_supplier_v1_location_admin_proto_depIdxs = nil
+	File_supplier_location_v1_admin_proto = out.File
+	file_supplier_location_v1_admin_proto_goTypes = nil
+	file_supplier_location_v1_admin_proto_depIdxs = nil
 }

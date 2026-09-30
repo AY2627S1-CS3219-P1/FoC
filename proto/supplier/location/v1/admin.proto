@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package supplier.v1;
+package supplier.location.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/field_mask.proto";
-import "supplier/v1/location_shared_types.proto";
+import "supplier/location/v1/shared_types.proto";
 
 // Administrator-only Location management.
 service LocationAdminService {
