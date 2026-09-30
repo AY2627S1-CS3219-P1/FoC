@@ -79,7 +79,7 @@ provides email magic-link authentication and ES256 access and refresh tokens.
 ## Authentication
 
 The generated `user.v1.AuthService` provides `RequestLink`, `Login`,
-`Register`, `Refresh`, and `Logout`. `user.v1.PublicKeyService.GetPublicKeys`
+`Register`, `Refresh`, `Logout`, and `LogoutAll`. `user.v1.PublicKeyService.GetPublicKeys`
 publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
@@ -88,7 +88,10 @@ Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`
 header. The refresh token is only sent as a `foc-refresh-token` cookie with
 Secure, HttpOnly, SameSite=Strict and Path=/user.v1.AuthService/. Refresh and
-logout read that cookie; logout clears it. Browser clients must send credentials
+both logouts read that cookie and the logouts clear it. `LogoutAll` revokes
+every session of the cookie's user (sign out of all devices) and, unlike
+`Logout`, returns `Unauthenticated` when the cookie is not a live session.
+Access tokens already issued remain valid until they expire. Browser clients must send credentials
 so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
