@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
+	"github.com/google/uuid"
 )
 
 type ActorReader interface {
-	GetByID(context.Context, uint) (*models.User, error)
+	GetByID(context.Context, uuid.UUID) (*models.User, error)
 }
 
 func authorizeProtected(users ActorReader) connect.Interceptor {
@@ -23,11 +23,10 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 			if !ok {
 				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))
 			}
-			actorID64, err := strconv.ParseUint(claims.Subject, 10, strconv.IntSize)
-			if err != nil || actorID64 == 0 {
+			actorID, err := uuid.Parse(claims.Subject)
+			if err != nil || actorID == uuid.Nil {
 				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))
 			}
-			actorID := uint(actorID64)
 			actor, err := users.GetByID(ctx, actorID)
 			if errors.Is(err, store.ErrNotFound) {
 				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))

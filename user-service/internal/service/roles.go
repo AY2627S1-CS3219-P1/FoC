@@ -9,12 +9,13 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 type RoleUsers interface {
-	GetByID(context.Context, uint) (*models.User, error)
+	GetByID(context.Context, uuid.UUID) (*models.User, error)
 	GetByEmail(context.Context, string) (*models.User, error)
-	GetByIDForUpdate(context.Context, uint) (*models.User, error)
+	GetByIDForUpdate(context.Context, uuid.UUID) (*models.User, error)
 }
 
 type RoleChanges interface {
@@ -33,8 +34,8 @@ type RoleService struct {
 	WithTransaction RoleTransaction
 }
 
-func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uint, email string) (models.User, error) {
-	normalized, err := normalizeEmail(email)
+func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, email string) (models.User, error) {
+	normalized, err := NormalizeEmail(email)
 	if err != nil {
 		return models.User{}, err
 	}
@@ -51,11 +52,11 @@ func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uint, email st
 	return *target, nil
 }
 
-func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uint, to models.RoleName, reason string) (models.User, error) {
-	if actorID == 0 {
+func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid.UUID, to models.RoleName, reason string) (models.User, error) {
+	if actorID == uuid.Nil {
 		return models.User{}, ErrUnauthenticated
 	}
-	if targetID == 0 || (to != models.RoleAdmin && to != models.RoleUser && to != models.RoleSuspended) {
+	if targetID == uuid.Nil || (to != models.RoleAdmin && to != models.RoleUser && to != models.RoleSuspended) {
 		return models.User{}, ErrInvalidRoleChange
 	}
 	reason = strings.TrimSpace(reason)
@@ -115,8 +116,8 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uint
 	return changed, nil
 }
 
-func (s *RoleService) currentAdmin(ctx context.Context, actorID uint) (*models.User, error) {
-	if actorID == 0 {
+func (s *RoleService) currentAdmin(ctx context.Context, actorID uuid.UUID) (*models.User, error) {
+	if actorID == uuid.Nil {
 		return nil, ErrUnauthenticated
 	}
 	actor, err := s.Users.GetByID(ctx, actorID)

@@ -2,8 +2,8 @@
 
 PostgreSQL 18. Source of truth: `migrations/*.sql` (goose). GORM entities: `internal/models`.
 
-Every table with a single `id` follows `gorm.Model` plus userstamps:
-`id BIGSERIAL`, `created_at`, `updated_at`, `deleted_at` (soft delete),
+Every table with a single `id` embeds `models.BaseModel` plus userstamps:
+`id UUID`, `created_at`, `updated_at`, `deleted_at` (soft delete),
 `created_by` and `updated_by` (FK to `users.id`, `NULL` = system). The diagram
 leaves these columns out.
 
@@ -12,16 +12,16 @@ erDiagram
     roles ||--o{ users : "users.role"
     users ||--o{ sessions : has
     users ||--o{ auth_tokens : "login links"
-    users ||--o| admin_bootstrap : "first signup"
+    users ||--o| admin_bootstrap : "first super_admin"
     users ||--o{ role_changes : "promote/suspend/..."
     roles ||--o{ role_changes : "from/to"
     users ||--o{ account_warnings : receives
     users ||--o{ favourite_suppliers : saves
 
     users {
-        bigint id PK
+        uuid id PK
         citext email UK "among live rows"
-        text display_name "1-50 chars"
+        text display_name "1-100 chars"
         text description "max 500"
         text telegram_handle "5-32 of A-Za-z0-9_, no @"
         text phone_number "max 20"
@@ -34,47 +34,47 @@ erDiagram
     }
     admin_bootstrap {
         bool singleton PK
-        bigint user_id FK
+        uuid user_id FK
     }
     allowed_email_domains {
-        bigint id PK
+        uuid id PK
         citext domain UK "among live rows"
     }
     auth_tokens {
-        bigint id PK
+        uuid id PK
         bytea token_hash UK "sha256"
         text purpose "register|login"
         citext email
-        bigint user_id FK
+        uuid user_id FK
         inet requested_ip
         timestamptz expires_at
         timestamptz used_at
     }
     sessions {
-        bigint id PK
+        uuid id PK
         bytea token_hash UK "sha256"
-        bigint user_id FK
+        uuid user_id FK
         timestamptz expires_at
         timestamptz revoked_at
     }
     role_changes {
-        bigint id PK
-        bigint user_id FK
+        uuid id PK
+        uuid user_id FK
         text from_role FK
         text to_role FK
         text reason
         uuid report_id "no FK"
     }
     account_warnings {
-        bigint id PK
-        bigint user_id FK
+        uuid id PK
+        uuid user_id FK
         uuid request_id "no FK"
         text reason
         text status "active|removed"
         uuid source_event_id UK
     }
     favourite_suppliers {
-        bigint user_id PK
+        uuid user_id PK
         uuid supplier_id PK "no FK"
     }
 ```
@@ -88,14 +88,14 @@ erDiagram
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
-| 00003 | `admin_bootstrap` | U4.2 | singleton row reserved for first-admin registration; claiming it is not wired yet |
+| 00003 | `admin_bootstrap` | U4.2 | singleton row; written once by the startup bootstrap (`BOOTSTRAP_SUPERADMIN_EMAIL`), whose user becomes `super_admin` |
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
 
 ## Soft delete
 
-GORM adds `deleted_at IS NULL` to every query on a model with `gorm.Model`,
+GORM adds `deleted_at IS NULL` to every query on a model with `BaseModel`,
 and `Delete` only sets `deleted_at`. So database `ON DELETE CASCADE` fires only
 for `Unscoped()` (hard) deletes. `store.Users.Delete` cascades in the
 application instead: it soft-deletes the user's sessions and auth tokens and
@@ -116,8 +116,11 @@ WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > $now
   AND deleted_at IS NULL
 RETURNING *;
 
--- Planned first-admin registration (not wired yet): 1 row => set role = 'super_admin'
-INSERT INTO admin_bootstrap (user_id) VALUES ($1) ON CONFLICT DO NOTHING;
+-- Admin bootstrap (one tx): serialise instances, then no-op if already done;
+-- otherwise create or promote the user to 'super_admin' and claim the row
+LOCK TABLE admin_bootstrap IN EXCLUSIVE MODE;
+SELECT count(*) FROM admin_bootstrap;
+INSERT INTO admin_bootstrap (user_id) VALUES ($1);
 
 -- Change role (same tx), optimistic on current role
 UPDATE users SET role = $to, updated_at = now() WHERE id = $1 AND role = $from AND deleted_at IS NULL;
@@ -130,7 +133,7 @@ UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
 INSERT INTO account_warnings (...) VALUES (...) ON CONFLICT (source_event_id) DO NOTHING;
 ```
 
-## Roles & authorisation (planned)
+## Roles & authorisation
 
 No permissions table. Protected Connect routes verify the access token at the
 HTTP boundary; Connect interceptors read the caller's current database role.
@@ -143,9 +146,9 @@ The role service rechecks the actor under a row lock before writing:
 | `user` | – | – |
 | `suspended` | – | – |
 
-Nobody can change their own role or a `super_admin` role. A reason is required
-when a role change enters or leaves `suspended`. The fixed `super_admin` must
-be provisioned separately until first-admin registration is implemented.
+Nobody can change their own role or a `super_admin` role. The startup admin
+bootstrap grants the first `super_admin` role. A reason is required when a role
+change enters or leaves `suspended`.
 
 ## Conventions
 

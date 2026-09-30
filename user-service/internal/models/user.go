@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type Userstamps struct {
-	CreatedBy *uint
-	UpdatedBy *uint
+	CreatedBy *uuid.UUID
+	UpdatedBy *uuid.UUID
 }
 
 type User struct {
-	gorm.Model
+	BaseModel
 	Userstamps
 	Email             string
 	DisplayName       string
@@ -31,7 +30,7 @@ func (u *User) IsSuspended() bool { return u.Role == RoleSuspended }
 func (u *User) IsAdmin() bool { return u.Role.IsAdmin() }
 
 type FavouriteSupplier struct {
-	UserID     uint      `gorm:"primaryKey"`
+	UserID     uuid.UUID `gorm:"primaryKey"`
 	SupplierID uuid.UUID `gorm:"primaryKey"`
 	CreatedAt  time.Time
 }

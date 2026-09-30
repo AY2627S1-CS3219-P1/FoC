@@ -9,11 +9,12 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/google/uuid"
 )
 
 type Logic interface {
-	GetMyProfile(context.Context, uint) (models.User, error)
-	UpdateMyProfile(context.Context, uint, service.ProfileInput) (models.User, error)
+	GetMyProfile(context.Context, uuid.UUID) (models.User, error)
+	UpdateMyProfile(context.Context, uuid.UUID, service.ProfileInput) (models.User, error)
 }
 
 type Handler struct {

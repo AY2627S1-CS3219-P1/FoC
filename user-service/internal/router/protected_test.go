@@ -6,7 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -22,11 +21,12 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
+	"github.com/google/uuid"
 )
 
-type protectedUsers struct{ users map[uint]models.User }
+type protectedUsers struct{ users map[uuid.UUID]models.User }
 
-func (p *protectedUsers) GetByID(_ context.Context, id uint) (*models.User, error) {
+func (p *protectedUsers) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
 	u, ok := p.users[id]
 	if !ok {
 		return nil, store.ErrNotFound
@@ -36,21 +36,21 @@ func (p *protectedUsers) GetByID(_ context.Context, id uint) (*models.User, erro
 
 type profileStub struct{ user models.User }
 
-func (p profileStub) GetMyProfile(context.Context, uint) (models.User, error) {
+func (p profileStub) GetMyProfile(context.Context, uuid.UUID) (models.User, error) {
 	return p.user, nil
 }
 
-func (p profileStub) UpdateMyProfile(context.Context, uint, service.ProfileInput) (models.User, error) {
+func (p profileStub) UpdateMyProfile(context.Context, uuid.UUID, service.ProfileInput) (models.User, error) {
 	return p.user, nil
 }
 
 type adminStub struct{ user models.User }
 
-func (a adminStub) GetUserByEmail(context.Context, uint, string) (models.User, error) {
+func (a adminStub) GetUserByEmail(context.Context, uuid.UUID, string) (models.User, error) {
 	return a.user, nil
 }
 
-func (a adminStub) ChangeUserRole(context.Context, uint, uint, models.RoleName, string) (models.User, error) {
+func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string) (models.User, error) {
 	return a.user, nil
 }
 
@@ -63,12 +63,12 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actorID, targetID := uint(1), uint(2)
+	actorID, targetID := uuid.New(), uuid.New()
 	actor := models.User{ID: actorID, Email: "actor@example.com", DisplayName: "Actor", Role: models.RoleUser}
 	contact := "private_handle"
 	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target",
 		TelegramHandle: &contact, Role: models.RoleUser}
-	users := &protectedUsers{users: map[uint]models.User{actorID: actor, targetID: target}}
+	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
 			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
@@ -87,7 +87,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	get := connect.NewRequest(&userv1.GetMyProfileRequest{})
 	get.Header().Set("Authorization", "Bearer "+token)
 	response, err := profileClient.GetMyProfile(ctx, get)
-	if err != nil || response.Msg.Profile.Id != strconv.FormatUint(uint64(actorID), 10) || response.Msg.Profile.Email != actor.Email {
+	if err != nil || response.Msg.Profile.Id != actorID.String() || response.Msg.Profile.Email != actor.Email {
 		t.Fatalf("own profile: %+v, %v", response, err)
 	}
 	lookup := connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
@@ -106,23 +106,23 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users.users[actorID] = actor
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
 	lookup.Header().Set("Authorization", "Bearer "+token)
-	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != strconv.FormatUint(uint64(targetID), 10) {
+	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != targetID.String() {
 		t.Fatalf("persisted admin lookup: %+v, %v", response, err)
 	}
 	actor.Role = models.RoleUser
 	users.users[actorID] = actor
 	staleAdminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
-	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: strconv.FormatUint(uint64(targetID), 10), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
+	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: targetID.String(), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
 	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
 	}
 }
 
-func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uint, role jwt.Role) string {
+func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uuid.UUID, role jwt.Role) string {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Second)
-	token, err := codec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: strconv.FormatUint(uint64(subject), 10),
+	token, err := codec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: subject.String(),
 		SessionID: "00000000-0000-4000-8000-000000000001", Role: role, IssuedAt: now,
 		ExpiresAt: now.Add(time.Minute), TokenID: "00000000-0000-4000-8000-000000000002"})
 	if err != nil {

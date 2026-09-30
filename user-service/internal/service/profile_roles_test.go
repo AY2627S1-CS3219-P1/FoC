@@ -8,16 +8,17 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 type accountFixture struct {
-	users        map[uint]models.User
+	users        map[uuid.UUID]models.User
 	changes      []models.RoleChange
 	writeErr     error
 	profileError error
 }
 
-func (f *accountFixture) GetByID(_ context.Context, id uint) (*models.User, error) {
+func (f *accountFixture) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
 	u, ok := f.users[id]
 	if !ok {
 		return nil, store.ErrNotFound
@@ -25,7 +26,7 @@ func (f *accountFixture) GetByID(_ context.Context, id uint) (*models.User, erro
 	return &u, nil
 }
 
-func (f *accountFixture) GetByIDForUpdate(ctx context.Context, id uint) (*models.User, error) {
+func (f *accountFixture) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	return f.GetByID(ctx, id)
 }
 
@@ -74,8 +75,8 @@ func (f *accountFixture) ChangeRole(_ context.Context, change *models.RoleChange
 func ptr(value string) *string { return &value }
 
 func TestProfileFullReplacementAndSuspension(t *testing.T) {
-	id := uint(1)
-	f := &accountFixture{users: map[uint]models.User{id: {
+	id := uuid.New()
+	f := &accountFixture{users: map[uuid.UUID]models.User{id: {
 		ID: id, Email: "person@example.com", DisplayName: "Before", Description: "Old",
 		TelegramHandle: ptr("old_handle"), PhoneNumber: ptr("+123"), Role: models.RoleUser,
 	}}}
@@ -131,11 +132,11 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			actorID, targetID := uint(1), uint(2)
+			actorID, targetID := uuid.New(), uuid.New()
 			if tc.self {
 				targetID = actorID
 			}
-			f := &accountFixture{users: map[uint]models.User{
+			f := &accountFixture{users: map[uuid.UUID]models.User{
 				actorID:  {ID: actorID, Email: "actor@example.com", Role: tc.actor},
 				targetID: {ID: targetID, Email: "target@example.com", Role: tc.target},
 			}}
@@ -161,8 +162,8 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 }
 
 func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
-	actorID, targetID := uint(1), uint(2)
-	f := &accountFixture{users: map[uint]models.User{
+	actorID, targetID := uuid.New(), uuid.New()
+	f := &accountFixture{users: map[uuid.UUID]models.User{
 		actorID:  {ID: actorID, Role: models.RoleSuperAdmin},
 		targetID: {ID: targetID, Role: models.RoleUser},
 	}, writeErr: store.ErrRoleConflict}

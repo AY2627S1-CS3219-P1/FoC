@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"html"
 	"net/mail"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -18,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 )
 
 func (s *Service) RequestLink(ctx context.Context, email string) error {
-	normalizedEmail, err := normalizeEmail(email)
+	normalizedEmail, err := NormalizeEmail(email)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
-		if user.ID == 0 {
+		if user.ID == uuid.Nil {
 			return errors.New("found user has no ID")
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -122,7 +122,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if err != nil {
 			return err
 		}
-		if storedUser.ID == 0 || !storedUser.Role.Valid() {
+		if storedUser.ID == uuid.Nil || !storedUser.Role.Valid() {
 			return jwt.ErrLoginFailed
 		}
 		user = *storedUser
@@ -302,7 +302,7 @@ func (s *Service) createSession(ctx context.Context, tx Store, user models.User,
 	return tokens, nil
 }
 
-func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now time.Time) (jwt.AuthTokens, error) {
 	role, ok := jwtRole(user.Role)
 	if !ok {
 		return jwt.AuthTokens{}, errors.New("user has invalid role")
@@ -317,8 +317,8 @@ func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.T
 	}
 	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
-	subject := strconv.FormatUint(uint64(user.ID), 10)
-	sessionSubject := strconv.FormatUint(uint64(sessionID), 10)
+	subject := user.ID.String()
+	sessionSubject := sessionID.String()
 	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: subject,
 		SessionID: sessionSubject, Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
@@ -333,9 +333,8 @@ func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.T
 		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
 }
 
-func parseID(value string) (uint, error) {
-	id, err := strconv.ParseUint(value, 10, strconv.IntSize)
-	return uint(id), err
+func parseID(value string) (uuid.UUID, error) {
+	return uuid.Parse(value)
 }
 
 func jwtRole(role models.RoleName) (jwt.Role, bool) {
@@ -353,7 +352,8 @@ func jwtRole(role models.RoleName) (jwt.Role, bool) {
 	}
 }
 
-func normalizeEmail(input string) (string, error) {
+// NormalizeEmail trims and lowercases a bare address, or returns jwt.ErrInvalidEmail.
+func NormalizeEmail(input string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(input))
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
@@ -363,7 +363,7 @@ func normalizeEmail(input string) (string, error) {
 }
 
 func registrationEmailAllowed(ctx context.Context, domains DomainStore, input string) (bool, error) {
-	email, err := normalizeEmail(input)
+	email, err := NormalizeEmail(input)
 	if err != nil {
 		return false, err
 	}

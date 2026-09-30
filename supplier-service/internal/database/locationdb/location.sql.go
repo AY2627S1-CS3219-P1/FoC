@@ -13,6 +13,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const buildingExists = `-- name: BuildingExists :one
+SELECT EXISTS(SELECT 1 FROM buildings WHERE id = $1) AS present
+`
+
+func (q *Queries) BuildingExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, buildingExists, id)
+	var present bool
+	err := row.Scan(&present)
+	return present, err
+}
+
 const countLocations = `-- name: CountLocations :one
 SELECT count(*)
 FROM locations l
@@ -50,6 +61,39 @@ func (q *Queries) CountLocations(ctx context.Context, arg CountLocationsParams) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteLocationCategories = `-- name: DeleteLocationCategories :exec
+DELETE FROM location_categories WHERE location_id = $1
+`
+
+func (q *Queries) DeleteLocationCategories(ctx context.Context, locationID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLocationCategories, locationID)
+	return err
+}
+
+const existingCategoryIDs = `-- name: ExistingCategoryIDs :many
+SELECT id FROM categories WHERE id = ANY($1::UUID[])
+`
+
+func (q *Queries) ExistingCategoryIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, existingCategoryIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLocation = `-- name: GetLocation :one
@@ -125,6 +169,65 @@ func (q *Queries) GetLocation(ctx context.Context, id uuid.UUID) (GetLocationRow
 		&i.BuildingRadiusM,
 	)
 	return i, err
+}
+
+const insertLocation = `-- name: InsertLocation :exec
+INSERT INTO locations (
+    id, name, is_supplier, building_id, floor, coordinates,
+    open_from, open_to, contact, details, revision, created_at
+) VALUES (
+    $1, $2, $3, $4, $5,
+    ST_SetSRID(ST_MakePoint($6::DOUBLE PRECISION, $7::DOUBLE PRECISION), 4326)::geography,
+    $8, $9, $10, $11, 1, $12
+)
+`
+
+type InsertLocationParams struct {
+	ID         uuid.UUID
+	Name       string
+	IsSupplier bool
+	BuildingID uuid.UUID
+	Floor      *string
+	Longitude  float64
+	Latitude   float64
+	OpenFrom   pgtype.Time
+	OpenTo     pgtype.Time
+	Contact    *string
+	Details    string
+	CreatedAt  time.Time
+}
+
+func (q *Queries) InsertLocation(ctx context.Context, arg InsertLocationParams) error {
+	_, err := q.db.Exec(ctx, insertLocation,
+		arg.ID,
+		arg.Name,
+		arg.IsSupplier,
+		arg.BuildingID,
+		arg.Floor,
+		arg.Longitude,
+		arg.Latitude,
+		arg.OpenFrom,
+		arg.OpenTo,
+		arg.Contact,
+		arg.Details,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertLocationCategory = `-- name: InsertLocationCategory :exec
+INSERT INTO location_categories (location_id, category_id)
+VALUES ($1, $2)
+`
+
+type InsertLocationCategoryParams struct {
+	LocationID uuid.UUID
+	CategoryID uuid.UUID
+}
+
+func (q *Queries) InsertLocationCategory(ctx context.Context, arg InsertLocationCategoryParams) error {
+	_, err := q.db.Exec(ctx, insertLocationCategory, arg.LocationID, arg.CategoryID)
+	return err
 }
 
 const listBuildings = `-- name: ListBuildings :many
@@ -418,4 +521,86 @@ func (q *Queries) ListLocations(ctx context.Context, arg ListLocationsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockLocation = `-- name: LockLocation :one
+SELECT id FROM locations WHERE id = $1 FOR UPDATE
+`
+
+// Lock only the parent. Relationship reads must use a later statement after
+// any concurrent holder of this lock commits.
+func (q *Queries) LockLocation(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockLocation, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
+const setLocationArchived = `-- name: SetLocationArchived :execrows
+UPDATE locations SET archived_at = $1, revision = revision + 1
+WHERE id = $2 AND revision = $3
+`
+
+type SetLocationArchivedParams struct {
+	ArchivedAt       *time.Time
+	ID               uuid.UUID
+	ExpectedRevision int64
+}
+
+func (q *Queries) SetLocationArchived(ctx context.Context, arg SetLocationArchivedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setLocationArchived, arg.ArchivedAt, arg.ID, arg.ExpectedRevision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateLocation = `-- name: UpdateLocation :execrows
+UPDATE locations SET
+    name = $1,
+    is_supplier = $2,
+    building_id = $3,
+    floor = $4,
+    coordinates = ST_SetSRID(ST_MakePoint($5::DOUBLE PRECISION, $6::DOUBLE PRECISION), 4326)::geography,
+    open_from = $7,
+    open_to = $8,
+    contact = $9,
+    details = $10,
+    revision = revision + 1
+WHERE id = $11 AND revision = $12
+`
+
+type UpdateLocationParams struct {
+	Name             string
+	IsSupplier       bool
+	BuildingID       uuid.UUID
+	Floor            *string
+	Longitude        float64
+	Latitude         float64
+	OpenFrom         pgtype.Time
+	OpenTo           pgtype.Time
+	Contact          *string
+	Details          string
+	ID               uuid.UUID
+	ExpectedRevision int64
+}
+
+func (q *Queries) UpdateLocation(ctx context.Context, arg UpdateLocationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateLocation,
+		arg.Name,
+		arg.IsSupplier,
+		arg.BuildingID,
+		arg.Floor,
+		arg.Longitude,
+		arg.Latitude,
+		arg.OpenFrom,
+		arg.OpenTo,
+		arg.Contact,
+		arg.Details,
+		arg.ID,
+		arg.ExpectedRevision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

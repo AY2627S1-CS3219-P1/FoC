@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,25 +18,22 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
-
-var nextTestUserID atomic.Uint64
 
 type fakeStore struct {
 	mu             sync.Mutex
-	users          map[uint]models.User
+	users          map[uuid.UUID]models.User
 	logins         map[[32]byte]models.AuthToken
 	registrations  map[[32]byte]models.AuthToken
-	sessions       map[uint]models.Session
-	nextSessionID  uint
-	nextUserID     uint
+	sessions       map[uuid.UUID]models.Session
 	allowedDomains map[string]struct{}
 	failSession    bool
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{users: map[uint]models.User{}, logins: map[[32]byte]models.AuthToken{},
-		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uint]models.Session{},
+	return &fakeStore{users: map[uuid.UUID]models.User{}, logins: map[[32]byte]models.AuthToken{},
+		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uuid.UUID]models.Session{},
 		allowedDomains: map[string]struct{}{"example.com": {}}}
 }
 
@@ -53,7 +49,7 @@ func (f *fakeStore) GetByEmail(_ context.Context, email string) (*models.User, e
 	return nil, storepkg.ErrNotFound
 }
 
-func (f *fakeStore) GetByID(_ context.Context, id uint) (*models.User, error) {
+func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	user, ok := f.users[id]
@@ -71,14 +67,8 @@ func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
 			return storepkg.ErrDuplicate
 		}
 	}
-	if user.ID == 0 {
-		for id := range f.users {
-			if id > f.nextUserID {
-				f.nextUserID = id
-			}
-		}
-		f.nextUserID++
-		user.ID = f.nextUserID
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
 	}
 	f.users[user.ID] = *user
 	return nil
@@ -120,9 +110,8 @@ func (f *fakeStore) CreateSession(_ context.Context, session *models.Session) er
 	if f.failSession {
 		return errors.New("session storage failed")
 	}
-	if session.ID == 0 {
-		f.nextSessionID++
-		session.ID = f.nextSessionID
+	if session.ID == uuid.Nil {
+		session.ID = uuid.New()
 	}
 	if _, exists := f.sessions[session.ID]; exists {
 		return storepkg.ErrDuplicate
@@ -131,7 +120,7 @@ func (f *fakeStore) CreateSession(_ context.Context, session *models.Session) er
 	return nil
 }
 
-func (f *fakeStore) UpdateSessionTokenHash(_ context.Context, id uint, tokenHash []byte) error {
+func (f *fakeStore) UpdateSessionTokenHash(_ context.Context, id uuid.UUID, tokenHash []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	session, ok := f.sessions[id]
@@ -143,7 +132,7 @@ func (f *fakeStore) UpdateSessionTokenHash(_ context.Context, id uint, tokenHash
 	return nil
 }
 
-func (f *fakeStore) RevokeSession(_ context.Context, id uint, digest [32]byte, now time.Time) error {
+func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]byte, now time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	session, ok := f.sessions[id]
@@ -178,11 +167,11 @@ func (f fakeSessions) Create(ctx context.Context, session *models.Session) error
 	return f.CreateSession(ctx, session)
 }
 
-func (f fakeSessions) UpdateTokenHash(ctx context.Context, id uint, tokenHash []byte) error {
+func (f fakeSessions) UpdateTokenHash(ctx context.Context, id uuid.UUID, tokenHash []byte) error {
 	return f.UpdateSessionTokenHash(ctx, id, tokenHash)
 }
 
-func (f fakeSessions) Revoke(ctx context.Context, id uint, digest [32]byte, now time.Time) error {
+func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte, now time.Time) error {
 	return f.RevokeSession(ctx, id, digest, now)
 }
 
@@ -210,8 +199,6 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 		logins:         cloneMap(f.logins),
 		registrations:  cloneMap(f.registrations),
 		sessions:       cloneMap(f.sessions),
-		nextSessionID:  f.nextSessionID,
-		nextUserID:     f.nextUserID,
 		allowedDomains: cloneMap(f.allowedDomains),
 		failSession:    f.failSession,
 	}
@@ -222,8 +209,6 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 	f.logins = tx.logins
 	f.registrations = tx.registrations
 	f.sessions = tx.sessions
-	f.nextSessionID = tx.nextSessionID
-	f.nextUserID = tx.nextUserID
 	f.allowedDomains = tx.allowedDomains
 	return nil
 }
@@ -455,7 +440,7 @@ func TestProductionLinkIsEmailOnly(t *testing.T) {
 	if _, ok := store.registrations[digest]; !ok {
 		t.Fatal("emailed token digest was not stored")
 	}
-	if _, err := normalizeEmail("Name <user@example.com>"); !errors.Is(err, jwt.ErrInvalidEmail) {
+	if _, err := NormalizeEmail("Name <user@example.com>"); !errors.Is(err, jwt.ErrInvalidEmail) {
 		t.Fatalf("display-name email accepted: %v", err)
 	}
 	localURL, err := url.Parse("http://localhost:5173")
@@ -699,7 +684,7 @@ func addRegistrationChallenge(t *testing.T, store *fakeStore, now time.Time) str
 }
 
 func testModelUser(email string, role models.RoleName) models.User {
-	return models.User{ID: uint(nextTestUserID.Add(1)), Email: email, DisplayName: "User", Role: role}
+	return models.User{ID: uuid.New(), Email: email, DisplayName: "User", Role: role}
 }
 
 func serviceWithRefreshToken(t *testing.T, now time.Time) (*Service, *fakeStore, string) {

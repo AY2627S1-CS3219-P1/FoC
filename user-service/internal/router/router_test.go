@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/google/uuid"
 )
 
 const frontendOrigin = "https://app.example.test"
@@ -77,8 +77,9 @@ func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
 }
 
 func testUser() models.User {
-	return models.User{ID: 1, Email: "user@example.com", DisplayName: "User",
-		TelegramHandle: stringPtr("example_user"), PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
+	return models.User{ID: uuid.MustParse("3bd7435a-201f-45d4-b858-c1081a93a63c"),
+		Email: "user@example.com", DisplayName: "User", TelegramHandle: stringPtr("example_user"),
+		PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
 }
 
 func stringPtr(value string) *string { return &value }
@@ -114,7 +115,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != strconv.FormatUint(uint64(testUser().ID), 10) ||
+	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
 		login.Msg.User.GetTelegramHandle() != "example_user" || login.Msg.User.GetPhoneNumber() != "+12345678" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 var (
@@ -23,7 +24,7 @@ var (
 )
 
 type ProfileUsers interface {
-	GetByID(context.Context, uint) (*models.User, error)
+	GetByID(context.Context, uuid.UUID) (*models.User, error)
 	UpdateActiveProfile(context.Context, *models.User) error
 }
 
@@ -38,8 +39,8 @@ type ProfileInput struct {
 	PhoneNumber    *string
 }
 
-func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uint) (models.User, error) {
-	if actorID == 0 {
+func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (models.User, error) {
+	if actorID == uuid.Nil {
 		return models.User{}, ErrUnauthenticated
 	}
 	user, err := s.Users.GetByID(ctx, actorID)
@@ -52,7 +53,7 @@ func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uint) (models
 	return *user, nil
 }
 
-func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uint, input ProfileInput) (models.User, error) {
+func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID, input ProfileInput) (models.User, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	if input.DisplayName == "" || utf8.RuneCountInString(input.DisplayName) > 100 ||
 		utf8.RuneCountInString(input.Description) > 500 {

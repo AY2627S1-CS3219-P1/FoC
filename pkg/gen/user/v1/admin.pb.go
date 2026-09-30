@@ -295,9 +295,9 @@ const file_user_v1_admin_proto_rawDesc = "" +
 	"\x15GetUserByEmailRequest\x12\x1f\n" +
 	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"B\n" +
 	"\x16GetUserByEmailResponse\x12(\n" +
-	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"\x94\x01\n" +
-	"\x15ChangeUserRoleRequest\x12-\n" +
-	"\auser_id\x18\x01 \x01(\tB\x14\xbaH\x11r\x0f2\r^[1-9][0-9]*$R\x06userId\x12*\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"\x88\x01\n" +
+	"\x15ChangeUserRoleRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x12*\n" +
 	"\ato_role\x18\x02 \x01(\x0e2\x11.user.v1.UserRoleR\x06toRole\x12 \n" +
 	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\"B\n" +
 	"\x16ChangeUserRoleResponse\x12(\n" +

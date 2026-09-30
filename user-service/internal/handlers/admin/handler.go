@@ -3,18 +3,18 @@ package admin
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/google/uuid"
 )
 
 type Logic interface {
-	GetUserByEmail(context.Context, uint, string) (models.User, error)
-	ChangeUserRole(context.Context, uint, uint, models.RoleName, string) (models.User, error)
+	GetUserByEmail(context.Context, uuid.UUID, string) (models.User, error)
+	ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string) (models.User, error)
 }
 
 type Handler struct {
@@ -41,11 +41,10 @@ func (h *Handler) ChangeUserRole(ctx context.Context, req *connect.Request[userv
 	if err != nil {
 		return nil, userdto.MapError(err)
 	}
-	targetID64, err := strconv.ParseUint(req.Msg.UserId, 10, strconv.IntSize)
-	if err != nil || targetID64 == 0 {
+	targetID, err := uuid.Parse(req.Msg.UserId)
+	if err != nil || targetID == uuid.Nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user ID"))
 	}
-	targetID := uint(targetID64)
 	to, ok := roleName(req.Msg.ToRole)
 	if !ok {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid destination role"))
