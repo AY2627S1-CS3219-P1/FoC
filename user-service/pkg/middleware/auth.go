@@ -5,12 +5,11 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 )
 
-type claimsKey[C any] struct{}
-
 func ClaimsFromContext[C any](ctx context.Context) (C, bool) {
-	claims, ok := ctx.Value(claimsKey[C]{}).(C)
+	claims, ok := ctx.Value(authorization.ClaimsKey{}).(C)
 	return claims, ok
 }
 

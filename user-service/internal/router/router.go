@@ -6,6 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -21,10 +22,12 @@ const maxRPCMessageBytes = 1 << 20
 
 // Setup mounts the Connect handlers built in main with their dependencies set.
 type ProtectedRoutes struct {
-	Profile      *profilehandler.Handler
-	Admin        *adminhandler.Handler
-	Authenticate func(http.Handler) http.Handler
-	Users        ActorReader
+	Profile             *profilehandler.Handler
+	Admin               *adminhandler.Handler
+	Authenticate        func(http.Handler) http.Handler
+	ProfileReadPolicy   authorization.Policy
+	ProfileUpdatePolicy authorization.Policy
+	AdminPolicy         authorization.Policy
 }
 
 func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) *chi.Mux {
@@ -56,7 +59,15 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 
 	if len(protected) > 0 {
 		p := protected[0]
-		interceptors := connect.WithInterceptors(validate.NewInterceptor(), authorizeProtected(p.Users), normalizeRPCError())
+		policies := map[string]authorization.Policy{
+			userv1connect.ProfileServiceGetMyProfileProcedure:     p.ProfileReadPolicy,
+			userv1connect.ProfileServiceUpdateMyProfileProcedure:  p.ProfileUpdatePolicy,
+			userv1connect.UserAdminServiceGetUserByEmailProcedure: p.AdminPolicy,
+			userv1connect.UserAdminServiceChangeUserRoleProcedure: p.AdminPolicy,
+		}
+		interceptors := connect.WithInterceptors(normalizeRPCError(),
+			authorization.NewConnectInterceptor(policies),
+			validate.NewInterceptor())
 		profilePath, profileService := userv1connect.NewProfileServiceHandler(
 			p.Profile, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(profilePath, profileService)

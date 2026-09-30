@@ -86,6 +86,30 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   authentication at the HTTP middleware boundary and method-level
   authorization through Connect interceptors. Generated RPC paths do not
   inherit REST middleware mounted under `/api`.
+- Initialize shared role authorization in each service's router/composition
+  root. Map every protected procedure to a `pkg/authorization.Policy`, then
+  install `authorization.NewConnectInterceptor(policies)` on the generated
+  handler. Use generated procedure constants as map keys:
+
+  ```go
+  policies := map[string]authorization.Policy{
+   userv1connect.ProfileServiceGetMyProfileProcedure:
+    authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin),
+  }
+  interceptor := authorization.NewConnectInterceptor(policies)
+  path, handler := userv1connect.NewProfileServiceHandler(
+   profileHandler,
+   connect.WithInterceptors(interceptor),
+  )
+  router.With(authenticate).Mount(path, handler)
+  ```
+
+  The authentication middleware must store verified claims in the request
+  context under the shared `authorization.ClaimsKey{}` key. The claims type
+  must implement `authorization.Principal` (`SubjectID` and `RoleName`). Map
+  every protected procedure explicitly; an unmapped procedure fails closed.
+  Keep database dependent checks in a service-owned `Policy` implementation,
+  while simple role checks use `authorization.NewRolePolicy`.
 - Use Connect interceptors for RPC-wide validation, authorization, logging,
   tracing, and error normalization. Keep business logic in shared operations
   when REST and RPC adapters expose the same behavior.

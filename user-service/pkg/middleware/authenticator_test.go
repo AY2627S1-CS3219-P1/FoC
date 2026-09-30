@@ -15,11 +15,28 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+func TestAccessClaimsPrincipal(t *testing.T) {
+	const subject = "c4028d55-902e-4b0c-b8c7-83a79e3a1b92"
+	claims := AccessClaims{Subject: subject, Role: "suspended_user"}
+	if claims.SubjectID() != subject || claims.RoleName() != authorization.RoleSuspended {
+		t.Fatalf("principal = %q, %q", claims.SubjectID(), claims.RoleName())
+	}
+	claims.Role = "super_admin"
+	if claims.RoleName() != authorization.RoleSuperAdmin {
+		t.Fatalf("role = %q", claims.RoleName())
+	}
+	claims.Subject = "invalid"
+	if claims.SubjectID() != "" {
+		t.Fatalf("invalid subject = %q", claims.SubjectID())
+	}
+}
 
 type publicKeyServiceStub struct {
 	mu            sync.Mutex
