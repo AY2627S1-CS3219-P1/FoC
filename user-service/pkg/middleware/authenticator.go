@@ -14,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
@@ -30,6 +31,15 @@ type AccessClaims struct {
 	IssuedAt  time.Time
 	ExpiresAt time.Time
 	TokenID   string
+}
+
+func (c AccessClaims) SubjectID() string { return c.Subject }
+
+func (c AccessClaims) RoleName() authorization.Role {
+	if c.Role == "suspended_user" {
+		return authorization.RoleSuspended
+	}
+	return authorization.Role(c.Role)
 }
 
 type AuthConfig struct {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -72,9 +73,13 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
-			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
-			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
-			Authenticate: authmiddleware.AuthenticateLocal(codec), Users: users,
+			Profile:             &profilehandler.Handler{Logic: profileStub{actor}},
+			Admin:               &adminhandler.Handler{Logic: adminStub{target}},
+			Authenticate:        authmiddleware.AuthenticateLocal(codec),
+			Users:               users,
+			ProfileReadPolicy:   authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin, authorization.RoleSuspended),
+			ProfileUpdatePolicy: authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin),
+			AdminPolicy:         authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin),
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -106,10 +111,18 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actor.Role = models.RoleSuspended
 	users.users[actorID] = actor
+	if _, err := profileClient.GetMyProfile(ctx, get); err != nil {
+		t.Fatalf("suspended profile read: %v", err)
+	}
 	update := connect.NewRequest(&userv1.UpdateMyProfileRequest{DisplayName: "New"})
 	update.Header().Set("Authorization", "Bearer "+token)
 	if _, err := profileClient.UpdateMyProfile(ctx, update); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("suspended update with stale user token: %v", err)
+	}
+	invalidUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{})
+	invalidUpdate.Header().Set("Authorization", "Bearer "+token)
+	if _, err := profileClient.UpdateMyProfile(ctx, invalidUpdate); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("authorization should precede validation: %v", err)
 	}
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor

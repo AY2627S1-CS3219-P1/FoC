@@ -22,6 +22,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -114,10 +115,13 @@ func main() {
 		},
 	}
 	protected := router.ProtectedRoutes{
-		Profile:      &profilehandler.Handler{Logic: profileLogic},
-		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Authenticate: userservicemiddleware.AuthenticateLocal(codec),
-		Users:        persistence.Users,
+		Profile:             &profilehandler.Handler{Logic: profileLogic},
+		Admin:               &adminhandler.Handler{Logic: roleLogic},
+		Authenticate:        userservicemiddleware.AuthenticateLocal(codec),
+		Users:               persistence.Users,
+		ProfileReadPolicy:   authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin, authorization.RoleSuspended),
+		ProfileUpdatePolicy: authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin),
+		AdminPolicy:         authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin),
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
 	srv := newServer(":"+cfg.port, handler)
