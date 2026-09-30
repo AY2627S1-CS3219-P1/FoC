@@ -23,6 +23,9 @@ var (
 	ErrConcurrentRoleEdit = errors.New("role changed concurrently")
 )
 
+// MaxDisplayNameLength matches the users.display_name database constraint.
+const MaxDisplayNameLength = 100
+
 type ProfileUsers interface {
 	GetByID(context.Context, uuid.UUID) (*models.User, error)
 	UpdateActiveProfile(context.Context, *models.User) error
@@ -55,7 +58,7 @@ func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (m
 
 func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID, input ProfileInput) (models.User, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.DisplayName == "" || utf8.RuneCountInString(input.DisplayName) > 100 ||
+	if input.DisplayName == "" || utf8.RuneCountInString(input.DisplayName) > MaxDisplayNameLength ||
 		utf8.RuneCountInString(input.Description) > 500 {
 		return models.User{}, ErrInvalidProfile
 	}

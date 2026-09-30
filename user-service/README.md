@@ -88,9 +88,11 @@ link is passed only to the injected email sender. The configured
 
 `RegisterRequest` accepts a display name plus optional `telegram_handle` and
 `phone_number`, matching the nullable user columns. The service trims the
-contact values, treats empty values as unset, and enforces the schema's 32 and
-20 character limits. Registration, login, and refresh return these saved
-fields in the `User` message.
+name and contact values, treats empty contacts as unset, and validates the
+normalized values. Display names must be 1 to 100 characters; Telegram handles
+must contain 5 to 32 letters, digits, or underscores; phone numbers may be up
+to 20 characters. Registration, login, and refresh return these saved fields
+in the `User` message.
 
 Authentication persistence is wired to the user-service store. Email delivery
 is not configured yet, so `RequestLink` currently stores the challenge but the
@@ -145,7 +147,7 @@ signing key and checks the caller's current role in the database.
 
 `UpdateMyProfile` replaces all four editable fields. An omitted description
 becomes empty and omitted contact fields are cleared. A display name must be
-nonblank after trimming and at most 50 characters. The other database limits
+nonblank after trimming and at most 100 characters. The other database limits
 are 500 characters for description, 32 for Telegram handle, and 20 for phone
 number. The request cannot update email, ID, role, or account status.
 

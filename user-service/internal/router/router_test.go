@@ -127,17 +127,18 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal("login response should not be cached")
 	}
 
-	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: "User",
-		TelegramHandle: stringPtr("example_user"), PhoneNumber: stringPtr("+12345678")})
+	rawDisplayName := " " + strings.Repeat("U", 100) + " "
+	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: rawDisplayName,
+		TelegramHandle: stringPtr(" example_user "), PhoneNumber: stringPtr(" +12345678 ")})
 	registerReq.Header().Set("Origin", frontendOrigin)
 	register, err := client.Register(ctx, registerReq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" ||
-		logic.registerProfile.DisplayName != "User" || logic.registerProfile.TelegramHandle == nil ||
-		*logic.registerProfile.TelegramHandle != "example_user" || logic.registerProfile.PhoneNumber == nil ||
-		*logic.registerProfile.PhoneNumber != "+12345678" || register.Msg.User.GetTelegramHandle() != "example_user" ||
+		logic.registerProfile.DisplayName != rawDisplayName || logic.registerProfile.TelegramHandle == nil ||
+		*logic.registerProfile.TelegramHandle != " example_user " || logic.registerProfile.PhoneNumber == nil ||
+		*logic.registerProfile.PhoneNumber != " +12345678 " || register.Msg.User.GetTelegramHandle() != "example_user" ||
 		register.Msg.User.GetPhoneNumber() != "+12345678" {
 		t.Fatalf("unexpected registration response: %+v", register.Msg)
 	}

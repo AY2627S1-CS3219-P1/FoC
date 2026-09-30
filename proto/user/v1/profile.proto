@@ -28,13 +28,12 @@ message GetMyProfileResponse {
 
 // Every editable field is replaced. Omitted contact fields are cleared.
 message UpdateMyProfileRequest {
-  string display_name = 1 [
-    (buf.validate.field).string.min_len = 1,
-    (buf.validate.field).string.max_len = 100
-  ];
+  // The service trims the name and requires 1 to 100 characters afterward.
+  string display_name = 1;
   string description = 2 [(buf.validate.field).string.max_len = 500];
-  optional string telegram_handle = 3 [(buf.validate.field).string.pattern = "^[A-Za-z0-9_]{5,32}$"];
-  optional string phone_number = 4 [(buf.validate.field).string.max_len = 20];
+  // The service trims and validates contacts; blank values are cleared.
+  optional string telegram_handle = 3;
+  optional string phone_number = 4;
 }
 
 message UpdateMyProfileResponse {

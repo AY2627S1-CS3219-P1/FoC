@@ -144,7 +144,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 
 func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
-	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
+	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > MaxDisplayNameLength {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
 	var ok bool

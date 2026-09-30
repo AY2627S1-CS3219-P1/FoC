@@ -202,11 +202,13 @@ func (x *LoginRequest) GetToken() string {
 }
 
 type RegisterRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Token          string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	DisplayName    string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	TelegramHandle *string                `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
-	PhoneNumber    *string                `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// The service trims the name and requires 1 to 100 characters afterward.
+	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// The service trims and validates contacts; blank values are unset.
+	TelegramHandle *string `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
+	PhoneNumber    *string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -798,12 +800,12 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x12RequestLinkRequest\x12\x1f\n" +
 	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"-\n" +
 	"\fLoginRequest\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\"\xff\x01\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\"\xce\x01\n" +
 	"\x0fRegisterRequest\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\x12,\n" +
-	"\fdisplay_name\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\vdisplayName\x12I\n" +
-	"\x0ftelegram_handle\x18\x03 \x01(\tB\x1b\xbaH\x18r\x162\x14^[A-Za-z0-9_]{5,32}$H\x00R\x0etelegramHandle\x88\x01\x01\x12/\n" +
-	"\fphone_number\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x14H\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12,\n" +
+	"\x0ftelegram_handle\x18\x03 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
+	"\fphone_number\x18\x04 \x01(\tH\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
 	"\x10_telegram_handleB\x0f\n" +
 	"\r_phone_number\"\xf1\x01\n" +
 	"\x04User\x12\x0e\n" +

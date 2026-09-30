@@ -91,6 +91,19 @@ func TestProfileFullReplacementAndSuspension(t *testing.T) {
 	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "  "}); !errors.Is(err, ErrInvalidProfile) {
 		t.Fatalf("blank name: %v", err)
 	}
+	validName := strings.Repeat("x", MaxDisplayNameLength)
+	got, err = s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: " " + validName + " ",
+		TelegramHandle: ptr(" new_handle "), PhoneNumber: ptr(" +12345 ")})
+	if err != nil || got.DisplayName != validName || got.TelegramHandle == nil || *got.TelegramHandle != "new_handle" ||
+		got.PhoneNumber == nil || *got.PhoneNumber != "+12345" {
+		t.Fatalf("normalized 100-character profile: %+v, %v", got, err)
+	}
+	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Valid", TelegramHandle: ptr("@invalid")}); !errors.Is(err, ErrInvalidProfile) {
+		t.Fatalf("invalid telegram handle: %v", err)
+	}
+	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Valid", PhoneNumber: ptr(strings.Repeat("1", 21))}); !errors.Is(err, ErrInvalidProfile) {
+		t.Fatalf("long phone number: %v", err)
+	}
 	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: strings.Repeat("x", 101)}); !errors.Is(err, ErrInvalidProfile) {
 		t.Fatalf("long name: %v", err)
 	}

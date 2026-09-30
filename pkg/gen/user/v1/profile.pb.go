@@ -196,11 +196,13 @@ func (x *GetMyProfileResponse) GetProfile() *Profile {
 
 // Every editable field is replaced. Omitted contact fields are cleared.
 type UpdateMyProfileRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	DisplayName    string                 `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	TelegramHandle *string                `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
-	PhoneNumber    *string                `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service trims the name and requires 1 to 100 characters afterward.
+	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// The service trims and validates contacts; blank values are cleared.
+	TelegramHandle *string `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
+	PhoneNumber    *string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -324,12 +326,12 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"\r_phone_number\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
-	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\x93\x02\n" +
-	"\x16UpdateMyProfileRequest\x12,\n" +
-	"\fdisplay_name\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\vdisplayName\x12*\n" +
-	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12I\n" +
-	"\x0ftelegram_handle\x18\x03 \x01(\tB\x1b\xbaH\x18r\x162\x14^[A-Za-z0-9_]{5,32}$H\x00R\x0etelegramHandle\x88\x01\x01\x12/\n" +
-	"\fphone_number\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x14H\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\xe2\x01\n" +
+	"\x16UpdateMyProfileRequest\x12!\n" +
+	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12*\n" +
+	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12,\n" +
+	"\x0ftelegram_handle\x18\x03 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
+	"\fphone_number\x18\x04 \x01(\tH\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
 	"\x10_telegram_handleB\x0f\n" +
 	"\r_phone_number\"E\n" +
 	"\x17UpdateMyProfileResponse\x12*\n" +

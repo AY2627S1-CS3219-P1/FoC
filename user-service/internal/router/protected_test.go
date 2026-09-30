@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,6 +95,14 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	lookup.Header().Set("Authorization", "Bearer "+token)
 	if _, err := adminClient.GetUserByEmail(ctx, lookup); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("ordinary user lookup: %v", err)
+	}
+	profileUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{
+		DisplayName:    " " + strings.Repeat("N", 100) + " ",
+		TelegramHandle: stringPtr(" private_handle "), PhoneNumber: stringPtr(" +123 "),
+	})
+	profileUpdate.Header().Set("Authorization", "Bearer "+token)
+	if _, err := profileClient.UpdateMyProfile(ctx, profileUpdate); err != nil {
+		t.Fatalf("normalized profile input rejected by RPC validation: %v", err)
 	}
 	actor.Role = models.RoleSuspended
 	users.users[actorID] = actor
