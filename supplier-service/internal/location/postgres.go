@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/google/uuid"
@@ -168,8 +169,8 @@ func fromRow(row locationdb.ListLocationsRow) Location {
 		},
 		Floor:       row.Floor,
 		Coordinates: Coordinates{Latitude: row.Latitude, Longitude: row.Longitude},
-		OpensAt:     clockPtr(row.OpenFrom),
-		ClosesAt:    clockPtr(row.OpenTo),
+		OpensAt:     toClockPtr(row.OpenFrom),
+		ClosesAt:    toClockPtr(row.OpenTo),
 		Contact:     row.Contact,
 		Details:     row.Details,
 		ArchivedAt:  row.ArchivedAt,
@@ -195,11 +196,11 @@ func parseOptionalUUID(s *string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
-// clockPtr converts a Postgres TIME to a Clock, or nil if NULL.
-func clockPtr(t pgtype.Time) *Clock {
+// toClockPtr converts a Postgres TIME to a Clock, or nil if NULL.
+func toClockPtr(t pgtype.Time) *Clock {
 	if !t.Valid {
 		return nil
 	}
-	minutes := int32(t.Microseconds / 60_000_000)
+	minutes := int32(t.Microseconds / time.Minute.Microseconds())
 	return &Clock{Hour: minutes / 60, Minute: minutes % 60}
 }
