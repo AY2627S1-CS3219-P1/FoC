@@ -3,7 +3,7 @@
 CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE users (
-    id                  BIGSERIAL PRIMARY KEY,
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email               CITEXT NOT NULL,
     display_name        TEXT NOT NULL CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 100),
     description         TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 500),
@@ -13,8 +13,8 @@ CREATE TABLE users (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at          TIMESTAMPTZ,
-    created_by          BIGINT REFERENCES users (id) ON DELETE SET NULL,
-    updated_by          BIGINT REFERENCES users (id) ON DELETE SET NULL
+    created_by          UUID REFERENCES users (id) ON DELETE SET NULL,
+    updated_by          UUID REFERENCES users (id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX idx_users_email_live ON users (email) WHERE deleted_at IS NULL;

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -56,7 +57,7 @@ func TestUsersAuthPersistence(t *testing.T) {
 	store, _ := setupAuthStore(t)
 
 	user := createStoreUser(t, store, "user@example.com")
-	if user.ID == 0 {
+	if user.ID == uuid.Nil {
 		t.Fatal("database did not assign a user ID")
 	}
 	if got, err := store.GetByEmail(ctx, "USER@example.com"); err != nil || got.ID != user.ID {
@@ -69,7 +70,7 @@ func TestUsersAuthPersistence(t *testing.T) {
 	if err := store.Users.Create(ctx, &duplicate); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("duplicate user: %v", err)
 	}
-	if _, err := store.GetByID(ctx, 1<<40); !errors.Is(err, ErrNotFound) {
+	if _, err := store.GetByID(ctx, uuid.New()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing user: %v", err)
 	}
 }
