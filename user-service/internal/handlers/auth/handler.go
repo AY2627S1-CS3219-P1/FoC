@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	jwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
@@ -47,7 +47,7 @@ func (h *Handler) RequestLink(
 	req *connect.Request[userv1.RequestLinkRequest],
 ) (*connect.Response[userv1.RequestLinkResponse], error) {
 	if err := h.Logic.RequestLink(ctx, req.Msg.Email); err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&userv1.RequestLinkResponse{}), nil
 }
@@ -58,7 +58,7 @@ func (h *Handler) Login(
 ) (*connect.Response[userv1.LoginResponse], error) {
 	user, tokens, err := h.Logic.Login(ctx, req.Msg.Token)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.LoginResponse{
 		User:        userMessage(user),
@@ -77,7 +77,7 @@ func (h *Handler) Register(
 		PhoneNumber: req.Msg.PhoneNumber,
 	})
 	if err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.RegisterResponse{
 		User:        userMessage(user),
@@ -93,7 +93,7 @@ func (h *Handler) Refresh(
 ) (*connect.Response[userv1.RefreshResponse], error) {
 	user, tokens, err := h.Logic.Refresh(ctx, cookieValue(req.Header(), RefreshCookieName))
 	if err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.RefreshResponse{AccessToken: tokens.AccessToken, User: userMessage(user)})
 	setSessionHeaders(response, tokens)
@@ -105,7 +105,7 @@ func (h *Handler) Logout(
 	req *connect.Request[userv1.LogoutRequest],
 ) (*connect.Response[userv1.LogoutResponse], error) {
 	if err := h.Logic.Logout(ctx, cookieValue(req.Header(), RefreshCookieName)); err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.LogoutResponse{})
 	response.Header().Add("Set-Cookie", clearRefreshCookie())
@@ -118,7 +118,7 @@ func (h *Handler) LogoutAll(
 	req *connect.Request[userv1.LogoutAllRequest],
 ) (*connect.Response[userv1.LogoutAllResponse], error) {
 	if err := h.Logic.LogoutAll(ctx, cookieValue(req.Header(), RefreshCookieName)); err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.LogoutAllResponse{})
 	response.Header().Add("Set-Cookie", clearRefreshCookie())
@@ -132,7 +132,7 @@ func (h *Handler) GetPublicKeys(
 ) (*connect.Response[userv1.GetPublicKeysResponse], error) {
 	keys, err := h.Logic.PublicKeys()
 	if err != nil {
-		return nil, mapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := &userv1.GetPublicKeysResponse{Keys: make([]*userv1.JsonWebKey, 0, len(keys.Keys))}
 	for _, key := range keys.Keys {
@@ -161,20 +161,4 @@ func userMessage(user models.User) *userv1.User {
 func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {
 	response.Header().Add("Set-Cookie", refreshCookie(tokens))
 	response.Header().Set("Cache-Control", "no-store")
-}
-
-func mapError(err error) error {
-	switch {
-	case errors.Is(err, jwt.ErrUnavailable):
-		return connect.NewError(connect.CodeUnavailable, errors.New("authentication service unavailable"))
-	case errors.Is(err, jwt.ErrInvalidEmail), errors.Is(err, jwt.ErrInvalidProfile):
-		return connect.NewError(connect.CodeInvalidArgument, err)
-	case errors.Is(err, jwt.ErrLoginFailed), errors.Is(err, jwt.ErrRegistrationFailed),
-		errors.Is(err, jwt.ErrRefreshFailed):
-		return connect.NewError(connect.CodeUnauthenticated, err)
-	case errors.Is(err, jwt.ErrAlreadyRegistered):
-		return connect.NewError(connect.CodeAlreadyExists, errors.New("email already registered; request a login link"))
-	default:
-		return err
-	}
 }

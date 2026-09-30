@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
@@ -21,27 +23,27 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok := authmiddleware.ClaimsFromContext[authmiddleware.AccessClaims](ctx)
 			if !ok {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))
+				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
 			}
 			actorID, err := uuid.Parse(claims.Subject)
 			if err != nil || actorID == uuid.Nil {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))
+				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
 			}
 			actor, err := users.GetByID(ctx, actorID)
 			if errors.Is(err, store.ErrNotFound) {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing access token"))
+				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
 			}
 			if err != nil {
-				return nil, fmt.Errorf("resolve authenticated user: %w", err)
+				return nil, api.ToConnectError(ctx, fmt.Errorf("resolve authenticated user: %w", err))
 			}
 			switch req.Spec().Procedure {
 			case "/user.v1.ProfileService/UpdateMyProfile":
 				if actor.Role == models.RoleSuspended {
-					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("permission denied"))
+					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}
 			case "/user.v1.UserAdminService/GetUserByEmail", "/user.v1.UserAdminService/ChangeUserRole":
 				if !actor.Role.IsAdmin() {
-					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("permission denied"))
+					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}
 			}
 			return next(ctx, req)

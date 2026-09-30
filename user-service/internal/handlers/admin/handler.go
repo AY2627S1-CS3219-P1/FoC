@@ -2,9 +2,10 @@ package admin
 
 import (
 	"context"
-	"errors"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
@@ -25,11 +26,11 @@ type Handler struct {
 func (h *Handler) GetUserByEmail(ctx context.Context, req *connect.Request[userv1.GetUserByEmailRequest]) (*connect.Response[userv1.GetUserByEmailResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, userdto.MapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	user, err := h.Logic.GetUserByEmail(ctx, actorID, req.Msg.Email)
 	if err != nil {
-		return nil, userdto.MapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.GetUserByEmailResponse{User: userdto.UserSummary(user)})
 	response.Header().Set("Cache-Control", "no-store")
@@ -39,19 +40,19 @@ func (h *Handler) GetUserByEmail(ctx context.Context, req *connect.Request[userv
 func (h *Handler) ChangeUserRole(ctx context.Context, req *connect.Request[userv1.ChangeUserRoleRequest]) (*connect.Response[userv1.ChangeUserRoleResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, userdto.MapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	targetID, err := uuid.Parse(req.Msg.UserId)
 	if err != nil || targetID == uuid.Nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user ID"))
+		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
 	}
 	to, ok := roleName(req.Msg.ToRole)
 	if !ok {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid destination role"))
+		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid destination role"))
 	}
 	user, err := h.Logic.ChangeUserRole(ctx, actorID, targetID, to, req.Msg.Reason)
 	if err != nil {
-		return nil, userdto.MapError(err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.ChangeUserRoleResponse{User: userdto.UserSummary(user)})
 	response.Header().Set("Cache-Control", "no-store")
