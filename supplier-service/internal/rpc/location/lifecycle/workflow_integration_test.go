@@ -45,6 +45,7 @@ type fixture struct {
 	location    rpc.LocationDisablementServiceClient
 	requests    rpc.LocationAdditionRequestServiceClient
 	now         atomic.Int64
+	clockOffset time.Duration
 	ctx         context.Context
 }
 
@@ -62,7 +63,9 @@ func code(t *testing.T, e error, want connect.Code) {
 		t.Fatalf("expected %v, got %v", want, e)
 	}
 }
-func (f *fixture) time() time.Time { return time.UnixMicro(f.now.Load()).UTC() }
+func (f *fixture) time() time.Time {
+	return time.UnixMicro(f.now.Load()).UTC().Add(f.clockOffset)
+}
 func (f *fixture) proposal() *pb.LocationInput {
 	return &pb.LocationInput{Name: " Cafe ", IsSupplier: ptr(true), CategoryIds: []string{category, categoryTwo}, BuildingId: building, Floor: ptr(" B1 "), Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774}, OpensAt: &timeofday.TimeOfDay{Hours: 22}, ClosesAt: &timeofday.TimeOfDay{Hours: 2}, Contact: ptr(" contact "), Details: " directions "}
 }

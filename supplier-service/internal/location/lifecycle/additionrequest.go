@@ -120,8 +120,11 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		r.Proposal = proposal
 		r.Revision++
 		r.UpdatedAt = s.clock().UTC()
-		out = r
-		return tx.SaveRequest(ctx, r, in.ExpectedRevision)
+		if e = tx.SaveRequest(ctx, r, in.ExpectedRevision); e != nil {
+			return e
+		}
+		out, e = tx.Request(ctx, r.ID)
+		return e
 	})
 	return
 }
@@ -203,8 +206,15 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 		r.Status = target
 		r.Revision++
 		r.UpdatedAt = now
-		out.Request = r
-		return tx.SaveRequest(ctx, r, prev)
+		if e = tx.SaveRequest(ctx, r, prev); e != nil {
+			return e
+		}
+		persisted, e := tx.Request(ctx, r.ID)
+		if e != nil {
+			return e
+		}
+		out.Request = redactRequestForCaller(c, persisted)
+		return nil
 	})
 	return
 }

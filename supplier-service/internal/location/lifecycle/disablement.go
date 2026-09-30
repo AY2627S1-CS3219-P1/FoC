@@ -151,8 +151,11 @@ func (s *Service) UpdateDisablement(ctx context.Context, c Caller, in UpdateDisa
 		}
 		d.Revision++
 		d.UpdatedAt = now
-		out = d
-		return tx.SaveDisablement(ctx, d, in.ExpectedRevision)
+		if e = tx.SaveDisablement(ctx, d, in.ExpectedRevision); e != nil {
+			return e
+		}
+		out, e = tx.Disablement(ctx, d.ID)
+		return e
 	})
 	return
 }
@@ -194,8 +197,11 @@ func (s *Service) transitionDisablement(ctx context.Context, c Caller, id string
 		}
 		d.Revision++
 		d.UpdatedAt = now
-		out = d
-		return tx.SaveDisablement(ctx, d, prev)
+		if e = tx.SaveDisablement(ctx, d, prev); e != nil {
+			return e
+		}
+		out, e = tx.Disablement(ctx, d.ID)
+		return e
 	})
 	return
 }
