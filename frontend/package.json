@@ -34,6 +34,9 @@
 		"@bufbuild/protobuf": "^2.15.0",
 		"@connectrpc/connect": "^2.2.0",
 		"@connectrpc/connect-web": "^2.2.0",
-		"m3-svelte": "^7.2.1"
+		"m3-svelte": "^7.2.1",
+		"sveltekit-superforms": "^2.31.0",
+		"valibot": "^1.5.0",
+		"zod": "^4.6.5"
 	}
 }

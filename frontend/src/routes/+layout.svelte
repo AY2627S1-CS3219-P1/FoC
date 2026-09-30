@@ -1,12 +1,17 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
-	import { Button, Card, LoadingIndicator } from 'm3-svelte';
+	import { page } from '$app/state';
+	import { UserRole } from '$lib/gen/user/v1/auth_pb';
+	import { Button, Card, LoadingIndicator, TabsLink } from 'm3-svelte';
 	import { authService } from '$lib/services';
 
 	let { children } = $props();
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
+	let signingOut = $state(false);
+	let signOutError = $state('');
 
 	async function restoreAuth() {
 		status = 'loading';
@@ -16,6 +21,20 @@
 		} catch (error) {
 			status =
 				error instanceof ConnectError && error.code === Code.Unauthenticated ? 'ready' : 'error';
+		}
+	}
+
+	async function signOut() {
+		if (signingOut) return;
+		signingOut = true;
+		signOutError = '';
+		try {
+			await authService.logout();
+			await goto('/login', { replaceState: true });
+		} catch {
+			signOutError = 'Could not sign out. Please try again.';
+		} finally {
+			signingOut = false;
 		}
 	}
 
@@ -35,7 +54,23 @@
 <div class="app-shell">
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
+		{#if authService.user}
+			<nav class="site-nav" aria-label="Account navigation">
+				<TabsLink
+					tab={page.url.pathname.startsWith('/admin') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : 'home'}
+					items={[
+						{ name: 'Home', value: 'home', href: '/' },
+						{ name: 'Profile', value: 'profile', href: '/profile' },
+						...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
+							? [{ name: 'Manage users', value: 'admin', href: '/admin/users' }]
+							: [])
+					]}
+				/>
+				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
+			</nav>
+		{/if}
 	</header>
+	{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
 
 	<main id="main-content" class="page-main">
 		{#if status === 'loading'}
