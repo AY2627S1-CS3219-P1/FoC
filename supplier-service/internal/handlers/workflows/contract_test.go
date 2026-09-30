@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"buf.build/go/protovalidate"
-	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
+	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
@@ -115,10 +115,10 @@ func TestLocationServiceContracts(t *testing.T) {
 		service protoreflect.Name
 		methods int
 	}{
-		{pb.File_supplier_v1_location_discovery_proto, "LocationDiscoveryService", 4},
-		{pb.File_supplier_v1_location_admin_proto, "LocationAdminService", 4},
-		{pb.File_supplier_v1_location_disablement_proto, "LocationDisablementService", 5},
-		{pb.File_supplier_v1_location_addition_request_proto, "LocationAdditionRequestService", 7},
+		{pb.File_supplier_location_v1_discovery_proto, "LocationDiscoveryService", 4},
+		{pb.File_supplier_location_v1_admin_proto, "LocationAdminService", 4},
+		{pb.File_supplier_location_v1_disablement_proto, "LocationDisablementService", 5},
+		{pb.File_supplier_location_v1_addition_request_proto, "LocationAdditionRequestService", 7},
 	} {
 		if row.file.Services().Len() != 1 {
 			t.Fatalf("%s must define exactly one service", row.file.Path())
@@ -126,6 +126,9 @@ func TestLocationServiceContracts(t *testing.T) {
 		service := row.file.Services().ByName(row.service)
 		if service == nil || service.Methods().Len() != row.methods {
 			t.Fatalf("unexpected service definition in %s", row.file.Path())
+		}
+		if want := protoreflect.FullName("supplier.location.v1." + string(row.service)); service.FullName() != want {
+			t.Fatalf("service name = %s, want %s", service.FullName(), want)
 		}
 	}
 	shared := (&pb.LocationInput{}).ProtoReflect().Descriptor()

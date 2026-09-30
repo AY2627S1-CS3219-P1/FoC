@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: supplier/v1/location_disablement.proto
+// source: supplier/location/v1/disablement.proto
 
-package supplierv1
+package locationv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -41,7 +41,7 @@ type CreateDisablementRequest struct {
 
 func (x *CreateDisablementRequest) Reset() {
 	*x = CreateDisablementRequest{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53,7 +53,7 @@ func (x *CreateDisablementRequest) String() string {
 func (*CreateDisablementRequest) ProtoMessage() {}
 
 func (x *CreateDisablementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[0]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66,7 +66,7 @@ func (x *CreateDisablementRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDisablementRequest.ProtoReflect.Descriptor instead.
 func (*CreateDisablementRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{0}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CreateDisablementRequest) GetLocationId() string {
@@ -108,7 +108,7 @@ func (x *CreateDisablementRequest) GetIdempotencyKey() string {
 type ListDisablementsRequest struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	LocationId string                 `protobuf:"bytes,1,opt,name=location_id,json=locationId,proto3" json:"location_id,omitempty"`
-	State      DisablementState       `protobuf:"varint,2,opt,name=state,proto3,enum=supplier.v1.DisablementState" json:"state,omitempty"`
+	State      DisablementState       `protobuf:"varint,2,opt,name=state,proto3,enum=supplier.location.v1.DisablementState" json:"state,omitempty"`
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
@@ -119,7 +119,7 @@ type ListDisablementsRequest struct {
 
 func (x *ListDisablementsRequest) Reset() {
 	*x = ListDisablementsRequest{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -131,7 +131,7 @@ func (x *ListDisablementsRequest) String() string {
 func (*ListDisablementsRequest) ProtoMessage() {}
 
 func (x *ListDisablementsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[1]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -144,7 +144,7 @@ func (x *ListDisablementsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDisablementsRequest.ProtoReflect.Descriptor instead.
 func (*ListDisablementsRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{1}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ListDisablementsRequest) GetLocationId() string {
@@ -192,7 +192,7 @@ type UpdateDisablementRequest struct {
 
 func (x *UpdateDisablementRequest) Reset() {
 	*x = UpdateDisablementRequest{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -204,7 +204,7 @@ func (x *UpdateDisablementRequest) String() string {
 func (*UpdateDisablementRequest) ProtoMessage() {}
 
 func (x *UpdateDisablementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[2]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -217,7 +217,7 @@ func (x *UpdateDisablementRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDisablementRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDisablementRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{2}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UpdateDisablementRequest) GetId() string {
@@ -272,7 +272,7 @@ type EndDisablementRequest struct {
 
 func (x *EndDisablementRequest) Reset() {
 	*x = EndDisablementRequest{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -284,7 +284,7 @@ func (x *EndDisablementRequest) String() string {
 func (*EndDisablementRequest) ProtoMessage() {}
 
 func (x *EndDisablementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[3]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -297,7 +297,7 @@ func (x *EndDisablementRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndDisablementRequest.ProtoReflect.Descriptor instead.
 func (*EndDisablementRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{3}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *EndDisablementRequest) GetId() string {
@@ -317,7 +317,7 @@ type CancelDisablementRequest struct {
 
 func (x *CancelDisablementRequest) Reset() {
 	*x = CancelDisablementRequest{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +329,7 @@ func (x *CancelDisablementRequest) String() string {
 func (*CancelDisablementRequest) ProtoMessage() {}
 
 func (x *CancelDisablementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[4]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -342,7 +342,7 @@ func (x *CancelDisablementRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelDisablementRequest.ProtoReflect.Descriptor instead.
 func (*CancelDisablementRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{4}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CancelDisablementRequest) GetId() string {
@@ -361,7 +361,7 @@ type CreateDisablementResponse struct {
 
 func (x *CreateDisablementResponse) Reset() {
 	*x = CreateDisablementResponse{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +373,7 @@ func (x *CreateDisablementResponse) String() string {
 func (*CreateDisablementResponse) ProtoMessage() {}
 
 func (x *CreateDisablementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[5]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +386,7 @@ func (x *CreateDisablementResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDisablementResponse.ProtoReflect.Descriptor instead.
 func (*CreateDisablementResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{5}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateDisablementResponse) GetDisablement() *Disablement {
@@ -405,7 +405,7 @@ type UpdateDisablementResponse struct {
 
 func (x *UpdateDisablementResponse) Reset() {
 	*x = UpdateDisablementResponse{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +417,7 @@ func (x *UpdateDisablementResponse) String() string {
 func (*UpdateDisablementResponse) ProtoMessage() {}
 
 func (x *UpdateDisablementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[6]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +430,7 @@ func (x *UpdateDisablementResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDisablementResponse.ProtoReflect.Descriptor instead.
 func (*UpdateDisablementResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{6}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UpdateDisablementResponse) GetDisablement() *Disablement {
@@ -449,7 +449,7 @@ type EndDisablementResponse struct {
 
 func (x *EndDisablementResponse) Reset() {
 	*x = EndDisablementResponse{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +461,7 @@ func (x *EndDisablementResponse) String() string {
 func (*EndDisablementResponse) ProtoMessage() {}
 
 func (x *EndDisablementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[7]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +474,7 @@ func (x *EndDisablementResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndDisablementResponse.ProtoReflect.Descriptor instead.
 func (*EndDisablementResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{7}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *EndDisablementResponse) GetDisablement() *Disablement {
@@ -493,7 +493,7 @@ type CancelDisablementResponse struct {
 
 func (x *CancelDisablementResponse) Reset() {
 	*x = CancelDisablementResponse{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[8]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +505,7 @@ func (x *CancelDisablementResponse) String() string {
 func (*CancelDisablementResponse) ProtoMessage() {}
 
 func (x *CancelDisablementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[8]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +518,7 @@ func (x *CancelDisablementResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelDisablementResponse.ProtoReflect.Descriptor instead.
 func (*CancelDisablementResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{8}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CancelDisablementResponse) GetDisablement() *Disablement {
@@ -538,7 +538,7 @@ type ListDisablementsResponse struct {
 
 func (x *ListDisablementsResponse) Reset() {
 	*x = ListDisablementsResponse{}
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[9]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -550,7 +550,7 @@ func (x *ListDisablementsResponse) String() string {
 func (*ListDisablementsResponse) ProtoMessage() {}
 
 func (x *ListDisablementsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_disablement_proto_msgTypes[9]
+	mi := &file_supplier_location_v1_disablement_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -563,7 +563,7 @@ func (x *ListDisablementsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDisablementsResponse.ProtoReflect.Descriptor instead.
 func (*ListDisablementsResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_disablement_proto_rawDescGZIP(), []int{9}
+	return file_supplier_location_v1_disablement_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListDisablementsResponse) GetDisablements() []*Disablement {
@@ -580,11 +580,11 @@ func (x *ListDisablementsResponse) GetPageInfo() *PageInfo {
 	return nil
 }
 
-var File_supplier_v1_location_disablement_proto protoreflect.FileDescriptor
+var File_supplier_location_v1_disablement_proto protoreflect.FileDescriptor
 
-const file_supplier_v1_location_disablement_proto_rawDesc = "" +
+const file_supplier_location_v1_disablement_proto_rawDesc = "" +
 	"\n" +
-	"&supplier/v1/location_disablement.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'supplier/v1/location_shared_types.proto\"\x8a\x02\n" +
+	"&supplier/location/v1/disablement.proto\x12\x14supplier.location.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'supplier/location/v1/shared_types.proto\"\x8a\x02\n" +
 	"\x18CreateDisablementRequest\x12)\n" +
 	"\vlocation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
 	"locationId\x127\n" +
@@ -592,11 +592,11 @@ const file_supplier_v1_location_disablement_proto_rawDesc = "" +
 	"\aends_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x06endsAt\x12\"\n" +
 	"\x06reason\x18\x04 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xf4\x03R\x06reason\x121\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"\xc8\x01\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"\xd1\x01\n" +
 	"\x17ListDisablementsRequest\x12)\n" +
 	"\vlocation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
-	"locationId\x12=\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x1d.supplier.v1.DisablementStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05state\x12\x1b\n" +
+	"locationId\x12F\n" +
+	"\x05state\x18\x02 \x01(\x0e2&.supplier.location.v1.DisablementStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05state\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"\xbf\x02\n" +
 	"\x18UpdateDisablementRequest\x12\x18\n" +
@@ -610,79 +610,79 @@ const file_supplier_v1_location_disablement_proto_rawDesc = "" +
 	"\x15EndDisablementRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"4\n" +
 	"\x18CancelDisablementRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"W\n" +
-	"\x19CreateDisablementResponse\x12:\n" +
-	"\vdisablement\x18\x01 \x01(\v2\x18.supplier.v1.DisablementR\vdisablement\"W\n" +
-	"\x19UpdateDisablementResponse\x12:\n" +
-	"\vdisablement\x18\x01 \x01(\v2\x18.supplier.v1.DisablementR\vdisablement\"T\n" +
-	"\x16EndDisablementResponse\x12:\n" +
-	"\vdisablement\x18\x01 \x01(\v2\x18.supplier.v1.DisablementR\vdisablement\"W\n" +
-	"\x19CancelDisablementResponse\x12:\n" +
-	"\vdisablement\x18\x01 \x01(\v2\x18.supplier.v1.DisablementR\vdisablement\"\x8c\x01\n" +
-	"\x18ListDisablementsResponse\x12<\n" +
-	"\fdisablements\x18\x01 \x03(\v2\x18.supplier.v1.DisablementR\fdisablements\x122\n" +
-	"\tpage_info\x18\x02 \x01(\v2\x15.supplier.v1.PageInfoR\bpageInfo2\x97\x04\n" +
-	"\x1aLocationDisablementService\x12d\n" +
-	"\x11CreateDisablement\x12%.supplier.v1.CreateDisablementRequest\x1a&.supplier.v1.CreateDisablementResponse\"\x00\x12d\n" +
-	"\x10ListDisablements\x12$.supplier.v1.ListDisablementsRequest\x1a%.supplier.v1.ListDisablementsResponse\"\x03\x90\x02\x01\x12d\n" +
-	"\x11UpdateDisablement\x12%.supplier.v1.UpdateDisablementRequest\x1a&.supplier.v1.UpdateDisablementResponse\"\x00\x12^\n" +
-	"\x0eEndDisablement\x12\".supplier.v1.EndDisablementRequest\x1a#.supplier.v1.EndDisablementResponse\"\x03\x90\x02\x02\x12g\n" +
-	"\x11CancelDisablement\x12%.supplier.v1.CancelDisablementRequest\x1a&.supplier.v1.CancelDisablementResponse\"\x03\x90\x02\x02B\xba\x01\n" +
-	"\x0fcom.supplier.v1B\x18LocationDisablementProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"`\n" +
+	"\x19CreateDisablementResponse\x12C\n" +
+	"\vdisablement\x18\x01 \x01(\v2!.supplier.location.v1.DisablementR\vdisablement\"`\n" +
+	"\x19UpdateDisablementResponse\x12C\n" +
+	"\vdisablement\x18\x01 \x01(\v2!.supplier.location.v1.DisablementR\vdisablement\"]\n" +
+	"\x16EndDisablementResponse\x12C\n" +
+	"\vdisablement\x18\x01 \x01(\v2!.supplier.location.v1.DisablementR\vdisablement\"`\n" +
+	"\x19CancelDisablementResponse\x12C\n" +
+	"\vdisablement\x18\x01 \x01(\v2!.supplier.location.v1.DisablementR\vdisablement\"\x9e\x01\n" +
+	"\x18ListDisablementsResponse\x12E\n" +
+	"\fdisablements\x18\x01 \x03(\v2!.supplier.location.v1.DisablementR\fdisablements\x12;\n" +
+	"\tpage_info\x18\x02 \x01(\v2\x1e.supplier.location.v1.PageInfoR\bpageInfo2\xf1\x04\n" +
+	"\x1aLocationDisablementService\x12v\n" +
+	"\x11CreateDisablement\x12..supplier.location.v1.CreateDisablementRequest\x1a/.supplier.location.v1.CreateDisablementResponse\"\x00\x12v\n" +
+	"\x10ListDisablements\x12-.supplier.location.v1.ListDisablementsRequest\x1a..supplier.location.v1.ListDisablementsResponse\"\x03\x90\x02\x01\x12v\n" +
+	"\x11UpdateDisablement\x12..supplier.location.v1.UpdateDisablementRequest\x1a/.supplier.location.v1.UpdateDisablementResponse\"\x00\x12p\n" +
+	"\x0eEndDisablement\x12+.supplier.location.v1.EndDisablementRequest\x1a,.supplier.location.v1.EndDisablementResponse\"\x03\x90\x02\x02\x12y\n" +
+	"\x11CancelDisablement\x12..supplier.location.v1.CancelDisablementRequest\x1a/.supplier.location.v1.CancelDisablementResponse\"\x03\x90\x02\x02B\xe9\x01\n" +
+	"\x18com.supplier.location.v1B\x10DisablementProtoP\x01ZIgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1;locationv1\xa2\x02\x03SLX\xaa\x02\x14Supplier.Location.V1\xca\x02\x14Supplier\\Location\\V1\xe2\x02 Supplier\\Location\\V1\\GPBMetadata\xea\x02\x16Supplier::Location::V1b\x06proto3"
 
 var (
-	file_supplier_v1_location_disablement_proto_rawDescOnce sync.Once
-	file_supplier_v1_location_disablement_proto_rawDescData []byte
+	file_supplier_location_v1_disablement_proto_rawDescOnce sync.Once
+	file_supplier_location_v1_disablement_proto_rawDescData []byte
 )
 
-func file_supplier_v1_location_disablement_proto_rawDescGZIP() []byte {
-	file_supplier_v1_location_disablement_proto_rawDescOnce.Do(func() {
-		file_supplier_v1_location_disablement_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_v1_location_disablement_proto_rawDesc), len(file_supplier_v1_location_disablement_proto_rawDesc)))
+func file_supplier_location_v1_disablement_proto_rawDescGZIP() []byte {
+	file_supplier_location_v1_disablement_proto_rawDescOnce.Do(func() {
+		file_supplier_location_v1_disablement_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_supplier_location_v1_disablement_proto_rawDesc), len(file_supplier_location_v1_disablement_proto_rawDesc)))
 	})
-	return file_supplier_v1_location_disablement_proto_rawDescData
+	return file_supplier_location_v1_disablement_proto_rawDescData
 }
 
-var file_supplier_v1_location_disablement_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_supplier_v1_location_disablement_proto_goTypes = []any{
-	(*CreateDisablementRequest)(nil),  // 0: supplier.v1.CreateDisablementRequest
-	(*ListDisablementsRequest)(nil),   // 1: supplier.v1.ListDisablementsRequest
-	(*UpdateDisablementRequest)(nil),  // 2: supplier.v1.UpdateDisablementRequest
-	(*EndDisablementRequest)(nil),     // 3: supplier.v1.EndDisablementRequest
-	(*CancelDisablementRequest)(nil),  // 4: supplier.v1.CancelDisablementRequest
-	(*CreateDisablementResponse)(nil), // 5: supplier.v1.CreateDisablementResponse
-	(*UpdateDisablementResponse)(nil), // 6: supplier.v1.UpdateDisablementResponse
-	(*EndDisablementResponse)(nil),    // 7: supplier.v1.EndDisablementResponse
-	(*CancelDisablementResponse)(nil), // 8: supplier.v1.CancelDisablementResponse
-	(*ListDisablementsResponse)(nil),  // 9: supplier.v1.ListDisablementsResponse
+var file_supplier_location_v1_disablement_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_supplier_location_v1_disablement_proto_goTypes = []any{
+	(*CreateDisablementRequest)(nil),  // 0: supplier.location.v1.CreateDisablementRequest
+	(*ListDisablementsRequest)(nil),   // 1: supplier.location.v1.ListDisablementsRequest
+	(*UpdateDisablementRequest)(nil),  // 2: supplier.location.v1.UpdateDisablementRequest
+	(*EndDisablementRequest)(nil),     // 3: supplier.location.v1.EndDisablementRequest
+	(*CancelDisablementRequest)(nil),  // 4: supplier.location.v1.CancelDisablementRequest
+	(*CreateDisablementResponse)(nil), // 5: supplier.location.v1.CreateDisablementResponse
+	(*UpdateDisablementResponse)(nil), // 6: supplier.location.v1.UpdateDisablementResponse
+	(*EndDisablementResponse)(nil),    // 7: supplier.location.v1.EndDisablementResponse
+	(*CancelDisablementResponse)(nil), // 8: supplier.location.v1.CancelDisablementResponse
+	(*ListDisablementsResponse)(nil),  // 9: supplier.location.v1.ListDisablementsResponse
 	(*timestamppb.Timestamp)(nil),     // 10: google.protobuf.Timestamp
-	(DisablementState)(0),             // 11: supplier.v1.DisablementState
+	(DisablementState)(0),             // 11: supplier.location.v1.DisablementState
 	(*fieldmaskpb.FieldMask)(nil),     // 12: google.protobuf.FieldMask
-	(*Disablement)(nil),               // 13: supplier.v1.Disablement
-	(*PageInfo)(nil),                  // 14: supplier.v1.PageInfo
+	(*Disablement)(nil),               // 13: supplier.location.v1.Disablement
+	(*PageInfo)(nil),                  // 14: supplier.location.v1.PageInfo
 }
-var file_supplier_v1_location_disablement_proto_depIdxs = []int32{
-	10, // 0: supplier.v1.CreateDisablementRequest.starts_at:type_name -> google.protobuf.Timestamp
-	10, // 1: supplier.v1.CreateDisablementRequest.ends_at:type_name -> google.protobuf.Timestamp
-	11, // 2: supplier.v1.ListDisablementsRequest.state:type_name -> supplier.v1.DisablementState
-	10, // 3: supplier.v1.UpdateDisablementRequest.starts_at:type_name -> google.protobuf.Timestamp
-	10, // 4: supplier.v1.UpdateDisablementRequest.ends_at:type_name -> google.protobuf.Timestamp
-	12, // 5: supplier.v1.UpdateDisablementRequest.update_mask:type_name -> google.protobuf.FieldMask
-	13, // 6: supplier.v1.CreateDisablementResponse.disablement:type_name -> supplier.v1.Disablement
-	13, // 7: supplier.v1.UpdateDisablementResponse.disablement:type_name -> supplier.v1.Disablement
-	13, // 8: supplier.v1.EndDisablementResponse.disablement:type_name -> supplier.v1.Disablement
-	13, // 9: supplier.v1.CancelDisablementResponse.disablement:type_name -> supplier.v1.Disablement
-	13, // 10: supplier.v1.ListDisablementsResponse.disablements:type_name -> supplier.v1.Disablement
-	14, // 11: supplier.v1.ListDisablementsResponse.page_info:type_name -> supplier.v1.PageInfo
-	0,  // 12: supplier.v1.LocationDisablementService.CreateDisablement:input_type -> supplier.v1.CreateDisablementRequest
-	1,  // 13: supplier.v1.LocationDisablementService.ListDisablements:input_type -> supplier.v1.ListDisablementsRequest
-	2,  // 14: supplier.v1.LocationDisablementService.UpdateDisablement:input_type -> supplier.v1.UpdateDisablementRequest
-	3,  // 15: supplier.v1.LocationDisablementService.EndDisablement:input_type -> supplier.v1.EndDisablementRequest
-	4,  // 16: supplier.v1.LocationDisablementService.CancelDisablement:input_type -> supplier.v1.CancelDisablementRequest
-	5,  // 17: supplier.v1.LocationDisablementService.CreateDisablement:output_type -> supplier.v1.CreateDisablementResponse
-	9,  // 18: supplier.v1.LocationDisablementService.ListDisablements:output_type -> supplier.v1.ListDisablementsResponse
-	6,  // 19: supplier.v1.LocationDisablementService.UpdateDisablement:output_type -> supplier.v1.UpdateDisablementResponse
-	7,  // 20: supplier.v1.LocationDisablementService.EndDisablement:output_type -> supplier.v1.EndDisablementResponse
-	8,  // 21: supplier.v1.LocationDisablementService.CancelDisablement:output_type -> supplier.v1.CancelDisablementResponse
+var file_supplier_location_v1_disablement_proto_depIdxs = []int32{
+	10, // 0: supplier.location.v1.CreateDisablementRequest.starts_at:type_name -> google.protobuf.Timestamp
+	10, // 1: supplier.location.v1.CreateDisablementRequest.ends_at:type_name -> google.protobuf.Timestamp
+	11, // 2: supplier.location.v1.ListDisablementsRequest.state:type_name -> supplier.location.v1.DisablementState
+	10, // 3: supplier.location.v1.UpdateDisablementRequest.starts_at:type_name -> google.protobuf.Timestamp
+	10, // 4: supplier.location.v1.UpdateDisablementRequest.ends_at:type_name -> google.protobuf.Timestamp
+	12, // 5: supplier.location.v1.UpdateDisablementRequest.update_mask:type_name -> google.protobuf.FieldMask
+	13, // 6: supplier.location.v1.CreateDisablementResponse.disablement:type_name -> supplier.location.v1.Disablement
+	13, // 7: supplier.location.v1.UpdateDisablementResponse.disablement:type_name -> supplier.location.v1.Disablement
+	13, // 8: supplier.location.v1.EndDisablementResponse.disablement:type_name -> supplier.location.v1.Disablement
+	13, // 9: supplier.location.v1.CancelDisablementResponse.disablement:type_name -> supplier.location.v1.Disablement
+	13, // 10: supplier.location.v1.ListDisablementsResponse.disablements:type_name -> supplier.location.v1.Disablement
+	14, // 11: supplier.location.v1.ListDisablementsResponse.page_info:type_name -> supplier.location.v1.PageInfo
+	0,  // 12: supplier.location.v1.LocationDisablementService.CreateDisablement:input_type -> supplier.location.v1.CreateDisablementRequest
+	1,  // 13: supplier.location.v1.LocationDisablementService.ListDisablements:input_type -> supplier.location.v1.ListDisablementsRequest
+	2,  // 14: supplier.location.v1.LocationDisablementService.UpdateDisablement:input_type -> supplier.location.v1.UpdateDisablementRequest
+	3,  // 15: supplier.location.v1.LocationDisablementService.EndDisablement:input_type -> supplier.location.v1.EndDisablementRequest
+	4,  // 16: supplier.location.v1.LocationDisablementService.CancelDisablement:input_type -> supplier.location.v1.CancelDisablementRequest
+	5,  // 17: supplier.location.v1.LocationDisablementService.CreateDisablement:output_type -> supplier.location.v1.CreateDisablementResponse
+	9,  // 18: supplier.location.v1.LocationDisablementService.ListDisablements:output_type -> supplier.location.v1.ListDisablementsResponse
+	6,  // 19: supplier.location.v1.LocationDisablementService.UpdateDisablement:output_type -> supplier.location.v1.UpdateDisablementResponse
+	7,  // 20: supplier.location.v1.LocationDisablementService.EndDisablement:output_type -> supplier.location.v1.EndDisablementResponse
+	8,  // 21: supplier.location.v1.LocationDisablementService.CancelDisablement:output_type -> supplier.location.v1.CancelDisablementResponse
 	17, // [17:22] is the sub-list for method output_type
 	12, // [12:17] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
@@ -690,27 +690,27 @@ var file_supplier_v1_location_disablement_proto_depIdxs = []int32{
 	0,  // [0:12] is the sub-list for field type_name
 }
 
-func init() { file_supplier_v1_location_disablement_proto_init() }
-func file_supplier_v1_location_disablement_proto_init() {
-	if File_supplier_v1_location_disablement_proto != nil {
+func init() { file_supplier_location_v1_disablement_proto_init() }
+func file_supplier_location_v1_disablement_proto_init() {
+	if File_supplier_location_v1_disablement_proto != nil {
 		return
 	}
-	file_supplier_v1_location_shared_types_proto_init()
+	file_supplier_location_v1_shared_types_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_disablement_proto_rawDesc), len(file_supplier_v1_location_disablement_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_location_v1_disablement_proto_rawDesc), len(file_supplier_location_v1_disablement_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_supplier_v1_location_disablement_proto_goTypes,
-		DependencyIndexes: file_supplier_v1_location_disablement_proto_depIdxs,
-		MessageInfos:      file_supplier_v1_location_disablement_proto_msgTypes,
+		GoTypes:           file_supplier_location_v1_disablement_proto_goTypes,
+		DependencyIndexes: file_supplier_location_v1_disablement_proto_depIdxs,
+		MessageInfos:      file_supplier_location_v1_disablement_proto_msgTypes,
 	}.Build()
-	File_supplier_v1_location_disablement_proto = out.File
-	file_supplier_v1_location_disablement_proto_goTypes = nil
-	file_supplier_v1_location_disablement_proto_depIdxs = nil
+	File_supplier_location_v1_disablement_proto = out.File
+	file_supplier_location_v1_disablement_proto_goTypes = nil
+	file_supplier_location_v1_disablement_proto_depIdxs = nil
 }
