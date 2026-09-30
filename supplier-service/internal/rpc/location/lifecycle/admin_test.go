@@ -2,11 +2,14 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
@@ -171,5 +174,62 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 		if connect.CodeOf(err) != row.code {
 			t.Fatalf("error %v maps to %v, want %v", row.err, connect.CodeOf(err), row.code)
 		}
+	}
+}
+
+func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
+
+	for _, row := range []struct {
+		name    string
+		err     error
+		code    connect.Code
+		message string
+	}{
+		{"not found", domainshared.ErrNotFound, connect.CodeNotFound, "location not found"},
+		{"wrapped not found", fmt.Errorf("database context: %w", domainshared.ErrNotFound), connect.CodeNotFound, "location not found"},
+		{"permission denied", domainshared.ErrPermissionDenied, connect.CodePermissionDenied, "permission denied"},
+		{"wrapped permission denied", fmt.Errorf("private context: %w", domainshared.ErrPermissionDenied), connect.CodePermissionDenied, "permission denied"},
+		{"validation", errs.NewBadRequestError("classification is required"), connect.CodeInvalidArgument, "classification is required"},
+		{"wrapped validation", fmt.Errorf("private context: %w", errs.NewBadRequestError("classification is required")), connect.CodeInvalidArgument, "classification is required"},
+		{"unknown", errors.New("database password secret"), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped canceled", fmt.Errorf("private context: %w", context.Canceled), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped deadline", fmt.Errorf("private context: %w", context.DeadlineExceeded), connect.CodeInternal, "An unknown error has occurred"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+
+			client := adminClient(t, &fakeAdmin{err: row.err}, "admin")
+			ctx := context.Background()
+			calls := []struct {
+				name string
+				call func() error
+			}{
+				{"create", func() error {
+					_, err := client.CreateLocation(ctx, connect.NewRequest(validCreateRequest()))
+					return err
+				}},
+				{"update", func() error {
+					_, err := client.UpdateLocation(ctx, connect.NewRequest(&locationv1.UpdateLocationRequest{Id: locationID, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}}, Location: &locationv1.LocationInput{Floor: proto.String("2")}}))
+					return err
+				}},
+				{"archive", func() error {
+					_, err := client.ArchiveLocation(ctx, connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
+					return err
+				}},
+				{"unarchive", func() error {
+					_, err := client.UnarchiveLocation(ctx, connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}))
+					return err
+				}},
+			}
+
+			for _, call := range calls {
+				t.Run(call.name, func(t *testing.T) {
+					err := call.call()
+					var transportError *connect.Error
+					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
+					}
+				})
+			}
+		})
 	}
 }

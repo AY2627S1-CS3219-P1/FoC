@@ -45,7 +45,7 @@ func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.R
 	}
 	loc, err := s.service.Create(ctx, caller, location.AdminCreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.CreateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -73,7 +73,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 	}
 	loc, err := s.service.Update(ctx, caller, location.AdminUpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.UpdateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -85,7 +85,7 @@ func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.
 	}
 	loc, err := s.service.Archive(ctx, caller, req.Msg.GetId())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.ArchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -97,7 +97,7 @@ func (s *LocationAdminServer) UnarchiveLocation(ctx context.Context, req *connec
 	}
 	loc, err := s.service.Unarchive(ctx, caller, req.Msg.GetId())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, rpcshared.ReadAdminConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.UnarchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }

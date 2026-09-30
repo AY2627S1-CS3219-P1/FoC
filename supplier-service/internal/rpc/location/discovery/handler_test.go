@@ -3,15 +3,18 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"github.com/go-chi/chi/v5"
 )
@@ -269,5 +272,62 @@ func TestInvalidTokenIsRejected(t *testing.T) {
 	_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+}
+
+func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
+
+	for _, row := range []struct {
+		name    string
+		err     error
+		code    connect.Code
+		message string
+	}{
+		{"not found", domainshared.ErrNotFound, connect.CodeNotFound, "location not found"},
+		{"wrapped not found", fmt.Errorf("database context: %w", domainshared.ErrNotFound), connect.CodeNotFound, "location not found"},
+		{"permission denied", domainshared.ErrPermissionDenied, connect.CodePermissionDenied, "permission denied"},
+		{"wrapped permission denied", fmt.Errorf("private context: %w", domainshared.ErrPermissionDenied), connect.CodePermissionDenied, "permission denied"},
+		{"validation", errs.NewBadRequestError("classification is required"), connect.CodeInvalidArgument, "classification is required"},
+		{"wrapped validation", fmt.Errorf("private context: %w", errs.NewBadRequestError("classification is required")), connect.CodeInvalidArgument, "classification is required"},
+		{"unknown", errors.New("database password secret"), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped canceled", fmt.Errorf("private context: %w", context.Canceled), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped deadline", fmt.Errorf("private context: %w", context.DeadlineExceeded), connect.CodeInternal, "An unknown error has occurred"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+
+			client := newLocationClient(t, &fakeLocationReader{err: row.err}, "admin")
+			ctx := context.Background()
+			calls := []struct {
+				name string
+				call func() error
+			}{
+				{"get", func() error {
+					_, err := client.GetLocation(ctx, connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
+					return err
+				}},
+				{"list", func() error {
+					_, err := client.ListLocations(ctx, connect.NewRequest(&locationv1.ListLocationsRequest{}))
+					return err
+				}},
+				{"buildings", func() error {
+					_, err := client.ListBuildings(ctx, connect.NewRequest(&locationv1.ListBuildingsRequest{}))
+					return err
+				}},
+				{"categories", func() error {
+					_, err := client.ListCategories(ctx, connect.NewRequest(&locationv1.ListCategoriesRequest{}))
+					return err
+				}},
+			}
+
+			for _, call := range calls {
+				t.Run(call.name, func(t *testing.T) {
+					err := call.call()
+					var transportError *connect.Error
+					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
+					}
+				})
+			}
+		})
 	}
 }
