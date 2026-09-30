@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,12 +12,15 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
+	AUTH_STARTUP_TIMEOUT    = time.Minute
+	AUTH_RETRY_INTERVAL     = 2 * time.Second
 )
 
 func main() {
@@ -36,7 +40,14 @@ func main() {
 	queries, pgxPool := database.Connect(config.DatabaseURL)
 	defer pgxPool.Close()
 
-	r := router.Setup(deps.New(queries, app, pgxPool))
+	// Fetches User Service public keys, so User Service must be reachable.
+	authenticator, err := newAuthenticator(context.Background())
+	if err != nil {
+		slog.Error("Error initializing authentication", "error", err)
+		panic(err)
+	}
+
+	r := router.Setup(deps.New(queries, app, pgxPool), authenticator)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port
@@ -97,4 +108,18 @@ func getCorsConfig() *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
+}
+
+// newAuthenticator retries while User Service starts, since its public keys
+// are fetched once at startup.
+func newAuthenticator(ctx context.Context) (*middleware.Authenticator, error) {
+	deadline := time.Now().Add(AUTH_STARTUP_TIMEOUT)
+	for {
+		authenticator, err := middleware.NewUserServiceAuthenticator(ctx)
+		if err == nil || time.Now().After(deadline) {
+			return authenticator, err
+		}
+		slog.Warn("User Service not ready; retrying", "error", err)
+		time.Sleep(AUTH_RETRY_INTERVAL)
+	}
 }

@@ -52,17 +52,26 @@ func (f *fakeLocationReader) ListCategories(context.Context) ([]location.Categor
 	return []location.Category{{ID: "c", Name: "Food"}}, f.err
 }
 
-func newLocationClient(t *testing.T, reader location.Reader) locationv1connect.LocationDiscoveryServiceClient {
+// newLocationClient serves the Location handler behind the real auth
+// middleware and returns a client calling as role, or without a token if
+// role is empty.
+func newLocationClient(t *testing.T, reader location.Reader, role string) locationv1connect.LocationDiscoveryServiceClient {
 	t.Helper()
+	auth := newTestAuth(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
 		NewLocationServer(location.NewService(reader)),
 		connect.WithInterceptors(validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
-	router.Mount(path, handler)
+	router.Mount(path, auth.authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL)
+
+	var options []connect.ClientOption
+	if role != "" {
+		options = append(options, bearer(auth.token(t, role)))
+	}
+	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, options...)
 }
 
 func TestGetLocationReturnsLocation(t *testing.T) {
@@ -85,7 +94,7 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 			},
 			Revision: 3,
 		},
-	}})
+	}}, "user")
 
 	res, err := client.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
 	if err != nil {
@@ -104,12 +113,24 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 func TestLocationErrors(t *testing.T) {
 	cases := []struct {
 		name   string
+		role   string
 		reader *fakeLocationReader
 		call   func(locationv1connect.LocationDiscoveryServiceClient) error
 		want   connect.Code
 	}{
 		{
+			name:   "no token",
+			role:   "",
+			reader: &fakeLocationReader{},
+			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
+				_, err := c.ListBuildings(context.Background(), connect.NewRequest(&locationv1.ListBuildingsRequest{}))
+				return err
+			},
+			want: connect.CodeUnauthenticated,
+		},
+		{
 			name:   "missing location",
+			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
 				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
@@ -119,6 +140,7 @@ func TestLocationErrors(t *testing.T) {
 		},
 		{
 			name:   "malformed id",
+			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
 				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: "nope"}))
@@ -128,6 +150,7 @@ func TestLocationErrors(t *testing.T) {
 		},
 		{
 			name:   "page size above maximum",
+			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
 				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{PageSize: 101}))
@@ -137,6 +160,7 @@ func TestLocationErrors(t *testing.T) {
 		},
 		{
 			name:   "archived view without admin",
+			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
 				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{
@@ -148,6 +172,7 @@ func TestLocationErrors(t *testing.T) {
 		},
 		{
 			name:   "database failure",
+			role:   "user",
 			reader: &fakeLocationReader{err: errors.New("connection refused to 10.0.0.5")},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
 				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
@@ -158,7 +183,7 @@ func TestLocationErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.call(newLocationClient(t, tc.reader))
+			err := tc.call(newLocationClient(t, tc.reader, tc.role))
 			if got := connect.CodeOf(err); got != tc.want {
 				t.Fatalf("code = %v, want %v (err %v)", got, tc.want, err)
 			}
@@ -172,7 +197,7 @@ func TestLocationErrors(t *testing.T) {
 func TestListLocationsReturnsPagination(t *testing.T) {
 	client := newLocationClient(t, &fakeLocationReader{locations: map[string]location.Location{
 		locationID: {ID: locationID, Name: "NUS Co-op"},
-	}})
+	}}, "user")
 	res, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +209,7 @@ func TestListLocationsReturnsPagination(t *testing.T) {
 }
 
 func TestListReferenceData(t *testing.T) {
-	client := newLocationClient(t, &fakeLocationReader{})
+	client := newLocationClient(t, &fakeLocationReader{}, "user")
 	buildings, err := client.ListBuildings(context.Background(), connect.NewRequest(&locationv1.ListBuildingsRequest{}))
 	if err != nil || len(buildings.Msg.Buildings) != 1 || buildings.Msg.Buildings[0].Name != "COM2" {
 		t.Fatalf("buildings = %v, err %v", buildings, err)
@@ -203,5 +228,56 @@ func TestLocationAdminMutationNotImplemented(t *testing.T) {
 	_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
 	if connect.CodeOf(err) != connect.CodeUnimplemented {
 		t.Fatalf("expected unimplemented mutation: %v", err)
+	}
+}
+
+func TestArchivedViewRequiresAdmin(t *testing.T) {
+	cases := map[string]connect.Code{
+		"super_admin":    0,
+		"admin":          0,
+		"user":           connect.CodePermissionDenied,
+		"suspended_user": connect.CodePermissionDenied,
+	}
+	for role, want := range cases {
+		t.Run(role, func(t *testing.T) {
+			client := newLocationClient(t, &fakeLocationReader{}, role)
+			_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{
+				StatusView: locationv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED,
+			}))
+			if want == 0 && err != nil {
+				t.Fatalf("err = %v, want success", err)
+			}
+			if want != 0 && connect.CodeOf(err) != want {
+				t.Fatalf("code = %v, want %v", connect.CodeOf(err), want)
+			}
+		})
+	}
+}
+
+func TestEveryRoleCanBrowse(t *testing.T) {
+	for _, role := range []string{"super_admin", "admin", "user", "suspended_user"} {
+		t.Run(role, func(t *testing.T) {
+			client := newLocationClient(t, &fakeLocationReader{}, role)
+			if _, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{})); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestInvalidTokenIsRejected(t *testing.T) {
+	auth := newTestAuth(t)
+	other := newTestAuth(t)
+	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(location.NewService(&fakeLocationReader{})))
+	router := chi.NewRouter()
+	router.Mount(path, auth.authenticator.Authenticate(handler))
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	// Signed by a different key than the one User Service publishes.
+	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, bearer(other.token(t, "admin")))
+	_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("code = %v, want unauthenticated", connect.CodeOf(err))
 	}
 }

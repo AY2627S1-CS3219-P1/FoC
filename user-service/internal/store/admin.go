@@ -36,6 +36,14 @@ func (s *Admin) ListDomains(ctx context.Context) ([]models.AllowedEmailDomain, e
 	return ds, err
 }
 
+// Allows reports whether domain is present in the registration allowlist.
+func (s *Admin) Allows(ctx context.Context, domain string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).Model(&models.AllowedEmailDomain{}).
+		Where("domain = ?", domain).Count(&count).Error
+	return count > 0, err
+}
+
 // AddDomain inserts d, mapping GORM duplicate-key and check-constraint errors
 // to ErrDuplicate and ErrInvalidDomain. Other database errors are returned unchanged.
 func (s *Admin) AddDomain(ctx context.Context, d *models.AllowedEmailDomain) error {
