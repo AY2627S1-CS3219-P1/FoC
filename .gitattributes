@@ -1,0 +1,3 @@
+# Collapse generated code in GitHub diffs
+pkg/gen/** linguist-generated=true
+frontend/src/lib/gen/** linguist-generated=true

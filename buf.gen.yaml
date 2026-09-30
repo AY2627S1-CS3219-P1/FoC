@@ -4,6 +4,12 @@ clean: true # clear output dirs first before gen
 
 managed:
   enabled: true
+  disable:
+    # dependency modules keep their published Go packages
+    - module: buf.build/bufbuild/protovalidate
+      file_option: go_package_prefix
+    - module: buf.build/googleapis/googleapis
+      file_option: go_package_prefix
   override:
     - file_option: go_package_prefix
       value: github.com/AY2627S1-CS3219-P1/FoC/pkg/gen # for import path in generated Go code
@@ -21,5 +27,6 @@ plugins:
 
   - local: frontend/node_modules/.bin/protoc-gen-es # services and messages
     out: frontend/src/lib/gen
+    include_imports: true # also generate imported dependency protos, e.g. buf/validate, google/type
     opt:
       - target=ts
