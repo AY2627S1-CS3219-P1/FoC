@@ -7,7 +7,6 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
@@ -52,7 +51,7 @@ func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1conne
 	t.Helper()
 	auth := newTestAuth(t)
 	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(admin),
-		connect.WithInterceptors(AdminAuthorizationInterceptor(authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin)), validate.NewInterceptor()))
+		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
 	router := chi.NewRouter()
 	router.Mount(path, auth.authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)

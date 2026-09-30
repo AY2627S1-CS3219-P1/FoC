@@ -13,7 +13,6 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
@@ -87,7 +86,7 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	router := chi.NewRouter()
 	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pool), time.Now)
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(locationAdmin),
-		connect.WithInterceptors(AdminAuthorizationInterceptor(authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin)), validate.NewInterceptor()))
+		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))
 	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(reader),

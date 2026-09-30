@@ -5,7 +5,6 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
@@ -22,11 +21,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService, adminPolicy authorization.Policy) *chi.Mux {
+func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
-	SetupRoutes(r, env, authenticator, locationAdmin, adminPolicy)
+	SetupRoutes(r, env, authenticator, locationAdmin)
 	SetupAdminRoutes(r, env)
 	return r
 }
@@ -40,7 +39,7 @@ func SetupMiddleware(r *chi.Mux) {
 
 // SetupRoutes mounts the supplier health RPC at its generated path and the
 // public REST health and authentication routes under /api.
-func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService, adminPolicy authorization.Policy) {
+func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		supplierrpc.NewHealthServer(),
 	)
@@ -56,7 +55,7 @@ func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authen
 
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(
 		supplierrpc.NewLocationAdminServer(locationAdmin),
-		connect.WithInterceptors(supplierrpc.AdminAuthorizationInterceptor(adminPolicy), validate.NewInterceptor()),
+		connect.WithInterceptors(supplierrpc.AdminAuthorizationInterceptor(), validate.NewInterceptor()),
 	)
 	r.Mount(adminPath, authenticator.Authenticate(adminHandler))
 

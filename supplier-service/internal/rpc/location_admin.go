@@ -6,11 +6,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
-	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 )
 
@@ -33,15 +31,15 @@ func NewLocationAdminServer(service LocationAdmin) *LocationAdminServer {
 
 // AdminAuthorizationInterceptor runs before validation, including for invalid
 // requests, so an ordinary caller cannot inspect the administrator contract.
-func AdminAuthorizationInterceptor(policy authorization.Policy) connect.Interceptor {
+func AdminAuthorizationInterceptor() connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			claims, ok := authmiddleware.ClaimsFromContext[authmiddleware.AccessClaims](ctx)
-			if !ok {
-				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("unauthenticated"))
+			caller, err := requireCaller(ctx)
+			if err != nil {
+				return nil, err
 			}
-			if err := authorization.Enforce(ctx, claims, policy); err != nil {
-				return nil, api.ToConnectError(ctx, err)
+			if !caller.Admin {
+				return nil, api.ToConnectError(ctx, location.ErrPermissionDenied)
 			}
 			return next(ctx, req)
 		}

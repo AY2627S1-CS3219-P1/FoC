@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/authorization"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
@@ -50,8 +49,7 @@ func main() {
 	}
 
 	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pgxPool), time.Now)
-	adminPolicy := authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin)
-	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, locationAdmin, adminPolicy)
+	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, locationAdmin)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port

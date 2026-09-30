@@ -101,7 +101,7 @@ func callerFromContext(ctx context.Context) (location.Caller, bool) {
 	if !ok {
 		return location.Caller{}, false
 	}
-	admin := claims.RoleName().IsAdmin()
+	admin := claims.Role == "admin" || claims.Role == "super_admin"
 	return location.Caller{ID: claims.Subject, Admin: admin}, true
 }
 

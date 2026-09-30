@@ -29,8 +29,6 @@ func (r Role) Valid() bool {
 	}
 }
 
-func (r Role) IsAdmin() bool { return r == RoleAdmin || r == RoleSuperAdmin }
-
 // Principal is the caller information consumed by authorization policies.
 type Principal interface {
 	SubjectID() string
