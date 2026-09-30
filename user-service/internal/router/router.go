@@ -14,7 +14,6 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
-	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -67,7 +66,7 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 			userv1connect.UserAdminServiceChangeUserRoleProcedure: p.AdminPolicy,
 		}
 		interceptors := connect.WithInterceptors(normalizeRPCError(),
-			authorization.NewConnectInterceptor(authmiddleware.AccessPrincipalFromContext, policies),
+			authorization.NewConnectInterceptor(policies),
 			validate.NewInterceptor())
 		profilePath, profileService := userv1connect.NewProfileServiceHandler(
 			p.Profile, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))

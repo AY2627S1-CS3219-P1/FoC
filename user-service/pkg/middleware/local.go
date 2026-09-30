@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -38,7 +37,7 @@ func AuthenticateLocal(verifier AccessVerifier) func(http.Handler) http.Handler 
 			access := AccessClaims{Subject: claims.Subject, SessionID: claims.SessionID,
 				Role: string(claims.Role), IssuedAt: claims.IssuedAt,
 				ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
-			ctx := context.WithValue(r.Context(), claimsKey[AccessClaims]{}, access)
+			ctx := withAccessClaims(r.Context(), access)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
