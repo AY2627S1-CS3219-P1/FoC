@@ -84,11 +84,25 @@ func (q *Queries) CurrentWorkflowDisablement(ctx context.Context, arg CurrentWor
 }
 
 const deleteExpiredWorkflowIdempotency = `-- name: DeleteExpiredWorkflowIdempotency :exec
-DELETE FROM supplier_idempotency WHERE expires_at<=$1::timestamptz
+DELETE FROM supplier_idempotency
+WHERE caller_id=$1 AND method=$2 AND key=$3::uuid
+    AND expires_at<=$4::timestamptz
 `
 
-func (q *Queries) DeleteExpiredWorkflowIdempotency(ctx context.Context, nowAt pgtype.Timestamptz) error {
-	_, err := q.db.Exec(ctx, deleteExpiredWorkflowIdempotency, nowAt)
+type DeleteExpiredWorkflowIdempotencyParams struct {
+	CallerID string
+	Method   string
+	Key      pgtype.UUID
+	NowAt    pgtype.Timestamptz
+}
+
+func (q *Queries) DeleteExpiredWorkflowIdempotency(ctx context.Context, arg DeleteExpiredWorkflowIdempotencyParams) error {
+	_, err := q.db.Exec(ctx, deleteExpiredWorkflowIdempotency,
+		arg.CallerID,
+		arg.Method,
+		arg.Key,
+		arg.NowAt,
+	)
 	return err
 }
 

@@ -283,7 +283,7 @@ func (t *transaction) Idempotency(ctx context.Context, s w.IdempotencyScope, now
 	if e := t.q.LockWorkflowIdempotency(ctx, string(scope)); e != nil {
 		return nil, mapError(e)
 	}
-	if e := t.q.DeleteExpiredWorkflowIdempotency(ctx, stamp(now)); e != nil {
+	if e := t.q.DeleteExpiredWorkflowIdempotency(ctx, db.DeleteExpiredWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key), NowAt: stamp(now)}); e != nil {
 		return nil, mapError(e)
 	}
 	v, e := t.q.GetWorkflowIdempotency(ctx, db.GetWorkflowIdempotencyParams{CallerID: s.Caller, Method: s.Method, Key: id(s.Key)})

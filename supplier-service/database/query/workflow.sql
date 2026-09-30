@@ -101,7 +101,9 @@ INSERT INTO location_categories (location_id,category_id) VALUES ($1,$2);
 SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(scope)::text,0));
 
 -- name: DeleteExpiredWorkflowIdempotency :exec
-DELETE FROM supplier_idempotency WHERE expires_at<=sqlc.arg(now_at)::timestamptz;
+DELETE FROM supplier_idempotency
+WHERE caller_id=sqlc.arg(caller_id) AND method=sqlc.arg(method) AND key=sqlc.arg(key)::uuid
+    AND expires_at<=sqlc.arg(now_at)::timestamptz;
 
 -- name: GetWorkflowIdempotency :one
 SELECT * FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3;
