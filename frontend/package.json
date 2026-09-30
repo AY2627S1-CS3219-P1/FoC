@@ -27,11 +27,13 @@
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
 		"vite": "^8.0.16",
+		"vite-plugin-functions-mixins": "file:vendor/vite-plugin-functions-mixins",
 		"vitest": "^5.0.2"
 	},
 	"dependencies": {
 		"@bufbuild/protobuf": "^2.15.0",
 		"@connectrpc/connect": "^2.2.0",
-		"@connectrpc/connect-web": "^2.2.0"
+		"@connectrpc/connect-web": "^2.2.0",
+		"m3-svelte": "^7.2.1"
 	}
 }
