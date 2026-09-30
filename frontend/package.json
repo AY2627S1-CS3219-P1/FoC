@@ -22,12 +22,12 @@
 		"@bufbuild/protoc-gen-es": "2.15.0",
 		"@sveltejs/adapter-auto": "^7.0.1",
 		"@sveltejs/kit": "^2.63.0",
-		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
-		"vite": "^7.3.6",
-		"vite-plugin-functions-mixins": "^0.4.1",
+		"vite": "^8.0.16",
+		"vite-plugin-functions-mixins": "file:vendor/vite-plugin-functions-mixins",
 		"vitest": "^5.0.2"
 	},
 	"dependencies": {
