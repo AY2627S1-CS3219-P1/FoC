@@ -21,8 +21,10 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 )
 
 const (
@@ -36,6 +38,7 @@ type config struct {
 	dbMaxOpen     int
 	dbMaxIdle     int
 	runMigrations bool
+	bootstrap     bootstrap.Config
 }
 
 func main() {
@@ -68,6 +71,18 @@ func main() {
 			fatal("migrate", err)
 		}
 		log.Info("migrations applied")
+	}
+
+	if cfg.bootstrap.Email != "" {
+		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
+		if err != nil {
+			fatal("admin bootstrap", err)
+		}
+		if outcome == store.BootstrapAlreadyDone {
+			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
+		} else {
+			log.Info("admin bootstrapped", "outcome", outcome.String(), "user_id", admin.ID)
+		}
 	}
 
 	srv := newServer(":"+cfg.port, getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})))
@@ -123,6 +138,10 @@ func loadConfig() (config, error) {
 		dbMaxOpen:     envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:     envPositiveInt("DB_MAX_IDLE", 5, &errs),
 		runMigrations: envBool("RUN_MIGRATIONS", true, &errs),
+		bootstrap: bootstrap.Config{
+			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
+			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
+		},
 	}
 	if cfg.databaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is not set"))
