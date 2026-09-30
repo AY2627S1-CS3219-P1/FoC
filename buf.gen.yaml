@@ -18,25 +18,15 @@ plugins:
   - remote: buf.build/protocolbuffers/go:v1.36.12 # data layer, i.e. structs and interfaces
     out: pkg/gen
     opt:
-      - paths=source_relative # preserve the schema’s directory structure inside the output directory
+      - paths=source_relative # preserve the schema's directory structure inside the output directory
 
   - remote: buf.build/connectrpc/go:v1.21.0 # handlers, i.e. Connect client/transport code
     out: pkg/gen
     opt:
-      - paths=source_relative # preserve the schema’s directory structure inside the output directory
+      - paths=source_relative # preserve the schema's directory structure inside the output directory
 
   - local: frontend/node_modules/.bin/protoc-gen-es # services and messages
     out: frontend/src/lib/gen
     include_imports: true # also generate imported dependency protos, e.g. buf/validate, google/type
     opt:
       - target=ts
-
-  - remote: buf.build/community/sudorandom-connect-openapi:v0.27.3
-    out: docs/api/supplier/v1
-    opt:
-      - path=openapi.yaml
-      - services=supplier.v1.HealthService
-      - services=supplier.v1.LocationDiscoveryService
-      - services=supplier.v1.LocationAdminService
-      - services=supplier.v1.LocationDisablementService
-      - services=supplier.v1.LocationAdditionRequestService

@@ -57,14 +57,18 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 All service APIs, for the frontend and between services, are Connect RPCs.
 
 - API contracts live under `proto/<service>/v1` and use the protobuf package
-  `<service>.v1`. Keep service names unique within this repository.
+  `<service>.v1`. A distinct domain API may live under
+  `proto/<service>/<domain>/v1` with package `<service>.<domain>.v1` (for example,
+  `supplier.location.v1`). Keep service names unique within this repository.
 - Buf generates Go messages and Connect handlers under `pkg/gen`, and
   TypeScript messages and service descriptors under `frontend/src/lib/gen`.
   Implementers and callers import generated types, but never edit generated
   files. Protobuf messages are external API contracts; domain, sqlc and GORM
   types remain internal.
-- After changing a contract, run `npm run buf:lint` and
-  `npm run buf:generate` from `frontend`. Commit the contract and generated
+- After changing a contract, run `make buf-lint` and
+  `make buf-generate` from the repository root (install frontend npm dependencies
+  first for the TypeScript generator). The Makefile pins and installs Buf. Commit
+  the contract and generated
   output together.
 - Handwritten Go implementations embed the generated unimplemented handler.
   Mount the generated handler in the service router.
@@ -117,6 +121,23 @@ Supplier Service uses sqlc:
   `internal/database/userdb` and `internal/database/seeddb`. Never hand-edit
   generated files.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+## Frontend services
+
+- Keep each domain's service, API interface, and Connect adapter together under
+  `frontend/src/lib/services/<domain>/`. Use `service.svelte.ts` for rune state;
+  a domain `index.ts` may expose a factory but must not create a singleton.
+- Compose singleton services in `frontend/src/lib/services/index.ts`. Routes
+  and components import services from `$lib/services`. When services depend on
+  one another, keep the dependency one-way and inject it from the composition
+  root, preferably through an interface owned by the consuming service; do not
+  import another service's singleton directly.
+- Keep `frontend/src/lib/connect/transport.ts` domain agnostic. It accepts a
+  base URL and optional interceptors. Auth RPCs use a plain transport; the
+  composition root adds `authService.interceptor` to protected transports.
+- Use mutable singletons only in browser lifecycle and event code, never in
+  server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
+  `$lib` imports; relative imports may use `.ts` suffixes.
 
 User Service uses GORM:
 

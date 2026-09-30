@@ -45,7 +45,8 @@ grpcWebClient := supplierv1connect.NewHealthServiceClient(
 The contract is defined in:
 
 ```text
-proto/supplier/v1/
+proto/supplier/v1/ (health)
+proto/supplier/location/v1/ (locations)
 ```
 
 Buf generates the corresponding Go code in:
@@ -53,10 +54,12 @@ Buf generates the corresponding Go code in:
 ```text
 pkg/gen/supplier/v1/
 pkg/gen/supplier/v1/supplierv1connect/
+pkg/gen/supplier/location/v1/
+pkg/gen/supplier/location/v1/locationv1connect/
 ```
 
 Do not edit generated files. Change the `.proto` source and run
-`npm run buf:generate` from `frontend` instead.
+`make buf-generate` from the repository root instead.
 
 Handwritten behavior belongs in this package:
 
@@ -213,8 +216,8 @@ adapters return protobuf responses and Connect error codes.
 ## Adding an RPC
 
 1. Change the appropriate `.proto` file.
-2. Run `npm run buf:lint` from `frontend`.
-3. Run `npm run buf:generate` from `frontend`.
+2. Run `make buf-lint` from the repository root.
+3. Run `make buf-generate` from the repository root.
 4. Inspect, but do not edit, the generated interface.
 5. Implement the generated method in this package.
 6. Mount the generated handler in the supplier router.

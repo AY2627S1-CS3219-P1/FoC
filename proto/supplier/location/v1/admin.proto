@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package supplier.location.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/field_mask.proto";
+import "supplier/location/v1/shared_types.proto";
+
+// Administrator-only Location management.
+service LocationAdminService {
+  rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse) {}
+
+  rpc UpdateLocation(UpdateLocationRequest) returns (UpdateLocationResponse) {}
+
+  // Soft delete; Locations are never physically deleted.
+  rpc ArchiveLocation(ArchiveLocationRequest) returns (ArchiveLocationResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+
+  rpc UnarchiveLocation(UnarchiveLocationRequest) returns (UnarchiveLocationResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message CreateLocationRequest {
+  option (buf.validate.message).cel = {
+    id: "complete_location_input"
+    message: "explicit classification is required"
+    expression: "has(this.location.is_supplier)"
+  };
+  // Client-generated. Retrying with the same key and payload within 24 hours
+  // returns the original Location; a different payload is already_exists.
+  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
+  LocationInput location = 2 [(buf.validate.field).required = true];
+}
+
+message CreateLocationResponse {
+  Location location = 1;
+}
+
+message UpdateLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Must match the current revision, otherwise aborted.
+  int64 expected_revision = 2 [(buf.validate.field).int64.gt = 0];
+  // Not validated on its own; the handler applies update_mask to the current
+  // Location and validates the merged LocationInput.
+  LocationInput location = 3 [(buf.validate.field).ignore = IGNORE_ALWAYS];
+  // Masked fields left unset are cleared.
+  google.protobuf.FieldMask update_mask = 4 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).field_mask.in = "name",
+    (buf.validate.field).field_mask.in = "is_supplier",
+    (buf.validate.field).field_mask.in = "category_ids",
+    (buf.validate.field).field_mask.in = "building_id",
+    (buf.validate.field).field_mask.in = "floor",
+    (buf.validate.field).field_mask.in = "coordinates",
+    (buf.validate.field).field_mask.in = "opens_at",
+    (buf.validate.field).field_mask.in = "closes_at",
+    (buf.validate.field).field_mask.in = "contact",
+    (buf.validate.field).field_mask.in = "details"
+  ];
+}
+
+message UpdateLocationResponse {
+  Location location = 1;
+}
+
+message ArchiveLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ArchiveLocationResponse {
+  Location location = 1;
+}
+
+message UnarchiveLocationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UnarchiveLocationResponse {
+  Location location = 1;
+}
