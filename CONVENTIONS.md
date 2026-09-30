@@ -1,5 +1,12 @@
 # Conventions
 
+## Git branches
+
+- Use `<owner>/<type>/<description>` with a lowercase kebab-case description.
+- Andrew's feature branches use `andrew/feat/<description>`, for example
+  `andrew/feat/location-workflows`. Use `fix`, `refactor`, `chore`, or `docs`
+  instead of `feat` when appropriate.
+
 ## REST handlers
 
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
