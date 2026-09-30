@@ -46,6 +46,13 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `JWT_ACCESS_TOKEN_TTL` and `JWT_REFRESH_TOKEN_TTL` accept Go duration
    values. Their defaults are `10m` and `720h` (30 days).
 
+   Magic links are sent over SMTP. `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
+   (an address such as `FoC <no-reply@foc.local>`) are required outside
+   local mode. With `APP_ENV=local` they default to Mailpit on
+   `localhost:1025`; Compose points the container at `mailpit:1025`.
+   `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
+   the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
+
 2. Set up the database.
 
    The service uses PostgreSQL 18 and
@@ -63,8 +70,11 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    docker compose up --build user-service
    ```
 
-   For host development, run `make run` from this directory after setting up
-   the environment and database.
+   Compose also starts [Mailpit](https://mailpit.axllent.org/), which
+   catches every email the service sends. Open http://localhost:8025 to
+   read login and registration links. For host development, run
+   `docker compose up -d mailpit`, then `make run` from this directory after
+   setting up the environment and database.
 
 ## Authentication
 
@@ -83,12 +93,16 @@ so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
 environment variables. Link requests return an empty typed response; the magic
-link is passed only to the injected email sender. The configured
-`EmptyEmailSender` discards it until an email delivery adapter is connected.
+link is only emailed, through `pkg/email.SMTPSender`. If delivery fails,
+`RequestLink` returns `Unavailable` and logs the SMTP error. An existing
+account receives a `/login?token=` link and a new address a
+`/register?token=` link; both expire after ten minutes and work once.
 
-Authentication persistence is wired to the user-service store. Email delivery
-is not configured yet, so `RequestLink` currently stores the challenge but the
-configured `EmptyEmailSender` discards the link instead of delivering it.
+Registration only accepts addresses whose domain is in
+`allowed_email_domains`; an empty table rejects every registration. For local
+testing, add a domain, for example
+`INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
+bootstrapped admin can log in without one.
 
 ## First super admin
 
