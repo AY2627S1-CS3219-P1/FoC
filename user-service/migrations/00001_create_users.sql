@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS citext;
 CREATE TABLE users (
     id                  BIGSERIAL PRIMARY KEY,
     email               CITEXT NOT NULL,
-    display_name        TEXT NOT NULL CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 50),
+    display_name        TEXT NOT NULL CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 100),
     description         TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 500),
     telegram_handle     TEXT CHECK (telegram_handle ~ '^[A-Za-z0-9_]{5,32}$'),
     phone_number        TEXT CHECK (char_length(phone_number) <= 20),
