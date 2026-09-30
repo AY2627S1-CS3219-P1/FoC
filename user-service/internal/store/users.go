@@ -85,6 +85,53 @@ func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, nil
 }
 
+// GetByIDForUpdate locks a user row until the surrounding transaction ends.
+func (s *Users) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var u models.User
+	err := s.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Take(&u, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// UpdateActiveProfile replaces the editable fields only while the account is
+// active. The role predicate closes the race with a concurrent suspension.
+func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) error {
+	fields := map[string]any{
+		"display_name":    user.DisplayName,
+		"description":     user.Description,
+		"telegram_handle": nullString(user.TelegramHandle),
+		"phone_number":    nullString(user.PhoneNumber),
+		"updated_by":      user.UpdatedBy,
+	}
+	res := s.db.WithContext(ctx).Model(&models.User{}).
+		Where("id = ? AND role <> ?", user.ID, models.RoleSuspended).Updates(fields)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		var current models.User
+		if err := s.db.WithContext(ctx).Take(&current, user.ID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		return ErrRoleConflict
+	}
+	return nil
+}
+
+func nullString(value *string) any {
+	if value == nil || *value == "" {
+		return nil
+	}
+	return *value
+}
+
 func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, error) {
 	p = p.Normalize()
 	var (

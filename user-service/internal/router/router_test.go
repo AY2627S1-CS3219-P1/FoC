@@ -85,8 +85,11 @@ func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
 
 func testUser() models.User {
 	return models.User{ID: uuid.MustParse("3bd7435a-201f-45d4-b858-c1081a93a63c"),
-		Email: "user@example.com", DisplayName: "User", Role: models.RoleUser}
+		Email: "user@example.com", DisplayName: "User", TelegramHandle: stringPtr("example_user"),
+		PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
 }
+
+func stringPtr(value string) *string { return &value }
 
 func testTokens() jwt.AuthTokens {
 	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
@@ -121,6 +124,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	}
 	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
+		login.Msg.User.GetTelegramHandle() != "example_user" || login.Msg.User.GetPhoneNumber() != "+12345678" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {
 		t.Fatalf("unexpected login response: %+v", login.Msg)
 	}
@@ -130,13 +134,19 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal("login response should not be cached")
 	}
 
-	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: "User"})
+	rawDisplayName := " " + strings.Repeat("U", 100) + " "
+	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: rawDisplayName,
+		TelegramHandle: stringPtr(" example_user "), PhoneNumber: stringPtr(" +12345678 ")})
 	registerReq.Header().Set("Origin", frontendOrigin)
 	register, err := client.Register(ctx, registerReq)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" || logic.registerProfile.DisplayName != "User" {
+	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" ||
+		logic.registerProfile.DisplayName != rawDisplayName || logic.registerProfile.TelegramHandle == nil ||
+		*logic.registerProfile.TelegramHandle != " example_user " || logic.registerProfile.PhoneNumber == nil ||
+		*logic.registerProfile.PhoneNumber != " +12345678 " || register.Msg.User.GetTelegramHandle() != "example_user" ||
+		register.Msg.User.GetPhoneNumber() != "+12345678" {
 		t.Fatalf("unexpected registration response: %+v", register.Msg)
 	}
 	assertRefreshCookie(t, (&http.Response{Header: register.Header()}).Cookies(), "refresh-secret")

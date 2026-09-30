@@ -202,11 +202,15 @@ func (x *LoginRequest) GetToken() string {
 }
 
 type RegisterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// The service trims the name and requires 1 to 100 characters afterward.
+	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// The service trims and validates contacts; blank values are unset.
+	TelegramHandle *string `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
+	PhoneNumber    *string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RegisterRequest) Reset() {
@@ -253,14 +257,30 @@ func (x *RegisterRequest) GetDisplayName() string {
 	return ""
 }
 
+func (x *RegisterRequest) GetTelegramHandle() string {
+	if x != nil && x.TelegramHandle != nil {
+		return *x.TelegramHandle
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetPhoneNumber() string {
+	if x != nil && x.PhoneNumber != nil {
+		return *x.PhoneNumber
+	}
+	return ""
+}
+
 type User struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Role          UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Email          string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	DisplayName    string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Role           UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	TelegramHandle *string                `protobuf:"bytes,5,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
+	PhoneNumber    *string                `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -319,6 +339,20 @@ func (x *User) GetRole() UserRole {
 		return x.Role
 	}
 	return UserRole_USER_ROLE_UNSPECIFIED
+}
+
+func (x *User) GetTelegramHandle() string {
+	if x != nil && x.TelegramHandle != nil {
+		return *x.TelegramHandle
+	}
+	return ""
+}
+
+func (x *User) GetPhoneNumber() string {
+	if x != nil && x.PhoneNumber != nil {
+		return *x.PhoneNumber
+	}
+	return ""
 }
 
 type LoginResponse struct {
@@ -838,15 +872,23 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x12RequestLinkRequest\x12\x1f\n" +
 	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"-\n" +
 	"\fLoginRequest\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\"^\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\"\xce\x01\n" +
 	"\x0fRegisterRequest\x12\x1d\n" +
-	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\x12,\n" +
-	"\fdisplay_name\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\vdisplayName\"v\n" +
+	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12,\n" +
+	"\x0ftelegram_handle\x18\x03 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
+	"\fphone_number\x18\x04 \x01(\tH\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
+	"\x10_telegram_handleB\x0f\n" +
+	"\r_phone_number\"\xf1\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12%\n" +
-	"\x04role\x18\x04 \x01(\x0e2\x11.user.v1.UserRoleR\x04role\"U\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x11.user.v1.UserRoleR\x04role\x12,\n" +
+	"\x0ftelegram_handle\x18\x05 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
+	"\fphone_number\x18\x06 \x01(\tH\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
+	"\x10_telegram_handleB\x0f\n" +
+	"\r_phone_number\"U\n" +
 	"\rLoginResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\x12!\n" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\"X\n" +
@@ -955,6 +997,8 @@ func file_user_v1_auth_proto_init() {
 	if File_user_v1_auth_proto != nil {
 		return
 	}
+	file_user_v1_auth_proto_msgTypes[3].OneofWrappers = []any{}
+	file_user_v1_auth_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

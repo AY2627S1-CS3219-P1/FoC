@@ -146,7 +146,19 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 
 func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
-	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
+	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > MaxDisplayNameLength {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	var ok bool
+	profile.TelegramHandle, ok = normalizedContact(profile.TelegramHandle, 32)
+	if !ok {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	if profile.TelegramHandle != nil && !telegramHandlePattern.MatchString(*profile.TelegramHandle) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	profile.PhoneNumber, ok = normalizedContact(profile.PhoneNumber, 20)
+	if !ok {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
 	digest, err := digestMagicToken(registrationToken)
@@ -173,7 +185,8 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		if !allowed {
 			return jwt.ErrRegistrationFailed
 		}
-		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName, Role: models.RoleUser}
+		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName,
+			TelegramHandle: profile.TelegramHandle, PhoneNumber: profile.PhoneNumber, Role: models.RoleUser}
 		if err := tx.Users.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
 				return jwt.ErrAlreadyRegistered

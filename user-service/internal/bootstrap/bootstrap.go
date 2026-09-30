@@ -39,7 +39,7 @@ func (b *Bootstrapper) Run(ctx context.Context, cfg Config) (models.User, store.
 	if name == "" {
 		name = DefaultDisplayName
 	}
-	if utf8.RuneCountInString(name) > 100 {
+	if utf8.RuneCountInString(name) > service.MaxDisplayNameLength {
 		return models.User{}, 0, jwt.ErrInvalidProfile
 	}
 	user := models.User{Email: email, DisplayName: name}

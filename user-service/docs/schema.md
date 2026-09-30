@@ -21,7 +21,7 @@ erDiagram
     users {
         uuid id PK
         citext email UK "among live rows"
-        text display_name "1-50 chars"
+        text display_name "1-100 chars"
         text description "max 500"
         text telegram_handle "5-32 of A-Za-z0-9_, no @"
         text phone_number "max 20"
@@ -133,19 +133,22 @@ UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
 INSERT INTO account_warnings (...) VALUES (...) ON CONFLICT (source_event_id) DO NOTHING;
 ```
 
-## Roles & authorisation (planned)
+## Roles & authorisation
 
-No permissions table. Each handler reads the caller's role (`auth.Require`)
-and decides. Shared rules live in `internal/auth`:
+No permissions table. Protected Connect routes verify the access token at the
+HTTP boundary; Connect interceptors read the caller's current database role.
+The role service rechecks the actor under a row lock before writing:
 
-| Caller | Can manage (`CanManage`) | Role changes (`CanAssignRole`) |
+| Caller | Allowed targets | Allowed destination roles |
 |---|---|---|
 | `super_admin` | `admin`, `user`, `suspended` | anything among those three, incl. promote user → admin, demote admin |
 | `admin` | `user`, `suspended` | user ↔ suspended (suspend / reinstate) |
 | `user` | – | – |
 | `suspended` | – | – |
 
-Nobody can change their own role. `super_admin` is only granted by the startup admin bootstrap.
+Nobody can change their own role or a `super_admin` role. The startup admin
+bootstrap grants the first `super_admin` role. A reason is required when a role
+change enters or leaves `suspended`.
 
 ## Conventions
 
