@@ -90,6 +90,7 @@ const (
 
 // Caller is the authenticated identity making a request.
 type Caller struct {
+	ID    string
 	Admin bool
 }
 
