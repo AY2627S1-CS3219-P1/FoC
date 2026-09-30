@@ -38,7 +38,7 @@ func (r *Repository) Within(ctx context.Context, f func(w.Tx) error) error {
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
 	if err = f(&transaction{q: db.New(tx), clock: r.clock}); err != nil {
-		return mapError(err)
+		return err
 	}
 	return mapError(tx.Commit(ctx))
 }
