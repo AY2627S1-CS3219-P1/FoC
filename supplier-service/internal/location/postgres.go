@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

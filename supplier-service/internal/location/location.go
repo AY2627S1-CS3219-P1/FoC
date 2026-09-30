@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 )
 
 const (

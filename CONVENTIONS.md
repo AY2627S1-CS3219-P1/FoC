@@ -40,8 +40,10 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
 - Views live in `internal/views/<domain>view`, one file per direction
   (`create.go`, `read.go`, `auth.go`). Request structs carry `validate` tags;
   conversion to `sqlc` params lives in `ToXParams` methods.
-- Errors in `exterrors/errs`: `BadRequest` (400), `Unauthorized` (401),
-  `NotFound` (404). Wrap with context (`WrapXError`); log via `ErrorTrace`.
+- Shared external error types live in `pkg/api/errs`: `BadRequest` (400),
+  `Unauthorized` (401), `Forbidden` (403), and `NotFound` (404). Keep
+  service-specific error values and messages in the service. Wrap with context
+  (`WrapXError`); log via `ErrorTrace`.
   Map `pgx.ErrNoRows` to `NotFound`, never 500.
 
 ## Connect RPC

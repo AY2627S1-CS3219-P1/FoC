@@ -4,11 +4,11 @@ import (
 	"net/http"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/jackc/pgx/v5"
-	"github.com/pkg/errors"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/views/userview"
+	"github.com/jackc/pgx/v5"
+	"github.com/pkg/errors"
 )
 
 const (
