@@ -62,10 +62,14 @@ services:
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
+      # Supplier Service imports the auth middleware from user-service/pkg.
+      - ./user-service:/user-service
       - /app/tmp
     depends_on:
       postgres:
         condition: service_healthy
+      user-service:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
