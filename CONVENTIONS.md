@@ -55,20 +55,30 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 
 ## Database
 
-- `migrations/`: goose migrations, one `0000N_name.sql` per change with
-  `-- +goose Up` / `-- +goose Down`. They are embedded in the binary and
-  applied on startup unless `RUN_MIGRATIONS=false`. Never edit an applied
-  migration. `make migrate-up/down`, `make goose-create name=...`.
-- `internal/models`: GORM structs whose tags mirror the SQL. The migrations
-  own the schema; do not use `AutoMigrate`.
-- `internal/store`: GORM queries. Translate GORM errors (`gorm.ErrRecordNotFound`,
+- Supplier Service uses `database/schema` for goose migrations and
+  `database/query` for sqlc queries. After changing either, run `make sqlc` in
+  the service. It generates `internal/database/userdb` and
+  `internal/database/seeddb`; never hand-edit generated files. Its
+  `internal/database/utils.go` contains `pgtype` converters such as `ToPGDate`.
+- User Service uses `migrations/` for goose migrations, one `0000N_name.sql`
+  per change with `-- +goose Up` / `-- +goose Down`. Migrations are embedded in
+  the binary and applied on startup unless `RUN_MIGRATIONS=false`. Never edit
+  an applied migration. `make migrate-up/down` and `make goose-create name=...`
+  manage migrations.
+- User Service `internal/models` contains GORM structs whose tags mirror the
+  SQL. Migrations own the schema; do not use `AutoMigrate`. `internal/store`
+  contains GORM queries and translates GORM errors (`gorm.ErrRecordNotFound`,
   `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
   become a 500.
-- `internal/models/schema_integration_test.go` runs every migration up, down
-  and up again and checks the constraints. It runs only when
-  `TEST_DATABASE_URL` points at a throwaway database, because it wipes the schema.
+- `internal/models/schema_integration_test.go` runs every User Service
+  migration up, down and up again and checks the constraints. It runs only
+  when `TEST_DATABASE_URL` points at a throwaway database, because it wipes
+  the schema.
 
 Docs: [goose](https://github.com/pressly/goose),
+[sqlc](https://docs.sqlc.dev/en/stable/reference/config.html),
+[validator](https://github.com/go-playground/validator),
+[pgx](https://github.com/jackc/pgx),
 [GORM](https://gorm.io/docs/),
 [Connect](https://connectrpc.com/docs/go/getting-started).
 

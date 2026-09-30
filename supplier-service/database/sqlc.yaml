@@ -1,28 +1,71 @@
 version: "2"
+overrides:
+  go:
+    overrides:
+      # PointS implements sql.Scanner for pgx's hex-encoded PostGIS output
+      # and retains the SRID. Use ST_GeogFromWKB($n) for query parameters;
+      # direct geography binding is not supported by pgx. Nullable values
+      # use nil pointers.
+      - db_type: "geography"
+        nullable: false
+        go_type:
+          import: "github.com/cridenour/go-postgis"
+          package: "postgis"
+          type: "PointS"
+      - db_type: "geography"
+        nullable: true
+        go_type:
+          import: "github.com/cridenour/go-postgis"
+          package: "postgis"
+          type: "PointS"
+          pointer: true
 sql:
-  - engine: "postgresql"
-    queries: "query"
+  - name: "user"
+    engine: "postgresql"
+    queries: "query/user.sql"
     schema: "schema"
     gen:
       go:
-        package: "sqlc"
-        out: "../internal/database/sqlc"
+        package: "userdb"
+        out: "../internal/database/userdb"
         sql_package: "pgx/v5"
+        omit_unused_structs: true
+  - name: "seed"
+    engine: "postgresql"
+    queries: "query/seed.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "seeddb"
+        out: "../internal/database/seeddb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true
+  - name: "location"
+    engine: "postgresql"
+    queries: "query/location.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "locationdb"
+        out: "../internal/database/locationdb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true
+        # Plain Go types instead of pgtype wrappers.
+        emit_pointers_for_null_types: true
         overrides:
-          # PointS implements sql.Scanner for pgx's hex-encoded PostGIS output
-          # and retains the SRID. Use ST_GeogFromWKB($n) for query parameters;
-          # direct geography binding is not supported by pgx. Nullable values
-          # use nil pointers.
-          - db_type: "geography"
-            nullable: false
-            go_type:
-              import: "github.com/cridenour/go-postgis"
-              package: "postgis"
-              type: "PointS"
-          - db_type: "geography"
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
             nullable: true
             go_type:
-              import: "github.com/cridenour/go-postgis"
-              package: "postgis"
-              type: "PointS"
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "Time"
               pointer: true
