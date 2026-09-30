@@ -1,4 +1,4 @@
-// Package authorization evaluates permissions independently of the transport.
+// Package authorization evaluates permissions and provides a Connect adapter.
 package authorization
 
 import (
