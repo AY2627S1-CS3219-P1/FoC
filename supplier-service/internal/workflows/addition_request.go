@@ -38,13 +38,10 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 		return p, err
 	}
 	p.BuildingID = uuid.MustParse(p.BuildingID).String()
-	if p.CoordinatesMissing || math.IsNaN(p.Latitude) || math.IsInf(p.Latitude, 0) || p.Latitude < -90 || p.Latitude > 90 || math.IsNaN(p.Longitude) || math.IsInf(p.Longitude, 0) || p.Longitude < -180 || p.Longitude > 180 {
+	if p.CoordinatesMissing || !isValidCoordinates(p.Latitude, p.Longitude) {
 		return p, ErrInvalidArgument
 	}
-	if (p.OpenFrom == nil) != (p.OpenTo == nil) {
-		return p, ErrInvalidArgument
-	}
-	if p.OpenFrom != nil && (*p.OpenFrom < 0 || *p.OpenFrom >= 86400000000 || *p.OpenTo < 0 || *p.OpenTo >= 86400000000 || *p.OpenFrom == *p.OpenTo) {
+	if !isValidOpeningHours(p.OpenFrom, p.OpenTo) {
 		return p, ErrInvalidArgument
 	}
 	p.CategoryIDs = append([]string(nil), p.CategoryIDs...)
@@ -68,7 +65,54 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 	return p, nil
 }
 
-func visible(c Caller, r AdditionRequest) bool {
+func isValidCoordinates(latitude, longitude float64) bool {
+	return !math.IsNaN(latitude) && !math.IsInf(latitude, 0) && latitude >= -90 && latitude <= 90 &&
+		!math.IsNaN(longitude) && !math.IsInf(longitude, 0) && longitude >= -180 && longitude <= 180
+}
+
+func isValidOpeningHours(from, to *int64) bool {
+	const microsecondsPerDay = 86400000000
+	if from == nil || to == nil {
+		return from == nil && to == nil
+	}
+	return *from >= 0 && *from < microsecondsPerDay && *to >= 0 && *to < microsecondsPerDay && *from != *to
+}
+
+func applyProposalPatch(proposal, patch Proposal, fields map[string]bool) Proposal {
+	if fields["name"] {
+		proposal.Name = patch.Name
+	}
+	if fields["is_supplier"] {
+		proposal.IsSupplier = patch.IsSupplier
+	}
+	if fields["category_ids"] {
+		proposal.CategoryIDs = patch.CategoryIDs
+	}
+	if fields["building_id"] {
+		proposal.BuildingID = patch.BuildingID
+	}
+	if fields["floor"] {
+		proposal.Floor = patch.Floor
+	}
+	if fields["coordinates"] {
+		proposal.CoordinatesMissing = patch.CoordinatesMissing
+		proposal.Latitude = patch.Latitude
+		proposal.Longitude = patch.Longitude
+	}
+	if fields["open_from"] {
+		proposal.OpenFrom = patch.OpenFrom
+		proposal.OpenTo = patch.OpenTo
+	}
+	if fields["contact"] {
+		proposal.Contact = patch.Contact
+	}
+	if fields["details"] {
+		proposal.Details = patch.Details
+	}
+	return proposal
+}
+
+func isVisible(c Caller, r AdditionRequest) bool {
 	return c.IsAdmin() || r.SubmittedBy == c.ID || r.Status == Approved
 }
 
@@ -122,7 +166,7 @@ func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out Addi
 		if e != nil {
 			return e
 		}
-		if !visible(c, r) {
+		if !isVisible(c, r) {
 			return ErrNotFound
 		}
 		out = redactRequestForCaller(c, r)
@@ -172,7 +216,7 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		if e != nil {
 			return e
 		}
-		if !visible(c, r) {
+		if !isVisible(c, r) {
 			return ErrNotFound
 		}
 		if !c.IsAdmin() && c.ID != r.SubmittedBy {
@@ -184,38 +228,7 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		if r.Revision != in.ExpectedRevision {
 			return ErrAborted
 		}
-		proposal := r.Proposal
-		patch := in.Proposal
-		if m["name"] {
-			proposal.Name = patch.Name
-		}
-		if m["is_supplier"] {
-			proposal.IsSupplier = patch.IsSupplier
-		}
-		if m["category_ids"] {
-			proposal.CategoryIDs = patch.CategoryIDs
-		}
-		if m["building_id"] {
-			proposal.BuildingID = patch.BuildingID
-		}
-		if m["floor"] {
-			proposal.Floor = patch.Floor
-		}
-		if m["coordinates"] {
-			proposal.CoordinatesMissing = patch.CoordinatesMissing
-			proposal.Latitude = patch.Latitude
-			proposal.Longitude = patch.Longitude
-		}
-		if m["open_from"] {
-			proposal.OpenFrom = patch.OpenFrom
-			proposal.OpenTo = patch.OpenTo
-		}
-		if m["contact"] {
-			proposal.Contact = patch.Contact
-		}
-		if m["details"] {
-			proposal.Details = patch.Details
-		}
+		proposal := applyProposalPatch(r.Proposal, in.Proposal, m)
 		proposal, e = normalizeProposal(proposal)
 		if e != nil {
 			return e
@@ -267,7 +280,7 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 		if e != nil {
 			return e
 		}
-		if !visible(c, r) {
+		if !isVisible(c, r) {
 			return ErrNotFound
 		}
 		if target == Withdrawn && r.SubmittedBy != c.ID {
