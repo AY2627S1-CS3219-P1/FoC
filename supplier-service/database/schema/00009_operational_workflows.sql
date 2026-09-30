@@ -76,16 +76,22 @@ CREATE TABLE supplier_idempotency (
 CREATE INDEX supplier_idempotency_expiry_idx ON supplier_idempotency (expires_at);
 
 -- +goose Down
--- Do not silently lose multi-Category proposals or withdrawn history.
+-- Refuse rollback when the earlier schema cannot retain workflow data.
 -- +goose StatementBegin
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM location_addition_request_categories GROUP BY request_id HAVING count(*) > 1)
-        OR EXISTS (SELECT 1 FROM location_addition_requests WHERE status = 'withdrawn')
+        OR EXISTS (SELECT 1 FROM location_addition_requests WHERE status = 'withdrawn' OR floor IS NOT NULL)
         OR EXISTS (SELECT 1 FROM location_disablements WHERE ended_at IS NOT NULL) THEN
-        RAISE EXCEPTION 'cannot downgrade operational workflows with multi-Category, withdrawn, or early-ended history';
+        RAISE EXCEPTION 'cannot downgrade operational workflows with multi-Category, withdrawn, floor, or early-ended history';
     END IF;
 END $$;
 -- +goose StatementEnd
+-- Legacy proposals may not satisfy the new NOT VALID checks.
+ALTER TABLE location_addition_requests
+    DROP CONSTRAINT requests_revision_check,
+    DROP CONSTRAINT requests_status_check,
+    DROP CONSTRAINT requests_review_check,
+    DROP CONSTRAINT requests_proposal_check;
 UPDATE location_addition_requests SET category_id = NULL;
 UPDATE location_addition_requests r SET category_id = c.category_id
 FROM location_addition_request_categories c WHERE c.request_id = r.id;
@@ -95,10 +101,6 @@ DROP INDEX requests_list_idx;
 DROP INDEX requests_owner_list_idx;
 DROP INDEX requests_status_list_idx;
 ALTER TABLE location_addition_requests
-    DROP CONSTRAINT requests_revision_check,
-    DROP CONSTRAINT requests_status_check,
-    DROP CONSTRAINT requests_review_check,
-    DROP CONSTRAINT requests_proposal_check,
     DROP COLUMN floor,
     DROP COLUMN revision,
     ADD CHECK (status IN ('pending', 'approved', 'rejected')),
