@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "buf/validate/validate.proto";
+import "user/v1/auth.proto";
+
+service ProfileService {
+  rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse) {}
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse) {}
+}
+
+message Profile {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  string description = 4;
+  optional string telegram_handle = 5;
+  optional string phone_number = 6;
+  UserRole role = 7;
+}
+
+message GetMyProfileRequest {}
+
+message GetMyProfileResponse {
+  Profile profile = 1;
+}
+
+// Every editable field is replaced. Omitted contact fields are cleared.
+message UpdateMyProfileRequest {
+  string display_name = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 50
+  ];
+  string description = 2 [(buf.validate.field).string.max_len = 500];
+  optional string telegram_handle = 3 [(buf.validate.field).string.max_len = 32];
+  optional string phone_number = 4 [(buf.validate.field).string.max_len = 20];
+}
+
+message UpdateMyProfileResponse {
+  Profile profile = 1;
+}

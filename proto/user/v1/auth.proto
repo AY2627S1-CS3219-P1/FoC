@@ -32,7 +32,7 @@ message RegisterRequest {
   string token = 1 [(buf.validate.field).string.min_len = 1];
   string display_name = 2 [
     (buf.validate.field).string.min_len = 1,
-    (buf.validate.field).string.max_len = 100
+    (buf.validate.field).string.max_len = 50
   ];
 }
 

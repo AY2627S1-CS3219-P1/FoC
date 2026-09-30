@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "buf/validate/validate.proto";
+import "user/v1/auth.proto";
+
+service UserAdminService {
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
+  rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse) {}
+}
+
+message GetUserByEmailRequest {
+  string email = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.email = true
+  ];
+}
+
+message GetUserByEmailResponse {
+  User user = 1;
+}
+
+message ChangeUserRoleRequest {
+  string user_id = 1 [(buf.validate.field).string.pattern = "^[1-9][0-9]*$"];
+  UserRole to_role = 2;
+  string reason = 3 [(buf.validate.field).string.max_len = 2000];
+}
+
+message ChangeUserRoleResponse {
+  User user = 1;
+}

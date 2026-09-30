@@ -88,7 +88,7 @@ erDiagram
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
-| 00003 | `admin_bootstrap` | U4.2 | singleton row; first signup wins it and becomes `super_admin` |
+| 00003 | `admin_bootstrap` | U4.2 | singleton row reserved for first-admin registration; claiming it is not wired yet |
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
@@ -116,7 +116,7 @@ WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > $now
   AND deleted_at IS NULL
 RETURNING *;
 
--- First signup (same tx as user insert): 1 row => set role = 'super_admin'
+-- Planned first-admin registration (not wired yet): 1 row => set role = 'super_admin'
 INSERT INTO admin_bootstrap (user_id) VALUES ($1) ON CONFLICT DO NOTHING;
 
 -- Change role (same tx), optimistic on current role
@@ -132,17 +132,20 @@ INSERT INTO account_warnings (...) VALUES (...) ON CONFLICT (source_event_id) DO
 
 ## Roles & authorisation (planned)
 
-No permissions table. Each handler reads the caller's role (`auth.Require`)
-and decides. Shared rules live in `internal/auth`:
+No permissions table. Protected Connect routes verify the access token at the
+HTTP boundary; Connect interceptors read the caller's current database role.
+The role service rechecks the actor under a row lock before writing:
 
-| Caller | Can manage (`CanManage`) | Role changes (`CanAssignRole`) |
+| Caller | Allowed targets | Allowed destination roles |
 |---|---|---|
 | `super_admin` | `admin`, `user`, `suspended` | anything among those three, incl. promote user → admin, demote admin |
 | `admin` | `user`, `suspended` | user ↔ suspended (suspend / reinstate) |
 | `user` | – | – |
 | `suspended` | – | – |
 
-Nobody can change their own role. `super_admin` is only granted by first-signup bootstrap.
+Nobody can change their own role or a `super_admin` role. A reason is required
+when a role change enters or leaves `suspended`. The fixed `super_admin` must
+be provisioned separately until first-admin registration is implemented.
 
 ## Conventions
 

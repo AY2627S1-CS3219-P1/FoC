@@ -477,6 +477,9 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " "}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("invalid profile: %v", err)
 	}
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 51)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("display name exceeding database limit: %v", err)
+	}
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New"}); err != nil {
 		t.Fatalf("valid link after invalid profile: %v", err)
 	}
