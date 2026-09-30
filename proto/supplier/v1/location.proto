@@ -3,8 +3,8 @@ syntax = "proto3";
 package supplier.v1;
 
 import "buf/validate/validate.proto";
-import "google/protobuf/field_mask.proto";
-import "google/protobuf/timestamp.proto";
+import "supplier/v1/location_admin.proto";
+import "supplier/v1/location_types.proto";
 
 // Requires authentication. Mutations are admin only.
 service LocationService {
@@ -37,66 +37,6 @@ service LocationService {
   rpc UnarchiveLocation(UnarchiveLocationRequest) returns (UnarchiveLocationResponse) {
     option idempotency_level = IDEMPOTENT;
   }
-}
-
-// A Supplier is a Location with is_supplier set, not a separate resource.
-message Location {
-  string id = 1;
-  // Not unique.
-  string name = 2;
-  bool is_supplier = 3;
-  Building building = 4;
-  // Empty for non-Supplier Locations.
-  repeated Category categories = 5;
-  optional string floor = 6;
-  Coordinates coordinates = 7;
-  // "HH:MM", 24-hour. Set together with closes_at, or neither is set.
-  optional string opens_at = 8 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
-  optional string closes_at = 9 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
-  optional string contact = 10;
-  // Directions and remote-purchase instructions.
-  string details = 11;
-  google.protobuf.Timestamp archived_at = 12;
-  // In effect now, if any. Disabled Locations stay selectable.
-  Disablement current_disablement = 13;
-  // For optimistic concurrency.
-  int64 revision = 14;
-  google.protobuf.Timestamp created_at = 15;
-  google.protobuf.Timestamp updated_at = 16;
-}
-
-// WGS 84 degrees.
-message Coordinates {
-  double latitude = 1 [(buf.validate.field).double = {
-    gte: -90
-    lte: 90
-  }];
-  double longitude = 2 [(buf.validate.field).double = {
-    gte: -180
-    lte: 180
-  }];
-}
-
-// Read-only; not editable through the API.
-message Building {
-  string id = 1;
-  string name = 2;
-  Coordinates center = 3;
-  float radius_m = 4;
-}
-
-// Read-only; not editable through the API. E.g. "Food" or "Printing".
-message Category {
-  string id = 1;
-  string name = 2;
-}
-
-message Disablement {
-  string id = 1;
-  google.protobuf.Timestamp starts_at = 2;
-  // Unset means until re-enabled.
-  google.protobuf.Timestamp ends_at = 3;
-  string reason = 4;
 }
 
 // Ties are broken by Location ID so pagination is stable.
@@ -173,94 +113,4 @@ message ListCategoriesRequest {}
 // Sorted by name.
 message ListCategoriesResponse {
   repeated Category categories = 1;
-}
-
-// Writable Location fields. Length limits apply before trimming.
-message LocationInput {
-  option (buf.validate.message).cel = {
-    id: "location_input.supplier_categories"
-    message: "Suppliers need at least one category; ordinary Locations have none"
-    expression: "this.is_supplier == (size(this.category_ids) > 0)"
-  };
-  option (buf.validate.message).cel = {
-    id: "location_input.opening_hours"
-    message: "opens_at and closes_at must both be set and differ, or both be unset"
-    expression: "has(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)"
-  };
-
-  // Must contain a non-whitespace character.
-  string name = 1 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 200
-    pattern: "\\S"
-  }];
-  bool is_supplier = 2;
-  repeated string category_ids = 3 [(buf.validate.field).repeated = {
-    unique: true
-    items: {
-      string: {uuid: true}
-    }
-  }];
-  string building_id = 4 [(buf.validate.field).string.uuid = true];
-  optional string floor = 5 [(buf.validate.field).string.max_len = 50];
-  Coordinates coordinates = 6 [(buf.validate.field).required = true];
-  // Asia/Singapore "HH:MM". Closing before opening means overnight.
-  optional string opens_at = 7 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
-  optional string closes_at = 8 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
-  optional string contact = 9 [(buf.validate.field).string.max_len = 500];
-  string details = 10 [(buf.validate.field).string.max_len = 2000];
-}
-
-message CreateLocationRequest {
-  // Client-generated. Retrying with the same key and payload within 24 hours
-  // returns the original Location; a different payload is already_exists.
-  string idempotency_key = 1 [(buf.validate.field).string.uuid = true];
-  LocationInput location = 2 [(buf.validate.field).required = true];
-}
-
-message CreateLocationResponse {
-  Location location = 1;
-}
-
-message UpdateLocationRequest {
-  string id = 1 [(buf.validate.field).string.uuid = true];
-  // Must match the current revision, otherwise aborted.
-  int64 expected_revision = 2 [(buf.validate.field).int64.gt = 0];
-  // Not validated on its own; the handler applies update_mask to the current
-  // Location and validates the merged LocationInput.
-  LocationInput location = 3 [(buf.validate.field).ignore = IGNORE_ALWAYS];
-  // Masked fields left unset are cleared.
-  google.protobuf.FieldMask update_mask = 4 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).field_mask.in = "name",
-    (buf.validate.field).field_mask.in = "is_supplier",
-    (buf.validate.field).field_mask.in = "category_ids",
-    (buf.validate.field).field_mask.in = "building_id",
-    (buf.validate.field).field_mask.in = "floor",
-    (buf.validate.field).field_mask.in = "coordinates",
-    (buf.validate.field).field_mask.in = "opens_at",
-    (buf.validate.field).field_mask.in = "closes_at",
-    (buf.validate.field).field_mask.in = "contact",
-    (buf.validate.field).field_mask.in = "details"
-  ];
-}
-
-message UpdateLocationResponse {
-  Location location = 1;
-}
-
-message ArchiveLocationRequest {
-  string id = 1 [(buf.validate.field).string.uuid = true];
-}
-
-message ArchiveLocationResponse {
-  Location location = 1;
-}
-
-message UnarchiveLocationRequest {
-  string id = 1 [(buf.validate.field).string.uuid = true];
-}
-
-message UnarchiveLocationResponse {
-  Location location = 1;
 }

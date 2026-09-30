@@ -195,13 +195,11 @@ func parseOptionalUUID(s *string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
-// clockPtr formats a Postgres TIME as "HH:MM". sqlc cannot express a nullable
-// formatted string, so TIME columns stay pgtype.Time.
-func clockPtr(t pgtype.Time) *string {
+// clockPtr converts a Postgres TIME to a Clock, or nil if NULL.
+func clockPtr(t pgtype.Time) *Clock {
 	if !t.Valid {
 		return nil
 	}
-	minutes := t.Microseconds / 60_000_000
-	s := fmt.Sprintf("%02d:%02d", minutes/60, minutes%60)
-	return &s
+	minutes := int32(t.Microseconds / 60_000_000)
+	return &Clock{Hour: minutes / 60, Minute: minutes % 60}
 }
