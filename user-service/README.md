@@ -115,9 +115,6 @@ must contain 5 to 32 letters, digits, or underscores; phone numbers may be up
 to 20 characters. Registration, login, and refresh return these saved fields
 in the `User` message.
 
-Authentication persistence is wired to the user-service store. Email delivery
-is not configured yet, so `RequestLink` currently stores the challenge but the
-configured `EmptyEmailSender` discards the link instead of delivering it.
 
 ## First super admin
 
