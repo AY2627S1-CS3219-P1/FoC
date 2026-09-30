@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -415,6 +414,8 @@ func waitForDatabaseBlock(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	t.Helper()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		var blocked int
 		err := pool.QueryRow(ctx, `WITH RECURSIVE blocked AS (
@@ -430,6 +431,10 @@ func waitForDatabaseBlock(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 		if blocked >= want {
 			return
 		}
-		runtime.Gosched()
+		select {
+		case <-ctx.Done():
+			t.Fatalf("observe database lock wait for %q (%d clients): %v", query, want, ctx.Err())
+		case <-ticker.C:
+		}
 	}
 }
