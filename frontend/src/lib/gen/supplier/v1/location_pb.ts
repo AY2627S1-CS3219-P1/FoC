@@ -5,237 +5,17 @@
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
-import type { FieldMask, Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_field_mask, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { ArchiveLocationRequestSchema, ArchiveLocationResponseSchema, CreateLocationRequestSchema, CreateLocationResponseSchema, UnarchiveLocationRequestSchema, UnarchiveLocationResponseSchema, UpdateLocationRequestSchema, UpdateLocationResponseSchema } from "./location_admin_pb";
+import { file_supplier_v1_location_admin } from "./location_admin_pb";
+import type { Building, Category, Location } from "./location_types_pb";
+import { file_supplier_v1_location_types } from "./location_types_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file supplier/v1/location.proto.
  */
 export const file_supplier_v1_location: GenFile = /*@__PURE__*/
-  fileDesc("ChpzdXBwbGllci92MS9sb2NhdGlvbi5wcm90bxILc3VwcGxpZXIudjEigQUKCExvY2F0aW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLaXNfc3VwcGxpZXIYAyABKAgSJwoIYnVpbGRpbmcYBCABKAsyFS5zdXBwbGllci52MS5CdWlsZGluZxIpCgpjYXRlZ29yaWVzGAUgAygLMhUuc3VwcGxpZXIudjEuQ2F0ZWdvcnkSEgoFZmxvb3IYBiABKAlIAIgBARItCgtjb29yZGluYXRlcxgHIAEoCzIYLnN1cHBsaWVyLnYxLkNvb3JkaW5hdGVzEj0KCG9wZW5zX2F0GAggASgJQia6SCNyITIfXihbMDFdWzAtOV18MlswLTNdKTpbMC01XVswLTldJEgBiAEBEj4KCWNsb3Nlc19hdBgJIAEoCUImukgjciEyH14oWzAxXVswLTldfDJbMC0zXSk6WzAtNV1bMC05XSRIAogBARIUCgdjb250YWN0GAogASgJSAOIAQESDwoHZGV0YWlscxgLIAEoCRIvCgthcmNoaXZlZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASNQoTY3VycmVudF9kaXNhYmxlbWVudBgNIAEoCzIYLnN1cHBsaWVyLnYxLkRpc2FibGVtZW50EhAKCHJldmlzaW9uGA4gASgDEi4KCmNyZWF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQggKBl9mbG9vckILCglfb3BlbnNfYXRCDAoKX2Nsb3Nlc19hdEIKCghfY29udGFjdCJkCgtDb29yZGluYXRlcxIpCghsYXRpdHVkZRgBIAEoAUIXukgUEhIZAAAAAACAVkApAAAAAACAVsASKgoJbG9uZ2l0dWRlGAIgASgBQhe6SBQSEhkAAAAAAIBmQCkAAAAAAIBmwCJgCghCdWlsZGluZxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEigKBmNlbnRlchgDIAEoCzIYLnN1cHBsaWVyLnYxLkNvb3JkaW5hdGVzEhAKCHJhZGl1c19tGAQgASgCIiQKCENhdGVnb3J5EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkihQEKC0Rpc2FibGVtZW50EgoKAmlkGAEgASgJEi0KCXN0YXJ0c19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHZW5kc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGcmVhc29uGAQgASgJIioKEkdldExvY2F0aW9uUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiPgoTR2V0TG9jYXRpb25SZXNwb25zZRInCghsb2NhdGlvbhgBIAEoCzIVLnN1cHBsaWVyLnYxLkxvY2F0aW9uIqEDChRMaXN0TG9jYXRpb25zUmVxdWVzdBIYCgZzZWFyY2gYASABKAlCCLpIBXIDGMgBEiIKC2J1aWxkaW5nX2lkGAIgASgJQgi6SAVyA7ABAUgAiAEBEiIKC2NhdGVnb3J5X2lkGAMgASgJQgi6SAVyA7ABAUgBiAEBEhYKDnN1cHBsaWVyc19vbmx5GAQgASgIEj4KC3N0YXR1c192aWV3GAUgASgOMh8uc3VwcGxpZXIudjEuTG9jYXRpb25TdGF0dXNWaWV3Qgi6SAWCAQIQARI8Cgpzb3J0X2ZpZWxkGAYgASgOMh4uc3VwcGxpZXIudjEuTG9jYXRpb25Tb3J0RmllbGRCCLpIBYIBAhABEjwKDnNvcnRfZGlyZWN0aW9uGAcgASgOMhouc3VwcGxpZXIudjEuU29ydERpcmVjdGlvbkIIukgFggECEAESFQoEcGFnZRgIIAEoBUIHukgEGgIoABIcCglwYWdlX3NpemUYCSABKAVCCbpIBhoEGGQoAEIOCgxfYnVpbGRpbmdfaWRCDgoMX2NhdGVnb3J5X2lkIowBChVMaXN0TG9jYXRpb25zUmVzcG9uc2USKAoJbG9jYXRpb25zGAEgAygLMhUuc3VwcGxpZXIudjEuTG9jYXRpb24SDAoEcGFnZRgCIAEoBRIRCglwYWdlX3NpemUYAyABKAUSEwoLdG90YWxfaXRlbXMYBCABKAMSEwoLdG90YWxfcGFnZXMYBSABKAUiFgoUTGlzdEJ1aWxkaW5nc1JlcXVlc3QiQQoVTGlzdEJ1aWxkaW5nc1Jlc3BvbnNlEigKCWJ1aWxkaW5ncxgBIAMoCzIVLnN1cHBsaWVyLnYxLkJ1aWxkaW5nIhcKFUxpc3RDYXRlZ29yaWVzUmVxdWVzdCJDChZMaXN0Q2F0ZWdvcmllc1Jlc3BvbnNlEikKCmNhdGVnb3JpZXMYASADKAsyFS5zdXBwbGllci52MS5DYXRlZ29yeSK6BgoNTG9jYXRpb25JbnB1dBIcCgRuYW1lGAEgASgJQg66SAtyCRABGMgBMgJcUxITCgtpc19zdXBwbGllchgCIAEoCBIlCgxjYXRlZ29yeV9pZHMYAyADKAlCD7pIDJIBCRgBIgVyA7ABARIdCgtidWlsZGluZ19pZBgEIAEoCUIIukgFcgOwAQESGwoFZmxvb3IYBSABKAlCB7pIBHICGDJIAIgBARI1Cgtjb29yZGluYXRlcxgGIAEoCzIYLnN1cHBsaWVyLnYxLkNvb3JkaW5hdGVzQga6SAPIAQESPQoIb3BlbnNfYXQYByABKAlCJrpII3IhMh9eKFswMV1bMC05XXwyWzAtM10pOlswLTVdWzAtOV0kSAGIAQESPgoJY2xvc2VzX2F0GAggASgJQia6SCNyITIfXihbMDFdWzAtOV18MlswLTNdKTpbMC01XVswLTldJEgCiAEBEh4KB2NvbnRhY3QYCSABKAlCCLpIBXIDGPQDSAOIAQESGQoHZGV0YWlscxgKIAEoCUIIukgFcgMY0A868AK6SOwCGpsBCiJsb2NhdGlvbl9pbnB1dC5zdXBwbGllcl9jYXRlZ29yaWVzEkJTdXBwbGllcnMgbmVlZCBhdCBsZWFzdCBvbmUgY2F0ZWdvcnk7IG9yZGluYXJ5IExvY2F0aW9ucyBoYXZlIG5vbmUaMXRoaXMuaXNfc3VwcGxpZXIgPT0gKHNpemUodGhpcy5jYXRlZ29yeV9pZHMpID4gMCkaywEKHGxvY2F0aW9uX2lucHV0Lm9wZW5pbmdfaG91cnMSRG9wZW5zX2F0IGFuZCBjbG9zZXNfYXQgbXVzdCBib3RoIGJlIHNldCBhbmQgZGlmZmVyLCBvciBib3RoIGJlIHVuc2V0GmVoYXModGhpcy5vcGVuc19hdCkgPT0gaGFzKHRoaXMuY2xvc2VzX2F0KSAmJiAoIWhhcyh0aGlzLm9wZW5zX2F0KSB8fCB0aGlzLm9wZW5zX2F0ICE9IHRoaXMuY2xvc2VzX2F0KUIICgZfZmxvb3JCCwoJX29wZW5zX2F0QgwKCl9jbG9zZXNfYXRCCgoIX2NvbnRhY3QicAoVQ3JlYXRlTG9jYXRpb25SZXF1ZXN0EiEKD2lkZW1wb3RlbmN5X2tleRgBIAEoCUIIukgFcgOwAQESNAoIbG9jYXRpb24YAiABKAsyGi5zdXBwbGllci52MS5Mb2NhdGlvbklucHV0Qga6SAPIAQEiQQoWQ3JlYXRlTG9jYXRpb25SZXNwb25zZRInCghsb2NhdGlvbhgBIAEoCzIVLnN1cHBsaWVyLnYxLkxvY2F0aW9uIq0CChVVcGRhdGVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEiIKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDQge6SAQiAiAAEjQKCGxvY2F0aW9uGAMgASgLMhouc3VwcGxpZXIudjEuTG9jYXRpb25JbnB1dEIGukgD2AEDEqMBCgt1cGRhdGVfbWFzaxgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2tCcrpIb8gBAeIBaRIEbmFtZRILaXNfc3VwcGxpZXISDGNhdGVnb3J5X2lkcxILYnVpbGRpbmdfaWQSBWZsb29yEgtjb29yZGluYXRlcxIIb3BlbnNfYXQSCWNsb3Nlc19hdBIHY29udGFjdBIHZGV0YWlscyJBChZVcGRhdGVMb2NhdGlvblJlc3BvbnNlEicKCGxvY2F0aW9uGAEgASgLMhUuc3VwcGxpZXIudjEuTG9jYXRpb24iLgoWQXJjaGl2ZUxvY2F0aW9uUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiQgoXQXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbiIwChhVbmFyY2hpdmVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBIkQKGVVuYXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbip4ChFMb2NhdGlvblNvcnRGaWVsZBIjCh9MT0NBVElPTl9TT1JUX0ZJRUxEX1VOU1BFQ0lGSUVEEAASHAoYTE9DQVRJT05fU09SVF9GSUVMRF9OQU1FEAESIAocTE9DQVRJT05fU09SVF9GSUVMRF9CVUlMRElORxACKmwKDVNvcnREaXJlY3Rpb24SHgoaU09SVF9ESVJFQ1RJT05fVU5TUEVDSUZJRUQQABIcChhTT1JUX0RJUkVDVElPTl9BU0NFTkRJTkcQARIdChlTT1JUX0RJUkVDVElPTl9ERVNDRU5ESU5HEAIqnAEKEkxvY2F0aW9uU3RhdHVzVmlldxIkCiBMT0NBVElPTl9TVEFUVVNfVklFV19VTlNQRUNJRklFRBAAEh8KG0xPQ0FUSU9OX1NUQVRVU19WSUVXX0FDVElWRRABEiEKHUxPQ0FUSU9OX1NUQVRVU19WSUVXX0FSQ0hJVkVEEAISHAoYTE9DQVRJT05fU1RBVFVTX1ZJRVdfQUxMEAMyiAYKD0xvY2F0aW9uU2VydmljZRJVCgtHZXRMb2NhdGlvbhIfLnN1cHBsaWVyLnYxLkdldExvY2F0aW9uUmVxdWVzdBogLnN1cHBsaWVyLnYxLkdldExvY2F0aW9uUmVzcG9uc2UiA5ACARJbCg1MaXN0TG9jYXRpb25zEiEuc3VwcGxpZXIudjEuTGlzdExvY2F0aW9uc1JlcXVlc3QaIi5zdXBwbGllci52MS5MaXN0TG9jYXRpb25zUmVzcG9uc2UiA5ACARJbCg1MaXN0QnVpbGRpbmdzEiEuc3VwcGxpZXIudjEuTGlzdEJ1aWxkaW5nc1JlcXVlc3QaIi5zdXBwbGllci52MS5MaXN0QnVpbGRpbmdzUmVzcG9uc2UiA5ACARJeCg5MaXN0Q2F0ZWdvcmllcxIiLnN1cHBsaWVyLnYxLkxpc3RDYXRlZ29yaWVzUmVxdWVzdBojLnN1cHBsaWVyLnYxLkxpc3RDYXRlZ29yaWVzUmVzcG9uc2UiA5ACARJbCg5DcmVhdGVMb2NhdGlvbhIiLnN1cHBsaWVyLnYxLkNyZWF0ZUxvY2F0aW9uUmVxdWVzdBojLnN1cHBsaWVyLnYxLkNyZWF0ZUxvY2F0aW9uUmVzcG9uc2UiABJbCg5VcGRhdGVMb2NhdGlvbhIiLnN1cHBsaWVyLnYxLlVwZGF0ZUxvY2F0aW9uUmVxdWVzdBojLnN1cHBsaWVyLnYxLlVwZGF0ZUxvY2F0aW9uUmVzcG9uc2UiABJhCg9BcmNoaXZlTG9jYXRpb24SIy5zdXBwbGllci52MS5BcmNoaXZlTG9jYXRpb25SZXF1ZXN0GiQuc3VwcGxpZXIudjEuQXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2UiA5ACAhJnChFVbmFyY2hpdmVMb2NhdGlvbhIlLnN1cHBsaWVyLnYxLlVuYXJjaGl2ZUxvY2F0aW9uUmVxdWVzdBomLnN1cHBsaWVyLnYxLlVuYXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2UiA5ACAkKvAQoPY29tLnN1cHBsaWVyLnYxQg1Mb2NhdGlvblByb3RvUAFaQGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3N1cHBsaWVyL3YxO3N1cHBsaWVydjGiAgNTWFiqAgtTdXBwbGllci5WMcoCC1N1cHBsaWVyXFYx4gIXU3VwcGxpZXJcVjFcR1BCTWV0YWRhdGHqAgxTdXBwbGllcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_field_mask, file_google_protobuf_timestamp]);
-
-/**
- * A Supplier is a Location with is_supplier set, not a separate resource.
- *
- * @generated from message supplier.v1.Location
- */
-export type Location = Message<"supplier.v1.Location"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * Not unique.
-   *
-   * @generated from field: string name = 2;
-   */
-  name: string;
-
-  /**
-   * @generated from field: bool is_supplier = 3;
-   */
-  isSupplier: boolean;
-
-  /**
-   * @generated from field: supplier.v1.Building building = 4;
-   */
-  building?: Building | undefined;
-
-  /**
-   * Empty for non-Supplier Locations.
-   *
-   * @generated from field: repeated supplier.v1.Category categories = 5;
-   */
-  categories: Category[];
-
-  /**
-   * @generated from field: optional string floor = 6;
-   */
-  floor?: string | undefined;
-
-  /**
-   * @generated from field: supplier.v1.Coordinates coordinates = 7;
-   */
-  coordinates?: Coordinates | undefined;
-
-  /**
-   * "HH:MM", 24-hour. Set together with closes_at, or neither is set.
-   *
-   * @generated from field: optional string opens_at = 8;
-   */
-  opensAt?: string | undefined;
-
-  /**
-   * @generated from field: optional string closes_at = 9;
-   */
-  closesAt?: string | undefined;
-
-  /**
-   * @generated from field: optional string contact = 10;
-   */
-  contact?: string | undefined;
-
-  /**
-   * Directions and remote-purchase instructions.
-   *
-   * @generated from field: string details = 11;
-   */
-  details: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp archived_at = 12;
-   */
-  archivedAt?: Timestamp | undefined;
-
-  /**
-   * In effect now, if any. Disabled Locations stay selectable.
-   *
-   * @generated from field: supplier.v1.Disablement current_disablement = 13;
-   */
-  currentDisablement?: Disablement | undefined;
-
-  /**
-   * For optimistic concurrency.
-   *
-   * @generated from field: int64 revision = 14;
-   */
-  revision: bigint;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp created_at = 15;
-   */
-  createdAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp updated_at = 16;
-   */
-  updatedAt?: Timestamp | undefined;
-};
-
-/**
- * Describes the message supplier.v1.Location.
- * Use `create(LocationSchema)` to create a new message.
- */
-export const LocationSchema: GenMessage<Location> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 0);
-
-/**
- * WGS 84 degrees.
- *
- * @generated from message supplier.v1.Coordinates
- */
-export type Coordinates = Message<"supplier.v1.Coordinates"> & {
-  /**
-   * @generated from field: double latitude = 1;
-   */
-  latitude: number;
-
-  /**
-   * @generated from field: double longitude = 2;
-   */
-  longitude: number;
-};
-
-/**
- * Describes the message supplier.v1.Coordinates.
- * Use `create(CoordinatesSchema)` to create a new message.
- */
-export const CoordinatesSchema: GenMessage<Coordinates> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 1);
-
-/**
- * Read-only; not editable through the API.
- *
- * @generated from message supplier.v1.Building
- */
-export type Building = Message<"supplier.v1.Building"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
-
-  /**
-   * @generated from field: supplier.v1.Coordinates center = 3;
-   */
-  center?: Coordinates | undefined;
-
-  /**
-   * @generated from field: float radius_m = 4;
-   */
-  radiusM: number;
-};
-
-/**
- * Describes the message supplier.v1.Building.
- * Use `create(BuildingSchema)` to create a new message.
- */
-export const BuildingSchema: GenMessage<Building> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 2);
-
-/**
- * Read-only; not editable through the API. E.g. "Food" or "Printing".
- *
- * @generated from message supplier.v1.Category
- */
-export type Category = Message<"supplier.v1.Category"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
-};
-
-/**
- * Describes the message supplier.v1.Category.
- * Use `create(CategorySchema)` to create a new message.
- */
-export const CategorySchema: GenMessage<Category> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 3);
-
-/**
- * @generated from message supplier.v1.Disablement
- */
-export type Disablement = Message<"supplier.v1.Disablement"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp starts_at = 2;
-   */
-  startsAt?: Timestamp | undefined;
-
-  /**
-   * Unset means until re-enabled.
-   *
-   * @generated from field: google.protobuf.Timestamp ends_at = 3;
-   */
-  endsAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: string reason = 4;
-   */
-  reason: string;
-};
-
-/**
- * Describes the message supplier.v1.Disablement.
- * Use `create(DisablementSchema)` to create a new message.
- */
-export const DisablementSchema: GenMessage<Disablement> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 4);
+  fileDesc("ChpzdXBwbGllci92MS9sb2NhdGlvbi5wcm90bxILc3VwcGxpZXIudjEiKgoSR2V0TG9jYXRpb25SZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABASI+ChNHZXRMb2NhdGlvblJlc3BvbnNlEicKCGxvY2F0aW9uGAEgASgLMhUuc3VwcGxpZXIudjEuTG9jYXRpb24ioQMKFExpc3RMb2NhdGlvbnNSZXF1ZXN0EhgKBnNlYXJjaBgBIAEoCUIIukgFcgMYyAESIgoLYnVpbGRpbmdfaWQYAiABKAlCCLpIBXIDsAEBSACIAQESIgoLY2F0ZWdvcnlfaWQYAyABKAlCCLpIBXIDsAEBSAGIAQESFgoOc3VwcGxpZXJzX29ubHkYBCABKAgSPgoLc3RhdHVzX3ZpZXcYBSABKA4yHy5zdXBwbGllci52MS5Mb2NhdGlvblN0YXR1c1ZpZXdCCLpIBYIBAhABEjwKCnNvcnRfZmllbGQYBiABKA4yHi5zdXBwbGllci52MS5Mb2NhdGlvblNvcnRGaWVsZEIIukgFggECEAESPAoOc29ydF9kaXJlY3Rpb24YByABKA4yGi5zdXBwbGllci52MS5Tb3J0RGlyZWN0aW9uQgi6SAWCAQIQARIVCgRwYWdlGAggASgFQge6SAQaAigAEhwKCXBhZ2Vfc2l6ZRgJIAEoBUIJukgGGgQYZCgAQg4KDF9idWlsZGluZ19pZEIOCgxfY2F0ZWdvcnlfaWQijAEKFUxpc3RMb2NhdGlvbnNSZXNwb25zZRIoCglsb2NhdGlvbnMYASADKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbhIMCgRwYWdlGAIgASgFEhEKCXBhZ2Vfc2l6ZRgDIAEoBRITCgt0b3RhbF9pdGVtcxgEIAEoAxITCgt0b3RhbF9wYWdlcxgFIAEoBSIWChRMaXN0QnVpbGRpbmdzUmVxdWVzdCJBChVMaXN0QnVpbGRpbmdzUmVzcG9uc2USKAoJYnVpbGRpbmdzGAEgAygLMhUuc3VwcGxpZXIudjEuQnVpbGRpbmciFwoVTGlzdENhdGVnb3JpZXNSZXF1ZXN0IkMKFkxpc3RDYXRlZ29yaWVzUmVzcG9uc2USKQoKY2F0ZWdvcmllcxgBIAMoCzIVLnN1cHBsaWVyLnYxLkNhdGVnb3J5KngKEUxvY2F0aW9uU29ydEZpZWxkEiMKH0xPQ0FUSU9OX1NPUlRfRklFTERfVU5TUEVDSUZJRUQQABIcChhMT0NBVElPTl9TT1JUX0ZJRUxEX05BTUUQARIgChxMT0NBVElPTl9TT1JUX0ZJRUxEX0JVSUxESU5HEAIqbAoNU29ydERpcmVjdGlvbhIeChpTT1JUX0RJUkVDVElPTl9VTlNQRUNJRklFRBAAEhwKGFNPUlRfRElSRUNUSU9OX0FTQ0VORElORxABEh0KGVNPUlRfRElSRUNUSU9OX0RFU0NFTkRJTkcQAiqcAQoSTG9jYXRpb25TdGF0dXNWaWV3EiQKIExPQ0FUSU9OX1NUQVRVU19WSUVXX1VOU1BFQ0lGSUVEEAASHwobTE9DQVRJT05fU1RBVFVTX1ZJRVdfQUNUSVZFEAESIQodTE9DQVRJT05fU1RBVFVTX1ZJRVdfQVJDSElWRUQQAhIcChhMT0NBVElPTl9TVEFUVVNfVklFV19BTEwQAzKIBgoPTG9jYXRpb25TZXJ2aWNlElUKC0dldExvY2F0aW9uEh8uc3VwcGxpZXIudjEuR2V0TG9jYXRpb25SZXF1ZXN0GiAuc3VwcGxpZXIudjEuR2V0TG9jYXRpb25SZXNwb25zZSIDkAIBElsKDUxpc3RMb2NhdGlvbnMSIS5zdXBwbGllci52MS5MaXN0TG9jYXRpb25zUmVxdWVzdBoiLnN1cHBsaWVyLnYxLkxpc3RMb2NhdGlvbnNSZXNwb25zZSIDkAIBElsKDUxpc3RCdWlsZGluZ3MSIS5zdXBwbGllci52MS5MaXN0QnVpbGRpbmdzUmVxdWVzdBoiLnN1cHBsaWVyLnYxLkxpc3RCdWlsZGluZ3NSZXNwb25zZSIDkAIBEl4KDkxpc3RDYXRlZ29yaWVzEiIuc3VwcGxpZXIudjEuTGlzdENhdGVnb3JpZXNSZXF1ZXN0GiMuc3VwcGxpZXIudjEuTGlzdENhdGVnb3JpZXNSZXNwb25zZSIDkAIBElsKDkNyZWF0ZUxvY2F0aW9uEiIuc3VwcGxpZXIudjEuQ3JlYXRlTG9jYXRpb25SZXF1ZXN0GiMuc3VwcGxpZXIudjEuQ3JlYXRlTG9jYXRpb25SZXNwb25zZSIAElsKDlVwZGF0ZUxvY2F0aW9uEiIuc3VwcGxpZXIudjEuVXBkYXRlTG9jYXRpb25SZXF1ZXN0GiMuc3VwcGxpZXIudjEuVXBkYXRlTG9jYXRpb25SZXNwb25zZSIAEmEKD0FyY2hpdmVMb2NhdGlvbhIjLnN1cHBsaWVyLnYxLkFyY2hpdmVMb2NhdGlvblJlcXVlc3QaJC5zdXBwbGllci52MS5BcmNoaXZlTG9jYXRpb25SZXNwb25zZSIDkAICEmcKEVVuYXJjaGl2ZUxvY2F0aW9uEiUuc3VwcGxpZXIudjEuVW5hcmNoaXZlTG9jYXRpb25SZXF1ZXN0GiYuc3VwcGxpZXIudjEuVW5hcmNoaXZlTG9jYXRpb25SZXNwb25zZSIDkAICQq8BCg9jb20uc3VwcGxpZXIudjFCDUxvY2F0aW9uUHJvdG9QAVpAZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vc3VwcGxpZXIvdjE7c3VwcGxpZXJ2MaICA1NYWKoCC1N1cHBsaWVyLlYxygILU3VwcGxpZXJcVjHiAhdTdXBwbGllclxWMVxHUEJNZXRhZGF0YeoCDFN1cHBsaWVyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_supplier_v1_location_admin, file_supplier_v1_location_types]);
 
 /**
  * @generated from message supplier.v1.GetLocationRequest
@@ -252,7 +32,7 @@ export type GetLocationRequest = Message<"supplier.v1.GetLocationRequest"> & {
  * Use `create(GetLocationRequestSchema)` to create a new message.
  */
 export const GetLocationRequestSchema: GenMessage<GetLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 5);
+  messageDesc(file_supplier_v1_location, 0);
 
 /**
  * @generated from message supplier.v1.GetLocationResponse
@@ -269,7 +49,7 @@ export type GetLocationResponse = Message<"supplier.v1.GetLocationResponse"> & {
  * Use `create(GetLocationResponseSchema)` to create a new message.
  */
 export const GetLocationResponseSchema: GenMessage<GetLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 6);
+  messageDesc(file_supplier_v1_location, 1);
 
 /**
  * @generated from message supplier.v1.ListLocationsRequest
@@ -333,7 +113,7 @@ export type ListLocationsRequest = Message<"supplier.v1.ListLocationsRequest"> &
  * Use `create(ListLocationsRequestSchema)` to create a new message.
  */
 export const ListLocationsRequestSchema: GenMessage<ListLocationsRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 7);
+  messageDesc(file_supplier_v1_location, 2);
 
 /**
  * @generated from message supplier.v1.ListLocationsResponse
@@ -372,7 +152,7 @@ export type ListLocationsResponse = Message<"supplier.v1.ListLocationsResponse">
  * Use `create(ListLocationsResponseSchema)` to create a new message.
  */
 export const ListLocationsResponseSchema: GenMessage<ListLocationsResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 8);
+  messageDesc(file_supplier_v1_location, 3);
 
 /**
  * @generated from message supplier.v1.ListBuildingsRequest
@@ -385,7 +165,7 @@ export type ListBuildingsRequest = Message<"supplier.v1.ListBuildingsRequest"> &
  * Use `create(ListBuildingsRequestSchema)` to create a new message.
  */
 export const ListBuildingsRequestSchema: GenMessage<ListBuildingsRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 9);
+  messageDesc(file_supplier_v1_location, 4);
 
 /**
  * Sorted by name.
@@ -404,7 +184,7 @@ export type ListBuildingsResponse = Message<"supplier.v1.ListBuildingsResponse">
  * Use `create(ListBuildingsResponseSchema)` to create a new message.
  */
 export const ListBuildingsResponseSchema: GenMessage<ListBuildingsResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 10);
+  messageDesc(file_supplier_v1_location, 5);
 
 /**
  * @generated from message supplier.v1.ListCategoriesRequest
@@ -417,7 +197,7 @@ export type ListCategoriesRequest = Message<"supplier.v1.ListCategoriesRequest">
  * Use `create(ListCategoriesRequestSchema)` to create a new message.
  */
 export const ListCategoriesRequestSchema: GenMessage<ListCategoriesRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 11);
+  messageDesc(file_supplier_v1_location, 6);
 
 /**
  * Sorted by name.
@@ -436,241 +216,7 @@ export type ListCategoriesResponse = Message<"supplier.v1.ListCategoriesResponse
  * Use `create(ListCategoriesResponseSchema)` to create a new message.
  */
 export const ListCategoriesResponseSchema: GenMessage<ListCategoriesResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 12);
-
-/**
- * Writable Location fields. Length limits apply before trimming.
- *
- * @generated from message supplier.v1.LocationInput
- */
-export type LocationInput = Message<"supplier.v1.LocationInput"> & {
-  /**
-   * Must contain a non-whitespace character.
-   *
-   * @generated from field: string name = 1;
-   */
-  name: string;
-
-  /**
-   * @generated from field: bool is_supplier = 2;
-   */
-  isSupplier: boolean;
-
-  /**
-   * @generated from field: repeated string category_ids = 3;
-   */
-  categoryIds: string[];
-
-  /**
-   * @generated from field: string building_id = 4;
-   */
-  buildingId: string;
-
-  /**
-   * @generated from field: optional string floor = 5;
-   */
-  floor?: string | undefined;
-
-  /**
-   * @generated from field: supplier.v1.Coordinates coordinates = 6;
-   */
-  coordinates?: Coordinates | undefined;
-
-  /**
-   * Asia/Singapore "HH:MM". Closing before opening means overnight.
-   *
-   * @generated from field: optional string opens_at = 7;
-   */
-  opensAt?: string | undefined;
-
-  /**
-   * @generated from field: optional string closes_at = 8;
-   */
-  closesAt?: string | undefined;
-
-  /**
-   * @generated from field: optional string contact = 9;
-   */
-  contact?: string | undefined;
-
-  /**
-   * @generated from field: string details = 10;
-   */
-  details: string;
-};
-
-/**
- * Describes the message supplier.v1.LocationInput.
- * Use `create(LocationInputSchema)` to create a new message.
- */
-export const LocationInputSchema: GenMessage<LocationInput> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 13);
-
-/**
- * @generated from message supplier.v1.CreateLocationRequest
- */
-export type CreateLocationRequest = Message<"supplier.v1.CreateLocationRequest"> & {
-  /**
-   * Client-generated. Retrying with the same key and payload within 24 hours
-   * returns the original Location; a different payload is already_exists.
-   *
-   * @generated from field: string idempotency_key = 1;
-   */
-  idempotencyKey: string;
-
-  /**
-   * @generated from field: supplier.v1.LocationInput location = 2;
-   */
-  location?: LocationInput | undefined;
-};
-
-/**
- * Describes the message supplier.v1.CreateLocationRequest.
- * Use `create(CreateLocationRequestSchema)` to create a new message.
- */
-export const CreateLocationRequestSchema: GenMessage<CreateLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 14);
-
-/**
- * @generated from message supplier.v1.CreateLocationResponse
- */
-export type CreateLocationResponse = Message<"supplier.v1.CreateLocationResponse"> & {
-  /**
-   * @generated from field: supplier.v1.Location location = 1;
-   */
-  location?: Location | undefined;
-};
-
-/**
- * Describes the message supplier.v1.CreateLocationResponse.
- * Use `create(CreateLocationResponseSchema)` to create a new message.
- */
-export const CreateLocationResponseSchema: GenMessage<CreateLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 15);
-
-/**
- * @generated from message supplier.v1.UpdateLocationRequest
- */
-export type UpdateLocationRequest = Message<"supplier.v1.UpdateLocationRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * Must match the current revision, otherwise aborted.
-   *
-   * @generated from field: int64 expected_revision = 2;
-   */
-  expectedRevision: bigint;
-
-  /**
-   * Not validated on its own; the handler applies update_mask to the current
-   * Location and validates the merged LocationInput.
-   *
-   * @generated from field: supplier.v1.LocationInput location = 3;
-   */
-  location?: LocationInput | undefined;
-
-  /**
-   * Masked fields left unset are cleared.
-   *
-   * @generated from field: google.protobuf.FieldMask update_mask = 4;
-   */
-  updateMask?: FieldMask | undefined;
-};
-
-/**
- * Describes the message supplier.v1.UpdateLocationRequest.
- * Use `create(UpdateLocationRequestSchema)` to create a new message.
- */
-export const UpdateLocationRequestSchema: GenMessage<UpdateLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 16);
-
-/**
- * @generated from message supplier.v1.UpdateLocationResponse
- */
-export type UpdateLocationResponse = Message<"supplier.v1.UpdateLocationResponse"> & {
-  /**
-   * @generated from field: supplier.v1.Location location = 1;
-   */
-  location?: Location | undefined;
-};
-
-/**
- * Describes the message supplier.v1.UpdateLocationResponse.
- * Use `create(UpdateLocationResponseSchema)` to create a new message.
- */
-export const UpdateLocationResponseSchema: GenMessage<UpdateLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 17);
-
-/**
- * @generated from message supplier.v1.ArchiveLocationRequest
- */
-export type ArchiveLocationRequest = Message<"supplier.v1.ArchiveLocationRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-};
-
-/**
- * Describes the message supplier.v1.ArchiveLocationRequest.
- * Use `create(ArchiveLocationRequestSchema)` to create a new message.
- */
-export const ArchiveLocationRequestSchema: GenMessage<ArchiveLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 18);
-
-/**
- * @generated from message supplier.v1.ArchiveLocationResponse
- */
-export type ArchiveLocationResponse = Message<"supplier.v1.ArchiveLocationResponse"> & {
-  /**
-   * @generated from field: supplier.v1.Location location = 1;
-   */
-  location?: Location | undefined;
-};
-
-/**
- * Describes the message supplier.v1.ArchiveLocationResponse.
- * Use `create(ArchiveLocationResponseSchema)` to create a new message.
- */
-export const ArchiveLocationResponseSchema: GenMessage<ArchiveLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 19);
-
-/**
- * @generated from message supplier.v1.UnarchiveLocationRequest
- */
-export type UnarchiveLocationRequest = Message<"supplier.v1.UnarchiveLocationRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-};
-
-/**
- * Describes the message supplier.v1.UnarchiveLocationRequest.
- * Use `create(UnarchiveLocationRequestSchema)` to create a new message.
- */
-export const UnarchiveLocationRequestSchema: GenMessage<UnarchiveLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 20);
-
-/**
- * @generated from message supplier.v1.UnarchiveLocationResponse
- */
-export type UnarchiveLocationResponse = Message<"supplier.v1.UnarchiveLocationResponse"> & {
-  /**
-   * @generated from field: supplier.v1.Location location = 1;
-   */
-  location?: Location | undefined;
-};
-
-/**
- * Describes the message supplier.v1.UnarchiveLocationResponse.
- * Use `create(UnarchiveLocationResponseSchema)` to create a new message.
- */
-export const UnarchiveLocationResponseSchema: GenMessage<UnarchiveLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location, 21);
+  messageDesc(file_supplier_v1_location, 7);
 
 /**
  * Ties are broken by Location ID so pagination is stable.
