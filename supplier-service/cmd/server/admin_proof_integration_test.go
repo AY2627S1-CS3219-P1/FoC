@@ -254,9 +254,15 @@ func proveAdminIntegration(t *testing.T, pool *pgxpool.Pool, admin rpc.LocationA
 		if err != nil || !proto.Equal(retry.Msg.Location, archived.Msg.Location) {
 			t.Fatalf("archived Create replay: %v %v", retry, err)
 		}
+		var expectedReplay *pb.Disablement
+		for _, record := range history.Msg.Disablements {
+			if record.Id == active.Msg.Disablement.Id {
+				expectedReplay = record
+			}
+		}
 		historical, err := disablement.CreateDisablement(ctx, connect.NewRequest(activeRequest))
-		if err != nil || historical.Msg.Disablement.Id != active.Msg.Disablement.Id {
-			t.Fatalf("archived disablement replay: %v %v", historical, err)
+		if err != nil || expectedReplay == nil || !proto.Equal(historical.Msg.Disablement, expectedReplay) {
+			t.Fatalf("archived disablement replay snapshot: %v %v", historical, err)
 		}
 		_, err = disablement.CreateDisablement(ctx, connect.NewRequest(&pb.CreateDisablementRequest{LocationId: loc.Id, Reason: "new rejected", IdempotencyKey: uuid.NewString()}))
 		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
