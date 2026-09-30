@@ -28,7 +28,7 @@ func TestWorkflowCallbackErrorsPostGIS(t *testing.T) {
 			f.reset(t)
 			var createdID string
 			err := repository.Within(f.ctx, func(tx workflows.Tx) error {
-				location, err := tx.CreateLocation(f.ctx, workflows.Proposal{Name: "Rolled back Location", BuildingID: buildingID, Latitude: 1.294, Longitude: 103.774}, now)
+				location, err := tx.CreateLocation(f.ctx, workflows.Proposal{Name: "Rolled back Location", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, now)
 				if err != nil {
 					return err
 				}

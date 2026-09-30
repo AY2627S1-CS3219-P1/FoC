@@ -15,7 +15,7 @@ func TestWorkflowDowngradeWaitsForWriterPostGIS(t *testing.T) {
 	f := newFixture(t)
 	f.reset(t)
 	requestID := uuid.NewString()
-	f.exec(t, "INSERT INTO location_addition_requests(id,submitted_by,name,is_supplier,building_id,coordinates) VALUES($1,'owner','Pending request',false,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography)", requestID, buildingID)
+	f.exec(t, "INSERT INTO location_addition_requests(id,submitted_by,name,is_supplier,building_id,coordinates) VALUES($1,'owner','Pending request',false,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography)", requestID, postgresBuildingID)
 	writer, err := f.pool.Begin(f.ctx)
 	if err != nil {
 		t.Fatal(err)
