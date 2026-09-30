@@ -1,6 +1,6 @@
 # Supplier Location code structure
 
-Status: #88 package restructure in progress. Workflow idempotency integration and any remaining admin gaps are separate follow-up work. Accepted main admin behavior is retained, not recreated. Planned files are not empty placeholders.
+Status: #88 package restructure complete and verified locally. Workflow idempotency integration and any remaining admin gaps are separate follow-up work. Accepted main admin behavior is retained, not recreated. Planned files are not empty placeholders.
 
 ## Target tree
 
@@ -137,5 +137,22 @@ Those operations are implemented by accepted main PR #103. The restructure moves
 - **D13: Mounting.** Main constructs all services, principal accessors and workflow interceptors. Router mounts discovery, accepted admin, Disablement and addition-request handlers once each. Workflow handlers no longer embed or mount discovery/admin stubs. Explicit generated stubs remain only in contract-test fixtures.
 - **D14: Tests.** Move behavioral tests beside implementations. Extract the existing shared PostGIS fixture for discovery/admin tests and the signed-auth fixture for RPC/production tests. Rename colliding unit/persistence fixture identifiers without changing data. Production-composition E2E exercises signed JWTs, real PostGIS, generated clients and both supported server transports.
 - **D15: Scope.** Preserve protobuf contracts, seeddb/userdb and applied migrations. Workflow retry consolidation is a following PR. Admin follow-up is a gap audit against #103, not a second implementation.
-
 - **D16: Test-host contention.** Concurrent emulated PostGIS fixtures exceeded their existing 60-second startup wait. Serialized package runs reached readiness without changing production or fixture timeouts. `make test-integration` uses `-p 1`; avoid overlapping DB suites on this host.
+
+
+## Verification for #88
+
+- **V1: Units.** All Supplier Service packages passed `go test -p 1 ./... -count=1 -timeout=5m`.
+- **V2: Database and RPC regressions.** Domain discovery/lifecycle, RPC health/discovery/lifecycle and shared idempotency passed real PostGIS integration tests with the race detector. This includes approval waiting behind committed Category edits, admin relationship/revision races, retries, cancellation/deadline errors and migration rollback guards. The original combined process exited 1 only because the new production fixture omitted the legacy REST mount-time Firebase dependency. The fixture correction changes no production code.
+- **V3: Production composition.** `TestLocationProductionComposition` passed with real PostGIS, production dependency construction and router mounting, generated clients, signed JWTs verified by User Service middleware, admin retry, discovery after writes, scheduled cancellation, request approval, archive visibility, denied workflow access, Connect HTTP/1.1 and native gRPC h2c. Its public-key endpoint is a test fixture, not a running User Service. A credential-free Firebase emulator client satisfies unrelated REST mount-time construction; the test makes no Firebase calls.
+- **V4: Generation and contracts.** sqlc v1.30.0 regeneration produces no diff. Protobuf contracts, generated protobuf clients, seeddb/userdb and applied migrations are unchanged by the restructure.
+
+Source: supplier-service/cmd/server/location_integration_test.go. Reproduce from supplier-service/ with Docker available and no competing PostGIS suite:
+
+```sh
+go test -p 1 ./... -count=1 -timeout=5m
+go test -p 1 -race -tags=integration ./internal/location/... ./internal/rpc/... ./internal/idempotency -count=1 -timeout=15m
+go test -p 1 -race -tags=integration ./cmd/server -count=1 -timeout=5m -v
+```
+
+Local raw evidence is retained in /tmp/foc-location-orchestration/restructure-final-e2e.log and /tmp/foc-location-orchestration/restructure-production-proof.log. The latter command exited 0. The final source test is the durable repeatable proof.
