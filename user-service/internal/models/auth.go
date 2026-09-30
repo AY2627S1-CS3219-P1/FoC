@@ -39,7 +39,7 @@ type Session struct {
 	BaseModel
 	Userstamps
 	TokenHash  []byte
-	UserID     uuid.UUID `gorm:"type:uuid"`
+	UserID     uuid.UUID
 	UserAgent  *string
 	IP         *string
 	LastSeenAt time.Time `gorm:"default:now()"`

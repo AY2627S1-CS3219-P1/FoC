@@ -30,7 +30,7 @@ func (u *User) IsSuspended() bool { return u.Role == RoleSuspended }
 func (u *User) IsAdmin() bool { return u.Role.IsAdmin() }
 
 type FavouriteSupplier struct {
-	UserID     uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID     uuid.UUID `gorm:"primaryKey"`
 	SupplierID uuid.UUID `gorm:"primaryKey"`
 	CreatedAt  time.Time
 }

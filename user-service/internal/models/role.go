@@ -37,8 +37,8 @@ type Role struct {
 }
 
 type AdminBootstrap struct {
-	Singleton      bool      `gorm:"primaryKey;default:true"`
-	UserID         uuid.UUID `gorm:"type:uuid"`
+	Singleton      bool `gorm:"primaryKey;default:true"`
+	UserID         uuid.UUID
 	BootstrappedAt time.Time `gorm:"autoCreateTime"`
 }
 

@@ -11,7 +11,7 @@ import (
 type RoleChange struct {
 	BaseModel
 	Userstamps
-	UserID   uuid.UUID `gorm:"type:uuid"`
+	UserID   uuid.UUID
 	FromRole RoleName
 	ToRole   RoleName
 	Reason   *string
@@ -28,7 +28,7 @@ const (
 type AccountWarning struct {
 	BaseModel
 	Userstamps
-	UserID        uuid.UUID `gorm:"type:uuid"`
+	UserID        uuid.UUID
 	RequestID     uuid.UUID
 	ReportID      *uuid.UUID
 	Reason        string
