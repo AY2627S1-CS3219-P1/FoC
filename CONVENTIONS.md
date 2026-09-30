@@ -139,6 +139,10 @@ Supplier Service uses sqlc:
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
 
+## Frontend UI
+- Use Superforms to validate and manage form
+- Use Svelte-M3 UI components
+
 User Service uses GORM:
 
 - `migrations/`: goose migrations, one `0000N_name.sql` per change with

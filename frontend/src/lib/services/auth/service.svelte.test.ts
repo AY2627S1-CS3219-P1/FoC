@@ -99,6 +99,18 @@ describe('AuthService', () => {
 		expect(service.isAuthenticated).toBe(true);
 	});
 
+	it('updates the signed-in display name after a profile save', async () => {
+		const api = createAuthApi();
+		api.login.mockResolvedValueOnce(createSession());
+		const service = new AuthService(api);
+		await service.login('valid-token');
+
+		service.updateDisplayName('Updated Name');
+
+		expect(service.user?.displayName).toBe('Updated Name');
+		expect(service.accessToken).toBe('access-token');
+	});
+
 	it('stores the session returned by registration', async () => {
 		const api = createAuthApi();
 		const session = createSession('registration-token');
