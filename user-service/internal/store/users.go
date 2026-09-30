@@ -45,7 +45,7 @@ type UserUpdate struct {
 	Description    *string
 	TelegramHandle *string
 	PhoneNumber    *string
-	UpdatedBy      *uint
+	UpdatedBy      *uuid.UUID
 }
 
 type Users struct{ db *gorm.DB }
@@ -73,7 +73,7 @@ func (s *Users) Create(ctx context.Context, user *models.User) error {
 	return err
 }
 
-func (s *Users) GetByID(ctx context.Context, id uint) (*models.User, error) {
+func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var u models.User
 	err := s.db.WithContext(ctx).Take(&u, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -103,7 +103,7 @@ func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, e
 	return users, total, err
 }
 
-func (s *Users) Update(ctx context.Context, id uint, in UserUpdate) error {
+func (s *Users) Update(ctx context.Context, id uuid.UUID, in UserUpdate) error {
 	fields := map[string]any{"updated_by": in.UpdatedBy}
 	if in.DisplayName != nil {
 		fields["display_name"] = *in.DisplayName
@@ -136,7 +136,7 @@ func nullIfEmpty(v string) any {
 
 // Delete soft-deletes the user and their sessions and tokens, and removes
 // their favourites. Warnings and role changes are kept as history.
-func (s *Users) Delete(ctx context.Context, id uint) error {
+func (s *Users) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var bootstraps int64
 		if err := tx.Model(&models.AdminBootstrap{}).Where("user_id = ?", id).Count(&bootstraps).Error; err != nil {
@@ -162,13 +162,13 @@ func (s *Users) Delete(ctx context.Context, id uint) error {
 	})
 }
 
-func (s *Users) ListFavourites(ctx context.Context, userID uint) ([]models.FavouriteSupplier, error) {
+func (s *Users) ListFavourites(ctx context.Context, userID uuid.UUID) ([]models.FavouriteSupplier, error) {
 	var favs []models.FavouriteSupplier
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&favs).Error
 	return favs, err
 }
 
-func (s *Users) AddFavourite(ctx context.Context, userID uint, supplierID uuid.UUID, now time.Time) error {
+func (s *Users) AddFavourite(ctx context.Context, userID, supplierID uuid.UUID, now time.Time) error {
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&models.FavouriteSupplier{UserID: userID, SupplierID: supplierID, CreatedAt: now}).Error
 	if errors.Is(err, gorm.ErrForeignKeyViolated) {
@@ -177,7 +177,7 @@ func (s *Users) AddFavourite(ctx context.Context, userID uint, supplierID uuid.U
 	return err
 }
 
-func (s *Users) RemoveFavourite(ctx context.Context, userID uint, supplierID uuid.UUID) error {
+func (s *Users) RemoveFavourite(ctx context.Context, userID, supplierID uuid.UUID) error {
 	return s.db.WithContext(ctx).
 		Delete(&models.FavouriteSupplier{}, "user_id = ? AND supplier_id = ?", userID, supplierID).Error
 }

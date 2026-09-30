@@ -18,7 +18,7 @@ type Admin struct{ db *gorm.DB }
 
 func NewAdmin(db *gorm.DB) *Admin { return &Admin{db: db} }
 
-func (s *Admin) GetUser(ctx context.Context, id uint) (*models.User, error) {
+func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var u models.User
 	err := s.db.WithContext(ctx).Take(&u, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -49,7 +49,7 @@ func (s *Admin) AddDomain(ctx context.Context, d *models.AllowedEmailDomain) err
 	return err
 }
 
-func (s *Admin) DeleteDomain(ctx context.Context, id uint) error {
+func (s *Admin) DeleteDomain(ctx context.Context, id uuid.UUID) error {
 	res := s.db.WithContext(ctx).Delete(&models.AllowedEmailDomain{}, id)
 	if res.Error != nil {
 		return res.Error
@@ -78,7 +78,7 @@ func (s *Admin) ChangeRole(ctx context.Context, c *models.RoleChange) error {
 	})
 }
 
-func (s *Admin) RoleChanges(ctx context.Context, userID uint) ([]models.RoleChange, error) {
+func (s *Admin) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.RoleChange, error) {
 	var cs []models.RoleChange
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&cs).Error
 	return cs, err
@@ -106,7 +106,7 @@ func (s *Admin) CreateWarning(ctx context.Context, w *models.AccountWarning) (bo
 	return false, nil
 }
 
-func (s *Admin) GetWarning(ctx context.Context, id uint) (*models.AccountWarning, error) {
+func (s *Admin) GetWarning(ctx context.Context, id uuid.UUID) (*models.AccountWarning, error) {
 	var w models.AccountWarning
 	err := s.db.WithContext(ctx).Take(&w, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -118,13 +118,13 @@ func (s *Admin) GetWarning(ctx context.Context, id uint) (*models.AccountWarning
 	return &w, nil
 }
 
-func (s *Admin) Warnings(ctx context.Context, userID uint) ([]models.AccountWarning, error) {
+func (s *Admin) Warnings(ctx context.Context, userID uuid.UUID) ([]models.AccountWarning, error) {
 	var ws []models.AccountWarning
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&ws).Error
 	return ws, err
 }
 
-func (s *Admin) RemoveWarning(ctx context.Context, id uint, now time.Time, reason *string, appealID *uuid.UUID, actor *uint) (*models.AccountWarning, error) {
+func (s *Admin) RemoveWarning(ctx context.Context, id uuid.UUID, now time.Time, reason *string, appealID *uuid.UUID, actor *uuid.UUID) (*models.AccountWarning, error) {
 	var w models.AccountWarning
 	res := s.db.WithContext(ctx).Model(&w).Clauses(clause.Returning{}).
 		Where("id = ? AND status = ?", id, models.WarningActive).
