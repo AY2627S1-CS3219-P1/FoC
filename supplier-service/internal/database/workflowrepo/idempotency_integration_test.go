@@ -87,14 +87,31 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 				return nil
 			})
 		}()
+		finished := false
 		defer func() {
 			close(release)
-			if err := <-done; err != nil {
-				t.Errorf("first retry transaction: %v", err)
+			if finished {
+				return
+			}
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("first retry transaction: %v", err)
+				}
+			case <-f.ctx.Done():
+				t.Errorf("first retry transaction did not finish: %v", f.ctx.Err())
 			}
 		}()
-		if err := <-ready; err != nil {
-			t.Fatal(err)
+		select {
+		case err := <-ready:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case err := <-done:
+			finished = true
+			t.Fatalf("first retry transaction did not reach readiness: %v", err)
+		case <-f.ctx.Done():
+			t.Fatal(f.ctx.Err())
 		}
 		ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
 		defer cancel()
