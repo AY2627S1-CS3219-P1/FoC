@@ -10,6 +10,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
@@ -47,7 +48,8 @@ func main() {
 		panic(err)
 	}
 
-	r := router.Setup(deps.New(queries, app, pgxPool), authenticator)
+	mutations := location.NewMutationService(location.NewPostgresMutationStore(pgxPool), time.Now)
+	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, mutations)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port
