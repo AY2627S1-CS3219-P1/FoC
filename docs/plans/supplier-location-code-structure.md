@@ -139,6 +139,7 @@ Those operations are implemented by accepted main PR #103. The restructure moves
 - **D15: Scope.** Preserve protobuf contracts, seeddb/userdb and applied migrations. Workflow retry consolidation is a following PR. Admin follow-up is a gap audit against #103, not a second implementation.
 - **D16: Test-host contention.** Concurrent emulated PostGIS fixtures exceeded their existing 60-second startup wait. Serialized package runs reached readiness without changing production or fixture timeouts. `make test-integration` uses `-p 1`; avoid overlapping DB suites on this host.
 
+- **D17: Domain dependency boundary.** Shared not-found and permission-denied sentinels use standard errors with their existing messages. Only the read/admin RPC mapper translates them with `errors.Is`, including wrapped errors, before falling back to the existing detailed-validation and unknown/context error mapping. Workflow and REST mappings remain unchanged. A transitive production-import test forbids Connect, protobuf, pgx, adapters and capability modules under domain shared.
 
 ## Verification for #88
 
@@ -156,3 +157,19 @@ go test -p 1 -race -tags=integration ./cmd/server -count=1 -timeout=5m -v
 ```
 
 Local raw evidence is retained in /tmp/foc-location-orchestration/restructure-final-e2e.log and /tmp/foc-location-orchestration/restructure-production-proof.log. The latter command exited 0. The final source test is the durable repeatable proof.
+
+
+### Domain boundary correction verification
+
+- **V5: Corrected parent.** At `dbc5e48`, full Supplier race units and vet passed. Generated-client tests preserve exact codes and messages for 72 cases across all discovery/admin methods: plain/wrapped shared errors, plain/wrapped validation, sanitized unknown errors and existing wrapped cancellation/deadline fallback. Production composition, discovery persistence, signed admin RPC/database operations and domain admin round-trip/reference rollback/locked relationships/concurrent revision all passed serialized race/PostGIS reruns. All three verification processes exited 0.
+
+Reproduce the focused correction proof from supplier-service/:
+
+```sh
+go test -p 1 -race ./... -count=1 -timeout=5m
+go vet ./...
+go test -p 1 -race -tags=integration ./cmd/server ./internal/location/discovery ./internal/rpc/location/discovery ./internal/rpc/location/lifecycle -run 'TestLocationProductionComposition|TestPostgresReader|TestAdmin.*|TestDiscoveryRPCPreservesSharedErrorResponses' -count=1 -timeout=10m -v
+go test -p 1 -race -tags=integration ./internal/location/lifecycle -run '^TestPostgresAdmin' -count=1 -timeout=10m -v
+```
+
+Raw evidence: /tmp/foc-location-orchestration/restructure-domain-boundary-units.log, /tmp/foc-location-orchestration/restructure-domain-boundary-postgis.log and /tmp/foc-location-orchestration/restructure-domain-boundary-admin-postgis.log. Domain boundary source: supplier-service/internal/location/shared/boundary_test.go. Adapter regressions: supplier-service/internal/rpc/location/discovery/handler_test.go and supplier-service/internal/rpc/location/lifecycle/admin_test.go.
