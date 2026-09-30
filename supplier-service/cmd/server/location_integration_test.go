@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/locationfixture"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -26,7 +27,16 @@ import (
 // TestLocationProductionComposition proves the real dependency and mounting
 // chain with signed JWTs, generated clients, transactions, and PostGIS.
 func TestLocationProductionComposition(t *testing.T) {
-	pool := locationfixture.SetupDatabase(t)
+	fixturePool := locationfixture.SetupDatabase(t)
+	// Eight blocked RPCs, their lock holder and the observer need independent
+	// connections even on small CI runners. This capacity is test-only.
+	config := fixturePool.Config()
+	config.MaxConns = 12
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
 	auth := rpcauth.New(t)
 	services, err := newRPCServices(pool, time.Now)
 	if err != nil {
@@ -115,6 +125,9 @@ func TestLocationProductionComposition(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("workflow authorization: %v", err)
 	}
+	t.Run("admin integration proofs", func(t *testing.T) {
+		proveAdminIntegration(t, pool, admin, discovery, disablement, input)
+	})
 	// Native gRPC is checked once at the production transport boundary.
 	h2c := new(http.Protocols)
 	h2c.SetUnencryptedHTTP2(true)

@@ -71,6 +71,28 @@ func TestPostgresReader(t *testing.T) {
 		}
 	})
 
+	t.Run("early-ended intervals never produce a current warning", func(t *testing.T) {
+		if _, err := pool.Exec(ctx, `INSERT INTO location_disablements
+			(location_id, starts_at, ends_at, ended_at, reason, created_by) VALUES
+			($1, now()-interval '2 hours', NULL, now()-interval '1 hour', 'Ended indefinite', 'admin'),
+			($1, now()-interval '2 hours', now()+interval '1 day', now()-interval '1 hour', 'Ended before natural expiry', 'admin')`, coopID); err != nil {
+			t.Fatal(err)
+		}
+		loc, err := service.Get(ctx, coopID)
+		if err != nil || loc.CurrentDisablement != nil {
+			t.Fatalf("early-ended detail warning = %+v, err %v", loc, err)
+		}
+		page, err := service.List(ctx, user, ListRequest{Search: "NUS Co-op"})
+		if err != nil || len(page.Locations) != 1 || page.Locations[0].CurrentDisablement != nil {
+			t.Fatalf("early-ended list warning = %+v, err %v", page, err)
+		}
+		active, err := service.List(ctx, user, ListRequest{Search: "Supper Stretch"})
+		if err != nil || len(active.Locations) != 1 || active.Locations[0].CurrentDisablement == nil ||
+			active.Locations[0].CurrentDisablement.Reason != "Renovation" {
+			t.Fatalf("active list warning = %+v, err %v", active, err)
+		}
+	})
+
 	list := func(t *testing.T, caller Caller, req ListRequest) Page {
 		t.Helper()
 		page, err := service.List(ctx, caller, req)
