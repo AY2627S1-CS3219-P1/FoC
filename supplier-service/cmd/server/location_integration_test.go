@@ -115,6 +115,9 @@ func TestLocationProductionComposition(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("workflow authorization: %v", err)
 	}
+	t.Run("admin integration proofs", func(t *testing.T) {
+		proveAdminIntegration(t, pool, admin, discovery, disablement, input)
+	})
 	// Native gRPC is checked once at the production transport boundary.
 	h2c := new(http.Protocols)
 	h2c.SetUnencryptedHTTP2(true)
