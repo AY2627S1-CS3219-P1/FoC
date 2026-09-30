@@ -3,6 +3,7 @@ package errs
 import (
 	"net/http"
 
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 )
 
@@ -26,21 +27,14 @@ func NewBadRequestError(message string) *BadRequestError {
 	}
 }
 
-func (e *BadRequestError) Error() string {
-	return e.message
-}
-
-func (e *BadRequestError) Unwrap() error {
-	return e.Wrapped
-}
+func (e *BadRequestError) Error() string                { return e.message }
+func (e *BadRequestError) Unwrap() error                { return e.Wrapped }
+func (e *BadRequestError) Code() int                    { return http.StatusBadRequest }
+func (e *BadRequestError) GetConnectCode() connect.Code { return connect.CodeInvalidArgument }
 
 func (e *BadRequestError) ErrorTrace() string {
 	if e.Wrapped == nil {
 		return e.Error()
 	}
 	return e.Error() + "\n" + e.Wrapped.Error()
-}
-
-func (e *BadRequestError) Code() int {
-	return http.StatusBadRequest
 }

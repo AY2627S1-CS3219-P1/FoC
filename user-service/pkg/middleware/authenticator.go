@@ -268,3 +268,6 @@ type keysUnavailableError struct{}
 func (keysUnavailableError) Error() string        { return "authentication keys unavailable" }
 func (e keysUnavailableError) ErrorTrace() string { return e.Error() }
 func (keysUnavailableError) Code() int            { return http.StatusServiceUnavailable }
+func (keysUnavailableError) GetConnectCode() connect.Code {
+	return connect.CodeUnavailable
+}

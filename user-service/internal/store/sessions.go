@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
@@ -26,9 +25,21 @@ func (s *Sessions) Create(ctx context.Context, session *models.Session) error {
 	return err
 }
 
+func (s *Sessions) UpdateTokenHash(ctx context.Context, id uint, tokenHash []byte) error {
+	result := s.db.WithContext(ctx).Model(&models.Session{}).
+		Where("id = ?", id).Update("token_hash", tokenHash)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Sessions) Revoke(
 	ctx context.Context,
-	id uuid.UUID,
+	id uint,
 	hash [32]byte,
 	now time.Time,
 ) error {

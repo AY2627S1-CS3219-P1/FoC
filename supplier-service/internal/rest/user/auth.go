@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/exterrors/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/views/userview"
 	"github.com/jackc/pgx/v5"

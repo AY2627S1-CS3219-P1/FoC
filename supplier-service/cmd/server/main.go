@@ -3,7 +3,6 @@ package main
 import (
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
@@ -25,20 +25,21 @@ func main() {
 	if err := godotenv.Load(".env"); err != nil {
 		slog.Error("Error loading .env file", "error", err)
 	}
+	config := env.Get()
 
-	app, err := firebase.InitFirebase()
+	app, err := firebase.InitFirebase(config.FirebaseCredentialsJSON)
 	if err != nil {
 		slog.Error("Error initializing firebase", "error", err)
 		panic(err)
 	}
 
-	queries, pgxPool := database.Connect()
+	queries, pgxPool := database.Connect(config.DatabaseURL)
 	defer pgxPool.Close()
 
 	r := router.Setup(deps.New(queries, app, pgxPool))
 	cors := getCorsConfig().Handler(r)
 
-	port := getPort()
+	port := config.Port
 
 	server := newServer(":"+port, cors)
 
@@ -60,13 +61,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
-}
-
-func getPort() string {
-	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
-		return port
-	}
-	return "8080"
 }
 
 // getCorsConfig allows credentialed cross-origin requests from HTTP localhost

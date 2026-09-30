@@ -1,15 +1,12 @@
+// Command server runs the user service: load config, open and migrate the database, serve until SIGINT/SIGTERM.
 package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,147 +14,67 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
-	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 )
 
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
-	DEFAULT_DB_MAX_OPEN     = 10
-	DEFAULT_DB_MAX_IDLE     = 5
 )
 
-// main runs the user service and exits with status 1 if run returns an error.
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
-	slog.SetDefault(log)
-	if err := run(log); err != nil {
-		log.Error("fatal", "err", err)
-		os.Exit(1)
-	}
+type config struct {
+	port          string
+	databaseURL   string
+	dbMaxOpen     int
+	dbMaxIdle     int
+	runMigrations bool
 }
 
-// run loads optional .env settings, builds the auth service, opens the database,
-// and serves HTTP, applying migrations unless RUN_MIGRATIONS is false. SIGINT or
-// SIGTERM starts a shutdown with a 10-second timeout. It returns configuration,
-// key, database, migration, serving, or shutdown errors; a missing .env file does
-// not prevent startup.
-func run(log *slog.Logger) error {
-	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
-		log.Warn("could not load .env file", "err", err)
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
+	fatal := func(msg string, err error) {
+		log.Error(msg, "err", err)
+		os.Exit(1)
 	}
 
-	local := os.Getenv("APP_ENV") == "local"
-	frontendURL := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL"))
-	if frontendURL == "" && local {
-		frontendURL = "http://localhost:5173"
-	}
-	frontend, err := url.Parse(frontendURL)
+	cfg, err := loadConfig()
 	if err != nil {
-		return err
+		fatal("invalid config", err)
 	}
-
-	keyPath := strings.TrimSpace(os.Getenv("JWT_PRIVATE_KEY_FILE"))
-	if keyPath == "" && local {
-		keyPath = "../.local/secrets/auth/jwt-signing-private.pem"
-	}
-	if keyPath == "" {
-		return errors.New("JWT_PRIVATE_KEY_FILE is required")
-	}
-	key, err := jwt.LoadPrivateKeyPEM(keyPath)
-	if err != nil {
-		return err
-	}
-	codec, err := jwt.NewES256Codec(key, keyID(&key.PublicKey), authmiddleware.TokenIssuer, authmiddleware.TokenAudience)
-	if err != nil {
-		return err
-	}
-	accessTTL, err := getDurationEnv("JWT_ACCESS_TOKEN_TTL", service.AccessTokenLifetime)
-	if err != nil {
-		return err
-	}
-	refreshTTL, err := getDurationEnv("JWT_REFRESH_TOKEN_TTL", service.RefreshTokenLifetime)
-	if err != nil {
-		return err
-	}
-	origin := frontend.Scheme + "://" + frontend.Host
-
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if dsn == "" {
-		return errors.New("DATABASE_URL is not set")
-	}
-	db, err := database.Open(dsn,
-		getEnvInt("DB_MAX_OPEN", DEFAULT_DB_MAX_OPEN),
-		getEnvInt("DB_MAX_IDLE", DEFAULT_DB_MAX_IDLE),
-	)
-	if err != nil {
-		return err
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-	defer sqlDB.Close()
-
-	if getEnvBool("RUN_MIGRATIONS", true) {
-		if err := database.Migrate(db); err != nil {
-			return err
-		}
-		log.Info("migrations applied")
-	}
-
-	authStore := store.New(db)
-	authService, err := service.NewService(service.Dependencies{
-		Store: service.Store{
-			Users:      authStore.Users,
-			AuthTokens: authStore.AuthTokens,
-			Sessions:   authStore.Sessions,
-			Domains:    authStore.Admin,
-		},
-		WithTransaction: func(ctx context.Context, operation func(service.Store) error) error {
-			return authStore.WithTransaction(ctx, func(txStore *store.Store) error {
-				return operation(service.Store{
-					Users:      txStore.Users,
-					AuthTokens: txStore.AuthTokens,
-					Sessions:   txStore.Sessions,
-					Domains:    txStore.Admin,
-				})
-			})
-		},
-		TokenCodec:  codec,
-		EmailSender: email.EmptyEmailSender{},
-	}, service.Config{
-		FrontendBaseURL: *frontend, LocalDevelopment: local,
-		AccessTokenTTL: accessTTL, RefreshTokenTTL: refreshTTL,
-	})
-	if err != nil {
-		return err
-	}
-
-	r := router.Setup(
-		&healthhandler.Handler{DB: sqlDB},
-		&authhandler.Handler{Logic: authService, AllowedOrigin: origin},
-	)
-	addr := ":" + getPort()
-	srv := newServer(addr, getCorsConfig(origin).Handler(r))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
+	if err != nil {
+		fatal("open database", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		fatal("database handle", err)
+	}
+	defer sqlDB.Close()
+
+	if cfg.runMigrations {
+		if err := database.Migrate(db); err != nil {
+			fatal("migrate", err)
+		}
+		log.Info("migrations applied")
+	}
+
+	srv := newServer(":"+cfg.port, getCorsConfig().Handler(newRouter(&health.Handler{DB: sqlDB})))
+
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", addr)
+		log.Info("listening", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -166,14 +83,18 @@ func run(log *slog.Logger) error {
 
 	select {
 	case err := <-errCh:
-		return err
+		if err != nil {
+			fatal("serve", err)
+		}
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
 	log.Info("shutting down")
-	return srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("shutdown", "err", err)
+	}
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -188,52 +109,79 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func keyID(key *ecdsa.PublicKey) string {
-	fingerprint := sha256.Sum256(elliptic.Marshal(key.Curve, key.X, key.Y))
-	return hex.EncodeToString(fingerprint[:])
+// loadConfig reads .env (if present) and the environment once, applying
+// defaults and rejecting a missing DATABASE_URL or malformed values.
+func loadConfig() (config, error) {
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return config{}, fmt.Errorf("load .env: %w", err)
+	}
+
+	var errs []error
+	cfg := config{
+		port:          envString("PORT", "8080"),
+		databaseURL:   envString("DATABASE_URL", ""),
+		dbMaxOpen:     envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:     envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations: envBool("RUN_MIGRATIONS", true, &errs),
+	}
+	if cfg.databaseURL == "" {
+		errs = append(errs, errors.New("DATABASE_URL is not set"))
+	}
+	return cfg, errors.Join(errs...)
 }
 
-func getDurationEnv(name string, fallback time.Duration) (time.Duration, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback, nil
-	}
-	duration, err := time.ParseDuration(value)
-	if err != nil || duration < time.Second {
-		return 0, errors.New(name + " must be a duration of at least 1s")
-	}
-	return duration, nil
-}
-
-func getPort() string {
-	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
-		return port
-	}
-	return "8080"
-}
-
-// getEnvInt parses the trimmed environment value as a decimal integer, returning
-// fallback if it is unset, empty, invalid, or out of range for int.
-func getEnvInt(key string, fallback int) int {
-	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key))); err == nil {
+func envString(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
 	return fallback
 }
 
-// getEnvBool parses the trimmed environment value with strconv.ParseBool,
-// returning fallback if it is unset, empty, or invalid.
-func getEnvBool(key string, fallback bool) bool {
-	if v, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(key))); err == nil {
-		return v
+func envPositiveInt(key string, fallback int, errs *[]error) int {
+	v := envString(key, "")
+	if v == "" {
+		return fallback
 	}
-	return fallback
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		*errs = append(*errs, fmt.Errorf("%s must be a positive integer, got %q", key, v))
+		return fallback
+	}
+	return n
 }
 
-func getCorsConfig(origin string) *cors.Cors {
+func envBool(key string, fallback bool, errs *[]error) bool {
+	v := envString(key, "")
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("%s must be a boolean, got %q", key, v))
+		return fallback
+	}
+	return b
+}
+
+func newRouter(healthHandler *health.Handler) http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(sharedmiddleware.RequestLogger)
+	r.Use(middleware.Recoverer)
+
+	r.Mount(userv1connect.NewHealthServiceHandler(healthHandler))
+	return r
+}
+
+// getCorsConfig allows localhost dev origins.
+func getCorsConfig() *cors.Cors {
 	return cors.New(cors.Options{
-		AllowedOrigins: []string{origin},
-		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowOriginFunc: func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost:")
+		},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{
 			"Authorization",
 			"Content-Type",
@@ -248,6 +196,5 @@ func getCorsConfig(origin string) *cors.Cors {
 			"Grpc-Message",
 			"Grpc-Status-Details-Bin",
 		},
-		AllowCredentials: true,
 	})
 }

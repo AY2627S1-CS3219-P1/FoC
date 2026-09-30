@@ -1,3 +1,5 @@
+// Allowed domains, role changes and account warnings persistence.
+
 package store
 
 import (
@@ -12,17 +14,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
-// Admin persists allowed domains, role changes and account warnings.
 type Admin struct{ db *gorm.DB }
 
-// NewAdmin uses db for admin and moderation persistence.
 func NewAdmin(db *gorm.DB) *Admin { return &Admin{db: db} }
 
-// GetUser returns the user or ErrNotFound if absent. Other database errors
-// are returned unchanged.
-func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
+func (s *Admin) GetUser(ctx context.Context, id uint) (*models.User, error) {
 	var u models.User
-	err := s.db.WithContext(ctx).Take(&u, "id = ?", id).Error
+	err := s.db.WithContext(ctx).Take(&u, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -32,18 +30,10 @@ func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, nil
 }
 
-// ListDomains returns allowed domains in domain order and any database error.
 func (s *Admin) ListDomains(ctx context.Context) ([]models.AllowedEmailDomain, error) {
 	var ds []models.AllowedEmailDomain
 	err := s.db.WithContext(ctx).Order("domain").Find(&ds).Error
 	return ds, err
-}
-
-func (s *Admin) Allows(ctx context.Context, domain string) (bool, error) {
-	var allowed bool
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT EXISTS (SELECT 1 FROM allowed_email_domains WHERE domain = ?)`, domain).Scan(&allowed).Error
-	return allowed, err
 }
 
 // AddDomain inserts d, mapping GORM duplicate-key and check-constraint errors
@@ -59,10 +49,8 @@ func (s *Admin) AddDomain(ctx context.Context, d *models.AllowedEmailDomain) err
 	return err
 }
 
-// DeleteDomain deletes the allowed domain or returns ErrNotFound if absent.
-// Other database errors are returned unchanged.
-func (s *Admin) DeleteDomain(ctx context.Context, id uuid.UUID) error {
-	res := s.db.WithContext(ctx).Delete(&models.AllowedEmailDomain{}, "id = ?", id)
+func (s *Admin) DeleteDomain(ctx context.Context, id uint) error {
+	res := s.db.WithContext(ctx).Delete(&models.AllowedEmailDomain{}, id)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -72,19 +60,14 @@ func (s *Admin) DeleteDomain(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// ChangeRole atomically updates the user from c.FromRole to c.ToRole and records c.
-// A missing user or mismatched current role returns ErrRoleConflict; database errors
-// are propagated. A zero c.CreatedAt is filled with the current UTC time, which
-// also becomes the user's updated_at. Changes to c can remain after a rollback.
+// ChangeRole moves the user from c.FromRole to c.ToRole and records c in one
+// transaction, or returns ErrRoleConflict if the current role differs.
+// c.CreatedBy is the actor and is also stored as the user's updated_by.
 func (s *Admin) ChangeRole(ctx context.Context, c *models.RoleChange) error {
-	// Set before the update so users.updated_at never gets the zero time.
-	if c.CreatedAt.IsZero() {
-		c.CreatedAt = time.Now().UTC()
-	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&models.User{}).
 			Where("id = ? AND role = ?", c.UserID, c.FromRole).
-			Updates(map[string]any{"role": c.ToRole, "updated_at": c.CreatedAt})
+			Updates(map[string]any{"role": c.ToRole, "updated_by": c.CreatedBy})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -95,17 +78,14 @@ func (s *Admin) ChangeRole(ctx context.Context, c *models.RoleChange) error {
 	})
 }
 
-// RoleChanges returns the user's role history, newest first, and any database error.
-func (s *Admin) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.RoleChange, error) {
+func (s *Admin) RoleChanges(ctx context.Context, userID uint) ([]models.RoleChange, error) {
 	var cs []models.RoleChange
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&cs).Error
 	return cs, err
 }
 
-// CreateWarning inserts w or loads the existing warning into w on a SourceEventID
-// conflict. With a nil error, the result is true for an insert and false for a replay.
-// A nil SourceEventID disables deduplication. Insert and lookup errors are propagated;
-// the boolean alone does not indicate success.
+// CreateWarning reports true when w is inserted, or false after loading the
+// existing warning with the same SourceEventID into w.
 func (s *Admin) CreateWarning(ctx context.Context, w *models.AccountWarning) (bool, error) {
 	db := s.db.WithContext(ctx)
 	if w.SourceEventID == nil {
@@ -118,14 +98,17 @@ func (s *Admin) CreateWarning(ctx context.Context, w *models.AccountWarning) (bo
 	if res.RowsAffected == 1 {
 		return true, nil
 	}
-	return false, db.Take(w, "source_event_id = ?", *w.SourceEventID).Error
+	var existing models.AccountWarning
+	if err := db.Unscoped().Take(&existing, "source_event_id = ?", *w.SourceEventID).Error; err != nil {
+		return false, err
+	}
+	*w = existing
+	return false, nil
 }
 
-// GetWarning returns a warning of either status or ErrNotFound if absent.
-// Other database errors are returned unchanged.
-func (s *Admin) GetWarning(ctx context.Context, id uuid.UUID) (*models.AccountWarning, error) {
+func (s *Admin) GetWarning(ctx context.Context, id uint) (*models.AccountWarning, error) {
 	var w models.AccountWarning
-	err := s.db.WithContext(ctx).Take(&w, "id = ?", id).Error
+	err := s.db.WithContext(ctx).Take(&w, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -135,28 +118,27 @@ func (s *Admin) GetWarning(ctx context.Context, id uuid.UUID) (*models.AccountWa
 	return &w, nil
 }
 
-// Warnings returns the user's active and removed warnings, newest first,
-// and any database error.
-func (s *Admin) Warnings(ctx context.Context, userID uuid.UUID) ([]models.AccountWarning, error) {
+func (s *Admin) Warnings(ctx context.Context, userID uint) ([]models.AccountWarning, error) {
 	var ws []models.AccountWarning
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&ws).Error
 	return ws, err
 }
 
-// RemoveWarning marks an active warning removed at now, stores the optional
-// reason and appeal ID, and returns the updated warning. A missing or already
-// removed warning returns ErrNotFound; database errors are propagated.
-func (s *Admin) RemoveWarning(ctx context.Context, id uuid.UUID, now time.Time, reason *string, appealID *uuid.UUID) (*models.AccountWarning, error) {
+func (s *Admin) RemoveWarning(ctx context.Context, id uint, now time.Time, reason *string, appealID *uuid.UUID, actor *uint) (*models.AccountWarning, error) {
 	var w models.AccountWarning
-	err := s.db.WithContext(ctx).Raw(`
-		UPDATE account_warnings
-		SET status = 'removed', removed_at = ?, removed_reason = ?, appeal_id = ?
-		WHERE id = ? AND status = 'active'
-		RETURNING *`, now, reason, appealID, id).Scan(&w).Error
-	if err != nil {
-		return nil, err
+	res := s.db.WithContext(ctx).Model(&w).Clauses(clause.Returning{}).
+		Where("id = ? AND status = ?", id, models.WarningActive).
+		Updates(map[string]any{
+			"status":         models.WarningRemoved,
+			"removed_at":     now,
+			"removed_reason": reason,
+			"appeal_id":      appealID,
+			"updated_by":     actor,
+		})
+	if res.Error != nil {
+		return nil, res.Error
 	}
-	if w.ID == uuid.Nil {
+	if res.RowsAffected == 0 {
 		return nil, ErrNotFound
 	}
 	return &w, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
@@ -138,7 +139,7 @@ func userMessage(user models.User) *userv1.User {
 		models.RoleUser:       userv1.UserRole_USER_ROLE_USER,
 		models.RoleSuspended:  userv1.UserRole_USER_ROLE_SUSPENDED_USER,
 	}[user.Role]
-	return &userv1.User{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName, Role: role}
+	return &userv1.User{Id: strconv.FormatUint(uint64(user.ID), 10), Email: user.Email, DisplayName: user.DisplayName, Role: role}
 }
 
 func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {
