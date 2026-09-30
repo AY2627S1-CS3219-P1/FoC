@@ -118,7 +118,6 @@ func main() {
 		Profile:             &profilehandler.Handler{Logic: profileLogic},
 		Admin:               &adminhandler.Handler{Logic: roleLogic},
 		Authenticate:        userservicemiddleware.AuthenticateLocal(codec),
-		Users:               persistence.Users,
 		ProfileReadPolicy:   authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin, authorization.RoleSuspended),
 		ProfileUpdatePolicy: authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin),
 		AdminPolicy:         authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin),

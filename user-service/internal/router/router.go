@@ -25,7 +25,6 @@ type ProtectedRoutes struct {
 	Profile             *profilehandler.Handler
 	Admin               *adminhandler.Handler
 	Authenticate        func(http.Handler) http.Handler
-	Users               ActorReader
 	ProfileReadPolicy   authorization.Policy
 	ProfileUpdatePolicy authorization.Policy
 	AdminPolicy         authorization.Policy
@@ -66,7 +65,7 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 			userv1connect.UserAdminServiceGetUserByEmailProcedure: p.AdminPolicy,
 			userv1connect.UserAdminServiceChangeUserRoleProcedure: p.AdminPolicy,
 		}
-		interceptors := connect.WithInterceptors(normalizeRPCError(), authorizeProtected(p.Users, policies), validate.NewInterceptor())
+		interceptors := connect.WithInterceptors(normalizeRPCError(), authorizeProtected(policies), validate.NewInterceptor())
 		profilePath, profileService := userv1connect.NewProfileServiceHandler(
 			p.Profile, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(profilePath, profileService)

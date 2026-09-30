@@ -21,20 +21,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/google/uuid"
 )
-
-type protectedUsers struct{ users map[uuid.UUID]models.User }
-
-func (p *protectedUsers) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
-	u, ok := p.users[id]
-	if !ok {
-		return nil, store.ErrNotFound
-	}
-	return &u, nil
-}
 
 type profileStub struct{ user models.User }
 
@@ -70,13 +59,11 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	contact := "private_handle"
 	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target",
 		TelegramHandle: &contact, Role: models.RoleUser}
-	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
 			Profile:             &profilehandler.Handler{Logic: profileStub{actor}},
 			Admin:               &adminhandler.Handler{Logic: adminStub{target}},
 			Authenticate:        authmiddleware.AuthenticateLocal(codec),
-			Users:               users,
 			ProfileReadPolicy:   authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin, authorization.RoleSuspended),
 			ProfileUpdatePolicy: authorization.NewRolePolicy(authorization.RoleUser, authorization.RoleAdmin, authorization.RoleSuperAdmin),
 			AdminPolicy:         authorization.NewRolePolicy(authorization.RoleAdmin, authorization.RoleSuperAdmin),
@@ -109,35 +96,32 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if _, err := profileClient.UpdateMyProfile(ctx, profileUpdate); err != nil {
 		t.Fatalf("normalized profile input rejected by RPC validation: %v", err)
 	}
-	actor.Role = models.RoleSuspended
-	users.users[actorID] = actor
-	if _, err := profileClient.GetMyProfile(ctx, get); err != nil {
+	suspendedToken := signedTestAccess(t, codec, actorID, jwt.RoleSuspendedUser)
+	suspendedGet := connect.NewRequest(&userv1.GetMyProfileRequest{})
+	suspendedGet.Header().Set("Authorization", "Bearer "+suspendedToken)
+	if _, err := profileClient.GetMyProfile(ctx, suspendedGet); err != nil {
 		t.Fatalf("suspended profile read: %v", err)
 	}
 	update := connect.NewRequest(&userv1.UpdateMyProfileRequest{DisplayName: "New"})
-	update.Header().Set("Authorization", "Bearer "+token)
+	update.Header().Set("Authorization", "Bearer "+suspendedToken)
 	if _, err := profileClient.UpdateMyProfile(ctx, update); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatalf("suspended update with stale user token: %v", err)
+		t.Fatalf("suspended update: %v", err)
 	}
 	invalidUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{})
-	invalidUpdate.Header().Set("Authorization", "Bearer "+token)
+	invalidUpdate.Header().Set("Authorization", "Bearer "+suspendedToken)
 	if _, err := profileClient.UpdateMyProfile(ctx, invalidUpdate); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("authorization should precede validation: %v", err)
 	}
-	actor.Role = models.RoleAdmin
-	users.users[actorID] = actor
+	adminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
-	lookup.Header().Set("Authorization", "Bearer "+token)
+	lookup.Header().Set("Authorization", "Bearer "+adminToken)
 	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != targetID.String() {
-		t.Fatalf("persisted admin lookup: %+v, %v", response, err)
+		t.Fatalf("admin token lookup: %+v, %v", response, err)
 	}
-	actor.Role = models.RoleUser
-	users.users[actorID] = actor
-	staleAdminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
 	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: targetID.String(), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
-	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
-	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatalf("stale admin token: %v", err)
+	change.Header().Set("Authorization", "Bearer "+adminToken)
+	if _, err := adminClient.ChangeUserRole(ctx, change); err != nil {
+		t.Fatalf("admin token role change: %v", err)
 	}
 }
 
