@@ -3,6 +3,7 @@ module github.com/AY2627S1-CS3219-P1/FoC/supplier-service
 go 1.27.0
 
 require (
+	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	firebase.google.com/go/v4 v4.18.0
@@ -23,7 +24,6 @@ require (
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 // indirect
-	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
 	cloud.google.com/go v0.123.0 // indirect

@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package supplier.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/timeofday.proto";
+
+// A Supplier is a Location with is_supplier set, not a separate resource.
+message Location {
+  string id = 1;
+  // Not unique.
+  string name = 2;
+  bool is_supplier = 3;
+  Building building = 4;
+  // Empty for non-Supplier Locations.
+  repeated Category categories = 5;
+  optional string floor = 6;
+  Coordinates coordinates = 7;
+  // Asia/Singapore wall-clock time. Set together with closes_at, or neither
+  // is set. Closing before opening means overnight.
+  google.type.TimeOfDay opens_at = 8;
+  google.type.TimeOfDay closes_at = 9;
+  optional string contact = 10;
+  // Directions and remote-purchase instructions.
+  string details = 11;
+  google.protobuf.Timestamp archived_at = 12;
+  // In effect now, if any. Disabled Locations stay selectable.
+  Disablement current_disablement = 13;
+  // For optimistic concurrency.
+  int64 revision = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+// WGS 84 degrees.
+message Coordinates {
+  double latitude = 1 [(buf.validate.field).double = {
+    gte: -90
+    lte: 90
+  }];
+  double longitude = 2 [(buf.validate.field).double = {
+    gte: -180
+    lte: 180
+  }];
+}
+
+// Read-only; not editable through the API.
+message Building {
+  string id = 1;
+  string name = 2;
+  Coordinates center = 3;
+  float radius_m = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// Read-only; not editable through the API. E.g. "Food" or "Printing".
+message Category {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// Writable Location fields. Admins and users supply the same Location details,
+// but admin operations change Locations directly and user addition requests need
+// approval. Permissions apply to the operation, not the input fields.
+// Length limits apply before trimming.
+message LocationInput {
+  option (buf.validate.message).cel = {
+    id: "location_input.supplier_categories"
+    message: "Suppliers need at least one category; ordinary Locations have none"
+    expression: "this.is_supplier == (size(this.category_ids) > 0)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_input.opening_hours_format"
+    message: "opens_at and closes_at must be whole minutes between 00:00 and 23:59"
+    expression: "[this.opens_at, this.closes_at].all(t, t.hours >= 0 && t.hours < 24 && t.minutes >= 0 && t.minutes < 60 && t.seconds == 0 && t.nanos == 0)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_input.opening_hours"
+    message: "opens_at and closes_at must both be set and differ, or both be unset"
+    expression: "has(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)"
+  };
+
+  // Must contain a non-whitespace character.
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 200
+    pattern: "\\S"
+  }];
+  optional bool is_supplier = 2;
+  repeated string category_ids = 3 [(buf.validate.field).repeated = {
+    unique: true
+    items: {
+      string: {uuid: true}
+    }
+  }];
+  string building_id = 4 [(buf.validate.field).string.uuid = true];
+  optional string floor = 5 [(buf.validate.field).string.max_len = 50];
+  Coordinates coordinates = 6 [(buf.validate.field).required = true];
+  // Asia/Singapore wall-clock time, whole minutes. Closing before opening
+  // means overnight.
+  google.type.TimeOfDay opens_at = 7;
+  google.type.TimeOfDay closes_at = 8;
+  optional string contact = 9 [(buf.validate.field).string.max_len = 500];
+  string details = 10 [(buf.validate.field).string.max_len = 2000];
+}
+
+// Counts include only resources visible to the caller after filtering.
+message PageInfo {
+  // One-based current page.
+  int32 page = 1;
+  // Effective size, default 20, maximum 100.
+  int32 page_size = 2;
+  int64 total_items = 3;
+  // Total pages, zero for an empty result.
+  int32 total_pages = 4;
+}
+
+// Lifecycle state derived from the interval and terminal timestamps.
+enum DisablementState {
+  // No state filter when used in a list request.
+  DISABLEMENT_STATE_UNSPECIFIED = 0;
+  DISABLEMENT_STATE_SCHEDULED = 1;
+  DISABLEMENT_STATE_ACTIVE = 2;
+  DISABLEMENT_STATE_ENDED = 3;
+  DISABLEMENT_STATE_CANCELLED = 4;
+}
+
+message Disablement {
+  string id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  // Natural end, absent for indefinite intervals.
+  google.protobuf.Timestamp ends_at = 3;
+  string reason = 4;
+  string location_id = 5;
+  // Explicit early end, if any.
+  google.protobuf.Timestamp ended_at = 6;
+  google.protobuf.Timestamp cancelled_at = 7;
+  string created_by = 8;
+  // Lifecycle state at response time.
+  DisablementState state = 9;
+  int64 revision = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}

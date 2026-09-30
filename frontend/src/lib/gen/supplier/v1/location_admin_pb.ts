@@ -2,91 +2,20 @@
 // @generated from file supplier/v1/location_admin.proto (package supplier.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { FieldMask } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_field_mask } from "@bufbuild/protobuf/wkt";
-import type { TimeOfDay } from "../../google/type/timeofday_pb";
-import { file_google_type_timeofday } from "../../google/type/timeofday_pb";
-import type { Coordinates, Location } from "./location_types_pb";
-import { file_supplier_v1_location_types } from "./location_types_pb";
+import type { Location, LocationInput } from "./location_shared_types_pb";
+import { file_supplier_v1_location_shared_types } from "./location_shared_types_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file supplier/v1/location_admin.proto.
  */
 export const file_supplier_v1_location_admin: GenFile = /*@__PURE__*/
-  fileDesc("CiBzdXBwbGllci92MS9sb2NhdGlvbl9hZG1pbi5wcm90bxILc3VwcGxpZXIudjEi8AcKDUxvY2F0aW9uSW5wdXQSHAoEbmFtZRgBIAEoCUIOukgLcgkQARjIATICXFMSEwoLaXNfc3VwcGxpZXIYAiABKAgSJQoMY2F0ZWdvcnlfaWRzGAMgAygJQg+6SAySAQkYASIFcgOwAQESHQoLYnVpbGRpbmdfaWQYBCABKAlCCLpIBXIDsAEBEhsKBWZsb29yGAUgASgJQge6SARyAhgySACIAQESNQoLY29vcmRpbmF0ZXMYBiABKAsyGC5zdXBwbGllci52MS5Db29yZGluYXRlc0IGukgDyAEBEigKCG9wZW5zX2F0GAcgASgLMhYuZ29vZ2xlLnR5cGUuVGltZU9mRGF5EikKCWNsb3Nlc19hdBgIIAEoCzIWLmdvb2dsZS50eXBlLlRpbWVPZkRheRIeCgdjb250YWN0GAkgASgJQgi6SAVyAxj0A0gBiAEBEhkKB2RldGFpbHMYCiABKAlCCLpIBXIDGNAPOusEukjnBBqbAQoibG9jYXRpb25faW5wdXQuc3VwcGxpZXJfY2F0ZWdvcmllcxJCU3VwcGxpZXJzIG5lZWQgYXQgbGVhc3Qgb25lIGNhdGVnb3J5OyBvcmRpbmFyeSBMb2NhdGlvbnMgaGF2ZSBub25lGjF0aGlzLmlzX3N1cHBsaWVyID09IChzaXplKHRoaXMuY2F0ZWdvcnlfaWRzKSA+IDApGvgBCiNsb2NhdGlvbl9pbnB1dC5vcGVuaW5nX2hvdXJzX2Zvcm1hdBJEb3BlbnNfYXQgYW5kIGNsb3Nlc19hdCBtdXN0IGJlIHdob2xlIG1pbnV0ZXMgYmV0d2VlbiAwMDowMCBhbmQgMjM6NTkaigFbdGhpcy5vcGVuc19hdCwgdGhpcy5jbG9zZXNfYXRdLmFsbCh0LCB0LmhvdXJzID49IDAgJiYgdC5ob3VycyA8IDI0ICYmIHQubWludXRlcyA+PSAwICYmIHQubWludXRlcyA8IDYwICYmIHQuc2Vjb25kcyA9PSAwICYmIHQubmFub3MgPT0gMCkaywEKHGxvY2F0aW9uX2lucHV0Lm9wZW5pbmdfaG91cnMSRG9wZW5zX2F0IGFuZCBjbG9zZXNfYXQgbXVzdCBib3RoIGJlIHNldCBhbmQgZGlmZmVyLCBvciBib3RoIGJlIHVuc2V0GmVoYXModGhpcy5vcGVuc19hdCkgPT0gaGFzKHRoaXMuY2xvc2VzX2F0KSAmJiAoIWhhcyh0aGlzLm9wZW5zX2F0KSB8fCB0aGlzLm9wZW5zX2F0ICE9IHRoaXMuY2xvc2VzX2F0KUIICgZfZmxvb3JCCgoIX2NvbnRhY3QicAoVQ3JlYXRlTG9jYXRpb25SZXF1ZXN0EiEKD2lkZW1wb3RlbmN5X2tleRgBIAEoCUIIukgFcgOwAQESNAoIbG9jYXRpb24YAiABKAsyGi5zdXBwbGllci52MS5Mb2NhdGlvbklucHV0Qga6SAPIAQEiQQoWQ3JlYXRlTG9jYXRpb25SZXNwb25zZRInCghsb2NhdGlvbhgBIAEoCzIVLnN1cHBsaWVyLnYxLkxvY2F0aW9uIq0CChVVcGRhdGVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEiIKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDQge6SAQiAiAAEjQKCGxvY2F0aW9uGAMgASgLMhouc3VwcGxpZXIudjEuTG9jYXRpb25JbnB1dEIGukgD2AEDEqMBCgt1cGRhdGVfbWFzaxgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2tCcrpIb8gBAeIBaRIEbmFtZRILaXNfc3VwcGxpZXISDGNhdGVnb3J5X2lkcxILYnVpbGRpbmdfaWQSBWZsb29yEgtjb29yZGluYXRlcxIIb3BlbnNfYXQSCWNsb3Nlc19hdBIHY29udGFjdBIHZGV0YWlscyJBChZVcGRhdGVMb2NhdGlvblJlc3BvbnNlEicKCGxvY2F0aW9uGAEgASgLMhUuc3VwcGxpZXIudjEuTG9jYXRpb24iLgoWQXJjaGl2ZUxvY2F0aW9uUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiQgoXQXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbiIwChhVbmFyY2hpdmVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBIkQKGVVuYXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbkK0AQoPY29tLnN1cHBsaWVyLnYxQhJMb2NhdGlvbkFkbWluUHJvdG9QAVpAZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vc3VwcGxpZXIvdjE7c3VwcGxpZXJ2MaICA1NYWKoCC1N1cHBsaWVyLlYxygILU3VwcGxpZXJcVjHiAhdTdXBwbGllclxWMVxHUEJNZXRhZGF0YeoCDFN1cHBsaWVyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_field_mask, file_google_type_timeofday, file_supplier_v1_location_types]);
-
-/**
- * Writable Location fields. Length limits apply before trimming.
- *
- * @generated from message supplier.v1.LocationInput
- */
-export type LocationInput = Message<"supplier.v1.LocationInput"> & {
-  /**
-   * Must contain a non-whitespace character.
-   *
-   * @generated from field: string name = 1;
-   */
-  name: string;
-
-  /**
-   * @generated from field: bool is_supplier = 2;
-   */
-  isSupplier: boolean;
-
-  /**
-   * @generated from field: repeated string category_ids = 3;
-   */
-  categoryIds: string[];
-
-  /**
-   * @generated from field: string building_id = 4;
-   */
-  buildingId: string;
-
-  /**
-   * @generated from field: optional string floor = 5;
-   */
-  floor?: string | undefined;
-
-  /**
-   * @generated from field: supplier.v1.Coordinates coordinates = 6;
-   */
-  coordinates?: Coordinates | undefined;
-
-  /**
-   * Asia/Singapore wall-clock time, whole minutes. Closing before opening
-   * means overnight.
-   *
-   * @generated from field: google.type.TimeOfDay opens_at = 7;
-   */
-  opensAt?: TimeOfDay | undefined;
-
-  /**
-   * @generated from field: google.type.TimeOfDay closes_at = 8;
-   */
-  closesAt?: TimeOfDay | undefined;
-
-  /**
-   * @generated from field: optional string contact = 9;
-   */
-  contact?: string | undefined;
-
-  /**
-   * @generated from field: string details = 10;
-   */
-  details: string;
-};
-
-/**
- * Describes the message supplier.v1.LocationInput.
- * Use `create(LocationInputSchema)` to create a new message.
- */
-export const LocationInputSchema: GenMessage<LocationInput> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 0);
+  fileDesc("CiBzdXBwbGllci92MS9sb2NhdGlvbl9hZG1pbi5wcm90bxILc3VwcGxpZXIudjEi1QEKFUNyZWF0ZUxvY2F0aW9uUmVxdWVzdBIhCg9pZGVtcG90ZW5jeV9rZXkYASABKAlCCLpIBXIDsAEBEjQKCGxvY2F0aW9uGAIgASgLMhouc3VwcGxpZXIudjEuTG9jYXRpb25JbnB1dEIGukgDyAEBOmO6SGAaXgoXY29tcGxldGVfbG9jYXRpb25faW5wdXQSI2V4cGxpY2l0IGNsYXNzaWZpY2F0aW9uIGlzIHJlcXVpcmVkGh5oYXModGhpcy5sb2NhdGlvbi5pc19zdXBwbGllcikiQQoWQ3JlYXRlTG9jYXRpb25SZXNwb25zZRInCghsb2NhdGlvbhgBIAEoCzIVLnN1cHBsaWVyLnYxLkxvY2F0aW9uIq0CChVVcGRhdGVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEiIKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDQge6SAQiAiAAEjQKCGxvY2F0aW9uGAMgASgLMhouc3VwcGxpZXIudjEuTG9jYXRpb25JbnB1dEIGukgD2AEDEqMBCgt1cGRhdGVfbWFzaxgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE1hc2tCcrpIb8gBAeIBaRIEbmFtZRILaXNfc3VwcGxpZXISDGNhdGVnb3J5X2lkcxILYnVpbGRpbmdfaWQSBWZsb29yEgtjb29yZGluYXRlcxIIb3BlbnNfYXQSCWNsb3Nlc19hdBIHY29udGFjdBIHZGV0YWlscyJBChZVcGRhdGVMb2NhdGlvblJlc3BvbnNlEicKCGxvY2F0aW9uGAEgASgLMhUuc3VwcGxpZXIudjEuTG9jYXRpb24iLgoWQXJjaGl2ZUxvY2F0aW9uUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiQgoXQXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbiIwChhVbmFyY2hpdmVMb2NhdGlvblJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBIkQKGVVuYXJjaGl2ZUxvY2F0aW9uUmVzcG9uc2USJwoIbG9jYXRpb24YASABKAsyFS5zdXBwbGllci52MS5Mb2NhdGlvbjKcAwoUTG9jYXRpb25BZG1pblNlcnZpY2USWwoOQ3JlYXRlTG9jYXRpb24SIi5zdXBwbGllci52MS5DcmVhdGVMb2NhdGlvblJlcXVlc3QaIy5zdXBwbGllci52MS5DcmVhdGVMb2NhdGlvblJlc3BvbnNlIgASWwoOVXBkYXRlTG9jYXRpb24SIi5zdXBwbGllci52MS5VcGRhdGVMb2NhdGlvblJlcXVlc3QaIy5zdXBwbGllci52MS5VcGRhdGVMb2NhdGlvblJlc3BvbnNlIgASYQoPQXJjaGl2ZUxvY2F0aW9uEiMuc3VwcGxpZXIudjEuQXJjaGl2ZUxvY2F0aW9uUmVxdWVzdBokLnN1cHBsaWVyLnYxLkFyY2hpdmVMb2NhdGlvblJlc3BvbnNlIgOQAgISZwoRVW5hcmNoaXZlTG9jYXRpb24SJS5zdXBwbGllci52MS5VbmFyY2hpdmVMb2NhdGlvblJlcXVlc3QaJi5zdXBwbGllci52MS5VbmFyY2hpdmVMb2NhdGlvblJlc3BvbnNlIgOQAgJCtAEKD2NvbS5zdXBwbGllci52MUISTG9jYXRpb25BZG1pblByb3RvUAFaQGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3N1cHBsaWVyL3YxO3N1cHBsaWVydjGiAgNTWFiqAgtTdXBwbGllci5WMcoCC1N1cHBsaWVyXFYx4gIXU3VwcGxpZXJcVjFcR1BCTWV0YWRhdGHqAgxTdXBwbGllcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_field_mask, file_supplier_v1_location_shared_types]);
 
 /**
  * @generated from message supplier.v1.CreateLocationRequest
@@ -111,7 +40,7 @@ export type CreateLocationRequest = Message<"supplier.v1.CreateLocationRequest">
  * Use `create(CreateLocationRequestSchema)` to create a new message.
  */
 export const CreateLocationRequestSchema: GenMessage<CreateLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 1);
+  messageDesc(file_supplier_v1_location_admin, 0);
 
 /**
  * @generated from message supplier.v1.CreateLocationResponse
@@ -128,7 +57,7 @@ export type CreateLocationResponse = Message<"supplier.v1.CreateLocationResponse
  * Use `create(CreateLocationResponseSchema)` to create a new message.
  */
 export const CreateLocationResponseSchema: GenMessage<CreateLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 2);
+  messageDesc(file_supplier_v1_location_admin, 1);
 
 /**
  * @generated from message supplier.v1.UpdateLocationRequest
@@ -167,7 +96,7 @@ export type UpdateLocationRequest = Message<"supplier.v1.UpdateLocationRequest">
  * Use `create(UpdateLocationRequestSchema)` to create a new message.
  */
 export const UpdateLocationRequestSchema: GenMessage<UpdateLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 3);
+  messageDesc(file_supplier_v1_location_admin, 2);
 
 /**
  * @generated from message supplier.v1.UpdateLocationResponse
@@ -184,7 +113,7 @@ export type UpdateLocationResponse = Message<"supplier.v1.UpdateLocationResponse
  * Use `create(UpdateLocationResponseSchema)` to create a new message.
  */
 export const UpdateLocationResponseSchema: GenMessage<UpdateLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 4);
+  messageDesc(file_supplier_v1_location_admin, 3);
 
 /**
  * @generated from message supplier.v1.ArchiveLocationRequest
@@ -201,7 +130,7 @@ export type ArchiveLocationRequest = Message<"supplier.v1.ArchiveLocationRequest
  * Use `create(ArchiveLocationRequestSchema)` to create a new message.
  */
 export const ArchiveLocationRequestSchema: GenMessage<ArchiveLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 5);
+  messageDesc(file_supplier_v1_location_admin, 4);
 
 /**
  * @generated from message supplier.v1.ArchiveLocationResponse
@@ -218,7 +147,7 @@ export type ArchiveLocationResponse = Message<"supplier.v1.ArchiveLocationRespon
  * Use `create(ArchiveLocationResponseSchema)` to create a new message.
  */
 export const ArchiveLocationResponseSchema: GenMessage<ArchiveLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 6);
+  messageDesc(file_supplier_v1_location_admin, 5);
 
 /**
  * @generated from message supplier.v1.UnarchiveLocationRequest
@@ -235,7 +164,7 @@ export type UnarchiveLocationRequest = Message<"supplier.v1.UnarchiveLocationReq
  * Use `create(UnarchiveLocationRequestSchema)` to create a new message.
  */
 export const UnarchiveLocationRequestSchema: GenMessage<UnarchiveLocationRequest> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 7);
+  messageDesc(file_supplier_v1_location_admin, 6);
 
 /**
  * @generated from message supplier.v1.UnarchiveLocationResponse
@@ -252,5 +181,48 @@ export type UnarchiveLocationResponse = Message<"supplier.v1.UnarchiveLocationRe
  * Use `create(UnarchiveLocationResponseSchema)` to create a new message.
  */
 export const UnarchiveLocationResponseSchema: GenMessage<UnarchiveLocationResponse> = /*@__PURE__*/
-  messageDesc(file_supplier_v1_location_admin, 8);
+  messageDesc(file_supplier_v1_location_admin, 7);
+
+/**
+ * Administrator-only Location management.
+ *
+ * @generated from service supplier.v1.LocationAdminService
+ */
+export const LocationAdminService: GenService<{
+  /**
+   * @generated from rpc supplier.v1.LocationAdminService.CreateLocation
+   */
+  createLocation: {
+    methodKind: "unary";
+    input: typeof CreateLocationRequestSchema;
+    output: typeof CreateLocationResponseSchema;
+  },
+  /**
+   * @generated from rpc supplier.v1.LocationAdminService.UpdateLocation
+   */
+  updateLocation: {
+    methodKind: "unary";
+    input: typeof UpdateLocationRequestSchema;
+    output: typeof UpdateLocationResponseSchema;
+  },
+  /**
+   * Soft delete; Locations are never physically deleted.
+   *
+   * @generated from rpc supplier.v1.LocationAdminService.ArchiveLocation
+   */
+  archiveLocation: {
+    methodKind: "unary";
+    input: typeof ArchiveLocationRequestSchema;
+    output: typeof ArchiveLocationResponseSchema;
+  },
+  /**
+   * @generated from rpc supplier.v1.LocationAdminService.UnarchiveLocation
+   */
+  unarchiveLocation: {
+    methodKind: "unary";
+    input: typeof UnarchiveLocationRequestSchema;
+    output: typeof UnarchiveLocationResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_supplier_v1_location_admin, 0);
 
