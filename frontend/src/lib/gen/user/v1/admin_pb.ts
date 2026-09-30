@@ -5,7 +5,7 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
-import type { User, UserRole } from "./auth_pb";
+import type { UserRole } from "./auth_pb";
 import { file_user_v1_auth } from "./auth_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -13,7 +13,39 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/admin.proto.
  */
 export const file_user_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIjEKFUdldFVzZXJCeUVtYWlsUmVxdWVzdBIYCgVlbWFpbBgBIAEoCUIJukgGcgQQAWABIjUKFkdldFVzZXJCeUVtYWlsUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLnVzZXIudjEuVXNlciJwChVDaGFuZ2VVc2VyUm9sZVJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQESIgoHdG9fcm9sZRgCIAEoDjIRLnVzZXIudjEuVXNlclJvbGUSGAoGcmVhc29uGAMgASgJQgi6SAVyAxjQDyI1ChZDaGFuZ2VVc2VyUm9sZVJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS51c2VyLnYxLlVzZXIyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InwKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIlCgd1c2VyX2lkGAEgASgJQhS6SBFyDzINXlsxLTldWzAtOV0qJBIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+
+/**
+ * @generated from message user.v1.UserSummary
+ */
+export type UserSummary = Message<"user.v1.UserSummary"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string email = 2;
+   */
+  email: string;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: user.v1.UserRole role = 4;
+   */
+  role: UserRole;
+};
+
+/**
+ * Describes the message user.v1.UserSummary.
+ * Use `create(UserSummarySchema)` to create a new message.
+ */
+export const UserSummarySchema: GenMessage<UserSummary> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 0);
 
 /**
  * @generated from message user.v1.GetUserByEmailRequest
@@ -30,16 +62,16 @@ export type GetUserByEmailRequest = Message<"user.v1.GetUserByEmailRequest"> & {
  * Use `create(GetUserByEmailRequestSchema)` to create a new message.
  */
 export const GetUserByEmailRequestSchema: GenMessage<GetUserByEmailRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 0);
+  messageDesc(file_user_v1_admin, 1);
 
 /**
  * @generated from message user.v1.GetUserByEmailResponse
  */
 export type GetUserByEmailResponse = Message<"user.v1.GetUserByEmailResponse"> & {
   /**
-   * @generated from field: user.v1.User user = 1;
+   * @generated from field: user.v1.UserSummary user = 1;
    */
-  user?: User | undefined;
+  user?: UserSummary | undefined;
 };
 
 /**
@@ -47,7 +79,7 @@ export type GetUserByEmailResponse = Message<"user.v1.GetUserByEmailResponse"> &
  * Use `create(GetUserByEmailResponseSchema)` to create a new message.
  */
 export const GetUserByEmailResponseSchema: GenMessage<GetUserByEmailResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 1);
+  messageDesc(file_user_v1_admin, 2);
 
 /**
  * @generated from message user.v1.ChangeUserRoleRequest
@@ -74,16 +106,16 @@ export type ChangeUserRoleRequest = Message<"user.v1.ChangeUserRoleRequest"> & {
  * Use `create(ChangeUserRoleRequestSchema)` to create a new message.
  */
 export const ChangeUserRoleRequestSchema: GenMessage<ChangeUserRoleRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 2);
+  messageDesc(file_user_v1_admin, 3);
 
 /**
  * @generated from message user.v1.ChangeUserRoleResponse
  */
 export type ChangeUserRoleResponse = Message<"user.v1.ChangeUserRoleResponse"> & {
   /**
-   * @generated from field: user.v1.User user = 1;
+   * @generated from field: user.v1.UserSummary user = 1;
    */
-  user?: User | undefined;
+  user?: UserSummary | undefined;
 };
 
 /**
@@ -91,7 +123,7 @@ export type ChangeUserRoleResponse = Message<"user.v1.ChangeUserRoleResponse"> &
  * Use `create(ChangeUserRoleResponseSchema)` to create a new message.
  */
 export const ChangeUserRoleResponseSchema: GenMessage<ChangeUserRoleResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 3);
+  messageDesc(file_user_v1_admin, 4);
 
 /**
  * @generated from service user.v1.UserAdminService

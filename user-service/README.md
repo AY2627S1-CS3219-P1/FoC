@@ -86,6 +86,12 @@ environment variables. Link requests return an empty typed response; the magic
 link is passed only to the injected email sender. The configured
 `EmptyEmailSender` discards it until an email delivery adapter is connected.
 
+`RegisterRequest` accepts a display name plus optional `telegram_handle` and
+`phone_number`, matching the nullable user columns. The service trims the
+contact values, treats empty values as unset, and enforces the schema's 32 and
+20 character limits. Registration, login, and refresh return these saved
+fields in the `User` message.
+
 Authentication persistence is wired to the user-service store. Email delivery
 is not configured yet, so `RequestLink` currently stores the challenge but the
 configured `EmptyEmailSender` discards the link instead of delivering it.

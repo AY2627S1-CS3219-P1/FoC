@@ -32,8 +32,10 @@ message RegisterRequest {
   string token = 1 [(buf.validate.field).string.min_len = 1];
   string display_name = 2 [
     (buf.validate.field).string.min_len = 1,
-    (buf.validate.field).string.max_len = 50
+    (buf.validate.field).string.max_len = 100
   ];
+  optional string telegram_handle = 3 [(buf.validate.field).string.pattern = "^[A-Za-z0-9_]{5,32}$"];
+  optional string phone_number = 4 [(buf.validate.field).string.max_len = 20];
 }
 
 message User {
@@ -41,6 +43,8 @@ message User {
   string email = 2;
   string display_name = 3;
   UserRole role = 4;
+  optional string telegram_handle = 5;
+  optional string phone_number = 6;
 }
 
 enum UserRole {

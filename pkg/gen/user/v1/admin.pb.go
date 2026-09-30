@@ -22,6 +22,74 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type UserSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Role          UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserSummary) Reset() {
+	*x = UserSummary{}
+	mi := &file_user_v1_admin_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserSummary) ProtoMessage() {}
+
+func (x *UserSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserSummary.ProtoReflect.Descriptor instead.
+func (*UserSummary) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *UserSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UserSummary) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *UserSummary) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UserSummary) GetRole() UserRole {
+	if x != nil {
+		return x.Role
+	}
+	return UserRole_USER_ROLE_UNSPECIFIED
+}
+
 type GetUserByEmailRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
@@ -31,7 +99,7 @@ type GetUserByEmailRequest struct {
 
 func (x *GetUserByEmailRequest) Reset() {
 	*x = GetUserByEmailRequest{}
-	mi := &file_user_v1_admin_proto_msgTypes[0]
+	mi := &file_user_v1_admin_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +111,7 @@ func (x *GetUserByEmailRequest) String() string {
 func (*GetUserByEmailRequest) ProtoMessage() {}
 
 func (x *GetUserByEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[0]
+	mi := &file_user_v1_admin_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +124,7 @@ func (x *GetUserByEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByEmailRequest.ProtoReflect.Descriptor instead.
 func (*GetUserByEmailRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{0}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetUserByEmailRequest) GetEmail() string {
@@ -68,14 +136,14 @@ func (x *GetUserByEmailRequest) GetEmail() string {
 
 type GetUserByEmailResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	User          *UserSummary           `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetUserByEmailResponse) Reset() {
 	*x = GetUserByEmailResponse{}
-	mi := &file_user_v1_admin_proto_msgTypes[1]
+	mi := &file_user_v1_admin_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -87,7 +155,7 @@ func (x *GetUserByEmailResponse) String() string {
 func (*GetUserByEmailResponse) ProtoMessage() {}
 
 func (x *GetUserByEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[1]
+	mi := &file_user_v1_admin_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -100,10 +168,10 @@ func (x *GetUserByEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByEmailResponse.ProtoReflect.Descriptor instead.
 func (*GetUserByEmailResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{1}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetUserByEmailResponse) GetUser() *User {
+func (x *GetUserByEmailResponse) GetUser() *UserSummary {
 	if x != nil {
 		return x.User
 	}
@@ -121,7 +189,7 @@ type ChangeUserRoleRequest struct {
 
 func (x *ChangeUserRoleRequest) Reset() {
 	*x = ChangeUserRoleRequest{}
-	mi := &file_user_v1_admin_proto_msgTypes[2]
+	mi := &file_user_v1_admin_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -133,7 +201,7 @@ func (x *ChangeUserRoleRequest) String() string {
 func (*ChangeUserRoleRequest) ProtoMessage() {}
 
 func (x *ChangeUserRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[2]
+	mi := &file_user_v1_admin_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -146,7 +214,7 @@ func (x *ChangeUserRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeUserRoleRequest.ProtoReflect.Descriptor instead.
 func (*ChangeUserRoleRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{2}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ChangeUserRoleRequest) GetUserId() string {
@@ -172,14 +240,14 @@ func (x *ChangeUserRoleRequest) GetReason() string {
 
 type ChangeUserRoleResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	User          *UserSummary           `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ChangeUserRoleResponse) Reset() {
 	*x = ChangeUserRoleResponse{}
-	mi := &file_user_v1_admin_proto_msgTypes[3]
+	mi := &file_user_v1_admin_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -191,7 +259,7 @@ func (x *ChangeUserRoleResponse) String() string {
 func (*ChangeUserRoleResponse) ProtoMessage() {}
 
 func (x *ChangeUserRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[3]
+	mi := &file_user_v1_admin_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -204,10 +272,10 @@ func (x *ChangeUserRoleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeUserRoleResponse.ProtoReflect.Descriptor instead.
 func (*ChangeUserRoleResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{3}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ChangeUserRoleResponse) GetUser() *User {
+func (x *ChangeUserRoleResponse) GetUser() *UserSummary {
 	if x != nil {
 		return x.User
 	}
@@ -218,17 +286,22 @@ var File_user_v1_admin_proto protoreflect.FileDescriptor
 
 const file_user_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"8\n" +
+	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"}\n" +
+	"\vUserSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12%\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x11.user.v1.UserRoleR\x04role\"8\n" +
 	"\x15GetUserByEmailRequest\x12\x1f\n" +
-	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\";\n" +
-	"\x16GetUserByEmailResponse\x12!\n" +
-	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"\x88\x01\n" +
-	"\x15ChangeUserRoleRequest\x12!\n" +
-	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x12*\n" +
+	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"B\n" +
+	"\x16GetUserByEmailResponse\x12(\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"\x94\x01\n" +
+	"\x15ChangeUserRoleRequest\x12-\n" +
+	"\auser_id\x18\x01 \x01(\tB\x14\xbaH\x11r\x0f2\r^[1-9][0-9]*$R\x06userId\x12*\n" +
 	"\ato_role\x18\x02 \x01(\x0e2\x11.user.v1.UserRoleR\x06toRole\x12 \n" +
-	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\";\n" +
-	"\x16ChangeUserRoleResponse\x12!\n" +
-	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user2\xbc\x01\n" +
+	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\"B\n" +
+	"\x16ChangeUserRoleResponse\x12(\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user2\xbc\x01\n" +
 	"\x10UserAdminService\x12S\n" +
 	"\x0eGetUserByEmail\x12\x1e.user.v1.GetUserByEmailRequest\x1a\x1f.user.v1.GetUserByEmailResponse\"\x00\x12S\n" +
 	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x00B\x90\x01\n" +
@@ -247,28 +320,29 @@ func file_user_v1_admin_proto_rawDescGZIP() []byte {
 	return file_user_v1_admin_proto_rawDescData
 }
 
-var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_user_v1_admin_proto_goTypes = []any{
-	(*GetUserByEmailRequest)(nil),  // 0: user.v1.GetUserByEmailRequest
-	(*GetUserByEmailResponse)(nil), // 1: user.v1.GetUserByEmailResponse
-	(*ChangeUserRoleRequest)(nil),  // 2: user.v1.ChangeUserRoleRequest
-	(*ChangeUserRoleResponse)(nil), // 3: user.v1.ChangeUserRoleResponse
-	(*User)(nil),                   // 4: user.v1.User
+	(*UserSummary)(nil),            // 0: user.v1.UserSummary
+	(*GetUserByEmailRequest)(nil),  // 1: user.v1.GetUserByEmailRequest
+	(*GetUserByEmailResponse)(nil), // 2: user.v1.GetUserByEmailResponse
+	(*ChangeUserRoleRequest)(nil),  // 3: user.v1.ChangeUserRoleRequest
+	(*ChangeUserRoleResponse)(nil), // 4: user.v1.ChangeUserRoleResponse
 	(UserRole)(0),                  // 5: user.v1.UserRole
 }
 var file_user_v1_admin_proto_depIdxs = []int32{
-	4, // 0: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.User
-	5, // 1: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
-	4, // 2: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.User
-	0, // 3: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
-	2, // 4: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
-	1, // 5: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
-	3, // 6: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5, // 0: user.v1.UserSummary.role:type_name -> user.v1.UserRole
+	0, // 1: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.UserSummary
+	5, // 2: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
+	0, // 3: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.UserSummary
+	1, // 4: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
+	3, // 5: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
+	2, // 6: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
+	4, // 7: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_admin_proto_init() }
@@ -283,7 +357,7 @@ func file_user_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_admin_proto_rawDesc), len(file_user_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

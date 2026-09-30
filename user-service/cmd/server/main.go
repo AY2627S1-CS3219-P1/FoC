@@ -100,10 +100,10 @@ func main() {
 		},
 	}
 	protected := router.ProtectedRoutes{
-		Profile: &profilehandler.Handler{Logic: profileLogic},
-		Admin: &adminhandler.Handler{Logic: roleLogic},
+		Profile:      &profilehandler.Handler{Logic: profileLogic},
+		Admin:        &adminhandler.Handler{Logic: roleLogic},
 		Authenticate: userservicemiddleware.AuthenticateLocal(codec),
-		Users: persistence.Users,
+		Users:        persistence.Users,
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
 	srv := newServer(":"+cfg.port, handler)

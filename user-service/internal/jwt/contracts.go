@@ -29,7 +29,9 @@ const (
 )
 
 type Profile struct {
-	DisplayName string
+	DisplayName    string
+	TelegramHandle *string
+	PhoneNumber    *string
 }
 
 type TokenType = tokenclaims.TokenUse

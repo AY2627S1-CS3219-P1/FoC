@@ -320,9 +320,17 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
-	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New "})
-	if err != nil || user.Email != "new@example.com" || user.DisplayName != "New" || session.AccessToken == "" {
+	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ",
+		TelegramHandle: ptr(" @new_handle "), PhoneNumber: ptr(" +12345678 ")})
+	if err != nil || user.Email != "new@example.com" || user.DisplayName != "New" ||
+		user.TelegramHandle == nil || *user.TelegramHandle != "@new_handle" ||
+		user.PhoneNumber == nil || *user.PhoneNumber != "+12345678" || session.AccessToken == "" {
 		t.Fatalf("registration: %+v, %+v, %v", user, session, err)
+	}
+	stored := store.users[user.ID]
+	if stored.TelegramHandle == nil || *stored.TelegramHandle != "@new_handle" ||
+		stored.PhoneNumber == nil || *stored.PhoneNumber != "+12345678" {
+		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
 	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("reused registration token: %v", err)
@@ -477,8 +485,14 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " "}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("invalid profile: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 51)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 101)}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("display name exceeding database limit: %v", err)
+	}
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", TelegramHandle: ptr(strings.Repeat("x", 33))}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("telegram handle exceeding database limit: %v", err)
+	}
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: ptr(strings.Repeat("1", 21))}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("phone number exceeding database limit: %v", err)
 	}
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New"}); err != nil {
 		t.Fatalf("valid link after invalid profile: %v", err)

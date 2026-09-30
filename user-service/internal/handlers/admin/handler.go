@@ -31,7 +31,7 @@ func (h *Handler) GetUserByEmail(ctx context.Context, req *connect.Request[userv
 	if err != nil {
 		return nil, userdto.MapError(err)
 	}
-	response := connect.NewResponse(&userv1.GetUserByEmailResponse{User: userdto.User(user)})
+	response := connect.NewResponse(&userv1.GetUserByEmailResponse{User: userdto.UserSummary(user)})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
 }
@@ -54,7 +54,7 @@ func (h *Handler) ChangeUserRole(ctx context.Context, req *connect.Request[userv
 	if err != nil {
 		return nil, userdto.MapError(err)
 	}
-	response := connect.NewResponse(&userv1.ChangeUserRoleResponse{User: userdto.User(user)})
+	response := connect.NewResponse(&userv1.ChangeUserRoleResponse{User: userdto.UserSummary(user)})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
 }

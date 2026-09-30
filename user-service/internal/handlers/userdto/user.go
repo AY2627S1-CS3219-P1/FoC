@@ -40,7 +40,14 @@ func Role(role models.RoleName) userv1.UserRole {
 }
 
 func User(user models.User) *userv1.User {
-	return &userv1.User{Id: strconv.FormatUint(uint64(user.ID), 10), Email: user.Email, DisplayName: user.DisplayName, Role: Role(user.Role)}
+	return &userv1.User{Id: strconv.FormatUint(uint64(user.ID), 10), Email: user.Email, DisplayName: user.DisplayName,
+		Role: Role(user.Role), TelegramHandle: user.TelegramHandle, PhoneNumber: user.PhoneNumber}
+}
+
+// UserSummary omits contact details when an administrator inspects another user.
+func UserSummary(user models.User) *userv1.UserSummary {
+	return &userv1.UserSummary{Id: strconv.FormatUint(uint64(user.ID), 10), Email: user.Email,
+		DisplayName: user.DisplayName, Role: Role(user.Role)}
 }
 
 func Profile(user models.User) *userv1.Profile {

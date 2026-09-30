@@ -65,7 +65,9 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actorID, targetID := uint(1), uint(2)
 	actor := models.User{ID: actorID, Email: "actor@example.com", DisplayName: "Actor", Role: models.RoleUser}
-	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target", Role: models.RoleUser}
+	contact := "private_handle"
+	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target",
+		TelegramHandle: &contact, Role: models.RoleUser}
 	users := &protectedUsers{users: map[uint]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
@@ -110,7 +112,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	actor.Role = models.RoleUser
 	users.users[actorID] = actor
 	staleAdminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
-	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: targetID.String(), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
+	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: strconv.FormatUint(uint64(targetID), 10), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
 	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)

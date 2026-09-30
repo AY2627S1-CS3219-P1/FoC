@@ -35,7 +35,7 @@ func TestProfileAndAuditedRolePersistence(t *testing.T) {
 		t.Fatalf("role audit = %+v, %v", changes, err)
 	}
 	stale := &models.RoleChange{UserID: target.ID, FromRole: models.RoleUser,
-		ToRole: models.RoleAdmin,
+		ToRole:     models.RoleAdmin,
 		Userstamps: models.Userstamps{CreatedBy: &actor.ID, UpdatedBy: &actor.ID}}
 	if err := s.Admin.ChangeRole(ctx, stale); !errors.Is(err, ErrRoleConflict) {
 		t.Fatalf("stale role change: %v", err)

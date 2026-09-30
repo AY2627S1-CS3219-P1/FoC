@@ -324,11 +324,11 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"\r_phone_number\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
-	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\xff\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\x93\x02\n" +
 	"\x16UpdateMyProfileRequest\x12,\n" +
-	"\fdisplay_name\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x182R\vdisplayName\x12*\n" +
-	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x125\n" +
-	"\x0ftelegram_handle\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18 H\x00R\x0etelegramHandle\x88\x01\x01\x12/\n" +
+	"\fdisplay_name\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\vdisplayName\x12*\n" +
+	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12I\n" +
+	"\x0ftelegram_handle\x18\x03 \x01(\tB\x1b\xbaH\x18r\x162\x14^[A-Za-z0-9_]{5,32}$H\x00R\x0etelegramHandle\x88\x01\x01\x12/\n" +
 	"\fphone_number\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18\x14H\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
 	"\x10_telegram_handleB\x0f\n" +
 	"\r_phone_number\"E\n" +

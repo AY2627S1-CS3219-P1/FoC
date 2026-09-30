@@ -102,11 +102,11 @@ func (s *Users) GetByIDForUpdate(ctx context.Context, id uint) (*models.User, er
 // active. The role predicate closes the race with a concurrent suspension.
 func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) error {
 	fields := map[string]any{
-		"display_name": user.DisplayName,
-		"description": user.Description,
+		"display_name":    user.DisplayName,
+		"description":     user.Description,
 		"telegram_handle": nullString(user.TelegramHandle),
-		"phone_number": nullString(user.PhoneNumber),
-		"updated_by": user.UpdatedBy,
+		"phone_number":    nullString(user.PhoneNumber),
+		"updated_by":      user.UpdatedBy,
 	}
 	res := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("id = ? AND role <> ?", user.ID, models.RoleSuspended).Updates(fields)
@@ -126,7 +126,9 @@ func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) erro
 }
 
 func nullString(value *string) any {
-	if value == nil || *value == "" { return nil }
+	if value == nil || *value == "" {
+		return nil
+	}
 	return *value
 }
 

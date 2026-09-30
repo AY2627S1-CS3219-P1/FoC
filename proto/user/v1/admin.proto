@@ -10,6 +10,13 @@ service UserAdminService {
   rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse) {}
 }
 
+message UserSummary {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  UserRole role = 4;
+}
+
 message GetUserByEmailRequest {
   string email = 1 [
     (buf.validate.field).string.min_len = 1,
@@ -18,7 +25,7 @@ message GetUserByEmailRequest {
 }
 
 message GetUserByEmailResponse {
-  User user = 1;
+  UserSummary user = 1;
 }
 
 message ChangeUserRoleRequest {
@@ -28,5 +35,5 @@ message ChangeUserRoleRequest {
 }
 
 message ChangeUserRoleResponse {
-  User user = 1;
+  UserSummary user = 1;
 }
