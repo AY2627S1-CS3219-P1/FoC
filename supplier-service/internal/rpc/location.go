@@ -10,10 +10,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 )
 
-// LocationServer implements Location discovery. Mutations return
-// unimplemented until #51.
+// LocationServer implements Location discovery.
 type LocationServer struct {
-	supplierv1connect.UnimplementedLocationServiceHandler
+	supplierv1connect.UnimplementedLocationDiscoveryServiceHandler
 	service *location.Service
 }
 

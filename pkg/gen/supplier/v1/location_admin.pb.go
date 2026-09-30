@@ -8,7 +8,6 @@ package supplierv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	timeofday "google.golang.org/genproto/googleapis/type/timeofday"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -24,126 +23,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Writable Location fields. Length limits apply before trimming.
-type LocationInput struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Must contain a non-whitespace character.
-	Name        string       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	IsSupplier  bool         `protobuf:"varint,2,opt,name=is_supplier,json=isSupplier,proto3" json:"is_supplier,omitempty"`
-	CategoryIds []string     `protobuf:"bytes,3,rep,name=category_ids,json=categoryIds,proto3" json:"category_ids,omitempty"`
-	BuildingId  string       `protobuf:"bytes,4,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
-	Floor       *string      `protobuf:"bytes,5,opt,name=floor,proto3,oneof" json:"floor,omitempty"`
-	Coordinates *Coordinates `protobuf:"bytes,6,opt,name=coordinates,proto3" json:"coordinates,omitempty"`
-	// Asia/Singapore wall-clock time, whole minutes. Closing before opening
-	// means overnight.
-	OpensAt       *timeofday.TimeOfDay `protobuf:"bytes,7,opt,name=opens_at,json=opensAt,proto3" json:"opens_at,omitempty"`
-	ClosesAt      *timeofday.TimeOfDay `protobuf:"bytes,8,opt,name=closes_at,json=closesAt,proto3" json:"closes_at,omitempty"`
-	Contact       *string              `protobuf:"bytes,9,opt,name=contact,proto3,oneof" json:"contact,omitempty"`
-	Details       string               `protobuf:"bytes,10,opt,name=details,proto3" json:"details,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LocationInput) Reset() {
-	*x = LocationInput{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LocationInput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LocationInput) ProtoMessage() {}
-
-func (x *LocationInput) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LocationInput.ProtoReflect.Descriptor instead.
-func (*LocationInput) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *LocationInput) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *LocationInput) GetIsSupplier() bool {
-	if x != nil {
-		return x.IsSupplier
-	}
-	return false
-}
-
-func (x *LocationInput) GetCategoryIds() []string {
-	if x != nil {
-		return x.CategoryIds
-	}
-	return nil
-}
-
-func (x *LocationInput) GetBuildingId() string {
-	if x != nil {
-		return x.BuildingId
-	}
-	return ""
-}
-
-func (x *LocationInput) GetFloor() string {
-	if x != nil && x.Floor != nil {
-		return *x.Floor
-	}
-	return ""
-}
-
-func (x *LocationInput) GetCoordinates() *Coordinates {
-	if x != nil {
-		return x.Coordinates
-	}
-	return nil
-}
-
-func (x *LocationInput) GetOpensAt() *timeofday.TimeOfDay {
-	if x != nil {
-		return x.OpensAt
-	}
-	return nil
-}
-
-func (x *LocationInput) GetClosesAt() *timeofday.TimeOfDay {
-	if x != nil {
-		return x.ClosesAt
-	}
-	return nil
-}
-
-func (x *LocationInput) GetContact() string {
-	if x != nil && x.Contact != nil {
-		return *x.Contact
-	}
-	return ""
-}
-
-func (x *LocationInput) GetDetails() string {
-	if x != nil {
-		return x.Details
-	}
-	return ""
-}
-
 type CreateLocationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Client-generated. Retrying with the same key and payload within 24 hours
@@ -156,7 +35,7 @@ type CreateLocationRequest struct {
 
 func (x *CreateLocationRequest) Reset() {
 	*x = CreateLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +47,7 @@ func (x *CreateLocationRequest) String() string {
 func (*CreateLocationRequest) ProtoMessage() {}
 
 func (x *CreateLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +60,7 @@ func (x *CreateLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLocationRequest.ProtoReflect.Descriptor instead.
 func (*CreateLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{1}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CreateLocationRequest) GetIdempotencyKey() string {
@@ -207,7 +86,7 @@ type CreateLocationResponse struct {
 
 func (x *CreateLocationResponse) Reset() {
 	*x = CreateLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +98,7 @@ func (x *CreateLocationResponse) String() string {
 func (*CreateLocationResponse) ProtoMessage() {}
 
 func (x *CreateLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +111,7 @@ func (x *CreateLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLocationResponse.ProtoReflect.Descriptor instead.
 func (*CreateLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{2}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateLocationResponse) GetLocation() *Location {
@@ -258,7 +137,7 @@ type UpdateLocationRequest struct {
 
 func (x *UpdateLocationRequest) Reset() {
 	*x = UpdateLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +149,7 @@ func (x *UpdateLocationRequest) String() string {
 func (*UpdateLocationRequest) ProtoMessage() {}
 
 func (x *UpdateLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +162,7 @@ func (x *UpdateLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLocationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{3}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UpdateLocationRequest) GetId() string {
@@ -323,7 +202,7 @@ type UpdateLocationResponse struct {
 
 func (x *UpdateLocationResponse) Reset() {
 	*x = UpdateLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +214,7 @@ func (x *UpdateLocationResponse) String() string {
 func (*UpdateLocationResponse) ProtoMessage() {}
 
 func (x *UpdateLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +227,7 @@ func (x *UpdateLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLocationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{4}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UpdateLocationResponse) GetLocation() *Location {
@@ -367,7 +246,7 @@ type ArchiveLocationRequest struct {
 
 func (x *ArchiveLocationRequest) Reset() {
 	*x = ArchiveLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -379,7 +258,7 @@ func (x *ArchiveLocationRequest) String() string {
 func (*ArchiveLocationRequest) ProtoMessage() {}
 
 func (x *ArchiveLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -392,7 +271,7 @@ func (x *ArchiveLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveLocationRequest.ProtoReflect.Descriptor instead.
 func (*ArchiveLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{5}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ArchiveLocationRequest) GetId() string {
@@ -411,7 +290,7 @@ type ArchiveLocationResponse struct {
 
 func (x *ArchiveLocationResponse) Reset() {
 	*x = ArchiveLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -423,7 +302,7 @@ func (x *ArchiveLocationResponse) String() string {
 func (*ArchiveLocationResponse) ProtoMessage() {}
 
 func (x *ArchiveLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -436,7 +315,7 @@ func (x *ArchiveLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveLocationResponse.ProtoReflect.Descriptor instead.
 func (*ArchiveLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{6}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ArchiveLocationResponse) GetLocation() *Location {
@@ -455,7 +334,7 @@ type UnarchiveLocationRequest struct {
 
 func (x *UnarchiveLocationRequest) Reset() {
 	*x = UnarchiveLocationRequest{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -467,7 +346,7 @@ func (x *UnarchiveLocationRequest) String() string {
 func (*UnarchiveLocationRequest) ProtoMessage() {}
 
 func (x *UnarchiveLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +359,7 @@ func (x *UnarchiveLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnarchiveLocationRequest.ProtoReflect.Descriptor instead.
 func (*UnarchiveLocationRequest) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{7}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UnarchiveLocationRequest) GetId() string {
@@ -499,7 +378,7 @@ type UnarchiveLocationResponse struct {
 
 func (x *UnarchiveLocationResponse) Reset() {
 	*x = UnarchiveLocationResponse{}
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[8]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -511,7 +390,7 @@ func (x *UnarchiveLocationResponse) String() string {
 func (*UnarchiveLocationResponse) ProtoMessage() {}
 
 func (x *UnarchiveLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_supplier_v1_location_admin_proto_msgTypes[8]
+	mi := &file_supplier_v1_location_admin_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -524,7 +403,7 @@ func (x *UnarchiveLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnarchiveLocationResponse.ProtoReflect.Descriptor instead.
 func (*UnarchiveLocationResponse) Descriptor() ([]byte, []int) {
-	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{8}
+	return file_supplier_v1_location_admin_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UnarchiveLocationResponse) GetLocation() *Location {
@@ -538,30 +417,11 @@ var File_supplier_v1_location_admin_proto protoreflect.FileDescriptor
 
 const file_supplier_v1_location_admin_proto_rawDesc = "" +
 	"\n" +
-	" supplier/v1/location_admin.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a\x1bgoogle/type/timeofday.proto\x1a supplier/v1/location_types.proto\"\xd4\b\n" +
-	"\rLocationInput\x12\"\n" +
-	"\x04name\x18\x01 \x01(\tB\x0e\xbaH\vr\t\x10\x01\x18\xc8\x012\x02\\SR\x04name\x12\x1f\n" +
-	"\vis_supplier\x18\x02 \x01(\bR\n" +
-	"isSupplier\x122\n" +
-	"\fcategory_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x18\x01\"\x05r\x03\xb0\x01\x01R\vcategoryIds\x12)\n" +
-	"\vbuilding_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
-	"buildingId\x12\"\n" +
-	"\x05floor\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x182H\x00R\x05floor\x88\x01\x01\x12B\n" +
-	"\vcoordinates\x18\x06 \x01(\v2\x18.supplier.v1.CoordinatesB\x06\xbaH\x03\xc8\x01\x01R\vcoordinates\x121\n" +
-	"\bopens_at\x18\a \x01(\v2\x16.google.type.TimeOfDayR\aopensAt\x123\n" +
-	"\tcloses_at\x18\b \x01(\v2\x16.google.type.TimeOfDayR\bclosesAt\x12'\n" +
-	"\acontact\x18\t \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x01R\acontact\x88\x01\x01\x12\"\n" +
-	"\adetails\x18\n" +
-	" \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\adetails:\xeb\x04\xbaH\xe7\x04\x1a\x9b\x01\n" +
-	"\"location_input.supplier_categories\x12BSuppliers need at least one category; ordinary Locations have none\x1a1this.is_supplier == (size(this.category_ids) > 0)\x1a\xf8\x01\n" +
-	"#location_input.opening_hours_format\x12Dopens_at and closes_at must be whole minutes between 00:00 and 23:59\x1a\x8a\x01[this.opens_at, this.closes_at].all(t, t.hours >= 0 && t.hours < 24 && t.minutes >= 0 && t.minutes < 60 && t.seconds == 0 && t.nanos == 0)\x1a\xcb\x01\n" +
-	"\x1clocation_input.opening_hours\x12Dopens_at and closes_at must both be set and differ, or both be unset\x1aehas(this.opens_at) == has(this.closes_at) && (!has(this.opens_at) || this.opens_at != this.closes_at)B\b\n" +
-	"\x06_floorB\n" +
-	"\n" +
-	"\b_contact\"\x8a\x01\n" +
+	" supplier/v1/location_admin.proto\x12\vsupplier.v1\x1a\x1bbuf/validate/validate.proto\x1a google/protobuf/field_mask.proto\x1a'supplier/v1/location_shared_types.proto\"\xef\x01\n" +
 	"\x15CreateLocationRequest\x121\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\x12>\n" +
-	"\blocation\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation\"K\n" +
+	"\blocation\x18\x02 \x01(\v2\x1a.supplier.v1.LocationInputB\x06\xbaH\x03\xc8\x01\x01R\blocation:c\xbaH`\x1a^\n" +
+	"\x17complete_location_input\x12#explicit classification is required\x1a\x1ehas(this.location.is_supplier)\"K\n" +
 	"\x16CreateLocationResponse\x121\n" +
 	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation\"\xd9\x02\n" +
 	"\x15UpdateLocationRequest\x12\x18\n" +
@@ -579,7 +439,12 @@ const file_supplier_v1_location_admin_proto_rawDesc = "" +
 	"\x18UnarchiveLocationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"N\n" +
 	"\x19UnarchiveLocationResponse\x121\n" +
-	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocationB\xb4\x01\n" +
+	"\blocation\x18\x01 \x01(\v2\x15.supplier.v1.LocationR\blocation2\x9c\x03\n" +
+	"\x14LocationAdminService\x12[\n" +
+	"\x0eCreateLocation\x12\".supplier.v1.CreateLocationRequest\x1a#.supplier.v1.CreateLocationResponse\"\x00\x12[\n" +
+	"\x0eUpdateLocation\x12\".supplier.v1.UpdateLocationRequest\x1a#.supplier.v1.UpdateLocationResponse\"\x00\x12a\n" +
+	"\x0fArchiveLocation\x12#.supplier.v1.ArchiveLocationRequest\x1a$.supplier.v1.ArchiveLocationResponse\"\x03\x90\x02\x02\x12g\n" +
+	"\x11UnarchiveLocation\x12%.supplier.v1.UnarchiveLocationRequest\x1a&.supplier.v1.UnarchiveLocationResponse\"\x03\x90\x02\x02B\xb4\x01\n" +
 	"\x0fcom.supplier.v1B\x12LocationAdminProtoP\x01Z@github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1;supplierv1\xa2\x02\x03SXX\xaa\x02\vSupplier.V1\xca\x02\vSupplier\\V1\xe2\x02\x17Supplier\\V1\\GPBMetadata\xea\x02\fSupplier::V1b\x06proto3"
 
 var (
@@ -594,38 +459,41 @@ func file_supplier_v1_location_admin_proto_rawDescGZIP() []byte {
 	return file_supplier_v1_location_admin_proto_rawDescData
 }
 
-var file_supplier_v1_location_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_supplier_v1_location_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_supplier_v1_location_admin_proto_goTypes = []any{
-	(*LocationInput)(nil),             // 0: supplier.v1.LocationInput
-	(*CreateLocationRequest)(nil),     // 1: supplier.v1.CreateLocationRequest
-	(*CreateLocationResponse)(nil),    // 2: supplier.v1.CreateLocationResponse
-	(*UpdateLocationRequest)(nil),     // 3: supplier.v1.UpdateLocationRequest
-	(*UpdateLocationResponse)(nil),    // 4: supplier.v1.UpdateLocationResponse
-	(*ArchiveLocationRequest)(nil),    // 5: supplier.v1.ArchiveLocationRequest
-	(*ArchiveLocationResponse)(nil),   // 6: supplier.v1.ArchiveLocationResponse
-	(*UnarchiveLocationRequest)(nil),  // 7: supplier.v1.UnarchiveLocationRequest
-	(*UnarchiveLocationResponse)(nil), // 8: supplier.v1.UnarchiveLocationResponse
-	(*Coordinates)(nil),               // 9: supplier.v1.Coordinates
-	(*timeofday.TimeOfDay)(nil),       // 10: google.type.TimeOfDay
-	(*Location)(nil),                  // 11: supplier.v1.Location
-	(*fieldmaskpb.FieldMask)(nil),     // 12: google.protobuf.FieldMask
+	(*CreateLocationRequest)(nil),     // 0: supplier.v1.CreateLocationRequest
+	(*CreateLocationResponse)(nil),    // 1: supplier.v1.CreateLocationResponse
+	(*UpdateLocationRequest)(nil),     // 2: supplier.v1.UpdateLocationRequest
+	(*UpdateLocationResponse)(nil),    // 3: supplier.v1.UpdateLocationResponse
+	(*ArchiveLocationRequest)(nil),    // 4: supplier.v1.ArchiveLocationRequest
+	(*ArchiveLocationResponse)(nil),   // 5: supplier.v1.ArchiveLocationResponse
+	(*UnarchiveLocationRequest)(nil),  // 6: supplier.v1.UnarchiveLocationRequest
+	(*UnarchiveLocationResponse)(nil), // 7: supplier.v1.UnarchiveLocationResponse
+	(*LocationInput)(nil),             // 8: supplier.v1.LocationInput
+	(*Location)(nil),                  // 9: supplier.v1.Location
+	(*fieldmaskpb.FieldMask)(nil),     // 10: google.protobuf.FieldMask
 }
 var file_supplier_v1_location_admin_proto_depIdxs = []int32{
-	9,  // 0: supplier.v1.LocationInput.coordinates:type_name -> supplier.v1.Coordinates
-	10, // 1: supplier.v1.LocationInput.opens_at:type_name -> google.type.TimeOfDay
-	10, // 2: supplier.v1.LocationInput.closes_at:type_name -> google.type.TimeOfDay
-	0,  // 3: supplier.v1.CreateLocationRequest.location:type_name -> supplier.v1.LocationInput
-	11, // 4: supplier.v1.CreateLocationResponse.location:type_name -> supplier.v1.Location
-	0,  // 5: supplier.v1.UpdateLocationRequest.location:type_name -> supplier.v1.LocationInput
-	12, // 6: supplier.v1.UpdateLocationRequest.update_mask:type_name -> google.protobuf.FieldMask
-	11, // 7: supplier.v1.UpdateLocationResponse.location:type_name -> supplier.v1.Location
-	11, // 8: supplier.v1.ArchiveLocationResponse.location:type_name -> supplier.v1.Location
-	11, // 9: supplier.v1.UnarchiveLocationResponse.location:type_name -> supplier.v1.Location
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	8,  // 0: supplier.v1.CreateLocationRequest.location:type_name -> supplier.v1.LocationInput
+	9,  // 1: supplier.v1.CreateLocationResponse.location:type_name -> supplier.v1.Location
+	8,  // 2: supplier.v1.UpdateLocationRequest.location:type_name -> supplier.v1.LocationInput
+	10, // 3: supplier.v1.UpdateLocationRequest.update_mask:type_name -> google.protobuf.FieldMask
+	9,  // 4: supplier.v1.UpdateLocationResponse.location:type_name -> supplier.v1.Location
+	9,  // 5: supplier.v1.ArchiveLocationResponse.location:type_name -> supplier.v1.Location
+	9,  // 6: supplier.v1.UnarchiveLocationResponse.location:type_name -> supplier.v1.Location
+	0,  // 7: supplier.v1.LocationAdminService.CreateLocation:input_type -> supplier.v1.CreateLocationRequest
+	2,  // 8: supplier.v1.LocationAdminService.UpdateLocation:input_type -> supplier.v1.UpdateLocationRequest
+	4,  // 9: supplier.v1.LocationAdminService.ArchiveLocation:input_type -> supplier.v1.ArchiveLocationRequest
+	6,  // 10: supplier.v1.LocationAdminService.UnarchiveLocation:input_type -> supplier.v1.UnarchiveLocationRequest
+	1,  // 11: supplier.v1.LocationAdminService.CreateLocation:output_type -> supplier.v1.CreateLocationResponse
+	3,  // 12: supplier.v1.LocationAdminService.UpdateLocation:output_type -> supplier.v1.UpdateLocationResponse
+	5,  // 13: supplier.v1.LocationAdminService.ArchiveLocation:output_type -> supplier.v1.ArchiveLocationResponse
+	7,  // 14: supplier.v1.LocationAdminService.UnarchiveLocation:output_type -> supplier.v1.UnarchiveLocationResponse
+	11, // [11:15] is the sub-list for method output_type
+	7,  // [7:11] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_supplier_v1_location_admin_proto_init() }
@@ -633,17 +501,16 @@ func file_supplier_v1_location_admin_proto_init() {
 	if File_supplier_v1_location_admin_proto != nil {
 		return
 	}
-	file_supplier_v1_location_types_proto_init()
-	file_supplier_v1_location_admin_proto_msgTypes[0].OneofWrappers = []any{}
+	file_supplier_v1_location_shared_types_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_supplier_v1_location_admin_proto_rawDesc), len(file_supplier_v1_location_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   8,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_supplier_v1_location_admin_proto_goTypes,
 		DependencyIndexes: file_supplier_v1_location_admin_proto_depIdxs,

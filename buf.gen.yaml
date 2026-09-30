@@ -30,3 +30,13 @@ plugins:
     include_imports: true # also generate imported dependency protos, e.g. buf/validate, google/type
     opt:
       - target=ts
+
+  - remote: buf.build/community/sudorandom-connect-openapi:v0.27.3
+    out: docs/api/supplier/v1
+    opt:
+      - path=openapi.yaml
+      - services=supplier.v1.HealthService
+      - services=supplier.v1.LocationDiscoveryService
+      - services=supplier.v1.LocationAdminService
+      - services=supplier.v1.LocationDisablementService
+      - services=supplier.v1.LocationAdditionRequestService
