@@ -122,6 +122,23 @@ Supplier Service uses sqlc:
   generated files.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
+## Frontend services
+
+- Keep each domain's service, API interface, and Connect adapter together under
+  `frontend/src/lib/services/<domain>/`. Use `service.svelte.ts` for rune state;
+  a domain `index.ts` may expose a factory but must not create a singleton.
+- Compose singleton services in `frontend/src/lib/services/index.ts`. Routes
+  and components import services from `$lib/services`. When services depend on
+  one another, keep the dependency one-way and inject it from the composition
+  root, preferably through an interface owned by the consuming service; do not
+  import another service's singleton directly.
+- Keep `frontend/src/lib/connect/transport.ts` domain agnostic. It accepts a
+  base URL and optional interceptors. Auth RPCs use a plain transport; the
+  composition root adds `authService.interceptor` to protected transports.
+- Use mutable singletons only in browser lifecycle and event code, never in
+  server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
+  `$lib` imports; relative imports may use `.ts` suffixes.
+
 User Service uses GORM:
 
 - `migrations/`: goose migrations, one `0000N_name.sql` per change with

@@ -54,4 +54,5 @@ jobs:
       - run: test -z "$(git ls-files --others --exclude-standard -- pkg/gen frontend/src/lib/gen)"
         working-directory: .
       - run: npm run check
+      - run: npm test
       - run: npm run build

@@ -1,7 +1,13 @@
 <script lang="ts">
 	import '../app.css';
+	import { onMount } from 'svelte';
+	import { authService } from '$lib/services';
 
 	let { children } = $props();
+
+	onMount(() => {
+		void authService.restoreSession();
+	});
 </script>
 
 <svelte:head>
@@ -17,7 +23,6 @@
 		<a class="brand" href="/" aria-label="Friend on Campus home">Friend on Campus</a>
 		<nav aria-label="Main navigation">
 			<a href="/suppliers">Suppliers</a>
-			<a href="/login">Log in</a>
 		</nav>
 	</header>
 
