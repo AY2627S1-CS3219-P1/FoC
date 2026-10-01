@@ -5,11 +5,11 @@
 </script>
 
 <p class="tags">
-	{#if location.isSupplier}<span class="tag">Supplier</span>{/if}
+	{#if location.isSupplier}<span class="tag supplier">Supplier</span>{/if}
 	{#each location.categories as category (category.id)}
-		<span class="tag subtle">{category.name}</span>
+		<span class="tag">{category.name}</span>
 	{/each}
-	{#if location.archivedAt}<span class="tag warn">Archived</span>{/if}
+	{#if location.archivedAt}<span class="tag archived">Archived</span>{/if}
 </p>
 
 <style>
@@ -17,25 +17,26 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.35rem;
-		margin: 0.35rem 0;
+		margin: 0;
 	}
 
+	/* Static labels styled like the shared .role-chip, not interactive m3 Chips. */
 	.tag {
-		padding: 0.1rem 0.5rem;
+		padding: 0.2rem 0.65rem;
 		border-radius: 999px;
-		background: #174a99;
-		color: #fff;
+		background: var(--m3c-secondary-container);
+		color: var(--m3c-on-secondary-container);
 		font-size: 0.75rem;
-		font-weight: 600;
+		font-weight: 650;
 	}
 
-	.subtle {
-		background: #e3ebf7;
-		color: #17233b;
+	.supplier {
+		background: var(--m3c-primary-container);
+		color: var(--m3c-on-primary-container);
 	}
 
-	.warn {
-		background: #fdecc8;
-		color: #8a4b00;
+	.archived {
+		background: var(--m3c-tertiary-container);
+		color: var(--m3c-on-tertiary-container);
 	}
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
+	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import LocationTags from '$lib/components/location/LocationTags.svelte';
 	import Notice from '$lib/components/location/Notice.svelte';
 	import type { Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
@@ -26,8 +27,10 @@
 	const dateFormat = new Intl.DateTimeFormat('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
-<article>
-	<a class="back" href="/suppliers">← All locations</a>
+<svelte:head><title>{location?.name ?? 'Location'} · Friend on Campus</title></svelte:head>
+
+<article class="page-content">
+	<div><Button variant="text" href="/suppliers">← All locations</Button></div>
 
 	{#if error}
 		<Notice tone="error">
@@ -35,7 +38,10 @@
 			{#if !authService.isAuthenticated}<a href="/login">Log in</a>{/if}
 		</Notice>
 	{:else if !location}
-		<Notice>Loading…</Notice>
+		<div class="loading-state">
+			<LoadingIndicator aria-label="Loading location" />
+			<p>Loading…</p>
+		</div>
 	{:else}
 		{#if location.archivedAt}
 			<Notice tone="warn">
@@ -52,89 +58,97 @@
 			</Notice>
 		{/if}
 
-		<h1>{location.name}</h1>
-		<LocationTags {location} />
+		<header class="page-heading">
+			<div>
+				<p class="eyebrow">Location</p>
+				<h1>{location.name}</h1>
+				<LocationTags {location} />
+			</div>
+		</header>
 
-		<dl>
-			<dt>Building</dt>
-			<dd>{location.building?.name ?? 'Unknown'}</dd>
+		<Card variant="outlined">
+			<dl class="panel-body">
+				<div>
+					<dt>Building</dt>
+					<dd>{location.building?.name ?? 'Unknown'}</dd>
+				</div>
 
-			{#if location.floor}
-				<dt>Floor</dt>
-				<dd>{location.floor}</dd>
-			{/if}
+				{#if location.floor}
+					<div>
+						<dt>Floor</dt>
+						<dd>{location.floor}</dd>
+					</div>
+				{/if}
 
-			<dt>Opening hours</dt>
-			<dd>{formatOpeningHours(location.opensAt, location.closesAt)}</dd>
+				<div>
+					<dt>Opening hours</dt>
+					<dd>{formatOpeningHours(location.opensAt, location.closesAt)}</dd>
+				</div>
 
-			{#if location.contact}
-				<dt>Contact</dt>
-				<dd>{location.contact}</dd>
-			{/if}
+				{#if location.contact}
+					<div>
+						<dt>Contact</dt>
+						<dd>{location.contact}</dd>
+					</div>
+				{/if}
 
-			{#if location.details}
-				<dt>Details</dt>
-				<dd class="prose">{location.details}</dd>
-			{/if}
+				{#if location.details}
+					<div>
+						<dt>Details</dt>
+						<dd class="prose">{location.details}</dd>
+					</div>
+				{/if}
 
-			{#if location.coordinates}
-				<dt>Coordinates</dt>
-				<dd>
-					{location.coordinates.latitude.toFixed(5)}, {location.coordinates.longitude.toFixed(5)}
-				</dd>
-			{/if}
+				{#if location.coordinates}
+					<div>
+						<dt>Coordinates</dt>
+						<dd>
+							{location.coordinates.latitude.toFixed(5)}, {location.coordinates.longitude.toFixed(5)}
+						</dd>
+					</div>
+				{/if}
 
-			{#if location.updatedAt}
-				<dt>Last updated</dt>
-				<dd>{dateFormat.format(timestampDate(location.updatedAt))}</dd>
-			{/if}
-		</dl>
+				{#if location.updatedAt}
+					<div>
+						<dt>Last updated</dt>
+						<dd>{dateFormat.format(timestampDate(location.updatedAt))}</dd>
+					</div>
+				{/if}
+			</dl>
+		</Card>
 	{/if}
 </article>
 
 <style>
-	article {
-		max-width: 42rem;
-	}
-
-	.back {
-		display: inline-block;
-		margin-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: clamp(1.75rem, 4vw, 2.5rem);
-		margin-bottom: 0.5rem;
-	}
-
 	dl {
+		margin: 0;
+	}
+
+	dl > div {
 		display: grid;
-		grid-template-columns: max-content 1fr;
-		gap: 0.6rem 1.25rem;
-		margin-top: 1.5rem;
+		grid-template-columns: 9rem 1fr;
+		gap: 1rem;
 	}
 
 	dt {
-		color: #527099;
+		color: var(--m3c-on-surface-variant);
+		font-size: 0.875rem;
 		font-weight: 600;
 	}
 
 	dd {
 		margin: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.prose {
 		white-space: pre-line;
 	}
 
-	@media (max-width: 40rem) {
-		dl {
+	@media (max-width: 36rem) {
+		dl > div {
 			grid-template-columns: 1fr;
 			gap: 0.2rem;
-		}
-
-		dd {
-			margin-bottom: 0.6rem;
 		}
 	}
 </style>
