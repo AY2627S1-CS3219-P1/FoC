@@ -1,6 +1,23 @@
 # Local dev: one shared postgres server, one DB per service.
-# Live reload via Air + bind mounts. Dev containers apply migrations on startup.
+# Live reload via Air/Vite + bind mounts. Go containers apply migrations on startup.
 services:
+  frontend:
+    image: node:24-bookworm-slim
+    container_name: foc-frontend
+    working_dir: /app
+    command: sh -c "npm ci && exec npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    environment:
+      # These URLs are used by the browser, outside the Compose network.
+      PUBLIC_USER_SERVICE_URL: ${PUBLIC_USER_SERVICE_URL:-http://localhost:${USER_PORT:-8081}}
+      PUBLIC_SUPPLIER_SERVICE_URL: ${PUBLIC_SUPPLIER_SERVICE_URL:-http://localhost:${SUPPLIER_PORT:-8082}}
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+      - frontend-svelte-kit:/app/.svelte-kit
+    restart: unless-stopped
+
   postgres:
     image: postgis/postgis:18-3.6
     container_name: foc-postgres
@@ -21,6 +38,15 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Catches all outgoing mail. Read magic links at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.31
+    container_name: foc-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    restart: unless-stopped
+
   user-service:
     build:
       context: .
@@ -32,10 +58,16 @@ services:
       PORT: "8080"
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
       APP_ENV: ${APP_ENV:-local}
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
+      BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-}
+      BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: ${BOOTSTRAP_SUPERADMIN_DISPLAY_NAME:-}
+      SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
+      SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
       - ./user-service:/app
       - ./pkg:/pkg
@@ -44,6 +76,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     restart: unless-stopped
 
   supplier-service:
@@ -74,3 +108,5 @@ services:
 
 volumes:
   pgdata:
+  frontend-node-modules:
+  frontend-svelte-kit:
