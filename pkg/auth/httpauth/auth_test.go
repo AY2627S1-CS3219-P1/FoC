@@ -1,4 +1,4 @@
-package middleware_test
+package httpauth
 
 import (
 	"context"
@@ -11,11 +11,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 )
 
 func TestAccessMiddleware(t *testing.T) {
@@ -23,17 +21,17 @@ func TestAccessMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	codec, err := jwt.NewES256Codec(key, "test", middleware.TokenIssuer, middleware.TokenAudience)
+	codec, err := newTestCodec(key, "test", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	access, err := codec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: "u1", SessionID: "s1",
-		Role: jwt.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j1"})
+	access, err := codec.Sign(testClaims{Type: "access", Subject: "u1", SessionID: "s1",
+		Role: "user", IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	refresh, err := codec.Sign(jwt.Claims{Type: jwt.RefreshToken, Subject: "u1", SessionID: "s1",
+	refresh, err := codec.Sign(testClaims{Type: "refresh", Subject: "u1", SessionID: "s1",
 		IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "j2"})
 	if err != nil {
 		t.Fatal(err)
@@ -50,13 +48,13 @@ func TestAccessMiddleware(t *testing.T) {
 	defer userService.Close()
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
-	authenticator, err := middleware.NewUserServiceAuthenticator(context.Background())
+	authenticator, err := NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	protected := authenticator.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := middleware.ClaimsFromContext[middleware.AccessClaims](r.Context())
-		if !ok || claims.Subject != "u1" || claims.Role != string(jwt.RoleUser) {
+		claims, ok := auth.CallerFromContext(r.Context())
+		if !ok || claims.ID != "u1" || claims.Role != "user" {
 			t.Error("verified claims missing from context")
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -81,7 +79,7 @@ func TestAccessMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 			if tc.cookie != "" {
-				req.AddCookie(&http.Cookie{Name: authhandler.RefreshCookieName, Value: tc.cookie})
+				req.AddCookie(&http.Cookie{Name: "refresh_token", Value: tc.cookie})
 			}
 			if tc.bearer != "" {
 				req.Header.Set("Authorization", "Bearer "+tc.bearer)
