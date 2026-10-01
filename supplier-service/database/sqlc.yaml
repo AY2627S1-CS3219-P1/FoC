@@ -20,16 +20,6 @@ overrides:
           type: "PointS"
           pointer: true
 sql:
-  - name: "user"
-    engine: "postgresql"
-    queries: "query/user.sql"
-    schema: "schema"
-    gen:
-      go:
-        package: "userdb"
-        out: "../internal/database/userdb"
-        sql_package: "pgx/v5"
-        omit_unused_structs: true
   - name: "seed"
     engine: "postgresql"
     queries: "query/seed.sql"

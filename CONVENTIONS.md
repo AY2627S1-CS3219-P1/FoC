@@ -10,28 +10,11 @@
 ## REST handlers
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
-- App deps come from `env` (`Queries`, `Firebase`, `Pool`). Never take
+- App deps come from `env` (currently `Pool` for Supplier Service REST health). Never take
   `http.ResponseWriter`; the envelope writer owns it.
-- Per-request values (auth UID) come from context, e.g.
-  `middleware.GetUserUIDFromContext`.
+- Per-request identity comes from the shared User Service JWT authenticator.
 - Return `nil, err` on failure. `ExternalError` sets the status/message;
   anything else becomes 500 with a generic message.
-
-```go
-func CreateUser(r *http.Request, env *deps.Env) (*api.Response, error) {
- var req userview.CreateUserView
- if err := api.Decode(r, &req); err != nil {
-  return nil, err
- }
- user, err := env.Queries.CreateUser(r.Context(), *req.ToCreateUserParams())
- if err != nil {
-  return nil, errors.Wrap(err, "failed to create user")
- }
- return api.NewResponse(userview.ToUserView(&user),
-  api.WithCode(http.StatusCreated),
- )
-}
-```
 
 Register with `api.HTTPHandler(env, Handler)`. Raw bytes/streams bypass the
 envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
@@ -43,9 +26,8 @@ envelope: `api.NewRawResponse` / `api.NewStreamResponse`. One 15s timeout
   `severity` is `info|success|warning|error`.
 - Decode with `api.Decode(r, &v)`: 1MB cap, unknown fields and trailing data
   rejected, `validator` tags enforced. All failures are 400.
-- Views live in `internal/views/<domain>view`, one file per direction
-  (`create.go`, `read.go`, `auth.go`). Request structs carry `validate` tags;
-  conversion to `sqlc` params lives in `ToXParams` methods.
+- If a REST domain needs request or response views, place them in
+  `internal/views/<domain>view` with validation tags on request structs.
 - Shared external error types live in `pkg/api/errs`: `BadRequest` (400),
   `Unauthorized` (401), `Forbidden` (403), and `NotFound` (404). Keep
   service-specific error values and messages in the service. Wrap with context
@@ -118,7 +100,7 @@ Supplier Service uses sqlc:
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
-  `internal/database/userdb` and `internal/database/seeddb`. Never hand-edit
+  `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never hand-edit
   generated files.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
