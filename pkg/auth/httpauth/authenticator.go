@@ -1,4 +1,4 @@
-package middleware
+package httpauth
 
 import (
 	"context"
@@ -14,9 +14,10 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt/tokenclaims"
 	"github.com/MicahParks/jwkset"
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -124,9 +125,15 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			}
 			return
 		}
-		ctx := context.WithValue(r.Context(), claimsKey[AccessClaims]{}, claims)
+		ctx := auth.WithCaller(r.Context(), callerFromClaims(claims))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func callerFromClaims(claims AccessClaims) auth.Caller {
+	return auth.Caller{ID: claims.Subject, SessionID: claims.SessionID, Role: claims.Role,
+		Admin:    claims.Role == "admin" || claims.Role == "super_admin",
+		IssuedAt: claims.IssuedAt, ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
 }
 
 var (

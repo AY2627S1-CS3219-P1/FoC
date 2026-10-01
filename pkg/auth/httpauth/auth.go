@@ -1,18 +1,10 @@
-package middleware
+package httpauth
 
 import (
-	"context"
 	"net/http"
 
 	"connectrpc.com/connect"
 )
-
-type claimsKey[C any] struct{}
-
-func ClaimsFromContext[C any](ctx context.Context) (C, bool) {
-	claims, ok := ctx.Value(claimsKey[C]{}).(C)
-	return claims, ok
-}
 
 type unauthorizedError struct{}
 
