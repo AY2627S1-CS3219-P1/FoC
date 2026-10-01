@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import LocationCard from '$lib/components/location/LocationCard.svelte';
 	import LocationFilters from '$lib/components/location/LocationFilters.svelte';
 	import Notice from '$lib/components/location/Notice.svelte';
@@ -49,19 +50,34 @@
 	}
 </script>
 
-<section>
-	<h1>Campus locations</h1>
+<svelte:head><title>Campus locations · Friend on Campus</title></svelte:head>
 
-	<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
+<section class="page-content locations-page" aria-labelledby="locations-title">
+	<header class="page-heading">
+		<div>
+			<p class="eyebrow">Locations</p>
+			<h1 id="locations-title">Campus locations</h1>
+			<p>Browse stores and facilities on campus that can be picked up from.</p>
+		</div>
+	</header>
 
-	<div aria-live="polite">
+	<Card variant="outlined">
+		<div class="panel-body">
+			<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
+		</div>
+	</Card>
+
+	<div class="results" aria-live="polite">
 		{#if error}
 			<Notice tone="error">
 				{error}
 				{#if !authService.isAuthenticated}<a href="/login">Log in</a>{/if}
 			</Notice>
 		{:else if loading && !result}
-			<Notice>Loading locations…</Notice>
+			<div class="loading-state">
+				<LoadingIndicator aria-label="Loading locations" />
+				<p>Loading locations…</p>
+			</div>
 		{:else if result && result.locations.length === 0}
 			<Notice>
 				No locations match these filters.
@@ -82,16 +98,18 @@
 
 			{#if result.totalPages > 1}
 				<nav class="pagination" aria-label="Pages">
-					<button
+					<Button
 						type="button"
+						variant="outlined"
 						disabled={result.page <= 1}
-						onclick={() => update({ page: result!.page - 1 })}>Previous</button
+						onclick={() => update({ page: result!.page - 1 })}>Previous</Button
 					>
 					<span>Page {result.page} of {result.totalPages}</span>
-					<button
+					<Button
 						type="button"
+						variant="outlined"
 						disabled={result.page >= result.totalPages}
-						onclick={() => update({ page: result!.page + 1 })}>Next</button
+						onclick={() => update({ page: result!.page + 1 })}>Next</Button
 					>
 				</nav>
 			{/if}
@@ -100,16 +118,22 @@
 </section>
 
 <style>
-	h1 {
-		font-size: clamp(1.75rem, 4vw, 2.5rem);
+	.locations-page {
+		max-width: none;
+	}
+
+	.results {
+		display: grid;
+		gap: 1rem;
 	}
 
 	.summary {
+		margin: 0;
 		font-weight: 600;
 	}
 
 	.muted {
-		color: #527099;
+		color: var(--m3c-on-surface-variant);
 		font-weight: 400;
 	}
 
@@ -117,6 +141,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
 		gap: 1rem;
+		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
@@ -126,21 +151,5 @@
 		align-items: center;
 		justify-content: center;
 		gap: 1rem;
-		margin-top: 1.5rem;
-	}
-
-	.pagination button {
-		min-height: 2.5rem;
-		padding: 0 1rem;
-		border: 1px solid #b9c6d9;
-		border-radius: 0.4rem;
-		background: #fff;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.pagination button:disabled {
-		opacity: 0.5;
-		cursor: default;
 	}
 </style>

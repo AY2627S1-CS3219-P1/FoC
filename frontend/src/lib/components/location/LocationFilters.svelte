@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Checkbox, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
 	import type { Building, Category } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import type {
 		ArchiveView,
@@ -41,79 +42,77 @@
 		const [sort, direction] = value.split('-') as [SortField, SortDirection];
 		onchange({ sort, direction });
 	}
+
+	const buildingOptions = $derived([
+		{ value: '', text: 'All buildings' },
+		...buildings.map((b) => ({ value: b.id, text: b.name }))
+	]);
+	const categoryOptions = $derived([
+		{ value: '', text: 'All categories' },
+		...categories.map((c) => ({ value: c.id, text: c.name }))
+	]);
+	const sortOptions = [
+		{ value: 'name-asc', text: 'Name (A–Z)' },
+		{ value: 'name-desc', text: 'Name (Z–A)' },
+		{ value: 'building-asc', text: 'Building (A–Z)' },
+		{ value: 'building-desc', text: 'Building (Z–A)' }
+	];
+	const archiveOptions = [
+		{ value: 'active', text: 'Active' },
+		{ value: 'archived', text: 'Archived' },
+		{ value: 'all', text: 'All' }
+	];
 </script>
 
 <form class="filters" role="search" onsubmit={(e) => e.preventDefault()}>
-	<label class="search">
-		<span>Search by name</span>
-		<input
+	<div class="search">
+		<TextFieldOutlined
+			label="Search by name"
 			type="search"
-			placeholder="e.g. co-op, supper"
-			maxlength="200"
+			maxlength={200}
 			bind:value={searchText}
 			oninput={onSearchInput}
 		/>
-	</label>
+	</div>
 
-	<label>
-		<span>Building</span>
-		<select
-			value={query.buildingId ?? ''}
-			onchange={(e) => onchange({ buildingId: e.currentTarget.value || undefined })}
-		>
-			<option value="">All buildings</option>
-			{#each buildings as building (building.id)}
-				<option value={building.id}>{building.name}</option>
-			{/each}
-		</select>
-	</label>
+	<SelectOutlined
+		label="Building"
+		options={buildingOptions}
+		value={query.buildingId ?? ''}
+		onchange={(e) => onchange({ buildingId: e.currentTarget.value || undefined })}
+	/>
 
-	<label>
-		<span>Category</span>
-		<select
-			value={query.categoryId ?? ''}
-			onchange={(e) => onchange({ categoryId: e.currentTarget.value || undefined })}
-		>
-			<option value="">All categories</option>
-			{#each categories as category (category.id)}
-				<option value={category.id}>{category.name}</option>
-			{/each}
-		</select>
-	</label>
+	<SelectOutlined
+		label="Category"
+		options={categoryOptions}
+		value={query.categoryId ?? ''}
+		onchange={(e) => onchange({ categoryId: e.currentTarget.value || undefined })}
+	/>
 
-	<label>
-		<span>Sort by</span>
-		<select
-			value={`${query.sort ?? 'name'}-${query.direction ?? 'asc'}`}
-			onchange={(e) => onSortChange(e.currentTarget.value)}
-		>
-			<option value="name-asc">Name (A–Z)</option>
-			<option value="name-desc">Name (Z–A)</option>
-			<option value="building-asc">Building (A–Z)</option>
-			<option value="building-desc">Building (Z–A)</option>
-		</select>
-	</label>
+	<SelectOutlined
+		label="Sort by"
+		options={sortOptions}
+		value={`${query.sort ?? 'name'}-${query.direction ?? 'asc'}`}
+		onchange={(e) => onSortChange(e.currentTarget.value)}
+	/>
 
 	{#if isAdmin}
-		<label>
-			<span>Status</span>
-			<select
-				value={query.archive ?? 'active'}
-				onchange={(e) => onchange({ archive: e.currentTarget.value as ArchiveView })}
-			>
-				<option value="active">Active</option>
-				<option value="archived">Archived</option>
-				<option value="all">All</option>
-			</select>
-		</label>
+		<SelectOutlined
+			label="Status"
+			options={archiveOptions}
+			value={query.archive ?? 'active'}
+			onchange={(e) => onchange({ archive: e.currentTarget.value as ArchiveView })}
+		/>
 	{/if}
 
 	<label class="checkbox">
-		<input
-			type="checkbox"
-			checked={query.suppliersOnly}
-			onchange={(e) => onchange({ suppliersOnly: e.currentTarget.checked || undefined })}
-		/>
+		<Checkbox>
+			<input
+				type="checkbox"
+				checked={query.suppliersOnly}
+				onchange={(e) => onchange({ suppliersOnly: e.currentTarget.checked || undefined })}
+			/>
+		</Checkbox>
 		<span>Suppliers only</span>
 	</label>
 </form>
@@ -123,15 +122,13 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 		gap: 0.75rem 1rem;
-		align-items: end;
-		margin-bottom: 1.5rem;
+		align-items: center;
 	}
 
-	label {
-		display: grid;
-		gap: 0.3rem;
-		font-size: 0.875rem;
-		font-weight: 600;
+	.filters > :global(.m3-container),
+	.search > :global(.m3-container) {
+		width: 100%;
+		min-width: 0;
 	}
 
 	.search {
@@ -142,23 +139,12 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		min-height: 2.5rem;
+		cursor: pointer;
 	}
 
-	input[type='search'],
-	select {
-		width: 100%;
-		min-height: 2.5rem;
-		padding: 0.4rem 0.6rem;
-		border: 1px solid #b9c6d9;
-		border-radius: 0.4rem;
-		background: #fff;
-		font: inherit;
-	}
-
-	@media (max-width: 40rem) {
+	@media (max-width: 36rem) {
 		.filters {
-			grid-template-columns: 1fr 1fr;
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
