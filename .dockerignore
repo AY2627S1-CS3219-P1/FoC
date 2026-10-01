@@ -1,6 +1,7 @@
 .git
 .agents
 .codex
+.local
 data
 .env
 .env.*
@@ -9,3 +10,5 @@ data
 **/tmp
 *.pem
 *.key
+**/*.pem
+**/*.key
