@@ -14,10 +14,10 @@ import (
 
 // LocationAdmin is the domain operation set consumed by this adapter.
 type LocationAdmin interface {
-	Create(context.Context, location.Caller, location.CreateRequest) (location.Location, error)
-	Update(context.Context, location.Caller, location.UpdateRequest) (location.Location, error)
-	Archive(context.Context, location.Caller, string) (location.Location, error)
-	Unarchive(context.Context, location.Caller, string) (location.Location, error)
+	Create(context.Context, location.CreateRequest) (location.Location, error)
+	Update(context.Context, location.UpdateRequest) (location.Location, error)
+	Archive(context.Context, string) (location.Location, error)
+	Unarchive(context.Context, string) (location.Location, error)
 }
 
 type LocationAdminServer struct {
@@ -29,28 +29,7 @@ func NewLocationAdminServer(service LocationAdmin) *LocationAdminServer {
 	return &LocationAdminServer{service: service}
 }
 
-// AdminAuthorizationInterceptor runs before validation, including for invalid
-// requests, so an ordinary caller cannot inspect the administrator contract.
-func AdminAuthorizationInterceptor() connect.Interceptor {
-	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			caller, err := requireCaller(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if !caller.Admin {
-				return nil, api.ToConnectError(ctx, location.ErrPermissionDenied)
-			}
-			return next(ctx, req)
-		}
-	})
-}
-
 func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.Request[locationv1.CreateLocationRequest]) (*connect.Response[locationv1.CreateLocationResponse], error) {
-	caller, err := requireCaller(ctx)
-	if err != nil {
-		return nil, err
-	}
 	input := req.Msg.GetLocation()
 	if input == nil || input.IsSupplier == nil || input.Coordinates == nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("classification and coordinates are required"))
@@ -58,7 +37,7 @@ func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.R
 	if err := checkClockPrecision(input.OpensAt, input.ClosesAt); err != nil {
 		return nil, err
 	}
-	loc, err := s.service.Create(ctx, caller, location.CreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Create(ctx, location.CreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -66,10 +45,6 @@ func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.R
 }
 
 func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.Request[locationv1.UpdateLocationRequest]) (*connect.Response[locationv1.UpdateLocationResponse], error) {
-	caller, err := requireCaller(ctx)
-	if err != nil {
-		return nil, err
-	}
 	paths := req.Msg.GetUpdateMask().GetPaths()
 	input := req.Msg.GetLocation()
 	if input != nil {
@@ -86,7 +61,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 			}
 		}
 	}
-	loc, err := s.service.Update(ctx, caller, location.UpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Update(ctx, location.UpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -94,11 +69,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 }
 
 func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.Request[locationv1.ArchiveLocationRequest]) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
-	caller, err := requireCaller(ctx)
-	if err != nil {
-		return nil, err
-	}
-	loc, err := s.service.Archive(ctx, caller, req.Msg.GetId())
+	loc, err := s.service.Archive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -106,11 +77,7 @@ func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.
 }
 
 func (s *LocationAdminServer) UnarchiveLocation(ctx context.Context, req *connect.Request[locationv1.UnarchiveLocationRequest]) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
-	caller, err := requireCaller(ctx)
-	if err != nil {
-		return nil, err
-	}
-	loc, err := s.service.Unarchive(ctx, caller, req.Msg.GetId())
+	loc, err := s.service.Unarchive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

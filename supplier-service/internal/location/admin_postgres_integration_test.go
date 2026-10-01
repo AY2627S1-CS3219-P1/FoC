@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
@@ -33,7 +34,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestAdminService(pool)
 	admin := Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(ctx, admin, CreateRequest{Key: uuid.NewString(), Input: adminInput()})
+	created, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: adminInput()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 		created.Categories[0].ID != foodID || created.Building.ID != com2ID {
 		t.Fatalf("created = %+v", created)
 	}
-	updated, err := svc.Update(ctx, admin, UpdateRequest{
+	updated, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{
 		ID: created.ID, ExpectedRevision: 1,
 		Paths: []string{"name", "category_ids"},
 		Input: Input{Name: "Updated supplier", CategoryIDs: []string{coffeeID}},
@@ -52,22 +53,22 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 	if updated.Revision != 2 || updated.Name != "Updated supplier" || len(updated.Categories) != 1 || updated.Categories[0].ID != coffeeID {
 		t.Fatalf("updated = %+v", updated)
 	}
-	if _, err := svc.Update(ctx, admin, UpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, ErrAborted) {
+	if _, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, ErrAborted) {
 		t.Fatalf("stale revision = %v", err)
 	}
-	archived, err := svc.Archive(ctx, admin, created.ID)
+	archived, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
 	if err != nil || archived.ArchivedAt == nil || archived.Revision != 3 {
 		t.Fatalf("archive = %+v, %v", archived, err)
 	}
-	repeated, err := svc.Archive(ctx, admin, created.ID)
+	repeated, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
 	if err != nil || repeated.Revision != archived.Revision || !repeated.UpdatedAt.Equal(archived.UpdatedAt) {
 		t.Fatalf("repeat archive changed row = %+v, %v", repeated, err)
 	}
-	unarchived, err := svc.Unarchive(ctx, admin, created.ID)
+	unarchived, err := svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
 	if err != nil || unarchived.ArchivedAt != nil || unarchived.Revision != 4 {
 		t.Fatalf("unarchive = %+v, %v", unarchived, err)
 	}
-	repeated, err = svc.Unarchive(ctx, admin, created.ID)
+	repeated, err = svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
 	if err != nil || repeated.Revision != unarchived.Revision || !repeated.UpdatedAt.Equal(unarchived.UpdatedAt) {
 		t.Fatalf("repeat unarchive changed row = %+v, %v", repeated, err)
 	}
@@ -91,7 +92,7 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			input := adminInput()
 			tc.edit(&input)
-			if _, err := svc.Create(ctx, admin, CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
+			if _, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
 			}
 		})
@@ -187,7 +188,7 @@ func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := newTestAdminService(pool).Update(ctx, Caller{ID: "admin", Admin: true}, UpdateRequest{
+		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, Caller{ID: "admin", Admin: true}), UpdateRequest{
 			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
 		})
 		result <- err

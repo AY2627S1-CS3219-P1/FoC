@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
@@ -107,10 +107,10 @@ func getCorsConfig() *cors.Cors {
 
 // newAuthenticator retries while User Service starts, since its public keys
 // are fetched once at startup.
-func newAuthenticator(ctx context.Context) (*middleware.Authenticator, error) {
+func newAuthenticator(ctx context.Context) (*httpauth.Authenticator, error) {
 	deadline := time.Now().Add(AUTH_STARTUP_TIMEOUT)
 	for {
-		authenticator, err := middleware.NewUserServiceAuthenticator(ctx)
+		authenticator, err := httpauth.NewUserServiceAuthenticator(ctx)
 		if err == nil || time.Now().After(deadline) {
 			return authenticator, err
 		}
