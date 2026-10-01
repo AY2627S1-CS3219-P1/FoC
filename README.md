@@ -62,8 +62,8 @@ configures the default `slog` logger at startup.
 
 Prerequisites: `docker` with the `docker-compose` plugin.
 
-Services: `user-service` (`localhost:8081`), `supplier-service` (`localhost:8082`), shared `postgres:18` (`localhost:5432` with `user_dev` / `supplier_dev` DBs).
-If another process uses one of these host ports, set `USER_PORT`, `SUPPLIER_PORT`, or `POSTGRES_PORT` to an available port in `.env` before starting the services.
+Services: `frontend` (`localhost:5173`), `user-service` (`localhost:8081`), `supplier-service` (`localhost:8082`), shared `postgres:18` (`localhost:5432` with `user_dev` / `supplier_dev` DBs), and Mailpit (`localhost:8025`).
+If another process uses one of these host ports, set `FRONTEND_PORT`, `USER_PORT`, `SUPPLIER_PORT`, or `POSTGRES_PORT` to an available port in `.env` before starting the services. When changing `FRONTEND_PORT`, update `FRONTEND_BASE_URL` to match.
 
 1. Configure env:
    ```bash
@@ -75,6 +75,7 @@ If another process uses one of these host ports, set `USER_PORT`, `SUPPLIER_PORT
    ```bash
    docker compose up --build
    ```
+   Open `http://localhost:5173` for the frontend. Vite reloads source changes; npm dependencies are installed from the lockfile when the frontend starts.
    This is the complete Compose setup. Each service gets its `DATABASE_URL` from `.env` through `compose.yaml`; no separate migration command is needed.
    After adding a migration, restart the affected service to apply it.
 
