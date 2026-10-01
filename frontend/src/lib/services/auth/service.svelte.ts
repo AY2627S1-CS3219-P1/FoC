@@ -125,6 +125,12 @@ export class AuthService {
 		return logout;
 	}
 
+	updateDisplayName(displayName: string): void {
+		if (this.#user) {
+			this.#user = { ...this.#user, displayName };
+		}
+	}
+
 	async #runSessionOperation(
 		operation: () => Promise<AuthSession>,
 		clearOnFailure = false

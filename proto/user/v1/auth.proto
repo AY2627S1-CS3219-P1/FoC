@@ -9,6 +9,7 @@ service AuthService {
   rpc Register(RegisterRequest) returns (RegisterResponse) {}
   rpc Refresh(RefreshRequest) returns (RefreshResponse) {}
   rpc Logout(LogoutRequest) returns (LogoutResponse) {}
+  rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse) {}
 }
 
 service PublicKeyService {
@@ -30,10 +31,11 @@ message LoginRequest {
 
 message RegisterRequest {
   string token = 1 [(buf.validate.field).string.min_len = 1];
-  string display_name = 2 [
-    (buf.validate.field).string.min_len = 1,
-    (buf.validate.field).string.max_len = 100
-  ];
+  // The service trims the name and requires 1 to 100 characters afterward.
+  string display_name = 2;
+  // The service trims and validates contacts; blank values are unset.
+  optional string telegram_handle = 3;
+  optional string phone_number = 4;
 }
 
 message User {
@@ -41,6 +43,8 @@ message User {
   string email = 2;
   string display_name = 3;
   UserRole role = 4;
+  optional string telegram_handle = 5;
+  optional string phone_number = 6;
 }
 
 enum UserRole {
@@ -71,6 +75,10 @@ message RefreshResponse {
 message LogoutRequest {}
 
 message LogoutResponse {}
+
+message LogoutAllRequest {}
+
+message LogoutAllResponse {}
 
 message GetPublicKeysRequest {}
 

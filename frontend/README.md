@@ -6,6 +6,20 @@ connected to the Go services.
 
 ## Run locally
 
+From the repository root, `docker compose up --build` starts the frontend at
+`http://localhost:5173` along with the backend services. Source edits reload through
+Vite. Compose runs `npm ci` on startup and keeps container dependencies and SvelteKit
+output in separate named volumes, leaving host dependencies separate. Restart the
+frontend after changing `package-lock.json`.
+
+Set `FRONTEND_PORT` in the root `.env` to change the host port, and update
+`FRONTEND_BASE_URL` to the same origin for authentication. `PUBLIC_USER_SERVICE_URL`
+must be reachable from the browser; it defaults to `http://localhost:${USER_PORT}`
+in Compose (port 8081 by default). `docker compose down` retains frontend volumes;
+`docker compose down -v` removes them along with the database data.
+
+To run the frontend outside Docker:
+
 Requires Node.js `>=22.12.0` and npm.
 
 ```sh

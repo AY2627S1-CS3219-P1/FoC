@@ -45,7 +45,7 @@ type UserUpdate struct {
 	Description    *string
 	TelegramHandle *string
 	PhoneNumber    *string
-	UpdatedBy      *uint
+	UpdatedBy      *uuid.UUID
 }
 
 type Users struct{ db *gorm.DB }
@@ -73,7 +73,7 @@ func (s *Users) Create(ctx context.Context, user *models.User) error {
 	return err
 }
 
-func (s *Users) GetByID(ctx context.Context, id uint) (*models.User, error) {
+func (s *Users) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var u models.User
 	err := s.db.WithContext(ctx).Take(&u, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -83,6 +83,53 @@ func (s *Users) GetByID(ctx context.Context, id uint) (*models.User, error) {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// GetByIDForUpdate locks a user row until the surrounding transaction ends.
+func (s *Users) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var u models.User
+	err := s.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Take(&u, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// UpdateActiveProfile replaces the editable fields only while the account is
+// active. The role predicate closes the race with a concurrent suspension.
+func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) error {
+	fields := map[string]any{
+		"display_name":    user.DisplayName,
+		"description":     user.Description,
+		"telegram_handle": nullString(user.TelegramHandle),
+		"phone_number":    nullString(user.PhoneNumber),
+		"updated_by":      user.UpdatedBy,
+	}
+	res := s.db.WithContext(ctx).Model(&models.User{}).
+		Where("id = ? AND role <> ?", user.ID, models.RoleSuspended).Updates(fields)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		var current models.User
+		if err := s.db.WithContext(ctx).Take(&current, user.ID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		return ErrRoleConflict
+	}
+	return nil
+}
+
+func nullString(value *string) any {
+	if value == nil || *value == "" {
+		return nil
+	}
+	return *value
 }
 
 func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, error) {
@@ -103,7 +150,7 @@ func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, e
 	return users, total, err
 }
 
-func (s *Users) Update(ctx context.Context, id uint, in UserUpdate) error {
+func (s *Users) Update(ctx context.Context, id uuid.UUID, in UserUpdate) error {
 	fields := map[string]any{"updated_by": in.UpdatedBy}
 	if in.DisplayName != nil {
 		fields["display_name"] = *in.DisplayName
@@ -136,7 +183,7 @@ func nullIfEmpty(v string) any {
 
 // Delete soft-deletes the user and their sessions and tokens, and removes
 // their favourites. Warnings and role changes are kept as history.
-func (s *Users) Delete(ctx context.Context, id uint) error {
+func (s *Users) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var bootstraps int64
 		if err := tx.Model(&models.AdminBootstrap{}).Where("user_id = ?", id).Count(&bootstraps).Error; err != nil {
@@ -162,13 +209,13 @@ func (s *Users) Delete(ctx context.Context, id uint) error {
 	})
 }
 
-func (s *Users) ListFavourites(ctx context.Context, userID uint) ([]models.FavouriteSupplier, error) {
+func (s *Users) ListFavourites(ctx context.Context, userID uuid.UUID) ([]models.FavouriteSupplier, error) {
 	var favs []models.FavouriteSupplier
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&favs).Error
 	return favs, err
 }
 
-func (s *Users) AddFavourite(ctx context.Context, userID uint, supplierID uuid.UUID, now time.Time) error {
+func (s *Users) AddFavourite(ctx context.Context, userID, supplierID uuid.UUID, now time.Time) error {
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&models.FavouriteSupplier{UserID: userID, SupplierID: supplierID, CreatedAt: now}).Error
 	if errors.Is(err, gorm.ErrForeignKeyViolated) {
@@ -177,7 +224,7 @@ func (s *Users) AddFavourite(ctx context.Context, userID uint, supplierID uuid.U
 	return err
 }
 
-func (s *Users) RemoveFavourite(ctx context.Context, userID uint, supplierID uuid.UUID) error {
+func (s *Users) RemoveFavourite(ctx context.Context, userID, supplierID uuid.UUID) error {
 	return s.db.WithContext(ctx).
 		Delete(&models.FavouriteSupplier{}, "user_id = ? AND supplier_id = ?", userID, supplierID).Error
 }

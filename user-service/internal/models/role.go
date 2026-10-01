@@ -2,7 +2,11 @@
 
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type RoleName string
 
@@ -34,7 +38,7 @@ type Role struct {
 
 type AdminBootstrap struct {
 	Singleton      bool `gorm:"primaryKey;default:true"`
-	UserID         uint
+	UserID         uuid.UUID
 	BootstrappedAt time.Time `gorm:"autoCreateTime"`
 }
 

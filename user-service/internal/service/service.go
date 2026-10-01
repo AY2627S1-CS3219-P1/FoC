@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/google/uuid"
 )
 
 type Service struct {
@@ -18,7 +19,7 @@ type Service struct {
 
 type UserStore interface {
 	GetByEmail(context.Context, string) (*models.User, error)
-	GetByID(context.Context, uint) (*models.User, error)
+	GetByID(context.Context, uuid.UUID) (*models.User, error)
 	Create(context.Context, *models.User) error
 }
 
@@ -29,8 +30,9 @@ type AuthTokenStore interface {
 
 type SessionStore interface {
 	Create(context.Context, *models.Session) error
-	UpdateTokenHash(context.Context, uint, []byte) error
-	Revoke(context.Context, uint, [32]byte, time.Time) error
+	UpdateTokenHash(context.Context, uuid.UUID, []byte) error
+	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
+	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
 }
 
 type DomainStore interface {

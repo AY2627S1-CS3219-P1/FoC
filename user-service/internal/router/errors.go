@@ -3,12 +3,11 @@ package router
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 )
 
-// TODO: standardise this into a project-level shared package
 func normalizeRPCError() connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -20,8 +19,7 @@ func normalizeRPCError() connect.Interceptor {
 			if errors.As(err, &connectErr) {
 				return response, err
 			}
-			slog.ErrorContext(ctx, "user-service RPC failed", "procedure", req.Spec().Procedure, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, errors.New("internal error"))
+			return nil, api.ToConnectError(ctx, err)
 		}
 	})
 }

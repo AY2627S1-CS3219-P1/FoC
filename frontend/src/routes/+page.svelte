@@ -1,8 +1,25 @@
-<section class="intro">
-	<p class="eyebrow">Campus errands, made easier</p>
-	<h1>Find what you need on campus.</h1>
-	<p>
-		Explore campus suppliers and get ready to connect with students who can help with errands.
-	</p>
-	<a class="button-link" href="/suppliers">Explore suppliers</a>
-</section>
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { Card } from 'm3-svelte';
+	import { authService } from '$lib/services';
+
+	$effect(() => {
+		if (!authService.isAuthenticated) {
+			void goto('/login', { replaceState: true });
+		}
+	});
+</script>
+
+{#if authService.user}
+	<section class="center-stage" aria-label="Home">
+		<div class="auth-panel">
+			<Card variant="outlined">
+				<div class="home-body">
+					<h1>Welcome, {authService.user.displayName}</h1>
+					<p>You're signed in as {authService.user.email}.</p>
+					<p>Your campus home is coming soon.</p>
+				</div>
+			</Card>
+		</div>
+	</section>
+{/if}

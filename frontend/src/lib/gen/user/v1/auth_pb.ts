@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/auth.proto.
  */
 export const file_user_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChJ1c2VyL3YxL2F1dGgucHJvdG8SB3VzZXIudjEiFQoTUmVxdWVzdExpbmtSZXNwb25zZSIuChJSZXF1ZXN0TGlua1JlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASImCgxMb2dpblJlcXVlc3QSFgoFdG9rZW4YASABKAlCB7pIBHICEAEiSgoPUmVnaXN0ZXJSZXF1ZXN0EhYKBXRva2VuGAEgASgJQge6SARyAhABEh8KDGRpc3BsYXlfbmFtZRgCIAEoCUIJukgGcgQQARhkIlgKBFVzZXISCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEh8KBHJvbGUYBCABKA4yES51c2VyLnYxLlVzZXJSb2xlIkIKDUxvZ2luUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLnVzZXIudjEuVXNlchIUCgxhY2Nlc3NfdG9rZW4YAiABKAkiRQoQUmVnaXN0ZXJSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0udXNlci52MS5Vc2VyEhQKDGFjY2Vzc190b2tlbhgCIAEoCSIQCg5SZWZyZXNoUmVxdWVzdCJECg9SZWZyZXNoUmVzcG9uc2USFAoMYWNjZXNzX3Rva2VuGAEgASgJEhsKBHVzZXIYAiABKAsyDS51c2VyLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSIWChRHZXRQdWJsaWNLZXlzUmVxdWVzdCI6ChVHZXRQdWJsaWNLZXlzUmVzcG9uc2USIQoEa2V5cxgBIAMoCzITLnVzZXIudjEuSnNvbldlYktleSJjCgpKc29uV2ViS2V5EgsKA2t0eRgBIAEoCRILCgNjcnYYAiABKAkSCQoBeBgDIAEoCRIJCgF5GAQgASgJEgsKA3VzZRgFIAEoCRILCgNhbGcYBiABKAkSCwoDa2lkGAcgASgJKocBCghVc2VyUm9sZRIZChVVU0VSX1JPTEVfVU5TUEVDSUZJRUQQABIZChVVU0VSX1JPTEVfU1VQRVJfQURNSU4QARITCg9VU0VSX1JPTEVfQURNSU4QAhISCg5VU0VSX1JPTEVfVVNFUhADEhwKGFVTRVJfUk9MRV9TVVNQRU5ERURfVVNFUhAEMtMCCgtBdXRoU2VydmljZRJKCgtSZXF1ZXN0TGluaxIbLnVzZXIudjEuUmVxdWVzdExpbmtSZXF1ZXN0GhwudXNlci52MS5SZXF1ZXN0TGlua1Jlc3BvbnNlIgASOAoFTG9naW4SFS51c2VyLnYxLkxvZ2luUmVxdWVzdBoWLnVzZXIudjEuTG9naW5SZXNwb25zZSIAEkEKCFJlZ2lzdGVyEhgudXNlci52MS5SZWdpc3RlclJlcXVlc3QaGS51c2VyLnYxLlJlZ2lzdGVyUmVzcG9uc2UiABI+CgdSZWZyZXNoEhcudXNlci52MS5SZWZyZXNoUmVxdWVzdBoYLnVzZXIudjEuUmVmcmVzaFJlc3BvbnNlIgASOwoGTG9nb3V0EhYudXNlci52MS5Mb2dvdXRSZXF1ZXN0GhcudXNlci52MS5Mb2dvdXRSZXNwb25zZSIAMmQKEFB1YmxpY0tleVNlcnZpY2USUAoNR2V0UHVibGljS2V5cxIdLnVzZXIudjEuR2V0UHVibGljS2V5c1JlcXVlc3QaHi51c2VyLnYxLkdldFB1YmxpY0tleXNSZXNwb25zZSIAQo8BCgtjb20udXNlci52MUIJQXV0aFByb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate]);
+  fileDesc("ChJ1c2VyL3YxL2F1dGgucHJvdG8SB3VzZXIudjEiFQoTUmVxdWVzdExpbmtSZXNwb25zZSIuChJSZXF1ZXN0TGlua1JlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASImCgxMb2dpblJlcXVlc3QSFgoFdG9rZW4YASABKAlCB7pIBHICEAEinQEKD1JlZ2lzdGVyUmVxdWVzdBIWCgV0b2tlbhgBIAEoCUIHukgEcgIQARIUCgxkaXNwbGF5X25hbWUYAiABKAkSHAoPdGVsZWdyYW1faGFuZGxlGAMgASgJSACIAQESGQoMcGhvbmVfbnVtYmVyGAQgASgJSAGIAQFCEgoQX3RlbGVncmFtX2hhbmRsZUIPCg1fcGhvbmVfbnVtYmVyIrYBCgRVc2VyEgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZRIcCg90ZWxlZ3JhbV9oYW5kbGUYBSABKAlIAIgBARIZCgxwaG9uZV9udW1iZXIYBiABKAlIAYgBAUISChBfdGVsZWdyYW1faGFuZGxlQg8KDV9waG9uZV9udW1iZXIiQgoNTG9naW5SZXNwb25zZRIbCgR1c2VyGAEgASgLMg0udXNlci52MS5Vc2VyEhQKDGFjY2Vzc190b2tlbhgCIAEoCSJFChBSZWdpc3RlclJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS51c2VyLnYxLlVzZXISFAoMYWNjZXNzX3Rva2VuGAIgASgJIhAKDlJlZnJlc2hSZXF1ZXN0IkQKD1JlZnJlc2hSZXNwb25zZRIUCgxhY2Nlc3NfdG9rZW4YASABKAkSGwoEdXNlchgCIAEoCzINLnVzZXIudjEuVXNlciIPCg1Mb2dvdXRSZXF1ZXN0IhAKDkxvZ291dFJlc3BvbnNlIhIKEExvZ291dEFsbFJlcXVlc3QiEwoRTG9nb3V0QWxsUmVzcG9uc2UiFgoUR2V0UHVibGljS2V5c1JlcXVlc3QiOgoVR2V0UHVibGljS2V5c1Jlc3BvbnNlEiEKBGtleXMYASADKAsyEy51c2VyLnYxLkpzb25XZWJLZXkiYwoKSnNvbldlYktleRILCgNrdHkYASABKAkSCwoDY3J2GAIgASgJEgkKAXgYAyABKAkSCQoBeRgEIAEoCRILCgN1c2UYBSABKAkSCwoDYWxnGAYgASgJEgsKA2tpZBgHIAEoCSqHAQoIVXNlclJvbGUSGQoVVVNFUl9ST0xFX1VOU1BFQ0lGSUVEEAASGQoVVVNFUl9ST0xFX1NVUEVSX0FETUlOEAESEwoPVVNFUl9ST0xFX0FETUlOEAISEgoOVVNFUl9ST0xFX1VTRVIQAxIcChhVU0VSX1JPTEVfU1VTUEVOREVEX1VTRVIQBDKZAwoLQXV0aFNlcnZpY2USSgoLUmVxdWVzdExpbmsSGy51c2VyLnYxLlJlcXVlc3RMaW5rUmVxdWVzdBocLnVzZXIudjEuUmVxdWVzdExpbmtSZXNwb25zZSIAEjgKBUxvZ2luEhUudXNlci52MS5Mb2dpblJlcXVlc3QaFi51c2VyLnYxLkxvZ2luUmVzcG9uc2UiABJBCghSZWdpc3RlchIYLnVzZXIudjEuUmVnaXN0ZXJSZXF1ZXN0GhkudXNlci52MS5SZWdpc3RlclJlc3BvbnNlIgASPgoHUmVmcmVzaBIXLnVzZXIudjEuUmVmcmVzaFJlcXVlc3QaGC51c2VyLnYxLlJlZnJlc2hSZXNwb25zZSIAEjsKBkxvZ291dBIWLnVzZXIudjEuTG9nb3V0UmVxdWVzdBoXLnVzZXIudjEuTG9nb3V0UmVzcG9uc2UiABJECglMb2dvdXRBbGwSGS51c2VyLnYxLkxvZ291dEFsbFJlcXVlc3QaGi51c2VyLnYxLkxvZ291dEFsbFJlc3BvbnNlIgAyZAoQUHVibGljS2V5U2VydmljZRJQCg1HZXRQdWJsaWNLZXlzEh0udXNlci52MS5HZXRQdWJsaWNLZXlzUmVxdWVzdBoeLnVzZXIudjEuR2V0UHVibGljS2V5c1Jlc3BvbnNlIgBCjwEKC2NvbS51c2VyLnYxQglBdXRoUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate]);
 
 /**
  * @generated from message user.v1.RequestLinkResponse
@@ -70,9 +70,23 @@ export type RegisterRequest = Message<"user.v1.RegisterRequest"> & {
   token: string;
 
   /**
+   * The service trims the name and requires 1 to 100 characters afterward.
+   *
    * @generated from field: string display_name = 2;
    */
   displayName: string;
+
+  /**
+   * The service trims and validates contacts; blank values are unset.
+   *
+   * @generated from field: optional string telegram_handle = 3;
+   */
+  telegramHandle?: string | undefined;
+
+  /**
+   * @generated from field: optional string phone_number = 4;
+   */
+  phoneNumber?: string | undefined;
 };
 
 /**
@@ -105,6 +119,16 @@ export type User = Message<"user.v1.User"> & {
    * @generated from field: user.v1.UserRole role = 4;
    */
   role: UserRole;
+
+  /**
+   * @generated from field: optional string telegram_handle = 5;
+   */
+  telegramHandle?: string | undefined;
+
+  /**
+   * @generated from field: optional string phone_number = 6;
+   */
+  phoneNumber?: string | undefined;
 };
 
 /**
@@ -220,6 +244,32 @@ export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
   messageDesc(file_user_v1_auth, 10);
 
 /**
+ * @generated from message user.v1.LogoutAllRequest
+ */
+export type LogoutAllRequest = Message<"user.v1.LogoutAllRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.LogoutAllRequest.
+ * Use `create(LogoutAllRequestSchema)` to create a new message.
+ */
+export const LogoutAllRequestSchema: GenMessage<LogoutAllRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_auth, 11);
+
+/**
+ * @generated from message user.v1.LogoutAllResponse
+ */
+export type LogoutAllResponse = Message<"user.v1.LogoutAllResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.LogoutAllResponse.
+ * Use `create(LogoutAllResponseSchema)` to create a new message.
+ */
+export const LogoutAllResponseSchema: GenMessage<LogoutAllResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_auth, 12);
+
+/**
  * @generated from message user.v1.GetPublicKeysRequest
  */
 export type GetPublicKeysRequest = Message<"user.v1.GetPublicKeysRequest"> & {
@@ -230,7 +280,7 @@ export type GetPublicKeysRequest = Message<"user.v1.GetPublicKeysRequest"> & {
  * Use `create(GetPublicKeysRequestSchema)` to create a new message.
  */
 export const GetPublicKeysRequestSchema: GenMessage<GetPublicKeysRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 11);
+  messageDesc(file_user_v1_auth, 13);
 
 /**
  * @generated from message user.v1.GetPublicKeysResponse
@@ -247,7 +297,7 @@ export type GetPublicKeysResponse = Message<"user.v1.GetPublicKeysResponse"> & {
  * Use `create(GetPublicKeysResponseSchema)` to create a new message.
  */
 export const GetPublicKeysResponseSchema: GenMessage<GetPublicKeysResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 12);
+  messageDesc(file_user_v1_auth, 14);
 
 /**
  * @generated from message user.v1.JsonWebKey
@@ -294,7 +344,7 @@ export type JsonWebKey = Message<"user.v1.JsonWebKey"> & {
  * Use `create(JsonWebKeySchema)` to create a new message.
  */
 export const JsonWebKeySchema: GenMessage<JsonWebKey> = /*@__PURE__*/
-  messageDesc(file_user_v1_auth, 13);
+  messageDesc(file_user_v1_auth, 15);
 
 /**
  * @generated from enum user.v1.UserRole
@@ -375,6 +425,14 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof LogoutRequestSchema;
     output: typeof LogoutResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.AuthService.LogoutAll
+   */
+  logoutAll: {
+    methodKind: "unary";
+    input: typeof LogoutAllRequestSchema;
+    output: typeof LogoutAllResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_auth, 0);

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"github.com/google/uuid"
 )
 
 const frontendOrigin = "https://app.example.test"
@@ -37,6 +37,7 @@ type stubLogic struct {
 	registerErr     error
 	refreshErr      error
 	logoutErr       error
+	logoutAllErr    error
 	keyErr          error
 	requestEmail    string
 	loginToken      string
@@ -44,6 +45,7 @@ type stubLogic struct {
 	registerProfile jwt.Profile
 	refreshIn       string
 	logoutIn        string
+	logoutAllIn     string
 }
 
 func (s *stubLogic) RequestLink(_ context.Context, email string) error {
@@ -72,13 +74,22 @@ func (s *stubLogic) Logout(_ context.Context, token string) error {
 	return s.logoutErr
 }
 
+func (s *stubLogic) LogoutAll(_ context.Context, token string) error {
+	s.logoutAllIn = token
+	return s.logoutAllErr
+}
+
 func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
 	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
 }
 
 func testUser() models.User {
-	return models.User{ID: 1, Email: "user@example.com", DisplayName: "User", Role: models.RoleUser}
+	return models.User{ID: uuid.MustParse("3bd7435a-201f-45d4-b858-c1081a93a63c"),
+		Email: "user@example.com", DisplayName: "User", TelegramHandle: stringPtr("example_user"),
+		PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
 }
+
+func stringPtr(value string) *string { return &value }
 
 func testTokens() jwt.AuthTokens {
 	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
@@ -111,8 +122,9 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != strconv.FormatUint(uint64(testUser().ID), 10) ||
+	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
+		login.Msg.User.GetTelegramHandle() != "example_user" || login.Msg.User.GetPhoneNumber() != "+12345678" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {
 		t.Fatalf("unexpected login response: %+v", login.Msg)
 	}
@@ -122,13 +134,19 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal("login response should not be cached")
 	}
 
-	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: "User"})
+	rawDisplayName := " " + strings.Repeat("U", 100) + " "
+	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: rawDisplayName,
+		TelegramHandle: stringPtr(" example_user "), PhoneNumber: stringPtr(" +12345678 ")})
 	registerReq.Header().Set("Origin", frontendOrigin)
 	register, err := client.Register(ctx, registerReq)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" || logic.registerProfile.DisplayName != "User" {
+	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" ||
+		logic.registerProfile.DisplayName != rawDisplayName || logic.registerProfile.TelegramHandle == nil ||
+		*logic.registerProfile.TelegramHandle != " example_user " || logic.registerProfile.PhoneNumber == nil ||
+		*logic.registerProfile.PhoneNumber != " +12345678 " || register.Msg.User.GetTelegramHandle() != "example_user" ||
+		register.Msg.User.GetPhoneNumber() != "+12345678" {
 		t.Fatalf("unexpected registration response: %+v", register.Msg)
 	}
 	assertRefreshCookie(t, (&http.Response{Header: register.Header()}).Cookies(), "refresh-secret")
@@ -164,6 +182,21 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		!cleared[0].Secure || !cleared[0].HttpOnly || cleared[0].SameSite != http.SameSiteStrictMode ||
 		cleared[0].Path != "/user.v1.AuthService/" {
 		t.Fatalf("refresh cookie was not safely cleared: %+v", cleared)
+	}
+
+	logoutAllReq := connect.NewRequest(&userv1.LogoutAllRequest{})
+	logoutAllReq.Header().Set("Origin", frontendOrigin)
+	logoutAllReq.Header().Set("Cookie", authhandler.RefreshCookieName+"=device-refresh")
+	logoutAll, err := client.LogoutAll(ctx, logoutAllReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logic.logoutAllIn != "device-refresh" || logoutAll.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("logout all did not use cookie or set cache policy: %q, %q", logic.logoutAllIn, logoutAll.Header().Get("Cache-Control"))
+	}
+	cleared = (&http.Response{Header: logoutAll.Header()}).Cookies()
+	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 {
+		t.Fatalf("logout all did not clear the refresh cookie: %+v", cleared)
 	}
 }
 
@@ -212,6 +245,10 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic.refreshErr = jwt.ErrRefreshFailed
 	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
+	}
+	logic.logoutAllErr = jwt.ErrRefreshFailed
+	if _, err := client.LogoutAll(ctx, connect.NewRequest(&userv1.LogoutAllRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("failed logout all returned %v", err)
 	}
 }
 

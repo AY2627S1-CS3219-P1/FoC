@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/mail"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/google/uuid"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 )
 
 func (s *Service) RequestLink(ctx context.Context, email string) error {
-	normalizedEmail, err := normalizeEmail(email)
+	normalizedEmail, err := NormalizeEmail(email)
 	if err != nil {
 		return err
 	}
@@ -37,7 +38,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
-		if user.ID == 0 {
+		if user.ID == uuid.Nil {
 			return errors.New("found user has no ID")
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -93,6 +94,7 @@ func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
+		slog.WarnContext(ctx, "send magic link email failed", "err", err)
 		return jwt.ErrUnavailable
 	}
 
@@ -122,7 +124,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if err != nil {
 			return err
 		}
-		if storedUser.ID == 0 || !storedUser.Role.Valid() {
+		if storedUser.ID == uuid.Nil || !storedUser.Role.Valid() {
 			return jwt.ErrLoginFailed
 		}
 		user = *storedUser
@@ -144,7 +146,19 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 
 func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
-	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > 100 {
+	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > MaxDisplayNameLength {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	var ok bool
+	profile.TelegramHandle, ok = normalizedContact(profile.TelegramHandle, 32)
+	if !ok {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	if profile.TelegramHandle != nil && !telegramHandlePattern.MatchString(*profile.TelegramHandle) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
+	}
+	profile.PhoneNumber, ok = normalizedContact(profile.PhoneNumber, 20)
+	if !ok {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
 	digest, err := digestMagicToken(registrationToken)
@@ -171,7 +185,8 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		if !allowed {
 			return jwt.ErrRegistrationFailed
 		}
-		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName, Role: models.RoleUser}
+		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName,
+			TelegramHandle: profile.TelegramHandle, PhoneNumber: profile.PhoneNumber, Role: models.RoleUser}
 		if err := tx.Users.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
 				return jwt.ErrAlreadyRegistered
@@ -264,6 +279,39 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
+// LogoutAll revokes every session of the refresh cookie's user, signing them
+// out of all devices. Unlike Logout, the cookie must belong to a live session,
+// so an unauthenticated caller cannot sign anyone out.
+func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
+	now := s.cfg.Now().UTC()
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	userID, err := parseID(claims.Subject)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	sessionID, err := parseID(claims.SessionID)
+	if err != nil {
+		return jwt.ErrRefreshFailed
+	}
+	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
+			return err
+		}
+		_, err := tx.Sessions.RevokeAllForUser(ctx, userID, now)
+		return err
+	})
+	if errors.Is(err, store.ErrSessionRejected) {
+		return jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return fmt.Errorf("revoke all sessions: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
@@ -289,7 +337,7 @@ func (s *Service) createSession(ctx context.Context, tx Store, user models.User,
 	return tokens, nil
 }
 
-func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now time.Time) (jwt.AuthTokens, error) {
 	role, ok := jwtRole(user.Role)
 	if !ok {
 		return jwt.AuthTokens{}, errors.New("user has invalid role")
@@ -304,8 +352,8 @@ func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.T
 	}
 	accessExpiry := now.Add(s.cfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.cfg.RefreshTokenTTL)
-	subject := strconv.FormatUint(uint64(user.ID), 10)
-	sessionSubject := strconv.FormatUint(uint64(sessionID), 10)
+	subject := user.ID.String()
+	sessionSubject := sessionID.String()
 	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: subject,
 		SessionID: sessionSubject, Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
@@ -320,9 +368,8 @@ func (s *Service) signSessionTokens(user models.User, sessionID uint, now time.T
 		AccessExpiry: accessExpiry, RefreshExpiry: refreshExpiry}, nil
 }
 
-func parseID(value string) (uint, error) {
-	id, err := strconv.ParseUint(value, 10, strconv.IntSize)
-	return uint(id), err
+func parseID(value string) (uuid.UUID, error) {
+	return uuid.Parse(value)
 }
 
 func jwtRole(role models.RoleName) (jwt.Role, bool) {
@@ -340,7 +387,8 @@ func jwtRole(role models.RoleName) (jwt.Role, bool) {
 	}
 }
 
-func normalizeEmail(input string) (string, error) {
+// NormalizeEmail trims and lowercases a bare address, or returns jwt.ErrInvalidEmail.
+func NormalizeEmail(input string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(input))
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Address != email || strings.ContainsAny(email, "\r\n") {
@@ -350,7 +398,7 @@ func normalizeEmail(input string) (string, error) {
 }
 
 func registrationEmailAllowed(ctx context.Context, domains DomainStore, input string) (bool, error) {
-	email, err := normalizeEmail(input)
+	email, err := NormalizeEmail(input)
 	if err != nil {
 		return false, err
 	}

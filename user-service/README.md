@@ -46,6 +46,13 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `JWT_ACCESS_TOKEN_TTL` and `JWT_REFRESH_TOKEN_TTL` accept Go duration
    values. Their defaults are `10m` and `720h` (30 days).
 
+   Magic links are sent over SMTP. `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
+   (an address such as `FoC <no-reply@foc.local>`) are required outside
+   local mode. With `APP_ENV=local` they default to Mailpit on
+   `localhost:1025`; Compose points the container at `mailpit:1025`.
+   `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
+   the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
+
 2. Set up the database.
 
    The service uses PostgreSQL 18 and
@@ -63,13 +70,16 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    docker compose up --build user-service
    ```
 
-   For host development, run `make run` from this directory after setting up
-   the environment and database.
+   Compose also starts [Mailpit](https://mailpit.axllent.org/), which
+   catches every email the service sends. Open http://localhost:8025 to
+   read login and registration links. For host development, run
+   `docker compose up -d mailpit`, then `make run` from this directory after
+   setting up the environment and database.
 
 ## Authentication
 
 The generated `user.v1.AuthService` provides `RequestLink`, `Login`,
-`Register`, `Refresh`, and `Logout`. `user.v1.PublicKeyService.GetPublicKeys`
+`Register`, `Refresh`, `Logout`, and `LogoutAll`. `user.v1.PublicKeyService.GetPublicKeys`
 publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
@@ -78,17 +88,49 @@ Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`
 header. The refresh token is only sent as a `foc-refresh-token` cookie with
 Secure, HttpOnly, SameSite=Strict and Path=/user.v1.AuthService/. Refresh and
-logout read that cookie; logout clears it. Browser clients must send credentials
+both logouts read that cookie and the logouts clear it. `LogoutAll` revokes
+every session of the cookie's user (sign out of all devices) and, unlike
+`Logout`, returns `Unauthenticated` when the cookie is not a live session.
+Access tokens already issued remain valid until they expire. Browser clients must send credentials
 so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
 environment variables. Link requests return an empty typed response; the magic
-link is passed only to the injected email sender. The configured
-`EmptyEmailSender` discards it until an email delivery adapter is connected.
+link is only emailed, through `pkg/email.SMTPSender`. If delivery fails,
+`RequestLink` returns `Unavailable` and logs the SMTP error. An existing
+account receives a `/login?token=` link and a new address a
+`/register?token=` link; both expire after ten minutes and work once.
 
-Authentication persistence is wired to the user-service store. Email delivery
-is not configured yet, so `RequestLink` currently stores the challenge but the
-configured `EmptyEmailSender` discards the link instead of delivering it.
+Registration only accepts addresses whose domain is in
+`allowed_email_domains`; an empty table rejects every registration. For local
+testing, add a domain, for example
+`INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
+bootstrapped admin can log in without one.
+
+`RegisterRequest` accepts a display name plus optional `telegram_handle` and
+`phone_number`, matching the nullable user columns. The service trims the
+name and contact values, treats empty contacts as unset, and validates the
+normalized values. Display names must be 1 to 100 characters; Telegram handles
+must contain 5 to 32 letters, digits, or underscores; phone numbers may be up
+to 20 characters. Registration, login, and refresh return these saved fields
+in the `User` message.
+
+
+## First super admin
+
+Set `BOOTSTRAP_SUPERADMIN_EMAIL` (and optionally
+`BOOTSTRAP_SUPERADMIN_DISPLAY_NAME`, default `Admin`) before starting the
+service. After migrations, startup creates that user as `super_admin`, or
+promotes an existing user with that email and records the role change. The
+admin then signs in with the normal magic-link login. The registration domain
+whitelist does not apply.
+
+The bootstrap runs once. It records the admin in the `admin_bootstrap` table,
+and later starts log that it was already done and ignore the variables, even if
+the email changes or the admin was demoted. Concurrent instances are serialised
+by a table lock, so only one bootstrap succeeds. An invalid email or display
+name stops startup. To bootstrap again, delete the `admin_bootstrap` row by
+hand.
 
 Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
 and initialize one authenticator at startup. The authenticator fetches keys
@@ -107,3 +149,33 @@ if err != nil {
 }
 protectedRouter.Use(authenticator.Authenticate)
 ```
+
+## Profile and role APIs
+
+The generated Connect services below require an access token in the
+`Authorization: Bearer` header. The User Service verifies it with its loaded
+signing key and checks the caller's current role in the database.
+
+| RPC | Request | Response | Access |
+| --- | --- | --- | --- |
+| `ProfileService.GetMyProfile` | Empty | Profile with ID, email, display name, description, optional Telegram handle and phone number, and role | Every authenticated user |
+| `ProfileService.UpdateMyProfile` | Complete editable profile: `display_name`, `description`, optional `telegram_handle`, optional `phone_number` | Updated profile | All authenticated roles except `suspended_user` |
+| `UserAdminService.GetUserByEmail` | `email` | User ID, email, display name, role | `admin`, `super_admin` |
+| `UserAdminService.ChangeUserRole` | `user_id`, `to_role`, optional `reason` | Updated user | `admin`, `super_admin`, subject to the policy below |
+
+`UpdateMyProfile` replaces all four editable fields. An omitted description
+becomes empty and omitted contact fields are cleared. A display name must be
+nonblank after trimming and at most 100 characters. The other database limits
+are 500 characters for description, 32 for Telegram handle, and 20 for phone
+number. The request cannot update email, ID, role, or account status.
+
+`super_admin` may change another user's role among `admin`, `user`, and
+`suspended_user`. `admin` may change another user's role only between `user`
+and `suspended_user`. Neither may change its own role or a `super_admin` role.
+If either the previous or new role is `suspended_user`, a nonblank reason of at
+most 2,000 characters is required. The role update and audit entry commit
+together. Clients should refresh affected users' access tokens to obtain the
+new role claim; previously issued access tokens remain valid until expiry.
+
+The `admin_bootstrap` table exists, but registration does not yet claim it.
+First-admin provisioning and account deletion APIs are separate work.

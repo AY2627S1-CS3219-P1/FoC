@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -56,7 +57,7 @@ func TestUsersAuthPersistence(t *testing.T) {
 	store, _ := setupAuthStore(t)
 
 	user := createStoreUser(t, store, "user@example.com")
-	if user.ID == 0 {
+	if user.ID == uuid.Nil {
 		t.Fatal("database did not assign a user ID")
 	}
 	if got, err := store.GetByEmail(ctx, "USER@example.com"); err != nil || got.ID != user.ID {
@@ -69,7 +70,7 @@ func TestUsersAuthPersistence(t *testing.T) {
 	if err := store.Users.Create(ctx, &duplicate); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("duplicate user: %v", err)
 	}
-	if _, err := store.GetByID(ctx, 1<<40); !errors.Is(err, ErrNotFound) {
+	if _, err := store.GetByID(ctx, uuid.New()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing user: %v", err)
 	}
 }
@@ -194,5 +195,45 @@ func TestSessionsPersistence(t *testing.T) {
 	}
 	if err := store.Sessions.Revoke(ctx, session.ID, sessionHash, now); !errors.Is(err, ErrSessionRejected) {
 		t.Fatalf("repeated revocation: %v", err)
+	}
+}
+
+func TestSessionsRevokeAllForUser(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	store, db := setupAuthStore(t)
+	user := createStoreUser(t, store, "user@example.com")
+	other := createStoreUser(t, store, "other@example.com")
+
+	createSession := func(owner models.User, name string) models.Session {
+		t.Helper()
+		hash := testDigest(name)
+		session := models.Session{UserID: owner.ID, TokenHash: hash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
+		if err := store.Sessions.Create(ctx, &session); err != nil {
+			t.Fatal(err)
+		}
+		return session
+	}
+	createSession(user, "laptop")
+	createSession(user, "phone")
+	revoked := createSession(user, "revoked")
+	if err := store.Sessions.Revoke(ctx, revoked.ID, testDigest("revoked"), now); err != nil {
+		t.Fatal(err)
+	}
+	otherSession := createSession(other, "other")
+
+	count, err := store.Sessions.RevokeAllForUser(ctx, user.ID, now)
+	if err != nil || count != 2 {
+		t.Fatalf("revoke all: count=%d err=%v", count, err)
+	}
+	var live int64
+	if err := db.Model(&models.Session{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).Count(&live).Error; err != nil || live != 0 {
+		t.Fatalf("user still has live sessions: count=%d err=%v", live, err)
+	}
+	if err := store.Sessions.Revoke(ctx, otherSession.ID, testDigest("other"), now); err != nil {
+		t.Fatalf("other user's session was revoked: %v", err)
+	}
+	if count, err := store.Sessions.RevokeAllForUser(ctx, user.ID, now); err != nil || count != 0 {
+		t.Fatalf("repeated revoke all: count=%d err=%v", count, err)
 	}
 }

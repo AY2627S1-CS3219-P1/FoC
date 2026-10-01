@@ -102,7 +102,7 @@ func callerFromContext(ctx context.Context) (location.Caller, bool) {
 		return location.Caller{}, false
 	}
 	admin := claims.Role == "admin" || claims.Role == "super_admin"
-	return location.Caller{Admin: admin}, true
+	return location.Caller{ID: claims.Subject, Admin: admin}, true
 }
 
 func requireCaller(ctx context.Context) (location.Caller, error) {
