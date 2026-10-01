@@ -2,7 +2,7 @@
 # Live reload via Air/Vite + bind mounts. Go containers apply migrations on startup.
 services:
   frontend:
-    image: node:22-bookworm-slim
+    image: node:24-bookworm-slim
     container_name: foc-frontend
     working_dir: /app
     command: sh -c "npm ci && exec npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
