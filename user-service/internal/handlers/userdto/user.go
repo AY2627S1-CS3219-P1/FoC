@@ -4,20 +4,20 @@ import (
 	"context"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
-	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/google/uuid"
 )
 
 var ErrMissingActor = errs.NewUnauthorizedError("invalid or missing access token")
 
 func ActorID(ctx context.Context) (uuid.UUID, error) {
-	claims, ok := authmiddleware.ClaimsFromContext[authmiddleware.AccessClaims](ctx)
+	caller, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return uuid.Nil, ErrMissingActor
 	}
-	id, err := uuid.Parse(claims.Subject)
+	id, err := uuid.Parse(caller.ID)
 	if err != nil || id == uuid.Nil {
 		return uuid.Nil, ErrMissingActor
 	}

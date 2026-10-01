@@ -23,6 +23,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -34,7 +35,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"gorm.io/gorm"
 )
 
@@ -118,7 +118,7 @@ func main() {
 	protected := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: profileLogic},
 		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Authenticate: userservicemiddleware.AuthenticateLocal(codec),
+		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
@@ -286,7 +286,7 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 		return nil, nil, nil, err
 	}
 	codec, err := userservicejwt.NewES256Codec(key, keyID(&key.PublicKey),
-		userservicemiddleware.TokenIssuer, userservicemiddleware.TokenAudience)
+		httpauth.TokenIssuer, httpauth.TokenAudience)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}

@@ -1,24 +1,18 @@
-package middleware
+package httpauth
 
 import (
-	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 )
 
-// AccessVerifier is the token verifier consumed by the User Service itself.
-// It uses the locally loaded signing key and does not fetch its own JWKS.
-type AccessVerifier interface {
-	Verify(string, jwt.TokenType, time.Time) (jwt.Claims, error)
-}
-
-func AuthenticateLocal(verifier AccessVerifier) func(http.Handler) http.Handler {
+// AuthenticateLocal uses a caller-producing verifier supplied by the issuing service.
+// The issuer owns the private key; this package does not depend on its JWT codec.
+func AuthenticateLocal(verify func(string) (auth.Caller, error)) func(http.Handler) http.Handler {
 	errorWriter := connect.NewErrorWriter()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,15 +25,12 @@ func AuthenticateLocal(verifier AccessVerifier) func(http.Handler) http.Handler 
 				writeLocalAuthError(errorWriter, w, r)
 				return
 			}
-			claims, err := verifier.Verify(parts[1], jwt.AccessToken, time.Now())
-			if err != nil {
+			caller, err := verify(parts[1])
+			if err != nil || caller.ID == "" {
 				writeLocalAuthError(errorWriter, w, r)
 				return
 			}
-			access := AccessClaims{Subject: claims.Subject, SessionID: claims.SessionID,
-				Role: string(claims.Role), IssuedAt: claims.IssuedAt,
-				ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
-			ctx := context.WithValue(r.Context(), claimsKey[AccessClaims]{}, access)
+			ctx := auth.WithCaller(r.Context(), caller)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

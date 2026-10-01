@@ -7,6 +7,8 @@ require (
 	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
+	github.com/MicahParks/jwkset v0.11.3 // indirect
+	github.com/MicahParks/keyfunc/v3 v3.8.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -38,8 +40,6 @@ require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
-	github.com/MicahParks/jwkset v0.11.3
-	github.com/MicahParks/keyfunc/v3 v3.8.2
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 )
 
 const (
@@ -89,10 +90,7 @@ const (
 )
 
 // Caller is the authenticated identity making a request.
-type Caller struct {
-	ID    string
-	Admin bool
-}
+type Caller = auth.Caller
 
 // ListRequest is a caller's list request. Zero values select defaults.
 type ListRequest struct {

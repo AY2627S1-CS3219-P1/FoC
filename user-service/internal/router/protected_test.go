@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -21,7 +22,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/google/uuid"
 )
 
@@ -60,7 +60,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	codec, err := jwt.NewES256Codec(key, "test-key", authmiddleware.TokenIssuer, authmiddleware.TokenAudience)
+	codec, err := jwt.NewES256Codec(key, "test-key", httpauth.TokenIssuer, httpauth.TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		router.ProtectedRoutes{
 			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
 			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
-			Authenticate: authmiddleware.AuthenticateLocal(codec), Users: users,
+			Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
