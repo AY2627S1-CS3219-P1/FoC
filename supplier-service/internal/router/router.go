@@ -12,9 +12,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
-	appmiddleware "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/middleware"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router/routes/adminroutes"
 	supplierrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
 	authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/go-chi/chi/v5"
@@ -26,7 +23,6 @@ func Setup(env *deps.Env, authenticator *authmiddleware.Authenticator, locationA
 
 	SetupMiddleware(r)
 	SetupRoutes(r, env, authenticator, locationAdmin)
-	SetupAdminRoutes(r, env)
 	return r
 }
 
@@ -37,8 +33,7 @@ func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.Recoverer)
 }
 
-// SetupRoutes mounts the supplier health RPC at its generated path and the
-// public REST health and authentication routes under /api.
+// SetupRoutes mounts the supplier RPCs and the legacy REST health route.
 func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authenticator, locationAdmin *location.AdminService) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		supplierrpc.NewHealthServer(),
@@ -62,23 +57,6 @@ func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *authmiddleware.Authen
 	r.Route("/api", func(r chi.Router) {
 		// Unprotected routes
 		r.Get("/health", api.HTTPHandler(env, health.HandleCheckHealth))
-		r.Route("/auth", routes.SetupAuthRoutes(env))
-
-		// Protected routes
-		r.Route("/", func(r chi.Router) {
-			r.Use(appmiddleware.GetAuthMiddleware(env))
-		})
-	})
-}
-
-func SetupAdminRoutes(r chi.Router, env *deps.Env) {
-	r.Route("/api/admin", func(r chi.Router) {
-		// Unprotected routes
-		r.Route("/auth", adminroutes.SetupAuthRoutes(env))
-
-		// Protected routes
-		r.Route("/", func(r chi.Router) {
-			r.Use(appmiddleware.GetAuthMiddleware(env))
-		})
+		// Authentication is handled by User Service and the shared JWT middleware.
 	})
 }

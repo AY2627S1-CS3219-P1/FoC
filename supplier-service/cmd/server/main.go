@@ -9,7 +9,6 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/firebase"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
@@ -32,13 +31,7 @@ func main() {
 	}
 	config := env.Get()
 
-	app, err := firebase.InitFirebase(config.FirebaseCredentialsJSON)
-	if err != nil {
-		slog.Error("Error initializing firebase", "error", err)
-		panic(err)
-	}
-
-	queries, pgxPool := database.Connect(config.DatabaseURL)
+	pgxPool := database.Connect(config.DatabaseURL)
 	defer pgxPool.Close()
 
 	// Fetches User Service public keys, so User Service must be reachable.
@@ -49,7 +42,7 @@ func main() {
 	}
 
 	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pgxPool), time.Now)
-	r := router.Setup(deps.New(queries, app, pgxPool), authenticator, locationAdmin)
+	r := router.Setup(deps.New(pgxPool), authenticator, locationAdmin)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port

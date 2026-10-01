@@ -4,13 +4,6 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
 
 ## Setup
 
-1. Setup a Firebase project, this should be the same project used for the frontend.
-
-   1. Enable Authentication with Email/Password and Google Sign-In.
-   1. Create a service account and copy its JSON key into `.env` as
-      `FIREBASE_CREDENTIALS_JSON='<json>'`. The server passes it directly
-      to the Firebase SDK.
-
 1. This project uses [Air](github.com/air-verse/air) for live reloading.
    Install it with instructions on their GitHub page.
 
@@ -24,6 +17,12 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
    1. Run `make migrate-up` in the project root to migrate database.
 
 1. Start the server: `make run`.
+
+Protected Location RPCs accept User Service access tokens. Set
+`USER_SERVICE_BASE_URL` to the User Service URL so Supplier Service can fetch
+its public signing keys at startup. Authentication and user profiles live in
+User Service; the old Supplier Service REST auth and user creation endpoints
+have been removed.
 
 ## Seed data
 

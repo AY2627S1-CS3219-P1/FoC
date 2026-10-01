@@ -8,9 +8,8 @@ import (
 )
 
 type Environment struct {
-	Port                    string
-	DatabaseURL             string
-	FirebaseCredentialsJSON string
+	Port        string
+	DatabaseURL string
 }
 
 var getEnvironment = sync.OnceValue(func() Environment {
@@ -23,9 +22,8 @@ var getEnvironment = sync.OnceValue(func() Environment {
 		panic("DATABASE_URL environment variable is not set")
 	}
 	return Environment{
-		Port:                    port,
-		DatabaseURL:             databaseURL,
-		FirebaseCredentialsJSON: os.Getenv("FIREBASE_CREDENTIALS_JSON"),
+		Port:        port,
+		DatabaseURL: databaseURL,
 	}
 })
 

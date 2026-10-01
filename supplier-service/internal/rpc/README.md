@@ -183,7 +183,7 @@ func NewHealthServer(env *deps.Env) *HealthServer {
 
 The router would create `HealthServer` once and pass the application
 dependencies to it. Request methods would reuse those dependencies. They must
-not create new database or Firebase clients for each request.
+not create new database or authentication clients for each request.
 
 Every generated unary method receives a `context.Context`. Pass that same value
 to database and network calls. For example, a future database readiness check

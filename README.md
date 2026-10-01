@@ -31,9 +31,8 @@ Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`).
 Each service module refers to the shared module as `../pkg`. Compose mounts
 each service at `/app` and the shared package at `/pkg`, so the same relative
 path works inside the containers. Builds run from the repository use the root
-`go.work`. Each service keeps
-its own `internal/deps/deps.go` for database and Firebase dependencies and
-configures the default `slog` logger at startup.
+`go.work`. Services compose their dependencies and configure the default
+`slog` logger at startup.
 
 ```text
 .
@@ -68,7 +67,7 @@ If another process uses one of these host ports, set `FRONTEND_PORT`, `USER_PORT
 1. Configure env:
    ```bash
    cp .env.example .env
-   # fill POSTGRES_PASSWORD, matching USER_DATABASE_URL and SUPPLIER_DATABASE_URL, and FIREBASE_CREDENTIALS_JSON
+   # fill POSTGRES_PASSWORD and matching USER_DATABASE_URL and SUPPLIER_DATABASE_URL
    ```
 
 2. Start infra + services (migrations run before live reload via Air):
