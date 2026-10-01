@@ -7,7 +7,6 @@ require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
-	github.com/AY2627S1-CS3219-P1/FoC/user-service v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0

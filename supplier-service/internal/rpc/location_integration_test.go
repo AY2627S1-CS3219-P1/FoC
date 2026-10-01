@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
@@ -46,7 +47,7 @@ func TestSignedTokenReachesDatabase(t *testing.T) {
 	auth := newTestAuth(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
 		NewLocationServer(location.NewService(location.NewPostgresReader(locationdb.New(pool)))),
-		connect.WithInterceptors(validate.NewInterceptor()),
+		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
 	router.Mount(path, auth.authenticator.Authenticate(handler))
@@ -86,11 +87,11 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	router := chi.NewRouter()
 	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pool), time.Now)
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(locationAdmin),
-		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
+		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))
 	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(reader),
-		connect.WithInterceptors(validate.NewInterceptor()))
+		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()))
 	router.Mount(discoveryPath, auth.authenticator.Authenticate(discoveryHandler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

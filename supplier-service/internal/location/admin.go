@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
 )
 
@@ -58,8 +59,9 @@ func NewAdminService(store AdminStore, clock func() time.Time) *AdminService {
 	return &AdminService{store: store, clock: clock, idempotency: idempotency.New(clock)}
 }
 
-func requireAdmin(c Caller) error {
-	if strings.TrimSpace(c.ID) == "" {
+func requireAdmin(ctx context.Context) error {
+	c, ok := auth.CallerFromContext(ctx)
+	if !ok || strings.TrimSpace(c.ID) == "" {
 		return ErrUnauthenticated
 	}
 	if !c.Admin {
@@ -68,10 +70,11 @@ func requireAdmin(c Caller) error {
 	return nil
 }
 
-func (s *AdminService) Create(ctx context.Context, caller Caller, req CreateRequest) (out Location, err error) {
-	if err = requireAdmin(caller); err != nil {
+func (s *AdminService) Create(ctx context.Context, req CreateRequest) (out Location, err error) {
+	if err = requireAdmin(ctx); err != nil {
 		return out, err
 	}
+	caller, _ := auth.CallerFromContext(ctx)
 	key, err := canonicalID(req.Key)
 	if err != nil {
 		return out, err
@@ -114,8 +117,8 @@ func (s *AdminService) Create(ctx context.Context, caller Caller, req CreateRequ
 	return out, nil
 }
 
-func (s *AdminService) Update(ctx context.Context, caller Caller, req UpdateRequest) (out Location, err error) {
-	if err = requireAdmin(caller); err != nil {
+func (s *AdminService) Update(ctx context.Context, req UpdateRequest) (out Location, err error) {
+	if err = requireAdmin(ctx); err != nil {
 		return out, err
 	}
 	id, err := canonicalID(req.ID)
@@ -154,16 +157,16 @@ func (s *AdminService) Update(ctx context.Context, caller Caller, req UpdateRequ
 	return out, nil
 }
 
-func (s *AdminService) Archive(ctx context.Context, caller Caller, id string) (Location, error) {
-	return s.setArchived(ctx, caller, id, true)
+func (s *AdminService) Archive(ctx context.Context, id string) (Location, error) {
+	return s.setArchived(ctx, id, true)
 }
 
-func (s *AdminService) Unarchive(ctx context.Context, caller Caller, id string) (Location, error) {
-	return s.setArchived(ctx, caller, id, false)
+func (s *AdminService) Unarchive(ctx context.Context, id string) (Location, error) {
+	return s.setArchived(ctx, id, false)
 }
 
-func (s *AdminService) setArchived(ctx context.Context, caller Caller, id string, archive bool) (out Location, err error) {
-	if err = requireAdmin(caller); err != nil {
+func (s *AdminService) setArchived(ctx context.Context, id string, archive bool) (out Location, err error) {
+	if err = requireAdmin(ctx); err != nil {
 		return out, err
 	}
 	id, err = canonicalID(id)
