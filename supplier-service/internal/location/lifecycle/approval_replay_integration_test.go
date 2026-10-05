@@ -19,7 +19,8 @@ func TestLegacyApprovalReplayWithoutResultingLocationPostGIS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Recreate historical data retained when the migration installs NOT VALID checks.
+	// Simulate a corrupted approved request without a resulting Location.
+	// NOT VALID keeps the corrupt row available while checking later writes.
 	var constraint string
 	if err := f.pool.QueryRow(f.ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint
 		WHERE conrelid='location_addition_requests'::regclass AND conname='requests_review_check'`).Scan(&constraint); err != nil {
@@ -33,7 +34,7 @@ func TestLegacyApprovalReplayWithoutResultingLocationPostGIS(t *testing.T) {
 	for _, statement := range []string{
 		`ALTER TABLE location_addition_requests DROP CONSTRAINT requests_review_check`,
 		`UPDATE location_addition_requests SET status='approved',reviewed_by='legacy-admin',reviewed_at=now()`,
-		`ALTER TABLE location_addition_requests ADD CONSTRAINT requests_review_check ` + constraint,
+		`ALTER TABLE location_addition_requests ADD CONSTRAINT requests_review_check ` + constraint + " NOT VALID",
 	} {
 		if _, err := tx.Exec(f.ctx, statement); err != nil {
 			t.Fatal(err)

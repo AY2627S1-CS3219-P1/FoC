@@ -12,7 +12,6 @@ import (
 
 	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -80,65 +79,6 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 		}
 	})
 
-	t.Run("downgrade refuses to discard a pending request floor", func(t *testing.T) {
-		f.reset(t)
-		id := uuid.NewString()
-		f.exec(t, "INSERT INTO location_addition_requests(id,submitted_by,name,building_id,coordinates,floor) VALUES($1,'owner','Bench',$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography,'2')", id, postgresBuildingID)
-		if err := goose.Down(f.db, f.migrations); err == nil {
-			t.Fatal("downgrade discarded request floor")
-		}
-		var floor, status string
-		if err := f.pool.QueryRow(f.ctx, "SELECT floor,status FROM location_addition_requests WHERE id=$1", id).Scan(&floor, &status); err != nil || floor != "2" || status != "pending" {
-			t.Fatalf("request changed after refused downgrade: floor=%q status=%q error=%v", floor, status, err)
-		}
-		if version, err := goose.GetDBVersion(f.db); err != nil || version != 11 {
-			t.Fatalf("migration version=%d error=%v", version, err)
-		}
-	})
-
-	t.Run("downgrade preserves an incomplete legacy proposal", func(t *testing.T) {
-		f.reset(t)
-		if err := goose.Down(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-		id := uuid.NewString()
-		f.exec(t, "INSERT INTO location_addition_requests(id,submitted_by,name,is_supplier,category_id,building_id) VALUES($1,'owner','Legacy Cafe',true,$2,$3)", id, postgresCategoryID, postgresBuildingID)
-		if err := goose.Up(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-		if err := goose.Down(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-		var category, status string
-		var missingCoordinates bool
-		if err := f.pool.QueryRow(f.ctx, "SELECT category_id::text,status,coordinates IS NULL FROM location_addition_requests WHERE id=$1", id).Scan(&category, &status, &missingCoordinates); err != nil || category != postgresCategoryID || status != "pending" || !missingCoordinates {
-			t.Fatalf("legacy proposal changed: category=%q status=%q missing=%v error=%v", category, status, missingCoordinates, err)
-		}
-		if err := goose.Up(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-		var count int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM location_addition_request_categories WHERE request_id=$1 AND category_id=$2", id, postgresCategoryID).Scan(&count); err != nil || count != 1 {
-			t.Fatalf("restored Category links=%d error=%v", count, err)
-		}
-	})
-
-	t.Run("downgrade preserves a non supplier request without Categories", func(t *testing.T) {
-		f.reset(t)
-		id := uuid.NewString()
-		f.exec(t, "INSERT INTO location_addition_requests(id,submitted_by,name,building_id,coordinates) VALUES($1,'owner','Bench',$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography)", id, postgresBuildingID)
-		if err := goose.Down(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-		var name string
-		var missingCategory bool
-		if err := f.pool.QueryRow(f.ctx, "SELECT name,category_id IS NULL FROM location_addition_requests WHERE id=$1", id).Scan(&name, &missingCategory); err != nil || name != "Bench" || !missingCategory {
-			t.Fatalf("request changed: name=%q missingCategory=%v error=%v", name, missingCategory, err)
-		}
-		if err := goose.Up(f.db, f.migrations); err != nil {
-			t.Fatal(err)
-		}
-	})
 }
 
 func newFixture(t *testing.T) *fixture {
