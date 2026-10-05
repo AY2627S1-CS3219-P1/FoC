@@ -466,6 +466,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
+			defer tx.Rollback(context.WithoutCancel(f.ctx))
 			if _, e = tx.Exec(f.ctx, "SELECT id FROM location_addition_requests WHERE id=$1 FOR UPDATE", r.Id); e != nil {
 				t.Fatal(e)
 			}
