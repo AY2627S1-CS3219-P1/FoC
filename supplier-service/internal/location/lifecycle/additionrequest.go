@@ -173,6 +173,9 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 		if r.Status == target {
 			out.Request = redactRequestForCaller(c, r)
 			if target == Approved {
+				if r.ResultingLocationID == nil {
+					return ErrFailedPrecondition
+				}
 				out.Location, e = tx.Location(ctx, *r.ResultingLocationID)
 			}
 			return e
