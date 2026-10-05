@@ -4,7 +4,7 @@
 
 **Symptom:** the locking query returns updated parent fields but old relationship values after waiting for the other transaction. Approval can then create a Location with obsolete Categories and overwrite the request's current Category links.
 
-**Reproduced in:** `TestOperationalWorkflowsPostGIS/approval_waiting_behind_a_Category_edit_uses_committed_Category_links` in supplier-service/internal/rpc/location/lifecycle/workflow_integration_test.go. The test holds the request lock, changes its Category links, starts approval, observes its lock wait, and commits the edit. Before the fix, approval returned both original Categories instead of the one committed Category.
+**Reproduced in:** `TestWorkflowPersistencePostGIS/Location links are read after a row lock wait` in supplier-service/internal/location/lifecycle/repository_integration_test.go. The test changes a Location and its Category links while holding the row lock, starts a Location read, observes its lock wait, and commits the edit. It verifies that the returned Location and Category links use the committed values.
 
 **Cause:** PostgreSQL can recheck the updated locked row without refreshing the statement snapshot used by relationship subqueries.
 
@@ -13,7 +13,7 @@
 **Verification:** from supplier-service/, run:
 
 ```sh
-go test -race -tags=integration ./internal/rpc/location/lifecycle -run 'TestOperationalWorkflowsPostGIS/approval_waiting' -count=1 -timeout=10m
+GOWORK=off go test -p 1 -race -tags=integration ./internal/location/lifecycle -run 'TestWorkflowPersistencePostGIS/Location links are read after a row lock wait' -count=1 -timeout=10m
 ```
 
 **Remove this entry when:** relationship reads no longer rely on this locking and isolation pattern, or a shared enforced query boundary prevents relationship subqueries in locking reads.
