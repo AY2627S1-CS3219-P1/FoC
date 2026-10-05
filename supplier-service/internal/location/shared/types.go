@@ -1,8 +1,9 @@
 package shared
 
 import (
-	"errors"
 	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 )
 
 type Location struct {
@@ -55,6 +56,6 @@ type Disablement struct {
 }
 
 var (
-	ErrNotFound         = errors.New("location not found")
-	ErrPermissionDenied = errors.New("permission denied")
+	ErrNotFound         = errs.NewNotFoundError("location not found")
+	ErrPermissionDenied = errs.NewForbiddenError("permission denied")
 )

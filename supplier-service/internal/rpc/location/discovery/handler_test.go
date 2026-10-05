@@ -276,9 +276,9 @@ func TestInvalidTokenIsRejected(t *testing.T) {
 	}
 }
 
-// Shared Location errors must not depend on Connect. This regression test guards
-// their RPC conversion so discovery clients keep the existing error codes and
-// messages without receiving internal error details.
+// This regression test guards the shared API error conversion so discovery
+// clients keep the existing error codes and messages, including wrapped errors,
+// without receiving internal error details.
 func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
 
 	for _, row := range []struct {
