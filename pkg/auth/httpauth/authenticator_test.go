@@ -1,4 +1,4 @@
-package middleware
+package httpauth
 
 import (
 	"context"
@@ -17,7 +17,6 @@ import (
 	"connectrpc.com/connect"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -66,7 +65,7 @@ func connectKeyServer(t *testing.T, service userv1connect.PublicKeyServiceHandle
 	return server
 }
 
-func protoKeys(set userservicejwt.JWKSet) []*userv1.JsonWebKey {
+func protoKeys(set testJWKSet) []*userv1.JsonWebKey {
 	keys := make([]*userv1.JsonWebKey, 0, len(set.Keys))
 	for _, key := range set.Keys {
 		keys = append(keys, &userv1.JsonWebKey{
@@ -91,7 +90,7 @@ func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
 func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
-	codec, err := userservicejwt.NewES256Codec(key, "key-1", TokenIssuer, TokenAudience)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +157,7 @@ func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
 func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
-	codec, err := userservicejwt.NewES256Codec(key, "key-1", TokenIssuer, TokenAudience)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +214,7 @@ func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
 func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
-	codec, err := userservicejwt.NewES256Codec(key, "key-1", TokenIssuer, TokenAudience)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,11 +242,11 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	firstKey := testSigningKey(t)
 	secondKey := testSigningKey(t)
-	firstCodec, err := userservicejwt.NewES256Codec(firstKey, "key-1", TokenIssuer, TokenAudience)
+	firstCodec, err := newTestCodec(firstKey, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondCodec, err := userservicejwt.NewES256Codec(secondKey, "key-2", TokenIssuer, TokenAudience)
+	secondCodec, err := newTestCodec(secondKey, "key-2", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,8 +254,8 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 	server := connectKeyServer(t, service)
 	a := newAuthenticator(t, server.URL)
 	now := time.Now().UTC().Truncate(time.Second)
-	rotated, err := secondCodec.Sign(userservicejwt.Claims{Type: userservicejwt.AccessToken, Subject: "user-1", SessionID: "session-1",
-		Role: userservicejwt.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "token-1"})
+	rotated, err := secondCodec.Sign(testClaims{Type: "access", Subject: "user-1", SessionID: "session-1",
+		Role: "user", IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "token-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,11 +307,11 @@ func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
 	t.Setenv("APP_ENV", "local")
 	knownKey := testSigningKey(t)
 	unknownKey := testSigningKey(t)
-	knownCodec, err := userservicejwt.NewES256Codec(knownKey, "known", TokenIssuer, TokenAudience)
+	knownCodec, err := newTestCodec(knownKey, "known", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
-	unknownCodec, err := userservicejwt.NewES256Codec(unknownKey, "unknown", TokenIssuer, TokenAudience)
+	unknownCodec, err := newTestCodec(unknownKey, "unknown", TokenIssuer, TokenAudience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,13 +320,13 @@ func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
 	server := connectKeyServer(t, service)
 	a := newAuthenticator(t, server.URL)
 	now := time.Now().UTC().Truncate(time.Second)
-	known, err := knownCodec.Sign(userservicejwt.Claims{Type: userservicejwt.AccessToken, Subject: "user-1", SessionID: "session-1",
-		Role: userservicejwt.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "known-token"})
+	known, err := knownCodec.Sign(testClaims{Type: "access", Subject: "user-1", SessionID: "session-1",
+		Role: "user", IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "known-token"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	unknown, err := unknownCodec.Sign(userservicejwt.Claims{Type: userservicejwt.AccessToken, Subject: "user-1", SessionID: "session-1",
-		Role: userservicejwt.RoleUser, IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "unknown-token"})
+	unknown, err := unknownCodec.Sign(testClaims{Type: "access", Subject: "user-1", SessionID: "session-1",
+		Role: "user", IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: "unknown-token"})
 	if err != nil {
 		t.Fatal(err)
 	}

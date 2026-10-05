@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
@@ -26,19 +27,23 @@ type fakeAdmin struct {
 	err     error
 }
 
-func (f *fakeAdmin) Create(_ context.Context, caller location.Caller, req location.CreateRequest) (location.Location, error) {
+func (f *fakeAdmin) Create(ctx context.Context, req location.CreateRequest) (location.Location, error) {
+	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.created = "create", caller, req
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Update(_ context.Context, caller location.Caller, req location.UpdateRequest) (location.Location, error) {
+func (f *fakeAdmin) Update(ctx context.Context, req location.UpdateRequest) (location.Location, error) {
+	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.updated = "update", caller, req
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Archive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
+func (f *fakeAdmin) Archive(ctx context.Context, _ string) (location.Location, error) {
+	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller = "archive", caller
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Unarchive(_ context.Context, caller location.Caller, _ string) (location.Location, error) {
+func (f *fakeAdmin) Unarchive(ctx context.Context, _ string) (location.Location, error) {
+	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller = "unarchive", caller
 	return testAdminLocation(), f.err
 }
@@ -51,7 +56,7 @@ func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1conne
 	t.Helper()
 	auth := newTestAuth(t)
 	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(admin),
-		connect.WithInterceptors(AdminAuthorizationInterceptor(), validate.NewInterceptor()))
+		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router := chi.NewRouter()
 	router.Mount(path, auth.authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)

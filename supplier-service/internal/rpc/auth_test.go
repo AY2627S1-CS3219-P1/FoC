@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -25,7 +25,7 @@ const testKeyID = "test-key"
 // TODO: replace with a User Service test helper if one is exported.
 type testAuth struct {
 	key           *ecdsa.PrivateKey
-	authenticator *middleware.Authenticator
+	authenticator *httpauth.Authenticator
 }
 
 func newTestAuth(t *testing.T) *testAuth {
@@ -43,7 +43,7 @@ func newTestAuth(t *testing.T) *testAuth {
 
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
-	authenticator, err := middleware.NewUserServiceAuthenticator(context.Background())
+	authenticator, err := httpauth.NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,8 @@ func (a *testAuth) token(t *testing.T, role string) string {
 	t.Helper()
 	now := time.Now().Truncate(time.Second)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
-		"iss":       middleware.TokenIssuer,
-		"aud":       middleware.TokenAudience,
+		"iss":       httpauth.TokenIssuer,
+		"aud":       httpauth.TokenAudience,
 		"sub":       "user-1",
 		"sid":       "session-1",
 		"jti":       "token-1",
