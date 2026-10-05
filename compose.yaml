@@ -71,6 +71,7 @@ services:
       - ./user-service:/app
       - ./pkg:/pkg
       - ./.local/secrets/auth:/app/.local/secrets/auth
+      - go-modules:/go/pkg/mod
       - /app/tmp
     depends_on:
       postgres:
@@ -96,6 +97,7 @@ services:
       - ./pkg:/pkg
       # Supplier Service imports the auth middleware from user-service/pkg.
       - ./user-service:/user-service
+      - go-modules:/go/pkg/mod
       - /app/tmp
     depends_on:
       postgres:
@@ -108,3 +110,4 @@ volumes:
   pgdata:
   frontend-node-modules:
   frontend-svelte-kit:
+  go-modules:
