@@ -1,10 +1,11 @@
 //go:build integration
 
-package rpc
+package lifecycle
 
 import (
 	"context"
 	"database/sql"
+	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
@@ -13,11 +14,13 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
-	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	domainlife "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -44,17 +47,17 @@ func TestSignedTokenReachesDatabase(t *testing.T) {
 		t.Fatalf("insert fixtures: %v", err)
 	}
 
-	auth := newTestAuth(t)
+	auth := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		NewLocationServer(location.NewService(location.NewPostgresReader(locationdb.New(pool)))),
+		discoveryrpc.NewLocationServer(location.NewService(location.NewPostgresReader(locationdb.New(pool)))),
 		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
-	router.Mount(path, auth.authenticator.Authenticate(handler))
+	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	client := func(role string) locationv1connect.LocationDiscoveryServiceClient {
-		return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, bearer(auth.token(t, role)))
+		return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
 	}
 	ctx := context.Background()
 	all := connect.NewRequest(&locationv1.ListLocationsRequest{
@@ -83,21 +86,21 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 			('7b2b806c-14a1-4bda-ab01-e11d469fa213', 'Food');`); err != nil {
 		t.Fatal(err)
 	}
-	auth := newTestAuth(t)
+	auth := rpcauth.New(t)
 	router := chi.NewRouter()
-	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pool), time.Now)
+	locationAdmin := domainlife.NewAdminService(domainlife.NewPostgresAdminStore(pool), time.Now)
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(locationAdmin),
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
-	router.Mount(adminPath, auth.authenticator.Authenticate(adminHandler))
+	router.Mount(adminPath, auth.Authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))
-	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(reader),
+	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(discoveryrpc.NewLocationServer(reader),
 		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()))
-	router.Mount(discoveryPath, auth.authenticator.Authenticate(discoveryHandler))
+	router.Mount(discoveryPath, auth.Authenticator.Authenticate(discoveryHandler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	admin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, bearer(auth.token(t, "admin")))
-	superAdmin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, bearer(auth.token(t, "super_admin")))
-	discovery := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, bearer(auth.token(t, "admin")))
+	admin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "admin")))
+	superAdmin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "super_admin")))
+	discovery := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "admin")))
 	ctx := context.Background()
 	create := validCreateRequest()
 	create.Location.Name = "  Cafe  "
@@ -207,7 +210,7 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 
 	// Exercise the authorization boundary with the live database-backed service.
 	for _, role := range []string{"user", "suspended_user"} {
-		denied := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, bearer(auth.token(t, role)))
+		denied := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
 		for name, call := range map[string]func() error{
 			"create": func() error {
 				_, err := denied.CreateLocation(ctx, connect.NewRequest(validCreateRequest()))
@@ -284,7 +287,7 @@ func startDatabase(t *testing.T) *pgxpool.Pool {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.Up(db, filepath.Join(filepath.Dir(file), "..", "..", "database", "schema")); err != nil {
+	if err := goose.Up(db, filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "database", "schema")); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

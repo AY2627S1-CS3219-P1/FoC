@@ -1,17 +1,22 @@
-package rpc
+package discovery
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -57,19 +62,19 @@ func (f *fakeLocationReader) ListCategories(context.Context) ([]location.Categor
 // role is empty.
 func newLocationClient(t *testing.T, reader location.Reader, role string) locationv1connect.LocationDiscoveryServiceClient {
 	t.Helper()
-	auth := newTestAuth(t)
+	auth := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
 		NewLocationServer(location.NewService(reader)),
-		connect.WithInterceptors(validate.NewInterceptor()),
+		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
-	router.Mount(path, auth.authenticator.Authenticate(handler))
+	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 
 	var options []connect.ClientOption
 	if role != "" {
-		options = append(options, bearer(auth.token(t, role)))
+		options = append(options, rpcauth.Bearer(auth.Token(t, role)))
 	}
 	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, options...)
 }
@@ -255,18 +260,75 @@ func TestEveryRoleCanBrowse(t *testing.T) {
 }
 
 func TestInvalidTokenIsRejected(t *testing.T) {
-	auth := newTestAuth(t)
-	other := newTestAuth(t)
+	auth := rpcauth.New(t)
+	other := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(location.NewService(&fakeLocationReader{})))
 	router := chi.NewRouter()
-	router.Mount(path, auth.authenticator.Authenticate(handler))
+	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 
 	// Signed by a different key than the one User Service publishes.
-	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, bearer(other.token(t, "admin")))
+	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(other.Token(t, "admin")))
 	_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+}
+
+func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
+
+	for _, row := range []struct {
+		name    string
+		err     error
+		code    connect.Code
+		message string
+	}{
+		{"not found", domainshared.ErrNotFound, connect.CodeNotFound, "location not found"},
+		{"wrapped not found", fmt.Errorf("database context: %w", domainshared.ErrNotFound), connect.CodeNotFound, "location not found"},
+		{"permission denied", domainshared.ErrPermissionDenied, connect.CodePermissionDenied, "permission denied"},
+		{"wrapped permission denied", fmt.Errorf("private context: %w", domainshared.ErrPermissionDenied), connect.CodePermissionDenied, "permission denied"},
+		{"validation", errs.NewBadRequestError("classification is required"), connect.CodeInvalidArgument, "classification is required"},
+		{"wrapped validation", fmt.Errorf("private context: %w", errs.NewBadRequestError("classification is required")), connect.CodeInvalidArgument, "classification is required"},
+		{"unknown", errors.New("database password secret"), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped canceled", fmt.Errorf("private context: %w", context.Canceled), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped deadline", fmt.Errorf("private context: %w", context.DeadlineExceeded), connect.CodeInternal, "An unknown error has occurred"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+
+			client := newLocationClient(t, &fakeLocationReader{err: row.err}, "admin")
+			ctx := context.Background()
+			calls := []struct {
+				name string
+				call func() error
+			}{
+				{"get", func() error {
+					_, err := client.GetLocation(ctx, connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
+					return err
+				}},
+				{"list", func() error {
+					_, err := client.ListLocations(ctx, connect.NewRequest(&locationv1.ListLocationsRequest{}))
+					return err
+				}},
+				{"buildings", func() error {
+					_, err := client.ListBuildings(ctx, connect.NewRequest(&locationv1.ListBuildingsRequest{}))
+					return err
+				}},
+				{"categories", func() error {
+					_, err := client.ListCategories(ctx, connect.NewRequest(&locationv1.ListCategoriesRequest{}))
+					return err
+				}},
+			}
+
+			for _, call := range calls {
+				t.Run(call.name, func(t *testing.T) {
+					err := call.call()
+					var transportError *connect.Error
+					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
+					}
+				})
+			}
+		})
 	}
 }

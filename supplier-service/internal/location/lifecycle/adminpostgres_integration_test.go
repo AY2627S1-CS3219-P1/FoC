@@ -1,11 +1,13 @@
 //go:build integration
 
-package location
+package lifecycle
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/locationfixture"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -24,17 +26,17 @@ func newTestAdminService(pool *pgxpool.Pool) *AdminService {
 func adminInput() Input {
 	return Input{
 		Name: "New supplier", IsSupplier: true, CategoryIDs: []string{foodID},
-		BuildingID: com2ID, Coordinates: &Coordinates{Latitude: 1.294, Longitude: 103.774},
+		BuildingID: com2ID, Coordinates: &shared.Coordinates{Latitude: 1.294, Longitude: 103.774},
 		Details: "Pickup at counter",
 	}
 }
 
 func TestPostgresAdminRoundTrip(t *testing.T) {
-	pool := setupDatabase(t)
+	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
 	svc := newTestAdminService(pool)
-	admin := Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: adminInput()})
+	admin := auth.Caller{ID: "admin", Admin: true}
+	created, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: adminInput()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 		created.Categories[0].ID != foodID || created.Building.ID != com2ID {
 		t.Fatalf("created = %+v", created)
 	}
-	updated, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{
+	updated, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{
 		ID: created.ID, ExpectedRevision: 1,
 		Paths: []string{"name", "category_ids"},
 		Input: Input{Name: "Updated supplier", CategoryIDs: []string{coffeeID}},
@@ -53,7 +55,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 	if updated.Revision != 2 || updated.Name != "Updated supplier" || len(updated.Categories) != 1 || updated.Categories[0].ID != coffeeID {
 		t.Fatalf("updated = %+v", updated)
 	}
-	if _, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, ErrAborted) {
+	if _, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, AdminErrAborted) {
 		t.Fatalf("stale revision = %v", err)
 	}
 	archived, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
@@ -75,30 +77,30 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 }
 
 func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
-	pool := setupDatabase(t)
+	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
 	svc := newTestAdminService(pool)
-	admin := Caller{ID: "admin", Admin: true}
+	admin := auth.Caller{ID: "admin", Admin: true}
 	for _, tc := range []struct {
 		name string
 		edit func(*Input)
 		want error
 	}{
-		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, ErrInvalidArgument},
-		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, ErrFailedPrecondition},
-		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, ErrInvalidArgument},
-		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, ErrFailedPrecondition},
+		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, AdminErrInvalidArgument},
+		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, AdminErrFailedPrecondition},
+		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, AdminErrInvalidArgument},
+		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, AdminErrFailedPrecondition},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := adminInput()
 			tc.edit(&input)
-			if _, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
+			if _, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
 			}
 		})
 	}
-	// A valid scalar update followed by a Category FK failure must leave the
-	// Location row and its old links unchanged.
+	// A valid scalar update followed by a shared.Category FK failure must leave the
+	// shared.Location row and its old links unchanged.
 	store := NewPostgresAdminStore(pool)
 	err := store.Within(ctx, func(tx AdminTx) error {
 		current, err := tx.GetForUpdate(ctx, coopID)
@@ -111,7 +113,7 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		_, err = tx.Update(ctx, coopID, input, current.Revision, time.Now())
 		return err
 	})
-	if !errors.Is(err, ErrFailedPrecondition) {
+	if !errors.Is(err, AdminErrFailedPrecondition) {
 		t.Fatalf("failed Category insert = %v", err)
 	}
 	var name string
@@ -129,7 +131,7 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 }
 
 func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
-	pool := setupDatabase(t)
+	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
 	first, err := pool.Begin(ctx)
 	if err != nil {
@@ -145,7 +147,7 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	if _, err := first.Exec(ctx, "INSERT INTO location_categories (location_id, category_id) VALUES ($1, $2)", coopID, coffeeID); err != nil {
 		t.Fatal(err)
 	}
-	result := make(chan Location, 1)
+	result := make(chan shared.Location, 1)
 	failure := make(chan error, 1)
 	go func() {
 		err := NewPostgresAdminStore(pool).Within(ctx, func(tx AdminTx) error {
@@ -176,7 +178,7 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 }
 
 func TestPostgresAdminConcurrentRevision(t *testing.T) {
-	pool := setupDatabase(t)
+	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
 	first, err := pool.Begin(ctx)
 	if err != nil {
@@ -188,7 +190,7 @@ func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, Caller{ID: "admin", Admin: true}), UpdateRequest{
+		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, auth.Caller{ID: "admin", Admin: true}), AdminUpdateRequest{
 			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
 		})
 		result <- err
@@ -202,7 +204,7 @@ func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	}
 	select {
 	case err := <-result:
-		if !errors.Is(err, ErrAborted) {
+		if !errors.Is(err, AdminErrAborted) {
 			t.Fatalf("competing update = %v, want aborted", err)
 		}
 	case <-time.After(5 * time.Second):
@@ -244,7 +246,7 @@ func waitForLocationLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 }
 
 func TestLocationMigrationUpDown(t *testing.T) {
-	pool := setupDatabase(t)
+	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
 	invalid := `INSERT INTO locations (name, is_supplier, building_id, coordinates, open_from, open_to)
 		VALUES ('Invalid hours', false, $1, ST_SetSRID(ST_MakePoint(103.774, 1.294), 4326)::geography, '24:00', '01:00')`
@@ -257,7 +259,7 @@ func TestLocationMigrationUpDown(t *testing.T) {
 	}
 	defer db.Close()
 	_, file, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(file), "..", "..", "database", "schema")
+	dir := filepath.Join(filepath.Dir(file), "..", "..", "..", "database", "schema")
 	if err := goose.DownTo(db, dir, 4); err != nil {
 		t.Fatal(err)
 	}
@@ -268,3 +270,10 @@ func TestLocationMigrationUpDown(t *testing.T) {
 		t.Fatal("24:00 hours passed after migration replay")
 	}
 }
+
+const (
+	coopID   = "10000000-0000-4000-8000-000000000001"
+	com2ID   = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
+	foodID   = "b526b558-e2ec-4db1-b873-13a9f490e07d"
+	coffeeID = "29a7cb1e-44f2-4c68-825f-1ce39b78e44a"
+)

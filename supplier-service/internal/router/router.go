@@ -12,9 +12,12 @@ import (
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
-	supplierrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc"
+	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/health"
+	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/lifecycle"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -37,20 +40,20 @@ func SetupMiddleware(r *chi.Mux) {
 // SetupRoutes mounts the supplier RPCs and the legacy REST health route.
 func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *location.AdminService) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
-		supplierrpc.NewHealthServer(),
+		healthrpc.NewHealthServer(),
 	)
 	r.Mount(healthPath, healthHandler)
 
 	locationPath, locationHandler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		supplierrpc.NewLocationServer(location.NewService(
-			location.NewPostgresReader(locationdb.New(env.Pool)),
+		discoveryrpc.NewLocationServer(discovery.NewService(
+			discovery.NewPostgresReader(locationdb.New(env.Pool)),
 		)),
 		connect.WithInterceptors(auth.RequireCaller(), validate.NewInterceptor()),
 	)
 	r.Mount(locationPath, authenticator.Authenticate(locationHandler))
 
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(
-		supplierrpc.NewLocationAdminServer(locationAdmin),
+		adminrpc.NewLocationAdminServer(locationAdmin),
 		connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()),
 	)
 	r.Mount(adminPath, authenticator.Authenticate(adminHandler))

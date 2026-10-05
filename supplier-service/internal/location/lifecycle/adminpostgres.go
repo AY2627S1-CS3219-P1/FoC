@@ -1,9 +1,11 @@
-package location
+package lifecycle
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
@@ -16,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PostgresAdminStore keeps idempotency, Location, and Category writes in
+// PostgresAdminStore keeps idempotency, shared.Location, and shared.Category writes in
 // the same transaction.
 type PostgresAdminStore struct{ pool *pgxpool.Pool }
 
@@ -27,7 +29,7 @@ func NewPostgresAdminStore(pool *pgxpool.Pool) *PostgresAdminStore {
 type postgresAdminTx struct {
 	*idempotency.PostgresStore
 	queries *locationdb.Queries
-	reader  *PostgresReader
+	reader  *discovery.PostgresReader
 }
 
 func (s *PostgresAdminStore) Within(ctx context.Context, run func(AdminTx) error) error {
@@ -40,7 +42,7 @@ func (s *PostgresAdminStore) Within(ctx context.Context, run func(AdminTx) error
 	unit := &postgresAdminTx{
 		PostgresStore: idempotency.NewPostgresStore(tx),
 		queries:       queries,
-		reader:        NewPostgresReader(queries),
+		reader:        discovery.NewPostgresReader(queries),
 	}
 	if err := run(unit); err != nil {
 		return err
@@ -48,16 +50,16 @@ func (s *PostgresAdminStore) Within(ctx context.Context, run func(AdminTx) error
 	return mapAdminPostgresError("commit location transaction", tx.Commit(ctx))
 }
 
-// GetForUpdate locks the Location alone. A second statement loads Categories
+// GetForUpdate locks the shared.Location alone. A second statement loads Categories
 // after a competing writer releases that lock, avoiding a stale relationship
 // snapshot under READ COMMITTED.
-func (t *postgresAdminTx) GetForUpdate(ctx context.Context, id string) (Location, error) {
+func (t *postgresAdminTx) GetForUpdate(ctx context.Context, id string) (shared.Location, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
-		return Location{}, ErrNotFound
+		return shared.Location{}, AdminErrNotFound
 	}
 	if _, err := t.queries.LockLocation(ctx, parsed); err != nil {
-		return Location{}, mapAdminPostgresError("lock location", err)
+		return shared.Location{}, mapAdminPostgresError("lock location", err)
 	}
 	return t.reader.GetLocation(ctx, id)
 }
@@ -72,7 +74,7 @@ func (t *postgresAdminTx) ValidateReferences(ctx context.Context, input Input) e
 		return mapAdminPostgresError("check building", err)
 	}
 	if !present {
-		return ErrFailedPrecondition
+		return AdminErrFailedPrecondition
 	}
 	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
@@ -86,22 +88,22 @@ func (t *postgresAdminTx) ValidateReferences(ctx context.Context, input Input) e
 		return mapAdminPostgresError("check categories", err)
 	}
 	if len(found) != len(categories) {
-		return ErrFailedPrecondition
+		return AdminErrFailedPrecondition
 	}
 	return nil
 }
 
-func (t *postgresAdminTx) Create(ctx context.Context, input Input, now time.Time) (Location, error) {
+func (t *postgresAdminTx) Create(ctx context.Context, input Input, now time.Time) (shared.Location, error) {
 	building, err := parseUUID(input.BuildingID, "building")
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	if input.Coordinates == nil {
-		return Location{}, errs.NewBadRequestError("coordinates are required")
+		return shared.Location{}, errs.NewBadRequestError("coordinates are required")
 	}
 	id := uuid.New()
 	err = t.queries.InsertLocation(ctx, locationdb.InsertLocationParams{
@@ -112,29 +114,29 @@ func (t *postgresAdminTx) Create(ctx context.Context, input Input, now time.Time
 		Contact: input.Contact, Details: input.Details, CreatedAt: now.UTC(),
 	})
 	if err != nil {
-		return Location{}, mapAdminPostgresError("insert location", err)
+		return shared.Location{}, mapAdminPostgresError("insert location", err)
 	}
 	if err := t.insertCategories(ctx, id, categories); err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	return t.reader.GetLocation(ctx, id.String())
 }
 
-func (t *postgresAdminTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (Location, error) {
+func (t *postgresAdminTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (shared.Location, error) {
 	parsed, err := parseUUID(id, "location")
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	building, err := parseUUID(input.BuildingID, "building")
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	categories, err := parseCategoryIDs(input.CategoryIDs)
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	if input.Coordinates == nil {
-		return Location{}, errs.NewBadRequestError("coordinates are required")
+		return shared.Location{}, errs.NewBadRequestError("coordinates are required")
 	}
 	count, err := t.queries.UpdateLocation(ctx, locationdb.UpdateLocationParams{
 		ID: parsed, ExpectedRevision: expected,
@@ -144,33 +146,33 @@ func (t *postgresAdminTx) Update(ctx context.Context, id string, input Input, ex
 		Contact: input.Contact, Details: input.Details,
 	})
 	if err != nil {
-		return Location{}, mapAdminPostgresError("update location", err)
+		return shared.Location{}, mapAdminPostgresError("update location", err)
 	}
 	if count == 0 {
-		return Location{}, ErrAborted
+		return shared.Location{}, AdminErrAborted
 	}
 	if err := t.queries.DeleteLocationCategories(ctx, parsed); err != nil {
-		return Location{}, mapAdminPostgresError("delete location categories", err)
+		return shared.Location{}, mapAdminPostgresError("delete location categories", err)
 	}
 	if err := t.insertCategories(ctx, parsed, categories); err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	return t.reader.GetLocation(ctx, id)
 }
 
-func (t *postgresAdminTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (Location, error) {
+func (t *postgresAdminTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (shared.Location, error) {
 	parsed, err := parseUUID(id, "location")
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	count, err := t.queries.SetLocationArchived(ctx, locationdb.SetLocationArchivedParams{
 		ID: parsed, ArchivedAt: archivedAt, ExpectedRevision: expected,
 	})
 	if err != nil {
-		return Location{}, mapAdminPostgresError("archive location", err)
+		return shared.Location{}, mapAdminPostgresError("archive location", err)
 	}
 	if count == 0 {
-		return Location{}, ErrAborted
+		return shared.Location{}, AdminErrAborted
 	}
 	return t.reader.GetLocation(ctx, id)
 }
@@ -210,7 +212,7 @@ func parseCategoryIDs(values []string) ([]uuid.UUID, error) {
 	return ids, nil
 }
 
-func toPGTime(value *Clock) pgtype.Time {
+func toPGTime(value *shared.Clock) pgtype.Time {
 	if value == nil {
 		return pgtype.Time{}
 	}
@@ -222,19 +224,19 @@ func mapAdminPostgresError(operation string, err error) error {
 		return nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
+		return AdminErrNotFound
 	}
 	var postgresErr *pgconn.PgError
 	if errors.As(err, &postgresErr) {
 		switch postgresErr.Code {
 		case "23503":
-			return ErrFailedPrecondition
+			return AdminErrFailedPrecondition
 		case "23505", "23P01":
-			return ErrAlreadyExists
+			return AdminErrAlreadyExists
 		case "23514", "22003", "22007", "22008":
-			return ErrInvalidArgument
+			return AdminErrInvalidArgument
 		case "40001", "40P01":
-			return ErrAborted
+			return AdminErrAborted
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
