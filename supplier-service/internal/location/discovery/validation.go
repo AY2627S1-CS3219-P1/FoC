@@ -9,6 +9,8 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 )
 
+// normalizeList keeps request defaults, bounds, and archive permissions in the
+// discovery service so readers receive a validated query for the caller.
 func normalizeList(caller Caller, req ListRequest) (Query, int32, int32, error) {
 	search := strings.TrimSpace(req.Search)
 	if length := utf8.RuneCountInString(search); length > MaxSearchLength {

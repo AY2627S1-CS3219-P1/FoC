@@ -182,6 +182,9 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 
 const locationID = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
 
+// Shared Location errors must not depend on Connect. This regression test guards
+// their RPC conversion so administration clients keep the existing error codes
+// and messages without receiving internal error details.
 func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
 
 	for _, row := range []struct {
