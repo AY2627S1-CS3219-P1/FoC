@@ -9,8 +9,10 @@ import (
 	domain "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 )
 
-// ReadAdminConnectError maps shared domain sentinels without changing the
-// established detailed validation and unknown-error responses.
+// ReadAdminConnectError keeps shared Location errors independent of Connect
+// while preserving client-facing error codes and messages. Discovery and
+// administration RPC handlers call it when their services return an error.
+// Other errors use the existing validation and unknown-error responses.
 func ReadAdminConnectError(ctx context.Context, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
