@@ -74,3 +74,13 @@ sql:
             go_type: "github.com/google/uuid.UUID"
           - db_type: "timestamptz"
             go_type: "time.Time"
+  - name: "lifecycle"
+    engine: "postgresql"
+    queries: "query/lifecycle.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "lifecycledb"
+        out: "../internal/database/lifecycledb"
+        sql_package: "pgx/v5"
+        omit_unused_structs: true

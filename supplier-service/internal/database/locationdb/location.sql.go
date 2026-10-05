@@ -316,6 +316,7 @@ SELECT DISTINCT ON (d.location_id)
 FROM location_disablements d
 WHERE d.location_id = ANY($1::UUID[])
     AND d.cancelled_at IS NULL
+    AND d.ended_at IS NULL
     AND d.starts_at <= now()
     AND (d.ends_at IS NULL OR d.ends_at > now())
 ORDER BY d.location_id, d.starts_at DESC, d.created_at DESC, d.id DESC
