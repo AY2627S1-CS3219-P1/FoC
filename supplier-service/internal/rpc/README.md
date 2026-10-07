@@ -16,7 +16,7 @@ The server mounts one generated handler:
 
 ```go
 path, handler := supplierv1connect.NewHealthServiceHandler(
-    rpc.NewHealthServer(),
+    health.NewHealthServer(),
 )
 r.Mount(path, handler)
 ```

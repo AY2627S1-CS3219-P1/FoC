@@ -1,8 +1,9 @@
-package location
+package admin
 
 import (
 	"context"
 	"errors"
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"slices"
 	"strings"
 	"time"
@@ -13,19 +14,21 @@ import (
 )
 
 var (
-	ErrInvalidArgument    = errs.NewBadRequestError("invalid location input")
-	ErrUnauthenticated    = errs.NewUnauthorizedError("authentication required")
-	ErrFailedPrecondition = errs.NewFailedPreconditionError("location prerequisites are not met")
-	ErrAlreadyExists      = errs.NewAlreadyExistsError("idempotency key already used with different input")
-	ErrAborted            = errs.NewAbortedError("stale location revision")
+	AdminErrNotFound           = shared.ErrNotFound
+	AdminErrPermissionDenied   = shared.ErrPermissionDenied
+	AdminErrInvalidArgument    = errs.NewBadRequestError("invalid location input")
+	AdminErrUnauthenticated    = errs.NewUnauthorizedError("authentication required")
+	AdminErrFailedPrecondition = errs.NewFailedPreconditionError("location prerequisites are not met")
+	AdminErrAlreadyExists      = errs.NewAlreadyExistsError("idempotency key already used with different input")
+	AdminErrAborted            = errs.NewAbortedError("stale location revision")
 )
 
-type CreateRequest struct {
+type AdminCreateRequest struct {
 	Key   string
 	Input Input
 }
 
-type UpdateRequest struct {
+type AdminUpdateRequest struct {
 	ID               string
 	ExpectedRevision int64
 	Paths            []string
@@ -39,11 +42,11 @@ type AdminStore interface {
 
 type AdminTx interface {
 	idempotency.Store
-	GetForUpdate(context.Context, string) (Location, error)
+	GetForUpdate(context.Context, string) (shared.Location, error)
 	ValidateReferences(context.Context, Input) error
-	Create(context.Context, Input, time.Time) (Location, error)
-	Update(context.Context, string, Input, int64, time.Time) (Location, error)
-	SetArchived(context.Context, string, *time.Time, int64, time.Time) (Location, error)
+	Create(context.Context, Input, time.Time) (shared.Location, error)
+	Update(context.Context, string, Input, int64, time.Time) (shared.Location, error)
+	SetArchived(context.Context, string, *time.Time, int64, time.Time) (shared.Location, error)
 }
 
 type AdminService struct {
@@ -59,19 +62,19 @@ func NewAdminService(store AdminStore, clock func() time.Time) *AdminService {
 	return &AdminService{store: store, clock: clock, idempotency: idempotency.New(clock)}
 }
 
-func requireAdmin(ctx context.Context) error {
+func requireLocationAdmin(ctx context.Context) error {
 	c, ok := auth.CallerFromContext(ctx)
 	if !ok || strings.TrimSpace(c.ID) == "" {
-		return ErrUnauthenticated
+		return AdminErrUnauthenticated
 	}
 	if !c.Admin {
-		return ErrPermissionDenied
+		return AdminErrPermissionDenied
 	}
 	return nil
 }
 
-func (s *AdminService) Create(ctx context.Context, req CreateRequest) (out Location, err error) {
-	if err = requireAdmin(ctx); err != nil {
+func (s *AdminService) Create(ctx context.Context, req AdminCreateRequest) (out shared.Location, err error) {
+	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
 	caller, _ := auth.CallerFromContext(ctx)
@@ -83,7 +86,7 @@ func (s *AdminService) Create(ctx context.Context, req CreateRequest) (out Locat
 	if err != nil {
 		return out, err
 	}
-	// Category order does not change the Location. Hash the sorted canonical IDs.
+	// shared.Category order does not change the shared.Location. Hash the sorted canonical IDs.
 	hashInput := in
 	hashInput.CategoryIDs = slices.Clone(in.CategoryIDs)
 	slices.Sort(hashInput.CategoryIDs)
@@ -100,10 +103,10 @@ func (s *AdminService) Create(ctx context.Context, req CreateRequest) (out Locat
 			return created.ID, e
 		})
 		if errors.Is(e, idempotency.ErrConflict) {
-			return ErrAlreadyExists
+			return AdminErrAlreadyExists
 		}
 		if errors.Is(e, idempotency.ErrInvalidKey) {
-			return ErrInvalidArgument
+			return AdminErrInvalidArgument
 		}
 		if e != nil {
 			return e
@@ -112,13 +115,13 @@ func (s *AdminService) Create(ctx context.Context, req CreateRequest) (out Locat
 		return e
 	})
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	return out, nil
 }
 
-func (s *AdminService) Update(ctx context.Context, req UpdateRequest) (out Location, err error) {
-	if err = requireAdmin(ctx); err != nil {
+func (s *AdminService) Update(ctx context.Context, req AdminUpdateRequest) (out shared.Location, err error) {
+	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
 	id, err := canonicalID(req.ID)
@@ -126,7 +129,7 @@ func (s *AdminService) Update(ctx context.Context, req UpdateRequest) (out Locat
 		return out, err
 	}
 	if req.ExpectedRevision <= 0 {
-		return out, ErrInvalidArgument
+		return out, AdminErrInvalidArgument
 	}
 	mask, err := validateMask(req.Paths)
 	if err != nil {
@@ -138,7 +141,7 @@ func (s *AdminService) Update(ctx context.Context, req UpdateRequest) (out Locat
 			return e
 		}
 		if current.Revision != req.ExpectedRevision {
-			return ErrAborted
+			return AdminErrAborted
 		}
 		merged := mergeInput(current, req.Input, mask)
 		in, e := normalizeInput(merged)
@@ -152,21 +155,21 @@ func (s *AdminService) Update(ctx context.Context, req UpdateRequest) (out Locat
 		return e
 	})
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	return out, nil
 }
 
-func (s *AdminService) Archive(ctx context.Context, id string) (Location, error) {
+func (s *AdminService) Archive(ctx context.Context, id string) (shared.Location, error) {
 	return s.setArchived(ctx, id, true)
 }
 
-func (s *AdminService) Unarchive(ctx context.Context, id string) (Location, error) {
+func (s *AdminService) Unarchive(ctx context.Context, id string) (shared.Location, error) {
 	return s.setArchived(ctx, id, false)
 }
 
-func (s *AdminService) setArchived(ctx context.Context, id string, archive bool) (out Location, err error) {
-	if err = requireAdmin(ctx); err != nil {
+func (s *AdminService) setArchived(ctx context.Context, id string, archive bool) (out shared.Location, err error) {
+	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
 	id, err = canonicalID(id)
@@ -191,7 +194,7 @@ func (s *AdminService) setArchived(ctx context.Context, id string, archive bool)
 		return e
 	})
 	if err != nil {
-		return Location{}, err
+		return shared.Location{}, err
 	}
 	return out, nil
 }

@@ -1,6 +1,7 @@
-package location
+package admin
 
 import (
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"math"
 	"slices"
 	"strings"
@@ -16,9 +17,9 @@ type Input struct {
 	CategoryIDs []string
 	BuildingID  string
 	Floor       *string
-	Coordinates *Coordinates
-	OpensAt     *Clock
-	ClosesAt    *Clock
+	Coordinates *shared.Coordinates
+	OpensAt     *shared.Clock
+	ClosesAt    *shared.Clock
 	Contact     *string
 	Details     string
 }
@@ -26,7 +27,7 @@ type Input struct {
 func canonicalID(raw string) (string, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		return "", ErrInvalidArgument
+		return "", AdminErrInvalidArgument
 	}
 	return id.String(), nil
 }
@@ -38,11 +39,11 @@ func normalizeInput(in Input) (Input, error) {
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	if n := utf8.RuneCountInString(in.Name); n < 1 || n > 200 {
-		return Input{}, ErrInvalidArgument
+		return Input{}, AdminErrInvalidArgument
 	}
 	in.Details = strings.TrimSpace(in.Details)
 	if utf8.RuneCountInString(in.Details) > 2000 {
-		return Input{}, ErrInvalidArgument
+		return Input{}, AdminErrInvalidArgument
 	}
 	var err error
 	in.Floor, err = normalizeOptional(in.Floor, 50)
@@ -61,23 +62,23 @@ func normalizeInput(in Input) (Input, error) {
 	for i, raw := range in.CategoryIDs {
 		id, e := canonicalID(raw)
 		if e != nil || seen[id] {
-			return Input{}, ErrInvalidArgument
+			return Input{}, AdminErrInvalidArgument
 		}
 		seen[id] = true
 		in.CategoryIDs[i] = id
 	}
 	if in.IsSupplier != (len(in.CategoryIDs) > 0) {
-		return Input{}, ErrFailedPrecondition
+		return Input{}, AdminErrFailedPrecondition
 	}
 	if in.Coordinates == nil || !validCoordinates(*in.Coordinates) {
-		return Input{}, ErrInvalidArgument
+		return Input{}, AdminErrInvalidArgument
 	}
 	if (in.OpensAt == nil) != (in.ClosesAt == nil) {
-		return Input{}, ErrInvalidArgument
+		return Input{}, AdminErrInvalidArgument
 	}
 	if in.OpensAt != nil {
 		if !validClock(*in.OpensAt) || !validClock(*in.ClosesAt) || *in.OpensAt == *in.ClosesAt {
-			return Input{}, ErrInvalidArgument
+			return Input{}, AdminErrInvalidArgument
 		}
 	}
 	return in, nil
@@ -89,7 +90,7 @@ func normalizeOptional(p *string, maxLen int) (*string, error) {
 	}
 	v := strings.TrimSpace(*p)
 	if utf8.RuneCountInString(v) > maxLen {
-		return nil, ErrInvalidArgument
+		return nil, AdminErrInvalidArgument
 	}
 	if v == "" {
 		return nil, nil
@@ -97,11 +98,11 @@ func normalizeOptional(p *string, maxLen int) (*string, error) {
 	return &v, nil
 }
 
-func validCoordinates(c Coordinates) bool {
+func validCoordinates(c shared.Coordinates) bool {
 	return !math.IsNaN(c.Latitude) && !math.IsInf(c.Latitude, 0) && c.Latitude >= -90 && c.Latitude <= 90 &&
 		!math.IsNaN(c.Longitude) && !math.IsInf(c.Longitude, 0) && c.Longitude >= -180 && c.Longitude <= 180
 }
 
-func validClock(c Clock) bool {
+func validClock(c shared.Clock) bool {
 	return c.Hour >= 0 && c.Hour < 24 && c.Minute >= 0 && c.Minute < 60
 }

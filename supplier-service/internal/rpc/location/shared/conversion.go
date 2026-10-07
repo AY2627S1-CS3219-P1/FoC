@@ -1,23 +1,23 @@
-package rpc
+package shared
 
 import (
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toProtoLocation(loc location.Location) *locationv1.Location {
+func ToProtoLocation(loc location.Location) *locationv1.Location {
 	out := &locationv1.Location{
 		Id:          loc.ID,
 		Name:        loc.Name,
 		IsSupplier:  loc.IsSupplier,
-		Building:    toProtoBuilding(loc.Building),
-		Categories:  toProtoCategories(loc.Categories),
+		Building:    ToProtoBuilding(loc.Building),
+		Categories:  ToProtoCategories(loc.Categories),
 		Floor:       loc.Floor,
-		Coordinates: toProtoCoordinates(loc.Coordinates),
-		OpensAt:     toProtoTimeOfDay(loc.OpensAt),
-		ClosesAt:    toProtoTimeOfDay(loc.ClosesAt),
+		Coordinates: ToProtoCoordinates(loc.Coordinates),
+		OpensAt:     ToProtoTimeOfDay(loc.OpensAt),
+		ClosesAt:    ToProtoTimeOfDay(loc.ClosesAt),
 		Contact:     loc.Contact,
 		Details:     loc.Details,
 		Revision:    loc.Revision,
@@ -40,16 +40,16 @@ func toProtoLocation(loc location.Location) *locationv1.Location {
 	return out
 }
 
-func toProtoBuilding(b location.Building) *locationv1.Building {
+func ToProtoBuilding(b location.Building) *locationv1.Building {
 	return &locationv1.Building{
 		Id:      b.ID,
 		Name:    b.Name,
-		Center:  toProtoCoordinates(b.Center),
+		Center:  ToProtoCoordinates(b.Center),
 		RadiusM: b.RadiusM,
 	}
 }
 
-func toProtoCategories(categories []location.Category) []*locationv1.Category {
+func ToProtoCategories(categories []location.Category) []*locationv1.Category {
 	out := make([]*locationv1.Category, len(categories))
 	for i, c := range categories {
 		out[i] = &locationv1.Category{Id: c.ID, Name: c.Name}
@@ -57,11 +57,11 @@ func toProtoCategories(categories []location.Category) []*locationv1.Category {
 	return out
 }
 
-func toProtoCoordinates(c location.Coordinates) *locationv1.Coordinates {
+func ToProtoCoordinates(c location.Coordinates) *locationv1.Coordinates {
 	return &locationv1.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
 }
 
-func toProtoTimeOfDay(c *location.Clock) *timeofday.TimeOfDay {
+func ToProtoTimeOfDay(c *location.Clock) *timeofday.TimeOfDay {
 	if c == nil {
 		return nil
 	}

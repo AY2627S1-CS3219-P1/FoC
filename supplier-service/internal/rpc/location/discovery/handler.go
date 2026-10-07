@@ -1,14 +1,15 @@
-package rpc
+package discovery
 
 import (
 	"context"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
+	rpcshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/shared"
 )
 
 // LocationServer implements Location discovery.
@@ -29,7 +30,7 @@ func (s *LocationServer) GetLocation(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&locationv1.GetLocationResponse{Location: toProtoLocation(loc)}), nil
+	return connect.NewResponse(&locationv1.GetLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
 func (s *LocationServer) ListLocations(
@@ -55,7 +56,7 @@ func (s *LocationServer) ListLocations(
 
 	locations := make([]*locationv1.Location, len(page.Locations))
 	for i, loc := range page.Locations {
-		locations[i] = toProtoLocation(loc)
+		locations[i] = rpcshared.ToProtoLocation(loc)
 	}
 	return connect.NewResponse(&locationv1.ListLocationsResponse{
 		Locations:  locations,
@@ -76,7 +77,7 @@ func (s *LocationServer) ListBuildings(
 	}
 	out := make([]*locationv1.Building, len(buildings))
 	for i, b := range buildings {
-		out[i] = toProtoBuilding(b)
+		out[i] = rpcshared.ToProtoBuilding(b)
 	}
 	return connect.NewResponse(&locationv1.ListBuildingsResponse{Buildings: out}), nil
 }
@@ -89,7 +90,7 @@ func (s *LocationServer) ListCategories(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&locationv1.ListCategoriesResponse{Categories: toProtoCategories(categories)}), nil
+	return connect.NewResponse(&locationv1.ListCategoriesResponse{Categories: rpcshared.ToProtoCategories(categories)}), nil
 }
 
 var archiveFilters = map[locationv1.LocationStatusView]location.ArchiveFilter{

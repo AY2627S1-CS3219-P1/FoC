@@ -1,7 +1,11 @@
-package rpc
+package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"net/http/httptest"
 	"testing"
 
@@ -10,7 +14,8 @@ import (
 	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
+	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/genproto/googleapis/type/timeofday"
 	"google.golang.org/protobuf/proto"
@@ -21,50 +26,50 @@ const buildingID = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
 
 type fakeAdmin struct {
 	called  string
-	caller  location.Caller
-	created location.CreateRequest
-	updated location.UpdateRequest
+	caller  sharedauth.Caller
+	created location.AdminCreateRequest
+	updated location.AdminUpdateRequest
 	err     error
 }
 
-func (f *fakeAdmin) Create(ctx context.Context, req location.CreateRequest) (location.Location, error) {
+func (f *fakeAdmin) Create(ctx context.Context, req location.AdminCreateRequest) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.created = "create", caller, req
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Update(ctx context.Context, req location.UpdateRequest) (location.Location, error) {
+func (f *fakeAdmin) Update(ctx context.Context, req location.AdminUpdateRequest) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.updated = "update", caller, req
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Archive(ctx context.Context, _ string) (location.Location, error) {
+func (f *fakeAdmin) Archive(ctx context.Context, _ string) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller = "archive", caller
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Unarchive(ctx context.Context, _ string) (location.Location, error) {
+func (f *fakeAdmin) Unarchive(ctx context.Context, _ string) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller = "unarchive", caller
 	return testAdminLocation(), f.err
 }
 
-func testAdminLocation() location.Location {
-	return location.Location{ID: locationID, Name: "Cafe", Building: location.Building{ID: buildingID}, Coordinates: location.Coordinates{Latitude: 1.294, Longitude: 103.774}, Revision: 1}
+func testAdminLocation() domainshared.Location {
+	return domainshared.Location{ID: locationID, Name: "Cafe", Building: domainshared.Building{ID: buildingID}, Coordinates: domainshared.Coordinates{Latitude: 1.294, Longitude: 103.774}, Revision: 1}
 }
 
 func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1connect.LocationAdminServiceClient {
 	t.Helper()
-	auth := newTestAuth(t)
-	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(admin),
+	auth := rpcauth.New(t)
+	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewServer(admin),
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router := chi.NewRouter()
-	router.Mount(path, auth.authenticator.Authenticate(handler))
+	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	if role == "" {
 		return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL)
 	}
-	return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, bearer(auth.token(t, role)))
+	return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
 }
 
 func validCreateRequest() *locationv1.CreateLocationRequest {
@@ -160,11 +165,11 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 		err  error
 		code connect.Code
 	}{
-		{location.ErrInvalidArgument, connect.CodeInvalidArgument},
-		{location.ErrFailedPrecondition, connect.CodeFailedPrecondition},
-		{location.ErrAlreadyExists, connect.CodeAlreadyExists},
-		{location.ErrAborted, connect.CodeAborted},
-		{location.ErrNotFound, connect.CodeNotFound},
+		{location.AdminErrInvalidArgument, connect.CodeInvalidArgument},
+		{location.AdminErrFailedPrecondition, connect.CodeFailedPrecondition},
+		{location.AdminErrAlreadyExists, connect.CodeAlreadyExists},
+		{location.AdminErrAborted, connect.CodeAborted},
+		{location.AdminErrNotFound, connect.CodeNotFound},
 	} {
 		fake := &fakeAdmin{err: row.err}
 		client := adminClient(t, fake, "admin")
@@ -172,5 +177,67 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 		if connect.CodeOf(err) != row.code {
 			t.Fatalf("error %v maps to %v, want %v", row.err, connect.CodeOf(err), row.code)
 		}
+	}
+}
+
+const locationID = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
+
+// This regression test guards the shared API error conversion so administration
+// clients keep the existing error codes and messages, including wrapped errors,
+// without receiving internal error details.
+func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
+
+	for _, row := range []struct {
+		name    string
+		err     error
+		code    connect.Code
+		message string
+	}{
+		{"not found", domainshared.ErrNotFound, connect.CodeNotFound, "location not found"},
+		{"wrapped not found", fmt.Errorf("database context: %w", domainshared.ErrNotFound), connect.CodeNotFound, "location not found"},
+		{"permission denied", domainshared.ErrPermissionDenied, connect.CodePermissionDenied, "permission denied"},
+		{"wrapped permission denied", fmt.Errorf("private context: %w", domainshared.ErrPermissionDenied), connect.CodePermissionDenied, "permission denied"},
+		{"validation", errs.NewBadRequestError("classification is required"), connect.CodeInvalidArgument, "classification is required"},
+		{"wrapped validation", fmt.Errorf("private context: %w", errs.NewBadRequestError("classification is required")), connect.CodeInvalidArgument, "classification is required"},
+		{"unknown", errors.New("database password secret"), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped canceled", fmt.Errorf("private context: %w", context.Canceled), connect.CodeInternal, "An unknown error has occurred"},
+		{"wrapped deadline", fmt.Errorf("private context: %w", context.DeadlineExceeded), connect.CodeInternal, "An unknown error has occurred"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+
+			client := adminClient(t, &fakeAdmin{err: row.err}, "admin")
+			ctx := context.Background()
+			calls := []struct {
+				name string
+				call func() error
+			}{
+				{"create", func() error {
+					_, err := client.CreateLocation(ctx, connect.NewRequest(validCreateRequest()))
+					return err
+				}},
+				{"update", func() error {
+					_, err := client.UpdateLocation(ctx, connect.NewRequest(&locationv1.UpdateLocationRequest{Id: locationID, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}}, Location: &locationv1.LocationInput{Floor: proto.String("2")}}))
+					return err
+				}},
+				{"archive", func() error {
+					_, err := client.ArchiveLocation(ctx, connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
+					return err
+				}},
+				{"unarchive", func() error {
+					_, err := client.UnarchiveLocation(ctx, connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}))
+					return err
+				}},
+			}
+
+			for _, call := range calls {
+				t.Run(call.name, func(t *testing.T) {
+					err := call.call()
+					var transportError *connect.Error
+					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
+					}
+				})
+			}
+		})
 	}
 }

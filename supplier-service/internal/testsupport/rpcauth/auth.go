@@ -1,4 +1,4 @@
-package rpc
+package rpcauth
 
 import (
 	"context"
@@ -20,15 +20,15 @@ import (
 
 const testKeyID = "test-key"
 
-// testAuth signs access tokens the way User Service does and serves the
+// Auth signs access tokens the way User Service does and serves the
 // matching public key, so tests exercise the real Authenticator.
 // TODO: replace with a User Service test helper if one is exported.
-type testAuth struct {
+type Auth struct {
 	key           *ecdsa.PrivateKey
-	authenticator *httpauth.Authenticator
+	Authenticator *httpauth.Authenticator
 }
 
-func newTestAuth(t *testing.T) *testAuth {
+func New(t *testing.T) *Auth {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -47,11 +47,11 @@ func newTestAuth(t *testing.T) *testAuth {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &testAuth{key: key, authenticator: authenticator}
+	return &Auth{key: key, Authenticator: authenticator}
 }
 
-// token returns a signed access token for role.
-func (a *testAuth) token(t *testing.T, role string) string {
+// Token returns a signed access token for role.
+func (a *Auth) Token(t *testing.T, role string) string {
 	t.Helper()
 	now := time.Now().Truncate(time.Second)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
@@ -74,8 +74,8 @@ func (a *testAuth) token(t *testing.T, role string) string {
 	return signed
 }
 
-// bearer adds an Authorization header to every request from a client.
-func bearer(token string) connect.Option {
+// Bearer adds an Authorization header to every request from a client.
+func Bearer(token string) connect.Option {
 	return connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			req.Header().Set("Authorization", "Bearer "+token)
