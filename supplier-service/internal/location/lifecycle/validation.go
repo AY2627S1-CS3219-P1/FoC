@@ -26,14 +26,14 @@ func requireAdmin(c Caller) error {
 	return nil
 }
 
-func validID(id string) error {
+func validateID(id string) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return ErrInvalidArgument
 	}
 	return nil
 }
 
-func trimLimit(s string, min, max int) (string, error) {
+func trimAndValidateLength(s string, min, max int) (string, error) {
 	s = strings.TrimSpace(s)
 	n := utf8.RuneCountInString(s)
 	if n < min || n > max {
@@ -42,7 +42,7 @@ func trimLimit(s string, min, max int) (string, error) {
 	return s, nil
 }
 
-func normalizeTime(t *time.Time) *time.Time {
+func toUTC(t *time.Time) *time.Time {
 	if t == nil {
 		return nil
 	}
@@ -50,7 +50,7 @@ func normalizeTime(t *time.Time) *time.Time {
 	return &v
 }
 
-func pagination(p Page) (Page, error) {
+func normalizePage(p Page) (Page, error) {
 	if p.Number < 0 || p.Size < 0 || p.Size > 100 {
 		return p, ErrInvalidArgument
 	}
@@ -63,7 +63,7 @@ func pagination(p Page) (Page, error) {
 	return p, nil
 }
 
-func pageInfo(p Page, count int64) PageInfo {
+func newPageInfo(p Page, count int64) PageInfo {
 	pages := (count + int64(p.Size) - 1) / int64(p.Size)
 	if pages > math.MaxInt32 {
 		pages = math.MaxInt32
@@ -71,22 +71,22 @@ func pageInfo(p Page, count int64) PageInfo {
 	return PageInfo{Page: p, TotalItems: count, TotalPages: int32(pages)}
 }
 
-func mask(paths []string, allowed ...string) (map[string]bool, error) {
+func parseFieldMask(paths []string, allowedPaths ...string) (map[string]bool, error) {
 	if len(paths) == 0 {
 		return nil, ErrInvalidArgument
 	}
-	m := map[string]bool{}
-	for _, p := range paths {
-		ok := false
-		for _, a := range allowed {
-			if p == a {
-				ok = true
+	fields := map[string]bool{}
+	for _, path := range paths {
+		allowed := false
+		for _, allowedPath := range allowedPaths {
+			if path == allowedPath {
+				allowed = true
 			}
 		}
-		if !ok || m[p] {
+		if !allowed || fields[path] {
 			return nil, ErrInvalidArgument
 		}
-		m[p] = true
+		fields[path] = true
 	}
-	return m, nil
+	return fields, nil
 }

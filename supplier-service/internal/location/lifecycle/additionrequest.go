@@ -39,7 +39,7 @@ func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out Addi
 	if err = requireAuthenticated(c); err != nil {
 		return
 	}
-	if err = validID(id); err != nil {
+	if err = validateID(id); err != nil {
 		return
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
@@ -63,7 +63,7 @@ func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStat
 	if status != "" && status != Pending && status != Approved && status != Rejected && status != Withdrawn {
 		return out, ErrInvalidArgument
 	}
-	p, err = pagination(p)
+	p, err = normalizePage(p)
 	if err != nil {
 		return
 	}
@@ -72,7 +72,7 @@ func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStat
 		for i := range items {
 			items[i] = redactRequestForCaller(c, items[i])
 		}
-		out = RequestPage{Items: items, PageInfo: pageInfo(p, n)}
+		out = RequestPage{Items: items, PageInfo: newPageInfo(p, n)}
 		return e
 	})
 	return
@@ -82,10 +82,10 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 	if err = requireAuthenticated(c); err != nil {
 		return
 	}
-	if validID(in.ID) != nil || in.ExpectedRevision <= 0 {
+	if validateID(in.ID) != nil || in.ExpectedRevision <= 0 {
 		return out, ErrInvalidArgument
 	}
-	m, e := mask(in.Paths, "name", "is_supplier", "category_ids", "building_id", "floor", "coordinates", "open_from", "open_to", "contact", "details")
+	m, e := parseFieldMask(in.Paths, "name", "is_supplier", "category_ids", "building_id", "floor", "coordinates", "open_from", "open_to", "contact", "details")
 	if e != nil {
 		return out, e
 	}
@@ -150,11 +150,11 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 	if target != Withdrawn && !c.IsAdmin() {
 		return out, ErrPermissionDenied
 	}
-	if err = validID(id); err != nil {
+	if err = validateID(id); err != nil {
 		return
 	}
 	if target == Rejected {
-		note, err = trimLimit(note, 1, 2000)
+		note, err = trimAndValidateLength(note, 1, 2000)
 		if err != nil {
 			return
 		}

@@ -9,11 +9,11 @@ import (
 
 func normalizeProposal(p Proposal) (Proposal, error) {
 	var err error
-	p.Name, err = trimLimit(p.Name, 1, 200)
+	p.Name, err = trimAndValidateLength(p.Name, 1, 200)
 	if err != nil {
 		return p, err
 	}
-	p.Details, err = trimLimit(p.Details, 0, 2000)
+	p.Details, err = trimAndValidateLength(p.Details, 0, 2000)
 	if err != nil {
 		return p, err
 	}
@@ -22,7 +22,7 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 		max int
 	}{{&p.Floor, 50}, {&p.Contact, 500}} {
 		if *f.v != nil {
-			s, e := trimLimit(**f.v, 0, f.max)
+			s, e := trimAndValidateLength(**f.v, 0, f.max)
 			if e != nil {
 				return p, e
 			}
@@ -33,7 +33,7 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 			}
 		}
 	}
-	if err = validID(p.BuildingID); err != nil {
+	if err = validateID(p.BuildingID); err != nil {
 		return p, err
 	}
 	p.BuildingID = uuid.MustParse(p.BuildingID).String()
@@ -45,7 +45,7 @@ func normalizeProposal(p Proposal) (Proposal, error) {
 	}
 	p.CategoryIDs = append([]string(nil), p.CategoryIDs...)
 	for i, id := range p.CategoryIDs {
-		if validID(id) != nil {
+		if validateID(id) != nil {
 			return p, ErrInvalidArgument
 		}
 		p.CategoryIDs[i] = uuid.MustParse(id).String()

@@ -9,12 +9,12 @@ import (
 
 func validateDisablement(d *Disablement) error {
 	var err error
-	d.Reason, err = trimLimit(d.Reason, 1, 500)
+	d.Reason, err = trimAndValidateLength(d.Reason, 1, 500)
 	if err != nil {
 		return err
 	}
 	d.StartsAt = d.StartsAt.UTC()
-	d.EndsAt = normalizeTime(d.EndsAt)
+	d.EndsAt = toUTC(d.EndsAt)
 	if d.EndsAt != nil && !d.EndsAt.After(d.StartsAt) {
 		return ErrInvalidArgument
 	}
@@ -25,18 +25,18 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 	if err = requireAdmin(c); err != nil {
 		return
 	}
-	if err = validID(in.LocationID); err != nil {
+	if err = validateID(in.LocationID); err != nil {
 		return
 	}
 	in.LocationID = uuid.MustParse(in.LocationID).String()
 	// Hash the explicit input, not the clock-derived default start. A retry with
 	// omitted start must remain identical when wall time has advanced.
-	in.Reason, err = trimLimit(in.Reason, 1, 500)
+	in.Reason, err = trimAndValidateLength(in.Reason, 1, 500)
 	if err != nil {
 		return
 	}
-	in.StartsAt = normalizeTime(in.StartsAt)
-	in.EndsAt = normalizeTime(in.EndsAt)
+	in.StartsAt = toUTC(in.StartsAt)
+	in.EndsAt = toUTC(in.EndsAt)
 	payload := struct {
 		LocationID       string
 		StartsAt, EndsAt *time.Time
@@ -80,13 +80,13 @@ func (s *Service) ListDisablements(ctx context.Context, c Caller, locationID str
 	if err = requireAdmin(c); err != nil {
 		return
 	}
-	if err = validID(locationID); err != nil {
+	if err = validateID(locationID); err != nil {
 		return
 	}
 	if state != "" && state != Scheduled && state != Active && state != Ended && state != Cancelled {
 		return out, ErrInvalidArgument
 	}
-	p, err = pagination(p)
+	p, err = normalizePage(p)
 	if err != nil {
 		return
 	}
@@ -95,7 +95,7 @@ func (s *Service) ListDisablements(ctx context.Context, c Caller, locationID str
 			return e
 		}
 		items, n, e := tx.ListDisablements(ctx, locationID, state, s.clock().UTC(), p)
-		out = DisablementPage{Items: items, PageInfo: pageInfo(p, n)}
+		out = DisablementPage{Items: items, PageInfo: newPageInfo(p, n)}
 		return e
 	})
 	return
@@ -105,10 +105,10 @@ func (s *Service) UpdateDisablement(ctx context.Context, c Caller, in UpdateDisa
 	if err = requireAdmin(c); err != nil {
 		return
 	}
-	if validID(in.ID) != nil || in.ExpectedRevision <= 0 {
+	if validateID(in.ID) != nil || in.ExpectedRevision <= 0 {
 		return out, ErrInvalidArgument
 	}
-	m, e := mask(in.Paths, "starts_at", "ends_at", "reason")
+	m, e := parseFieldMask(in.Paths, "starts_at", "ends_at", "reason")
 	if e != nil {
 		return out, e
 	}
@@ -172,7 +172,7 @@ func (s *Service) transitionDisablement(ctx context.Context, c Caller, id string
 	if err = requireAdmin(c); err != nil {
 		return
 	}
-	if err = validID(id); err != nil {
+	if err = validateID(id); err != nil {
 		return
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
