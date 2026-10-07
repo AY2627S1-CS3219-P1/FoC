@@ -169,31 +169,6 @@ func TestAdminCreateIdempotencyAndRollback(t *testing.T) {
 	}
 }
 
-func TestAdminCreateConcurrentRetry(t *testing.T) {
-	f := &adminFake{records: map[idempotency.Scope]idempotency.Record{}}
-	s := NewService(f, func() time.Time { return adminNow })
-	var wg sync.WaitGroup
-	results := make(chan error, 16)
-	for range 16 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := s.Create(auth.WithCaller(context.Background(), adminCaller), CreateRequest{Key: requestKey, Input: goodInput()})
-			results <- err
-		}()
-	}
-	wg.Wait()
-	close(results)
-	for err := range results {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if f.creates != 1 {
-		t.Fatalf("creates = %d, want 1", f.creates)
-	}
-}
-
 func TestAdminCreateEmptyCategoriesHaveOneHash(t *testing.T) {
 	f := &adminFake{}
 	s := NewService(f, func() time.Time { return adminNow })

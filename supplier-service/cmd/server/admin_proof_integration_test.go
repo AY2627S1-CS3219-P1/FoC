@@ -414,6 +414,59 @@ func proveAdminIntegration(t *testing.T, pool *pgxpool.Pool, admin rpc.LocationA
 			}
 		}
 	})
+	t.Run("classification replacement masked clocks and archived ALL view", func(t *testing.T) {
+		_, supplier := create(t, "Classification proof")
+		ordinary := proto.Clone(input).(*pb.LocationInput)
+		ordinary.Name = supplier.Name
+		ordinary.IsSupplier = proto.Bool(false)
+		ordinary.CategoryIds = nil
+		created, err := admin.CreateLocation(ctx, connect.NewRequest(&pb.CreateLocationRequest{Location: ordinary, IdempotencyKey: uuid.NewString()}))
+		if err != nil || created.Msg.Location.IsSupplier || len(created.Msg.Location.Categories) != 0 || created.Msg.Location.Id == supplier.Id {
+			t.Fatalf("duplicate-name ordinary create=%v err=%v", created, err)
+		}
+		id := created.Msg.Location.Id
+		classified, err := admin.UpdateLocation(ctx, connect.NewRequest(&pb.UpdateLocationRequest{
+			Id: id, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"is_supplier", "category_ids"}},
+			Location: &pb.LocationInput{IsSupplier: proto.Bool(true), CategoryIds: input.CategoryIds},
+		}))
+		if err != nil || !classified.Msg.Location.IsSupplier || len(classified.Msg.Location.Categories) != 1 || classified.Msg.Location.Revision != 2 {
+			t.Fatalf("atomic classification=%v err=%v", classified, err)
+		}
+		ignored, err := admin.UpdateLocation(ctx, connect.NewRequest(&pb.UpdateLocationRequest{
+			Id: id, ExpectedRevision: 2, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}},
+			Location: &pb.LocationInput{Floor: proto.String("B2"), OpensAt: &timeofday.TimeOfDay{Hours: 8, Seconds: 3}},
+		}))
+		if err != nil || ignored.Msg.Location.Revision != 3 || ignored.Msg.Location.GetFloor() != "B2" || ignored.Msg.Location.OpensAt != nil {
+			t.Fatalf("unmasked malformed clock=%v err=%v", ignored, err)
+		}
+		read, err := discovery.GetLocation(ctx, connect.NewRequest(&pb.GetLocationRequest{Id: id}))
+		if err != nil || !proto.Equal(ignored.Msg.Location, read.Msg.Location) {
+			t.Fatalf("persisted masked update=%v err=%v", read, err)
+		}
+		replaced, err := admin.UpdateLocation(ctx, connect.NewRequest(&pb.UpdateLocationRequest{
+			Id: id, ExpectedRevision: 3, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"name", "category_ids"}},
+			Location: &pb.LocationInput{Name: supplier.Name, CategoryIds: []string{"29a7cb1e-44f2-4c68-825f-1ce39b78e44a"}},
+		}))
+		if err != nil || replaced.Msg.Location.Revision != 4 || len(replaced.Msg.Location.Categories) != 1 || replaced.Msg.Location.Categories[0].Id != "29a7cb1e-44f2-4c68-825f-1ce39b78e44a" {
+			t.Fatalf("Category replacement=%v err=%v", replaced, err)
+		}
+		read, err = discovery.GetLocation(ctx, connect.NewRequest(&pb.GetLocationRequest{Id: id}))
+		if err != nil || !proto.Equal(replaced.Msg.Location, read.Msg.Location) {
+			t.Fatalf("persisted replacement=%v err=%v", read, err)
+		}
+		if _, err := admin.ArchiveLocation(ctx, connect.NewRequest(&pb.ArchiveLocationRequest{Id: supplier.Id})); err != nil {
+			t.Fatal(err)
+		}
+		active, err := discovery.ListLocations(ctx, connect.NewRequest(&pb.ListLocationsRequest{Search: supplier.Name}))
+		if err != nil || active.Msg.TotalItems != 1 || active.Msg.Locations[0].Id != id {
+			t.Fatalf("active classification view=%v err=%v", active, err)
+		}
+		all, err := discovery.ListLocations(ctx, connect.NewRequest(&pb.ListLocationsRequest{Search: supplier.Name, StatusView: pb.LocationStatusView_LOCATION_STATUS_VIEW_ALL}))
+		if err != nil || all.Msg.TotalItems != 2 {
+			t.Fatalf("archived ALL view=%v err=%v", all, err)
+		}
+	})
+
 }
 
 func waitForDatabaseBlock(t *testing.T, ctx context.Context, pool *pgxpool.Pool, pid int, query string, want int) {

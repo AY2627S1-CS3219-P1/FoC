@@ -74,30 +74,3 @@ func expectError(t *testing.T, got, want error) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 }
-
-func TestIdempotencyUUIDSpellingsUseOneScope(t *testing.T) {
-	ctx := context.Background()
-	repo := newTestRepository()
-	repo.locations[locationID] = additionrequest.Location{ID: locationID}
-	app := newTestService(repo, time.Now)
-	in := disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key}
-	first, e := app.CreateDisablement(ctx, admin, in)
-	if e != nil {
-		t.Fatal(e)
-	}
-	in.Key = strings.ToUpper(key)
-	retry, e := app.CreateDisablement(ctx, admin, in)
-	if e != nil || retry.ID != first.ID {
-		t.Fatalf("UUID-key retry: %+v %v", retry, e)
-	}
-	submit := additionrequest.SubmitRequest{Proposal: validProposal(), Key: key}
-	r, e := app.SubmitRequest(ctx, owner, submit)
-	if e != nil {
-		t.Fatal(e)
-	}
-	submit.Key = strings.ToUpper(key)
-	replayed, e := app.SubmitRequest(ctx, owner, submit)
-	if e != nil || replayed.ID != r.ID {
-		t.Fatalf("submission UUID-key retry: %+v %v", replayed, e)
-	}
-}

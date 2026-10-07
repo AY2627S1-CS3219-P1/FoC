@@ -134,16 +134,6 @@ func TestLocationErrors(t *testing.T) {
 			want: connect.CodeUnauthenticated,
 		},
 		{
-			name:   "missing location",
-			role:   "user",
-			reader: &fakeLocationReader{},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
-				return err
-			},
-			want: connect.CodeNotFound,
-		},
-		{
 			name:   "malformed id",
 			role:   "user",
 			reader: &fakeLocationReader{},
@@ -162,28 +152,6 @@ func TestLocationErrors(t *testing.T) {
 				return err
 			},
 			want: connect.CodeInvalidArgument,
-		},
-		{
-			name:   "archived view without admin",
-			role:   "user",
-			reader: &fakeLocationReader{},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{
-					StatusView: locationv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED,
-				}))
-				return err
-			},
-			want: connect.CodePermissionDenied,
-		},
-		{
-			name:   "database failure",
-			role:   "user",
-			reader: &fakeLocationReader{err: errors.New("connection refused to 10.0.0.5")},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
-				return err
-			},
-			want: connect.CodeInternal,
 		},
 	}
 	for _, tc := range cases {

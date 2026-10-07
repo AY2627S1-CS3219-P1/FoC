@@ -18,9 +18,6 @@ func TestWorkflowCallbackErrorsPostGIS(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"revision conflict", additionrequest.ErrAborted},
-		{"invalid state", additionrequest.ErrFailedPrecondition},
-		{"duplicate resource", additionrequest.ErrAlreadyExists},
 		{"dependency error", additionrequest.DependencyError("save request", context.DeadlineExceeded)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

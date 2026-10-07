@@ -26,6 +26,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"google.golang.org/genproto/googleapis/type/timeofday"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -91,15 +92,26 @@ func (f *fixture) create(t *testing.T, starts, ends *time.Time) *pb.Disablement 
 
 func TestOperationalWorkflowsPostGIS(t *testing.T) {
 	f := newFixture(t)
+	// Mutation responses must match PostgreSQL's microsecond snapshots even
+	// when the application clock has finer precision.
+	f.clockOffset = 417 * time.Nanosecond
+	if f.time().Nanosecond()%1000 == 0 {
+		t.Fatal("clock must retain sub-microsecond precision")
+	}
 	t.Run("scheduled updates cancellation and adjacent intervals", func(t *testing.T) {
 		f.reset(t)
 		start := f.time().Add(time.Hour)
 		end := start.Add(time.Hour)
 		d := f.create(t, &start, &end)
+		f.now.Add(int64(time.Second / time.Microsecond))
 		input := &pb.UpdateDisablementRequest{Id: d.Id, Reason: "changed", UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"reason"}}, ExpectedRevision: 1}
 		updated, e := f.location.UpdateDisablement(f.ctx, req(input, "admin"))
 		if e != nil || updated.Msg.Disablement.Revision != 2 {
 			t.Fatalf("update: %v %v", updated, e)
+		}
+		persisted, e := f.location.ListDisablements(f.ctx, req(&pb.ListDisablementsRequest{LocationId: location}, "admin"))
+		if e != nil || len(persisted.Msg.Disablements) != 1 || !proto.Equal(updated.Msg.Disablement, persisted.Msg.Disablements[0]) {
+			t.Fatalf("Update versus persisted list: %v err=%v", persisted, e)
 		}
 		_, e = f.location.UpdateDisablement(f.ctx, req(input, "admin"))
 		code(t, e, connect.CodeAborted)
@@ -114,13 +126,13 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 			t.Fatalf("cancel: %v %v", cancelled, e)
 		}
 		again, e := f.location.CancelDisablement(f.ctx, req(&pb.CancelDisablementRequest{Id: d.Id}, "super_admin"))
-		if e != nil || again.Msg.Disablement.Revision != cancelled.Msg.Disablement.Revision {
+		if e != nil || !proto.Equal(cancelled.Msg, again.Msg) {
 			t.Fatalf("cancel retry: %v %v", again, e)
 		}
 		_, e = f.location.EndDisablement(f.ctx, req(&pb.EndDisablementRequest{Id: d.Id}, "admin"))
 		code(t, e, connect.CodeFailedPrecondition)
 		list, e := f.location.ListDisablements(f.ctx, req(&pb.ListDisablementsRequest{LocationId: location, State: pb.DisablementState_DISABLEMENT_STATE_CANCELLED}, "admin"))
-		if e != nil || len(list.Msg.Disablements) != 1 || list.Msg.PageInfo.TotalItems != 1 {
+		if e != nil || len(list.Msg.Disablements) != 1 || list.Msg.PageInfo.TotalItems != 1 || !proto.Equal(cancelled.Msg.Disablement, list.Msg.Disablements[0]) {
 			t.Fatalf("cancelled list: %v %v", list, e)
 		}
 	})
@@ -133,7 +145,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 		}
 		f.now.Add(int64(time.Hour / time.Microsecond))
 		retry, e := f.location.CreateDisablement(f.ctx, req(input, "admin"))
-		if e != nil || retry.Msg.Disablement.Id != first.Msg.Disablement.Id {
+		if e != nil || !proto.Equal(first.Msg, retry.Msg) {
 			t.Fatalf("retry: %v %v", retry, e)
 		}
 		input.Reason = "different"
@@ -156,8 +168,12 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 			t.Fatalf("end: %v %v", ended, e)
 		}
 		again, e := f.location.EndDisablement(f.ctx, req(&pb.EndDisablementRequest{Id: first.Msg.Disablement.Id}, "admin"))
-		if e != nil || again.Msg.Disablement.Revision != ended.Msg.Disablement.Revision {
+		if e != nil || !proto.Equal(ended.Msg, again.Msg) {
 			t.Fatalf("end retry: %v %v", again, e)
+		}
+		persisted, e := f.location.ListDisablements(f.ctx, req(&pb.ListDisablementsRequest{LocationId: location}, "admin"))
+		if e != nil || len(persisted.Msg.Disablements) != 1 || !proto.Equal(ended.Msg.Disablement, persisted.Msg.Disablements[0]) {
+			t.Fatalf("End versus persisted list: %v err=%v", persisted, e)
 		}
 		_, e = f.location.CancelDisablement(f.ctx, req(&pb.CancelDisablementRequest{Id: first.Msg.Disablement.Id}, "admin"))
 		code(t, e, connect.CodeFailedPrecondition)
@@ -189,6 +205,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 		r := f.submit(t, "owner")
 		_, e := f.requests.GetLocationAdditionRequest(f.ctx, req(&pb.GetLocationAdditionRequestRequest{Id: r.Id}, "other"))
 		code(t, e, connect.CodeNotFound)
+		f.now.Add(int64(time.Second / time.Microsecond))
 		result, e := f.requests.ApproveLocationAdditionRequest(f.ctx, req(&pb.ApproveLocationAdditionRequestRequest{Id: r.Id}, "admin"))
 		if e != nil {
 			t.Fatal(e)
@@ -198,7 +215,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 			t.Fatalf("Location: %+v", l)
 		}
 		retry, e := f.requests.ApproveLocationAdditionRequest(f.ctx, req(&pb.ApproveLocationAdditionRequestRequest{Id: r.Id}, "super_admin"))
-		if e != nil || retry.Msg.Location.Id != l.Id {
+		if e != nil || !proto.Equal(result.Msg, retry.Msg) {
 			t.Fatalf("approval retry: %v %v", retry, e)
 		}
 		for _, role := range []string{"other", "suspended_user"} {
@@ -222,7 +239,16 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 	})
 	t.Run("pending patch clear optimistic revision withdrawal and rejection", func(t *testing.T) {
 		f.reset(t)
-		r := f.submit(t, "owner")
+		submit := &pb.SubmitLocationAdditionRequestRequest{Proposal: f.proposal(), IdempotencyKey: uuid.NewString()}
+		first, err := f.requests.SubmitLocationAdditionRequest(f.ctx, req(submit, "owner"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		replay, err := f.requests.SubmitLocationAdditionRequest(f.ctx, req(submit, "owner"))
+		if err != nil || !proto.Equal(first.Msg, replay.Msg) {
+			t.Fatalf("Submit versus replay: %v err=%v", replay, err)
+		}
+		r := first.Msg.Request
 
 		// Invalid new input and legacy masks must leave the pending request untouched.
 		for _, edit := range []func(*pb.UpdateLocationAdditionRequestRequest){
@@ -244,6 +270,7 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 			t.Fatalf("invalid patch changed request: %v %v", current, err)
 		}
 		input := &pb.UpdateLocationAdditionRequestRequest{Id: r.Id, Proposal: &pb.LocationInput{Details: "updated"}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"details", "floor", "contact", "opens_at", "closes_at"}}, ExpectedRevision: 1}
+		f.now.Add(int64(time.Second / time.Microsecond))
 		update, e := f.requests.UpdateLocationAdditionRequest(f.ctx, req(input, "owner"))
 		if e != nil {
 			t.Fatal(e)
@@ -252,27 +279,33 @@ func TestOperationalWorkflowsPostGIS(t *testing.T) {
 		if p.Details != "updated" || p.Floor != nil || p.Contact != nil || p.OpensAt != nil || p.Name != "Cafe" {
 			t.Fatalf("patch: %+v", p)
 		}
+		persisted, e := f.requests.GetLocationAdditionRequest(f.ctx, req(&pb.GetLocationAdditionRequestRequest{Id: r.Id}, "owner"))
+		if e != nil || !proto.Equal(update.Msg.Request, persisted.Msg.Request) {
+			t.Fatalf("request Update versus read: %v err=%v", persisted, e)
+		}
 		_, e = f.requests.UpdateLocationAdditionRequest(f.ctx, req(input, "admin"))
 		code(t, e, connect.CodeAborted)
 		_, e = f.requests.UpdateLocationAdditionRequest(f.ctx, req(input, "other"))
 		code(t, e, connect.CodeNotFound)
+		f.now.Add(int64(time.Second / time.Microsecond))
 		withdrawn, e := f.requests.WithdrawLocationAdditionRequest(f.ctx, req(&pb.WithdrawLocationAdditionRequestRequest{Id: r.Id}, "owner"))
 		if e != nil || withdrawn.Msg.Request.Status != pb.LocationAdditionRequestStatus_LOCATION_ADDITION_REQUEST_STATUS_WITHDRAWN {
 			t.Fatalf("withdraw: %v %v", withdrawn, e)
 		}
 		again, e := f.requests.WithdrawLocationAdditionRequest(f.ctx, req(&pb.WithdrawLocationAdditionRequestRequest{Id: r.Id}, "owner"))
-		if e != nil || again.Msg.Request.Revision != withdrawn.Msg.Request.Revision {
+		if e != nil || !proto.Equal(withdrawn.Msg, again.Msg) {
 			t.Fatalf("withdraw retry: %v %v", again, e)
 		}
 		_, e = f.requests.ApproveLocationAdditionRequest(f.ctx, req(&pb.ApproveLocationAdditionRequestRequest{Id: r.Id}, "admin"))
 		code(t, e, connect.CodeFailedPrecondition)
 		r = f.submit(t, "owner")
+		f.now.Add(int64(time.Second / time.Microsecond))
 		rejected, e := f.requests.RejectLocationAdditionRequest(f.ctx, req(&pb.RejectLocationAdditionRequestRequest{Id: r.Id, ReviewNote: " not suitable "}, "admin"))
 		if e != nil || *rejected.Msg.Request.ReviewNote != "not suitable" {
 			t.Fatalf("reject: %v %v", rejected, e)
 		}
 		rejectRetry, e := f.requests.RejectLocationAdditionRequest(f.ctx, req(&pb.RejectLocationAdditionRequestRequest{Id: r.Id, ReviewNote: "new note"}, "admin"))
-		if e != nil || *rejectRetry.Msg.Request.ReviewNote != "not suitable" {
+		if e != nil || !proto.Equal(rejected.Msg, rejectRetry.Msg) {
 			t.Fatalf("reject retry: %v %v", rejectRetry, e)
 		}
 		_, e = f.requests.GetLocationAdditionRequest(f.ctx, req(&pb.GetLocationAdditionRequestRequest{Id: r.Id}, "other"))
