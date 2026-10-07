@@ -14,33 +14,33 @@ import (
 )
 
 var (
-	AdminErrNotFound           = shared.ErrNotFound
-	AdminErrPermissionDenied   = shared.ErrPermissionDenied
-	AdminErrInvalidArgument    = errs.NewBadRequestError("invalid location input")
-	AdminErrUnauthenticated    = errs.NewUnauthorizedError("authentication required")
-	AdminErrFailedPrecondition = errs.NewFailedPreconditionError("location prerequisites are not met")
-	AdminErrAlreadyExists      = errs.NewAlreadyExistsError("idempotency key already used with different input")
-	AdminErrAborted            = errs.NewAbortedError("stale location revision")
+	ErrNotFound           = shared.ErrNotFound
+	ErrPermissionDenied   = shared.ErrPermissionDenied
+	ErrInvalidArgument    = errs.NewBadRequestError("invalid location input")
+	ErrUnauthenticated    = errs.NewUnauthorizedError("authentication required")
+	ErrFailedPrecondition = errs.NewFailedPreconditionError("location prerequisites are not met")
+	ErrAlreadyExists      = errs.NewAlreadyExistsError("idempotency key already used with different input")
+	ErrAborted            = errs.NewAbortedError("stale location revision")
 )
 
-type AdminCreateRequest struct {
+type CreateRequest struct {
 	Key   string
 	Input Input
 }
 
-type AdminUpdateRequest struct {
+type UpdateRequest struct {
 	ID               string
 	ExpectedRevision int64
 	Paths            []string
 	Input            Input
 }
 
-// AdminStore provides a transaction for all reads and writes in an administrative operation.
-type AdminStore interface {
-	Within(context.Context, func(AdminTx) error) error
+// Store provides a transaction for all reads and writes in an administrative operation.
+type Store interface {
+	Within(context.Context, func(Tx) error) error
 }
 
-type AdminTx interface {
+type Tx interface {
 	idempotency.Store
 	GetForUpdate(context.Context, string) (shared.Location, error)
 	ValidateReferences(context.Context, Input) error
@@ -49,31 +49,31 @@ type AdminTx interface {
 	SetArchived(context.Context, string, *time.Time, int64, time.Time) (shared.Location, error)
 }
 
-type AdminService struct {
-	store       AdminStore
+type Service struct {
+	store       Store
 	clock       func() time.Time
 	idempotency *idempotency.Runner
 }
 
-func NewAdminService(store AdminStore, clock func() time.Time) *AdminService {
+func NewService(store Store, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = time.Now
 	}
-	return &AdminService{store: store, clock: clock, idempotency: idempotency.New(clock)}
+	return &Service{store: store, clock: clock, idempotency: idempotency.New(clock)}
 }
 
 func requireLocationAdmin(ctx context.Context) error {
 	c, ok := auth.CallerFromContext(ctx)
 	if !ok || strings.TrimSpace(c.ID) == "" {
-		return AdminErrUnauthenticated
+		return ErrUnauthenticated
 	}
 	if !c.Admin {
-		return AdminErrPermissionDenied
+		return ErrPermissionDenied
 	}
 	return nil
 }
 
-func (s *AdminService) Create(ctx context.Context, req AdminCreateRequest) (out shared.Location, err error) {
+func (s *Service) Create(ctx context.Context, req CreateRequest) (out shared.Location, err error) {
 	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
@@ -94,7 +94,7 @@ func (s *AdminService) Create(ctx context.Context, req AdminCreateRequest) (out 
 	if err != nil {
 		return out, err
 	}
-	err = s.store.Within(ctx, func(tx AdminTx) error {
+	err = s.store.Within(ctx, func(tx Tx) error {
 		id, e := s.idempotency.Run(ctx, tx, idempotency.Scope{Caller: caller.ID, Method: "CreateLocation", Key: key}, hash, func(now time.Time) (string, error) {
 			if e := tx.ValidateReferences(ctx, in); e != nil {
 				return "", e
@@ -103,10 +103,10 @@ func (s *AdminService) Create(ctx context.Context, req AdminCreateRequest) (out 
 			return created.ID, e
 		})
 		if errors.Is(e, idempotency.ErrConflict) {
-			return AdminErrAlreadyExists
+			return ErrAlreadyExists
 		}
 		if errors.Is(e, idempotency.ErrInvalidKey) {
-			return AdminErrInvalidArgument
+			return ErrInvalidArgument
 		}
 		if e != nil {
 			return e
@@ -120,7 +120,7 @@ func (s *AdminService) Create(ctx context.Context, req AdminCreateRequest) (out 
 	return out, nil
 }
 
-func (s *AdminService) Update(ctx context.Context, req AdminUpdateRequest) (out shared.Location, err error) {
+func (s *Service) Update(ctx context.Context, req UpdateRequest) (out shared.Location, err error) {
 	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
@@ -129,19 +129,19 @@ func (s *AdminService) Update(ctx context.Context, req AdminUpdateRequest) (out 
 		return out, err
 	}
 	if req.ExpectedRevision <= 0 {
-		return out, AdminErrInvalidArgument
+		return out, ErrInvalidArgument
 	}
 	mask, err := validateMask(req.Paths)
 	if err != nil {
 		return out, err
 	}
-	err = s.store.Within(ctx, func(tx AdminTx) error {
+	err = s.store.Within(ctx, func(tx Tx) error {
 		current, e := tx.GetForUpdate(ctx, id)
 		if e != nil {
 			return e
 		}
 		if current.Revision != req.ExpectedRevision {
-			return AdminErrAborted
+			return ErrAborted
 		}
 		merged := mergeInput(current, req.Input, mask)
 		in, e := normalizeInput(merged)
@@ -160,15 +160,15 @@ func (s *AdminService) Update(ctx context.Context, req AdminUpdateRequest) (out 
 	return out, nil
 }
 
-func (s *AdminService) Archive(ctx context.Context, id string) (shared.Location, error) {
+func (s *Service) Archive(ctx context.Context, id string) (shared.Location, error) {
 	return s.setArchived(ctx, id, true)
 }
 
-func (s *AdminService) Unarchive(ctx context.Context, id string) (shared.Location, error) {
+func (s *Service) Unarchive(ctx context.Context, id string) (shared.Location, error) {
 	return s.setArchived(ctx, id, false)
 }
 
-func (s *AdminService) setArchived(ctx context.Context, id string, archive bool) (out shared.Location, err error) {
+func (s *Service) setArchived(ctx context.Context, id string, archive bool) (out shared.Location, err error) {
 	if err = requireLocationAdmin(ctx); err != nil {
 		return out, err
 	}
@@ -176,7 +176,7 @@ func (s *AdminService) setArchived(ctx context.Context, id string, archive bool)
 	if err != nil {
 		return out, err
 	}
-	err = s.store.Within(ctx, func(tx AdminTx) error {
+	err = s.store.Within(ctx, func(tx Tx) error {
 		current, e := tx.GetForUpdate(ctx, id)
 		if e != nil {
 			return e

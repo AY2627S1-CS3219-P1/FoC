@@ -14,7 +14,7 @@ import (
 	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
+	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/genproto/googleapis/type/timeofday"
@@ -27,17 +27,17 @@ const buildingID = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
 type fakeAdmin struct {
 	called  string
 	caller  sharedauth.Caller
-	created location.AdminCreateRequest
-	updated location.AdminUpdateRequest
+	created locationadmin.CreateRequest
+	updated locationadmin.UpdateRequest
 	err     error
 }
 
-func (f *fakeAdmin) Create(ctx context.Context, req location.AdminCreateRequest) (domainshared.Location, error) {
+func (f *fakeAdmin) Create(ctx context.Context, req locationadmin.CreateRequest) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.created = "create", caller, req
 	return testAdminLocation(), f.err
 }
-func (f *fakeAdmin) Update(ctx context.Context, req location.AdminUpdateRequest) (domainshared.Location, error) {
+func (f *fakeAdmin) Update(ctx context.Context, req locationadmin.UpdateRequest) (domainshared.Location, error) {
 	caller, _ := sharedauth.CallerFromContext(ctx)
 	f.called, f.caller, f.updated = "update", caller, req
 	return testAdminLocation(), f.err
@@ -165,11 +165,11 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 		err  error
 		code connect.Code
 	}{
-		{location.AdminErrInvalidArgument, connect.CodeInvalidArgument},
-		{location.AdminErrFailedPrecondition, connect.CodeFailedPrecondition},
-		{location.AdminErrAlreadyExists, connect.CodeAlreadyExists},
-		{location.AdminErrAborted, connect.CodeAborted},
-		{location.AdminErrNotFound, connect.CodeNotFound},
+		{locationadmin.ErrInvalidArgument, connect.CodeInvalidArgument},
+		{locationadmin.ErrFailedPrecondition, connect.CodeFailedPrecondition},
+		{locationadmin.ErrAlreadyExists, connect.CodeAlreadyExists},
+		{locationadmin.ErrAborted, connect.CodeAborted},
+		{locationadmin.ErrNotFound, connect.CodeNotFound},
 	} {
 		fake := &fakeAdmin{err: row.err}
 		client := adminClient(t, fake, "admin")

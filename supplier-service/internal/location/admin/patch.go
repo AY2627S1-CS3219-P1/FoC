@@ -13,17 +13,17 @@ var writablePaths = map[string]bool{
 
 func validateMask(paths []string) (map[string]bool, error) {
 	if len(paths) == 0 {
-		return nil, AdminErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 	mask := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		if !writablePaths[path] || mask[path] {
-			return nil, AdminErrInvalidArgument
+			return nil, ErrInvalidArgument
 		}
 		mask[path] = true
 	}
 	if mask["opens_at"] != mask["closes_at"] {
-		return nil, AdminErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 	return mask, nil
 }

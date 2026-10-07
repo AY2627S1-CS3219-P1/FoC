@@ -12,7 +12,7 @@ import (
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
+	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rest/health"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/health"
@@ -22,7 +22,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *location.AdminService) *chi.Mux {
+func Setup(env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *locationadmin.Service) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
@@ -38,7 +38,7 @@ func SetupMiddleware(r *chi.Mux) {
 }
 
 // SetupRoutes mounts the supplier RPCs and the legacy REST health route.
-func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *location.AdminService) {
+func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *locationadmin.Service) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		healthrpc.NewHealthServer(),
 	)

@@ -17,7 +17,7 @@ import (
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
-	domainadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
+	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
 	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
@@ -88,7 +88,7 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	}
 	auth := rpcauth.New(t)
 	router := chi.NewRouter()
-	locationAdmin := domainadmin.NewAdminService(domainadmin.NewPostgresAdminStore(pool), time.Now)
+	locationAdmin := locationadmin.NewService(locationadmin.NewPostgresStore(pool), time.Now)
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewServer(locationAdmin),
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.Authenticator.Authenticate(adminHandler))

@@ -34,7 +34,7 @@ rpc/location/
   shared/                    conversion and error mapping
 ```
 
-The RPC admin package exposes Server and NewServer. Its LocationAdmin interface lists only the operations the adapter consumes. Domain AdminService, AdminStore, AdminTx and PostgresAdminStore retain their names.
+The RPC admin package exposes Server and NewServer. Its LocationAdmin interface lists only the operations the adapter consumes. The admin domain package exposes Service, Store, Tx and PostgresStore; the package name supplies the admin context.
 
 ## Decisions log
 

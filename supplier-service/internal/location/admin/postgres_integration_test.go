@@ -19,8 +19,8 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func newTestAdminService(pool *pgxpool.Pool) *AdminService {
-	return NewAdminService(NewPostgresAdminStore(pool), time.Now)
+func newTestAdminService(pool *pgxpool.Pool) *Service {
+	return NewService(NewPostgresStore(pool), time.Now)
 }
 
 func adminInput() Input {
@@ -36,7 +36,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestAdminService(pool)
 	admin := auth.Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: adminInput()})
+	created, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: adminInput()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 		created.Categories[0].ID != foodID || created.Building.ID != com2ID {
 		t.Fatalf("created = %+v", created)
 	}
-	updated, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{
+	updated, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{
 		ID: created.ID, ExpectedRevision: 1,
 		Paths: []string{"name", "category_ids"},
 		Input: Input{Name: "Updated supplier", CategoryIDs: []string{coffeeID}},
@@ -55,7 +55,7 @@ func TestPostgresAdminRoundTrip(t *testing.T) {
 	if updated.Revision != 2 || updated.Name != "Updated supplier" || len(updated.Categories) != 1 || updated.Categories[0].ID != coffeeID {
 		t.Fatalf("updated = %+v", updated)
 	}
-	if _, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, AdminErrAborted) {
+	if _, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, ErrAborted) {
 		t.Fatalf("stale revision = %v", err)
 	}
 	archived, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
@@ -86,23 +86,23 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		edit func(*Input)
 		want error
 	}{
-		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, AdminErrInvalidArgument},
-		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, AdminErrFailedPrecondition},
-		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, AdminErrInvalidArgument},
-		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, AdminErrFailedPrecondition},
+		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, ErrInvalidArgument},
+		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, ErrFailedPrecondition},
+		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, ErrInvalidArgument},
+		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, ErrFailedPrecondition},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := adminInput()
 			tc.edit(&input)
-			if _, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
+			if _, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
 			}
 		})
 	}
 	// A valid scalar update followed by a shared.Category FK failure must leave the
 	// shared.Location row and its old links unchanged.
-	store := NewPostgresAdminStore(pool)
-	err := store.Within(ctx, func(tx AdminTx) error {
+	store := NewPostgresStore(pool)
+	err := store.Within(ctx, func(tx Tx) error {
 		current, err := tx.GetForUpdate(ctx, coopID)
 		if err != nil {
 			return err
@@ -113,7 +113,7 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		_, err = tx.Update(ctx, coopID, input, current.Revision, time.Now())
 		return err
 	})
-	if !errors.Is(err, AdminErrFailedPrecondition) {
+	if !errors.Is(err, ErrFailedPrecondition) {
 		t.Fatalf("failed Category insert = %v", err)
 	}
 	var name string
@@ -150,7 +150,7 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	result := make(chan shared.Location, 1)
 	failure := make(chan error, 1)
 	go func() {
-		err := NewPostgresAdminStore(pool).Within(ctx, func(tx AdminTx) error {
+		err := NewPostgresStore(pool).Within(ctx, func(tx Tx) error {
 			location, err := tx.GetForUpdate(ctx, coopID)
 			if err == nil {
 				result <- location
@@ -190,7 +190,7 @@ func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	}
 	result := make(chan error, 1)
 	go func() {
-		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, auth.Caller{ID: "admin", Admin: true}), AdminUpdateRequest{
+		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, auth.Caller{ID: "admin", Admin: true}), UpdateRequest{
 			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
 		})
 		result <- err
@@ -204,7 +204,7 @@ func TestPostgresAdminConcurrentRevision(t *testing.T) {
 	}
 	select {
 	case err := <-result:
-		if !errors.Is(err, AdminErrAborted) {
+		if !errors.Is(err, ErrAborted) {
 			t.Fatalf("competing update = %v, want aborted", err)
 		}
 	case <-time.After(5 * time.Second):
