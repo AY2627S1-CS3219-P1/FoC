@@ -10,7 +10,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
@@ -22,11 +21,17 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func Setup(env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *locationadmin.Service) *chi.Mux {
+// Services contains the domain services exposed by the router.
+type Services struct {
+	LocationAdmin     *locationadmin.Service
+	LocationDiscovery *discovery.Service
+}
+
+func Setup(env *deps.Env, authenticator *httpauth.Authenticator, services Services) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
-	SetupRoutes(r, env, authenticator, locationAdmin)
+	SetupRoutes(r, env, authenticator, services)
 	return r
 }
 
@@ -38,22 +43,20 @@ func SetupMiddleware(r *chi.Mux) {
 }
 
 // SetupRoutes mounts the supplier RPCs and the legacy REST health route.
-func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *locationadmin.Service) {
+func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, services Services) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
 		healthrpc.NewServer(),
 	)
 	r.Mount(healthPath, healthHandler)
 
 	locationPath, locationHandler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		discoveryrpc.NewServer(discovery.NewService(
-			discovery.NewPostgresReader(locationdb.New(env.Pool)),
-		)),
+		discoveryrpc.NewServer(services.LocationDiscovery),
 		connect.WithInterceptors(auth.RequireCaller(), validate.NewInterceptor()),
 	)
 	r.Mount(locationPath, authenticator.Authenticate(locationHandler))
 
 	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(
-		adminrpc.NewServer(locationAdmin),
+		adminrpc.NewServer(services.LocationAdmin),
 		connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()),
 	)
 	r.Mount(adminPath, authenticator.Authenticate(adminHandler))
