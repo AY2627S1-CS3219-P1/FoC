@@ -3,10 +3,11 @@ package admin
 import (
 	"context"
 	"errors"
-	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"slices"
 	"strings"
 	"time"
+
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -95,13 +96,19 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (out shared.Loc
 		return out, err
 	}
 	err = s.store.Within(ctx, func(tx Tx) error {
-		id, e := s.idempotency.Run(ctx, tx, idempotency.Scope{Caller: caller.ID, Method: "CreateLocation", Key: key}, hash, func(now time.Time) (string, error) {
-			if e := tx.ValidateReferences(ctx, in); e != nil {
-				return "", e
-			}
-			created, e := tx.Create(ctx, in, now)
-			return created.ID, e
-		})
+		id, e := s.idempotency.Run(
+			ctx,
+			tx,
+			idempotency.Scope{Caller: caller.ID, Method: "CreateLocation", Key: key},
+			hash,
+			func(now time.Time) (string, error) {
+				if e := tx.ValidateReferences(ctx, in); e != nil {
+					return "", e
+				}
+				created, e := tx.Create(ctx, in, now)
+				return created.ID, e
+			},
+		)
 		if errors.Is(e, idempotency.ErrConflict) {
 			return ErrAlreadyExists
 		}
