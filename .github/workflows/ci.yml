@@ -28,6 +28,20 @@ jobs:
       - name: Run all Go tests
         run: GOWORK=off go test -mod=readonly ./...
 
+  go-lint:
+    name: Go formatting and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: pkg/go.mod
+          cache-dependency-path: |
+            pkg/go.sum
+            user-service/go.sum
+            supplier-service/go.sum
+      - run: make lint
+
   supplier-integration:
     name: Supplier database integration
     runs-on: ubuntu-latest

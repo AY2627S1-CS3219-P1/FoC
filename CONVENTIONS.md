@@ -11,6 +11,17 @@
 - Execution plans under `docs/plans/` describe intended work, not proof that it has
   landed. Verify the target branch before treating a plan as the current structure.
 
+## Go checks
+
+- Run `make fmt` from the repository root to apply Go formatting.
+- Run `make lint` to check formatting and the default golangci-lint correctness
+  linters across `pkg`, `user-service` and `supplier-service`. The Makefile pins
+  the tool version. Staticcheck uses its `SA*` correctness diagnostics, not style
+  or quick-fix suggestions. Naming and package-documentation warnings remain disabled.
+- CI checks do not rewrite files. Fast Go tests use
+  `GOWORK=off go test -mod=readonly ./...` within each module so the workspace
+  cannot conceal incomplete module dependencies or checksums.
+
 ## Git branches
 
 - Use `<owner>/<type>/<description>` with a lowercase kebab-case description.

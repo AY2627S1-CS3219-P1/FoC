@@ -1,11 +1,10 @@
-# See the dedicated "version" documentation section.
 version: "2"
 linters:
   settings:
     staticcheck:
       checks:
         - SA* # correctness checks only
-        - '-ST1003' # disable the rule ST1003
+        - '-ST1003' # naming conventions
         - '-ST1000' # package documentation comments
 formatters:
   enable:
