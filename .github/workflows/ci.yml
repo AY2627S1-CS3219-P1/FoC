@@ -26,7 +26,7 @@ jobs:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: ${{ matrix.module }}/go.sum
       - name: Run all Go tests
-        run: go test ./...
+        run: GOWORK=off go test -mod=readonly ./...
 
   supplier-integration:
     name: Supplier database integration
