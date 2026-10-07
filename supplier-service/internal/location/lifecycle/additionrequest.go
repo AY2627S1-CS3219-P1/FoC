@@ -9,14 +9,14 @@ import (
 
 func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest) (out AdditionRequest, err error) {
 	if err = requireAuthenticated(c); err != nil {
-		return
+		return out, err
 	}
 	if c.Role == "suspended_user" {
 		return out, ErrPermissionDenied
 	}
 	normalizedProposal, err := normalizeProposal(in.Proposal)
 	if err != nil {
-		return
+		return out, err
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		id, e := s.idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, normalizedProposal, func(now time.Time) (string, error) {
@@ -32,15 +32,15 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 		out, e = tx.Request(ctx, id)
 		return e
 	})
-	return
+	return out, err
 }
 
 func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out AdditionRequest, err error) {
 	if err = requireAuthenticated(c); err != nil {
-		return
+		return out, err
 	}
 	if err = validateID(id); err != nil {
-		return
+		return out, err
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		r, e := tx.Request(ctx, id)
@@ -53,19 +53,19 @@ func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out Addi
 		out = redactRequestForCaller(c, r)
 		return nil
 	})
-	return
+	return out, err
 }
 
 func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStatus, p Page) (out RequestPage, err error) {
 	if err = requireAuthenticated(c); err != nil {
-		return
+		return out, err
 	}
 	if status != "" && status != Pending && status != Approved && status != Rejected && status != Withdrawn {
 		return out, ErrInvalidArgument
 	}
 	p, err = normalizePage(p)
 	if err != nil {
-		return
+		return out, err
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		items, n, e := tx.ListRequests(ctx, c, status, p)
@@ -75,12 +75,12 @@ func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStat
 		out = RequestPage{Items: items, PageInfo: newPageInfo(p, n)}
 		return e
 	})
-	return
+	return out, err
 }
 
 func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest) (out AdditionRequest, err error) {
 	if err = requireAuthenticated(c); err != nil {
-		return
+		return out, err
 	}
 	if validateID(in.ID) != nil || in.ExpectedRevision <= 0 {
 		return out, ErrInvalidArgument
@@ -126,7 +126,7 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		out, e = tx.Request(ctx, r.ID)
 		return e
 	})
-	return
+	return out, err
 }
 
 func (s *Service) WithdrawRequest(ctx context.Context, c Caller, id string) (AdditionRequest, error) {
@@ -145,18 +145,18 @@ func (s *Service) ApproveRequest(ctx context.Context, c Caller, id string) (Appr
 
 func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, target RequestStatus, note string) (out Approval, err error) {
 	if err = requireAuthenticated(c); err != nil {
-		return
+		return out, err
 	}
 	if target != Withdrawn && !c.IsAdmin() {
 		return out, ErrPermissionDenied
 	}
 	if err = validateID(id); err != nil {
-		return
+		return out, err
 	}
 	if target == Rejected {
 		note, err = trimAndValidateLength(note, 1, 2000)
 		if err != nil {
-			return
+			return out, err
 		}
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
@@ -219,5 +219,5 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 		out.Request = redactRequestForCaller(c, persisted)
 		return nil
 	})
-	return
+	return out, err
 }
