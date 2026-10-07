@@ -16,7 +16,7 @@ func TestScheduledDisablementCannotEndEarly(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	d, err := app.CreateDisablement(context.Background(), admin, workflows.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), Reason: "maintenance", Key: key})
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	in := workflows.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), EndsAt: ptr(now.Add(3 * time.Hour)), Reason: " maintenance ", Key: key}
 	d, e := app.CreateDisablement(ctx, admin, in)
 	if e != nil {
@@ -103,7 +103,7 @@ func TestImmediateDisablementRetryDoesNotUseNewClockValue(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	in := workflows.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key}
 	first, e := app.CreateDisablement(ctx, admin, in)
 	if e != nil {
@@ -120,7 +120,7 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	in := workflows.SubmitRequest{Proposal: validProposal(), Key: key}
 	r, e := app.SubmitRequest(ctx, owner, in)
 	if e != nil {
@@ -171,7 +171,7 @@ func TestRequestWithdrawRejectAndApprovalRollback(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
 	now := time.Now().UTC()
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	r, e := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -219,7 +219,7 @@ func TestApprovalRollsBackLocationWhenRequestSaveFails(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	request, err := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if err != nil {
 		t.Fatal(err)
@@ -249,7 +249,7 @@ func TestRequestIdempotencyScopesExpiryAndPagination(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	in := workflows.SubmitRequest{Proposal: validProposal(), Key: key}
 	first, e := app.SubmitRequest(ctx, owner, in)
 	if e != nil {
@@ -287,7 +287,7 @@ func TestPermissionsAndValidation(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
 	now := time.Now().UTC()
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	for _, c := range []workflows.Caller{{}, owner, {ID: "suspended", Role: "suspended_user"}, {ID: "super", Role: "super_admin"}, admin} {
 		_, e := app.CreateDisablement(ctx, c, workflows.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Duration(len(repo.disablements)+1) * time.Hour)), EndsAt: ptr(now.Add(time.Duration(len(repo.disablements)+2) * time.Hour)), Reason: "maintenance", Key: uuid.NewString()})
 		switch {
@@ -336,7 +336,7 @@ func TestPermissionsAndValidation(t *testing.T) {
 func TestRequestPatchClearsFieldsAndClassificationAtomically(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
-	app := workflows.New(repo, time.Now)
+	app := workflows.NewService(repo, time.Now)
 	r, e := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -354,7 +354,7 @@ func TestRequestPatchClearsFieldsAndClassificationAtomically(t *testing.T) {
 func TestConcurrentApprovalAndWithdrawalHaveOneTerminalResult(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
-	app := workflows.New(repo, time.Now)
+	app := workflows.NewService(repo, time.Now)
 	r, e := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -388,7 +388,7 @@ func TestScheduledUpdateMayStartNow(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	d, e := app.CreateDisablement(ctx, admin, workflows.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), Reason: "maintenance", Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -402,7 +402,7 @@ func TestScheduledUpdateMayStartNow(t *testing.T) {
 func TestApprovalRevalidatesLegacySupplierProposal(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
-	app := workflows.New(repo, time.Now)
+	app := workflows.NewService(repo, time.Now)
 	r, e := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -418,7 +418,7 @@ func TestApprovalRevalidatesLegacySupplierProposal(t *testing.T) {
 func TestLegacyProposalCoordinatesCanBeRepairedBeforeApproval(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
-	app := workflows.New(repo, time.Now)
+	app := workflows.NewService(repo, time.Now)
 	r, e := app.SubmitRequest(ctx, owner, workflows.SubmitRequest{Proposal: validProposal(), Key: key})
 	if e != nil {
 		t.Fatal(e)
@@ -442,7 +442,7 @@ func TestIdempotencyUUIDSpellingsUseOneScope(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepository()
 	repo.locations[locationID] = workflows.Location{ID: locationID}
-	app := workflows.New(repo, time.Now)
+	app := workflows.NewService(repo, time.Now)
 	in := workflows.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key}
 	first, e := app.CreateDisablement(ctx, admin, in)
 	if e != nil {

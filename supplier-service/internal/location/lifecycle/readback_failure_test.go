@@ -71,7 +71,7 @@ func TestMutationReadbackFailureRollsBack(t *testing.T) {
 			locations, disablements, requests := copyValue(repository.locations), copyValue(repository.disablements), copyValue(repository.requests)
 			failure := w.DependencyError("read saved resource", context.DeadlineExceeded)
 			decorated := &readbackFailureRepository{repository: repository, failure: failure}
-			service := w.New(decorated, func() time.Time { return now })
+			service := w.NewService(decorated, func() time.Time { return now })
 			var err error
 			switch operation {
 			case "update disablement":

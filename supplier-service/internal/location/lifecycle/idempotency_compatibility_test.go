@@ -16,7 +16,7 @@ func TestHistoricalWorkflowHashesAndCanonicalScopes(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
 	repo := newTestRepository()
 	repo.locations[locationID] = w.Location{ID: locationID}
-	app := w.New(repo, func() time.Time { return now })
+	app := w.NewService(repo, func() time.Time { return now })
 	// These fixed SHA-256 values encode the historical untagged JSON fields,
 	// including omitted start, normalized proposal strings and microsecond hours.
 	disablementScope := idempotency.Scope{Caller: admin.ID, Method: "CreateDisablement", Key: key}
@@ -63,7 +63,7 @@ func TestWorkflowCreationTimeAfterRetryLock(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = w.Location{ID: locationID}
 	repo.onRetryLock = func() { now = lockedAt }
-	app := w.New(repo, func() time.Time { return now })
+	app := w.NewService(repo, func() time.Time { return now })
 	got, err := app.CreateDisablement(context.Background(), admin, w.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key})
 	if err != nil || !got.StartsAt.Equal(lockedAt) || !got.CreatedAt.Equal(lockedAt) {
 		t.Fatalf("callback timestamp: %+v %v", got, err)
@@ -78,7 +78,7 @@ func TestWorkflowRetrySaveFailureRollsBackResource(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = w.Location{ID: locationID}
 	repo.failRetrySave = true
-	app := w.New(repo, time.Now)
+	app := w.NewService(repo, time.Now)
 	in := w.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key}
 	_, err := app.CreateDisablement(context.Background(), admin, in)
 	if !errors.Is(err, w.ErrFailedPrecondition) || len(repo.disablements) != 0 || len(repo.keys) != 0 {
@@ -95,7 +95,7 @@ func TestWorkflowInvalidRetryKeyDoesNotWrite(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			repo := newTestRepository()
 			repo.locations[locationID] = w.Location{ID: locationID}
-			app := w.New(repo, time.Now)
+			app := w.NewService(repo, time.Now)
 			_, disablementErr := app.CreateDisablement(context.Background(), admin, w.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key})
 			_, requestErr := app.SubmitRequest(context.Background(), owner, w.SubmitRequest{Proposal: validProposal(), Key: key})
 			if !errors.Is(disablementErr, w.ErrInvalidArgument) || !errors.Is(requestErr, w.ErrInvalidArgument) {

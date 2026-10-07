@@ -16,7 +16,7 @@ func TestApprovalReplayWithoutResultingLocation(t *testing.T) {
 		ID: key, Status: workflows.Approved, SubmittedBy: owner.ID,
 		ReviewedBy: ptr(admin.ID), ReviewedAt: &now, Revision: 1,
 	}
-	app := workflows.New(repo, func() time.Time { return now })
+	app := workflows.NewService(repo, func() time.Time { return now })
 	for attempt := 0; attempt < 2; attempt++ {
 		_, err := app.ApproveRequest(context.Background(), admin, key)
 		if !errors.Is(err, workflows.ErrFailedPrecondition) {

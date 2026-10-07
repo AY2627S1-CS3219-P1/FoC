@@ -13,7 +13,7 @@ type Service struct {
 	runner *idempotency.Runner
 }
 
-func New(repo Repository, clock func() time.Time) *Service {
+func NewService(repo Repository, clock func() time.Time) *Service {
 	return &Service{repo: repo, clock: clock, runner: idempotency.New(clock)}
 }
 
