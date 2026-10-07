@@ -40,7 +40,10 @@ func main() {
 		panic(err)
 	}
 
-	services := newServices(pgxPool)
+	services, err := newRPCServices(pgxPool, time.Now)
+	if err != nil {
+		panic(err)
+	}
 	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 

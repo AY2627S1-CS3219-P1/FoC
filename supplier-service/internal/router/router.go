@@ -2,22 +2,17 @@
 package router
 
 import (
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
-	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// Services contains the domain services exposed by the router.
-type Services struct {
-	LocationAdmin     *locationadmin.Service
-	LocationDiscovery *discovery.Service
-}
-
-func Setup(env *deps.Env, authenticator *httpauth.Authenticator, services Services) *chi.Mux {
+func Setup(env *deps.Env, authenticator *httpauth.Authenticator, services RPCServices) *chi.Mux {
 	r := chi.NewRouter()
 
 	SetupMiddleware(r)
@@ -30,4 +25,15 @@ func SetupMiddleware(r *chi.Mux) {
 	r.Use(middleware.RealIP)
 	r.Use(sharedmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
+}
+
+// RPCServices contains dependencies constructed at the application composition root.
+type RPCServices struct {
+	Health                     supplierv1connect.HealthServiceHandler
+	Discovery                  locationv1connect.LocationDiscoveryServiceHandler
+	Admin                      locationv1connect.LocationAdminServiceHandler
+	Disablement                locationv1connect.LocationDisablementServiceHandler
+	AdditionRequest            locationv1connect.LocationAdditionRequestServiceHandler
+	DisablementInterceptor     connect.Interceptor
+	AdditionRequestInterceptor connect.Interceptor
 }

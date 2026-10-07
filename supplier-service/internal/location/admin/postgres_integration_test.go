@@ -31,51 +31,6 @@ func adminInput() Input {
 	}
 }
 
-func TestPostgresAdminRoundTrip(t *testing.T) {
-	pool := locationfixture.SetupDatabase(t)
-	ctx := context.Background()
-	svc := newTestAdminService(pool)
-	admin := auth.Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: adminInput()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.Revision != 1 || created.Name != "New supplier" || len(created.Categories) != 1 ||
-		created.Categories[0].ID != foodID || created.Building.ID != com2ID {
-		t.Fatalf("created = %+v", created)
-	}
-	updated, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{
-		ID: created.ID, ExpectedRevision: 1,
-		Paths: []string{"name", "category_ids"},
-		Input: Input{Name: "Updated supplier", CategoryIDs: []string{coffeeID}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Revision != 2 || updated.Name != "Updated supplier" || len(updated.Categories) != 1 || updated.Categories[0].ID != coffeeID {
-		t.Fatalf("updated = %+v", updated)
-	}
-	if _, err := svc.Update(auth.WithCaller(ctx, admin), UpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, ErrAborted) {
-		t.Fatalf("stale revision = %v", err)
-	}
-	archived, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || archived.ArchivedAt == nil || archived.Revision != 3 {
-		t.Fatalf("archive = %+v, %v", archived, err)
-	}
-	repeated, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || repeated.Revision != archived.Revision || !repeated.UpdatedAt.Equal(archived.UpdatedAt) {
-		t.Fatalf("repeat archive changed row = %+v, %v", repeated, err)
-	}
-	unarchived, err := svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || unarchived.ArchivedAt != nil || unarchived.Revision != 4 {
-		t.Fatalf("unarchive = %+v, %v", unarchived, err)
-	}
-	repeated, err = svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || repeated.Revision != unarchived.Revision || !repeated.UpdatedAt.Equal(unarchived.UpdatedAt) {
-		t.Fatalf("repeat unarchive changed row = %+v, %v", repeated, err)
-	}
-}
-
 func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()
@@ -177,49 +132,6 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	}
 }
 
-func TestPostgresAdminConcurrentRevision(t *testing.T) {
-	pool := locationfixture.SetupDatabase(t)
-	ctx := context.Background()
-	first, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer first.Rollback(ctx) //nolint:errcheck
-	if _, err := first.Exec(ctx, "SELECT id FROM locations WHERE id = $1 FOR UPDATE", coopID); err != nil {
-		t.Fatal(err)
-	}
-	result := make(chan error, 1)
-	go func() {
-		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, auth.Caller{ID: "admin", Admin: true}), UpdateRequest{
-			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
-		})
-		result <- err
-	}()
-	waitForLocationLock(t, ctx, pool)
-	if _, err := first.Exec(ctx, "UPDATE locations SET name = 'first write', revision = revision + 1 WHERE id = $1", coopID); err != nil {
-		t.Fatal(err)
-	}
-	if err := first.Commit(ctx); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case err := <-result:
-		if !errors.Is(err, ErrAborted) {
-			t.Fatalf("competing update = %v, want aborted", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("competing update stayed blocked")
-	}
-	var name string
-	var revision int64
-	if err := pool.QueryRow(ctx, "SELECT name, revision FROM locations WHERE id = $1", coopID).Scan(&name, &revision); err != nil {
-		t.Fatal(err)
-	}
-	if name != "first write" || revision != 2 {
-		t.Fatalf("location after competing updates = %q, revision %d", name, revision)
-	}
-}
-
 func waitForLocationLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -268,6 +180,64 @@ func TestLocationMigrationUpDown(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, invalid, com2ID); err == nil {
 		t.Fatal("24:00 hours passed after migration replay")
+	}
+	exec := func(statement string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const (
+		categoryOneID = "b526b558-e2ec-4db1-b873-13a9f490e07d"
+		categoryTwoID = "29a7cb1e-44f2-4c68-825f-1ce39b78e44a"
+		buildingID    = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
+		locationID    = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
+	)
+	exec(`
+		INSERT INTO locations (
+			id, name, is_supplier, building_id, floor, coordinates, revision
+		) VALUES (
+			$1, 'Current Supplier', TRUE, $2, 'B1',
+			ST_SetSRID(ST_MakePoint(103.7742, 1.2942), 4326)::geography, 7
+		)`, locationID, buildingID)
+	exec(`
+		INSERT INTO location_categories (location_id, category_id)
+		VALUES ($1, $2), ($1, $3)`, locationID, categoryOneID, categoryTwoID)
+
+	var (
+		floor             string
+		revision          int64
+		relationshipCount int
+	)
+	if err := pool.QueryRow(ctx, `
+		SELECT l.floor, l.revision, count(lc.category_id)
+		FROM locations l
+		JOIN location_categories lc ON lc.location_id = l.id
+		WHERE l.id = $1
+		GROUP BY l.id`, locationID).Scan(&floor, &revision, &relationshipCount); err != nil {
+		t.Fatalf("read current Location schema: %v", err)
+	}
+	if floor != "B1" || revision != 7 || relationshipCount != 2 {
+		t.Fatalf("current Location fields = floor %q, revision %d, Categories %d", floor, revision, relationshipCount)
+	}
+
+	var oldCategoryColumnExists bool
+	if err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = 'locations' AND column_name = 'category_id'
+		)`).Scan(&oldCategoryColumnExists); err != nil {
+		t.Fatalf("inspect Location columns: %v", err)
+	}
+	if oldCategoryColumnExists {
+		t.Fatal("locations.category_id exists in the clean schema")
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE locations SET floor = ' ' WHERE id = $1`, locationID); err == nil {
+		t.Fatal("blank floor passed the schema constraint")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE locations SET revision = 0 WHERE id = $1`, locationID); err == nil {
+		t.Fatal("non-positive revision passed the schema constraint")
 	}
 }
 

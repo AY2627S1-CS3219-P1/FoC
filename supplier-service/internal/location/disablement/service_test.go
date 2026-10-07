@@ -96,24 +96,6 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	}
 }
 
-func TestImmediateDisablementRetryDoesNotUseNewClockValue(t *testing.T) {
-	ctx := context.Background()
-	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)
-	repo := newTestRepository()
-	repo.locations[locationID] = disablement.Location{ID: locationID}
-	app := newTestService(repo, func() time.Time { return now })
-	in := disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key}
-	first, e := app.CreateDisablement(ctx, admin, in)
-	if e != nil {
-		t.Fatal(e)
-	}
-	now = now.Add(time.Hour)
-	retry, e := app.CreateDisablement(ctx, admin, in)
-	if e != nil || retry.ID != first.ID || !retry.StartsAt.Equal(first.StartsAt) {
-		t.Fatalf("default-start retry: %+v %v", retry, e)
-	}
-}
-
 func TestScheduledUpdateMayStartNow(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC)

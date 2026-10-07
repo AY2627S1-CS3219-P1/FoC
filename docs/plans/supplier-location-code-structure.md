@@ -46,7 +46,7 @@ The RPC admin package exposes Server and NewServer. Its LocationAdmin interface 
 
 - **D4:** The former combined Tx did not prove a cross-feature dependency. Approval does not call Disablement methods or the idempotency runner. The revised ADR splits domain capabilities in #118.
 - **D5:** Common caller, pagination, sentinel errors and the Disablement resource snapshot live in shared. Request proposals stay owned by AdditionRequest. Disablement reads only Location identity and archive state.
-- **D6:** Capability tests live beside their implementations. Cross-capability regressions live at tests/location with test-only composition and shared fixtures under internal/testsupport. Production has no combined service or transaction facade. Each capability tests its retry-store error mapping.
+- **D6:** Capability tests live beside their implementations. Cross-capability domain and RPC regressions live at tests/location with test-only composition and shared fixtures under internal/testsupport. Production has no combined service or transaction facade. Each capability tests its retry-store error mapping.
 
 ## Verification
 
@@ -55,7 +55,7 @@ From supplier-service/, with Docker available:
 ```sh
 GOWORK=off go test -p 1 -race ./...
 GOWORK=off go vet ./...
-GOWORK=off go test -p 1 -race -tags=integration ./internal/location/... ./tests/location ./internal/rpc/... ./internal/idempotency ./cmd/server -count=1 -timeout=15m
+GOWORK=off go test -p 1 -race -tags=integration ./internal/location/... ./tests/location/... ./internal/rpc/... ./internal/idempotency ./cmd/server -count=1 -timeout=15m
 ```
 
 The signed RPC and database tests exercise admin create, replay, update, archive, unarchive and role restrictions. Domain integration tests cover rollback, concurrent revision checks and relationship freshness after a lock wait. Existing RPC error-response tests protect client-facing codes and messages.

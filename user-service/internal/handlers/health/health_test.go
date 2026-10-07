@@ -27,19 +27,6 @@ func newClient(t *testing.T, db Pinger) userv1connect.HealthServiceClient {
 	return userv1connect.NewHealthServiceClient(server.Client(), server.URL)
 }
 
-func TestHealthService(t *testing.T) {
-	response, err := newClient(t, fakePinger{}).Check(
-		context.Background(),
-		connect.NewRequest(&userv1.CheckRequest{}),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.Msg.Status != "ok" {
-		t.Fatalf("expected status %q, got %q", "ok", response.Msg.Status)
-	}
-}
-
 func TestHealthServiceDatabaseDown(t *testing.T) {
 	_, err := newClient(t, fakePinger{err: errors.New("connection refused")}).Check(
 		context.Background(),

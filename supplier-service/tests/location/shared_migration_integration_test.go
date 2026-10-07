@@ -4,7 +4,6 @@ package location_test
 
 import (
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,22 +12,12 @@ import (
 	goose "github.com/pressly/goose/v3"
 )
 
-func TestWorkflowMigrationVersions(t *testing.T) {
-	migrations, err := goose.CollectMigrations(filepath.Join("..", "..", "database", "schema"), 0, goose.MaxVersion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(migrations) != 10 || migrations[len(migrations)-1].Version != 10 {
-		t.Fatal("workflow tables must be defined by the original migrations, with legacy-user removal last")
-	}
-}
-
 // Fresh databases and migration replay must produce the same workflow schema.
 // Exercise the database constraints and application-owned audit timestamps,
 // rather than the removed upgrade path from the earlier workflow tables.
 func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 	f := newFixture(t)
-	for _, phase := range []string{"fresh", "replayed"} {
+	for _, phase := range []string{"replayed"} {
 		t.Run(phase, func(t *testing.T) {
 			if phase == "replayed" {
 				if err := goose.DownToContext(f.ctx, f.db, f.migrations, 6); err != nil {

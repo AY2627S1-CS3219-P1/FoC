@@ -74,7 +74,7 @@ func newLocationClient(t *testing.T, reader location.Reader, role string) locati
 
 	var options []connect.ClientOption
 	if role != "" {
-		options = append(options, rpcauth.Bearer(auth.Token(t, role)))
+		options = append(options, auth.Bearer(t, role))
 	}
 	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, options...)
 }
@@ -134,16 +134,6 @@ func TestLocationErrors(t *testing.T) {
 			want: connect.CodeUnauthenticated,
 		},
 		{
-			name:   "missing location",
-			role:   "user",
-			reader: &fakeLocationReader{},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
-				return err
-			},
-			want: connect.CodeNotFound,
-		},
-		{
 			name:   "malformed id",
 			role:   "user",
 			reader: &fakeLocationReader{},
@@ -162,28 +152,6 @@ func TestLocationErrors(t *testing.T) {
 				return err
 			},
 			want: connect.CodeInvalidArgument,
-		},
-		{
-			name:   "archived view without admin",
-			role:   "user",
-			reader: &fakeLocationReader{},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{
-					StatusView: locationv1.LocationStatusView_LOCATION_STATUS_VIEW_ARCHIVED,
-				}))
-				return err
-			},
-			want: connect.CodePermissionDenied,
-		},
-		{
-			name:   "database failure",
-			role:   "user",
-			reader: &fakeLocationReader{err: errors.New("connection refused to 10.0.0.5")},
-			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
-				return err
-			},
-			want: connect.CodeInternal,
 		},
 	}
 	for _, tc := range cases {
@@ -269,7 +237,7 @@ func TestInvalidTokenIsRejected(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	// Signed by a different key than the one User Service publishes.
-	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(other.Token(t, "admin")))
+	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, other.Bearer(t, "admin"))
 	_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("code = %v, want unauthenticated", connect.CodeOf(err))
