@@ -1,4 +1,4 @@
-package lifecycle
+package admin
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	rpcshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/shared"
 	"google.golang.org/genproto/googleapis/type/timeofday"
@@ -22,16 +22,16 @@ type LocationAdmin interface {
 	Unarchive(context.Context, string) (domainshared.Location, error)
 }
 
-type LocationAdminServer struct {
+type Server struct {
 	locationv1connect.UnimplementedLocationAdminServiceHandler
 	service LocationAdmin
 }
 
-func NewLocationAdminServer(service LocationAdmin) *LocationAdminServer {
-	return &LocationAdminServer{service: service}
+func NewServer(service LocationAdmin) *Server {
+	return &Server{service: service}
 }
 
-func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.Request[locationv1.CreateLocationRequest]) (*connect.Response[locationv1.CreateLocationResponse], error) {
+func (s *Server) CreateLocation(ctx context.Context, req *connect.Request[locationv1.CreateLocationRequest]) (*connect.Response[locationv1.CreateLocationResponse], error) {
 	input := req.Msg.GetLocation()
 	if input == nil || input.IsSupplier == nil || input.Coordinates == nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("classification and coordinates are required"))
@@ -46,7 +46,7 @@ func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.R
 	return connect.NewResponse(&locationv1.CreateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.Request[locationv1.UpdateLocationRequest]) (*connect.Response[locationv1.UpdateLocationResponse], error) {
+func (s *Server) UpdateLocation(ctx context.Context, req *connect.Request[locationv1.UpdateLocationRequest]) (*connect.Response[locationv1.UpdateLocationResponse], error) {
 	paths := req.Msg.GetUpdateMask().GetPaths()
 	input := req.Msg.GetLocation()
 	if input != nil {
@@ -70,7 +70,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 	return connect.NewResponse(&locationv1.UpdateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.Request[locationv1.ArchiveLocationRequest]) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
+func (s *Server) ArchiveLocation(ctx context.Context, req *connect.Request[locationv1.ArchiveLocationRequest]) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
 	loc, err := s.service.Archive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -78,7 +78,7 @@ func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.
 	return connect.NewResponse(&locationv1.ArchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *LocationAdminServer) UnarchiveLocation(ctx context.Context, req *connect.Request[locationv1.UnarchiveLocationRequest]) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
+func (s *Server) UnarchiveLocation(ctx context.Context, req *connect.Request[locationv1.UnarchiveLocationRequest]) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
 	loc, err := s.service.Unarchive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)

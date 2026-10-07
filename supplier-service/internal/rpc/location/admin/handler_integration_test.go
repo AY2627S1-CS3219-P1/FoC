@@ -1,6 +1,6 @@
 //go:build integration
 
-package lifecycle
+package admin
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
+	domainadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
-	domainlife "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/testsupport/rpcauth"
 	"github.com/go-chi/chi/v5"
@@ -88,8 +88,8 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	}
 	auth := rpcauth.New(t)
 	router := chi.NewRouter()
-	locationAdmin := domainlife.NewAdminService(domainlife.NewPostgresAdminStore(pool), time.Now)
-	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(locationAdmin),
+	locationAdmin := domainadmin.NewAdminService(domainadmin.NewPostgresAdminStore(pool), time.Now)
+	adminPath, adminHandler := locationv1connect.NewLocationAdminServiceHandler(NewServer(locationAdmin),
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.Authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))
