@@ -1,4 +1,4 @@
-package lifecycle_test
+package location_test
 
 import (
 	"context"
@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
-	w "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
+	disablement "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/disablement"
 	"github.com/google/uuid"
 )
 
@@ -19,17 +20,17 @@ const (
 	key        = "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"
 )
 
-var admin = w.Caller{ID: "admin", Role: "admin"}
-var owner = w.Caller{ID: "owner", Role: "user"}
+var admin = additionrequest.Caller{ID: "admin", Role: "admin"}
+var owner = additionrequest.Caller{ID: "owner", Role: "user"}
 
 func ptr[T any](v T) *T { return &v }
 
 // In memory test repository
 type TestRepository struct {
 	mu                    sync.Mutex
-	locations             map[string]w.Location
-	disablements          map[string]w.Disablement
-	requests              map[string]w.AdditionRequest
+	locations             map[string]additionrequest.Location
+	disablements          map[string]disablement.Disablement
+	requests              map[string]additionrequest.AdditionRequest
 	keys                  map[idempotency.Scope]idempotency.Record
 	onRetryLock           func()
 	failRetrySave         bool
@@ -39,7 +40,7 @@ type TestRepository struct {
 }
 
 func newTestRepository() *TestRepository {
-	return &TestRepository{locations: map[string]w.Location{}, disablements: map[string]w.Disablement{}, requests: map[string]w.AdditionRequest{}, keys: map[idempotency.Scope]idempotency.Record{}}
+	return &TestRepository{locations: map[string]additionrequest.Location{}, disablements: map[string]disablement.Disablement{}, requests: map[string]additionrequest.AdditionRequest{}, keys: map[idempotency.Scope]idempotency.Record{}}
 }
 func copyValue[T any](v T) T {
 	b, _ := json.Marshal(v)
@@ -47,7 +48,7 @@ func copyValue[T any](v T) T {
 	_ = json.Unmarshal(b, &out)
 	return out
 }
-func (r *TestRepository) Within(ctx context.Context, f func(w.Tx) error) error {
+func (r *TestRepository) Within(ctx context.Context, f func(testTx) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if e := ctx.Err(); e != nil {
@@ -67,28 +68,28 @@ func (r *TestRepository) Within(ctx context.Context, f func(w.Tx) error) error {
 	}
 	return nil
 }
-func (r *TestRepository) Location(_ context.Context, id string) (w.Location, error) {
+func (r *TestRepository) Location(_ context.Context, id string) (additionrequest.Location, error) {
 	v, ok := r.locations[id]
 	if !ok {
-		return v, w.ErrNotFound
+		return v, additionrequest.ErrNotFound
 	}
 	return copyValue(v), nil
 }
-func (r *TestRepository) Disablement(_ context.Context, id string) (w.Disablement, error) {
+func (r *TestRepository) Disablement(_ context.Context, id string) (disablement.Disablement, error) {
 	v, ok := r.disablements[id]
 	if !ok {
-		return v, w.ErrNotFound
+		return v, additionrequest.ErrNotFound
 	}
 	return copyValue(v), nil
 }
-func (r *TestRepository) SaveDisablement(_ context.Context, d w.Disablement, expected int64) error {
+func (r *TestRepository) SaveDisablement(_ context.Context, d disablement.Disablement, expected int64) error {
 	if expected > 0 && r.disablements[d.ID].Revision != expected {
-		return w.ErrAborted
+		return additionrequest.ErrAborted
 	}
 	r.disablements[d.ID] = copyValue(d)
 	return nil
 }
-func (r *TestRepository) Overlaps(_ context.Context, d w.Disablement) (bool, error) {
+func (r *TestRepository) Overlaps(_ context.Context, d disablement.Disablement) (bool, error) {
 	for _, v := range r.disablements {
 		if v.ID == d.ID || v.LocationID != d.LocationID || v.CancelledAt != nil {
 			continue
@@ -103,8 +104,8 @@ func (r *TestRepository) Overlaps(_ context.Context, d w.Disablement) (bool, err
 	}
 	return false, nil
 }
-func (r *TestRepository) ListDisablements(_ context.Context, id string, state w.DisablementState, now time.Time, p w.Page) ([]w.Disablement, int64, error) {
-	items := []w.Disablement{}
+func (r *TestRepository) ListDisablements(_ context.Context, id string, state disablement.DisablementState, now time.Time, p additionrequest.Page) ([]disablement.Disablement, int64, error) {
+	items := []disablement.Disablement{}
 	for _, v := range r.disablements {
 		if v.LocationID == id && (state == "" || v.State(now) == state) {
 			items = append(items, copyValue(v))
@@ -118,7 +119,7 @@ func (r *TestRepository) ListDisablements(_ context.Context, id string, state w.
 	})
 	return slicePage(items, p), int64(len(items)), nil
 }
-func slicePage[T any](items []T, p w.Page) []T {
+func slicePage[T any](items []T, p additionrequest.Page) []T {
 	start := int64(p.Number-1) * int64(p.Size)
 	if start >= int64(len(items)) {
 		return []T{}
@@ -129,34 +130,34 @@ func slicePage[T any](items []T, p w.Page) []T {
 	}
 	return items[start:end]
 }
-func (r *TestRepository) Request(_ context.Context, id string) (w.AdditionRequest, error) {
+func (r *TestRepository) Request(_ context.Context, id string) (additionrequest.AdditionRequest, error) {
 	v, ok := r.requests[id]
 	if !ok {
-		return v, w.ErrNotFound
+		return v, additionrequest.ErrNotFound
 	}
 	return copyValue(v), nil
 }
-func (r *TestRepository) SaveRequest(_ context.Context, v w.AdditionRequest, expected int64) error {
+func (r *TestRepository) SaveRequest(_ context.Context, v additionrequest.AdditionRequest, expected int64) error {
 	if r.failSaveRequest {
 		r.locationsAtFailedSave = len(r.locations)
-		return w.DependencyError("save request", context.DeadlineExceeded)
+		return additionrequest.DependencyError("save request", context.DeadlineExceeded)
 	}
 	if expected > 0 {
 		old := r.requests[v.ID]
-		if old.Status != w.Pending {
-			return w.ErrFailedPrecondition
+		if old.Status != additionrequest.Pending {
+			return additionrequest.ErrFailedPrecondition
 		}
 		if old.Revision != expected {
-			return w.ErrAborted
+			return additionrequest.ErrAborted
 		}
 	}
 	r.requests[v.ID] = copyValue(v)
 	return nil
 }
-func (r *TestRepository) ListRequests(_ context.Context, c w.Caller, status w.RequestStatus, p w.Page) ([]w.AdditionRequest, int64, error) {
-	items := []w.AdditionRequest{}
+func (r *TestRepository) ListRequests(_ context.Context, c additionrequest.Caller, status additionrequest.RequestStatus, p additionrequest.Page) ([]additionrequest.AdditionRequest, int64, error) {
+	items := []additionrequest.AdditionRequest{}
 	for _, v := range r.requests {
-		if (c.IsAdmin() || v.SubmittedBy == c.ID || v.Status == w.Approved) && (status == "" || v.Status == status) {
+		if (c.IsAdmin() || v.SubmittedBy == c.ID || v.Status == additionrequest.Approved) && (status == "" || v.Status == status) {
 			items = append(items, copyValue(v))
 		}
 	}
@@ -168,22 +169,22 @@ func (r *TestRepository) ListRequests(_ context.Context, c w.Caller, status w.Re
 	})
 	return slicePage(items, p), int64(len(items)), nil
 }
-func (r *TestRepository) ValidateReferences(_ context.Context, p w.Proposal) error {
+func (r *TestRepository) ValidateReferences(_ context.Context, p additionrequest.Proposal) error {
 	if p.BuildingID != buildingID {
-		return w.ErrFailedPrecondition
+		return additionrequest.ErrFailedPrecondition
 	}
 	for _, id := range p.CategoryIDs {
 		if id != categoryID {
-			return w.ErrFailedPrecondition
+			return additionrequest.ErrFailedPrecondition
 		}
 	}
 	return nil
 }
-func (r *TestRepository) CreateLocation(_ context.Context, p w.Proposal, now time.Time) (w.Location, error) {
+func (r *TestRepository) CreateLocation(_ context.Context, p additionrequest.Proposal, now time.Time) (additionrequest.Location, error) {
 	if r.failCreate {
-		return w.Location{}, w.DependencyError("create Location", context.DeadlineExceeded)
+		return additionrequest.Location{}, additionrequest.DependencyError("create Location", context.DeadlineExceeded)
 	}
-	v := w.Location{ID: uuid.NewString(), Proposal: copyValue(p), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	v := additionrequest.Location{ID: uuid.NewString(), Proposal: copyValue(p), Revision: 1, CreatedAt: now, UpdatedAt: now}
 	r.locations[v.ID] = v
 	return copyValue(v), nil
 }
@@ -201,7 +202,7 @@ func (r *TestRepository) Save(ctx context.Context, s idempotency.Scope, v idempo
 		return err
 	}
 	if r.failRetrySave {
-		return w.ErrFailedPrecondition
+		return additionrequest.ErrFailedPrecondition
 	}
 	r.keys[s] = v
 	return nil

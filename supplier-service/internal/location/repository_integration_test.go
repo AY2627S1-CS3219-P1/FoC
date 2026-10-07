@@ -1,6 +1,6 @@
 //go:build integration
 
-package lifecycle_test
+package location_test
 
 import (
 	"context"
@@ -10,12 +10,11 @@ import (
 	"testing"
 	"time"
 
-	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
-	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
-	"github.com/testcontainers/testcontainers-go"
+	goose "github.com/pressly/goose/v3"
+	testcontainers "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -54,11 +53,11 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 		if _, err := tx.Exec(f.ctx, "INSERT INTO location_categories(location_id,category_id) VALUES($1,$2)", postgresLocationID, otherCategoryID); err != nil {
 			t.Fatal(err)
 		}
-		result := make(chan workflows.Location, 1)
+		result := make(chan additionrequest.Location, 1)
 		errors := make(chan error, 1)
 		go func() {
-			var got workflows.Location
-			err := workflowrepo.NewPostgresRepository(f.pool, time.Now).Within(f.ctx, func(tx workflows.Tx) error {
+			var got additionrequest.Location
+			err := additionrequest.NewPostgresRepository(f.pool, time.Now).Within(f.ctx, func(tx additionrequest.Tx) error {
 				var err error
 				got, err = tx.Location(f.ctx, postgresLocationID)
 				return err
@@ -104,7 +103,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	_, file, _, _ := runtime.Caller(0)
-	migrations := filepath.Join(filepath.Dir(file), "../../../database/schema")
+	migrations := filepath.Join(filepath.Dir(file), "../../database/schema")
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}

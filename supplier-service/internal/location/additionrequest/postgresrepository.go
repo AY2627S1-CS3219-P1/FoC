@@ -1,5 +1,5 @@
-// All lifecycle writes and approval are one PostgreSQL transaction.
-package lifecycle
+// Each mutation commits its writes and persisted readback in one transaction.
+package additionrequest
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	db "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/lifecycledb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
+	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -131,8 +132,8 @@ func ids(v []pgtype.UUID) []string {
 	}
 	return out
 }
-func disablement(v db.LocationDisablement) Disablement {
-	return Disablement{ID: idString(v.ID), LocationID: idString(v.LocationID), StartsAt: v.StartsAt.Time.UTC(), EndsAt: timePointer(v.EndsAt), EndedAt: timePointer(v.EndedAt), CancelledAt: timePointer(v.CancelledAt), Reason: v.Reason, CreatedBy: v.CreatedBy, Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+func disablement(v db.LocationDisablement) shared.Disablement {
+	return shared.Disablement{ID: idString(v.ID), LocationID: idString(v.LocationID), StartsAt: v.StartsAt.Time.UTC(), EndsAt: timePointer(v.EndsAt), EndedAt: timePointer(v.EndedAt), CancelledAt: timePointer(v.CancelledAt), Reason: v.Reason, CreatedBy: v.CreatedBy, Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
 }
 func request(v db.LockWorkflowRequestRow) AdditionRequest {
 	return AdditionRequest{ID: idString(v.ID), Proposal: Proposal{Name: v.Name, IsSupplier: v.IsSupplier, CategoryIDs: ids(v.CategoryIds), BuildingID: idString(v.BuildingID), Floor: textPointer(v.Floor), Latitude: v.Latitude, Longitude: v.Longitude, CoordinatesMissing: v.Coordinates == nil, OpenFrom: wallPointer(v.OpenFrom), OpenTo: wallPointer(v.OpenTo), Contact: textPointer(v.Contact), Details: v.Details}, SubmittedBy: v.SubmittedBy, Status: RequestStatus(v.Status), ReviewedBy: textPointer(v.ReviewedBy), ReviewedAt: timePointer(v.ReviewedAt), ReviewNote: textPointer(v.ReviewNote), ResultingLocationID: idPointer(v.ResultingLocationID), Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
@@ -159,39 +160,6 @@ func (t *transaction) Location(ctx context.Context, resourceID string) (Location
 		return l, mapError(e)
 	}
 	return l, nil
-}
-func (t *transaction) Disablement(ctx context.Context, resourceID string) (Disablement, error) {
-	v, e := t.q.LockWorkflowDisablement(ctx, id(resourceID))
-	return disablement(v), mapError(e)
-}
-func (t *transaction) SaveDisablement(ctx context.Context, d Disablement, expected int64) error {
-	if expected == 0 {
-		return mapError(t.q.InsertWorkflowDisablement(ctx, db.InsertWorkflowDisablementParams{ID: id(d.ID), LocationID: id(d.LocationID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt), Reason: d.Reason, CreatedBy: d.CreatedBy, Revision: d.Revision, CreatedAt: stamp(d.CreatedAt), UpdatedAt: stamp(d.UpdatedAt)}))
-	}
-	n, e := t.q.UpdateWorkflowDisablement(ctx, db.UpdateWorkflowDisablementParams{ID: id(d.ID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt), EndedAt: optionalStamp(d.EndedAt), CancelledAt: optionalStamp(d.CancelledAt), Reason: d.Reason, Revision: d.Revision, UpdatedAt: stamp(d.UpdatedAt), ExpectedRevision: expected})
-	if e != nil {
-		return mapError(e)
-	}
-	if n != 1 {
-		return ErrAborted
-	}
-	return nil
-}
-func (t *transaction) Overlaps(ctx context.Context, d Disablement) (bool, error) {
-	v, e := t.q.WorkflowDisablementOverlap(ctx, db.WorkflowDisablementOverlapParams{LocationID: id(d.LocationID), ID: id(d.ID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt)})
-	return v, mapError(e)
-}
-func (t *transaction) ListDisablements(ctx context.Context, locationID string, state DisablementState, now time.Time, p Page) ([]Disablement, int64, error) {
-	rows, e := t.q.ListWorkflowDisablements(ctx, db.ListWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now), PageSize: p.Size, PageOffset: int64(p.Number-1) * int64(p.Size)})
-	if e != nil {
-		return nil, 0, mapError(e)
-	}
-	n, e := t.q.CountWorkflowDisablements(ctx, db.CountWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now)})
-	out := make([]Disablement, len(rows))
-	for i, v := range rows {
-		out[i] = disablement(v)
-	}
-	return out, n, mapError(e)
 }
 func (t *transaction) Request(ctx context.Context, resourceID string) (AdditionRequest, error) {
 	v, e := t.q.LockWorkflowRequest(ctx, id(resourceID))

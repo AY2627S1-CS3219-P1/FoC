@@ -1,4 +1,4 @@
-package lifecycle
+package disablement
 
 import (
 	"context"
@@ -18,10 +18,5 @@ type Tx interface {
 	SaveDisablement(context.Context, Disablement, int64) error
 	Overlaps(context.Context, Disablement) (bool, error)
 	ListDisablements(context.Context, string, DisablementState, time.Time, Page) ([]Disablement, int64, error)
-	Request(context.Context, string) (AdditionRequest, error)
-	SaveRequest(context.Context, AdditionRequest, int64) error
-	ListRequests(context.Context, Caller, RequestStatus, Page) ([]AdditionRequest, int64, error)
-	ValidateReferences(context.Context, Proposal) error
-	CreateLocation(context.Context, Proposal, time.Time) (Location, error)
 	Idempotency() idempotency.Store
 }

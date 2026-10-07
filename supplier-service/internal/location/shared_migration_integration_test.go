@@ -1,6 +1,6 @@
 //go:build integration
 
-package lifecycle_test
+package location_test
 
 import (
 	"errors"
@@ -10,11 +10,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/pressly/goose/v3"
+	goose "github.com/pressly/goose/v3"
 )
 
 func TestWorkflowMigrationVersions(t *testing.T) {
-	migrations, err := goose.CollectMigrations(filepath.Join("..", "..", "..", "database", "schema"), 0, goose.MaxVersion)
+	migrations, err := goose.CollectMigrations(filepath.Join("..", "..", "database", "schema"), 0, goose.MaxVersion)
 	if err != nil {
 		t.Fatal(err)
 	}

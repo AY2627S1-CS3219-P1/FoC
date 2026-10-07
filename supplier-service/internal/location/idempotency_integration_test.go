@@ -1,6 +1,6 @@
 //go:build integration
 
-package lifecycle_test
+package location_test
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/idempotency"
-	workflowrepo "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
-	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
 	"github.com/google/uuid"
 )
 
@@ -20,7 +19,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	expired := now.Add(-time.Hour)
 	const requestHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	repository := workflowrepo.NewPostgresRepository(f.pool, func() time.Time { return now })
+	repository := additionrequest.NewPostgresRepository(f.pool, func() time.Time { return now })
 	insert := func(t *testing.T, scope idempotency.Scope, expiresAt time.Time) {
 		t.Helper()
 		f.exec(t, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, requestHash, uuid.NewString(), expiresAt)
@@ -40,7 +39,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		}
 		active := idempotency.Scope{Caller: scope.Caller, Method: scope.Method, Key: uuid.NewString()}
 		insert(t, active, now.Add(time.Hour))
-		if err := repository.Within(f.ctx, func(tx workflows.Tx) error {
+		if err := repository.Within(f.ctx, func(tx additionrequest.Tx) error {
 			if err := tx.Idempotency().Lock(f.ctx, scope); err != nil {
 				return err
 			}
@@ -58,7 +57,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 				t.Fatalf("cleanup changed another retry scope: scope=%+v count=%d error=%v", other, count, err)
 			}
 		}
-		if err := repository.Within(f.ctx, func(tx workflows.Tx) error {
+		if err := repository.Within(f.ctx, func(tx additionrequest.Tx) error {
 			if err := tx.Idempotency().Lock(f.ctx, active); err != nil {
 				return err
 			}
@@ -82,7 +81,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		release := make(chan struct{})
 		done := make(chan error, 1)
 		go func() {
-			done <- repository.Within(f.ctx, func(tx workflows.Tx) error {
+			done <- repository.Within(f.ctx, func(tx additionrequest.Tx) error {
 				if err := tx.Idempotency().Lock(f.ctx, first); err != nil {
 					return err
 				}
@@ -126,7 +125,7 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
 		defer cancel()
-		if err := repository.Within(ctx, func(tx workflows.Tx) error {
+		if err := repository.Within(ctx, func(tx additionrequest.Tx) error {
 			if err := tx.Idempotency().Lock(ctx, second); err != nil {
 				return err
 			}
@@ -148,15 +147,15 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		scope := idempotency.Scope{Caller: "owner", Method: "submit", Key: uuid.NewString()}
 		runner := idempotency.New(func() time.Time { return now })
 		var createdID string
-		err := repository.Within(f.ctx, func(tx workflows.Tx) error {
+		err := repository.Within(f.ctx, func(tx additionrequest.Tx) error {
 			_, err := runner.Run(f.ctx, tx.Idempotency(), scope, "invalid hash", func(createdAt time.Time) (string, error) {
-				location, err := tx.CreateLocation(f.ctx, workflows.Proposal{Name: "Rolled back retry", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, createdAt)
+				location, err := tx.CreateLocation(f.ctx, additionrequest.Proposal{Name: "Rolled back retry", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, createdAt)
 				createdID = location.ID
 				return location.ID, err
 			})
 			return err
 		})
-		if createdID == "" || !errors.Is(err, workflows.ErrFailedPrecondition) {
+		if createdID == "" || !errors.Is(err, additionrequest.ErrFailedPrecondition) {
 			t.Fatalf("createdID=%s error=%v", createdID, err)
 		}
 		var locations, keys int

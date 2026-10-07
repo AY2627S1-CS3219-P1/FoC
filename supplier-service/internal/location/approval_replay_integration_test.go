@@ -1,20 +1,20 @@
 //go:build integration
 
-package lifecycle_test
+package location_test
 
 import (
 	"errors"
 	"testing"
 	"time"
 
-	workflows "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
 )
 
 func TestLegacyApprovalReplayWithoutResultingLocationPostGIS(t *testing.T) {
 	f := newFixture(t)
 	f.reset(t)
-	app := workflows.New(workflows.NewPostgresRepository(f.pool, time.Now), time.Now)
-	request, err := app.SubmitRequest(f.ctx, owner, workflows.SubmitRequest{Key: key, Proposal: validProposal()})
+	app := additionrequest.New(additionrequest.NewPostgresRepository(f.pool, time.Now), time.Now)
+	request, err := app.SubmitRequest(f.ctx, owner, additionrequest.SubmitRequest{Key: key, Proposal: validProposal()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestLegacyApprovalReplayWithoutResultingLocationPostGIS(t *testing.T) {
 
 	for attempt := 0; attempt < 2; attempt++ {
 		_, err := app.ApproveRequest(f.ctx, admin, request.ID)
-		if !errors.Is(err, workflows.ErrFailedPrecondition) {
+		if !errors.Is(err, additionrequest.ErrFailedPrecondition) {
 			t.Fatalf("approval replay %d: got %v, want failed precondition", attempt, err)
 		}
 	}
