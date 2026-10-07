@@ -276,6 +276,9 @@ func TestInvalidTokenIsRejected(t *testing.T) {
 	}
 }
 
+// This regression test guards the shared API error conversion so discovery
+// clients keep the existing error codes and messages, including wrapped errors,
+// without receiving internal error details.
 func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
 
 	for _, row := range []struct {

@@ -182,6 +182,9 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 
 const locationID = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
 
+// This regression test guards the shared API error conversion so administration
+// clients keep the existing error codes and messages, including wrapped errors,
+// without receiving internal error details.
 func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
 
 	for _, row := range []struct {

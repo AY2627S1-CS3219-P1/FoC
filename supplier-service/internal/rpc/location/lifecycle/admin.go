@@ -41,7 +41,7 @@ func (s *LocationAdminServer) CreateLocation(ctx context.Context, req *connect.R
 	}
 	loc, err := s.service.Create(ctx, location.AdminCreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
 	if err != nil {
-		return nil, rpcshared.ReadAdminConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.CreateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -65,7 +65,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 	}
 	loc, err := s.service.Update(ctx, location.AdminUpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
 	if err != nil {
-		return nil, rpcshared.ReadAdminConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.UpdateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -73,7 +73,7 @@ func (s *LocationAdminServer) UpdateLocation(ctx context.Context, req *connect.R
 func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.Request[locationv1.ArchiveLocationRequest]) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
 	loc, err := s.service.Archive(ctx, req.Msg.GetId())
 	if err != nil {
-		return nil, rpcshared.ReadAdminConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.ArchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
@@ -81,7 +81,7 @@ func (s *LocationAdminServer) ArchiveLocation(ctx context.Context, req *connect.
 func (s *LocationAdminServer) UnarchiveLocation(ctx context.Context, req *connect.Request[locationv1.UnarchiveLocationRequest]) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
 	loc, err := s.service.Unarchive(ctx, req.Msg.GetId())
 	if err != nil {
-		return nil, rpcshared.ReadAdminConnectError(ctx, err)
+		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.UnarchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
