@@ -1,3 +1,7 @@
+<!--
+Keep the entire rendered PR description within 1.5–2 pages, including code blocks and images. Prefer shorter when sufficient. Keep the outcome, essential changes, repeatable evidence and material limitations. Link to supporting detail instead of repeating it.
+-->
+
 ## Summary
 
 <!--
