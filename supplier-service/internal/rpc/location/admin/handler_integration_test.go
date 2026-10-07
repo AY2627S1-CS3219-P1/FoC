@@ -57,7 +57,7 @@ func TestSignedTokenReachesDatabase(t *testing.T) {
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	client := func(role string) locationv1connect.LocationDiscoveryServiceClient {
-		return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
+		return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, auth.Bearer(t, role))
 	}
 	ctx := context.Background()
 	all := connect.NewRequest(&locationv1.ListLocationsRequest{
@@ -98,9 +98,9 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 	router.Mount(discoveryPath, auth.Authenticator.Authenticate(discoveryHandler))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	admin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "admin")))
-	superAdmin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "super_admin")))
-	discovery := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, "admin")))
+	admin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, auth.Bearer(t, "admin"))
+	superAdmin := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, auth.Bearer(t, "super_admin"))
+	discovery := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, auth.Bearer(t, "admin"))
 	ctx := context.Background()
 	create := validCreateRequest()
 	create.Location.Name = "  Cafe  "
@@ -210,7 +210,7 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 
 	// Exercise the authorization boundary with the live database-backed service.
 	for _, role := range []string{"user", "suspended_user"} {
-		denied := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
+		denied := locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, auth.Bearer(t, role))
 		for name, call := range map[string]func() error{
 			"create": func() error {
 				_, err := denied.CreateLocation(ctx, connect.NewRequest(validCreateRequest()))

@@ -8,7 +8,7 @@ import (
 
 func TestRPCSharedDependencyBoundary(t *testing.T) {
 	const root = "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/"
-	out, err := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", "./shared").CombinedOutput()
+	out, err := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", root+"rpc/location/shared").CombinedOutput()
 	if err != nil {
 		t.Fatalf("resolve imports: %v\n%s", err, out)
 	}

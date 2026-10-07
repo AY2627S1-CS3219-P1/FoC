@@ -69,7 +69,7 @@ func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1conne
 	if role == "" {
 		return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL)
 	}
-	return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, rpcauth.Bearer(auth.Token(t, role)))
+	return locationv1connect.NewLocationAdminServiceClient(server.Client(), server.URL, auth.Bearer(t, role))
 }
 
 func validCreateRequest() *locationv1.CreateLocationRequest {

@@ -74,7 +74,7 @@ func newLocationClient(t *testing.T, reader location.Reader, role string) locati
 
 	var options []connect.ClientOption
 	if role != "" {
-		options = append(options, rpcauth.Bearer(auth.Token(t, role)))
+		options = append(options, auth.Bearer(t, role))
 	}
 	return locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, options...)
 }
@@ -269,7 +269,7 @@ func TestInvalidTokenIsRejected(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	// Signed by a different key than the one User Service publishes.
-	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, rpcauth.Bearer(other.Token(t, "admin")))
+	client := locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL, other.Bearer(t, "admin"))
 	_, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("code = %v, want unauthenticated", connect.CodeOf(err))

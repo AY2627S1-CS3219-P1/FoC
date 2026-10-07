@@ -62,11 +62,11 @@ func TestLocationProductionComposition(t *testing.T) {
 	transport := &http.Transport{Protocols: http1}
 	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport}
-	admin := locationv1connect.NewLocationAdminServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "admin")))
-	discovery := locationv1connect.NewLocationDiscoveryServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "admin")))
-	disablement := locationv1connect.NewLocationDisablementServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "admin")))
-	requests := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "user")))
-	reviewer := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "admin")))
+	admin := locationv1connect.NewLocationAdminServiceClient(client, url, auth.Bearer(t, "admin"))
+	discovery := locationv1connect.NewLocationDiscoveryServiceClient(client, url, auth.Bearer(t, "admin"))
+	disablement := locationv1connect.NewLocationDisablementServiceClient(client, url, auth.Bearer(t, "admin"))
+	requests := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, auth.Bearer(t, "user"))
+	reviewer := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, auth.Bearer(t, "admin"))
 	ctx := context.Background()
 	input := &pb.LocationInput{Name: "Production composition supplier", IsSupplier: proto.Bool(true), BuildingId: "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68", CategoryIds: []string{"b526b558-e2ec-4db1-b873-13a9f490e07d"}, Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774}, Details: "counter"}
 	create := &pb.CreateLocationRequest{Location: input, IdempotencyKey: uuid.NewString()}
@@ -111,7 +111,7 @@ func TestLocationProductionComposition(t *testing.T) {
 	if err != nil || got.Msg.Location.ArchivedAt == nil {
 		t.Fatalf("archive discovery: %v %v", got, err)
 	}
-	denied := locationv1connect.NewLocationDisablementServiceClient(client, url, rpcauth.Bearer(auth.Token(t, "user")))
+	denied := locationv1connect.NewLocationDisablementServiceClient(client, url, auth.Bearer(t, "user"))
 	_, err = denied.ListDisablements(ctx, connect.NewRequest(&pb.ListDisablementsRequest{LocationId: id}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("workflow authorization: %v", err)
@@ -124,7 +124,7 @@ func TestLocationProductionComposition(t *testing.T) {
 	h2c.SetUnencryptedHTTP2(true)
 	h2transport := &http.Transport{Protocols: h2c}
 	t.Cleanup(h2transport.CloseIdleConnections)
-	grpc := locationv1connect.NewLocationDiscoveryServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), rpcauth.Bearer(auth.Token(t, "admin")))
+	grpc := locationv1connect.NewLocationDiscoveryServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), auth.Bearer(t, "admin"))
 	got, err = grpc.GetLocation(ctx, connect.NewRequest(&pb.GetLocationRequest{Id: approved.Msg.Location.Id}))
 	if err != nil || got.Msg.Location.Id != approved.Msg.Location.Id {
 		t.Fatalf("native gRPC discovery: %v %v", got, err)
@@ -143,7 +143,7 @@ func TestLocationProductionComposition(t *testing.T) {
 					t.Run(role, func(t *testing.T) {
 						options := append([]connect.ClientOption{}, protocol.options...)
 						if role != "" {
-							options = append(options, rpcauth.Bearer(auth.Token(t, role)))
+							options = append(options, auth.Bearer(t, role))
 						}
 						intervals := locationv1connect.NewLocationDisablementServiceClient(protocol.client, url, options...)
 						proposals := locationv1connect.NewLocationAdditionRequestServiceClient(protocol.client, url, options...)
@@ -180,7 +180,7 @@ func TestLocationProductionComposition(t *testing.T) {
 		}
 	})
 	t.Run("native gRPC workflow mutation and retry", func(t *testing.T) {
-		intervals := locationv1connect.NewLocationDisablementServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), rpcauth.Bearer(auth.Token(t, "super_admin")))
+		intervals := locationv1connect.NewLocationDisablementServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), auth.Bearer(t, "super_admin"))
 		request := &pb.CreateDisablementRequest{LocationId: approved.Msg.Location.Id, StartsAt: timestamppb.New(time.Now().Add(time.Hour)), Reason: "gRPC maintenance", IdempotencyKey: uuid.NewString()}
 		first, err := intervals.CreateDisablement(ctx, connect.NewRequest(request))
 		if err != nil {
