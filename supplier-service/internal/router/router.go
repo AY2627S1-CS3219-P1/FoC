@@ -40,12 +40,12 @@ func SetupMiddleware(r *chi.Mux) {
 // SetupRoutes mounts the supplier RPCs and the legacy REST health route.
 func SetupRoutes(r *chi.Mux, env *deps.Env, authenticator *httpauth.Authenticator, locationAdmin *locationadmin.Service) {
 	healthPath, healthHandler := supplierv1connect.NewHealthServiceHandler(
-		healthrpc.NewHealthServer(),
+		healthrpc.NewServer(),
 	)
 	r.Mount(healthPath, healthHandler)
 
 	locationPath, locationHandler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		discoveryrpc.NewLocationServer(discovery.NewService(
+		discoveryrpc.NewServer(discovery.NewService(
 			discovery.NewPostgresReader(locationdb.New(env.Pool)),
 		)),
 		connect.WithInterceptors(auth.RequireCaller(), validate.NewInterceptor()),

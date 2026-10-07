@@ -18,7 +18,7 @@ type LocationServer struct {
 	service *location.Service
 }
 
-func NewLocationServer(service *location.Service) *LocationServer {
+func NewServer(service *location.Service) *LocationServer {
 	return &LocationServer{service: service}
 }
 

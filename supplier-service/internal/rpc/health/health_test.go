@@ -13,7 +13,7 @@ import (
 
 func TestHealthService(t *testing.T) {
 	path, handler := supplierv1connect.NewHealthServiceHandler(
-		NewHealthServer(),
+		NewServer(),
 	)
 
 	router := chi.NewRouter()
