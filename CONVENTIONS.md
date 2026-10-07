@@ -1,5 +1,16 @@
 # Conventions
 
+## Architecture and work tracking
+
+- Issues define outcomes, owners, dependencies and acceptance criteria. Link to
+  contracts and architecture decisions rather than copying their implementation details.
+- For API changes, read the protobuf contracts under `proto/` on the target branch.
+  For database changes, read the owning service's migrations and query definitions.
+- Record significant architectural choices and their rationale in `docs/adr/`.
+  Read applicable decisions on the PR's base and dependency branches.
+- Execution plans under `docs/plans/` describe intended work, not proof that it has
+  landed. Verify the target branch before treating a plan as the current structure.
+
 ## Git branches
 
 - Use `<owner>/<type>/<description>` with a lowercase kebab-case description.

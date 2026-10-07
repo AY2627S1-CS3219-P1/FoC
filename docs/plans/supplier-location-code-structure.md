@@ -2,12 +2,14 @@
 
 ## Decision
 
-Each Location transport package owns one protobuf service. Domain packages split along independent transaction stacks. Discovery is unchanged. Admin owns its own store and transaction. Disablement and addition requests remain together in domain lifecycle because approval uses their shared transaction.
+Each Location transport package owns one protobuf service. Domain packages split along independent transaction stacks. Discovery is unchanged. Admin owns its own store and transaction. Disablement and addition requests each own their own transaction stack. Approval creates a Location inside AdditionRequest's transaction and does not call Disablement operations.
+
+This plan records the implementation sequence, not the deployed state. Verify which changes have reached the target branch before using it as a code map. The accepted capability split is recorded in `docs/adr/location-package-structure.md` on the #118 branch until that decision reaches main.
 
 ## Execution
 
 1. **A1, #117:** Extract existing domain and RPC admin code into admin packages. Update imports, server wiring and the shared-domain dependency boundary. Keep authorization and public behavior unchanged.
-2. **A2, #118:** Merge #117 forward after publication. Do not rebase published branches or duplicate the extraction here.
+2. **A2, #118:** Merge #117 forward after publication. Split domain lifecycle into independent disablement and additionrequest packages, each owning its service, repository and transaction interface. Retain atomic approval inside AdditionRequest's transaction. Do not rebase published branches or duplicate the extraction here.
 3. **A3, #119:** Split RPC lifecycle into disablement and additionrequest packages, each with Server and a consumer-owned operations interface. Rename WorkflowInterceptor to CallerInterceptor and keep method authorization rules owned by the corresponding capability. Delete RPC lifecycle after the split.
 
 ## #117 structure
