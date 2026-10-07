@@ -148,6 +148,26 @@
 		grid-column: 1 / -1;
 	}
 
+	/*
+	 * m3-svelte sizes the menu to fit every option; long lists scroll instead.
+	 * Its menu grows from zero height, which leaves a scrollable menu scrolled
+	 * past the first option, so this menu fades in at full height.
+	 */
+	.filters :global(select:open::picker(select)) {
+		max-height: min(20rem, 50vh);
+		overflow-y: auto;
+		transition:
+			opacity var(--m3-easing-fast),
+			display var(--m3-duration-fast) allow-discrete,
+			overlay var(--m3-duration-fast) allow-discrete;
+	}
+	@starting-style {
+		.filters :global(select:open::picker(select)) {
+			height: auto;
+			opacity: 0;
+		}
+	}
+
 	.checkbox {
 		display: flex;
 		align-items: center;
