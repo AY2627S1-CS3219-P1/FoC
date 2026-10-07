@@ -9,7 +9,7 @@ import (
 )
 
 func TestLegacyAuthRoutesAreRemoved(t *testing.T) {
-	router := Setup(&deps.Env{}, nil, nil)
+	router := Setup(&deps.Env{}, nil, Services{})
 	for _, path := range []string{"/api/auth", "/api/auth/create", "/api/admin/auth/login"} {
 		t.Run(path, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, path, nil)

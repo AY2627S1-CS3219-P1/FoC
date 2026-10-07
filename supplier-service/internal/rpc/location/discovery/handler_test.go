@@ -64,7 +64,7 @@ func newLocationClient(t *testing.T, reader location.Reader, role string) locati
 	t.Helper()
 	auth := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		NewLocationServer(location.NewService(reader)),
+		NewServer(location.NewService(reader)),
 		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
@@ -262,7 +262,7 @@ func TestEveryRoleCanBrowse(t *testing.T) {
 func TestInvalidTokenIsRejected(t *testing.T) {
 	auth := rpcauth.New(t)
 	other := rpcauth.New(t)
-	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(NewLocationServer(location.NewService(&fakeLocationReader{})))
+	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(NewServer(location.NewService(&fakeLocationReader{})))
 	router := chi.NewRouter()
 	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)

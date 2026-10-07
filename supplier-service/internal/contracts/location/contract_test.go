@@ -1,4 +1,4 @@
-package workflows_test
+package location_test
 
 import (
 	"strings"

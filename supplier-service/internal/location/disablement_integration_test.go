@@ -19,7 +19,7 @@ func TestIndependentDisablementPostGIS(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	clock := func() time.Time { return now }
 	store := d.NewPostgresRepository(f.pool, clock)
-	service := d.New(store, clock)
+	service := d.NewService(store, clock)
 	caller := d.Caller{ID: "admin", Role: "admin"}
 	start := now.Add(time.Hour)
 	input := d.CreateDisablement{LocationID: postgresLocationID, StartsAt: &start, Reason: "maintenance", Key: uuid.NewString()}

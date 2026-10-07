@@ -13,7 +13,7 @@ import (
 func TestLegacyApprovalReplayWithoutResultingLocationPostGIS(t *testing.T) {
 	f := newFixture(t)
 	f.reset(t)
-	app := additionrequest.New(additionrequest.NewPostgresRepository(f.pool, time.Now), time.Now)
+	app := additionrequest.NewService(additionrequest.NewPostgresRepository(f.pool, time.Now), time.Now)
 	request, err := app.SubmitRequest(f.ctx, owner, additionrequest.SubmitRequest{Key: key, Proposal: validProposal()})
 	if err != nil {
 		t.Fatal(err)

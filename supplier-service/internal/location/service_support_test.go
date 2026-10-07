@@ -47,7 +47,7 @@ type testService struct {
 }
 
 func newTestService(repo testRepository, clock func() time.Time) *testService {
-	return &testService{d.New(disablementRepository{repo}, clock), r.New(requestRepository{repo}, clock)}
+	return &testService{d.NewService(disablementRepository{repo}, clock), r.NewService(requestRepository{repo}, clock)}
 }
 
 var _ idempotency.Store = (*TestRepository)(nil)

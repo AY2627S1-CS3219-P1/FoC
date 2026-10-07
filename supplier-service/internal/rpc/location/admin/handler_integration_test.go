@@ -49,7 +49,7 @@ func TestSignedTokenReachesDatabase(t *testing.T) {
 
 	auth := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
-		discoveryrpc.NewLocationServer(location.NewService(location.NewPostgresReader(locationdb.New(pool)))),
+		discoveryrpc.NewServer(location.NewService(location.NewPostgresReader(locationdb.New(pool)))),
 		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()),
 	)
 	router := chi.NewRouter()
@@ -93,7 +93,7 @@ func TestAdminAdminThroughSignedRPCAndDatabase(t *testing.T) {
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router.Mount(adminPath, auth.Authenticator.Authenticate(adminHandler))
 	reader := location.NewService(location.NewPostgresReader(locationdb.New(pool)))
-	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(discoveryrpc.NewLocationServer(reader),
+	discoveryPath, discoveryHandler := locationv1connect.NewLocationDiscoveryServiceHandler(discoveryrpc.NewServer(reader),
 		connect.WithInterceptors(sharedauth.RequireCaller(), validate.NewInterceptor()))
 	router.Mount(discoveryPath, auth.Authenticator.Authenticate(discoveryHandler))
 	server := httptest.NewServer(router)
