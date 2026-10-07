@@ -1,4 +1,4 @@
-package lifecycle
+package admin
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	sharedauth "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/genproto/googleapis/type/timeofday"
@@ -60,7 +60,7 @@ func testAdminLocation() domainshared.Location {
 func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1connect.LocationAdminServiceClient {
 	t.Helper()
 	auth := rpcauth.New(t)
-	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewLocationAdminServer(admin),
+	path, handler := locationv1connect.NewLocationAdminServiceHandler(NewServer(admin),
 		connect.WithInterceptors(sharedauth.RequireAdmin(), validate.NewInterceptor()))
 	router := chi.NewRouter()
 	router.Mount(path, auth.Authenticator.Authenticate(handler))

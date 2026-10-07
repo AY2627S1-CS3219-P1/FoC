@@ -1,4 +1,4 @@
-package lifecycle
+package admin
 
 import (
 	shared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
