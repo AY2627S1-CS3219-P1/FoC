@@ -14,16 +14,16 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 	if c.Role == "suspended_user" {
 		return out, ErrPermissionDenied
 	}
-	in.Proposal, err = normalizeProposal(in.Proposal)
+	normalizedProposal, err := normalizeProposal(in.Proposal)
 	if err != nil {
 		return
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
-		id, e := s.idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, in.Proposal, func(now time.Time) (string, error) {
-			if e := tx.ValidateReferences(ctx, in.Proposal); e != nil {
+		id, e := s.idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, normalizedProposal, func(now time.Time) (string, error) {
+			if e := tx.ValidateReferences(ctx, normalizedProposal); e != nil {
 				return "", e
 			}
-			r := AdditionRequest{ID: uuid.NewString(), Proposal: in.Proposal, SubmittedBy: c.ID, Status: Pending, Revision: 1, CreatedAt: now, UpdatedAt: now}
+			r := AdditionRequest{ID: uuid.NewString(), Proposal: normalizedProposal, SubmittedBy: c.ID, Status: Pending, Revision: 1, CreatedAt: now, UpdatedAt: now}
 			return r.ID, tx.SaveRequest(ctx, r, 0)
 		})
 		if e != nil {
@@ -109,15 +109,15 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 		if r.Revision != in.ExpectedRevision {
 			return ErrAborted
 		}
-		proposal := applyProposalPatch(r.Proposal, in.Proposal, m)
-		proposal, e = normalizeProposal(proposal)
+		patchedProposal := applyProposalPatch(r.Proposal, in.Proposal, m)
+		normalizedPatchedProposal, e := normalizeProposal(patchedProposal)
 		if e != nil {
 			return e
 		}
-		if e = tx.ValidateReferences(ctx, proposal); e != nil {
+		if e = tx.ValidateReferences(ctx, normalizedPatchedProposal); e != nil {
 			return e
 		}
-		r.Proposal = proposal
+		r.Proposal = normalizedPatchedProposal
 		r.Revision++
 		r.UpdatedAt = s.clock().UTC()
 		if e = tx.SaveRequest(ctx, r, in.ExpectedRevision); e != nil {
