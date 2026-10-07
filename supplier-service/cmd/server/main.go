@@ -7,21 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"buf.build/go/protovalidate"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	discovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
-	lifecycle "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
-	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/health"
-	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
-	lifecyclerpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/lifecycle"
-	rpcshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/shared"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
@@ -129,27 +119,4 @@ func newAuthenticator(ctx context.Context) (*httpauth.Authenticator, error) {
 		slog.Warn("User Service not ready; retrying", "error", err)
 		time.Sleep(AUTH_RETRY_INTERVAL)
 	}
-}
-
-func newRPCServices(pool *pgxpool.Pool, clock func() time.Time) (router.RPCServices, error) {
-	validator, err := protovalidate.New()
-	if err != nil {
-		return router.RPCServices{}, err
-	}
-	principal := func(ctx context.Context) lifecycle.Caller {
-		caller, ok := auth.CallerFromContext(ctx)
-		if !ok {
-			return lifecycle.Caller{}
-		}
-		return lifecycle.Caller{ID: caller.ID, Role: caller.Role}
-	}
-	reader := discovery.NewPostgresReader(locationdb.New(pool))
-	workflow := lifecyclerpc.NewWorkflowServer(lifecycle.New(lifecycle.NewPostgresRepository(pool, clock), clock), principal, clock)
-	return router.RPCServices{
-		Health:      healthrpc.NewHealthServer(),
-		Discovery:   discoveryrpc.NewLocationServer(discovery.NewService(reader)),
-		Admin:       lifecyclerpc.NewLocationAdminServer(lifecycle.NewAdminService(lifecycle.NewPostgresAdminStore(pool), clock)),
-		Disablement: workflow, AdditionRequest: workflow,
-		WorkflowInterceptor: rpcshared.WorkflowInterceptor(principal, validator),
-	}, nil
 }

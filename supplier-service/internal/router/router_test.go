@@ -9,17 +9,20 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/health"
+	additionrequestrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/additionrequest"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/admin"
+	disablementrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/disablement"
 	discoveryrpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/discovery"
-	lifecyclerpc "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/lifecycle"
 )
 
 func TestLegacyAuthRoutesAreRemoved(t *testing.T) {
 	router := Setup(&deps.Env{}, nil, RPCServices{
-		Health:      healthrpc.NewHealthServer(),
-		Discovery:   discoveryrpc.NewLocationServer(discovery.NewService(nil)),
-		Admin:       lifecyclerpc.NewLocationAdminServer(nil),
-		Disablement: &lifecyclerpc.WorkflowServer{}, AdditionRequest: &lifecyclerpc.WorkflowServer{},
-		WorkflowInterceptor: auth.RequireCaller(),
+		Health:      healthrpc.NewServer(),
+		Discovery:   discoveryrpc.NewServer(discovery.NewService(nil)),
+		Admin:       adminrpc.NewServer(nil),
+		Disablement: &disablementrpc.Server{}, AdditionRequest: &additionrequestrpc.Server{},
+		DisablementInterceptor:     auth.RequireCaller(),
+		AdditionRequestInterceptor: auth.RequireCaller(),
 	})
 	for _, path := range []string{"/api/auth", "/api/auth/create", "/api/admin/auth/login"} {
 		t.Run(path, func(t *testing.T) {

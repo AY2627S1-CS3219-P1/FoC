@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"connectrpc.com/connect"
-	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/lifecycle"
+	app "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 )
 
 func ConnectError(ctx context.Context, err error) error {
@@ -28,7 +28,7 @@ func ConnectError(ctx context.Context, err error) error {
 	for _, entry := range []struct {
 		err  error
 		code connect.Code
-	}{{app.ErrInvalidArgument, connect.CodeInvalidArgument}, {app.ErrUnauthenticated, connect.CodeUnauthenticated}, {app.ErrPermissionDenied, connect.CodePermissionDenied}, {app.ErrNotFound, connect.CodeNotFound}, {app.ErrFailedPrecondition, connect.CodeFailedPrecondition}, {app.ErrAlreadyExists, connect.CodeAlreadyExists}, {app.ErrAborted, connect.CodeAborted}} {
+	}{{app.ErrInvalidArgument, connect.CodeInvalidArgument}, {app.ErrUnauthenticated, connect.CodeUnauthenticated}, {app.ErrAccessDenied, connect.CodePermissionDenied}, {app.ErrResourceNotFound, connect.CodeNotFound}, {app.ErrFailedPrecondition, connect.CodeFailedPrecondition}, {app.ErrAlreadyExists, connect.CodeAlreadyExists}, {app.ErrAborted, connect.CodeAborted}} {
 		if errors.Is(err, entry.err) {
 			code = entry.code
 			message = entry.err.Error()
@@ -36,7 +36,7 @@ func ConnectError(ctx context.Context, err error) error {
 		}
 	}
 	if code == connect.CodeInternal {
-		slog.ErrorContext(ctx, "Supplier workflow failed", "error", err)
+		slog.ErrorContext(ctx, "Supplier Location failed", "error", err)
 	}
 	return connect.NewError(code, errors.New(message))
 }

@@ -48,14 +48,52 @@ type Category struct {
 	Name string
 }
 
+type DisablementState string
+
+const (
+	Scheduled DisablementState = "scheduled"
+	Active    DisablementState = "active"
+	Ended     DisablementState = "ended"
+	Cancelled DisablementState = "cancelled"
+)
+
 type Disablement struct {
-	ID       string
-	StartsAt time.Time
-	EndsAt   *time.Time
-	Reason   string
+	ID, LocationID               string
+	StartsAt                     time.Time
+	EndsAt, EndedAt, CancelledAt *time.Time
+	Reason, CreatedBy            string
+	Revision                     int64
+	CreatedAt, UpdatedAt         time.Time
+}
+
+func (d Disablement) State(now time.Time) DisablementState {
+	if d.CancelledAt != nil {
+		return Cancelled
+	}
+	if d.EndedAt != nil || (d.EndsAt != nil && !now.Before(*d.EndsAt)) {
+		return Ended
+	}
+	if now.Before(d.StartsAt) {
+		return Scheduled
+	}
+	return Active
 }
 
 var (
 	ErrNotFound         = errs.NewNotFoundError("location not found")
 	ErrPermissionDenied = errs.NewForbiddenError("permission denied")
 )
+
+type Caller struct{ ID, Role string }
+
+func (c Caller) IsAdmin() bool { return c.Role == "admin" || c.Role == "super_admin" }
+func (c Caller) Authenticated() bool {
+	return c.ID != "" && (c.Role == "user" || c.Role == "suspended_user" || c.IsAdmin())
+}
+
+type Page struct{ Number, Size int32 }
+type PageInfo struct {
+	Page
+	TotalItems int64
+	TotalPages int32
+}

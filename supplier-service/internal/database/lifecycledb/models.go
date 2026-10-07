@@ -20,10 +20,10 @@ type LocationDisablement struct {
 	StartsAt    pgtype.Timestamptz
 	EndsAt      pgtype.Timestamptz
 	CancelledAt pgtype.Timestamptz
+	EndedAt     pgtype.Timestamptz
 	Reason      string
 	CreatedBy   string
 	CreatedAt   pgtype.Timestamptz
-	EndedAt     pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
 	Revision    int64
 }

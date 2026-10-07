@@ -20,7 +20,10 @@ func TestDomainSharedDependencyBoundary(t *testing.T) {
 			"github.com/jackc/pgx/",
 			project + "pkg/gen/",
 			project + "supplier-service/internal/rpc/", project + "supplier-service/internal/database/",
-			project + "supplier-service/internal/location/discovery", project + "supplier-service/internal/location/lifecycle",
+			project + "supplier-service/internal/location/discovery", project + "supplier-service/internal/location/admin",
+			project + "supplier-service/internal/location/lifecycle",
+			project + "supplier-service/internal/location/disablement",
+			project + "supplier-service/internal/location/additionrequest",
 		} {
 			if strings.HasPrefix(dependency, forbidden) {
 				t.Errorf("domain shared imports forbidden dependency %s", dependency)

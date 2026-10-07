@@ -54,7 +54,7 @@ func (q *Queries) CountWorkflowRequests(ctx context.Context, arg CountWorkflowRe
 }
 
 const currentWorkflowDisablement = `-- name: CurrentWorkflowDisablement :one
-SELECT id, location_id, starts_at, ends_at, cancelled_at, reason, created_by, created_at, ended_at, updated_at, revision FROM location_disablements WHERE location_id=$1 AND cancelled_at IS NULL AND ended_at IS NULL
+SELECT id, location_id, starts_at, ends_at, cancelled_at, ended_at, reason, created_by, created_at, updated_at, revision FROM location_disablements WHERE location_id=$1 AND cancelled_at IS NULL AND ended_at IS NULL
 AND starts_at<=$2::timestamptz AND (ends_at IS NULL OR ends_at>$2::timestamptz)
 ORDER BY starts_at DESC,id LIMIT 1
 `
@@ -73,10 +73,10 @@ func (q *Queries) CurrentWorkflowDisablement(ctx context.Context, arg CurrentWor
 		&i.StartsAt,
 		&i.EndsAt,
 		&i.CancelledAt,
+		&i.EndedAt,
 		&i.Reason,
 		&i.CreatedBy,
 		&i.CreatedAt,
-		&i.EndedAt,
 		&i.UpdatedAt,
 		&i.Revision,
 	)
@@ -231,7 +231,7 @@ func (q *Queries) InsertWorkflowRequestCategory(ctx context.Context, arg InsertW
 }
 
 const listWorkflowDisablements = `-- name: ListWorkflowDisablements :many
-SELECT id, location_id, starts_at, ends_at, cancelled_at, reason, created_by, created_at, ended_at, updated_at, revision FROM location_disablements WHERE location_id=$1 AND (
+SELECT id, location_id, starts_at, ends_at, cancelled_at, ended_at, reason, created_by, created_at, updated_at, revision FROM location_disablements WHERE location_id=$1 AND (
     $2::text='' OR $2::text=CASE
     WHEN cancelled_at IS NOT NULL THEN 'cancelled'
     WHEN ended_at IS NOT NULL OR ends_at <= $3::timestamptz THEN 'ended'
@@ -268,10 +268,10 @@ func (q *Queries) ListWorkflowDisablements(ctx context.Context, arg ListWorkflow
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.CancelledAt,
+			&i.EndedAt,
 			&i.Reason,
 			&i.CreatedBy,
 			&i.CreatedAt,
-			&i.EndedAt,
 			&i.UpdatedAt,
 			&i.Revision,
 		); err != nil {
@@ -380,7 +380,7 @@ func (q *Queries) ListWorkflowRequests(ctx context.Context, arg ListWorkflowRequ
 }
 
 const lockWorkflowDisablement = `-- name: LockWorkflowDisablement :one
-SELECT id, location_id, starts_at, ends_at, cancelled_at, reason, created_by, created_at, ended_at, updated_at, revision FROM location_disablements WHERE id=$1 FOR UPDATE
+SELECT id, location_id, starts_at, ends_at, cancelled_at, ended_at, reason, created_by, created_at, updated_at, revision FROM location_disablements WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockWorkflowDisablement(ctx context.Context, id pgtype.UUID) (LocationDisablement, error) {
@@ -392,10 +392,10 @@ func (q *Queries) LockWorkflowDisablement(ctx context.Context, id pgtype.UUID) (
 		&i.StartsAt,
 		&i.EndsAt,
 		&i.CancelledAt,
+		&i.EndedAt,
 		&i.Reason,
 		&i.CreatedBy,
 		&i.CreatedAt,
-		&i.EndedAt,
 		&i.UpdatedAt,
 		&i.Revision,
 	)
