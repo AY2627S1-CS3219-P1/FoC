@@ -101,14 +101,14 @@
 					<Button
 						type="button"
 						variant="outlined"
-						disabled={result.page <= 1}
+						disabled={loading || result.page <= 1}
 						onclick={() => update({ page: result!.page - 1 })}>Previous</Button
 					>
 					<span>Page {result.page} of {result.totalPages}</span>
 					<Button
 						type="button"
 						variant="outlined"
-						disabled={result.page >= result.totalPages}
+						disabled={loading || result.page >= result.totalPages}
 						onclick={() => update({ page: result!.page + 1 })}>Next</Button
 					>
 				</nav>

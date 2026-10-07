@@ -22,21 +22,34 @@
 		onchange: (changes: Partial<LocationQuery>) => void;
 	} = $props();
 
-	// Follows the URL (back button, "Clear filters") but not every keystroke.
-	let searchText = $state('');
-	$effect(() => {
-		searchText = query.search ?? '';
-	});
-
 	// Wait for a pause in typing before searching.
 	// Cancelled on unmount so leaving the page cannot navigate back here.
+	let searchText = $state('');
 	let searchTimer: ReturnType<typeof setTimeout>;
 	$effect(() => () => clearTimeout(searchTimer));
 	function onSearchInput() {
 		const typed = searchText;
 		clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => onchange({ search: typed || undefined }), 300);
+		searchTimer = setTimeout(() => {
+			if (typed !== urlSearch) submitted = typed;
+			onchange({ search: typed || undefined });
+		}, 300);
 	}
+
+	// Follows the URL (back button, "Clear filters") but not every keystroke.
+	// An outside change cancels the pending search so it cannot restore old text.
+	// Our own search arriving in the URL leaves newer typing alone.
+	const urlSearch = $derived(query.search ?? '');
+	let submitted: string | undefined;
+	$effect(() => {
+		const next = urlSearch;
+		if (next === submitted) {
+			submitted = undefined;
+			return;
+		}
+		clearTimeout(searchTimer);
+		searchText = next;
+	});
 
 	function onSortChange(value: string) {
 		const [sort, direction] = value.split('-') as [SortField, SortDirection];
