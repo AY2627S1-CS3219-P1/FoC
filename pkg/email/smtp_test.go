@@ -182,7 +182,7 @@ func startFakeSMTP(t *testing.T, greet bool) *fakeSMTP {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer conn.Close()
+				defer func() { _ = conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
 				if !greet {
 					_, _ = io.Copy(io.Discard, conn)
