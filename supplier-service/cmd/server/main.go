@@ -9,10 +9,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/locationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
-	locationdiscovery "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/discovery"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
 	"github.com/joho/godotenv"
@@ -43,12 +40,8 @@ func main() {
 		panic(err)
 	}
 
-	locationAdmin := locationadmin.NewService(locationadmin.NewPostgresStore(pgxPool), time.Now)
-	locationDiscovery := locationdiscovery.NewService(locationdiscovery.NewPostgresReader(locationdb.New(pgxPool)))
-	r := router.Setup(deps.New(pgxPool), authenticator, router.Services{
-		LocationAdmin:     locationAdmin,
-		LocationDiscovery: locationDiscovery,
-	})
+	services := newServices(pgxPool)
+	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port
