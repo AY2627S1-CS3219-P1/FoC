@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database/seeddb"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -169,6 +170,146 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 	}
 }
 
+func TestSeedTreatsEmptySupplierFieldsAsUnspecified(t *testing.T) {
+	databaseURL := startPostGIS(t)
+	db := openSQLDB(t, databaseURL)
+	migrateAll(t, db)
+	pool := openPool(t, databaseURL)
+	ctx := context.Background()
+
+	missingTypePaths := writeFixture(t, fixtureOptions{missingSupplierType: true})
+	if _, err := Seed(ctx, pool, missingTypePaths); err == nil || !strings.Contains(err.Error(), "requires a non-empty Type") {
+		t.Fatalf("new Supplier without Type error = %v", err)
+	}
+	assertResourceCounts(t, pool, 0, 0, 0, 0)
+
+	paths := writeFixture(t, fixtureOptions{})
+	if _, err := Seed(ctx, pool, paths); err != nil {
+		t.Fatalf("initial seed: %v", err)
+	}
+
+	locationID := deterministicUUID("supplier:night-coffee")
+	coffeeID := deterministicUUID("category:coffee")
+	execSQL(t, pool, `
+		UPDATE locations
+		SET floor = 'Admin Floor',
+			open_from = '08:15',
+			open_to = '17:45',
+			contact = 'admin@example.com',
+			details = 'Admin details',
+			revision = revision + 1
+		WHERE id = $1`, locationID)
+	execSQL(t, pool, `DELETE FROM location_categories WHERE location_id = $1`, locationID)
+	execSQL(t, pool, `
+		INSERT INTO location_categories (location_id, category_id)
+		VALUES ($1, $2)`, locationID, coffeeID)
+
+	paths = writeFixture(t, fixtureOptions{emptySupplierPatch: true})
+	report, err := Seed(ctx, pool, paths)
+	if err != nil {
+		t.Fatalf("seed empty-field patch: %v", err)
+	}
+	wantReport := Report{SupplierLocations: Counts{Updated: 1}}
+	if !reflect.DeepEqual(report, wantReport) {
+		t.Fatalf("empty-field patch report = %#v, want %#v", report, wantReport)
+	}
+
+	var name, floor, openFrom, openTo, contact, details string
+	var revision int64
+	if err := pool.QueryRow(ctx, `
+		SELECT name, floor, open_from::text, open_to::text, contact, details, revision
+		FROM locations
+		WHERE id = $1`, locationID).Scan(
+		&name, &floor, &openFrom, &openTo, &contact, &details, &revision,
+	); err != nil {
+		t.Fatalf("read patched Supplier: %v", err)
+	}
+	if name != "Night Coffee from CSV" || revision != 3 {
+		t.Fatalf("non-empty patch not applied: name=%q revision=%d", name, revision)
+	}
+	if floor != "Admin Floor" || openFrom != "08:15:00" || openTo != "17:45:00" ||
+		contact != "admin@example.com" || details != "Admin details" {
+		t.Fatalf("empty fields overwrote admin values: floor=%q hours=%s-%s contact=%q details=%q",
+			floor, openFrom, openTo, contact, details)
+	}
+
+	var categoryIDs []string
+	rows, err := pool.Query(ctx, `
+		SELECT category_id::text
+		FROM location_categories
+		WHERE location_id = $1
+		ORDER BY category_id`, locationID)
+	if err != nil {
+		t.Fatalf("list patched Supplier Categories: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan patched Supplier Category: %v", err)
+		}
+		categoryIDs = append(categoryIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate patched Supplier Categories: %v", err)
+	}
+	if want := []string{coffeeID.String()}; !reflect.DeepEqual(categoryIDs, want) {
+		t.Fatalf("empty Type changed Categories: got %v, want %v", categoryIDs, want)
+	}
+
+	unchanged, err := Seed(ctx, pool, paths)
+	if err != nil {
+		t.Fatalf("rerun empty-field patch: %v", err)
+	}
+	if !reflect.DeepEqual(unchanged, Report{}) {
+		t.Fatalf("empty-field patch rerun = %#v, want no changes", unchanged)
+	}
+	if err := pool.QueryRow(ctx, `SELECT revision FROM locations WHERE id = $1`, locationID).Scan(&revision); err != nil {
+		t.Fatalf("read Supplier revision after patch rerun: %v", err)
+	}
+	if revision != 3 {
+		t.Fatalf("empty-field patch rerun incremented revision to %d", revision)
+	}
+
+	// The importer accepts contact independently of the CSV column set.
+	data, err := load(paths)
+	if err != nil {
+		t.Fatalf("load contact patch: %v", err)
+	}
+	newContact := "seed@example.com"
+	data.locations[0].contact = &newContact
+	for attempt := 0; attempt < 2; attempt++ {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin contact patch: %v", err)
+		}
+		report, err := importDataset(ctx, seeddb.New(tx), data)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatalf("import contact patch: %v", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("commit contact patch: %v", err)
+		}
+		want := Report{}
+		if attempt == 0 {
+			want.SupplierLocations.Updated = 1
+		}
+		if !reflect.DeepEqual(report, want) {
+			t.Fatalf("contact patch attempt %d report = %#v, want %#v", attempt, report, want)
+		}
+		if err := pool.QueryRow(ctx, `SELECT contact, revision FROM locations WHERE id = $1`, locationID).Scan(&contact, &revision); err != nil {
+			t.Fatalf("read supplied contact: %v", err)
+		}
+		if contact != newContact || revision != 4 {
+			t.Fatalf("supplied contact patch failed: contact=%q revision=%d", contact, revision)
+		}
+	}
+	if report, err := Seed(ctx, pool, paths); err != nil || !reflect.DeepEqual(report, Report{}) {
+		t.Fatalf("CSV without contact changed patched row: report=%#v error=%v", report, err)
+	}
+}
+
 func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 	databaseURL := startPostGIS(t)
 	db := openSQLDB(t, databaseURL)
@@ -258,6 +399,8 @@ func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 
 type fixtureOptions struct {
 	updatedSupplier         bool
+	emptySupplierPatch      bool
+	missingSupplierType     bool
 	invalidOrdinaryLatitude bool
 	updatedBuilding         bool
 	rejectedSupplier        bool
@@ -280,18 +423,33 @@ func writeFixture(t *testing.T, options fixtureOptions) Paths {
 	}...))
 
 	supplierName := "Night Coffee"
+	supplierType := "Food/Coffee"
+	floor := "B1"
 	details := "Open overnight"
+	openFrom := "2200hrs"
+	openTo := "0200hrs"
 	if options.updatedSupplier {
 		supplierName = "Night Coffee Roastery"
 		details = "Updated without changing identity"
+	}
+	if options.emptySupplierPatch {
+		supplierName = "Night Coffee from CSV"
+		supplierType = ""
+		floor = ""
+		details = ""
+		openFrom = ""
+		openTo = ""
+	}
+	if options.missingSupplierType {
+		supplierType = ""
 	}
 	if options.rejectedSupplier {
 		supplierName = "Rejected Supplier"
 		details = "This valid row fails inside the transaction"
 	}
 	writeCSV(t, suppliersPath, append([][]string{supplierHeaders}, []string{
-		"supplier:night-coffee", supplierName, "Food/Coffee", "Com 2", "B1", details,
-		"1.29421", "103.77421", "2200hrs", "0200hrs", "https://ignored.invalid/image.jpg",
+		"supplier:night-coffee", supplierName, supplierType, "Com 2", floor, details,
+		"1.29421", "103.77421", openFrom, openTo, "https://ignored.invalid/image.jpg",
 	}))
 
 	ordinaryLatitude := "1.29644"

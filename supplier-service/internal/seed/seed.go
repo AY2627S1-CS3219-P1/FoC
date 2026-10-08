@@ -17,7 +17,7 @@ var seedNamespace = uuid.NewSHA1(
 	[]byte("https://github.com/AY2627S1-CS3219-P1/FoC/supplier-service/seed/v1"),
 )
 
-// Seed validates all inputs, then upserts the complete dataset in one transaction.
+// Seed validates all inputs, then applies non-empty seed fields in one transaction.
 func Seed(ctx context.Context, pool *pgxpool.Pool, paths Paths) (Report, error) {
 	data, err := load(paths)
 	if err != nil {
@@ -108,6 +108,14 @@ func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (
 		if !buildingExists {
 			return Report{}, fmt.Errorf("Location %q references unknown Building %q", location.sourceKey, location.buildingKey)
 		}
+		if !exists && location.isSupplier {
+			if location.openFrom == nil {
+				return Report{}, fmt.Errorf("new Supplier Location %q requires opening hours", location.sourceKey)
+			}
+			if !location.categoriesProvided {
+				return Report{}, fmt.Errorf("new Supplier Location %q requires a non-empty Type", location.sourceKey)
+			}
+		}
 		changed, err := queries.UpsertLocation(ctx, seeddb.UpsertLocationParams{
 			ID:         locationID,
 			Name:       location.name,
@@ -119,13 +127,16 @@ func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (
 			OpenFrom:   database.ToPGTimeOfDay(location.openFrom),
 			OpenTo:     database.ToPGTimeOfDay(location.openTo),
 			Contact:    database.ToPGNullableText(location.contact),
-			Details:    location.details,
+			Details:    database.ToPGNullableText(location.details),
 		})
 		if err != nil {
 			return Report{}, fmt.Errorf("upsert Location %q: %w", location.sourceKey, err)
 		}
 		recordSeedChange(counts, exists, changed)
 
+		if !location.categoriesProvided {
+			continue
+		}
 		if !location.isSupplier {
 			removed, err := queries.DeleteAllLocationCategories(ctx, locationID)
 			if err != nil {
