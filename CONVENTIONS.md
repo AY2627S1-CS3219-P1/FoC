@@ -14,9 +14,13 @@
 ## Go checks
 
 - Run `make fmt` from the repository root to apply Go formatting.
+- Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
+  without rewriting files.
 - Run `make lint` to check formatting and the default golangci-lint correctness
   linters across `pkg`, `user-service` and `supplier-service`. The Makefile pins
-  the tool version. Staticcheck uses its `SA*` correctness diagnostics, not style
+  the tool version through `.golangci-lint-version`, also used by the official
+  golangci-lint CI action. Service lint configurations symlink to the root
+  `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
   or quick-fix suggestions. Naming and package-documentation warnings remain disabled.
 - CI checks do not rewrite files. Fast Go tests use
   `GOWORK=off go test -mod=readonly ./...` within each module so the workspace

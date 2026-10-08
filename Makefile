@@ -1,11 +1,11 @@
 BUF_VERSION := 1.73.0
 BUF := .tools/buf/$(BUF_VERSION)/buf
 
-GOLANGCI_VERSION := 2.14.0
+GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
 GO_MODULES := pkg user-service supplier-service
 
-.PHONY: buf-lint buf-generate fmt lint
+.PHONY: buf-lint buf-generate fmt fmt-check lint
 
 $(GOLANGCI):
 	mkdir -p $(dir $(GOLANGCI))
@@ -16,7 +16,12 @@ fmt: $(GOLANGCI)
 		(cd $$module && $(abspath $(GOLANGCI)) fmt ./...); \
 	done
 
-lint: $(GOLANGCI)
+fmt-check: $(GOLANGCI)
+	@set -e; for module in $(GO_MODULES); do \
+		(cd $$module && $(abspath $(GOLANGCI)) fmt --diff ./...); \
+	done
+
+lint: fmt-check $(GOLANGCI)
 	@set -e; for module in $(GO_MODULES); do \
 		(cd $$module && GOWORK=off GOFLAGS=-mod=readonly $(abspath $(GOLANGCI)) run ./...); \
 	done

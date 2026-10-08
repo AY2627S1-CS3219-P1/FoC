@@ -29,24 +29,32 @@ jobs:
         run: GOWORK=off go test -mod=readonly ./...
 
   go-lint:
-    name: Go formatting and lint
+    name: Go formatting and lint (${{ matrix.module }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [pkg, user-service, supplier-service]
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        id: go
         with:
-          go-version-file: pkg/go.mod
+          go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: |
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
-      - name: Cache golangci-lint binary
-        uses: actions/cache@v6
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
         with:
-          path: .tools/golangci-lint
-          key: ${{ runner.os }}-${{ runner.arch }}-go${{ steps.go.outputs.go-version }}-golangci-${{ hashFiles('Makefile') }}
-      - run: make lint
+          version-file: ../.golangci-lint-version
+          working-directory: ${{ matrix.module }}
+          args: ./...
+      - name: Check Go formatting
+        run: make fmt-check GO_MODULES=${{ matrix.module }} GOLANGCI="$(command -v golangci-lint)"
 
   supplier-integration:
     name: Supplier integration tests
