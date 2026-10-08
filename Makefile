@@ -23,6 +23,7 @@ fmt-check: $(GOLANGCI)
 
 lint: fmt-check $(GOLANGCI)
 	@set -e; for module in $(GO_MODULES); do \
+		(cd $$module && $(abspath $(GOLANGCI)) config verify); \
 		(cd $$module && GOWORK=off GOFLAGS=-mod=readonly $(abspath $(GOLANGCI)) run ./...); \
 	done
 

@@ -47,14 +47,14 @@ jobs:
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
-      - name: Run golangci-lint
+      - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version-file: ../.golangci-lint-version
           working-directory: ${{ matrix.module }}
-          args: ./...
-      - name: Check Go formatting
-        run: make fmt-check GO_MODULES=${{ matrix.module }} GOLANGCI="$(command -v golangci-lint)"
+          install-only: true
+      - name: Check Go formatting and lint
+        run: make lint GO_MODULES=${{ matrix.module }} GOLANGCI="$(command -v golangci-lint)"
 
   supplier-integration:
     name: Supplier integration tests

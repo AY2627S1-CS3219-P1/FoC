@@ -16,8 +16,10 @@
 - Run `make fmt` from the repository root to apply Go formatting.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
-- Run `make lint` to check formatting and the default golangci-lint correctness
-  linters across `pkg`, `user-service` and `supplier-service`. The Makefile pins
+- Run `make lint` to validate lint configuration, check formatting and run the
+  default golangci-lint correctness linters across `pkg`, `user-service` and
+  `supplier-service`. CI installs the tool with the official action, then runs
+  the same target for each module. The Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
