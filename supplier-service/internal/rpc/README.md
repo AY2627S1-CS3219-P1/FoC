@@ -16,7 +16,7 @@ The server mounts one generated handler:
 
 ```go
 path, handler := supplierv1connect.NewHealthServiceHandler(
-    health.NewHealthServer(),
+    health.NewServer(),
 )
 r.Mount(path, handler)
 ```
@@ -162,7 +162,7 @@ The health server has no dependencies, so its constructor returns an empty
 server:
 
 ```go
-func NewHealthServer() *HealthServer {
+func NewServer() *HealthServer {
     return &HealthServer{}
 }
 ```
@@ -176,7 +176,7 @@ type HealthServer struct {
     env *deps.Env
 }
 
-func NewHealthServer(env *deps.Env) *HealthServer {
+func NewServer(env *deps.Env) *HealthServer {
     return &HealthServer{env: env}
 }
 ```
