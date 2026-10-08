@@ -25,6 +25,7 @@ const testKeyID = "test-key"
 // TODO: replace with a User Service test helper if one is exported.
 type Auth struct {
 	key           *ecdsa.PrivateKey
+	now           func() time.Time
 	Authenticator *httpauth.Authenticator
 }
 
@@ -47,13 +48,13 @@ func New(t *testing.T) *Auth {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Auth{key: key, Authenticator: authenticator}
+	return &Auth{key: key, now: time.Now, Authenticator: authenticator}
 }
 
 // Token returns a signed access token for role.
 func (a *Auth) Token(t *testing.T, role string) string {
 	t.Helper()
-	now := time.Now().Truncate(time.Second)
+	now := a.now().Truncate(time.Second)
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
 		"iss":       httpauth.TokenIssuer,
 		"aud":       httpauth.TokenAudience,
@@ -74,11 +75,20 @@ func (a *Auth) Token(t *testing.T, role string) string {
 	return signed
 }
 
+// Bearer signs an access token for each request from a client.
+func (a *Auth) Bearer(t *testing.T, role string) connect.Option {
+	return bearer(func() string { return a.Token(t, role) })
+}
+
 // Bearer adds an Authorization header to every request from a client.
 func Bearer(token string) connect.Option {
+	return bearer(func() string { return token })
+}
+
+func bearer(token func() string) connect.Option {
 	return connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			req.Header().Set("Authorization", "Bearer "+token)
+			req.Header().Set("Authorization", "Bearer "+token())
 			return next(ctx, req)
 		}
 	}))

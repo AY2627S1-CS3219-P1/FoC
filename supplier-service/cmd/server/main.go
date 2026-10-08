@@ -10,7 +10,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
 	"github.com/joho/godotenv"
@@ -41,8 +40,11 @@ func main() {
 		panic(err)
 	}
 
-	locationAdmin := location.NewAdminService(location.NewPostgresAdminStore(pgxPool), time.Now)
-	r := router.Setup(deps.New(pgxPool), authenticator, locationAdmin)
+	services, err := newRPCServices(pgxPool, time.Now)
+	if err != nil {
+		panic(err)
+	}
+	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 
 	port := config.Port

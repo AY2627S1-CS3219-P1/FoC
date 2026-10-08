@@ -57,9 +57,10 @@
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
 				<TabsLink
-					tab={page.url.pathname.startsWith('/admin') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : 'home'}
+					tab={page.url.pathname.startsWith('/admin') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
 					items={[
 						{ name: 'Home', value: 'home', href: '/' },
+						{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
 						{ name: 'Profile', value: 'profile', href: '/profile' },
 						...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
 							? [{ name: 'Manage users', value: 'admin', href: '/admin/users' }]

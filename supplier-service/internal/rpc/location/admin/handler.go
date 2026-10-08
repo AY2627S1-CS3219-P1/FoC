@@ -8,7 +8,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	locationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
-	location "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
+	locationadmin "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/admin"
 	domainshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/shared"
 	rpcshared "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/rpc/location/shared"
 	"google.golang.org/genproto/googleapis/type/timeofday"
@@ -16,8 +16,8 @@ import (
 
 // LocationAdmin is the domain operation set consumed by this adapter.
 type LocationAdmin interface {
-	Create(context.Context, location.AdminCreateRequest) (domainshared.Location, error)
-	Update(context.Context, location.AdminUpdateRequest) (domainshared.Location, error)
+	Create(context.Context, locationadmin.CreateRequest) (domainshared.Location, error)
+	Update(context.Context, locationadmin.UpdateRequest) (domainshared.Location, error)
 	Archive(context.Context, string) (domainshared.Location, error)
 	Unarchive(context.Context, string) (domainshared.Location, error)
 }
@@ -39,7 +39,7 @@ func (s *Server) CreateLocation(ctx context.Context, req *connect.Request[locati
 	if err := checkClockPrecision(input.OpensAt, input.ClosesAt); err != nil {
 		return nil, err
 	}
-	loc, err := s.service.Create(ctx, location.AdminCreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Create(ctx, locationadmin.CreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -63,7 +63,7 @@ func (s *Server) UpdateLocation(ctx context.Context, req *connect.Request[locati
 			}
 		}
 	}
-	loc, err := s.service.Update(ctx, location.AdminUpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Update(ctx, locationadmin.UpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -86,11 +86,11 @@ func (s *Server) UnarchiveLocation(ctx context.Context, req *connect.Request[loc
 	return connect.NewResponse(&locationv1.UnarchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func fromProtoLocationInput(in *locationv1.LocationInput) location.Input {
+func fromProtoLocationInput(in *locationv1.LocationInput) locationadmin.Input {
 	if in == nil {
-		return location.Input{}
+		return locationadmin.Input{}
 	}
-	out := location.Input{Name: in.Name, IsSupplier: in.GetIsSupplier(), CategoryIDs: in.CategoryIds, BuildingID: in.BuildingId,
+	out := locationadmin.Input{Name: in.Name, IsSupplier: in.GetIsSupplier(), CategoryIDs: in.CategoryIds, BuildingID: in.BuildingId,
 		Floor: in.Floor, OpensAt: fromProtoClock(in.OpensAt), ClosesAt: fromProtoClock(in.ClosesAt), Contact: in.Contact, Details: in.Details}
 	if in.Coordinates != nil {
 		out.Coordinates = &domainshared.Coordinates{Latitude: in.Coordinates.Latitude, Longitude: in.Coordinates.Longitude}
