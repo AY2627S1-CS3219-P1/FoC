@@ -16,7 +16,7 @@ import (
 
 func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 	path, handler := supplierv1connect.NewHealthServiceHandler(
-		supplierrpc.NewHealthServer(),
+		supplierrpc.NewServer(),
 	)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)

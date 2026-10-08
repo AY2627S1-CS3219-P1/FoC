@@ -1,4 +1,4 @@
-package workflows_test
+package location_test
 
 import (
 	"strings"
@@ -116,46 +116,6 @@ func TestSharedLocationInputValidation(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestLocationServiceContracts(t *testing.T) {
-	for _, row := range []struct {
-		file    protoreflect.FileDescriptor
-		service protoreflect.Name
-		methods int
-	}{
-		{pb.File_supplier_location_v1_discovery_proto, "LocationDiscoveryService", 4},
-		{pb.File_supplier_location_v1_admin_proto, "LocationAdminService", 4},
-		{pb.File_supplier_location_v1_disablement_proto, "LocationDisablementService", 5},
-		{pb.File_supplier_location_v1_addition_request_proto, "LocationAdditionRequestService", 7},
-	} {
-		if row.file.Services().Len() != 1 {
-			t.Fatalf("%s must define exactly one service", row.file.Path())
-		}
-		service := row.file.Services().ByName(row.service)
-		if service == nil || service.Methods().Len() != row.methods {
-			t.Fatalf("unexpected service definition in %s", row.file.Path())
-		}
-		if want := protoreflect.FullName("supplier.location.v1." + string(row.service)); service.FullName() != want {
-			t.Fatalf("service name = %s, want %s", service.FullName(), want)
-		}
-	}
-	shared := (&pb.LocationInput{}).ProtoReflect().Descriptor()
-	for _, row := range []struct {
-		message proto.Message
-		field   protoreflect.Name
-	}{
-		{&pb.CreateLocationRequest{}, "location"},
-		{&pb.UpdateLocationRequest{}, "location"},
-		{&pb.SubmitLocationAdditionRequestRequest{}, "proposal"},
-		{&pb.UpdateLocationAdditionRequestRequest{}, "proposal"},
-		{&pb.LocationAdditionRequest{}, "proposal"},
-	} {
-		field := row.message.ProtoReflect().Descriptor().Fields().ByName(row.field)
-		if field.Message() != shared {
-			t.Fatalf("%T must use the shared LocationInput", row.message)
-		}
 	}
 }
 

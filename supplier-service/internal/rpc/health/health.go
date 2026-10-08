@@ -13,8 +13,8 @@ type HealthServer struct {
 	supplierv1connect.UnimplementedHealthServiceHandler
 }
 
-// NewHealthServer creates a supplier health RPC server with no external dependencies.
-func NewHealthServer() *HealthServer {
+// NewServer creates a supplier health RPC server with no external dependencies.
+func NewServer() *HealthServer {
 	return &HealthServer{}
 }
 
