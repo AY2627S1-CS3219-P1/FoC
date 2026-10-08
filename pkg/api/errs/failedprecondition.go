@@ -22,10 +22,12 @@ func NewFailedPreconditionError(message string) *FailedPreconditionError {
 	return &FailedPreconditionError{message: message}
 }
 
-func (e *FailedPreconditionError) Error() string                { return e.message }
-func (e *FailedPreconditionError) Unwrap() error                { return e.Wrapped }
-func (e *FailedPreconditionError) Code() int                    { return http.StatusPreconditionFailed }
-func (e *FailedPreconditionError) GetConnectCode() connect.Code { return connect.CodeFailedPrecondition }
+func (e *FailedPreconditionError) Error() string { return e.message }
+func (e *FailedPreconditionError) Unwrap() error { return e.Wrapped }
+func (e *FailedPreconditionError) Code() int     { return http.StatusPreconditionFailed }
+func (e *FailedPreconditionError) GetConnectCode() connect.Code {
+	return connect.CodeFailedPrecondition
+}
 func (e *FailedPreconditionError) ErrorTrace() string {
 	if e.Wrapped == nil {
 		return e.Error()

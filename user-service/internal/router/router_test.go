@@ -276,7 +276,9 @@ func TestPublicKeysHealthAndRemovedRESTRoutes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		response.Body.Close()
+		if err := response.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
 		if response.StatusCode != http.StatusNotFound {
 			t.Errorf("legacy route %s returned HTTP %d", path, response.StatusCode)
 		}
@@ -299,7 +301,7 @@ func TestHealthRPCRejectsOversizedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("oversized health request returned HTTP %d, want %d", response.StatusCode, http.StatusTooManyRequests)
 	}

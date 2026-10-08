@@ -1,5 +1,33 @@
 # Conventions
 
+## Architecture and work tracking
+
+- Issues define outcomes, owners, dependencies and acceptance criteria. Link to
+  contracts and architecture decisions rather than copying their implementation details.
+- For API changes, read the protobuf contracts under `proto/` on the target branch.
+  For database changes, read the owning service's migrations and query definitions.
+- Record significant architectural choices and their rationale in `docs/adr/`.
+  Read applicable decisions on the PR's base and dependency branches.
+- Execution plans under `docs/plans/` describe intended work, not proof that it has
+  landed. Verify the target branch before treating a plan as the current structure.
+
+## Go checks
+
+- Run `make fmt` from the repository root to apply Go formatting.
+- Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
+  without rewriting files.
+- Run `make lint` to validate lint configuration, check formatting and run the
+  default golangci-lint correctness linters across `pkg`, `user-service` and
+  `supplier-service`. CI installs the tool with the official action, then runs
+  the same target for each module. The Makefile pins
+  the tool version through `.golangci-lint-version`, also used by the official
+  golangci-lint CI action. Service lint configurations symlink to the root
+  `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
+  or quick-fix suggestions. Naming and package-documentation warnings remain disabled.
+- CI checks do not rewrite files. Fast Go tests use
+  `GOWORK=off go test -mod=readonly ./...` within each module so the workspace
+  cannot conceal incomplete module dependencies or checksums.
+
 ## Git branches
 
 - Use `<owner>/<type>/<description>` with a lowercase kebab-case description.

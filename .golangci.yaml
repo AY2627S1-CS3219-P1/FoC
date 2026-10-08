@@ -1,0 +1,11 @@
+version: "2"
+linters:
+  settings:
+    staticcheck:
+      checks:
+        - SA* # correctness checks only
+        - '-ST1003' # naming conventions
+        - '-ST1000' # package documentation comments
+formatters:
+  enable:
+    - gofmt

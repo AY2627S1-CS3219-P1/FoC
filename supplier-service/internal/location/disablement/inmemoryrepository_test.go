@@ -20,7 +20,6 @@ const (
 )
 
 var admin = disablement.Caller{ID: "admin", Role: "admin"}
-var owner = disablement.Caller{ID: "owner", Role: "user"}
 
 func ptr[T any](v T) *T { return &v }
 

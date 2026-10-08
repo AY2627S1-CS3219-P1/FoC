@@ -30,9 +30,11 @@ func newTestCodec(key *ecdsa.PrivateKey, kid, issuer, audience string) (*testCod
 }
 func (c *testCodec) PublicKeys() testJWKSet {
 	encode := func(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
-	x, y := make([]byte, 32), make([]byte, 32)
-	c.key.PublicKey.X.FillBytes(x)
-	c.key.PublicKey.Y.FillBytes(y)
+	point, err := c.key.PublicKey.Bytes()
+	if err != nil {
+		panic(err)
+	}
+	x, y := point[1:33], point[33:65]
 	return testJWKSet{Keys: []testKey{{"EC", "P-256", encode(x), encode(y), "sig", "ES256", c.kid}}}
 }
 func (c *testCodec) Sign(claims testClaims) (string, error) {
