@@ -19,8 +19,8 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func newTestAdminService(pool *pgxpool.Pool) *AdminService {
-	return NewAdminService(NewPostgresAdminStore(pool), time.Now)
+func newTestAdminService(pool *pgxpool.Pool) *Service {
+	return NewService(NewPostgresStore(pool), time.Now)
 }
 
 func adminInput() Input {
@@ -28,51 +28,6 @@ func adminInput() Input {
 		Name: "New supplier", IsSupplier: true, CategoryIDs: []string{foodID},
 		BuildingID: com2ID, Coordinates: &shared.Coordinates{Latitude: 1.294, Longitude: 103.774},
 		Details: "Pickup at counter",
-	}
-}
-
-func TestPostgresAdminRoundTrip(t *testing.T) {
-	pool := locationfixture.SetupDatabase(t)
-	ctx := context.Background()
-	svc := newTestAdminService(pool)
-	admin := auth.Caller{ID: "admin", Admin: true}
-	created, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: adminInput()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.Revision != 1 || created.Name != "New supplier" || len(created.Categories) != 1 ||
-		created.Categories[0].ID != foodID || created.Building.ID != com2ID {
-		t.Fatalf("created = %+v", created)
-	}
-	updated, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{
-		ID: created.ID, ExpectedRevision: 1,
-		Paths: []string{"name", "category_ids"},
-		Input: Input{Name: "Updated supplier", CategoryIDs: []string{coffeeID}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Revision != 2 || updated.Name != "Updated supplier" || len(updated.Categories) != 1 || updated.Categories[0].ID != coffeeID {
-		t.Fatalf("updated = %+v", updated)
-	}
-	if _, err := svc.Update(auth.WithCaller(ctx, admin), AdminUpdateRequest{ID: created.ID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "stale"}}); !errors.Is(err, AdminErrAborted) {
-		t.Fatalf("stale revision = %v", err)
-	}
-	archived, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || archived.ArchivedAt == nil || archived.Revision != 3 {
-		t.Fatalf("archive = %+v, %v", archived, err)
-	}
-	repeated, err := svc.Archive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || repeated.Revision != archived.Revision || !repeated.UpdatedAt.Equal(archived.UpdatedAt) {
-		t.Fatalf("repeat archive changed row = %+v, %v", repeated, err)
-	}
-	unarchived, err := svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || unarchived.ArchivedAt != nil || unarchived.Revision != 4 {
-		t.Fatalf("unarchive = %+v, %v", unarchived, err)
-	}
-	repeated, err = svc.Unarchive(auth.WithCaller(ctx, admin), created.ID)
-	if err != nil || repeated.Revision != unarchived.Revision || !repeated.UpdatedAt.Equal(unarchived.UpdatedAt) {
-		t.Fatalf("repeat unarchive changed row = %+v, %v", repeated, err)
 	}
 }
 
@@ -86,23 +41,23 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		edit func(*Input)
 		want error
 	}{
-		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, AdminErrInvalidArgument},
-		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, AdminErrFailedPrecondition},
-		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, AdminErrInvalidArgument},
-		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, AdminErrFailedPrecondition},
+		{"malformed building", func(in *Input) { in.BuildingID = "bad" }, ErrInvalidArgument},
+		{"missing building", func(in *Input) { in.BuildingID = uuid.NewString() }, ErrFailedPrecondition},
+		{"malformed category", func(in *Input) { in.CategoryIDs = []string{"bad"} }, ErrInvalidArgument},
+		{"missing category", func(in *Input) { in.CategoryIDs = []string{uuid.NewString()} }, ErrFailedPrecondition},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := adminInput()
 			tc.edit(&input)
-			if _, err := svc.Create(auth.WithCaller(ctx, admin), AdminCreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
+			if _, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
 			}
 		})
 	}
 	// A valid scalar update followed by a shared.Category FK failure must leave the
 	// shared.Location row and its old links unchanged.
-	store := NewPostgresAdminStore(pool)
-	err := store.Within(ctx, func(tx AdminTx) error {
+	store := NewPostgresStore(pool)
+	err := store.Within(ctx, func(tx Tx) error {
 		current, err := tx.GetForUpdate(ctx, coopID)
 		if err != nil {
 			return err
@@ -113,7 +68,7 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		_, err = tx.Update(ctx, coopID, input, current.Revision, time.Now())
 		return err
 	})
-	if !errors.Is(err, AdminErrFailedPrecondition) {
+	if !errors.Is(err, ErrFailedPrecondition) {
 		t.Fatalf("failed Category insert = %v", err)
 	}
 	var name string
@@ -150,7 +105,7 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	result := make(chan shared.Location, 1)
 	failure := make(chan error, 1)
 	go func() {
-		err := NewPostgresAdminStore(pool).Within(ctx, func(tx AdminTx) error {
+		err := NewPostgresStore(pool).Within(ctx, func(tx Tx) error {
 			location, err := tx.GetForUpdate(ctx, coopID)
 			if err == nil {
 				result <- location
@@ -174,49 +129,6 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	got := <-result
 	if len(got.Categories) != 1 || got.Categories[0].ID != coffeeID {
 		t.Fatalf("categories after lock wait = %+v", got.Categories)
-	}
-}
-
-func TestPostgresAdminConcurrentRevision(t *testing.T) {
-	pool := locationfixture.SetupDatabase(t)
-	ctx := context.Background()
-	first, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer first.Rollback(ctx) //nolint:errcheck
-	if _, err := first.Exec(ctx, "SELECT id FROM locations WHERE id = $1 FOR UPDATE", coopID); err != nil {
-		t.Fatal(err)
-	}
-	result := make(chan error, 1)
-	go func() {
-		_, err := newTestAdminService(pool).Update(auth.WithCaller(ctx, auth.Caller{ID: "admin", Admin: true}), AdminUpdateRequest{
-			ID: coopID, ExpectedRevision: 1, Paths: []string{"name"}, Input: Input{Name: "late write"},
-		})
-		result <- err
-	}()
-	waitForLocationLock(t, ctx, pool)
-	if _, err := first.Exec(ctx, "UPDATE locations SET name = 'first write', revision = revision + 1 WHERE id = $1", coopID); err != nil {
-		t.Fatal(err)
-	}
-	if err := first.Commit(ctx); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case err := <-result:
-		if !errors.Is(err, AdminErrAborted) {
-			t.Fatalf("competing update = %v, want aborted", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("competing update stayed blocked")
-	}
-	var name string
-	var revision int64
-	if err := pool.QueryRow(ctx, "SELECT name, revision FROM locations WHERE id = $1", coopID).Scan(&name, &revision); err != nil {
-		t.Fatal(err)
-	}
-	if name != "first write" || revision != 2 {
-		t.Fatalf("location after competing updates = %q, revision %d", name, revision)
 	}
 }
 
@@ -268,6 +180,64 @@ func TestLocationMigrationUpDown(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, invalid, com2ID); err == nil {
 		t.Fatal("24:00 hours passed after migration replay")
+	}
+	exec := func(statement string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const (
+		categoryOneID = "b526b558-e2ec-4db1-b873-13a9f490e07d"
+		categoryTwoID = "29a7cb1e-44f2-4c68-825f-1ce39b78e44a"
+		buildingID    = "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68"
+		locationID    = "c0a3f4c4-12f0-4c17-aa44-8cdf6e76c94b"
+	)
+	exec(`
+		INSERT INTO locations (
+			id, name, is_supplier, building_id, floor, coordinates, revision
+		) VALUES (
+			$1, 'Current Supplier', TRUE, $2, 'B1',
+			ST_SetSRID(ST_MakePoint(103.7742, 1.2942), 4326)::geography, 7
+		)`, locationID, buildingID)
+	exec(`
+		INSERT INTO location_categories (location_id, category_id)
+		VALUES ($1, $2), ($1, $3)`, locationID, categoryOneID, categoryTwoID)
+
+	var (
+		floor             string
+		revision          int64
+		relationshipCount int
+	)
+	if err := pool.QueryRow(ctx, `
+		SELECT l.floor, l.revision, count(lc.category_id)
+		FROM locations l
+		JOIN location_categories lc ON lc.location_id = l.id
+		WHERE l.id = $1
+		GROUP BY l.id`, locationID).Scan(&floor, &revision, &relationshipCount); err != nil {
+		t.Fatalf("read current Location schema: %v", err)
+	}
+	if floor != "B1" || revision != 7 || relationshipCount != 2 {
+		t.Fatalf("current Location fields = floor %q, revision %d, Categories %d", floor, revision, relationshipCount)
+	}
+
+	var oldCategoryColumnExists bool
+	if err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = 'locations' AND column_name = 'category_id'
+		)`).Scan(&oldCategoryColumnExists); err != nil {
+		t.Fatalf("inspect Location columns: %v", err)
+	}
+	if oldCategoryColumnExists {
+		t.Fatal("locations.category_id exists in the clean schema")
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE locations SET floor = ' ' WHERE id = $1`, locationID); err == nil {
+		t.Fatal("blank floor passed the schema constraint")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE locations SET revision = 0 WHERE id = $1`, locationID); err == nil {
+		t.Fatal("non-positive revision passed the schema constraint")
 	}
 }
 

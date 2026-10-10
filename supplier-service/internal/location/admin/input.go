@@ -27,7 +27,7 @@ type Input struct {
 func canonicalID(raw string) (string, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		return "", AdminErrInvalidArgument
+		return "", ErrInvalidArgument
 	}
 	return id.String(), nil
 }
@@ -39,11 +39,11 @@ func normalizeInput(in Input) (Input, error) {
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	if n := utf8.RuneCountInString(in.Name); n < 1 || n > 200 {
-		return Input{}, AdminErrInvalidArgument
+		return Input{}, ErrInvalidArgument
 	}
 	in.Details = strings.TrimSpace(in.Details)
 	if utf8.RuneCountInString(in.Details) > 2000 {
-		return Input{}, AdminErrInvalidArgument
+		return Input{}, ErrInvalidArgument
 	}
 	var err error
 	in.Floor, err = normalizeOptional(in.Floor, 50)
@@ -62,23 +62,23 @@ func normalizeInput(in Input) (Input, error) {
 	for i, raw := range in.CategoryIDs {
 		id, e := canonicalID(raw)
 		if e != nil || seen[id] {
-			return Input{}, AdminErrInvalidArgument
+			return Input{}, ErrInvalidArgument
 		}
 		seen[id] = true
 		in.CategoryIDs[i] = id
 	}
 	if in.IsSupplier != (len(in.CategoryIDs) > 0) {
-		return Input{}, AdminErrFailedPrecondition
+		return Input{}, ErrFailedPrecondition
 	}
 	if in.Coordinates == nil || !validCoordinates(*in.Coordinates) {
-		return Input{}, AdminErrInvalidArgument
+		return Input{}, ErrInvalidArgument
 	}
 	if (in.OpensAt == nil) != (in.ClosesAt == nil) {
-		return Input{}, AdminErrInvalidArgument
+		return Input{}, ErrInvalidArgument
 	}
 	if in.OpensAt != nil {
 		if !validClock(*in.OpensAt) || !validClock(*in.ClosesAt) || *in.OpensAt == *in.ClosesAt {
-			return Input{}, AdminErrInvalidArgument
+			return Input{}, ErrInvalidArgument
 		}
 	}
 	return in, nil
@@ -90,7 +90,7 @@ func normalizeOptional(p *string, maxLen int) (*string, error) {
 	}
 	v := strings.TrimSpace(*p)
 	if utf8.RuneCountInString(v) > maxLen {
-		return nil, AdminErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 	if v == "" {
 		return nil, nil

@@ -11,6 +11,7 @@ services:
     environment:
       # These URLs are used by the browser, outside the Compose network.
       PUBLIC_USER_SERVICE_URL: ${PUBLIC_USER_SERVICE_URL:-http://localhost:${USER_PORT:-8081}}
+      PUBLIC_SUPPLIER_SERVICE_URL: ${PUBLIC_SUPPLIER_SERVICE_URL:-http://localhost:${SUPPLIER_PORT:-8082}}
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
