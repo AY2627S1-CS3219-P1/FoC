@@ -104,9 +104,11 @@ func (s publicKeyService) GetPublicKeys(
 	*connect.Request[userv1.GetPublicKeysRequest],
 ) (*connect.Response[userv1.GetPublicKeysResponse], error) {
 	encode := func(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
-	x, y := make([]byte, 32), make([]byte, 32)
-	s.key.X.FillBytes(x)
-	s.key.Y.FillBytes(y)
+	point, err := s.key.Bytes()
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	x, y := point[1:33], point[33:65]
 	return connect.NewResponse(&userv1.GetPublicKeysResponse{Keys: []*userv1.JsonWebKey{{
 		Kty: "EC", Crv: "P-256", X: encode(x), Y: encode(y), Use: "sig", Alg: "ES256", Kid: testKeyID,
 	}}}), nil
