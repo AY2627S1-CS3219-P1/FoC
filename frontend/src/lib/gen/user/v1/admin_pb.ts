@@ -13,7 +13,119 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/admin.proto.
  */
 export const file_user_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIisKDUFsbG93ZWREb21haW4SCgoCaWQYASABKAkSDgoGZG9tYWluGAIgASgJIhsKGUxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QiTQoaTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2USLwoPYWxsb3dlZF9kb21haW5zGAEgAygLMhYudXNlci52MS5BbGxvd2VkRG9tYWluIi0KEkFsbG93RG9tYWluUmVxdWVzdBIXCgZkb21haW4YASABKAlCB7pIBHICaAEiFQoTQWxsb3dEb21haW5SZXNwb25zZSIyChpSZW1vdmVBbGxvd2VkRG9tYWluUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiHQobUmVtb3ZlQWxsb3dlZERvbWFpblJlc3BvbnNlIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiADKsAgoZQWxsb3dlZERvbWFpbkFkbWluU2VydmljZRJfChJMaXN0QWxsb3dlZERvbWFpbnMSIi51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QaIy51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1Jlc3BvbnNlIgASSgoLQWxsb3dEb21haW4SGy51c2VyLnYxLkFsbG93RG9tYWluUmVxdWVzdBocLnVzZXIudjEuQWxsb3dEb21haW5SZXNwb25zZSIAEmIKE1JlbW92ZUFsbG93ZWREb21haW4SIy51c2VyLnYxLlJlbW92ZUFsbG93ZWREb21haW5SZXF1ZXN0GiQudXNlci52MS5SZW1vdmVBbGxvd2VkRG9tYWluUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+
+/**
+ * @generated from message user.v1.AllowedDomain
+ */
+export type AllowedDomain = Message<"user.v1.AllowedDomain"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string domain = 2;
+   */
+  domain: string;
+};
+
+/**
+ * Describes the message user.v1.AllowedDomain.
+ * Use `create(AllowedDomainSchema)` to create a new message.
+ */
+export const AllowedDomainSchema: GenMessage<AllowedDomain> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 0);
+
+/**
+ * @generated from message user.v1.ListAllowedDomainsRequest
+ */
+export type ListAllowedDomainsRequest = Message<"user.v1.ListAllowedDomainsRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.ListAllowedDomainsRequest.
+ * Use `create(ListAllowedDomainsRequestSchema)` to create a new message.
+ */
+export const ListAllowedDomainsRequestSchema: GenMessage<ListAllowedDomainsRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 1);
+
+/**
+ * @generated from message user.v1.ListAllowedDomainsResponse
+ */
+export type ListAllowedDomainsResponse = Message<"user.v1.ListAllowedDomainsResponse"> & {
+  /**
+   * @generated from field: repeated user.v1.AllowedDomain allowed_domains = 1;
+   */
+  allowedDomains: AllowedDomain[];
+};
+
+/**
+ * Describes the message user.v1.ListAllowedDomainsResponse.
+ * Use `create(ListAllowedDomainsResponseSchema)` to create a new message.
+ */
+export const ListAllowedDomainsResponseSchema: GenMessage<ListAllowedDomainsResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 2);
+
+/**
+ * @generated from message user.v1.AllowDomainRequest
+ */
+export type AllowDomainRequest = Message<"user.v1.AllowDomainRequest"> & {
+  /**
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+};
+
+/**
+ * Describes the message user.v1.AllowDomainRequest.
+ * Use `create(AllowDomainRequestSchema)` to create a new message.
+ */
+export const AllowDomainRequestSchema: GenMessage<AllowDomainRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 3);
+
+/**
+ * @generated from message user.v1.AllowDomainResponse
+ */
+export type AllowDomainResponse = Message<"user.v1.AllowDomainResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.AllowDomainResponse.
+ * Use `create(AllowDomainResponseSchema)` to create a new message.
+ */
+export const AllowDomainResponseSchema: GenMessage<AllowDomainResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 4);
+
+/**
+ * @generated from message user.v1.RemoveAllowedDomainRequest
+ */
+export type RemoveAllowedDomainRequest = Message<"user.v1.RemoveAllowedDomainRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message user.v1.RemoveAllowedDomainRequest.
+ * Use `create(RemoveAllowedDomainRequestSchema)` to create a new message.
+ */
+export const RemoveAllowedDomainRequestSchema: GenMessage<RemoveAllowedDomainRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 5);
+
+/**
+ * @generated from message user.v1.RemoveAllowedDomainResponse
+ */
+export type RemoveAllowedDomainResponse = Message<"user.v1.RemoveAllowedDomainResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.RemoveAllowedDomainResponse.
+ * Use `create(RemoveAllowedDomainResponseSchema)` to create a new message.
+ */
+export const RemoveAllowedDomainResponseSchema: GenMessage<RemoveAllowedDomainResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 6);
 
 /**
  * @generated from message user.v1.UserSummary
@@ -45,7 +157,7 @@ export type UserSummary = Message<"user.v1.UserSummary"> & {
  * Use `create(UserSummarySchema)` to create a new message.
  */
 export const UserSummarySchema: GenMessage<UserSummary> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 0);
+  messageDesc(file_user_v1_admin, 7);
 
 /**
  * @generated from message user.v1.GetUserByEmailRequest
@@ -62,7 +174,7 @@ export type GetUserByEmailRequest = Message<"user.v1.GetUserByEmailRequest"> & {
  * Use `create(GetUserByEmailRequestSchema)` to create a new message.
  */
 export const GetUserByEmailRequestSchema: GenMessage<GetUserByEmailRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 1);
+  messageDesc(file_user_v1_admin, 8);
 
 /**
  * @generated from message user.v1.GetUserByEmailResponse
@@ -79,7 +191,7 @@ export type GetUserByEmailResponse = Message<"user.v1.GetUserByEmailResponse"> &
  * Use `create(GetUserByEmailResponseSchema)` to create a new message.
  */
 export const GetUserByEmailResponseSchema: GenMessage<GetUserByEmailResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 2);
+  messageDesc(file_user_v1_admin, 9);
 
 /**
  * @generated from message user.v1.ChangeUserRoleRequest
@@ -106,7 +218,7 @@ export type ChangeUserRoleRequest = Message<"user.v1.ChangeUserRoleRequest"> & {
  * Use `create(ChangeUserRoleRequestSchema)` to create a new message.
  */
 export const ChangeUserRoleRequestSchema: GenMessage<ChangeUserRoleRequest> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 3);
+  messageDesc(file_user_v1_admin, 10);
 
 /**
  * @generated from message user.v1.ChangeUserRoleResponse
@@ -123,7 +235,7 @@ export type ChangeUserRoleResponse = Message<"user.v1.ChangeUserRoleResponse"> &
  * Use `create(ChangeUserRoleResponseSchema)` to create a new message.
  */
 export const ChangeUserRoleResponseSchema: GenMessage<ChangeUserRoleResponse> = /*@__PURE__*/
-  messageDesc(file_user_v1_admin, 4);
+  messageDesc(file_user_v1_admin, 11);
 
 /**
  * @generated from service user.v1.UserAdminService
@@ -147,4 +259,35 @@ export const UserAdminService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_admin, 0);
+
+/**
+ * @generated from service user.v1.AllowedDomainAdminService
+ */
+export const AllowedDomainAdminService: GenService<{
+  /**
+   * @generated from rpc user.v1.AllowedDomainAdminService.ListAllowedDomains
+   */
+  listAllowedDomains: {
+    methodKind: "unary";
+    input: typeof ListAllowedDomainsRequestSchema;
+    output: typeof ListAllowedDomainsResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.AllowedDomainAdminService.AllowDomain
+   */
+  allowDomain: {
+    methodKind: "unary";
+    input: typeof AllowDomainRequestSchema;
+    output: typeof AllowDomainResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.AllowedDomainAdminService.RemoveAllowedDomain
+   */
+  removeAllowedDomain: {
+    methodKind: "unary";
+    input: typeof RemoveAllowedDomainRequestSchema;
+    output: typeof RemoveAllowedDomainResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_user_v1_admin, 1);
 
