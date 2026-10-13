@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package communication.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Connects the caller's FoC account to their Telegram chat so the bot can
+// message them. Optional: the app works without it. Every method acts on the
+// caller identified by their access token.
+//
+// Errors: unauthenticated without a valid access token; unavailable when the
+// Telegram bot is disabled.
+service TelegramLinkService {
+  rpc CreateTelegramLink(CreateTelegramLinkRequest) returns (CreateTelegramLinkResponse) {}
+
+  rpc GetTelegramLink(GetTelegramLinkRequest) returns (GetTelegramLinkResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+
+  rpc DeleteTelegramLink(DeleteTelegramLinkRequest) returns (DeleteTelegramLinkResponse) { option idempotency_level = IDEMPOTENT; }
+}
+
+// Returns a one-time link that opens the bot in Telegram. Pressing Start
+// there links the chat to the caller. A new link replaces the caller's
+// earlier unused ones. Linking again replaces the caller's previous chat, and
+// a chat linked to another FoC account moves to the caller.
+message CreateTelegramLinkRequest {}
+
+message CreateTelegramLinkResponse {
+  // https://t.me/<bot>?start=<code>
+  string link_url = 1;
+  // The code is single-use and expires after 10 minutes.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// Poll after opening the link to show when linking completes.
+message GetTelegramLinkRequest {}
+
+message GetTelegramLinkResponse {
+  bool linked = 1;
+  // The linked Telegram username, shown only to the caller. Absent when
+  // unlinked or when the Telegram account has no username.
+  optional string telegram_username = 2;
+  google.protobuf.Timestamp linked_at = 3;
+}
+
+// Stops all Telegram messages to the caller. Succeeds when nothing is linked.
+message DeleteTelegramLinkRequest {}
+
+message DeleteTelegramLinkResponse {}
