@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package order.v1;
 
-import "buf/validate/validate.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -38,8 +37,7 @@ message Order {
   // Absent until a courier is assigned.
   optional string courier_id = 3;
   OrderStatus status = 4;
-  PickupLocation pickup = 5;
-  // Exact fields are redacted for callers who are not participants or admins.
+  LocationSnapshot pickup = 5;
   DeliveryDetails delivery = 6;
   string item_description = 7;
   repeated ItemImage item_images = 8;
@@ -66,9 +64,9 @@ message Order {
   google.protobuf.Timestamp updated_at = 22;
 }
 
-// Copied from Supplier when the order is created, so later Location edits or
-// archiving don't change existing orders.
-message PickupLocation {
+// A Supplier Location copied when the order is created, so later Location
+// edits or archiving don't change existing orders.
+message LocationSnapshot {
   string location_id = 1;
   string name = 2;
   string building_name = 3;
@@ -76,27 +74,11 @@ message PickupLocation {
 }
 
 message DeliveryDetails {
-  // Coarse area shown to couriers before they accept.
-  string building_id = 1;
-  string building_name = 2;
-  // Exact address. Participants and admins only.
-  string address = 3;
-  // Participants and admins only.
-  Coordinates coordinates = 4;
-  // Participants and admins only.
-  optional string instructions = 5;
-}
-
-// WGS 84 degrees.
-message Coordinates {
-  double latitude = 1 [(buf.validate.field).double = {
-    gte: -90
-    lte: 90
-  }];
-  double longitude = 2 [(buf.validate.field).double = {
-    gte: -180
-    lte: 180
-  }];
+  // Visible to couriers browsing open orders.
+  LocationSnapshot location = 1;
+  // How to hand the item over. Redacted unless the caller is a participant
+  // or an admin.
+  optional string instructions = 2;
 }
 
 message ItemImage {

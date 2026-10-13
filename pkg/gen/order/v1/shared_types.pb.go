@@ -7,7 +7,6 @@
 package orderv1
 
 import (
-	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -216,13 +215,12 @@ type Order struct {
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	RequesterId string                 `protobuf:"bytes,2,opt,name=requester_id,json=requesterId,proto3" json:"requester_id,omitempty"`
 	// Absent until a courier is assigned.
-	CourierId *string         `protobuf:"bytes,3,opt,name=courier_id,json=courierId,proto3,oneof" json:"courier_id,omitempty"`
-	Status    OrderStatus     `protobuf:"varint,4,opt,name=status,proto3,enum=order.v1.OrderStatus" json:"status,omitempty"`
-	Pickup    *PickupLocation `protobuf:"bytes,5,opt,name=pickup,proto3" json:"pickup,omitempty"`
-	// Exact fields are redacted for callers who are not participants or admins.
-	Delivery        *DeliveryDetails `protobuf:"bytes,6,opt,name=delivery,proto3" json:"delivery,omitempty"`
-	ItemDescription string           `protobuf:"bytes,7,opt,name=item_description,json=itemDescription,proto3" json:"item_description,omitempty"`
-	ItemImages      []*ItemImage     `protobuf:"bytes,8,rep,name=item_images,json=itemImages,proto3" json:"item_images,omitempty"`
+	CourierId       *string           `protobuf:"bytes,3,opt,name=courier_id,json=courierId,proto3,oneof" json:"courier_id,omitempty"`
+	Status          OrderStatus       `protobuf:"varint,4,opt,name=status,proto3,enum=order.v1.OrderStatus" json:"status,omitempty"`
+	Pickup          *LocationSnapshot `protobuf:"bytes,5,opt,name=pickup,proto3" json:"pickup,omitempty"`
+	Delivery        *DeliveryDetails  `protobuf:"bytes,6,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	ItemDescription string            `protobuf:"bytes,7,opt,name=item_description,json=itemDescription,proto3" json:"item_description,omitempty"`
+	ItemImages      []*ItemImage      `protobuf:"bytes,8,rep,name=item_images,json=itemImages,proto3" json:"item_images,omitempty"`
 	// Current reward. Raised when the requester accepts a counteroffer.
 	RewardCredits int64 `protobuf:"varint,9,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
 	// Allowed time from pickup to delivery. Twice this fails the order.
@@ -306,7 +304,7 @@ func (x *Order) GetStatus() OrderStatus {
 	return OrderStatus_ORDER_STATUS_UNSPECIFIED
 }
 
-func (x *Order) GetPickup() *PickupLocation {
+func (x *Order) GetPickup() *LocationSnapshot {
 	if x != nil {
 		return x.Pickup
 	}
@@ -432,9 +430,9 @@ func (x *Order) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// Copied from Supplier when the order is created, so later Location edits or
-// archiving don't change existing orders.
-type PickupLocation struct {
+// A Supplier Location copied when the order is created, so later Location
+// edits or archiving don't change existing orders.
+type LocationSnapshot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	LocationId    string                 `protobuf:"bytes,1,opt,name=location_id,json=locationId,proto3" json:"location_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -444,20 +442,20 @@ type PickupLocation struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PickupLocation) Reset() {
-	*x = PickupLocation{}
+func (x *LocationSnapshot) Reset() {
+	*x = LocationSnapshot{}
 	mi := &file_order_v1_shared_types_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PickupLocation) String() string {
+func (x *LocationSnapshot) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PickupLocation) ProtoMessage() {}
+func (*LocationSnapshot) ProtoMessage() {}
 
-func (x *PickupLocation) ProtoReflect() protoreflect.Message {
+func (x *LocationSnapshot) ProtoReflect() protoreflect.Message {
 	mi := &file_order_v1_shared_types_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -469,33 +467,33 @@ func (x *PickupLocation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PickupLocation.ProtoReflect.Descriptor instead.
-func (*PickupLocation) Descriptor() ([]byte, []int) {
+// Deprecated: Use LocationSnapshot.ProtoReflect.Descriptor instead.
+func (*LocationSnapshot) Descriptor() ([]byte, []int) {
 	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PickupLocation) GetLocationId() string {
+func (x *LocationSnapshot) GetLocationId() string {
 	if x != nil {
 		return x.LocationId
 	}
 	return ""
 }
 
-func (x *PickupLocation) GetName() string {
+func (x *LocationSnapshot) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *PickupLocation) GetBuildingName() string {
+func (x *LocationSnapshot) GetBuildingName() string {
 	if x != nil {
 		return x.BuildingName
 	}
 	return ""
 }
 
-func (x *PickupLocation) GetFloor() string {
+func (x *LocationSnapshot) GetFloor() string {
 	if x != nil && x.Floor != nil {
 		return *x.Floor
 	}
@@ -504,15 +502,11 @@ func (x *PickupLocation) GetFloor() string {
 
 type DeliveryDetails struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Coarse area shown to couriers before they accept.
-	BuildingId   string `protobuf:"bytes,1,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
-	BuildingName string `protobuf:"bytes,2,opt,name=building_name,json=buildingName,proto3" json:"building_name,omitempty"`
-	// Exact address. Participants and admins only.
-	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
-	// Participants and admins only.
-	Coordinates *Coordinates `protobuf:"bytes,4,opt,name=coordinates,proto3" json:"coordinates,omitempty"`
-	// Participants and admins only.
-	Instructions  *string `protobuf:"bytes,5,opt,name=instructions,proto3,oneof" json:"instructions,omitempty"`
+	// Visible to couriers browsing open orders.
+	Location *LocationSnapshot `protobuf:"bytes,1,opt,name=location,proto3" json:"location,omitempty"`
+	// How to hand the item over. Redacted unless the caller is a participant
+	// or an admin.
+	Instructions  *string `protobuf:"bytes,2,opt,name=instructions,proto3,oneof" json:"instructions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -547,30 +541,9 @@ func (*DeliveryDetails) Descriptor() ([]byte, []int) {
 	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *DeliveryDetails) GetBuildingId() string {
+func (x *DeliveryDetails) GetLocation() *LocationSnapshot {
 	if x != nil {
-		return x.BuildingId
-	}
-	return ""
-}
-
-func (x *DeliveryDetails) GetBuildingName() string {
-	if x != nil {
-		return x.BuildingName
-	}
-	return ""
-}
-
-func (x *DeliveryDetails) GetAddress() string {
-	if x != nil {
-		return x.Address
-	}
-	return ""
-}
-
-func (x *DeliveryDetails) GetCoordinates() *Coordinates {
-	if x != nil {
-		return x.Coordinates
+		return x.Location
 	}
 	return nil
 }
@@ -580,59 +553,6 @@ func (x *DeliveryDetails) GetInstructions() string {
 		return *x.Instructions
 	}
 	return ""
-}
-
-// WGS 84 degrees.
-type Coordinates struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Latitude      float64                `protobuf:"fixed64,1,opt,name=latitude,proto3" json:"latitude,omitempty"`
-	Longitude     float64                `protobuf:"fixed64,2,opt,name=longitude,proto3" json:"longitude,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Coordinates) Reset() {
-	*x = Coordinates{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Coordinates) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Coordinates) ProtoMessage() {}
-
-func (x *Coordinates) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Coordinates.ProtoReflect.Descriptor instead.
-func (*Coordinates) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Coordinates) GetLatitude() float64 {
-	if x != nil {
-		return x.Latitude
-	}
-	return 0
-}
-
-func (x *Coordinates) GetLongitude() float64 {
-	if x != nil {
-		return x.Longitude
-	}
-	return 0
 }
 
 type ItemImage struct {
@@ -646,7 +566,7 @@ type ItemImage struct {
 
 func (x *ItemImage) Reset() {
 	*x = ItemImage{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[4]
+	mi := &file_order_v1_shared_types_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -658,7 +578,7 @@ func (x *ItemImage) String() string {
 func (*ItemImage) ProtoMessage() {}
 
 func (x *ItemImage) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[4]
+	mi := &file_order_v1_shared_types_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -671,7 +591,7 @@ func (x *ItemImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemImage.ProtoReflect.Descriptor instead.
 func (*ItemImage) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{4}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ItemImage) GetId() string {
@@ -704,7 +624,7 @@ type Offer struct {
 
 func (x *Offer) Reset() {
 	*x = Offer{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[5]
+	mi := &file_order_v1_shared_types_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +636,7 @@ func (x *Offer) String() string {
 func (*Offer) ProtoMessage() {}
 
 func (x *Offer) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[5]
+	mi := &file_order_v1_shared_types_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +649,7 @@ func (x *Offer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Offer.ProtoReflect.Descriptor instead.
 func (*Offer) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{5}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Offer) GetId() string {
@@ -797,7 +717,7 @@ type PageInfo struct {
 
 func (x *PageInfo) Reset() {
 	*x = PageInfo{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[6]
+	mi := &file_order_v1_shared_types_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +729,7 @@ func (x *PageInfo) String() string {
 func (*PageInfo) ProtoMessage() {}
 
 func (x *PageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[6]
+	mi := &file_order_v1_shared_types_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +742,7 @@ func (x *PageInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
 func (*PageInfo) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{6}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PageInfo) GetPage() int32 {
@@ -857,14 +777,14 @@ var File_order_v1_shared_types_proto protoreflect.FileDescriptor
 
 const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfa\b\n" +
+	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfc\b\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12\"\n" +
 	"\n" +
 	"courier_id\x18\x03 \x01(\tH\x00R\tcourierId\x88\x01\x01\x12-\n" +
-	"\x06status\x18\x04 \x01(\x0e2\x15.order.v1.OrderStatusR\x06status\x120\n" +
-	"\x06pickup\x18\x05 \x01(\v2\x18.order.v1.PickupLocationR\x06pickup\x125\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x15.order.v1.OrderStatusR\x06status\x122\n" +
+	"\x06pickup\x18\x05 \x01(\v2\x1a.order.v1.LocationSnapshotR\x06pickup\x125\n" +
 	"\bdelivery\x18\x06 \x01(\v2\x19.order.v1.DeliveryDetailsR\bdelivery\x12)\n" +
 	"\x10item_description\x18\a \x01(\tR\x0fitemDescription\x124\n" +
 	"\vitem_images\x18\b \x03(\v2\x13.order.v1.ItemImageR\n" +
@@ -891,25 +811,18 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\r\n" +
 	"\v_courier_idB\x0f\n" +
 	"\r_close_reasonB\x10\n" +
-	"\x0e_item_location\"\x8f\x01\n" +
-	"\x0ePickupLocation\x12\x1f\n" +
+	"\x0e_item_location\"\x91\x01\n" +
+	"\x10LocationSnapshot\x12\x1f\n" +
 	"\vlocation_id\x18\x01 \x01(\tR\n" +
 	"locationId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rbuilding_name\x18\x03 \x01(\tR\fbuildingName\x12\x19\n" +
 	"\x05floor\x18\x04 \x01(\tH\x00R\x05floor\x88\x01\x01B\b\n" +
-	"\x06_floor\"\xe4\x01\n" +
-	"\x0fDeliveryDetails\x12\x1f\n" +
-	"\vbuilding_id\x18\x01 \x01(\tR\n" +
-	"buildingId\x12#\n" +
-	"\rbuilding_name\x18\x02 \x01(\tR\fbuildingName\x12\x18\n" +
-	"\aaddress\x18\x03 \x01(\tR\aaddress\x127\n" +
-	"\vcoordinates\x18\x04 \x01(\v2\x15.order.v1.CoordinatesR\vcoordinates\x12'\n" +
-	"\finstructions\x18\x05 \x01(\tH\x00R\finstructions\x88\x01\x01B\x0f\n" +
-	"\r_instructions\"y\n" +
-	"\vCoordinates\x123\n" +
-	"\blatitude\x18\x01 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80V@)\x00\x00\x00\x00\x00\x80V\xc0R\blatitude\x125\n" +
-	"\tlongitude\x18\x02 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80f@)\x00\x00\x00\x00\x00\x80f\xc0R\tlongitude\">\n" +
+	"\x06_floor\"\x83\x01\n" +
+	"\x0fDeliveryDetails\x126\n" +
+	"\blocation\x18\x01 \x01(\v2\x1a.order.v1.LocationSnapshotR\blocation\x12'\n" +
+	"\finstructions\x18\x02 \x01(\tH\x00R\finstructions\x88\x01\x01B\x0f\n" +
+	"\r_instructions\">\n" +
 	"\tItemImage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdownload_url\x18\x02 \x01(\tR\vdownloadUrl\"\x90\x02\n" +
@@ -969,39 +882,38 @@ func file_order_v1_shared_types_proto_rawDescGZIP() []byte {
 }
 
 var file_order_v1_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_order_v1_shared_types_proto_goTypes = []any{
 	(OrderStatus)(0),              // 0: order.v1.OrderStatus
 	(ParticipantRole)(0),          // 1: order.v1.ParticipantRole
 	(OfferStatus)(0),              // 2: order.v1.OfferStatus
 	(*Order)(nil),                 // 3: order.v1.Order
-	(*PickupLocation)(nil),        // 4: order.v1.PickupLocation
+	(*LocationSnapshot)(nil),      // 4: order.v1.LocationSnapshot
 	(*DeliveryDetails)(nil),       // 5: order.v1.DeliveryDetails
-	(*Coordinates)(nil),           // 6: order.v1.Coordinates
-	(*ItemImage)(nil),             // 7: order.v1.ItemImage
-	(*Offer)(nil),                 // 8: order.v1.Offer
-	(*PageInfo)(nil),              // 9: order.v1.PageInfo
-	(*durationpb.Duration)(nil),   // 10: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*ItemImage)(nil),             // 6: order.v1.ItemImage
+	(*Offer)(nil),                 // 7: order.v1.Offer
+	(*PageInfo)(nil),              // 8: order.v1.PageInfo
+	(*durationpb.Duration)(nil),   // 9: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
 }
 var file_order_v1_shared_types_proto_depIdxs = []int32{
 	0,  // 0: order.v1.Order.status:type_name -> order.v1.OrderStatus
-	4,  // 1: order.v1.Order.pickup:type_name -> order.v1.PickupLocation
+	4,  // 1: order.v1.Order.pickup:type_name -> order.v1.LocationSnapshot
 	5,  // 2: order.v1.Order.delivery:type_name -> order.v1.DeliveryDetails
-	7,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
-	10, // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
-	11, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
-	11, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
-	11, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
-	11, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
-	11, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
-	11, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
-	11, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
-	11, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
-	6,  // 13: order.v1.DeliveryDetails.coordinates:type_name -> order.v1.Coordinates
+	6,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
+	9,  // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
+	10, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
+	10, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
+	10, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
+	10, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
+	10, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
+	10, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
+	10, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
+	10, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
+	4,  // 13: order.v1.DeliveryDetails.location:type_name -> order.v1.LocationSnapshot
 	2,  // 14: order.v1.Offer.status:type_name -> order.v1.OfferStatus
-	11, // 15: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
-	11, // 16: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
+	10, // 15: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
+	10, // 16: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
 	17, // [17:17] is the sub-list for method output_type
 	17, // [17:17] is the sub-list for method input_type
 	17, // [17:17] is the sub-list for extension type_name
@@ -1023,7 +935,7 @@ func file_order_v1_shared_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_shared_types_proto_rawDesc), len(file_order_v1_shared_types_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -40,6 +40,11 @@ service OrderService {
 // returned. If the reservation can't be confirmed in time, the order stays
 // Pending Reservation and is resolved in the background.
 message CreateOrderRequest {
+  option (buf.validate.message).cel = {
+    id: "create_order.distinct_locations"
+    message: "pickup and delivery locations must differ"
+    expression: "this.pickup_location_id != this.delivery.location_id"
+  };
   string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
   DeliveryInput delivery = 2 [(buf.validate.field).required = true];
   string item_description = 3 [(buf.validate.field).cel = {
@@ -72,15 +77,10 @@ message CreateOrderRequest {
 }
 
 message DeliveryInput {
-  // Coarse area shown to couriers before they accept.
-  string building_id = 1 [(buf.validate.field).string.uuid = true];
-  string address = 2 [(buf.validate.field).cel = {
-    id: "delivery_input.address_length"
-    message: "address must be 1-500 characters excluding leading and trailing whitespace"
-    expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
-  }];
-  Coordinates coordinates = 3;
-  optional string instructions = 4 [(buf.validate.field).cel = {
+  // A Supplier Location used as the meeting point.
+  string location_id = 1 [(buf.validate.field).string.uuid = true];
+  // Anything about the handover, such as a room or "call when outside".
+  optional string instructions = 2 [(buf.validate.field).cel = {
     id: "delivery_input.instructions_length"
     message: "instructions must be at most 500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) <= 500"
@@ -100,7 +100,7 @@ message CreateItemImageUploadRequest {
 }
 
 // Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it with exact delivery fields redacted.
+// Courier order see it without delivery instructions.
 message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -110,7 +110,7 @@ message GetOrderRequest {
 message ListOpenOrdersRequest {
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
-  optional string delivery_building_id = 2 [(buf.validate.field).string.uuid = true];
+  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true];
   // One-based; zero means 1.
   int32 page = 3 [(buf.validate.field).int32.gte = 0];
   // Zero means 20; maximum 100.

@@ -4,7 +4,6 @@
 
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -13,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/shared_types.proto.
  */
 export const file_order_v1_shared_types: GenFile = /*@__PURE__*/
-  fileDesc("ChtvcmRlci92MS9zaGFyZWRfdHlwZXMucHJvdG8SCG9yZGVyLnYxIvAGCgVPcmRlchIKCgJpZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzEigKBnBpY2t1cBgFIAEoCzIYLm9yZGVyLnYxLlBpY2t1cExvY2F0aW9uEisKCGRlbGl2ZXJ5GAYgASgLMhkub3JkZXIudjEuRGVsaXZlcnlEZXRhaWxzEhgKEGl0ZW1fZGVzY3JpcHRpb24YByABKAkSKAoLaXRlbV9pbWFnZXMYCCADKAsyEy5vcmRlci52MS5JdGVtSW1hZ2USFgoOcmV3YXJkX2NyZWRpdHMYCSABKAMSNAoRZGVsaXZlcnlfZHVyYXRpb24YCiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SLgoKZXhwaXJlc19hdBgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLYXNzaWduZWRfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDHBpY2tlZF91cF9hdBgNIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMZGVsaXZlcmVkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxjb21wbGV0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi0KCWNsb3NlZF9hdBgQIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGQoMY2xvc2VfcmVhc29uGBEgASgJSAGIAQESGwoTdW5hdHRlbmRlZF9kZWxpdmVyeRgSIAEoCBIaCg1pdGVtX2xvY2F0aW9uGBMgASgJSAKIAQESEAoIcmV2aXNpb24YFCABKAMSLgoKY3JlYXRlZF9hdBgVIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgWIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCDQoLX2NvdXJpZXJfaWRCDwoNX2Nsb3NlX3JlYXNvbkIQCg5faXRlbV9sb2NhdGlvbiJoCg5QaWNrdXBMb2NhdGlvbhITCgtsb2NhdGlvbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhUKDWJ1aWxkaW5nX25hbWUYAyABKAkSEgoFZmxvb3IYBCABKAlIAIgBAUIICgZfZmxvb3IipgEKD0RlbGl2ZXJ5RGV0YWlscxITCgtidWlsZGluZ19pZBgBIAEoCRIVCg1idWlsZGluZ19uYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSKgoLY29vcmRpbmF0ZXMYBCABKAsyFS5vcmRlci52MS5Db29yZGluYXRlcxIZCgxpbnN0cnVjdGlvbnMYBSABKAlIAIgBAUIPCg1faW5zdHJ1Y3Rpb25zImQKC0Nvb3JkaW5hdGVzEikKCGxhdGl0dWRlGAEgASgBQhe6SBQSEhkAAAAAAIBWQCkAAAAAAIBWwBIqCglsb25naXR1ZGUYAiABKAFCF7pIFBISGQAAAAAAgGZAKQAAAAAAgGbAIi0KCUl0ZW1JbWFnZRIKCgJpZBgBIAEoCRIUCgxkb3dubG9hZF91cmwYAiABKAki0QEKBU9mZmVyEgoKAmlkGAEgASgJEhAKCG9yZGVyX2lkGAIgASgJEhIKCmNvdXJpZXJfaWQYAyABKAkSDwoHY3JlZGl0cxgEIAEoAxIlCgZzdGF0dXMYBSABKA4yFS5vcmRlci52MS5PZmZlclN0YXR1cxIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBSrVAgoLT3JkZXJTdGF0dXMSHAoYT1JERVJfU1RBVFVTX1VOU1BFQ0lGSUVEEAASJAogT1JERVJfU1RBVFVTX1BFTkRJTkdfUkVTRVJWQVRJT04QARIhCh1PUkRFUl9TVEFUVVNfQVdBSVRJTkdfQ09VUklFUhACEiAKHE9SREVSX1NUQVRVU19BV0FJVElOR19QSUNLVVAQAxIbChdPUkRFUl9TVEFUVVNfREVMSVZFUklORxAEEhoKFk9SREVSX1NUQVRVU19ERUxJVkVSRUQQBRIaChZPUkRFUl9TVEFUVVNfQ09NUExFVEVEEAYSGgoWT1JERVJfU1RBVFVTX0NBTkNFTExFRBAHEhgKFE9SREVSX1NUQVRVU19FWFBJUkVEEAgSFwoTT1JERVJfU1RBVFVTX0ZBSUxFRBAJEhkKFU9SREVSX1NUQVRVU19SRUpFQ1RFRBAKKnEKD1BhcnRpY2lwYW50Um9sZRIgChxQQVJUSUNJUEFOVF9ST0xFX1VOU1BFQ0lGSUVEEAASHgoaUEFSVElDSVBBTlRfUk9MRV9SRVFVRVNURVIQARIcChhQQVJUSUNJUEFOVF9ST0xFX0NPVVJJRVIQAiqQAQoLT2ZmZXJTdGF0dXMSHAoYT0ZGRVJfU1RBVFVTX1VOU1BFQ0lGSUVEEAASFQoRT0ZGRVJfU1RBVFVTX09QRU4QARIaChZPRkZFUl9TVEFUVVNfQUNDRVBUSU5HEAISGQoVT0ZGRVJfU1RBVFVTX0FDQ0VQVEVEEAMSFQoRT0ZGRVJfU1RBVFVTX1ZPSUQQBEKdAQoMY29tLm9yZGVyLnYxQhBTaGFyZWRUeXBlc1Byb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("ChtvcmRlci92MS9zaGFyZWRfdHlwZXMucHJvdG8SCG9yZGVyLnYxIvIGCgVPcmRlchIKCgJpZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzEioKBnBpY2t1cBgFIAEoCzIaLm9yZGVyLnYxLkxvY2F0aW9uU25hcHNob3QSKwoIZGVsaXZlcnkYBiABKAsyGS5vcmRlci52MS5EZWxpdmVyeURldGFpbHMSGAoQaXRlbV9kZXNjcmlwdGlvbhgHIAEoCRIoCgtpdGVtX2ltYWdlcxgIIAMoCzITLm9yZGVyLnYxLkl0ZW1JbWFnZRIWCg5yZXdhcmRfY3JlZGl0cxgJIAEoAxI0ChFkZWxpdmVyeV9kdXJhdGlvbhgKIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIuCgpleHBpcmVzX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgthc3NpZ25lZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMcGlja2VkX3VwX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxkZWxpdmVyZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGNvbXBsZXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoJY2xvc2VkX2F0GBAgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIZCgxjbG9zZV9yZWFzb24YESABKAlIAYgBARIbChN1bmF0dGVuZGVkX2RlbGl2ZXJ5GBIgASgIEhoKDWl0ZW1fbG9jYXRpb24YEyABKAlIAogBARIQCghyZXZpc2lvbhgUIAEoAxIuCgpjcmVhdGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GBYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEINCgtfY291cmllcl9pZEIPCg1fY2xvc2VfcmVhc29uQhAKDl9pdGVtX2xvY2F0aW9uImoKEExvY2F0aW9uU25hcHNob3QSEwoLbG9jYXRpb25faWQYASABKAkSDAoEbmFtZRgCIAEoCRIVCg1idWlsZGluZ19uYW1lGAMgASgJEhIKBWZsb29yGAQgASgJSACIAQFCCAoGX2Zsb29yImsKD0RlbGl2ZXJ5RGV0YWlscxIsCghsb2NhdGlvbhgBIAEoCzIaLm9yZGVyLnYxLkxvY2F0aW9uU25hcHNob3QSGQoMaW5zdHJ1Y3Rpb25zGAIgASgJSACIAQFCDwoNX2luc3RydWN0aW9ucyItCglJdGVtSW1hZ2USCgoCaWQYASABKAkSFAoMZG93bmxvYWRfdXJsGAIgASgJItEBCgVPZmZlchIKCgJpZBgBIAEoCRIQCghvcmRlcl9pZBgCIAEoCRISCgpjb3VyaWVyX2lkGAMgASgJEg8KB2NyZWRpdHMYBCABKAMSJQoGc3RhdHVzGAUgASgOMhUub3JkZXIudjEuT2ZmZXJTdGF0dXMSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiVQoIUGFnZUluZm8SDAoEcGFnZRgBIAEoBRIRCglwYWdlX3NpemUYAiABKAUSEwoLdG90YWxfaXRlbXMYAyABKAMSEwoLdG90YWxfcGFnZXMYBCABKAUq1QIKC09yZGVyU3RhdHVzEhwKGE9SREVSX1NUQVRVU19VTlNQRUNJRklFRBAAEiQKIE9SREVSX1NUQVRVU19QRU5ESU5HX1JFU0VSVkFUSU9OEAESIQodT1JERVJfU1RBVFVTX0FXQUlUSU5HX0NPVVJJRVIQAhIgChxPUkRFUl9TVEFUVVNfQVdBSVRJTkdfUElDS1VQEAMSGwoXT1JERVJfU1RBVFVTX0RFTElWRVJJTkcQBBIaChZPUkRFUl9TVEFUVVNfREVMSVZFUkVEEAUSGgoWT1JERVJfU1RBVFVTX0NPTVBMRVRFRBAGEhoKFk9SREVSX1NUQVRVU19DQU5DRUxMRUQQBxIYChRPUkRFUl9TVEFUVVNfRVhQSVJFRBAIEhcKE09SREVSX1NUQVRVU19GQUlMRUQQCRIZChVPUkRFUl9TVEFUVVNfUkVKRUNURUQQCipxCg9QYXJ0aWNpcGFudFJvbGUSIAocUEFSVElDSVBBTlRfUk9MRV9VTlNQRUNJRklFRBAAEh4KGlBBUlRJQ0lQQU5UX1JPTEVfUkVRVUVTVEVSEAESHAoYUEFSVElDSVBBTlRfUk9MRV9DT1VSSUVSEAIqkAEKC09mZmVyU3RhdHVzEhwKGE9GRkVSX1NUQVRVU19VTlNQRUNJRklFRBAAEhUKEU9GRkVSX1NUQVRVU19PUEVOEAESGgoWT0ZGRVJfU1RBVFVTX0FDQ0VQVElORxACEhkKFU9GRkVSX1NUQVRVU19BQ0NFUFRFRBADEhUKEU9GRkVSX1NUQVRVU19WT0lEEARCnQEKDGNvbS5vcmRlci52MUIQU2hhcmVkVHlwZXNQcm90b1ABWjpnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9vcmRlci92MTtvcmRlcnYxogIDT1hYqgIIT3JkZXIuVjHKAghPcmRlclxWMeICFE9yZGVyXFYxXEdQQk1ldGFkYXRh6gIJT3JkZXI6OlYxYgZwcm90bzM", [file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message order.v1.Order
@@ -42,13 +41,11 @@ export type Order = Message<"order.v1.Order"> & {
   status: OrderStatus;
 
   /**
-   * @generated from field: order.v1.PickupLocation pickup = 5;
+   * @generated from field: order.v1.LocationSnapshot pickup = 5;
    */
-  pickup?: PickupLocation | undefined;
+  pickup?: LocationSnapshot | undefined;
 
   /**
-   * Exact fields are redacted for callers who are not participants or admins.
-   *
    * @generated from field: order.v1.DeliveryDetails delivery = 6;
    */
   delivery?: DeliveryDetails | undefined;
@@ -156,12 +153,12 @@ export const OrderSchema: GenMessage<Order> = /*@__PURE__*/
   messageDesc(file_order_v1_shared_types, 0);
 
 /**
- * Copied from Supplier when the order is created, so later Location edits or
- * archiving don't change existing orders.
+ * A Supplier Location copied when the order is created, so later Location
+ * edits or archiving don't change existing orders.
  *
- * @generated from message order.v1.PickupLocation
+ * @generated from message order.v1.LocationSnapshot
  */
-export type PickupLocation = Message<"order.v1.PickupLocation"> & {
+export type LocationSnapshot = Message<"order.v1.LocationSnapshot"> & {
   /**
    * @generated from field: string location_id = 1;
    */
@@ -184,10 +181,10 @@ export type PickupLocation = Message<"order.v1.PickupLocation"> & {
 };
 
 /**
- * Describes the message order.v1.PickupLocation.
- * Use `create(PickupLocationSchema)` to create a new message.
+ * Describes the message order.v1.LocationSnapshot.
+ * Use `create(LocationSnapshotSchema)` to create a new message.
  */
-export const PickupLocationSchema: GenMessage<PickupLocation> = /*@__PURE__*/
+export const LocationSnapshotSchema: GenMessage<LocationSnapshot> = /*@__PURE__*/
   messageDesc(file_order_v1_shared_types, 1);
 
 /**
@@ -195,35 +192,17 @@ export const PickupLocationSchema: GenMessage<PickupLocation> = /*@__PURE__*/
  */
 export type DeliveryDetails = Message<"order.v1.DeliveryDetails"> & {
   /**
-   * Coarse area shown to couriers before they accept.
+   * Visible to couriers browsing open orders.
    *
-   * @generated from field: string building_id = 1;
+   * @generated from field: order.v1.LocationSnapshot location = 1;
    */
-  buildingId: string;
+  location?: LocationSnapshot | undefined;
 
   /**
-   * @generated from field: string building_name = 2;
-   */
-  buildingName: string;
-
-  /**
-   * Exact address. Participants and admins only.
+   * How to hand the item over. Redacted unless the caller is a participant
+   * or an admin.
    *
-   * @generated from field: string address = 3;
-   */
-  address: string;
-
-  /**
-   * Participants and admins only.
-   *
-   * @generated from field: order.v1.Coordinates coordinates = 4;
-   */
-  coordinates?: Coordinates | undefined;
-
-  /**
-   * Participants and admins only.
-   *
-   * @generated from field: optional string instructions = 5;
+   * @generated from field: optional string instructions = 2;
    */
   instructions?: string | undefined;
 };
@@ -234,30 +213,6 @@ export type DeliveryDetails = Message<"order.v1.DeliveryDetails"> & {
  */
 export const DeliveryDetailsSchema: GenMessage<DeliveryDetails> = /*@__PURE__*/
   messageDesc(file_order_v1_shared_types, 2);
-
-/**
- * WGS 84 degrees.
- *
- * @generated from message order.v1.Coordinates
- */
-export type Coordinates = Message<"order.v1.Coordinates"> & {
-  /**
-   * @generated from field: double latitude = 1;
-   */
-  latitude: number;
-
-  /**
-   * @generated from field: double longitude = 2;
-   */
-  longitude: number;
-};
-
-/**
- * Describes the message order.v1.Coordinates.
- * Use `create(CoordinatesSchema)` to create a new message.
- */
-export const CoordinatesSchema: GenMessage<Coordinates> = /*@__PURE__*/
-  messageDesc(file_order_v1_shared_types, 3);
 
 /**
  * @generated from message order.v1.ItemImage
@@ -281,7 +236,7 @@ export type ItemImage = Message<"order.v1.ItemImage"> & {
  * Use `create(ItemImageSchema)` to create a new message.
  */
 export const ItemImageSchema: GenMessage<ItemImage> = /*@__PURE__*/
-  messageDesc(file_order_v1_shared_types, 4);
+  messageDesc(file_order_v1_shared_types, 3);
 
 /**
  * A courier's counteroffer above the current reward.
@@ -330,7 +285,7 @@ export type Offer = Message<"order.v1.Offer"> & {
  * Use `create(OfferSchema)` to create a new message.
  */
 export const OfferSchema: GenMessage<Offer> = /*@__PURE__*/
-  messageDesc(file_order_v1_shared_types, 5);
+  messageDesc(file_order_v1_shared_types, 4);
 
 /**
  * Counts include only orders visible to the caller after filtering.
@@ -370,7 +325,7 @@ export type PageInfo = Message<"order.v1.PageInfo"> & {
  * Use `create(PageInfoSchema)` to create a new message.
  */
 export const PageInfoSchema: GenMessage<PageInfo> = /*@__PURE__*/
-  messageDesc(file_order_v1_shared_types, 6);
+  messageDesc(file_order_v1_shared_types, 5);
 
 /**
  * Terminal statuses are immutable.
