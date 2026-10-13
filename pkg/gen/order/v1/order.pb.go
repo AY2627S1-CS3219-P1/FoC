@@ -590,7 +590,7 @@ func (x *ListOffersRequest) GetStatus() OfferStatus {
 // changes and failed_precondition is returned.
 type AcceptOfferRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OfferId       string                 `protobuf:"bytes,1,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -625,9 +625,9 @@ func (*AcceptOfferRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *AcceptOfferRequest) GetOfferId() string {
+func (x *AcceptOfferRequest) GetId() string {
 	if x != nil {
-		return x.OfferId
+		return x.Id
 	}
 	return ""
 }
@@ -858,7 +858,7 @@ func (x *ConfirmReceiptRequest) GetOrderId() string {
 // After pickup, the courier must then record the item's location.
 type CancelOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Reason        *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -894,9 +894,9 @@ func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *CancelOrderRequest) GetOrderId() string {
+func (x *CancelOrderRequest) GetId() string {
 	if x != nil {
-		return x.OrderId
+		return x.Id
 	}
 	return ""
 }
@@ -1728,9 +1728,9 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"q\n" +
 	"\x11ListOffersRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x127\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OfferStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\"9\n" +
-	"\x12AcceptOfferRequest\x12#\n" +
-	"\boffer_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aofferId\";\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OfferStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\".\n" +
+	"\x12AcceptOfferRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
 	"\x14ConfirmPickupRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb3\x01\n" +
 	"\x18CreateProofUploadRequest\x12#\n" +
@@ -1746,9 +1746,9 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"unattended\x18\x03 \x01(\bR\n" +
 	"unattended\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xf4\x01\n" +
-	"\x12CancelOrderRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xad\x01\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xe9\x01\n" +
+	"\x12CancelOrderRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
 	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01B\t\n" +
 	"\a_reason\"\xa2\x02\n" +

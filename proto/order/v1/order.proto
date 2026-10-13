@@ -159,7 +159,7 @@ message ListOffersRequest {
 // voids the other offers. If the requester can't cover the difference, nothing
 // changes and failed_precondition is returned.
 message AcceptOfferRequest {
-  string offer_id = 1 [(buf.validate.field).string.uuid = true];
+  string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 // Assigned courier only. Awaiting Pickup to Delivering.
@@ -210,7 +210,7 @@ message ConfirmReceiptRequest {
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
 message CancelOrderRequest {
-  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string id = 1 [(buf.validate.field).string.uuid = true];
   optional string reason = 2 [(buf.validate.field).cel = {
     id: "cancel_order.reason_length"
     message: "reason must be at most 500 characters excluding leading and trailing whitespace"

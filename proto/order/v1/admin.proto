@@ -32,7 +32,7 @@ message ListUserOrdersRequest {
 // Cancels an order before pickup, for example when a participant's suspension
 // is deferred. The reservation is released.
 message AdminCancelOrderRequest {
-  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string id = 1 [(buf.validate.field).string.uuid = true];
   string reason = 2 [(buf.validate.field).cel = {
     id: "admin_cancel_order.reason_length"
     message: "reason must be 1-500 characters excluding leading and trailing whitespace"
