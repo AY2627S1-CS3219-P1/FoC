@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, communication-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, communication-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -47,6 +47,7 @@ jobs:
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
+            communication-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
