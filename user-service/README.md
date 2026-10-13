@@ -107,13 +107,13 @@ testing, add a domain, for example
 `INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
 bootstrapped admin can log in without one.
 
-`RegisterRequest` accepts a display name plus optional `telegram_handle` and
-`phone_number`, matching the nullable user columns. The service trims the
-name and contact values, treats empty contacts as unset, and validates the
-normalized values. Display names must be 1 to 100 characters; Telegram handles
-must contain 5 to 32 letters, digits, or underscores; phone numbers may be up
-to 20 characters. Registration, login, and refresh return these saved fields
-in the `User` message.
+`RegisterRequest` requires a display name and a phone number. The service trims
+both and validates the trimmed values: display names must be 1 to 100
+characters and phone numbers 1 to 20 characters. The phone number is the
+contact fallback for users who haven't linked Telegram; Telegram is linked
+through the Communication Service, so User Service stores no Telegram details.
+Registration, login, and refresh return these saved fields in the `User`
+message. Accounts created before the phone number was required may have none.
 
 
 ## First super admin
@@ -158,16 +158,16 @@ signing key and checks the caller's current role in the database.
 
 | RPC | Request | Response | Access |
 | --- | --- | --- | --- |
-| `ProfileService.GetMyProfile` | Empty | Profile with ID, email, display name, description, optional Telegram handle and phone number, and role | Every authenticated user |
-| `ProfileService.UpdateMyProfile` | Complete editable profile: `display_name`, `description`, optional `telegram_handle`, optional `phone_number` | Updated profile | All authenticated roles except `suspended_user` |
+| `ProfileService.GetMyProfile` | Empty | Profile with ID, email, display name, description, phone number, and role | Every authenticated user |
+| `ProfileService.UpdateMyProfile` | Complete editable profile: `display_name`, `description`, `phone_number` | Updated profile | All authenticated roles except `suspended_user` |
 | `UserAdminService.GetUserByEmail` | `email` | User ID, email, display name, role | `admin`, `super_admin` |
 | `UserAdminService.ChangeUserRole` | `user_id`, `to_role`, optional `reason` | Updated user | `admin`, `super_admin`, subject to the policy below |
 
-`UpdateMyProfile` replaces all four editable fields. An omitted description
-becomes empty and omitted contact fields are cleared. A display name must be
-nonblank after trimming and at most 100 characters. The other database limits
-are 500 characters for description, 32 for Telegram handle, and 20 for phone
-number. The request cannot update email, ID, role, or account status.
+`UpdateMyProfile` replaces all three editable fields. An omitted description
+becomes empty. A display name must be nonblank after trimming and at most 100
+characters, and a phone number is required and at most 20 characters. The
+description limit is 500 characters. The request cannot update email, ID,
+role, or account status.
 
 `super_admin` may change another user's role among `admin`, `user`, and
 `suspended_user`. `admin` may change another user's role only between `user`

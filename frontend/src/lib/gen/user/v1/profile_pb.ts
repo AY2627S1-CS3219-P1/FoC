@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/profile.proto.
  */
 export const file_user_v1_profile: GenFile = /*@__PURE__*/
-  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEizgEKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhwKD3RlbGVncmFtX2hhbmRsZRgFIAEoCUgAiAEBEhkKDHBob25lX251bWJlchgGIAEoCUgBiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlQhIKEF90ZWxlZ3JhbV9oYW5kbGVCDwoNX3Bob25lX251bWJlciIVChNHZXRNeVByb2ZpbGVSZXF1ZXN0IjkKFEdldE15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiqwEKFlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QSFAoMZGlzcGxheV9uYW1lGAEgASgJEh0KC2Rlc2NyaXB0aW9uGAIgASgJQgi6SAVyAxj0AxIcCg90ZWxlZ3JhbV9oYW5kbGUYAyABKAlIAIgBARIZCgxwaG9uZV9udW1iZXIYBCABKAlIAYgBAUISChBfdGVsZWdyYW1faGFuZGxlQg8KDV9waG9uZV9udW1iZXIiPAoXVXBkYXRlTXlQcm9maWxlUmVzcG9uc2USIQoHcHJvZmlsZRgBIAEoCzIQLnVzZXIudjEuUHJvZmlsZTK3AQoOUHJvZmlsZVNlcnZpY2USTQoMR2V0TXlQcm9maWxlEhwudXNlci52MS5HZXRNeVByb2ZpbGVSZXF1ZXN0Gh0udXNlci52MS5HZXRNeVByb2ZpbGVSZXNwb25zZSIAElYKD1VwZGF0ZU15UHJvZmlsZRIfLnVzZXIudjEuVXBkYXRlTXlQcm9maWxlUmVxdWVzdBogLnVzZXIudjEuVXBkYXRlTXlQcm9maWxlUmVzcG9uc2UiAEKSAQoLY29tLnVzZXIudjFCDFByb2ZpbGVQcm90b1ABWjhnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3YxO3VzZXJ2MaICA1VYWKoCB1VzZXIuVjHKAgdVc2VyXFYx4gITVXNlclxWMVxHUEJNZXRhZGF0YeoCCFVzZXI6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEiswEKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhkKDHBob25lX251bWJlchgGIAEoCUgAiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlQg8KDV9waG9uZV9udW1iZXJKBAgFEAZSD3RlbGVncmFtX2hhbmRsZSIVChNHZXRNeVByb2ZpbGVSZXF1ZXN0IjkKFEdldE15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiegoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSHQoLZGVzY3JpcHRpb24YAiABKAlCCLpIBXIDGPQDEhQKDHBob25lX251bWJlchgEIAEoCUoECAMQBFIPdGVsZWdyYW1faGFuZGxlIjwKF1VwZGF0ZU15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUytwEKDlByb2ZpbGVTZXJ2aWNlEk0KDEdldE15UHJvZmlsZRIcLnVzZXIudjEuR2V0TXlQcm9maWxlUmVxdWVzdBodLnVzZXIudjEuR2V0TXlQcm9maWxlUmVzcG9uc2UiABJWCg9VcGRhdGVNeVByb2ZpbGUSHy51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaIC51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlc3BvbnNlIgBCkgEKC2NvbS51c2VyLnYxQgxQcm9maWxlUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
 
 /**
  * @generated from message user.v1.Profile
@@ -40,11 +40,8 @@ export type Profile = Message<"user.v1.Profile"> & {
   description: string;
 
   /**
-   * @generated from field: optional string telegram_handle = 5;
-   */
-  telegramHandle?: string | undefined;
-
-  /**
+   * Absent only for accounts created before it was required.
+   *
    * @generated from field: optional string phone_number = 6;
    */
   phoneNumber?: string | undefined;
@@ -93,7 +90,7 @@ export const GetMyProfileResponseSchema: GenMessage<GetMyProfileResponse> = /*@_
   messageDesc(file_user_v1_profile, 2);
 
 /**
- * Every editable field is replaced. Omitted contact fields are cleared.
+ * Every editable field is replaced.
  *
  * @generated from message user.v1.UpdateMyProfileRequest
  */
@@ -111,16 +108,11 @@ export type UpdateMyProfileRequest = Message<"user.v1.UpdateMyProfileRequest"> &
   description: string;
 
   /**
-   * The service trims and validates contacts; blank values are cleared.
+   * Required. The service trims it and requires 1 to 20 characters afterward.
    *
-   * @generated from field: optional string telegram_handle = 3;
+   * @generated from field: string phone_number = 4;
    */
-  telegramHandle?: string | undefined;
-
-  /**
-   * @generated from field: optional string phone_number = 4;
-   */
-  phoneNumber?: string | undefined;
+  phoneNumber: string;
 };
 
 /**

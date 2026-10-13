@@ -23,7 +23,6 @@ erDiagram
         citext email UK "among live rows"
         text display_name "1-100 chars"
         text description "max 500"
-        text telegram_handle "5-32 of A-Za-z0-9_, no @"
         text phone_number "max 20"
         text profile_picture_key
         text role FK "roles.name"
@@ -92,6 +91,7 @@ erDiagram
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
+| 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#125) |
 
 ## Soft delete
 

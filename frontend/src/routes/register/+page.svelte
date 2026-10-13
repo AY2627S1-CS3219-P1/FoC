@@ -8,6 +8,7 @@
 
 	let token = $state<string | null>(page.url.searchParams.get('token'));
 	let displayName = $state('');
+	let phoneNumber = $state('');
 	let submitting = $state(false);
 	let error = $state('');
 
@@ -28,10 +29,15 @@
 			error = 'Enter a display name of up to 50 characters.';
 			return;
 		}
+		const phone = phoneNumber.trim();
+		if (Array.from(phone).length === 0 || Array.from(phone).length > 20) {
+			error = 'Enter a phone number of up to 20 characters.';
+			return;
+		}
 		submitting = true;
 		error = '';
 		try {
-			await authService.register(token, name);
+			await authService.register(token, name, phone);
 			await goto('/', { replaceState: true });
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) {
@@ -55,7 +61,7 @@
 			<div class="auth-body">
 				<h1>Create your profile</h1>
 				{#if token}
-					<p>Choose the name other people on campus will see.</p>
+					<p>Choose the name other people on campus will see, and add a phone number as your backup contact.</p>
 					{#if error}
 						<p class="notice error" role="alert">{error}</p>
 					{/if}
@@ -68,6 +74,16 @@
 				maxlength={50}
 							required
 							bind:value={displayName}
+							disabled={submitting}
+						/>
+						<TextFieldOutlined
+							label="Phone number"
+							type="tel"
+							name="phoneNumber"
+							autocomplete="tel"
+							maxlength={20}
+							required
+							bind:value={phoneNumber}
 							disabled={submitting}
 						/>
 						<div class="form-actions">

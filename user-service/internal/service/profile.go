@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -34,13 +33,12 @@ type ProfileUsers interface {
 
 type ProfileService struct{ Users ProfileUsers }
 
-// ProfileInput is the complete editable profile state. Empty contact strings
-// clear the corresponding nullable database columns.
+// ProfileInput is the complete editable profile state. The phone number is
+// required.
 type ProfileInput struct {
-	DisplayName    string
-	Description    string
-	TelegramHandle *string
-	PhoneNumber    *string
+	DisplayName string
+	Description string
+	PhoneNumber string
 }
 
 func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (models.User, error) {
@@ -63,15 +61,7 @@ func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID,
 		utf8.RuneCountInString(input.Description) > 500 {
 		return models.User{}, ErrInvalidProfile
 	}
-	var ok bool
-	input.TelegramHandle, ok = normalizedContact(input.TelegramHandle, 32)
-	if !ok {
-		return models.User{}, ErrInvalidProfile
-	}
-	if input.TelegramHandle != nil && !telegramHandlePattern.MatchString(*input.TelegramHandle) {
-		return models.User{}, ErrInvalidProfile
-	}
-	input.PhoneNumber, ok = normalizedContact(input.PhoneNumber, 20)
+	phone, ok := normalizedPhoneNumber(input.PhoneNumber)
 	if !ok {
 		return models.User{}, ErrInvalidProfile
 	}
@@ -84,8 +74,7 @@ func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID,
 	}
 	user.DisplayName = input.DisplayName
 	user.Description = input.Description
-	user.TelegramHandle = input.TelegramHandle
-	user.PhoneNumber = input.PhoneNumber
+	user.PhoneNumber = &phone
 	user.UpdatedBy = &actorID
 	if err := s.Users.UpdateActiveProfile(ctx, &user); err != nil {
 		if errors.Is(err, store.ErrRoleConflict) {
@@ -99,18 +88,14 @@ func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID,
 	return s.GetMyProfile(ctx, actorID)
 }
 
-var telegramHandlePattern = regexp.MustCompile(`^[A-Za-z0-9_]{5,32}$`)
+// MaxPhoneNumberLength is the longest accepted phone number after trimming.
+const MaxPhoneNumberLength = 20
 
-func normalizedContact(value *string, max int) (*string, bool) {
-	if value == nil {
-		return nil, true
+// normalizedPhoneNumber trims a required phone number and checks its length.
+func normalizedPhoneNumber(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || utf8.RuneCountInString(trimmed) > MaxPhoneNumberLength {
+		return "", false
 	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil, true
-	}
-	if utf8.RuneCountInString(trimmed) > max {
-		return nil, false
-	}
-	return &trimmed, true
+	return trimmed, true
 }
