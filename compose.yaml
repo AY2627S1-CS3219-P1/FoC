@@ -26,6 +26,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       USER_DB: ${USER_DB:-user_dev}
       SUPPLIER_DB: ${SUPPLIER_DB:-supplier_dev}
+      COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -117,6 +118,9 @@ services:
     environment:
       PORT: "8080"
       APP_ENV: ${APP_ENV:-local}
+      # Defaults to the shared Postgres so existing .env files keep working.
+      DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     volumes:
@@ -124,6 +128,11 @@ services:
       - ./pkg:/pkg
       - go-modules:/go/pkg/mod
       - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

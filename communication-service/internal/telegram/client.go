@@ -62,10 +62,23 @@ type Message struct {
 	Text      string `json:"text"`
 }
 
-// Update is one item from getUpdates. Only message updates are used so far.
+// ChatMember is a user's membership in a chat. For a private chat with the
+// bot, Status "kicked" means the user blocked the bot.
+type ChatMember struct {
+	Status string `json:"status"`
+}
+
+// ChatMemberUpdated reports a change to the bot's membership in a chat.
+type ChatMemberUpdated struct {
+	Chat          Chat       `json:"chat"`
+	NewChatMember ChatMember `json:"new_chat_member"`
+}
+
+// Update is one item from getUpdates.
 type Update struct {
-	UpdateID int64    `json:"update_id"`
-	Message  *Message `json:"message"`
+	UpdateID     int64              `json:"update_id"`
+	Message      *Message           `json:"message"`
+	MyChatMember *ChatMemberUpdated `json:"my_chat_member"`
 }
 
 type response[T any] struct {
@@ -89,7 +102,7 @@ func (c *Client) GetUpdates(ctx context.Context, offset int64, timeout time.Dura
 	err := c.call(ctx, "getUpdates", map[string]any{
 		"offset":          offset,
 		"timeout":         int(timeout.Seconds()),
-		"allowed_updates": []string{"message"},
+		"allowed_updates": []string{"message", "my_chat_member"},
 	}, &updates)
 	return updates, err
 }
