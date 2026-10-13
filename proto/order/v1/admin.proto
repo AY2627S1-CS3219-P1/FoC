@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package order.v1;
+
+import "buf/validate/validate.proto";
+import "order/v1/shared_types.proto";
+
+// Administrator-only Order operations. Admins read single orders through
+// OrderService.GetOrder.
+service OrderAdminService {
+  rpc ListUserOrders(ListUserOrdersRequest) returns (ListUserOrdersResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+
+  rpc AdminCancelOrder(AdminCancelOrderRequest) returns (AdminCancelOrderResponse) { option idempotency_level = IDEMPOTENT; }
+
+  rpc UnassignCourier(UnassignCourierRequest) returns (UnassignCourierResponse) {}
+}
+
+// One user's orders as requester, courier or either, newest first.
+message ListUserOrdersRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  ParticipantRole role = 2 [(buf.validate.field).enum.defined_only = true];
+  OrderStatus status = 3 [(buf.validate.field).enum.defined_only = true];
+  // One-based; zero means 1.
+  int32 page = 4 [(buf.validate.field).int32.gte = 0];
+  // Zero means 20; maximum 100.
+  int32 page_size = 5 [(buf.validate.field).int32 = {
+    gte: 0
+    lte: 100
+  }];
+}
+
+// Cancels an order before pickup, for example when a participant's suspension
+// is deferred. The reservation is released.
+message AdminCancelOrderRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).cel = {
+    id: "admin_cancel_order.reason_length"
+    message: "reason must be 1-500 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
+  }];
+}
+
+// Removes the courier from an Awaiting Pickup order, which returns to Awaiting
+// Courier.
+message UnassignCourierRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).cel = {
+    id: "unassign_courier.reason_length"
+    message: "reason must be 1-500 characters excluding leading and trailing whitespace"
+    expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
+  }];
+}
+
+message ListUserOrdersResponse {
+  repeated Order orders = 1;
+  PageInfo page_info = 2;
+}
+message AdminCancelOrderResponse {
+  Order order = 1;
+}
+message UnassignCourierResponse {
+  Order order = 1;
+}

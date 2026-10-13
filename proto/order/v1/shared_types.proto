@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package order.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Terminal statuses are immutable.
+enum OrderStatus {
+  // No status filter in list requests.
+  ORDER_STATUS_UNSPECIFIED = 0;
+  // Saved while Credit reserves the reward. Never shown to couriers.
+  ORDER_STATUS_PENDING_RESERVATION = 1;
+  ORDER_STATUS_AWAITING_COURIER = 2;
+  ORDER_STATUS_AWAITING_PICKUP = 3;
+  ORDER_STATUS_DELIVERING = 4;
+  ORDER_STATUS_DELIVERED = 5;
+  ORDER_STATUS_COMPLETED = 6;
+  ORDER_STATUS_CANCELLED = 7;
+  ORDER_STATUS_EXPIRED = 8;
+  ORDER_STATUS_FAILED = 9;
+  // Credit refused the reservation, or it could not be confirmed. Never opened.
+  ORDER_STATUS_REJECTED = 10;
+}
+
+// The caller's relationship to an order.
+enum ParticipantRole {
+  // Any role in list requests.
+  PARTICIPANT_ROLE_UNSPECIFIED = 0;
+  PARTICIPANT_ROLE_REQUESTER = 1;
+  PARTICIPANT_ROLE_COURIER = 2;
+}
+
+message Order {
+  string id = 1;
+  string requester_id = 2;
+  // Absent until a courier is assigned.
+  optional string courier_id = 3;
+  OrderStatus status = 4;
+  PickupLocation pickup = 5;
+  // Exact fields are redacted for callers who are not participants or admins.
+  DeliveryDetails delivery = 6;
+  string item_description = 7;
+  repeated ItemImage item_images = 8;
+  // Current reward. Raised when the requester accepts a counteroffer.
+  int64 reward_credits = 9;
+  // Allowed time from pickup to delivery. Twice this fails the order.
+  google.protobuf.Duration delivery_duration = 10;
+  // Awaiting Courier orders expire at this time.
+  google.protobuf.Timestamp expires_at = 11;
+  google.protobuf.Timestamp assigned_at = 12;
+  google.protobuf.Timestamp picked_up_at = 13;
+  google.protobuf.Timestamp delivered_at = 14;
+  google.protobuf.Timestamp completed_at = 15;
+  // Set for Cancelled, Expired, Failed and Rejected orders.
+  google.protobuf.Timestamp closed_at = 16;
+  optional string close_reason = 17;
+  // The courier left the item without a handover because the requester was unreachable.
+  bool unattended_delivery = 18;
+  // Where the item ended up after cancellation following pickup.
+  optional string item_location = 19;
+  // For optimistic concurrency.
+  int64 revision = 20;
+  google.protobuf.Timestamp created_at = 21;
+  google.protobuf.Timestamp updated_at = 22;
+}
+
+// Copied from Supplier when the order is created, so later Location edits or
+// archiving don't change existing orders.
+message PickupLocation {
+  string location_id = 1;
+  string name = 2;
+  string building_name = 3;
+  optional string floor = 4;
+}
+
+message DeliveryDetails {
+  // Coarse area shown to couriers before they accept.
+  string building_id = 1;
+  string building_name = 2;
+  // Exact address. Participants and admins only.
+  string address = 3;
+  // Participants and admins only.
+  Coordinates coordinates = 4;
+  // Participants and admins only.
+  optional string instructions = 5;
+}
+
+// WGS 84 degrees.
+message Coordinates {
+  double latitude = 1 [(buf.validate.field).double = {
+    gte: -90
+    lte: 90
+  }];
+  double longitude = 2 [(buf.validate.field).double = {
+    gte: -180
+    lte: 180
+  }];
+}
+
+message ItemImage {
+  string id = 1;
+  // Short-lived signed URL.
+  string download_url = 2;
+}
+
+// Terminal status is immutable.
+enum OfferStatus {
+  // No status filter in list requests.
+  OFFER_STATUS_UNSPECIFIED = 0;
+  OFFER_STATUS_OPEN = 1;
+  // The requester accepted it and Credit is adjusting the reservation.
+  OFFER_STATUS_ACCEPTING = 2;
+  OFFER_STATUS_ACCEPTED = 3;
+  // Another courier was assigned, the order closed, or the adjustment failed.
+  OFFER_STATUS_VOID = 4;
+}
+
+// A courier's counteroffer above the current reward.
+message Offer {
+  string id = 1;
+  string order_id = 2;
+  string courier_id = 3;
+  int64 credits = 4;
+  OfferStatus status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Counts include only orders visible to the caller after filtering.
+message PageInfo {
+  // One-based current page.
+  int32 page = 1;
+  // Effective size, default 20, maximum 100.
+  int32 page_size = 2;
+  int64 total_items = 3;
+  // Total pages, zero for an empty result.
+  int32 total_pages = 4;
+}
