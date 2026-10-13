@@ -32,7 +32,7 @@
 		error = '';
 		try {
 			await authService.register(token, name);
-			await goto('/', { replaceState: true });
+			await goto('/welcome/telegram', { replaceState: true });
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) {
 				token = null;

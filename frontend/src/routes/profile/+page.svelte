@@ -10,6 +10,7 @@
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
+	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -119,5 +120,18 @@
 				{/if}
 			</div>
 		</Card>
+		<Card variant="outlined">
+			<div class="panel-body">
+				<div><p class="eyebrow">Notifications</p><h2 class="telegram-title">Telegram</h2></div>
+				<TelegramLinkCard />
+			</div>
+		</Card>
 	{/if}
 </section>
+
+<style>
+	.telegram-title {
+		margin: 0.1rem 0 0;
+		font-size: 1.25rem;
+	}
+</style>
