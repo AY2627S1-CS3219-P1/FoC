@@ -103,7 +103,8 @@ func main() {
 		}
 	}
 
-	auth, codec, persistence, err := newAuthServices(db, cfg)
+	allowedDomainLogic := newAllowedDomainService(sqlDB)
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
@@ -116,9 +117,6 @@ func main() {
 			})
 		},
 	}
-	allowedDomainRepository := allowedadmin.AllowedDomainRepository(
-		allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(sqlDB)))
-	allowedDomainLogic := allowedadmin.NewAllowedDomainService(&allowedDomainRepository)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -276,7 +274,29 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 	return d
 }
 
-func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+func newAllowedDomainService(db alloweddomaindb.DBTX) allowedadmin.AllowedDomainService {
+	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
+	return allowedadmin.NewAllowedDomainService(&repo)
+}
+
+func authStore(persistence *store.Store, policy service.EmailDomainPolicy) service.Store {
+	return service.Store{
+		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
+		Sessions: persistence.Sessions, DomainPolicy: policy,
+	}
+}
+
+func authTransactions(db *gorm.DB) service.WithTransaction {
+	return func(ctx context.Context, operation func(service.Store) error) error {
+		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
+			policy := newAllowedDomainService(tx.Statement.ConnPool)
+			return operation(authStore(store.New(tx), policy))
+		})
+	}
+}
+
+func newAuthServices(db *gorm.DB, cfg config, domainPolicy service.EmailDomainPolicy) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
@@ -295,20 +315,8 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
 	persistence := store.New(db)
-	serviceStore := service.Store{
-		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
-		Sessions: persistence.Sessions, Domains: persistence.Admin,
-	}
-	withTransaction := func(ctx context.Context, operation func(service.Store) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return operation(service.Store{
-				Users: tx.Users, AuthTokens: tx.AuthTokens,
-				Sessions: tx.Sessions, Domains: tx.Admin,
-			})
-		})
-	}
 	logic, err := service.NewService(service.Dependencies{
-		Store: serviceStore, WithTransaction: withTransaction,
+		Store: authStore(persistence, domainPolicy), WithTransaction: authTransactions(db),
 		TokenCodec: codec, EmailSender: cfg.smtp,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",

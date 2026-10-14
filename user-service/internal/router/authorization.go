@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
@@ -37,14 +38,15 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 				return nil, api.ToConnectError(ctx, fmt.Errorf("resolve authenticated user: %w", err))
 			}
 			switch req.Spec().Procedure {
-			case "/user.v1.ProfileService/UpdateMyProfile":
+			case userv1connect.ProfileServiceUpdateMyProfileProcedure:
 				if actor.Role == models.RoleSuspended {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}
-			case "/user.v1.UserAdminService/GetUserByEmail", "/user.v1.UserAdminService/ChangeUserRole",
-				"/user.v1.AllowedDomainAdminService/ListAllowedDomains",
-				"/user.v1.AllowedDomainAdminService/AllowDomain",
-				"/user.v1.AllowedDomainAdminService/RemoveAllowedDomain":
+			case userv1connect.UserAdminServiceGetUserByEmailProcedure,
+				userv1connect.UserAdminServiceChangeUserRoleProcedure,
+				userv1connect.AllowedDomainAdminServiceListAllowedDomainsProcedure,
+				userv1connect.AllowedDomainAdminServiceAllowDomainProcedure,
+				userv1connect.AllowedDomainAdminServiceRemoveAllowedDomainProcedure:
 				if !actor.Role.IsAdmin() {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}
