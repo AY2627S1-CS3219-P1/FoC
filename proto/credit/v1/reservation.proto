@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package credit.v1;
+
+import "buf/validate/validate.proto";
+import "credit/v1/shared_types.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Order's credit reservations: one per order, keyed by request_id (the Order
+// Service order ID). Called by Order Service only, with its service token.
+//
+// Every mutation is idempotent by its key: request_id, or offer_id for
+// adjustments and reverts. Keys never expire. Repeating a call with the same
+// data returns the stored result; different data is already_exists. Settled
+// and Released reservations never change again, so no call pays or returns
+// credits twice. Reports and appeals have no path into this API.
+//
+// Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
+// reasons:
+// - INSUFFICIENT_CREDITS (failed_precondition)
+// - IDEMPOTENCY_CONFLICT (already_exists)
+// - RESERVATION_NOT_FOUND (not_found)
+// - RESERVATION_RELEASED (failed_precondition)
+// - RESERVATION_SETTLED (failed_precondition)
+// - RESERVATION_NOT_ASSIGNED (failed_precondition)
+// - ADJUSTMENT_PENDING (failed_precondition)
+// - ADJUSTMENT_REVERTED (failed_precondition)
+// - ACCOUNT_NOT_FOUND (not_found)
+// Branch on the reason, not the message. After a timeout, repeat the call with
+// the same data or call GetReservation.
+service CreditReservationService {
+  rpc Reserve(ReserveRequest) returns (ReserveResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc AdjustReservation(AdjustReservationRequest) returns (AdjustReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc RevertAdjustment(RevertAdjustmentRequest) returns (RevertAdjustmentResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc SettleReservation(SettleReservationRequest) returns (SettleReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+// Holds amount from the requester's available credits when an order is
+// created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
+// with RESERVATION_RELEASED if the order was already released.
+message ReserveRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  string requester_id = 2 [(buf.validate.field).string.uuid = true];
+  int64 amount = 3 [(buf.validate.field).int64.gt = 0];
+}
+
+// Applies an accepted offer to a Held reservation and records the courier.
+// Accepting at the original reward is also an offer, so Order supplies an
+// offer_id for every acceptance. The hold becomes offer_amount; if the
+// increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
+// returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
+message AdjustReservationRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  string offer_id = 2 [(buf.validate.field).string.uuid = true];
+  string courier_id = 3 [(buf.validate.field).string.uuid = true];
+  int64 offer_amount = 4 [(buf.validate.field).int64.gt = 0];
+}
+
+// Undoes an applied offer after Order loses the assignment race. The hold
+// returns to the previous amount and the reservation to Held. An unknown offer
+// is recorded as reverted, so a later AdjustReservation for it fails with
+// ADJUSTMENT_REVERTED. On a Released reservation this succeeds with nothing to
+// undo; on a Settled one it fails with RESERVATION_SETTLED.
+message RevertAdjustmentRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  string offer_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+// Returns the whole hold to the requester when an order is cancelled before
+// pickup, expires or fails. An unknown request is recorded as released, so a
+// later Reserve for it fails with RESERVATION_RELEASED. Fails with
+// RESERVATION_SETTLED on a Settled reservation.
+message ReleaseReservationRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  ReleaseReason reason = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+// Pays the courier when an order completes or the requester cancels after
+// pickup. The reservation must be Assigned. The courier receives the payable
+// amount and the rest of the hold returns to the requester.
+message SettleReservationRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+    Completed completed = 2;
+    CancelledAfterPickup cancelled_after_pickup = 3;
+  }
+
+  // Credit applies the lateness rule. With elapsed = delivered_at -
+  // picked_up_at, T = delivery_duration and R = the hold:
+  // - elapsed <= T pays R;
+  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+  // - elapsed >= 2T pays 0.
+  message Completed {
+    option (buf.validate.message).cel = {
+      id: "completed.delivered_after_pickup"
+      message: "delivered_at must not be before picked_up_at"
+      expression: "this.delivered_at >= this.picked_up_at"
+    };
+    google.protobuf.Timestamp picked_up_at = 1 [(buf.validate.field).required = true];
+    // Allowed time from pickup to delivery.
+    google.protobuf.Duration delivery_duration = 2 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gt = {}
+    ];
+    google.protobuf.Timestamp delivered_at = 3 [(buf.validate.field).required = true];
+  }
+
+  // Pays the courier the whole hold.
+  message CancelledAfterPickup {}
+}
+
+// Includes tombstones. Fails with RESERVATION_NOT_FOUND for unknown requests.
+message GetReservationRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ReserveResponse {
+  Reservation reservation = 1;
+}
+message AdjustReservationResponse {
+  Reservation reservation = 1;
+}
+message RevertAdjustmentResponse {
+  Reservation reservation = 1;
+}
+message ReleaseReservationResponse {
+  Reservation reservation = 1;
+}
+message SettleReservationResponse {
+  Reservation reservation = 1;
+}
+message GetReservationResponse {
+  Reservation reservation = 1;
+}
