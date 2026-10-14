@@ -18,27 +18,29 @@ type PostgresStore struct {
 	Pool *pgxpool.Pool
 }
 
-// ReplaceCode implements Store.
+// ReplaceCode implements Store. The partial unique index on unused codes
+// makes concurrent calls for one user leave a single unused code.
 func (s *PostgresStore) ReplaceCode(ctx context.Context, userID uuid.UUID, codeHash []byte, expiresAt, now time.Time) error {
-	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`DELETE FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, userID); err != nil {
-			return fmt.Errorf("delete unused codes: %w", err)
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO telegram_link_codes (code_hash, user_id, expires_at, created_at) VALUES ($1, $2, $3, $4)`,
-			codeHash, userID, expiresAt, now); err != nil {
-			return fmt.Errorf("insert code: %w", err)
-		}
-		return nil
-	})
+	if _, err := s.Pool.Exec(ctx, `
+		INSERT INTO telegram_link_codes (code_hash, user_id, expires_at, created_at) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) WHERE used_at IS NULL DO UPDATE
+		SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, created_at = EXCLUDED.created_at`,
+		codeHash, userID, expiresAt, now); err != nil {
+		return fmt.Errorf("save code: %w", err)
+	}
+	return nil
 }
 
 // RedeemCode implements Store.
 func (s *PostgresStore) RedeemCode(ctx context.Context, codeHash []byte, chat Chat, now time.Time) (Link, error) {
 	var link Link
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-		// Locking the code row serializes concurrent redemptions of it.
+		// Serialize links for one chat, so concurrent redemptions from the same
+		// chat move it to the last one instead of failing on chat_id.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, chat.ID); err != nil {
+			return fmt.Errorf("lock chat: %w", err)
+		}
+		// The conditional update makes each code redeemable once.
 		var userID uuid.UUID
 		err := tx.QueryRow(ctx, `
 			UPDATE telegram_link_codes SET used_at = $2

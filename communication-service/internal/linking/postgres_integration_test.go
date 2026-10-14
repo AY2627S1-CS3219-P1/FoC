@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -129,5 +130,77 @@ func TestOneChatPerAccountAndAccountPerChat(t *testing.T) {
 	}
 	if _, err := svc.Get(ctx, bob); !errors.Is(err, ErrNotLinked) {
 		t.Fatalf("after block: %v", err)
+	}
+}
+
+func TestConcurrentCodesLeaveOneUnused(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	alice := uuid.New()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+	for range 10 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := svc.CreateCode(ctx, alice); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("CreateCode: %v", err)
+	}
+	var unused int
+	pool := svc.Store.(*PostgresStore).Pool
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, alice).Scan(&unused); err != nil {
+		t.Fatal(err)
+	}
+	if unused != 1 {
+		t.Fatalf("unused codes = %d, want 1", unused)
+	}
+}
+
+func TestConcurrentRedemptionsFromOneChat(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	users := make([]uuid.UUID, 8)
+	codes := make([]string, len(users))
+	for i := range users {
+		users[i] = uuid.New()
+		code, _, err := svc.CreateCode(ctx, users[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		codes[i] = code
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, len(codes))
+	for _, code := range codes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := svc.Redeem(ctx, code, Chat{ID: 300}); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("Redeem: %v", err)
+	}
+	linked := 0
+	for _, user := range users {
+		if link, err := svc.Get(ctx, user); err == nil && link.ChatID == 300 {
+			linked++
+		}
+	}
+	if linked != 1 {
+		t.Fatalf("accounts linked to chat 300 = %d, want 1", linked)
 	}
 }

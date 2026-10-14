@@ -16,12 +16,16 @@ type UpdateSource interface {
 // acknowledged, so one bad message can't stall the bot.
 type Handler func(ctx context.Context, update Update) error
 
+// DefaultPollTimeout is how long each getUpdates call waits for updates.
+const DefaultPollTimeout = 30 * time.Second
+
 // Poller long-polls for updates. Telegram allows one poller per bot token, so
 // each developer needs their own bot locally.
 type Poller struct {
-	Source  UpdateSource
-	Handle  Handler
-	Log     *slog.Logger
+	Source UpdateSource
+	Handle Handler
+	Log    *slog.Logger
+	// Timeout is the long-poll wait. Zero means DefaultPollTimeout.
 	Timeout time.Duration
 	// Backoff is the wait after a failed poll. Zero means one second.
 	Backoff time.Duration
@@ -34,9 +38,13 @@ func (p *Poller) Run(ctx context.Context) error {
 	if backoff == 0 {
 		backoff = time.Second
 	}
+	timeout := p.Timeout
+	if timeout == 0 {
+		timeout = DefaultPollTimeout
+	}
 	var offset int64
 	for {
-		updates, err := p.Source.GetUpdates(ctx, offset, p.Timeout)
+		updates, err := p.Source.GetUpdates(ctx, offset, timeout)
 		if ctx.Err() != nil {
 			return nil
 		}

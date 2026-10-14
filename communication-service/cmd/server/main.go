@@ -30,7 +30,7 @@ const (
 	readHeaderTimeout = 5 * time.Second
 	shutdownTimeout   = 10 * time.Second
 	// Long-poll wait per getUpdates call; the HTTP timeout must exceed it.
-	pollTimeout = 30 * time.Second
+	pollTimeout = telegram.DefaultPollTimeout
 	// User Service may still be starting; its public keys are fetched at startup.
 	authStartupTimeout = time.Minute
 	authRetryInterval  = 2 * time.Second

@@ -16,7 +16,8 @@ CREATE TABLE telegram_link_codes (
     created_at timestamptz NOT NULL
 );
 
-CREATE INDEX telegram_link_codes_unused_by_user
+-- At most one unused code per user; creating a code replaces it.
+CREATE UNIQUE INDEX telegram_link_codes_one_unused_per_user
     ON telegram_link_codes (user_id) WHERE used_at IS NULL;
 
 -- +goose Down

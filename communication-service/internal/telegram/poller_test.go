@@ -12,14 +12,16 @@ import (
 
 // fakeSource returns scripted results, then blocks until the context ends.
 type fakeSource struct {
-	mu      sync.Mutex
-	results []func() ([]Update, error)
-	offsets []int64
+	mu       sync.Mutex
+	results  []func() ([]Update, error)
+	offsets  []int64
+	timeouts []time.Duration
 }
 
-func (f *fakeSource) GetUpdates(ctx context.Context, offset int64, _ time.Duration) ([]Update, error) {
+func (f *fakeSource) GetUpdates(ctx context.Context, offset int64, timeout time.Duration) ([]Update, error) {
 	f.mu.Lock()
 	f.offsets = append(f.offsets, offset)
+	f.timeouts = append(f.timeouts, timeout)
 	if len(f.results) == 0 {
 		f.mu.Unlock()
 		<-ctx.Done()
@@ -104,5 +106,22 @@ func TestPollerStopsWhenContextEnds(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Run did not stop after cancellation")
+	}
+}
+
+func TestPollerDefaultsToLongPolling(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { cancel(); return nil, nil },
+	}}
+	poller := &Poller{Source: source, Log: quietLog(), Handle: func(context.Context, Update) error { return nil }}
+
+	if err := poller.Run(ctx); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	if len(source.timeouts) == 0 || source.timeouts[0] != DefaultPollTimeout {
+		t.Fatalf("timeouts = %v, want %v", source.timeouts, DefaultPollTimeout)
 	}
 }
