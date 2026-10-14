@@ -1,0 +1,18 @@
+version: v2
+
+clean: true
+
+inputs:
+  - directory: kafka
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen
+
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.12
+    out: pkg/kafkagen
+    opt:
+      - paths=source_relative

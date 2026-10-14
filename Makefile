@@ -5,7 +5,7 @@ GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
 GO_MODULES := pkg user-service supplier-service
 
-.PHONY: buf-lint buf-generate fmt fmt-check lint
+.PHONY: buf-lint buf-generate buf-generate-rpc buf-generate-kafka fmt fmt-check lint
 
 $(GOLANGCI):
 	mkdir -p $(dir $(GOLANGCI))
@@ -34,5 +34,10 @@ $(BUF):
 buf-lint: $(BUF)
 	$(BUF) lint
 
-buf-generate: $(BUF)
+buf-generate: buf-generate-rpc buf-generate-kafka
+
+buf-generate-rpc: $(BUF)
 	$(BUF) generate
+
+buf-generate-kafka: $(BUF)
+	$(BUF) generate --template buf.kafka.gen.yaml
