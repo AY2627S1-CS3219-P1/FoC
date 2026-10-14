@@ -59,7 +59,7 @@ func TestAuthDomainPolicyUsesSameTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	rollback := errors.New("roll back authentication")
-	err = authTransactions(db)(ctx, func(tx service.Store) error {
+	err = authTransactions(db)(ctx, func(tx service.Resources) error {
 		if _, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeRegister, now); err != nil {
 			return err
 		}

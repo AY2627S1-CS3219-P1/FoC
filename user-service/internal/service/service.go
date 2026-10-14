@@ -40,14 +40,14 @@ type EmailDomainPolicy interface {
 	IsDomainAllowed(context.Context, string) (bool, error)
 }
 
-type Store struct {
+type Resources struct {
 	Users        UserStore
 	AuthTokens   AuthTokenStore
 	Sessions     SessionStore
 	DomainPolicy EmailDomainPolicy
 }
 
-type WithTransaction func(context.Context, func(Store) error) error
+type WithTransaction func(context.Context, func(Resources) error) error
 
 // TokenCodec is the signing and verification logic consumed by Service.
 type TokenCodec interface {
@@ -57,7 +57,7 @@ type TokenCodec interface {
 }
 
 type Dependencies struct {
-	Store           Store
+	Resources       Resources
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
 	EmailSender     email.EmailSender

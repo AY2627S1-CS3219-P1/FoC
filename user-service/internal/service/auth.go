@@ -38,7 +38,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 		return err
 	}
 
-	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
+	user, err := s.deps.Resources.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
 		if user.ID == uuid.Nil {
@@ -51,7 +51,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	if isLogin {
 		role = user.Role
 	}
-	if err := requireAllowedEmailDomain(ctx, s.deps.Store.DomainPolicy, normalizedEmail, role); err != nil {
+	if err := requireAllowedEmailDomain(ctx, s.deps.Resources.DomainPolicy, normalizedEmail, role); err != nil {
 		return err
 	}
 
@@ -68,7 +68,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	} else {
 		challenge.Purpose = models.TokenPurposeRegister
 	}
-	if err := s.deps.Store.AuthTokens.Create(ctx, &challenge); err != nil {
+	if err := s.deps.Resources.AuthTokens.Create(ctx, &challenge); err != nil {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 
@@ -113,7 +113,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeLogin, now)
 		if err != nil {
 			return err
@@ -174,7 +174,7 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeRegister, now)
 		if err != nil {
 			return err
@@ -226,7 +226,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	user, err := s.deps.Store.Users.GetByID(ctx, userID)
+	user, err := s.deps.Resources.Users.GetByID(ctx, userID)
 	if errors.Is(err, store.ErrNotFound) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
@@ -237,7 +237,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	var tokens jwt.AuthTokens
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, user.Email, user.Role); err != nil {
 			return err
 		}
@@ -269,7 +269,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return nil
 	}
-	err = s.deps.Store.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
+	err = s.deps.Resources.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
 	if errors.Is(err, store.ErrSessionRejected) {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return jwt.ErrRefreshFailed
 	}
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
@@ -316,7 +316,7 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) createSession(ctx context.Context, tx Store, user models.User, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) createSession(ctx context.Context, tx Resources, user models.User, now time.Time) (jwt.AuthTokens, error) {
 	placeholderHash := make([]byte, sha256.Size)
 	if _, err := rand.Read(placeholderHash); err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("generate session placeholder: %w", err)
