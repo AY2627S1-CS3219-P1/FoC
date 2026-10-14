@@ -28,6 +28,7 @@ type fakeStore struct {
 	registrations  map[[32]byte]models.AuthToken
 	sessions       map[uuid.UUID]models.Session
 	allowedDomains map[string]struct{}
+	domainErr      error
 	failSession    bool
 }
 
@@ -197,17 +198,20 @@ func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, no
 
 type fakeDomains struct{ *fakeStore }
 
-func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
+func (f fakeDomains) IsDomainAllowed(_ context.Context, domain string) (bool, error) {
+	if f.domainErr != nil {
+		return false, f.domainErr
+	}
 	_, ok := f.allowedDomains[strings.ToLower(domain)]
 	return ok, nil
 }
 
 func (f *fakeStore) stores() Store {
 	return Store{
-		Users:      fakeUsers{f},
-		AuthTokens: fakeAuthTokens{f},
-		Sessions:   fakeSessions{f},
-		Domains:    fakeDomains{f},
+		Users:        fakeUsers{f},
+		AuthTokens:   fakeAuthTokens{f},
+		Sessions:     fakeSessions{f},
+		DomainPolicy: fakeDomains{f},
 	}
 }
 
@@ -220,6 +224,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 		registrations:  cloneMap(f.registrations),
 		sessions:       cloneMap(f.sessions),
 		allowedDomains: cloneMap(f.allowedDomains),
+		domainErr:      f.domainErr,
 		failSession:    f.failSession,
 	}
 	if err := operation(tx.stores()); err != nil {
@@ -560,7 +565,7 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	ctx := context.Background()
 	token := addRegistrationChallenge(t, store, now)
 
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, ErrEmailDomainNotAllowed) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
 	if len(store.users) != 0 {

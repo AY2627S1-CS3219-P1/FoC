@@ -35,15 +35,16 @@ type SessionStore interface {
 	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
 }
 
-type DomainStore interface {
-	Allows(context.Context, string) (bool, error)
+// EmailDomainPolicy reports membership in the email-domain allowlist.
+type EmailDomainPolicy interface {
+	IsDomainAllowed(context.Context, string) (bool, error)
 }
 
 type Store struct {
-	Users      UserStore
-	AuthTokens AuthTokenStore
-	Sessions   SessionStore
-	Domains    DomainStore
+	Users        UserStore
+	AuthTokens   AuthTokenStore
+	Sessions     SessionStore
+	DomainPolicy EmailDomainPolicy
 }
 
 type WithTransaction func(context.Context, func(Store) error) error
