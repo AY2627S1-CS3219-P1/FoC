@@ -26,6 +26,10 @@ func (s AllowedDomainService) ListAllowedDomains(
 	return s.repo.ListAllowedDomains(ctx)
 }
 
+func (s AllowedDomainService) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
+	return s.repo.IsDomainAllowed(ctx, domain)
+}
+
 func (s AllowedDomainService) AllowDomain(
 	ctx context.Context,
 	domain string,

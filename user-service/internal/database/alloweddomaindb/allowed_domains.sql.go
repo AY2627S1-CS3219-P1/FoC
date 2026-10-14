@@ -26,6 +26,19 @@ func (q *Queries) AllowDomain(ctx context.Context, arg AllowDomainParams) error 
 	return err
 }
 
+const isDomainAllowed = `-- name: IsDomainAllowed :one
+SELECT EXISTS (
+    SELECT 1 FROM allowed_email_domains WHERE domain = $1
+)
+`
+
+func (q *Queries) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isDomainAllowed, domain)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listAllowedDomains = `-- name: ListAllowedDomains :many
 SELECT id, domain
 FROM allowed_email_domains

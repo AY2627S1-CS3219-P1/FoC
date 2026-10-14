@@ -20,6 +20,14 @@ func NewPostgresAllowedAdminRepository(queries *alloweddomaindb.Queries) *Postgr
 
 var _ AllowedDomainRepository = (*PostgresAllowedAdminRepository)(nil)
 
+func (p PostgresAllowedAdminRepository) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
+	allowed, err := p.queries.IsDomainAllowed(ctx, domain)
+	if err != nil {
+		return false, fmt.Errorf("check allowed domain: %w", err)
+	}
+	return allowed, nil
+}
+
 func (p PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) ([]AllowedDomain, error) {
 	rows, err := p.queries.ListAllowedDomains(ctx)
 	if err != nil {
