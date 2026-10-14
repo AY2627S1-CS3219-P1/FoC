@@ -88,7 +88,11 @@ func TestConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
+	defer func() {
+		if err := p.Close(); err != nil {
+			t.Errorf("close publisher: %v", err)
+		}
+	}()
 	w := p.writer.(*kafkago.Writer)
 	if w.RequiredAcks != kafkago.RequireAll || w.Async || w.AllowAutoTopicCreation || w.WriteTimeout != 5*time.Second {
 		t.Fatal("incorrect writer settings")

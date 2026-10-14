@@ -39,7 +39,11 @@ func TestKafkaIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
+	defer func() {
+		if err := p.Close(); err != nil {
+			t.Errorf("close publisher: %v", err)
+		}
+	}()
 	value := fmt.Sprintf("integration-%d", time.Now().UnixNano())
 	if err := p.Publish(ctx, topic, []byte(value), wrapperspb.String(value)); err != nil {
 		t.Fatal(err)
