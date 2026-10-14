@@ -24,8 +24,10 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -114,11 +116,15 @@ func main() {
 			})
 		},
 	}
+	allowedDomainRepository := allowedadmin.AllowedDomainRepository(
+		allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(sqlDB)))
+	allowedDomainLogic := allowedadmin.NewAllowedDomainService(&allowedDomainRepository)
 	protected := router.ProtectedRoutes{
-		Profile:      &profilehandler.Handler{Logic: profileLogic},
-		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
-		Users:        persistence.Users,
+		Profile:        &profilehandler.Handler{Logic: profileLogic},
+		Admin:          &adminhandler.Handler{Logic: roleLogic},
+		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Users:          persistence.Users,
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
 	srv := newServer(":"+cfg.port, handler)
