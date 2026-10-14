@@ -2,10 +2,12 @@ package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type PostgresAllowedAdminRepository struct {
@@ -21,7 +23,7 @@ var _ AllowedDomainRepository = (*PostgresAllowedAdminRepository)(nil)
 func (p PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) ([]AllowedDomain, error) {
 	rows, err := p.queries.ListAllowedDomains(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list allowed domains: %w", err)
 	}
 
 	allowedDomains := make([]AllowedDomain, len(rows))
@@ -33,16 +35,29 @@ func (p PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) 
 }
 
 func (p PostgresAllowedAdminRepository) AllowDomain(ctx context.Context, domain string, actorID uuid.UUID) error {
-	return p.queries.AllowDomain(ctx, alloweddomaindb.AllowDomainParams{Domain: domain, ActorID: actorID})
+	err := p.queries.AllowDomain(ctx, alloweddomaindb.AllowDomainParams{Domain: domain, ActorID: actorID})
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch {
+		case pgErr.Code == "23505" && (pgErr.ConstraintName == "allowed_email_domains_domain_key" || pgErr.ConstraintName == "idx_allowed_email_domains_live"):
+			return fmt.Errorf("%w: %w", errDomainAlreadyExists, err)
+		case pgErr.Code == "23514" && pgErr.ConstraintName == "allowed_email_domains_domain_check":
+			return fmt.Errorf("%w: %w", errInvalidDomain, err)
+		}
+	}
+	return fmt.Errorf("allow domain: %w", err)
 }
 
 func (p PostgresAllowedAdminRepository) RemoveAllowedDomain(ctx context.Context, id uuid.UUID) error {
 	rowsAffected, err := p.queries.RemoveAllowedDomain(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("remove allowed domain: %w", err)
 	}
 	if rowsAffected == 0 {
-		return errs.NewNotFoundError("allowed domain not found")
+		return errDomainNotFound
 	}
 	return nil
 }
