@@ -20,7 +20,8 @@ export const file_credit_v1_reservation: GenFile = /*@__PURE__*/
 /**
  * Holds amount from the requester's available credits when an order is
  * created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
- * with RESERVATION_RELEASED if the order was already released.
+ * with RESERVATION_RELEASED if the order was already released. A requester
+ * without an account first receives the starting credits.
  *
  * @generated from message credit.v1.ReserveRequest
  */
@@ -370,7 +371,6 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
  * - RESERVATION_NOT_ASSIGNED (failed_precondition)
  * - ADJUSTMENT_PENDING (failed_precondition)
  * - ADJUSTMENT_REVERTED (failed_precondition)
- * - ACCOUNT_NOT_FOUND (not_found)
  * Branch on the reason, not the message. After a timeout, repeat the call with
  * the same data or call GetReservation.
  *

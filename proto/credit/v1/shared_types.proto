@@ -82,6 +82,7 @@ message Settlement {
   ReleaseReason release_reason = 5;
 }
 
+// Created the first time Credit sees a user, with the starting credits.
 message Account {
   string user_id = 1;
   // Credits the user owns, including credits held in reservations.
@@ -94,7 +95,7 @@ message Account {
 
 enum LedgerEntryKind {
   LEDGER_ENTRY_KIND_UNSPECIFIED = 0;
-  // One-time registration allocation.
+  // Starting credits (default 1000), granted once when the account is created.
   LEDGER_ENTRY_KIND_GRANT = 1;
   LEDGER_ENTRY_KIND_RESERVE = 2;
   // An accepted offer changed the hold.
