@@ -106,6 +106,33 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   server transport boundary. Add protocol-specific cases elsewhere only when
   behavior differs by protocol.
 
+## Kafka messages
+
+- Kafka contracts live separately from RPC contracts under
+  `kafka/<service>/events/v1/<topic>.proto`, with package
+  `<service>.events.v1`. Declare messages and enums, without RPC services.
+- `buf.kafka.gen.yaml` generates Go Protobuf types only, under `pkg/kafkagen`.
+  Never edit generated files. Run `make buf-lint` and `make buf-generate-kafka`
+  after changing an event contract; commit schemas and generated output together.
+  `make buf-generate` generates both RPC and Kafka contracts.
+- Producers serialize with `proto.Marshal`; consumers deserialize with
+  `proto.Unmarshal`. Each topic has an agreed value message and key documented
+  in `kafka/README.md`. Keep event contracts independent of RPC request types.
+- `infra/kafka/topics.conf` explicitly maps topics to schemas and owns partition
+  and replication settings. Topic names use `<service>.<topic>`; schemas for
+  shared types do not create topics. Disable broker topic auto-creation.
+- Never reuse removed field numbers; reserve removed fields. Check compatibility
+  with `buf breaking` against the target branch before merging contract changes.
+- Shared Kafka transport lives in `pkg/kafka`. Construct publishers and
+  subscribers in the service composition root and inject them; do not use
+  globals or package `init` for registration. Register typed handlers before
+  starting the blocking `Run(ctx)` loop and monitor its returned error.
+- Handlers return success only after their local transaction commits. The
+  wrapper commits Kafka offsets afterward and stops on handler/decode failure.
+  Services own transactional deduplication, outboxes, saga replies and
+  compensation; a business rejection can enqueue a failure event and return
+  success. See `pkg/kafka/README.md` for lifecycle and delivery guarantees.
+
 ## Dependencies and interfaces
 
 - Inject dependencies as struct fields, set once in `cmd/server/main.go`

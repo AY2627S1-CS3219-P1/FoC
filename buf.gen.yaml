@@ -2,6 +2,9 @@ version: v2
 
 clean: true # clear output dirs first before gen
 
+inputs:
+  - directory: proto
+
 managed:
   enabled: true
   disable:
