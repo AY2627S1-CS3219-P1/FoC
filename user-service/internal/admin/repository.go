@@ -15,6 +15,7 @@ var (
 
 type AllowedDomainRepository interface {
 	ListAllowedDomains(context.Context) ([]AllowedDomain, error)
+	IsDomainAllowed(context.Context, string) (bool, error)
 	AllowDomain(context.Context, string, uuid.UUID) error
 	RemoveAllowedDomain(context.Context, uuid.UUID) error
 }

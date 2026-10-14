@@ -55,6 +55,14 @@ func TestAllowedDomainErrors(t *testing.T) {
 	if err := service.AllowDomain(ctx, "example.com", actorID); err != nil {
 		t.Fatal(err)
 	}
+	for _, tc := range []struct {
+		domain string
+		want   bool
+	}{{"example.com", true}, {"EXAMPLE.COM", true}, {"sub.example.com", false}, {"absent.example.com", false}} {
+		if allowed, err := service.IsDomainAllowed(ctx, tc.domain); err != nil || allowed != tc.want {
+			t.Fatalf("domain membership for %q: allowed=%v err=%v", tc.domain, allowed, err)
+		}
+	}
 
 	// Each rejected statement uses a savepoint so PostgreSQL does not leave
 	// the transaction aborted before the next assertion.
@@ -95,6 +103,9 @@ func TestAllowedDomainErrors(t *testing.T) {
 	if err := service.RemoveAllowedDomain(ctx, domains[0].Id); err != nil {
 		t.Fatal(err)
 	}
+	if allowed, err := service.IsDomainAllowed(ctx, "example.com"); err != nil || allowed {
+		t.Fatalf("hard-deleted domain remains allowed: allowed=%v err=%v", allowed, err)
+	}
 	assertAllowedDomainError(t, service.RemoveAllowedDomain(ctx, domains[0].Id), http.StatusNotFound)
 	if err := service.AllowDomain(ctx, "example.com", actorID); err != nil {
 		t.Fatalf("re-adding hard-deleted domain: %v", err)
@@ -104,6 +115,9 @@ func TestAllowedDomainErrors(t *testing.T) {
 	}
 	if _, err := service.ListAllowedDomains(ctx); !errors.Is(err, sql.ErrTxDone) {
 		t.Fatalf("original database failure was lost: %v", err)
+	}
+	if allowed, err := service.IsDomainAllowed(ctx, "example.com"); allowed || !errors.Is(err, sql.ErrTxDone) {
+		t.Fatalf("domain lookup lost database failure: allowed=%v err=%v", allowed, err)
 	}
 }
 
