@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -81,7 +80,7 @@ func main() {
 	if err != nil {
 		fatal("database handle", err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	if cfg.runMigrations {
 		if err := database.Migrate(db); err != nil {
@@ -271,11 +270,6 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 	return d
 }
 
-func newAuthHandler(db *gorm.DB, cfg config) (*authhandler.Handler, error) {
-	auth, _, _, err := newAuthServices(db, cfg)
-	return auth, err
-}
-
 func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
@@ -285,7 +279,11 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	codec, err := userservicejwt.NewES256Codec(key, keyID(&key.PublicKey),
+	kid, err := keyID(&key.PublicKey)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
+	}
+	codec, err := userservicejwt.NewES256Codec(key, kid,
 		httpauth.TokenIssuer, httpauth.TokenAudience)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
@@ -317,9 +315,13 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
 }
 
-func keyID(key *ecdsa.PublicKey) string {
-	fingerprint := sha256.Sum256(elliptic.Marshal(key.Curve, key.X, key.Y))
-	return hex.EncodeToString(fingerprint[:])
+func keyID(key *ecdsa.PublicKey) (string, error) {
+	point, err := key.Bytes()
+	if err != nil {
+		return "", err
+	}
+	fingerprint := sha256.Sum256(point)
+	return hex.EncodeToString(fingerprint[:]), nil
 }
 
 func getCorsConfig(allowedOrigin string) *cors.Cors {

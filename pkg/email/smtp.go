@@ -69,7 +69,7 @@ func (s SMTPSender) Send(ctx context.Context, e Email) error {
 	if err != nil {
 		return fmt.Errorf("email: dial %s: %w", s.Addr, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.SetDeadline(deadline); err != nil {
 		return fmt.Errorf("email: set deadline: %w", err)
 	}
@@ -85,7 +85,7 @@ func (s SMTPSender) Send(ctx context.Context, e Email) error {
 	if err != nil {
 		return fmt.Errorf("email: greeting: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if ok, _ := client.Extension("STARTTLS"); ok {
 		if err := client.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {

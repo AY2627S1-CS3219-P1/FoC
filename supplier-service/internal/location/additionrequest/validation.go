@@ -3,7 +3,6 @@ package additionrequest
 import (
 	"math"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -12,16 +11,6 @@ import (
 func requireAuthenticated(c Caller) error {
 	if !c.Authenticated() {
 		return ErrUnauthenticated
-	}
-	return nil
-}
-
-func requireAdmin(c Caller) error {
-	if err := requireAuthenticated(c); err != nil {
-		return err
-	}
-	if !c.IsAdmin() {
-		return ErrPermissionDenied
 	}
 	return nil
 }
@@ -40,14 +29,6 @@ func trimAndValidateLength(s string, min, max int) (string, error) {
 		return "", ErrInvalidArgument
 	}
 	return s, nil
-}
-
-func toUTC(t *time.Time) *time.Time {
-	if t == nil {
-		return nil
-	}
-	v := t.UTC()
-	return &v
 }
 
 func normalizePage(p Page) (Page, error) {

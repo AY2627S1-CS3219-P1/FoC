@@ -72,8 +72,8 @@ func TestHandlerTimeoutReturnsEnvelope(t *testing.T) {
 
 func TestStreamStartsBeforeReaderCompletes(t *testing.T) {
 	reader, writer := io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
 	type env struct{}
 	handler := httpHandler(&env{}, func(_ *http.Request, _ *env) (*Response, error) {
 		return NewStreamResponse(reader, "text/plain")
@@ -94,7 +94,9 @@ func TestStreamStartsBeforeReaderCompletes(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("stream did not write before reader completed")
 	}
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
 	<-finished
 }
 

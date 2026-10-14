@@ -85,13 +85,18 @@ func TestES256Codec(t *testing.T) {
 	if err != nil || len(y) != 32 {
 		t.Fatalf("invalid JWKS y coordinate: %v", err)
 	}
-	public := ecdsa.PublicKey{Curve: elliptic.P256(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
+	point := append([]byte{4}, x...)
+	point = append(point, y...)
+	public, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), point)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || len(sig) != 64 {
 		t.Fatalf("invalid JWT signature: %v", err)
 	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
-	if !ecdsa.Verify(&public, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+	if !ecdsa.Verify(public, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
 		t.Fatal("published JWKS cannot verify the access JWT")
 	}
 }
