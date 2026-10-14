@@ -41,7 +41,10 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 				if actor.Role == models.RoleSuspended {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}
-			case "/user.v1.UserAdminService/GetUserByEmail", "/user.v1.UserAdminService/ChangeUserRole":
+			case "/user.v1.UserAdminService/GetUserByEmail", "/user.v1.UserAdminService/ChangeUserRole",
+				"/user.v1.AllowedDomainAdminService/ListAllowedDomains",
+				"/user.v1.AllowedDomainAdminService/AllowDomain",
+				"/user.v1.AllowedDomainAdminService/RemoveAllowedDomain":
 				if !actor.Role.IsAdmin() {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}

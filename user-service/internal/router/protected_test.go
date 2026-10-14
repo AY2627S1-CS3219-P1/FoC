@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
@@ -55,6 +56,16 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+type allowedDomainStub struct{}
+
+func (allowedDomainStub) ListAllowedDomains(context.Context) ([]allowedadmin.AllowedDomain, error) {
+	return nil, nil
+}
+
+func (allowedDomainStub) AllowDomain(context.Context, string, uuid.UUID) error { return nil }
+
+func (allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) error { return nil }
+
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -72,9 +83,10 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
-			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
-			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
-			Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+			Profile:        &profilehandler.Handler{Logic: profileStub{actor}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainStub{}},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -95,6 +107,12 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	lookup.Header().Set("Authorization", "Bearer "+token)
 	if _, err := adminClient.GetUserByEmail(ctx, lookup); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("ordinary user lookup: %v", err)
+	}
+	allowedDomainsClient := userv1connect.NewAllowedDomainAdminServiceClient(server.Client(), server.URL)
+	listDomains := connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
+	listDomains.Header().Set("Authorization", "Bearer "+token)
+	if _, err := allowedDomainsClient.ListAllowedDomains(ctx, listDomains); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("ordinary user allowed-domain list: %v", err)
 	}
 	profileUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{
 		DisplayName:    " " + strings.Repeat("N", 100) + " ",
@@ -117,6 +135,11 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	lookup.Header().Set("Authorization", "Bearer "+token)
 	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != targetID.String() {
 		t.Fatalf("persisted admin lookup: %+v, %v", response, err)
+	}
+	listDomains = connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
+	listDomains.Header().Set("Authorization", "Bearer "+token)
+	if _, err := allowedDomainsClient.ListAllowedDomains(ctx, listDomains); err != nil {
+		t.Fatalf("admin allowed-domain list: %v", err)
 	}
 	actor.Role = models.RoleUser
 	users.users[actorID] = actor
