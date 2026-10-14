@@ -84,9 +84,10 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   Mount the generated handler in the service router.
   - supplier-service: implementations live under `internal/rpc`. Pass
     application dependencies to each RPC service constructor.
-  - user-service: handlers live in `internal/handlers/<domain>`. A handler is
-    a struct that holds its dependencies as fields (see "Dependencies and
-    interfaces").
+  - user-service: handlers live in `internal/handlers/<domain>` and are structs
+    that hold dependencies as fields. The allowed-domain admin feature is
+    grouped by domain under `internal/admin`, with its Connect handler, service,
+    and PostgreSQL repository together.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.
