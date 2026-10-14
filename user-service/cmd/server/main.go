@@ -279,19 +279,19 @@ func newAllowedDomainService(db alloweddomaindb.DBTX) allowedadmin.AllowedDomain
 	return allowedadmin.NewAllowedDomainService(&repo)
 }
 
-func authStore(persistence *store.Store, policy service.EmailDomainPolicy) service.Store {
-	return service.Store{
+func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
+	return service.Resources{
 		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
 		Sessions: persistence.Sessions, DomainPolicy: policy,
 	}
 }
 
 func authTransactions(db *gorm.DB) service.WithTransaction {
-	return func(ctx context.Context, operation func(service.Store) error) error {
+	return func(ctx context.Context, operation func(service.Resources) error) error {
 		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
 			policy := newAllowedDomainService(tx.Statement.ConnPool)
-			return operation(authStore(store.New(tx), policy))
+			return operation(authResources(store.New(tx), policy))
 		})
 	}
 }
@@ -316,7 +316,7 @@ func newAuthServices(db *gorm.DB, cfg config, domainPolicy service.EmailDomainPo
 	}
 	persistence := store.New(db)
 	logic, err := service.NewService(service.Dependencies{
-		Store: authStore(persistence, domainPolicy), WithTransaction: authTransactions(db),
+		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
 		TokenCodec: codec, EmailSender: cfg.smtp,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",

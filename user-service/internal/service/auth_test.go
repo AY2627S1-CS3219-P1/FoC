@@ -206,8 +206,8 @@ func (f fakeDomains) IsDomainAllowed(_ context.Context, domain string) (bool, er
 	return ok, nil
 }
 
-func (f *fakeStore) stores() Store {
-	return Store{
+func (f *fakeStore) resources() Resources {
+	return Resources{
 		Users:        fakeUsers{f},
 		AuthTokens:   fakeAuthTokens{f},
 		Sessions:     fakeSessions{f},
@@ -215,7 +215,7 @@ func (f *fakeStore) stores() Store {
 	}
 }
 
-func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) error) error {
+func (f *fakeStore) withTransaction(ctx context.Context, operation func(Resources) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
@@ -227,7 +227,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 		domainErr:      f.domainErr,
 		failSession:    f.failSession,
 	}
-	if err := operation(tx.stores()); err != nil {
+	if err := operation(tx.resources()); err != nil {
 		return err
 	}
 	f.users = tx.users
@@ -280,7 +280,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Store: store.stores(), WithTransaction: store.withTransaction,
+	service, err := NewService(Dependencies{Resources: store.resources(), WithTransaction: store.withTransaction,
 		TokenCodec: codec, EmailSender: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
@@ -664,7 +664,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while requesting link", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("transaction runner while completing login", func(t *testing.T) {
@@ -702,7 +702,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
@@ -717,7 +717,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while logging out", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Sessions = nil
+		service.deps.Resources.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while logging out everywhere", func(t *testing.T) {
