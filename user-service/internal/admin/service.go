@@ -2,6 +2,9 @@ package admin
 
 import (
 	"context"
+	"errors"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/google/uuid"
 )
 
@@ -28,12 +31,24 @@ func (s AllowedDomainService) AllowDomain(
 	domain string,
 	actorId uuid.UUID,
 ) error {
-	return s.repo.AllowDomain(ctx, domain, actorId)
+	err := s.repo.AllowDomain(ctx, domain, actorId)
+	switch {
+	case errors.Is(err, errDomainAlreadyExists):
+		return errs.WrapAlreadyExistsError(err, "domain already allowed")
+	case errors.Is(err, errInvalidDomain):
+		return errs.WrapBadRequestError(err, "invalid allowed domain")
+	default:
+		return err
+	}
 }
 
 func (s AllowedDomainService) RemoveAllowedDomain(
 	ctx context.Context,
 	id uuid.UUID,
 ) error {
-	return s.repo.RemoveAllowedDomain(ctx, id)
+	err := s.repo.RemoveAllowedDomain(ctx, id)
+	if errors.Is(err, errDomainNotFound) {
+		return errs.WrapNotFoundError(err, "allowed domain not found")
+	}
+	return err
 }
