@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -56,15 +57,22 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
-type allowedDomainStub struct{}
+type allowedDomainStub struct{ calls atomic.Int32 }
 
-func (allowedDomainStub) ListAllowedDomains(context.Context) ([]allowedadmin.AllowedDomain, error) {
+func (s *allowedDomainStub) ListAllowedDomains(context.Context) ([]allowedadmin.AllowedDomain, error) {
+	s.calls.Add(1)
 	return nil, nil
 }
 
-func (allowedDomainStub) AllowDomain(context.Context, string, uuid.UUID) error { return nil }
+func (s *allowedDomainStub) AllowDomain(context.Context, string, uuid.UUID) error {
+	s.calls.Add(1)
+	return nil
+}
 
-func (allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) error { return nil }
+func (s *allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) error {
+	s.calls.Add(1)
+	return nil
+}
 
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -85,7 +93,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		router.ProtectedRoutes{
 			Profile:        &profilehandler.Handler{Logic: profileStub{actor}},
 			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
-			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainStub{}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
 			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
@@ -107,12 +115,6 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	lookup.Header().Set("Authorization", "Bearer "+token)
 	if _, err := adminClient.GetUserByEmail(ctx, lookup); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("ordinary user lookup: %v", err)
-	}
-	allowedDomainsClient := userv1connect.NewAllowedDomainAdminServiceClient(server.Client(), server.URL)
-	listDomains := connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
-	listDomains.Header().Set("Authorization", "Bearer "+token)
-	if _, err := allowedDomainsClient.ListAllowedDomains(ctx, listDomains); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatalf("ordinary user allowed-domain list: %v", err)
 	}
 	profileUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{
 		DisplayName:    " " + strings.Repeat("N", 100) + " ",
@@ -136,11 +138,6 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != targetID.String() {
 		t.Fatalf("persisted admin lookup: %+v, %v", response, err)
 	}
-	listDomains = connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
-	listDomains.Header().Set("Authorization", "Bearer "+token)
-	if _, err := allowedDomainsClient.ListAllowedDomains(ctx, listDomains); err != nil {
-		t.Fatalf("admin allowed-domain list: %v", err)
-	}
 	actor.Role = models.RoleUser
 	users.users[actorID] = actor
 	staleAdminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
@@ -148,6 +145,93 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
+	}
+}
+
+func TestAllowedDomainSuperAdminAuthorization(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec, err := jwt.NewES256Codec(key, "test-key", httpauth.TokenIssuer, httpauth.TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorID := uuid.New()
+	users := &protectedUsers{users: make(map[uuid.UUID]models.User)}
+	logic := &allowedDomainStub{}
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
+		router.ProtectedRoutes{
+			Profile:        &profilehandler.Handler{Logic: profileStub{}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: logic},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+		})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAllowedDomainAdminServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+	operations := []struct {
+		name string
+		call func(string) error
+	}{
+		{"list", func(token string) error {
+			req := connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
+			req.Header().Set("Authorization", token)
+			_, err := client.ListAllowedDomains(ctx, req)
+			return err
+		}},
+		{"allow", func(token string) error {
+			req := connect.NewRequest(&userv1.AllowDomainRequest{Domain: "example.com"})
+			req.Header().Set("Authorization", token)
+			_, err := client.AllowDomain(ctx, req)
+			return err
+		}},
+		{"remove", func(token string) error {
+			req := connect.NewRequest(&userv1.RemoveAllowedDomainRequest{Id: uuid.NewString()})
+			req.Header().Set("Authorization", token)
+			_, err := client.RemoveAllowedDomain(ctx, req)
+			return err
+		}},
+	}
+	for _, tc := range []struct {
+		name      string
+		role      models.RoleName
+		tokenRole jwt.Role
+		wantCode  connect.Code
+	}{
+		{"super admin", models.RoleSuperAdmin, jwt.RoleSuperAdmin, 0},
+		{"admin", models.RoleAdmin, jwt.RoleAdmin, connect.CodePermissionDenied},
+		{"user", models.RoleUser, jwt.RoleUser, connect.CodePermissionDenied},
+		{"suspended", models.RoleSuspended, jwt.RoleSuspendedUser, connect.CodePermissionDenied},
+		{"missing credentials", models.RoleSuperAdmin, "", connect.CodeUnauthenticated},
+		{"demoted super admin", models.RoleAdmin, jwt.RoleSuperAdmin, connect.CodePermissionDenied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			users.users[actorID] = models.User{ID: actorID, Role: tc.role}
+			var token string
+			if tc.tokenRole != "" {
+				token = "Bearer " + signedTestAccess(t, codec, actorID, tc.tokenRole)
+			}
+			for _, operation := range operations {
+				t.Run(operation.name, func(t *testing.T) {
+					before := logic.calls.Load()
+					err := operation.call(token)
+					var wantCalls int32
+					if tc.wantCode == 0 {
+						wantCalls = 1
+						if err != nil {
+							t.Fatalf("super-admin request: %v", err)
+						}
+					} else if connect.CodeOf(err) != tc.wantCode {
+						t.Fatalf("want %v, got %v", tc.wantCode, err)
+					}
+					if calls := logic.calls.Load() - before; calls != wantCalls {
+						t.Fatalf("domain logic calls = %d, want %d", calls, wantCalls)
+					}
+				})
+			}
+		})
 	}
 }
 
