@@ -43,12 +43,24 @@ services:
     container_name: foc-kafka
     ports:
       - "${KAFKA_PORT:-9092}:19092"
+    healthcheck:
+      test:
+        - CMD
+        - /opt/kafka/bin/kafka-topics.sh
+        - --bootstrap-server
+        - localhost:9092
+        - --list
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
     environment:
       # Setting KAFKA_* variables replaces the image's default broker config.
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       # Containers use kafka:9092; host clients use localhost:${KAFKA_PORT:-9092}.
       KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
@@ -61,16 +73,18 @@ services:
     restart: unless-stopped
 
   kafka-init:
-    image: apache/kafka:4.2.0
+    image: apache/kafka:4.2.2
     depends_on:
       kafka:
         condition: service_healthy
     restart: "no"
     environment:
       KAFKA_BROKERS: kafka:9092
+      KAFKA_SCHEMA_DIR: /schemas
     volumes:
       - ./infra/kafka:/setup:ro
-    entrypoint: ["/bin/sh", "/setup/kafka/create-topics.sh"]
+      - ./kafka:/schemas:ro
+    entrypoint: ["/bin/sh", "/setup/create-topics.sh"]
 
   kafka-ui:
     container_name: foc-kafka-ui
