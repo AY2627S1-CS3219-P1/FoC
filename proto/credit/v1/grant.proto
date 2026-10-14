@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package credit.v1;
+
+import "buf/validate/validate.proto";
+import "credit/v1/shared_types.proto";
+import "google/protobuf/timestamp.proto";
+
+// Registration credits. Called by User Service only, with its service token.
+service CreditGrantService {
+  rpc GrantRegistrationCredits(GrantRegistrationCreditsRequest) returns (GrantRegistrationCreditsResponse) { option idempotency_level = IDEMPOTENT; }
+}
+
+// Creates the account if needed and grants the one-time registration credits
+// (100 by default). Each user is granted at most once; repeating returns the
+// original grant. Call after registration succeeds and retry until success.
+message GrantRegistrationCreditsRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GrantRegistrationCreditsResponse {
+  Account account = 1;
+  google.protobuf.Timestamp granted_at = 2;
+}
