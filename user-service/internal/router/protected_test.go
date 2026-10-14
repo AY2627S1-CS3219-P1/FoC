@@ -148,7 +148,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 }
 
-func TestAllowedDomainSuperAdminAuthorization(t *testing.T) {
+func TestAllowedDomainAuthorization(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -195,17 +195,18 @@ func TestAllowedDomainSuperAdminAuthorization(t *testing.T) {
 		}},
 	}
 	for _, tc := range []struct {
-		name      string
-		role      models.RoleName
-		tokenRole jwt.Role
-		wantCode  connect.Code
+		name          string
+		role          models.RoleName
+		tokenRole     jwt.Role
+		wantListCode  connect.Code
+		wantWriteCode connect.Code
 	}{
-		{"super admin", models.RoleSuperAdmin, jwt.RoleSuperAdmin, 0},
-		{"admin", models.RoleAdmin, jwt.RoleAdmin, connect.CodePermissionDenied},
-		{"user", models.RoleUser, jwt.RoleUser, connect.CodePermissionDenied},
-		{"suspended", models.RoleSuspended, jwt.RoleSuspendedUser, connect.CodePermissionDenied},
-		{"missing credentials", models.RoleSuperAdmin, "", connect.CodeUnauthenticated},
-		{"demoted super admin", models.RoleAdmin, jwt.RoleSuperAdmin, connect.CodePermissionDenied},
+		{"super admin", models.RoleSuperAdmin, jwt.RoleSuperAdmin, 0, 0},
+		{"admin", models.RoleAdmin, jwt.RoleAdmin, 0, connect.CodePermissionDenied},
+		{"user", models.RoleUser, jwt.RoleUser, connect.CodePermissionDenied, connect.CodePermissionDenied},
+		{"suspended", models.RoleSuspended, jwt.RoleSuspendedUser, connect.CodePermissionDenied, connect.CodePermissionDenied},
+		{"missing credentials", models.RoleSuperAdmin, "", connect.CodeUnauthenticated, connect.CodeUnauthenticated},
+		{"demoted super admin", models.RoleAdmin, jwt.RoleSuperAdmin, 0, connect.CodePermissionDenied},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			users.users[actorID] = models.User{ID: actorID, Role: tc.role}
@@ -215,16 +216,20 @@ func TestAllowedDomainSuperAdminAuthorization(t *testing.T) {
 			}
 			for _, operation := range operations {
 				t.Run(operation.name, func(t *testing.T) {
+					wantCode := tc.wantWriteCode
+					if operation.name == "list" {
+						wantCode = tc.wantListCode
+					}
 					before := logic.calls.Load()
 					err := operation.call(token)
 					var wantCalls int32
-					if tc.wantCode == 0 {
+					if wantCode == 0 {
 						wantCalls = 1
 						if err != nil {
-							t.Fatalf("super-admin request: %v", err)
+							t.Fatalf("authorized request: %v", err)
 						}
-					} else if connect.CodeOf(err) != tc.wantCode {
-						t.Fatalf("want %v, got %v", tc.wantCode, err)
+					} else if connect.CodeOf(err) != wantCode {
+						t.Fatalf("want %v, got %v", wantCode, err)
 					}
 					if calls := logic.calls.Load() - before; calls != wantCalls {
 						t.Fatalf("domain logic calls = %d, want %d", calls, wantCalls)
