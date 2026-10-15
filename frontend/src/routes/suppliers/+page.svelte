@@ -23,15 +23,32 @@
 	let buildings = $state<Building[]>([]);
 	let categories = $state<Category[]>([]);
 
-	// Reference data for the filter menus. Failures only leave the menus empty.
+	let referenceError = $state('');
+	let referenceReload = $state(0),
+		reload = $state(0);
 	$effect(() => {
-		locationApi.listBuildings().then((b) => (buildings = b), () => {});
-		locationApi.listCategories().then((c) => (categories = c), () => {});
+		void referenceReload;
+		let stale = false;
+		referenceError = '';
+		Promise.all([locationApi.listBuildings(), locationApi.listCategories()])
+			.then(([b, c]) => {
+				if (!stale) {
+					buildings = b;
+					categories = c;
+				}
+			})
+			.catch(() => {
+				if (!stale) referenceError = 'Building and category filters could not be loaded.';
+			});
+		return () => {
+			stale = true;
+		};
 	});
 
 	// Refetch whenever the URL query changes; ignore responses that arrive late.
 	$effect(() => {
 		const current = query;
+		void reload;
 		let stale = false;
 		loading = true;
 		error = null;
@@ -63,6 +80,8 @@
 
 	<Card variant="outlined">
 		<div class="panel-body">
+			{#if referenceError}<p class="notice error" role="alert">{referenceError}</p>
+				<Button variant="text" onclick={() => referenceReload++}>Retry filters</Button>{/if}
 			<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
 		</div>
 	</Card>
@@ -71,6 +90,7 @@
 		{#if error}
 			<Notice tone="error">
 				{error}
+				<Button variant="text" onclick={() => reload++}>Retry locations</Button>
 				{#if !authService.isAuthenticated}<a href="/login">Log in</a>{/if}
 			</Notice>
 		{:else if loading && !result}

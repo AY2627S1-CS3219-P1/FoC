@@ -5,7 +5,7 @@
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { page } from '$app/state';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { Button, Card, LoadingIndicator, TabsLink } from 'm3-svelte';
+	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService } from '$lib/services';
 
 	let { children } = $props();
@@ -57,18 +57,24 @@
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
-				<TabsLink
-					tab={page.url.pathname.startsWith('/admin') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
-					items={[
-						{ name: 'Home', value: 'home', href: '/' },
-						{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
-						{ name: 'Profile', value: 'profile', href: '/profile' },
-						...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
-							? [{ name: 'Administration', value: 'admin', href: '/admin' }]
-							: [])
-					]}
-				/>
-				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
+				<div class="primary-links">
+					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
+						<Button
+							variant="text"
+							href={item.href}
+							aria-current={(
+								item.href === '/'
+									? page.url.pathname === '/'
+									: page.url.pathname.startsWith(item.href)
+							)
+								? 'page'
+								: undefined}>{item.name}</Button
+						>
+					{/each}
+				</div>
+				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}
+					>{signingOut ? 'Signing out…' : 'Sign out'}</Button
+				>
 			</nav>
 		{/if}
 	</header>

@@ -71,7 +71,7 @@
 		{ value: 'building-desc', text: 'Building (Z–A)' }
 	];
 	const archiveOptions = [
-		{ value: 'active', text: 'Active' },
+		{ value: 'active', text: 'Unarchived' },
 		{ value: 'archived', text: 'Archived' },
 		{ value: 'all', text: 'All' }
 	];
