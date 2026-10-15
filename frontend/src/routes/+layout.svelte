@@ -51,6 +51,7 @@
 	/>
 </svelte:head>
 
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell">
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
@@ -63,7 +64,7 @@
 						{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
 						{ name: 'Profile', value: 'profile', href: '/profile' },
 						...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
-							? [{ name: 'Manage users', value: 'admin', href: '/admin/users' }]
+							? [{ name: 'Administration', value: 'admin', href: '/admin' }]
 							: [])
 					]}
 				/>
@@ -73,7 +74,7 @@
 	</header>
 	{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
 
-	<main id="main-content" class="page-main">
+	<main id="main-content" class="page-main" tabindex="-1">
 		{#if status === 'loading'}
 			<div class="center-stage">
 				<div class="loading-state" role="status" aria-live="polite">

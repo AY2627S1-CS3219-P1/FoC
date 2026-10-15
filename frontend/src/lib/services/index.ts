@@ -25,3 +25,17 @@ const supplierTransport = createCustomTransport({
 });
 
 export const locationApi = createLocationApi(supplierTransport);
+
+// Administrative capabilities share auth and immediately revoke their UI on denied access.
+import { createLocationAdminApi } from './location-admin';
+import { createAdditionRequestApi } from './addition-request';
+import { createDisablementApi } from './disablement';
+import { SupplierAdminAccess } from './location-admin/access.svelte';
+export const supplierAdminAccess = new SupplierAdminAccess(authService);
+const supplierAdminTransport = createCustomTransport({
+ baseUrl: supplierServiceBaseUrl,
+ interceptors: [supplierAdminAccess.interceptor, authService.interceptor]
+});
+export const locationAdminApi = createLocationAdminApi(supplierAdminTransport);
+export const additionRequestApi = createAdditionRequestApi(supplierAdminTransport);
+export const disablementApi = createDisablementApi(supplierAdminTransport);
