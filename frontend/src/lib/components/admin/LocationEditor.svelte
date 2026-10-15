@@ -54,7 +54,7 @@
    if (JSON.stringify(draft[key]) !== JSON.stringify(baseline[key])) Object.assign(merged, { [key]: draft[key] });
   }
   baseline = server; revision = latest.revision;
-  editor.reset({ data: merged, newState: server });
+  editor.reset({ data: server, newState: server });
   form.set(merged, { taint: true });
   latest = null; conflict = false; error = ''; success = 'Latest version loaded. Your edited fields were kept. Review the form before saving.';
  }
@@ -64,6 +64,11 @@
   catch (cause) { error = adminError(cause); }
  }
  function restart() { attempt.clear(); retryPending = false; restartOpen = false; error = ''; }
+ const latestChanges = $derived.by(() => {
+  if (!latest) return [];
+  const server = locationForm(latest);
+  return (Object.keys(server) as (keyof LocationForm)[]).filter((key) => JSON.stringify(server[key]) !== JSON.stringify(baseline[key])).map((key) => ({ field: key, value: Array.isArray(server[key]) ? (server[key] as string[]).join(', ') : String(server[key]), edited: JSON.stringify($form[key]) !== JSON.stringify(baseline[key]) }));
+ });
  const buildingOptions = $derived([{ value: '', text: 'Select a building' }, ...buildings.map((b) => ({ value: b.id, text: b.name }))]);
 </script>
 <Card variant="outlined"><div class="panel-body">
@@ -72,7 +77,7 @@
  {#if success}<p class="notice" role="status">{success}</p>{/if}
  {#if conflict}
   <div class="data-form"><p class="notice" role="alert">Saving is paused because this record changed. Your draft is preserved.</p><div class="form-actions"><Button variant="outlined" onclick={loadLatest}>Load latest version</Button></div>
-  {#if latest}<div class="notice"><p>Latest version: <strong>{latest.name}</strong>, revision {String(latest.revision)}.</p><p>Continue to merge untouched fields from the server and keep your edited fields. Review before saving.</p><Button variant="outlined" onclick={adoptLatest}>Reconcile with my draft</Button></div>{/if}</div>
+  {#if latest}<div class="notice"><p>Latest version: <strong>{latest.name}</strong>, revision {String(latest.revision)}.</p>{#if latestChanges.length}<ul>{#each latestChanges as change}<li>{change.field}: {change.value || '(empty)'}{change.edited ? ' · your draft also edits this field' : ''}</li>{/each}</ul>{/if}<p>Continue to merge untouched fields from the server and keep your edited fields. Review before saving.</p><Button variant="outlined" onclick={adoptLatest}>Reconcile with my draft</Button></div>{/if}</div>
  {/if}
  <form class="data-form" method="POST" use:enhance>
   <fieldset class="form-fieldset form-grid" disabled={$submitting}>
