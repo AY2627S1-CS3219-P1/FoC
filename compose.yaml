@@ -26,6 +26,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       USER_DB: ${USER_DB:-user_dev}
       SUPPLIER_DB: ${SUPPLIER_DB:-supplier_dev}
+      ORDER_DB: ${ORDER_DB:-order_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
