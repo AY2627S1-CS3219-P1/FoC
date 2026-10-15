@@ -46,7 +46,11 @@
 				: afterChange
 					? 'Your change was saved, but the domain list could not be refreshed. Please try again.'
 					: 'We could not load allowed domains. Please try again.';
-			snackbarService.show(message, { actions: { Retry: () => void loadDomains() }, timeout: 8000 });
+			snackbarService.show(message, {
+				severity: afterChange ? 'warning' : 'error',
+				actions: { Retry: () => void loadDomains() },
+				timeout: 8000
+			});
 		} finally {
 			loading = false;
 		}
@@ -66,13 +70,13 @@
 			adding = true;
 			try {
 				await allowedDomainService.allowDomain(validated.data.domain);
-				snackbarService.show(`${validated.data.domain} is now allowed.`);
+				snackbarService.show(`${validated.data.domain} is now allowed.`, { severity: 'success' });
 				const empty = { domain: '' };
 				add.reset({ data: empty, newState: empty });
 				validated.data = empty;
 				await loadDomains(true);
 			} catch (cause) {
-				snackbarService.show(errorMessage(cause), { timeout: 8000 });
+				snackbarService.show(errorMessage(cause), { severity: 'error', timeout: 8000 });
 			} finally {
 				adding = false;
 			}
@@ -101,7 +105,7 @@
 				selected = null;
 				// Close the modal before notifying so the snackbar is accessible.
 				await tick();
-				snackbarService.show(errorMessage(cause), { timeout: 8000 });
+				snackbarService.show(errorMessage(cause), { severity: 'error', timeout: 8000 });
 				deleting = false;
 				return;
 			}
@@ -110,7 +114,7 @@
 		selected = null;
 		domains = domains.filter((domain) => domain.id !== target.id);
 		await tick();
-		snackbarService.show(message);
+		snackbarService.show(message, { severity: 'success' });
 		await loadDomains(true);
 		deleting = false;
 	}

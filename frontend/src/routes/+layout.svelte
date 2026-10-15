@@ -5,8 +5,9 @@
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { page } from '$app/state';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { Button, Card, LoadingIndicator, Snackbar, TabsLink } from 'm3-svelte';
+	import { Button, Card, LoadingIndicator, TabsLink } from 'm3-svelte';
 	import { authService } from '$lib/services';
+	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 
 	let { children } = $props();
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
@@ -52,7 +53,7 @@
 </svelte:head>
 
 <div class="app-shell">
-	<div class="snackbar-region" role="status" aria-live="polite" aria-atomic="true"><Snackbar closeTitle="Dismiss notification" /></div>
+	<div class="snackbar-region"><SnackbarHost /></div>
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
