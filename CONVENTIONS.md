@@ -176,6 +176,12 @@ Supplier Service uses sqlc:
 - Use mutable singletons only in browser lifecycle and event code, never in
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
+- For User Service RPCs, the backend owns client-facing error messages. Display
+  them through `frontend/src/lib/connect/errors.ts` (`getApiErrorMessage`), which uses one
+  fallback for missing messages and local failures. Use Connect codes for
+  recovery behavior; do not translate them into duplicate frontend error text.
+  Frontend code owns success messages, client-side validation, and workflow
+  instructions. A fulfilled RPC is successful even when its response is empty.
 
 ## Frontend UI
 - Use Superforms to validate and manage form

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import { authService } from '$lib/services';
 
@@ -28,10 +28,7 @@
 			await authService.login(token);
 			await goto('/', { replaceState: true });
 		} catch (cause) {
-			error =
-				cause instanceof ConnectError && cause.code === Code.Unauthenticated
-					? 'This sign-in link has expired or has already been used. Request a new one below.'
-					: 'We could not complete sign-in. Please request another link.';
+			error = getApiErrorMessage(cause);
 		} finally {
 			redeeming = false;
 		}
@@ -45,8 +42,8 @@
 		try {
 			await authService.requestLink(email.trim());
 			sent = true;
-		} catch {
-			error = 'We could not send a link. Check your email address and try again.';
+		} catch (cause) {
+			error = getApiErrorMessage(cause);
 		} finally {
 			sending = false;
 		}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { Button, Card, Icon, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import iconAdd from '@ktibow/iconset-material-symbols/add';
 	import iconDelete from '@ktibow/iconset-material-symbols/delete-outline';
@@ -22,31 +23,16 @@
 	let canManage = $derived(authService.user?.role === UserRole.SUPER_ADMIN);
 	let mutating = $derived(adding || deleting);
 
-	function errorMessage(cause: unknown): string {
-		if (cause instanceof ConnectError) {
-			switch (cause.code) {
-				case Code.AlreadyExists: return 'That domain is already allowed.';
-				case Code.InvalidArgument: return 'Enter a valid email domain, such as example.com, without an email address or URL.';
-				case Code.PermissionDenied: return 'You no longer have permission to perform this action. Only super admins can change allowed domains.';
-				case Code.Unauthenticated: return 'Your session has expired. Sign in again.';
-			}
-		}
-		return 'We could not complete the request. Check your connection and try again.';
-	}
-
-	async function loadDomains(afterChange = false): Promise<void> {
+	async function loadDomains(outcomeMessage = ''): Promise<void> {
 		loading = true;
 		loadFailed = false;
 		try {
 			domains = await allowedDomainService.listAllowedDomains();
+			if (outcomeMessage) snackbarService.show(outcomeMessage);
 		} catch (cause) {
 			loadFailed = true;
-			const message = cause instanceof ConnectError && cause.code === Code.PermissionDenied
-				? 'You no longer have permission to view allowed domains.'
-				: afterChange
-					? 'Your change was saved, but the domain list could not be refreshed. Please try again.'
-					: 'We could not load allowed domains. Please try again.';
-			snackbarService.show(message, { actions: { Retry: () => void loadDomains() }, timeout: 8000 });
+			const message = [outcomeMessage, getApiErrorMessage(cause)].filter(Boolean).join(' ');
+			snackbarService.show(message, { actions: { Retry: () => void loadDomains(outcomeMessage) }, timeout: 8000 });
 		} finally {
 			loading = false;
 		}
@@ -66,13 +52,13 @@
 			adding = true;
 			try {
 				await allowedDomainService.allowDomain(validated.data.domain);
-				snackbarService.show(`${validated.data.domain} is now allowed.`);
+				const message = `${validated.data.domain} is now allowed.`;
 				const empty = { domain: '' };
 				add.reset({ data: empty, newState: empty });
 				validated.data = empty;
-				await loadDomains(true);
+				await loadDomains(message);
 			} catch (cause) {
-				snackbarService.show(errorMessage(cause), { timeout: 8000 });
+				snackbarService.show(getApiErrorMessage(cause), { timeout: 8000 });
 			} finally {
 				adding = false;
 			}
@@ -95,13 +81,13 @@
 			await allowedDomainService.removeAllowedDomain(target.id);
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.NotFound) {
-				message = `${target.domain} was already removed.`;
+				message = getApiErrorMessage(cause);
 			} else {
 				confirmOpen = false;
 				selected = null;
 				// Close the modal before notifying so the snackbar is accessible.
 				await tick();
-				snackbarService.show(errorMessage(cause), { timeout: 8000 });
+				snackbarService.show(getApiErrorMessage(cause), { timeout: 8000 });
 				deleting = false;
 				return;
 			}
@@ -110,8 +96,7 @@
 		selected = null;
 		domains = domains.filter((domain) => domain.id !== target.id);
 		await tick();
-		snackbarService.show(message);
-		await loadDomains(true);
+		await loadDomains(message);
 		deleting = false;
 	}
 

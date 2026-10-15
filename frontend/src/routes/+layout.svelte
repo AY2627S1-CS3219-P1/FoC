@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { page } from '$app/state';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { Button, Card, LoadingIndicator, Snackbar, TabsLink } from 'm3-svelte';
@@ -10,15 +11,18 @@
 
 	let { children } = $props();
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
+	let sessionError = $state('');
 	let signingOut = $state(false);
 	let signOutError = $state('');
 
 	async function restoreAuth() {
 		status = 'loading';
+		sessionError = '';
 		try {
 			await authService.refresh();
 			status = 'ready';
 		} catch (error) {
+			sessionError = getApiErrorMessage(error);
 			status =
 				error instanceof ConnectError && error.code === Code.Unauthenticated ? 'ready' : 'error';
 		}
@@ -31,8 +35,8 @@
 		try {
 			await authService.logout();
 			await goto('/login', { replaceState: true });
-		} catch {
-			signOutError = 'Could not sign out. Please try again.';
+		} catch (cause) {
+			signOutError = getApiErrorMessage(cause);
 		} finally {
 			signingOut = false;
 		}
@@ -93,7 +97,7 @@
 					<Card variant="outlined">
 						<div class="auth-body">
 							<h1>We couldn't check your session</h1>
-							<p>There may be a temporary connection problem. Please try again.</p>
+							<p role="alert">{sessionError}</p>
 							<div class="form-actions">
 								<Button onclick={() => void restoreAuth()}>Try again</Button>
 							</div>

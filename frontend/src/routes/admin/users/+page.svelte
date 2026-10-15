@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { Button, Card, SelectOutlined, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
 	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
@@ -20,16 +21,6 @@
 	let roleFormElement: HTMLFormElement | undefined = $state();
 	const emptyRoleForm: RoleChangeForm = { userId: '', fromRole: UserRole.USER, toRole: 'suspended_user', reason: '' };
 	let choices = $derived(user ? allowedRoleTargets(authService.user?.role ?? UserRole.USER, user.role, user.id === authService.user?.id) : []);
-
-	function displayApiError(cause: unknown): string {
-		if (cause instanceof ConnectError) {
-			if (cause.code === Code.NotFound) return 'No account was found with that email address.';
-			if (cause.code === Code.PermissionDenied) return 'You no longer have permission to manage user roles. Refresh your session or contact a super admin.';
-			if (cause.code === Code.InvalidArgument) return 'The request was rejected. Check the fields and try again.';
-			if (cause.code === Code.FailedPrecondition) return 'That account already has the selected role. Search again to refresh its details.';
-		}
-		return 'We could not complete that request. Check your connection and try again.';
-	}
 
 	function resetRole(target: AdminUserSummary | null) {
 		user = target;
@@ -78,7 +69,7 @@
 				resetRole(found);
 			} catch (cause) {
 				resetRole(null);
-				searchError = displayApiError(cause);
+				searchError = getApiErrorMessage(cause);
 				if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) void refreshAdminAccess();
 			}
 		}
@@ -111,12 +102,12 @@
 					try {
 						const latest = await adminService.getUserByEmail(user.email);
 						resetRole(latest);
-						roleStatus = 'This user’s role changed while you were reviewing it. Review the updated account and confirm again.';
+						roleStatus = getApiErrorMessage(cause);
 					} catch (refreshCause) {
-						roleStatus = displayApiError(refreshCause);
+						roleStatus = getApiErrorMessage(refreshCause);
 					}
 				} else {
-					setMessage(form, displayApiError(cause));
+					setMessage(form, getApiErrorMessage(cause));
 					if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) void refreshAdminAccess();
 				}
 			}

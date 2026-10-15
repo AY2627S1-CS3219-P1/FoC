@@ -3,6 +3,7 @@
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { Button, Card, TextFieldOutlined } from 'm3-svelte';
 	import { authService } from '$lib/services';
 
@@ -34,15 +35,10 @@
 			await authService.register(token, name);
 			await goto('/', { replaceState: true });
 		} catch (cause) {
-			if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) {
+			if (cause instanceof ConnectError && (cause.code === Code.Unauthenticated || cause.code === Code.AlreadyExists)) {
 				token = null;
-				error = 'This registration link has expired or has already been used.';
-			} else if (cause instanceof ConnectError && cause.code === Code.AlreadyExists) {
-				token = null;
-				error = 'This account already exists. Request a new sign-in link.';
-			} else {
-				error = 'We could not create your profile. Please try again.';
 			}
+			error = getApiErrorMessage(cause);
 		} finally {
 			submitting = false;
 		}

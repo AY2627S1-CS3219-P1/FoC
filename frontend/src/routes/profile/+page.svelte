@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Code, ConnectError } from '@connectrpc/connect';
+	import { getApiErrorMessage } from '$lib/connect/errors';
 	import { Button, Card, LoadingIndicator, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
@@ -48,20 +48,11 @@
 					validated.data = saved;
 					setMessage(validated, 'Your profile has been updated.');
 				} catch (cause) {
-					setMessage(validated, errorMessage(cause));
+					setMessage(validated, getApiErrorMessage(cause));
 				}
 			}
 		}
 	);
-
-	function errorMessage(cause: unknown): string {
-		if (cause instanceof ConnectError) {
-			if (cause.code === Code.InvalidArgument) return 'The profile details were rejected. Check the fields and try again.';
-			if (cause.code === Code.PermissionDenied) return 'Your account cannot edit its profile.';
-			if (cause.code === Code.Unauthenticated) return 'Your session has expired. Sign in again.';
-		}
-		return 'We could not save your profile. Your changes are still here; please try again.';
-	}
 
 	async function loadProfile() {
 		loading = true;
@@ -70,8 +61,8 @@
 			profile = await profileService.getMyProfile();
 			const saved = valuesFromProfile(profile);
 			reset({ data: saved, newState: saved });
-		} catch {
-			loadError = 'We could not load your profile. Check your connection and try again.';
+		} catch (cause) {
+			loadError = getApiErrorMessage(cause);
 		} finally {
 			loading = false;
 		}
