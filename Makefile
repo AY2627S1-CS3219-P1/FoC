@@ -43,13 +43,10 @@ buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
 
 .PHONY: seed-demo seed-demo-reset
-SEED_RESET ?= false
-# Opt-in local SQL fixtures. Check both schemas before writing either database.
+# The manifest owns file order and database targets; SQL owns transactions.
 seed-demo:
-	@docker compose exec -T postgres sh -eu -c 'psql -X -qAt -U "$$POSTGRES_USER" -d "$$USER_DB" -v ON_ERROR_STOP=1 -c "SELECT 1 FROM role_changes LIMIT 0"; psql -X -qAt -U "$$POSTGRES_USER" -d "$$SUPPLIER_DB" -v ON_ERROR_STOP=1 -c "SELECT 1 FROM supplier_idempotency LIMIT 0"'
-	@docker compose exec -T postgres sh -eu -c 'exec psql -X -q -U "$$POSTGRES_USER" -d "$$USER_DB" -v ON_ERROR_STOP=1 -v reset_demo="$$1"' sh "$(SEED_RESET)" < data/seeds/users.sql
-	@docker compose exec -T postgres sh -eu -c 'exec psql -X -q -U "$$POSTGRES_USER" -d "$$SUPPLIER_DB" -v ON_ERROR_STOP=1 -v reset_demo="$$1"' sh "$(SEED_RESET)" < data/seeds/suppliers.sql
+	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
 
 # Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
-	@$(MAKE) --no-print-directory seed-demo SEED_RESET=true
+	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset

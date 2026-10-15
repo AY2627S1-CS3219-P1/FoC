@@ -125,11 +125,50 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-The root Make targets call `psql` in the local PostgreSQL container directly;
-there is no wrapper script or additional Go demo loader. Both schemas are
-checked before writing either database. Each SQL file runs in its own transaction.
-There is no transaction across services: if the supplier step fails, accounts
-may already exist; fix the error and rerun.
+The root Make targets invoke the standalone Go command at `pkg/cmd/seed`.
+It reads `manifest.json` in array order and validates the entire manifest and
+all referenced SQL files before starting. Paths must stay within this directory;
+unknown fields, unsupported versions, empty files and duplicate file/database
+entries are rejected.
+
+```json
+{
+  "version": 1,
+  "files": [
+    { "file": "users.sql", "database": "USER_DB" },
+    { "file": "suppliers.sql", "database": "SUPPLIER_DB" }
+  ]
+}
+```
+
+`database` names an environment variable in the Compose PostgreSQL container;
+its value is the target database name. The runner invokes `psql` sequentially
+through `docker compose exec`, with `ON_ERROR_STOP=1` and `reset_demo=false`
+(or `true` for `--reset`). It stops on the first failure and reports the file
+and target. Each SQL file owns its transaction. An earlier file may already
+have committed when a later one fails; fix the error and rerun.
+
+There is no cross-database transaction or schema migration step. Wait for
+service migrations before seeding. The assignment CSV importer remains separate.
+To add a project-defined seed, put its SQL here and add an entry at the intended
+position in `manifest.json`; no Makefile or Go code change is needed.
+
+Run the command directly from the repository root:
+
+```sh
+go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
+go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
+```
+
+The `--project-dir` option selects a Compose project directory (default `.`).
+Manifest file paths are relative to the manifest, independent of this option.
+
+Runner checks, including an isolated real-psql test requiring Docker:
+
+```sh
+(cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)
+(cd pkg && GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m)
+```
 
 To run outside Compose, supply local connection URLs and invoke the same files:
 
