@@ -28,18 +28,20 @@ type Fact struct {
 // FactsPayload is a versioned domain contract, independent of RPC and Kafka.
 // Credit owns payable reward calculation. Amounts here are observations only.
 type FactsPayload struct {
-	OrderID                 string  `json:"order_id"`
-	Revision                int64   `json:"revision"`
-	RequesterID             string  `json:"requester_id"`
-	CourierID               *string `json:"courier_id"`
-	PreviousStatus          Status  `json:"previous_status,omitempty"`
-	Status                  Status  `json:"status"`
-	Action                  Action  `json:"action"`
-	ReservedCredits         int64   `json:"reserved_credits"`
-	DeliveryDurationNS      int64   `json:"delivery_duration_ns"`
-	PickedUpAt, DeliveredAt *time.Time
-	AfterPickup             bool      `json:"after_pickup"`
-	At                      time.Time `json:"at"`
+	PreviousCourierID  *string    `json:"previous_courier_id,omitempty"`
+	OrderID            string     `json:"order_id"`
+	Revision           int64      `json:"revision"`
+	RequesterID        string     `json:"requester_id"`
+	CourierID          *string    `json:"courier_id"`
+	PreviousStatus     Status     `json:"previous_status,omitempty"`
+	Status             Status     `json:"status"`
+	Action             Action     `json:"action"`
+	ReservedCredits    int64      `json:"reserved_credits"`
+	DeliveryDurationNS int64      `json:"delivery_duration_ns"`
+	PickedUpAt         *time.Time `json:"picked_up_at,omitempty"`
+	DeliveredAt        *time.Time `json:"delivered_at,omitempty"`
+	AfterPickup        bool       `json:"after_pickup"`
+	At                 time.Time  `json:"at"`
 }
 
 // NewChange builds mandatory audit/facts. Creation is expected revision zero,
@@ -54,9 +56,43 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 			return Change{}, ErrInvalid
 		}
 	}
-	if after.Revision != expected+1 || !after.Status.Valid() || (before == nil && (after.Status != PendingReservation || action != Create)) {
+	if after.Revision <= 0 || after.Revision != expected+1 || !after.Status.Valid() || (before == nil && (after.Status != PendingReservation || action != Create)) {
 		return Change{}, ErrInvalid
 	}
+	if actor.Kind != System && ((actor.Kind != User && actor.Kind != Admin) || actor.ID == "") {
+		return Change{}, ErrForbidden
+	}
+	if before == nil {
+		if actor.Kind != User || !after.Requester(actor.ID) {
+			return Change{}, ErrForbidden
+		}
+	} else if previous != after.Status {
+		next, repeat, err := Transition(*before, action, actor)
+		if err != nil {
+			return Change{}, err
+		}
+		if repeat || next != after.Status {
+			return Change{}, ErrPrecondition
+		}
+		if action == Assign && !after.Courier(actor.ID) {
+			return Change{}, ErrInvalid
+		}
+	} else {
+		// Same-status lifecycle actions are never evidence of a repeat. The
+		// operation recognizes repeats and returns a nil change before writing.
+		if action != RecordItemLocation {
+			return Change{}, ErrPrecondition
+		}
+		if actor.Kind != User || !before.Courier(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
+			return Change{}, ErrPrecondition
+		}
+	}
+	if before != nil {
+		if err := validateFields(*before, after, action); err != nil {
+			return Change{}, err
+		}
+	}
+
 	if len(details) == 0 {
 		details = json.RawMessage(`{}`)
 	}
@@ -67,7 +103,11 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 	if previous == after.Status {
 		return c, nil
 	}
-	payload, err := json.Marshal(FactsPayload{OrderID: after.ID, Revision: after.Revision, RequesterID: after.RequesterID, CourierID: after.CourierID, PreviousStatus: previous, Status: after.Status, Action: action, ReservedCredits: after.ReservedCredits, DeliveryDurationNS: int64(after.DeliveryDuration), PickedUpAt: after.PickedUpAt, DeliveredAt: after.DeliveredAt, AfterPickup: after.PickedUpAt != nil, At: after.UpdatedAt})
+	var previousCourierID *string
+	if before != nil {
+		previousCourierID = before.CourierID
+	}
+	payload, err := json.Marshal(FactsPayload{PreviousCourierID: previousCourierID, OrderID: after.ID, Revision: after.Revision, RequesterID: after.RequesterID, CourierID: after.CourierID, PreviousStatus: previous, Status: after.Status, Action: action, ReservedCredits: after.ReservedCredits, DeliveryDurationNS: int64(after.DeliveryDuration), PickedUpAt: after.PickedUpAt, DeliveredAt: after.DeliveredAt, AfterPickup: after.PickedUpAt != nil, At: after.UpdatedAt})
 	if err != nil {
 		return Change{}, err
 	}

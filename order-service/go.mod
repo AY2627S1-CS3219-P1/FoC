@@ -3,26 +3,21 @@ module github.com/AY2627S1-CS3219-P1/FoC/order-service
 go 1.27.0
 
 require (
-	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
-	github.com/cridenour/go-postgis v1.0.1
-	github.com/go-chi/chi/v5 v5.2.3
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/rs/cors v1.11.1
-	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
-	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 // indirect
+	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
 	dario.cat/mergo v1.0.2 // indirect
@@ -50,6 +45,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.28.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -74,6 +70,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
+	github.com/testcontainers/testcontainers-go v0.43.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect

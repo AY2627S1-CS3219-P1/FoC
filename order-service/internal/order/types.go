@@ -2,6 +2,7 @@ package order
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -32,8 +33,10 @@ func (s Status) Terminal() bool {
 }
 
 type LocationSnapshot struct {
-	LocationID, Name, BuildingName string
-	Floor                          *string
+	LocationID   string  `json:"location_id"`
+	Name         string  `json:"name"`
+	BuildingName string  `json:"building_name"`
+	Floor        *string `json:"floor,omitempty"`
 }
 type Order struct {
 	ID, RequesterID                                            string
@@ -83,8 +86,10 @@ type Caller struct {
 	Admin, Suspended bool
 }
 
-func (o Order) Requester(id string) bool   { return id != "" && o.RequesterID == id }
-func (o Order) Courier(id string) bool     { return id != "" && o.CourierID != nil && *o.CourierID == id }
+func (o Order) Requester(id string) bool { return id != "" && strings.EqualFold(o.RequesterID, id) }
+func (o Order) Courier(id string) bool {
+	return id != "" && o.CourierID != nil && strings.EqualFold(*o.CourierID, id)
+}
 func (o Order) Participant(id string) bool { return o.Requester(id) || o.Courier(id) }
 
 type Action string

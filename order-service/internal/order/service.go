@@ -1,6 +1,9 @@
 package order
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Service struct{ reader Reader }
 
@@ -16,7 +19,7 @@ func (s *Service) GetOrder(ctx context.Context, c Caller, id string) (Order, err
 	if c.Admin || o.Participant(c.ID) {
 		return o, nil
 	}
-	if c.Suspended || o.Status != AwaitingCourier {
+	if c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now()) {
 		return Order{}, ErrNotFound
 	}
 	o.DeliveryInstructions = nil
