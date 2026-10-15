@@ -43,10 +43,13 @@ buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
 
 .PHONY: seed-demo seed-demo-reset
-# Opt-in manual UI fixtures for local Compose. Normal seeding preserves edits.
+SEED_RESET ?= false
+# Opt-in local SQL fixtures. Check both schemas before writing either database.
 seed-demo:
-	@./scripts/seed-demo.sh
+	@docker compose exec -T postgres sh -eu -c 'psql -X -qAt -U "$$POSTGRES_USER" -d "$$USER_DB" -v ON_ERROR_STOP=1 -c "SELECT 1 FROM role_changes LIMIT 0"; psql -X -qAt -U "$$POSTGRES_USER" -d "$$SUPPLIER_DB" -v ON_ERROR_STOP=1 -c "SELECT 1 FROM supplier_idempotency LIMIT 0"'
+	@docker compose exec -T postgres sh -eu -c 'exec psql -X -q -U "$$POSTGRES_USER" -d "$$USER_DB" -v ON_ERROR_STOP=1 -v reset_demo="$$1"' sh "$(SEED_RESET)" < data/seeds/users.sql
+	@docker compose exec -T postgres sh -eu -c 'exec psql -X -q -U "$$POSTGRES_USER" -d "$$SUPPLIER_DB" -v ON_ERROR_STOP=1 -v reset_demo="$$1"' sh "$(SEED_RESET)" < data/seeds/suppliers.sql
 
-# Restore only the fixed demo IDs; keep existing campus and manually created data.
+# Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
-	@./scripts/seed-demo.sh --reset
+	@$(MAKE) --no-print-directory seed-demo SEED_RESET=true

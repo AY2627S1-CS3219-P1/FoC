@@ -42,22 +42,11 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, paths Paths) (Report, error) 
 	return report, nil
 }
 
-// importOptions lets demo fixtures preserve edits and retain their existing public IDs.
-type importOptions struct {
-	idFor            func(string) pgtype.UUID
-	preserveExisting bool
-	requireIDs       bool
-}
-
 func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (Report, error) {
-	return importDatasetWithOptions(ctx, queries, data, importOptions{idFor: deterministicUUID})
-}
-
-func importDatasetWithOptions(ctx context.Context, queries *seeddb.Queries, data dataset, options importOptions) (Report, error) {
 	var report Report
 	buildingIDs := make(map[string]pgtype.UUID, len(data.buildings))
 	for _, building := range data.buildings {
-		candidateID := options.idFor(building.sourceKey)
+		candidateID := deterministicUUID(building.sourceKey)
 		id, err := queries.GetBuilding(ctx, seeddb.GetBuildingParams{
 			ID:   candidateID,
 			Name: building.name,
@@ -67,13 +56,6 @@ func importDatasetWithOptions(ctx context.Context, queries *seeddb.Queries, data
 			return Report{}, fmt.Errorf("find Building %q: %w", building.sourceKey, err)
 		}
 
-		if options.requireIDs && id != candidateID {
-			return Report{}, fmt.Errorf("demo Building identity conflicts: %s", building.sourceKey)
-		}
-		buildingIDs[building.sourceKey] = id
-		if exists && options.preserveExisting {
-			continue
-		}
 		changed, err := queries.UpsertBuilding(ctx, seeddb.UpsertBuildingParams{
 			ID:        id,
 			Name:      building.name,
@@ -85,11 +67,12 @@ func importDatasetWithOptions(ctx context.Context, queries *seeddb.Queries, data
 			return Report{}, fmt.Errorf("upsert Building %q: %w", building.sourceKey, err)
 		}
 		recordSeedChange(&report.Buildings, exists, changed)
+		buildingIDs[building.sourceKey] = id
 	}
 
 	categoryIDs := make(map[string]pgtype.UUID, len(data.categories))
 	for _, category := range data.categories {
-		candidateID := options.idFor(category.sourceKey)
+		candidateID := deterministicUUID(category.sourceKey)
 		id, err := queries.GetCategory(ctx, seeddb.GetCategoryParams{
 			ID:   candidateID,
 			Name: category.name,
@@ -99,13 +82,6 @@ func importDatasetWithOptions(ctx context.Context, queries *seeddb.Queries, data
 			return Report{}, fmt.Errorf("find Category %q: %w", category.sourceKey, err)
 		}
 
-		if options.requireIDs && id != candidateID {
-			return Report{}, fmt.Errorf("demo Category identity conflicts: %s", category.sourceKey)
-		}
-		categoryIDs[category.sourceKey] = id
-		if exists && options.preserveExisting {
-			continue
-		}
 		changed, err := queries.UpsertCategory(ctx, seeddb.UpsertCategoryParams{
 			ID:   id,
 			Name: category.name,
@@ -114,16 +90,14 @@ func importDatasetWithOptions(ctx context.Context, queries *seeddb.Queries, data
 			return Report{}, fmt.Errorf("upsert Category %q: %w", category.sourceKey, err)
 		}
 		recordSeedChange(&report.Categories, exists, changed)
+		categoryIDs[category.sourceKey] = id
 	}
 
 	for _, location := range data.locations {
-		locationID := options.idFor(location.sourceKey)
+		locationID := deterministicUUID(location.sourceKey)
 		exists, err := queries.LocationExists(ctx, locationID)
 		if err != nil {
 			return Report{}, fmt.Errorf("find Location %q: %w", location.sourceKey, err)
-		}
-		if exists && options.preserveExisting {
-			continue
 		}
 		counts := &report.OrdinaryLocations
 		if location.isSupplier {

@@ -1,4 +1,12 @@
-# Local admin test data
+# Project-defined local seed data
+
+This directory contains all project-defined seed records: `users.sql` for
+accounts, roles and the registration domain; `suppliers.sql` for buildings,
+categories, locations, requests and closures. Assignment-provided CSVs live in
+[`../assignment/`](../assignment/README.md) and retain their existing Go importer.
+
+These SQL files populate existing tables. They are explicit development fixtures,
+not Goose schema migrations, and Compose startup does not execute them.
 
 Run after the Compose services have applied their migrations:
 
@@ -31,7 +39,7 @@ Venue names and representative opening hours were checked on 15 October 2026:
 - [NUS UCI University Town dining directory](https://uci.nus.edu.sg/campus-life/campus-services/retail-dining/university-town/): NUS College TOMORO, ERC Starbucks, Fine Food, Flavours, Hwang’s, Jollibee, Subway and The Royals Bistro.
 - [NUS Foodies opening announcement](https://t.me/s/nusfoodies?before=718): the new TOMORO outside NUS Law Library at **20 College Avenue West, #02-402, Singapore 138529**, with an opening promotion on 10–14 August 2026. The same feed lists the NUS College outlet at 16 College Avenue West. These are separate outlets. No opening hours were verified for the new Law Library outlet, so they are blank.
 - [HSSML](https://www.nus.edu.sg/nuslibraries/spaces/our-libraries/hon-sui-sen-memorial-library) and [C J Koh Law Library](https://www.nus.edu.sg/nuslibraries/spaces/visiting-c-j-koh-law-library): library identities/contact/access context.
-- Existing `data/csv/building-seed-data.csv` supplies most building-centre coordinates. Added UTown centres are coarse campus-map approximations, rather than surveyed storefront coordinates; see the [NUS Law UTown map](https://law.nus.edu.sg/trail/wp-content/uploads/sites/9/2026/03/Directions-To-Around-UTown-251204.pdf).
+- Existing `data/assignment/building-seed-data.csv` supplies most building-centre coordinates. Added UTown centres are coarse campus-map approximations, rather than surveyed storefront coordinates; see the [NUS Law UTown map](https://law.nus.edu.sg/trail/wp-content/uploads/sites/9/2026/03/Directions-To-Around-UTown-251204.pdf).
 
 Every fixture has a **[Demo]** label. Real venue identities are used for realistic
 search and map testing; all approvals, rejections, archives, closure reasons and
@@ -117,28 +125,20 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-The root targets invoke `user-service/cmd/seed` (GORM models/store) and
-`supplier-service/cmd/seed --demo-dir /data/demo` (the existing CSV importer plus
-sqlc workflow queries). There are no directly executed SQL fixture files and no
-schema changes. The Supplier Service Compose mount exposes `data/` read-only;
-run `docker compose up -d supplier-service` once after updating Compose to apply
-that mount.
+The root Make targets call `psql` in the local PostgreSQL container directly;
+there is no wrapper script or additional Go demo loader. Both schemas are
+checked before writing either database. Each SQL file runs in its own transaction.
+There is no transaction across services: if the supplier step fails, accounts
+may already exist; fix the error and rerun.
 
-For runs outside Compose, supply each service's `DATABASE_URL` and execute:
+To run outside Compose, supply local connection URLs and invoke the same files:
 
 ```sh
-(cd user-service && go run ./cmd/seed) # --reset to restore demo accounts
-(cd supplier-service && go run ./cmd/seed --demo-dir ../data/demo) # --reset-demo to restore demo scenarios
+psql "$USER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v reset_demo=false -f data/seeds/users.sql
+psql "$SUPPLIER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v reset_demo=false -f data/seeds/suppliers.sql
 ```
 
-Demo venue CSVs use the existing input columns, with an optional `Contact`
-column. Demo mode explicitly permits unspecified supplier hours; the normal CSV
-importer's required-hours validation remains unchanged. Workflow history is
-constructed by the owning service with an injected time and persisted through
-its generated sqlc queries. Account fixtures live in User Service.
-
-Wait for both services' migrations to finish before seeding. Each database
-commits independently; there is no transaction across services. If the supplier step fails, accounts
-may already exist; fix the error and rerun. Only use these targets with the local
-Compose PostgreSQL service. They are opt-in development fixtures, never startup
-migrations or production data.
+Use `reset_demo=true` to restore the fixed fixtures. SQL fixture definitions,
+including all simulated workflow states and relative dates, stay in this
+directory. The assignment CSV importer remains independent. Only use these
+fixtures with development databases; they are never startup migrations.

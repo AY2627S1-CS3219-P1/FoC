@@ -27,21 +27,6 @@ func (q *Queries) AddLocationCategory(ctx context.Context, arg AddLocationCatego
 	return err
 }
 
-const copyDemoRequestCategories = `-- name: CopyDemoRequestCategories :exec
-INSERT INTO location_addition_request_categories(request_id,category_id)
-SELECT $1,category_id FROM location_categories WHERE location_id=$2
-`
-
-type CopyDemoRequestCategoriesParams struct {
-	RequestID  pgtype.UUID
-	LocationID pgtype.UUID
-}
-
-func (q *Queries) CopyDemoRequestCategories(ctx context.Context, arg CopyDemoRequestCategoriesParams) error {
-	_, err := q.db.Exec(ctx, copyDemoRequestCategories, arg.RequestID, arg.LocationID)
-	return err
-}
-
 const deleteAllLocationCategories = `-- name: DeleteAllLocationCategories :execrows
 DELETE FROM location_categories
 WHERE location_id = $1
@@ -53,15 +38,6 @@ func (q *Queries) DeleteAllLocationCategories(ctx context.Context, locationID pg
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteDemoRequestCategories = `-- name: DeleteDemoRequestCategories :exec
-DELETE FROM location_addition_request_categories WHERE request_id=$1
-`
-
-func (q *Queries) DeleteDemoRequestCategories(ctx context.Context, requestID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteDemoRequestCategories, requestID)
-	return err
 }
 
 const deleteLocationCategory = `-- name: DeleteLocationCategory :exec
@@ -77,44 +53,6 @@ type DeleteLocationCategoryParams struct {
 func (q *Queries) DeleteLocationCategory(ctx context.Context, arg DeleteLocationCategoryParams) error {
 	_, err := q.db.Exec(ctx, deleteLocationCategory, arg.LocationID, arg.CategoryID)
 	return err
-}
-
-const demoDisablementExists = `-- name: DemoDisablementExists :one
-SELECT EXISTS(SELECT 1 FROM location_disablements WHERE id=$1)
-`
-
-func (q *Queries) DemoDisablementExists(ctx context.Context, id pgtype.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, demoDisablementExists, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const demoDisablementOverlap = `-- name: DemoDisablementOverlap :one
-SELECT EXISTS(SELECT 1 FROM location_disablements
-WHERE location_id=$1 AND cancelled_at IS NULL
-    AND NOT (id=ANY($2::uuid[]))
-    AND tstzrange(starts_at, LEAST(ends_at,ended_at), '[)') &&
-        tstzrange($3::timestamptz,$4::timestamptz,'[)'))
-`
-
-type DemoDisablementOverlapParams struct {
-	LocationID   pgtype.UUID
-	ReplacingIds []pgtype.UUID
-	StartsAt     pgtype.Timestamptz
-	EffectiveEnd pgtype.Timestamptz
-}
-
-func (q *Queries) DemoDisablementOverlap(ctx context.Context, arg DemoDisablementOverlapParams) (bool, error) {
-	row := q.db.QueryRow(ctx, demoDisablementOverlap,
-		arg.LocationID,
-		arg.ReplacingIds,
-		arg.StartsAt,
-		arg.EffectiveEnd,
-	)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const getBuilding = `-- name: GetBuilding :one
@@ -199,43 +137,6 @@ func (q *Queries) LocationExists(ctx context.Context, id pgtype.UUID) (bool, err
 	return exists, err
 }
 
-const lockDemoLocation = `-- name: LockDemoLocation :one
-SELECT id FROM locations WHERE id=$1 FOR UPDATE
-`
-
-func (q *Queries) LockDemoLocation(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, lockDemoLocation, id)
-	err := row.Scan(&id)
-	return id, err
-}
-
-const lockDemoSeed = `-- name: LockDemoSeed :exec
-SELECT pg_advisory_xact_lock(18003219, 2)
-`
-
-// Demo fixtures use the same sqlc persistence boundary as the CSV importer.
-func (q *Queries) LockDemoSeed(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, lockDemoSeed)
-	return err
-}
-
-const setDemoLocationState = `-- name: SetDemoLocationState :exec
-UPDATE locations SET archived_at=$2,
-    revision=revision+CASE WHEN $3::boolean THEN 1 ELSE 0 END
-WHERE id=$1
-`
-
-type SetDemoLocationStateParams struct {
-	ID         pgtype.UUID
-	ArchivedAt pgtype.Timestamptz
-	ResetDemo  bool
-}
-
-func (q *Queries) SetDemoLocationState(ctx context.Context, arg SetDemoLocationStateParams) error {
-	_, err := q.db.Exec(ctx, setDemoLocationState, arg.ID, arg.ArchivedAt, arg.ResetDemo)
-	return err
-}
-
 const upsertBuilding = `-- name: UpsertBuilding :execrows
 INSERT INTO buildings (id, name, center, radius_m)
 VALUES (
@@ -300,105 +201,6 @@ func (q *Queries) UpsertCategory(ctx context.Context, arg UpsertCategoryParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const upsertDemoDisablement = `-- name: UpsertDemoDisablement :exec
-INSERT INTO location_disablements(id,location_id,starts_at,ends_at,ended_at,cancelled_at,reason,created_by,revision,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$10)
-ON CONFLICT(id) DO UPDATE SET location_id=EXCLUDED.location_id,starts_at=EXCLUDED.starts_at,
-    ends_at=EXCLUDED.ends_at,ended_at=EXCLUDED.ended_at,cancelled_at=EXCLUDED.cancelled_at,
-    reason=EXCLUDED.reason,created_by=EXCLUDED.created_by,revision=location_disablements.revision+1,
-    created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
-WHERE $11::boolean
-`
-
-type UpsertDemoDisablementParams struct {
-	ID          pgtype.UUID
-	LocationID  pgtype.UUID
-	StartsAt    pgtype.Timestamptz
-	EndsAt      pgtype.Timestamptz
-	EndedAt     pgtype.Timestamptz
-	CancelledAt pgtype.Timestamptz
-	Reason      string
-	CreatedBy   string
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-	ResetDemo   bool
-}
-
-func (q *Queries) UpsertDemoDisablement(ctx context.Context, arg UpsertDemoDisablementParams) error {
-	_, err := q.db.Exec(ctx, upsertDemoDisablement,
-		arg.ID,
-		arg.LocationID,
-		arg.StartsAt,
-		arg.EndsAt,
-		arg.EndedAt,
-		arg.CancelledAt,
-		arg.Reason,
-		arg.CreatedBy,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.ResetDemo,
-	)
-	return err
-}
-
-const upsertDemoRequest = `-- name: UpsertDemoRequest :one
-INSERT INTO location_addition_requests (
-    id,submitted_by,name,is_supplier,building_id,floor,coordinates,open_from,open_to,contact,details,
-    status,reviewed_by,reviewed_at,review_note,resulting_location_id,revision,created_at,updated_at
-)
-SELECT $1,$2,l.name,l.is_supplier,l.building_id,l.floor,l.coordinates,
-    l.open_from,l.open_to,l.contact,l.details || $3::text,
-    $4,$5,$6,$7,
-    $8,$9,$10,$11
-FROM locations l WHERE l.id=$12
-ON CONFLICT(id) DO UPDATE SET submitted_by=EXCLUDED.submitted_by,name=EXCLUDED.name,
-    is_supplier=EXCLUDED.is_supplier,building_id=EXCLUDED.building_id,floor=EXCLUDED.floor,
-    coordinates=EXCLUDED.coordinates,open_from=EXCLUDED.open_from,open_to=EXCLUDED.open_to,
-    contact=EXCLUDED.contact,details=EXCLUDED.details,status=EXCLUDED.status,
-    reviewed_by=EXCLUDED.reviewed_by,reviewed_at=EXCLUDED.reviewed_at,review_note=EXCLUDED.review_note,
-    resulting_location_id=EXCLUDED.resulting_location_id,revision=location_addition_requests.revision+1,
-    created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
-WHERE $13::boolean
-RETURNING id
-`
-
-type UpsertDemoRequestParams struct {
-	ID                  pgtype.UUID
-	SubmittedBy         string
-	ScenarioDetails     string
-	Status              string
-	ReviewedBy          pgtype.Text
-	ReviewedAt          pgtype.Timestamptz
-	ReviewNote          pgtype.Text
-	ResultingLocationID pgtype.UUID
-	Revision            int64
-	CreatedAt           pgtype.Timestamptz
-	UpdatedAt           pgtype.Timestamptz
-	ProposalLocationID  pgtype.UUID
-	ResetDemo           bool
-}
-
-func (q *Queries) UpsertDemoRequest(ctx context.Context, arg UpsertDemoRequestParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, upsertDemoRequest,
-		arg.ID,
-		arg.SubmittedBy,
-		arg.ScenarioDetails,
-		arg.Status,
-		arg.ReviewedBy,
-		arg.ReviewedAt,
-		arg.ReviewNote,
-		arg.ResultingLocationID,
-		arg.Revision,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.ProposalLocationID,
-		arg.ResetDemo,
-	)
-	var id pgtype.UUID
-	err := row.Scan(&id)
-	return id, err
 }
 
 const upsertLocation = `-- name: UpsertLocation :execrows
