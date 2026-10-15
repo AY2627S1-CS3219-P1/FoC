@@ -1,9 +1,14 @@
 import { env } from '$env/dynamic/public';
+import { snackbar } from 'm3-svelte';
 import { createCustomTransport } from '$lib/connect/transport';
 import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
+import { createAllowedDomainService } from './allowedDomain/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { SnackbarService } from './snackbar/service.ts';
+
+export const snackbarService = new SnackbarService(snackbar);
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -17,6 +22,7 @@ const protectedUserTransport = createCustomTransport({
 
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
+export const allowedDomainService = createAllowedDomainService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
 const supplierTransport = createCustomTransport({
