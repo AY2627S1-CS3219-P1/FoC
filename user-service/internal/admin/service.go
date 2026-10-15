@@ -12,25 +12,25 @@ type AllowedDomainService struct {
 	repo AllowedDomainRepository
 }
 
-func NewAllowedDomainService(repo *AllowedDomainRepository) AllowedDomainService {
+func NewAllowedDomainService(repo AllowedDomainRepository) *AllowedDomainService {
 	if repo == nil {
 		panic("AllowedDomainRepository cannot be nil")
 	}
 
-	return AllowedDomainService{repo: *repo}
+	return &AllowedDomainService{repo: repo}
 }
 
-func (s AllowedDomainService) ListAllowedDomains(
+func (s *AllowedDomainService) ListAllowedDomains(
 	ctx context.Context,
 ) ([]AllowedDomain, error) {
 	return s.repo.ListAllowedDomains(ctx)
 }
 
-func (s AllowedDomainService) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
+func (s *AllowedDomainService) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
 	return s.repo.IsDomainAllowed(ctx, domain)
 }
 
-func (s AllowedDomainService) AllowDomain(
+func (s *AllowedDomainService) AllowDomain(
 	ctx context.Context,
 	domain string,
 	actorID uuid.UUID,
@@ -46,7 +46,7 @@ func (s AllowedDomainService) AllowDomain(
 	}
 }
 
-func (s AllowedDomainService) RemoveAllowedDomain(
+func (s *AllowedDomainService) RemoveAllowedDomain(
 	ctx context.Context,
 	id uuid.UUID,
 ) error {

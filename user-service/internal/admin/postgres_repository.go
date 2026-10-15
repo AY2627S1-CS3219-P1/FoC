@@ -20,7 +20,7 @@ func NewPostgresAllowedAdminRepository(queries *alloweddomaindb.Queries) *Postgr
 
 var _ AllowedDomainRepository = (*PostgresAllowedAdminRepository)(nil)
 
-func (p PostgresAllowedAdminRepository) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
+func (p *PostgresAllowedAdminRepository) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
 	allowed, err := p.queries.IsDomainAllowed(ctx, domain)
 	if err != nil {
 		return false, fmt.Errorf("check allowed domain: %w", err)
@@ -28,7 +28,7 @@ func (p PostgresAllowedAdminRepository) IsDomainAllowed(ctx context.Context, dom
 	return allowed, nil
 }
 
-func (p PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) ([]AllowedDomain, error) {
+func (p *PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) ([]AllowedDomain, error) {
 	rows, err := p.queries.ListAllowedDomains(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list allowed domains: %w", err)
@@ -42,7 +42,7 @@ func (p PostgresAllowedAdminRepository) ListAllowedDomains(ctx context.Context) 
 	return allowedDomains, nil
 }
 
-func (p PostgresAllowedAdminRepository) AllowDomain(ctx context.Context, domain string, actorID uuid.UUID) error {
+func (p *PostgresAllowedAdminRepository) AllowDomain(ctx context.Context, domain string, actorID uuid.UUID) error {
 	err := p.queries.AllowDomain(ctx, alloweddomaindb.AllowDomainParams{Domain: domain, ActorID: actorID})
 	if err == nil {
 		return nil
@@ -59,7 +59,7 @@ func (p PostgresAllowedAdminRepository) AllowDomain(ctx context.Context, domain 
 	return fmt.Errorf("allow domain: %w", err)
 }
 
-func (p PostgresAllowedAdminRepository) RemoveAllowedDomain(ctx context.Context, id uuid.UUID) error {
+func (p *PostgresAllowedAdminRepository) RemoveAllowedDomain(ctx context.Context, id uuid.UUID) error {
 	rowsAffected, err := p.queries.RemoveAllowedDomain(ctx, id)
 	if err != nil {
 		return fmt.Errorf("remove allowed domain: %w", err)

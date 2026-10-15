@@ -47,7 +47,7 @@ func TestAllowedDomainErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	var repo AllowedDomainRepository = NewPostgresAllowedAdminRepository(alloweddomaindb.New(tx))
-	service := NewAllowedDomainService(&repo)
+	service := NewAllowedDomainService(repo)
 	domains, err := service.ListAllowedDomains(ctx)
 	if err != nil || len(domains) != 0 {
 		t.Fatalf("empty allowlist should succeed: %v, %v", domains, err)
@@ -100,13 +100,13 @@ func TestAllowedDomainErrors(t *testing.T) {
 	if err != nil || len(domains) != 1 {
 		t.Fatalf("list allowed domains: %v, %v", domains, err)
 	}
-	if err := service.RemoveAllowedDomain(ctx, domains[0].Id); err != nil {
+	if err := service.RemoveAllowedDomain(ctx, domains[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	if allowed, err := service.IsDomainAllowed(ctx, "example.com"); err != nil || allowed {
 		t.Fatalf("hard-deleted domain remains allowed: allowed=%v err=%v", allowed, err)
 	}
-	assertAllowedDomainError(t, service.RemoveAllowedDomain(ctx, domains[0].Id), http.StatusNotFound)
+	assertAllowedDomainError(t, service.RemoveAllowedDomain(ctx, domains[0].ID), http.StatusNotFound)
 	if err := service.AllowDomain(ctx, "example.com", actorID); err != nil {
 		t.Fatalf("re-adding hard-deleted domain: %v", err)
 	}

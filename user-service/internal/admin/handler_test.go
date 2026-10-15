@@ -57,7 +57,7 @@ func allowedDomainClient(t *testing.T, logic AllowedDomainLogic, actorID uuid.UU
 
 func TestAllowedDomainRPCs(t *testing.T) {
 	actorID, domainID := uuid.New(), uuid.New()
-	logic := &allowedDomainStub{domains: []AllowedDomain{{Id: domainID, Domain: "example.com"}}}
+	logic := &allowedDomainStub{domains: []AllowedDomain{{ID: domainID, Domain: "example.com"}}}
 	client := allowedDomainClient(t, logic, actorID)
 	ctx := context.Background()
 	list, err := client.ListAllowedDomains(ctx, connect.NewRequest(&userv1.ListAllowedDomainsRequest{}))

@@ -35,7 +35,7 @@ func (h *AllowedDomainHandler) ListAllowedDomains(ctx context.Context, _ *connec
 	}
 	allowedDomains := make([]*userv1.AllowedDomain, len(domains))
 	for i, domain := range domains {
-		allowedDomains[i] = &userv1.AllowedDomain{Id: domain.Id.String(), Domain: domain.Domain}
+		allowedDomains[i] = &userv1.AllowedDomain{Id: domain.ID.String(), Domain: domain.Domain}
 	}
 	response := connect.NewResponse(&userv1.ListAllowedDomainsResponse{AllowedDomains: allowedDomains})
 	response.Header().Set("Cache-Control", "no-store")

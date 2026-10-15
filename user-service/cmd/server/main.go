@@ -274,9 +274,9 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 	return d
 }
 
-func newAllowedDomainService(db alloweddomaindb.DBTX) allowedadmin.AllowedDomainService {
+func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
 	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
-	return allowedadmin.NewAllowedDomainService(&repo)
+	return allowedadmin.NewAllowedDomainService(repo)
 }
 
 func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
