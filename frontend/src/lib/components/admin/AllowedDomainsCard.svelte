@@ -34,16 +34,6 @@
 		return 'We could not complete the request. Check your connection and try again.';
 	}
 
-	async function refreshAccess(cause: unknown) {
-		if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
-			try {
-				await authService.refresh();
-			} catch {
-				// A transient refresh failure should not discard the current page.
-			}
-		}
-	}
-
 	async function loadDomains(afterChange = false): Promise<void> {
 		loading = true;
 		loadFailed = false;
@@ -57,7 +47,6 @@
 					? 'Your change was saved, but the domain list could not be refreshed. Please try again.'
 					: 'We could not load allowed domains. Please try again.';
 			snackbarService.show(message, { actions: { Retry: () => void loadDomains() }, timeout: 8000 });
-			await refreshAccess(cause);
 		} finally {
 			loading = false;
 		}
@@ -84,7 +73,6 @@
 				await loadDomains(true);
 			} catch (cause) {
 				snackbarService.show(errorMessage(cause), { timeout: 8000 });
-				await refreshAccess(cause);
 			} finally {
 				adding = false;
 			}
@@ -114,7 +102,6 @@
 				// Close the modal before notifying so the snackbar is accessible.
 				await tick();
 				snackbarService.show(errorMessage(cause), { timeout: 8000 });
-				await refreshAccess(cause);
 				deleting = false;
 				return;
 			}
