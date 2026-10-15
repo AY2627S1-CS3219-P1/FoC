@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package order.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "order/v1/shared_types.proto";
+
+// Events Order publishes through its outbox. Each is keyed by order_id, so one
+// order's events stay in order. Consumers skip event_ids they have already
+// processed, because delivery is at least once.
+
+enum ActorType {
+  ACTOR_TYPE_UNSPECIFIED = 0;
+  ACTOR_TYPE_USER = 1;
+  ACTOR_TYPE_ADMIN = 2;
+  // Timers and recovery.
+  ACTOR_TYPE_SYSTEM = 3;
+}
+
+message Actor {
+  ActorType type = 1;
+  // Absent for the system.
+  optional string user_id = 2;
+}
+
+// Published on every status change. Consumed by Communication for
+// notifications. Carries no exact delivery details.
+message OrderStatusChanged {
+  string event_id = 1;
+  string order_id = 2;
+  // The order's revision after this change.
+  int64 revision = 3;
+  OrderStatus previous_status = 4;
+  OrderStatus status = 5;
+  Actor actor = 6;
+  string requester_id = 7;
+  optional string courier_id = 8;
+  string pickup_location_name = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+}
+
+// How an order ended, which decides its settlement.
+enum OrderOutcomeType {
+  ORDER_OUTCOME_TYPE_UNSPECIFIED = 0;
+  // Pay the courier the payable reward; return the rest to the requester.
+  ORDER_OUTCOME_TYPE_COMPLETED = 1;
+  // Requester or admin cancelled before pickup. Release the reservation.
+  ORDER_OUTCOME_TYPE_CANCELLED_BEFORE_PICKUP = 2;
+  // Requester cancelled after pickup. Transfer the reward to the courier.
+  ORDER_OUTCOME_TYPE_CANCELLED_AFTER_PICKUP = 3;
+  // No courier before expiry. Release the reservation.
+  ORDER_OUTCOME_TYPE_EXPIRED = 4;
+  // Courier cancelled after pickup, or delivery took twice the allowed
+  // duration. Release the reservation.
+  ORDER_OUTCOME_TYPE_FAILED = 5;
+}
+
+// Published once when an order reaches Completed, Cancelled, Expired or
+// Failed. Consumed by Credit, which settles each order_id at most once.
+message OrderOutcome {
+  string event_id = 1;
+  string order_id = 2;
+  OrderOutcomeType outcome = 3;
+  string requester_id = 4;
+  optional string courier_id = 5;
+  // The reservation held for this order.
+  int64 reserved_credits = 6;
+  // For the lateness rule on Completed orders.
+  google.protobuf.Duration delivery_duration = 7;
+  google.protobuf.Timestamp picked_up_at = 8;
+  google.protobuf.Timestamp delivered_at = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+}
+
+enum CourierWarningReason {
+  COURIER_WARNING_REASON_UNSPECIFIED = 0;
+  COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP = 1;
+}
+
+// Asks User Service to record an account warning against the courier.
+message CourierWarningRequested {
+  string event_id = 1;
+  string order_id = 2;
+  string courier_id = 3;
+  CourierWarningReason reason = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+}
