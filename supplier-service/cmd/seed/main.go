@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/seed"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/utils/env"
@@ -12,10 +13,11 @@ import (
 )
 
 func main() {
-	paths := parseFlags()
+	paths, demoDirectory, reset := parseFlags()
 	databaseURL := env.Get().DatabaseURL
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		log.Fatalf("connect to database: %v", err)
@@ -25,20 +27,32 @@ func main() {
 		log.Fatalf("ping database: %v", err)
 	}
 
-	report, err := seed.Seed(ctx, pool, paths)
+	var report seed.Report
+	if demoDirectory != "" {
+		report, err = seed.SeedDemo(ctx, pool, demoDirectory, reset, time.Now())
+	} else {
+		if reset {
+			log.Fatal("--reset-demo requires --demo-dir")
+		}
+		report, err = seed.Seed(ctx, pool, paths)
+	}
 	if err != nil {
 		log.Fatalf("seed Supplier Service: %v", err)
 	}
 	printReport(report)
 }
 
-func parseFlags() seed.Paths {
+func parseFlags() (seed.Paths, string, bool) {
+	var demoDirectory string
+	var reset bool
+	flag.StringVar(&demoDirectory, "demo-dir", "", "opt-in local demo CSV directory")
+	flag.BoolVar(&reset, "reset-demo", false, "restore fixed demo records; requires --demo-dir")
 	var paths seed.Paths
 	flag.StringVar(&paths.Suppliers, "suppliers", "../data/csv/supplier-seed-data.csv", "Supplier CSV path")
 	flag.StringVar(&paths.Buildings, "buildings", "../data/csv/building-seed-data.csv", "Building CSV path")
 	flag.StringVar(&paths.OrdinaryLocations, "locations", "../data/csv/location-seed-data.csv", "ordinary Location CSV path")
 	flag.Parse()
-	return paths
+	return paths, demoDirectory, reset
 }
 
 func printReport(report seed.Report) {

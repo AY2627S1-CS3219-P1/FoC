@@ -25,6 +25,8 @@ type categoryDefinition struct {
 }
 
 var categoryDefinitions = map[string]categoryDefinition{
+	"drinks":   {sourceKey: "category:drinks", name: "Drinks"},
+	"dessert":  {sourceKey: "category:dessert", name: "Dessert"},
 	"coffee":   {sourceKey: "category:coffee", name: "Coffee"},
 	"food":     {sourceKey: "category:food", name: "Food"},
 	"printing": {sourceKey: "category:printing", name: "Printing"},
@@ -56,7 +58,7 @@ func load(paths Paths) (dataset, error) {
 		return dataset{}, err
 	}
 
-	suppliers, categories, sourceKeys, err := loadSuppliers(paths.Suppliers, aliases)
+	suppliers, categories, sourceKeys, err := loadSuppliers(paths.Suppliers, aliases, paths.AllowUnspecifiedHours)
 	if err != nil {
 		return dataset{}, err
 	}
@@ -134,8 +136,8 @@ func loadBuildings(path string) ([]building, map[string]string, error) {
 	return buildings, aliases, nil
 }
 
-func loadSuppliers(path string, aliases map[string]string) ([]location, []category, map[string]int, error) {
-	records, err := readCSV(path, supplierHeaders)
+func loadSuppliers(path string, aliases map[string]string, allowUnspecifiedHours bool) ([]location, []category, map[string]int, error) {
+	records, err := readCSV(path, supplierHeaders, "Contact")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -169,7 +171,7 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 		if err != nil {
 			return nil, nil, nil, pathError(path, record.line, err)
 		}
-		if parsed.openFrom == nil {
+		if parsed.openFrom == nil && !allowUnspecifiedHours {
 			return nil, nil, nil, pathError(path, record.line, errors.New("Supplier opening hours are required"))
 		}
 
@@ -217,7 +219,7 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 }
 
 func loadOrdinaryLocations(path string, buildings []building, sourceKeys map[string]int) ([]location, error) {
-	records, err := readCSV(path, ordinaryLocationHeaders)
+	records, err := readCSV(path, ordinaryLocationHeaders, "Contact")
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +283,12 @@ func parseLocation(record csvRecord, sourceKey, buildingKey string, isSupplier b
 	if details != nil {
 		detailValue = *details
 	}
+	contact, err := optionalText(record, "Contact", 500)
+	if err != nil {
+		return location{}, err
+	}
 	return location{
+		contact:     contact,
 		sourceKey:   sourceKey,
 		name:        name,
 		buildingKey: buildingKey,
@@ -295,7 +302,7 @@ func parseLocation(record csvRecord, sourceKey, buildingKey string, isSupplier b
 	}, nil
 }
 
-func readCSV(path string, expectedHeaders []string) ([]csvRecord, error) {
+func readCSV(path string, expectedHeaders []string, optionalHeaders ...string) ([]csvRecord, error) {
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
@@ -306,7 +313,8 @@ func readCSV(path string, expectedHeaders []string) ([]csvRecord, error) {
 	}
 
 	reader := csv.NewReader(bytes.NewReader(contents))
-	reader.FieldsPerRecord = len(expectedHeaders)
+	// The first record fixes the row width, including an optional Contact column.
+	reader.FieldsPerRecord = 0
 	headers, err := reader.Read()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -314,7 +322,8 @@ func readCSV(path string, expectedHeaders []string) ([]csvRecord, error) {
 		}
 		return nil, fmt.Errorf("read %s header: %w", path, err)
 	}
-	if !slices.Equal(headers, expectedHeaders) {
+	extended := append(slices.Clone(expectedHeaders), optionalHeaders...)
+	if !slices.Equal(headers, expectedHeaders) && !slices.Equal(headers, extended) {
 		return nil, fmt.Errorf("%s: headers must be exactly %q, got %q", path, expectedHeaders, headers)
 	}
 

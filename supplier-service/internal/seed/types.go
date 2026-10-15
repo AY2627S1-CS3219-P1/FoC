@@ -8,6 +8,8 @@ type Paths struct {
 	Suppliers         string
 	Buildings         string
 	OrdinaryLocations string
+	// AllowUnspecifiedHours permits missing supplier hours for verified outlets without a schedule.
+	AllowUnspecifiedHours bool
 }
 
 // Counts reports how many resources were inserted or updated.
