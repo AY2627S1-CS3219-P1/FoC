@@ -7,6 +7,7 @@
  import { formatTimestamp } from '$lib/services/location-admin/format';
  import LocationEditor from '$lib/components/admin/LocationEditor.svelte';
  import ConfirmDialog from '$lib/components/admin/ConfirmDialog.svelte';
+ import ClosureManager from '$lib/components/admin/ClosureManager.svelte';
  let location = $state<Location | null>(null);
  let buildings = $state<Building[]>([]), categories = $state<Category[]>([]);
  let loading = $state(true), error = $state(''), mutationError = $state(''), notice = $state('');
@@ -46,6 +47,7 @@
   {#if mutationError}<p class="notice error" role="alert">{mutationError}</p>{/if}
   {#if location.archivedAt}<p class="notice" role="status">Archived {formatTimestamp(location.archivedAt)}. This location is unavailable for new requests. You can edit or restore it.</p>{/if}
   {#key `${location.id}:${location.revision}`}<LocationEditor {location} {buildings} {categories} onsaved={(saved) => location = saved} />{/key}
+  {#key location.id}<ClosureManager locationId={location.id} archived={!!location.archivedAt} onchange={refreshLocation} />{/key}
   <Card variant="outlined"><div class="panel-body"><h2>{location.archivedAt ? 'Restore location' : 'Archive location'}</h2><p>{location.archivedAt ? 'Restore this location to normal discovery and make it available for new requests.' : 'Archive this location to remove it from normal discovery and prevent new requests. Historical references are preserved.'}</p><div class="form-actions"><Button variant="outlined" disabled={busy} onclick={() => confirmOpen = true}>{location.archivedAt ? 'Restore location' : 'Archive location'}</Button></div></div></Card>
  {/if}
 </section>
