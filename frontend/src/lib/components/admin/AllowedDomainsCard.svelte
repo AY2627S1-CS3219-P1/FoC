@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { tick } from 'svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { Button, Card, Icon, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import iconAdd from '@ktibow/iconset-material-symbols/add';
@@ -12,9 +12,6 @@
 	import type { AllowedDomain } from '$lib/services/allowedDomain/allowedDomainApi';
 	import { allowedDomainSchema } from '$lib/services/allowedDomain/allowedDomainSchema';
 
-	let domains = $state<AllowedDomain[]>([]);
-	let loading = $state(true);
-	let loadFailed = $state(false);
 	let adding = $state(false);
 	let deleting = $state(false);
 	let selected = $state<AllowedDomain | null>(null);
@@ -35,12 +32,9 @@
 	}
 
 	async function loadDomains(afterChange = false): Promise<void> {
-		loading = true;
-		loadFailed = false;
 		try {
-			domains = await allowedDomainService.listAllowedDomains();
+			await allowedDomainService.listAllowedDomains();
 		} catch (cause) {
-			loadFailed = true;
 			const message = cause instanceof ConnectError && cause.code === Code.PermissionDenied
 				? 'You no longer have permission to view allowed domains.'
 				: afterChange
@@ -51,8 +45,6 @@
 				actions: { Retry: () => void loadDomains() },
 				timeout: 8000
 			});
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -63,10 +55,10 @@
 		multipleSubmits: 'prevent',
 		resetForm: false,
 		onSubmit({ cancel }) {
-			if (!canManage || mutating || loading) cancel();
+			if (!canManage || mutating || allowedDomainService.isLoading) cancel();
 		},
 		async onUpdate({ form: validated }) {
-			if (!validated.valid || !canManage || mutating || loading) return;
+			if (!validated.valid || !canManage || mutating || allowedDomainService.isLoading) return;
 			adding = true;
 			try {
 				await allowedDomainService.allowDomain(validated.data.domain);
@@ -85,7 +77,7 @@
 	const { form, errors, submitting, enhance } = add;
 
 	function reviewRemoval(domain: AllowedDomain) {
-		if (!canManage || mutating || loading) return;
+		if (!canManage || mutating || allowedDomainService.isLoading) return;
 		selected = domain;
 		confirmOpen = true;
 	}
@@ -112,7 +104,6 @@
 		}
 		confirmOpen = false;
 		selected = null;
-		domains = domains.filter((domain) => domain.id !== target.id);
 		await tick();
 		snackbarService.show(message, { severity: 'success' });
 		await loadDomains(true);
@@ -125,7 +116,6 @@
 			selected = null;
 		}
 	});
-	onMount(() => { void loadDomains(); });
 </script>
 
 <Card variant="outlined">
@@ -137,24 +127,24 @@
 		{#if canManage}
 			<form class="add-domain-form" method="POST" use:enhance aria-label="Add allowed domain">
 				<div class="field">
-					<TextFieldOutlined label="Email domain" name="domain" placeholder="example.com" autocomplete="off" autocapitalize="none" spellcheck={false} required maxlength={253} bind:value={$form.domain} disabled={mutating || loading} error={!!$errors.domain} aria-invalid={$errors.domain ? 'true' : undefined} aria-describedby={$errors.domain ? 'domain-error' : undefined} />
+					<TextFieldOutlined label="Email domain" name="domain" placeholder="example.com" autocomplete="off" autocapitalize="none" spellcheck={false} required maxlength={253} bind:value={$form.domain} disabled={mutating || allowedDomainService.isLoading} error={!!$errors.domain} aria-invalid={$errors.domain ? 'true' : undefined} aria-describedby={$errors.domain ? 'domain-error' : undefined} />
 					{#if $errors.domain}<small id="domain-error" class="field-error">{$errors.domain[0]}</small>{/if}
 				</div>
-				<Button type="submit" square iconType="full" aria-label="Add allowed domain" title="Add allowed domain" aria-busy={adding} disabled={mutating || loading || $submitting || !$form.domain.trim()}><Icon icon={iconAdd} size={24} aria-hidden="true" /></Button>
+				<Button type="submit" square iconType="full" aria-label="Add allowed domain" title="Add allowed domain" aria-busy={adding} disabled={mutating || allowedDomainService.isLoading || $submitting || !$form.domain.trim()}><Icon icon={iconAdd} size={24} aria-hidden="true" /></Button>
 			</form>
 		{/if}
 
-		{#if loadFailed}
-			<div class="form-actions"><Button variant="outlined" disabled={loading || mutating} onclick={() => void loadDomains()}>Try again</Button></div>
+		{#if allowedDomainService.loadError}
+			<div class="form-actions"><Button variant="outlined" disabled={allowedDomainService.isLoading || mutating} onclick={() => void loadDomains()}>Try again</Button></div>
 		{/if}
-		{#if loading}
+		{#if allowedDomainService.isLoading}
 			<div class="loading-state" role="status" aria-live="polite"><LoadingIndicator aria-label="Loading allowed domains" /><p>Loading allowed domains…</p></div>
-		{:else if domains.length > 0}
+		{:else if allowedDomainService.domains.length > 0}
 			<div class="table-scroll">
 				<table aria-labelledby="allowed-domains-title">
 					<thead><tr><th scope="col">Domain</th>{#if canManage}<th scope="col" class="actions">Actions</th>{/if}</tr></thead>
 					<tbody>
-						{#each domains as domain (domain.id)}
+						{#each allowedDomainService.domains as domain (domain.id)}
 							<tr>
 								<td class="domain-name">{domain.domain}</td>
 								{#if canManage}<td class="actions"><Button variant="text" iconType="full" disabled={mutating} aria-label={`Delete ${domain.domain}`} title={`Delete ${domain.domain}`} onclick={() => reviewRemoval(domain)}><Icon icon={iconDelete} size={24} aria-hidden="true" /></Button></td>{/if}
@@ -163,7 +153,7 @@
 					</tbody>
 				</table>
 			</div>
-		{:else if !loadFailed}
+		{:else if !allowedDomainService.loadError}
 			<p class="empty-state">No email domains are currently allowed.</p>
 		{/if}
 	</div>

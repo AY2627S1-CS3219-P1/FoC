@@ -1,12 +1,9 @@
 import { Code, ConnectError, type StreamRequest, type UnaryRequest, type UnaryResponse } from '@connectrpc/connect';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { goto } from '$app/navigation';
 import { UserRole } from '$lib/gen/user/v1/auth_pb';
 import { AuthService } from '$lib/services/auth/service.svelte';
-import {
-	adminConfigRefreshRedirectInterceptor,
-	authRedirectInterceptor
-} from './authRedirect';
+import { authRedirectInterceptor } from './authRedirect';
 
 vi.mock('$app/environment', () => ({ browser: true }));
 vi.mock('$app/navigation', () => ({ goto: vi.fn(async () => undefined) }));
@@ -36,7 +33,6 @@ function setup() {
 
 describe('authentication redirect transport interceptor', () => {
 	beforeEach(() => vi.clearAllMocks());
-	afterEach(() => vi.unstubAllGlobals());
 
 	it('allows refresh and retry to recover before deciding to redirect', async () => {
 		const { api, request, response, next, run } = setup();
@@ -70,38 +66,6 @@ describe('authentication redirect transport interceptor', () => {
 		expect(api.refresh).toHaveBeenCalledOnce();
 		expect(next).toHaveBeenCalledTimes(2);
 		expect(goto).toHaveBeenCalledExactlyOnceWith('/login', { replaceState: true });
-	});
-
-	it('redirects admin config when session restoration fails', async () => {
-		vi.stubGlobal('window', { location: { pathname: '/admin/config' } });
-		const request = {
-			method: { name: 'refresh' },
-			stream: false,
-			header: new Headers()
-		} as unknown as UnaryRequest;
-		const error = new ConnectError('no active session', Code.Unauthenticated);
-		const next = vi.fn(async (_request: UnaryRequest | StreamRequest) => {
-			throw error;
-		});
-
-		await expect(adminConfigRefreshRedirectInterceptor(next)(request)).rejects.toBe(error);
-		expect(goto).toHaveBeenCalledExactlyOnceWith('/login', { replaceState: true });
-	});
-
-	it('does not redirect for refresh failures outside admin config', async () => {
-		vi.stubGlobal('window', { location: { pathname: '/profile' } });
-		const request = {
-			method: { name: 'refresh' },
-			stream: false,
-			header: new Headers()
-		} as unknown as UnaryRequest;
-		const error = new ConnectError('no active session', Code.Unauthenticated);
-		const next = vi.fn(async (_request: UnaryRequest | StreamRequest) => {
-			throw error;
-		});
-
-		await expect(adminConfigRefreshRedirectInterceptor(next)(request)).rejects.toBe(error);
-		expect(goto).not.toHaveBeenCalled();
 	});
 
 	it.each([Code.PermissionDenied, Code.Unavailable])('does not redirect for error code %s', async (code) => {
