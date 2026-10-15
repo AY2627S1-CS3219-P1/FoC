@@ -1,10 +1,8 @@
 import { z } from 'zod';
 
 function isHostname(value: string): boolean {
-	// Match the protobuf hostname rule, including its optional trailing dot.
-	const hostname = value.endsWith('.') ? value.slice(0, -1) : value;
-	const labels = hostname.split('.');
-	return hostname.length > 0 && hostname.length <= 253
+	const labels = value.split('.');
+	return value.length > 0 && value.length <= 253
 		&& labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
 		&& !/^\d+$/.test(labels[labels.length - 1]);
 }

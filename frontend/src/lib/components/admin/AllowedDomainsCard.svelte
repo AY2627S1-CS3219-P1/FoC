@@ -133,7 +133,7 @@
 		{#if canManage}
 			<form class="add-domain-form" method="POST" use:enhance aria-label="Add allowed domain">
 				<div class="field">
-					<TextFieldOutlined label="Email domain" name="domain" placeholder="example.com" autocomplete="off" autocapitalize="none" spellcheck={false} required maxlength={254} bind:value={$form.domain} disabled={mutating || loading} error={!!$errors.domain} aria-invalid={$errors.domain ? 'true' : undefined} aria-describedby={$errors.domain ? 'domain-error' : undefined} />
+					<TextFieldOutlined label="Email domain" name="domain" placeholder="example.com" autocomplete="off" autocapitalize="none" spellcheck={false} required maxlength={253} bind:value={$form.domain} disabled={mutating || loading} error={!!$errors.domain} aria-invalid={$errors.domain ? 'true' : undefined} aria-describedby={$errors.domain ? 'domain-error' : undefined} />
 					{#if $errors.domain}<small id="domain-error" class="field-error">{$errors.domain[0]}</small>{/if}
 				</div>
 				<Button type="submit" square iconType="full" aria-label="Add allowed domain" title="Add allowed domain" aria-busy={adding} disabled={mutating || loading || $submitting || !$form.domain.trim()}><Icon icon={iconAdd} size={24} aria-hidden="true" /></Button>
