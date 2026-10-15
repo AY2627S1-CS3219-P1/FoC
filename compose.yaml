@@ -154,6 +154,8 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
     volumes:
       - ./supplier-service:/app
+      # The service-owned seed command reads the same CSV inputs as local runs.
+      - ./data:/data:ro
       - ./pkg:/pkg
       # Supplier Service imports the auth middleware from user-service/pkg.
       - ./user-service:/user-service

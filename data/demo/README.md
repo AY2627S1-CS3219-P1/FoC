@@ -96,8 +96,8 @@ make seed-demo
 ```
 
 Service recreation rebuilds Go dependencies and may take several minutes; see
-[the build-cache landmine](../../LANDMINES/go-cache.md). If seeding reports that
-the schemas are not ready, wait for startup and rerun it. You can inspect startup
+[the build-cache landmine](../../LANDMINES/go-cache.md). If seeding reports missing
+tables during startup, wait for migrations to finish and rerun it. You can inspect startup
 with `docker compose logs -f user-service supplier-service`.
 
 ## Re-run and reset
@@ -117,8 +117,28 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-Both schemas are checked before seeding. Each database commits independently;
-there is no transaction across services. If the supplier step fails, accounts
+The root targets invoke `user-service/cmd/seed` (GORM models/store) and
+`supplier-service/cmd/seed --demo-dir /data/demo` (the existing CSV importer plus
+sqlc workflow queries). There are no directly executed SQL fixture files and no
+schema changes. The Supplier Service Compose mount exposes `data/` read-only;
+run `docker compose up -d supplier-service` once after updating Compose to apply
+that mount.
+
+For runs outside Compose, supply each service's `DATABASE_URL` and execute:
+
+```sh
+(cd user-service && go run ./cmd/seed) # --reset to restore demo accounts
+(cd supplier-service && go run ./cmd/seed --demo-dir ../data/demo) # --reset-demo to restore demo scenarios
+```
+
+Demo venue CSVs use the existing input columns, with an optional `Contact`
+column. Demo mode explicitly permits unspecified supplier hours; the normal CSV
+importer's required-hours validation remains unchanged. Workflow history is
+constructed by the owning service with an injected time and persisted through
+its generated sqlc queries. Account fixtures live in User Service.
+
+Wait for both services' migrations to finish before seeding. Each database
+commits independently; there is no transaction across services. If the supplier step fails, accounts
 may already exist; fix the error and rerun. Only use these targets with the local
 Compose PostgreSQL service. They are opt-in development fixtures, never startup
 migrations or production data.
