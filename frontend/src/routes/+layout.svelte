@@ -12,6 +12,12 @@
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
 	let signingOut = $state(false);
 	let signOutError = $state('');
+	const authenticationRoute = $derived(
+		page.url.pathname === '/login' || page.url.pathname === '/register'
+	);
+	const canRender = $derived(
+		authenticationRoute || status === 'ready' || authService.isAuthenticated
+	);
 
 	async function restoreAuth() {
 		status = 'loading';
@@ -39,7 +45,9 @@
 	}
 
 	onMount(() => {
-		void restoreAuth();
+		// A magic link establishes its own session; do not race it with cookie refresh.
+		if (authenticationRoute && page.url.searchParams.has('token')) status = 'ready';
+		else void restoreAuth();
 	});
 </script>
 
@@ -81,7 +89,9 @@
 	{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
 
 	<main id="main-content" class="page-main" tabindex="-1">
-		{#if status === 'loading'}
+		{#if canRender}
+			{@render children()}
+		{:else if status === 'loading'}
 			<div class="center-stage">
 				<div class="loading-state" role="status" aria-live="polite">
 					<LoadingIndicator aria-label="Checking your session" />
@@ -96,14 +106,13 @@
 							<h1>We couldn't check your session</h1>
 							<p>There may be a temporary connection problem. Please try again.</p>
 							<div class="form-actions">
+								<Button variant="text" href="/login">Go to sign in</Button>
 								<Button onclick={() => void restoreAuth()}>Try again</Button>
 							</div>
 						</div>
 					</Card>
 				</div>
 			</div>
-		{:else}
-			{@render children()}
 		{/if}
 	</main>
 </div>
