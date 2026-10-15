@@ -92,5 +92,3 @@ require (
 )
 
 replace github.com/AY2627S1-CS3219-P1/FoC/pkg => ../pkg
-
-replace github.com/AY2627S1-CS3219-P1/FoC/user-service => ../user-service

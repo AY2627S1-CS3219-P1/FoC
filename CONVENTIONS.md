@@ -17,9 +17,9 @@
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
-  default golangci-lint correctness linters across `pkg`, `user-service` and
-  `supplier-service`. CI installs the tool with the official action, then runs
-  the same target for each module. The Makefile pins
+  default golangci-lint correctness linters across `pkg`, `user-service`,
+  `supplier-service` and `order-service`. CI installs the tool with the official
+  action, then runs the same target for each module. The Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
@@ -142,21 +142,25 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   the methods it calls (e.g. a handler's `Logic`, a logic package's
   `UserStore`). Implementations return concrete types; never return an
   interface from a constructor.
-- Layers: `internal/handlers/<domain>` (Connect adapter) →
+- User Service layers: `internal/handlers/<domain>` (Connect adapter) →
   `internal/<domain>` (business rules and the store interfaces they need) →
   `internal/store` (GORM persistence over `internal/models`).
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
+- Supplier and Order use domain packages with consumer-owned read/transaction
+  interfaces and colocated Postgres adapters. Order keeps its aggregate in one
+  `internal/order` package; see `docs/adr/order-aggregate-foundation.md`.
 
 ## Database
 
-Supplier Service uses sqlc:
+Supplier and Order Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
-  `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never hand-edit
-  generated files.
+  Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
+  hand-edit generated files. Order generates one aggregate package,
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 ## Frontend services
