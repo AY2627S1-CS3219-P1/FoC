@@ -43,8 +43,8 @@ Creates retain retry keys within the mounted editor after uncertain outcomes.
 Retry the same details; check the list/history before explicitly starting another
 creation. Update conflicts preserve drafts and require explicit reconciliation.
 Leaving an editor loses its in-memory retry key, so verify the list before
-resubmitting after a reload. Review decisions are final; the existing approval
-and rejection RPCs do not accept expected revisions.
+resubmitting after a reload. Review decisions are final. Approval and rejection require the reviewed revision;
+the server checks it atomically before deciding. A stale review must be reloaded.
 
 ## Development
 

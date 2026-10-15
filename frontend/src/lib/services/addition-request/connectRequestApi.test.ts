@@ -19,17 +19,21 @@ describe('addition request RPC boundary', () => {
 		);
 		await api.list(1, 2);
 		await api.get('proposal');
-		await api.approve('proposal');
-		await api.reject('proposal', ' Not on campus ');
+		await api.approve('proposal', 9007199254740993n);
+		await api.reject('proposal', ' Not on campus ', 3n);
 		expect(client.listLocationAdditionRequests).toHaveBeenCalledWith({
 			status: 1,
 			page: 2,
 			pageSize: 20
 		});
-		expect(client.approveLocationAdditionRequest).toHaveBeenCalledWith({ id: 'proposal' });
+		expect(client.approveLocationAdditionRequest).toHaveBeenCalledWith({
+			id: 'proposal',
+			expectedRevision: 9007199254740993n
+		});
 		expect(client.rejectLocationAdditionRequest).toHaveBeenCalledWith({
 			id: 'proposal',
-			reviewNote: 'Not on campus'
+			reviewNote: 'Not on campus',
+			expectedRevision: 3n
 		});
 	});
 	it('rejects incomplete responses', async () => {

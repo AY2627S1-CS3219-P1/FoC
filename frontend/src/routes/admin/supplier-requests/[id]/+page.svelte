@@ -133,8 +133,8 @@
 			}
 			const decided =
 				action === 'approve'
-					? await additionRequestApi.approve(id)
-					: await additionRequestApi.reject(id, note);
+					? await additionRequestApi.approve(id, request.revision)
+					: await additionRequestApi.reject(id, note, request.revision);
 			if (page.params.id !== id) return;
 			request = decided;
 			rejection.reset();

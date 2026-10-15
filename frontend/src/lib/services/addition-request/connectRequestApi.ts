@@ -17,13 +17,20 @@ export class ConnectAdditionRequestApi implements AdditionRequestApi {
 	async get(id: string) {
 		return required((await this.client.getLocationAdditionRequest({ id })).request);
 	}
-	async approve(id: string) {
-		return required((await this.client.approveLocationAdditionRequest({ id })).request);
-	}
-	async reject(id: string, reviewNote: string) {
+	async approve(id: string, expectedRevision: bigint) {
 		return required(
-			(await this.client.rejectLocationAdditionRequest({ id, reviewNote: reviewNote.trim() }))
-				.request
+			(await this.client.approveLocationAdditionRequest({ id, expectedRevision })).request
+		);
+	}
+	async reject(id: string, reviewNote: string, expectedRevision: bigint) {
+		return required(
+			(
+				await this.client.rejectLocationAdditionRequest({
+					id,
+					reviewNote: reviewNote.trim(),
+					expectedRevision
+				})
+			).request
 		);
 	}
 }

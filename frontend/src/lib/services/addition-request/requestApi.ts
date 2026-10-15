@@ -10,6 +10,10 @@ export interface RequestPage {
 export interface AdditionRequestApi {
 	list(status: LocationAdditionRequestStatus, page: number): Promise<RequestPage>;
 	get(id: string): Promise<LocationAdditionRequest>;
-	approve(id: string): Promise<LocationAdditionRequest>;
-	reject(id: string, reviewNote: string): Promise<LocationAdditionRequest>;
+	approve(id: string, expectedRevision: bigint): Promise<LocationAdditionRequest>;
+	reject(
+		id: string,
+		reviewNote: string,
+		expectedRevision: bigint
+	): Promise<LocationAdditionRequest>;
 }

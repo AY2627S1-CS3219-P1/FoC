@@ -19,8 +19,8 @@ type Operations interface {
 	GetRequest(context.Context, app.Caller, string) (app.AdditionRequest, error)
 	UpdateRequest(context.Context, app.Caller, app.UpdateRequest) (app.AdditionRequest, error)
 	WithdrawRequest(context.Context, app.Caller, string) (app.AdditionRequest, error)
-	ApproveRequest(context.Context, app.Caller, string) (app.Approval, error)
-	RejectRequest(context.Context, app.Caller, string, string) (app.AdditionRequest, error)
+	ApproveRequest(context.Context, app.Caller, string, int64) (app.Approval, error)
+	RejectRequest(context.Context, app.Caller, string, string, int64) (app.AdditionRequest, error)
 }
 
 type Principal = rpcshared.Principal
