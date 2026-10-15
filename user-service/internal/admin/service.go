@@ -33,9 +33,9 @@ func (s AllowedDomainService) IsDomainAllowed(ctx context.Context, domain string
 func (s AllowedDomainService) AllowDomain(
 	ctx context.Context,
 	domain string,
-	actorId uuid.UUID,
+	actorID uuid.UUID,
 ) error {
-	err := s.repo.AllowDomain(ctx, domain, actorId)
+	err := s.repo.AllowDomain(ctx, domain, actorID)
 	switch {
 	case errors.Is(err, errDomainAlreadyExists):
 		return errs.WrapAlreadyExistsError(err, "domain already allowed")
