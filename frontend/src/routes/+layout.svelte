@@ -5,7 +5,7 @@
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { page } from '$app/state';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { Button, Card, LoadingIndicator, TabsLink } from 'm3-svelte';
+	import { Button, Card, LoadingIndicator, Snackbar, TabsLink } from 'm3-svelte';
 	import { authService } from '$lib/services';
 
 	let { children } = $props();
@@ -52,21 +52,27 @@
 </svelte:head>
 
 <div class="app-shell">
+	<div class="snackbar-region" role="status" aria-live="polite" aria-atomic="true"><Snackbar closeTitle="Dismiss notification" /></div>
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
-				<TabsLink
-					tab={page.url.pathname.startsWith('/admin') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
-					items={[
-						{ name: 'Home', value: 'home', href: '/' },
-						{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
-						{ name: 'Profile', value: 'profile', href: '/profile' },
-						...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
-							? [{ name: 'Manage users', value: 'admin', href: '/admin/users' }]
-							: [])
-					]}
-				/>
+				<div class="nav-tabs">
+					<TabsLink
+						tab={page.url.pathname.startsWith('/admin/config') ? 'config' : page.url.pathname.startsWith('/admin/users') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
+						items={[
+							{ name: 'Home', value: 'home', href: '/' },
+							{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
+							{ name: 'Profile', value: 'profile', href: '/profile' },
+							...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
+								? [
+									{ name: 'Manage users', value: 'admin', href: '/admin/users' },
+									{ name: 'Config', value: 'config', href: '/admin/config' }
+								]
+								: [])
+						]}
+					/>
+				</div>
 				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
 			</nav>
 		{/if}
