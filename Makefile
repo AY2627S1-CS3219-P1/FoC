@@ -41,3 +41,12 @@ buf-generate-rpc: $(BUF)
 
 buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
+
+.PHONY: seed-demo seed-demo-reset
+# Opt-in manual UI fixtures for local Compose. Normal seeding preserves edits.
+seed-demo:
+	@./scripts/seed-demo.sh
+
+# Restore only the fixed demo IDs; keep existing campus and manually created data.
+seed-demo-reset:
+	@./scripts/seed-demo.sh --reset
