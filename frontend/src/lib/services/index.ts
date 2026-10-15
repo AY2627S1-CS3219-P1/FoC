@@ -1,6 +1,9 @@
 import { env } from '$env/dynamic/public';
 import { createCustomTransport } from '$lib/connect/transport';
-import { authRedirectInterceptor } from '$lib/connect/authRedirect';
+import {
+	adminConfigRefreshRedirectInterceptor,
+	authRedirectInterceptor
+} from '$lib/connect/authRedirect';
 import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
@@ -12,7 +15,10 @@ export const snackbarService = new SnackbarService();
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
-const plainAuthTransport = createCustomTransport({ baseUrl: userServiceBaseUrl });
+const plainAuthTransport = createCustomTransport({
+	baseUrl: userServiceBaseUrl,
+	interceptors: [adminConfigRefreshRedirectInterceptor]
+});
 
 export const authService = createAuthService(plainAuthTransport);
 const protectedUserTransport = createCustomTransport({

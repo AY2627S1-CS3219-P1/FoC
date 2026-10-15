@@ -13,7 +13,7 @@
 
 <svelte:head><title>Config · Friend on Campus</title></svelte:head>
 
-{#if !authService.isAuthenticated || canView}
+{#if canView}
 	<section class="page-content admin-page" aria-labelledby="config-title">
 		<header class="page-heading">
 			<div><p class="eyebrow">Administration</p><h1 id="config-title">Config</h1><p>Manage application configuration.</p></div>
