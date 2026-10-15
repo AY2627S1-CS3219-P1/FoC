@@ -188,6 +188,9 @@ Supplier Service uses sqlc:
 ## Frontend UI
 - Use Superforms to validate and manage form
 - Use Svelte-M3 UI components
+- Style M3 components through public props, CSS variables, or application-owned
+  wrappers and data attributes. Avoid selectors that depend on internal library
+  classes (such as `.m3-container`) or the component's internal DOM structure.
 
 User Service has legacy GORM-backed domains and may use sqlc for new domains:
 

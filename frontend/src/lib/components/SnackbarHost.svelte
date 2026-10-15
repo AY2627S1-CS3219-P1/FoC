@@ -14,14 +14,14 @@
 
 {#if $notice}
 	<div
-		class="holder"
+		class="snackbar-holder"
 		role={$notice.severity === 'error' ? 'alert' : 'status'}
 		aria-live={$notice.severity === 'error' ? 'assertive' : 'polite'}
 		aria-atomic="true"
 		out:fade={{ duration: 200 }}
 	>
 		{#key $notice.id}
-			<SnackbarItem data-severity={$notice.severity}>
+			<SnackbarItem data-snackbar-item data-severity={$notice.severity}>
 				<Icon class="status-icon" icon={icons[$notice.severity]} size={24} aria-hidden="true" />
 				<p>{$notice.message}</p>
 				{#each Object.entries($notice.actions) as [label, action]}
