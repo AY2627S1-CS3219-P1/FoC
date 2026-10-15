@@ -20,6 +20,8 @@ func TestPostgresTransactionInvariants(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): mutating a
+	// returned pointer cannot replace the persisted courier used for authorization.
 	t.Run("locked authorization baseline cannot be aliased", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)

@@ -58,6 +58,8 @@ func TestNewChangeTerminalMetadataCannotAlterSettlementFields(t *testing.T) {
 	}
 }
 
+// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): reject a same-status assignment
+// change instead of committing a second transition.
 func TestSameStatusAssignmentRepeatCannotCommit(t *testing.T) {
 	courierID := "courier"
 	current := Order{ID: "o1", CourierID: &courierID, Status: AwaitingPickup, Revision: 9}

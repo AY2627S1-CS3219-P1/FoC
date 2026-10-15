@@ -136,6 +136,9 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	}
 }
 
+// NFR-05.2.3/NFR-05.2.5 (../../../REQUIREMENTS.md#nfr-05-auth): verify method
+// authorization before validation. Identity is injected; persisted relationships
+// and JWT verification are not exercised by this handler test.
 func TestAuthorizationBeforeValidation(t *testing.T) {
 	for _, role := range []string{"", "user", "suspended_user", "admin", "super_admin"} {
 		t.Run(role, func(t *testing.T) {

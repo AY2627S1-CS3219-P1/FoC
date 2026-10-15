@@ -183,6 +183,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(string(payload), err)
 		}
 	})
+	// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): a receipt repeat leaves the
+	// committed revision and audit/outbox counts unchanged.
 	t.Run("full completion facts and recognized repeats", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -312,6 +314,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(a, n)
 		}
 	})
+	// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): stale local changes cannot
+	// advance the aggregate or replay the transaction callback automatically.
 	t.Run("revision conflicts and no automatic callback retry", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -347,6 +351,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(got)
 		}
 	})
+	// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): stale revision predicates
+	// affect no rows, preventing duplicate aggregate changes.
 	t.Run("conditional SQL revision predicate", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -359,6 +365,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(n, err)
 		}
 	})
+	// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): a failed fact insertion
+	// leaves no partial aggregate, offer, audit or outgoing fact.
 	t.Run("atomic failure rolls back Order offers audit and outbox", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -390,6 +398,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(got, a, n, offers)
 		}
 	})
+	// NFR-02/NFR-11.6 (../../REQUIREMENTS.md#nfr-02): partial foundation coverage
+	// with 16 local assignment mutations; this is not the 50-acceptance RPC test.
 	t.Run("competing mutations serialize to one courier", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -414,6 +424,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(a, n)
 		}
 	})
+	// NFR-02/NFR-11.6 (../../REQUIREMENTS.md#nfr-02): the local assignment/expiry
+	// race commits one change; acceptance RPC/saga concurrency remains deferred.
 	t.Run("assignment racing expiry commits one change", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)
@@ -485,6 +497,8 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): database constraints reject
+	// duplicate revision facts and terminal outcomes; delivery/replay is untested.
 	t.Run("outbox uniqueness protects revisions and terminal outcomes", func(t *testing.T) {
 		f.reset(t)
 		o := f.create(t)

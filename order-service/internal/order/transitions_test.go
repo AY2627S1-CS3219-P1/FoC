@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): actor policy uses supplied
+// Order relationships; persisted authorization is checked by integration tests.
 func TestTransitions(t *testing.T) {
 	requester, courier, stranger, admin, system := Actor{User, "requester"}, Actor{User, "courier"}, Actor{User, "other"}, Actor{Admin, "admin"}, Actor{Kind: System}
 	courierID := "courier"
@@ -56,6 +58,9 @@ func TestTransitions(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): matching lifecycle statuses alone
+// must not turn cancellation or pickup into a recognized repeat.
 func TestCancellationDefaultsAndRepeats(t *testing.T) {
 	for _, s := range []Status{PendingReservation, Delivered, Completed, Cancelled, Rejected} {
 		for _, a := range []Actor{{User, "requester"}, {Admin, "admin"}, {Kind: System}} {

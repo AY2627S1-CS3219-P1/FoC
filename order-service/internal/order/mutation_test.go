@@ -74,6 +74,8 @@ func TestMutateLocksLoadsRelationshipsBuildsAndAppliesInOrder(t *testing.T) {
 	}
 }
 
+// NFR-04/NFR-04.1 (../../REQUIREMENTS.md#nfr-04): recognized local repeats produce no
+// aggregate, audit or outbox writes; relay/downstream retries are outside this test.
 func TestMutateRecognizedRepeatCommitsWithoutWrites(t *testing.T) {
 	events := []string{}
 	repo := &repoFake{tx: &txFake{events: &events, order: Order{ID: "o1", Revision: 3}}}

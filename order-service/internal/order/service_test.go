@@ -37,6 +37,8 @@ func (f *readFake) Offers(_ context.Context, caller Caller, id string, status Of
 
 func strptr(v string) *string { return &v }
 
+// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): read authorization
+// policy uses supplied participant data; this fake does not prove database reads.
 func TestGetOrderAccessAndRedaction(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -102,6 +104,8 @@ func TestListReadsApplyDefaultsAndForwardFilters(t *testing.T) {
 	}
 }
 
+// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): administrative
+// read authorization precedes validation for invalid administrative requests.
 func TestListValidationAndAdminAuthorizationOrder(t *testing.T) {
 	f := &readFake{}
 	s := NewService(f)

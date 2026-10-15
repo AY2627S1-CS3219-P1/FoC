@@ -105,6 +105,8 @@ func TestPostgresReads(t *testing.T) {
 			t.Fatal(p, err)
 		}
 	})
+	// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): authorize reads
+	// from persisted participants, including suspended users, and hide strangers.
 	t.Run("participant history suspended users and invisible orders", func(t *testing.T) {
 		f.reset(t)
 		o := sampleOrder()
@@ -134,6 +136,8 @@ func TestPostgresReads(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// NFR-05.2.3/NFR-05.2.5 (../../REQUIREMENTS.md#nfr-05-auth): persisted
+	// requester/courier relationships determine whose offers are visible.
 	t.Run("offers privacy with consistent parent and relationships", func(t *testing.T) {
 		f.reset(t)
 		o := sampleOrder()
