@@ -3,7 +3,7 @@ package admin
 import "github.com/google/uuid"
 
 type AllowedDomain struct {
-	Id     uuid.UUID
+	ID     uuid.UUID
 	Domain string
 }
 
