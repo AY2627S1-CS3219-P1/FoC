@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/public';
 import { createCustomTransport } from '$lib/connect/transport';
+import { authRedirectInterceptor } from '$lib/connect/authRedirect';
 import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
@@ -16,7 +17,7 @@ const plainAuthTransport = createCustomTransport({ baseUrl: userServiceBaseUrl }
 export const authService = createAuthService(plainAuthTransport);
 const protectedUserTransport = createCustomTransport({
 	baseUrl: userServiceBaseUrl,
-	interceptors: [authService.interceptor]
+	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
 
 export const profileService = createProfileService(protectedUserTransport, authService);
@@ -26,7 +27,7 @@ export const allowedDomainService = createAllowedDomainService(protectedUserTran
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
 const supplierTransport = createCustomTransport({
 	baseUrl: supplierServiceBaseUrl,
-	interceptors: [authService.interceptor]
+	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
 
 export const locationApi = createLocationApi(supplierTransport);
