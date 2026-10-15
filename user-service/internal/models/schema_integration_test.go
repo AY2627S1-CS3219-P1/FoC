@@ -67,6 +67,54 @@ func newUser(t *testing.T, db *gorm.DB, email string) *m.User {
 	return u
 }
 
+func TestAllowedDomainUniqueMigrationPreservesActiveDomains(t *testing.T) {
+	db := setup(t)
+	ctx := context.Background()
+	p, err := database.Migrator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.DownTo(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	activeID, otherID := uuid.New(), uuid.New()
+	if err := db.Exec(`
+		INSERT INTO allowed_email_domains (id, domain, deleted_at) VALUES
+			(?, 'example.com', NULL),
+			(?, 'EXAMPLE.COM', now()),
+			(?, 'example.com', now()),
+			(?, 'removed.example.com', now()),
+			(?, 'REMOVED.EXAMPLE.COM', now()),
+			(?, 'other.example.com', NULL)
+	`, activeID, uuid.New(), uuid.New(), uuid.New(), uuid.New(), otherID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 6); err != nil {
+		t.Fatalf("upgrade with legacy soft-deleted domains: %v", err)
+	}
+	// Query without GORM's soft-delete scope so obsolete rows cannot be hidden.
+	var domains []m.AllowedEmailDomain
+	if err := db.Unscoped().Order("domain").Find(&domains).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(domains) != 2 || domains[0].ID != activeID || domains[0].Domain != "example.com" ||
+		domains[1].ID != otherID || domains[1].Domain != "other.example.com" {
+		t.Fatalf("upgrade changed the active allowlist or retained deleted rows: %+v", domains)
+	}
+	if err := db.Create(&m.AllowedEmailDomain{Domain: "EXAMPLE.COM"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("expected case-insensitive uniqueness after upgrade, got: %v", err)
+	}
+	if err := db.Create(&m.AllowedEmailDomain{Domain: "removed.example.com"}).Error; err != nil {
+		t.Fatalf("re-adding a previously soft-deleted domain: %v", err)
+	}
+	if _, err := p.DownTo(ctx, 5); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if _, err := p.UpTo(ctx, 6); err != nil {
+		t.Fatalf("upgrade again: %v", err)
+	}
+}
+
 func TestSchema(t *testing.T) {
 	db := setup(t)
 	now := time.Now().UTC()

@@ -1,5 +1,9 @@
 -- Allowed domains are hard-deleted, so uniqueness applies to every row.
 -- +goose Up
+-- Remove legacy soft-deleted entries before enforcing global uniqueness.
+-- Purge deleted-only domains too so they cannot become allowed again.
+DELETE FROM allowed_email_domains WHERE deleted_at IS NOT NULL;
+
 ALTER TABLE allowed_email_domains
     ADD CONSTRAINT allowed_email_domains_domain_key UNIQUE (domain);
 
