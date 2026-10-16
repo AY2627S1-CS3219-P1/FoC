@@ -1,6 +1,7 @@
 # Collapse generated code in GitHub diffs
 pkg/gen/** linguist-generated=true
-frontend/src/lib/gen/** linguist-generated=true
+# protoc-gen-es emits a final blank line; keep its output reproducible.
+frontend/src/lib/gen/** linguist-generated=true whitespace=-blank-at-eof
 
 # Shell scripts run inside Linux containers; CRLF breaks them.
 *.sh text eol=lf

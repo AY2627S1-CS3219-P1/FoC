@@ -3,6 +3,7 @@ module github.com/AY2627S1-CS3219-P1/FoC/order-service
 go 1.27.0
 
 require (
+	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	github.com/AY2627S1-CS3219-P1/FoC/pkg v0.0.0
@@ -17,7 +18,6 @@ require (
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 // indirect
-	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
 	dario.cat/mergo v1.0.2 // indirect

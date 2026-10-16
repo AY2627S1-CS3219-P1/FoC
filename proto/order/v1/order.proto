@@ -14,6 +14,15 @@ import "order/v1/shared_types.proto";
 // Errors: invalid_argument for bad input, permission_denied when the caller
 // has no right to act on the order, failed_precondition when the order's
 // status doesn't allow the action, not_found for unknown or invisible orders.
+//
+// Keyed mutations use a required client UUID scoped by caller and method for
+// 24 hours from first admission. Identical canonical payloads reuse one workflow;
+// changed payloads return already_exists. Keep the mapping until the workflow
+// resolves, even beyond 24 hours. Concurrent duplicates join the same workflow.
+// Authentication, malformed input and transient infrastructure failures are not
+// definitive business rejections. A deliberate retry after a business rejection
+// needs a new client key and an eligible resource. Client keys are distinct from
+// permanent Order and assignment IDs used for Credit calls.
 service OrderService {
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {}
   rpc CreateItemImageUpload(CreateItemImageUploadRequest) returns (CreateItemImageUploadResponse) {}
@@ -38,7 +47,11 @@ service OrderService {
 // Reserves reward_credits from the caller's available balance before the order
 // opens. If Credit refuses, the order is Rejected and failed_precondition is
 // returned. If the reservation can't be confirmed in time, the order stays
-// Pending Reservation and is resolved in the background.
+// Pending Reservation and is resolved in the background. A timeout is unknown,
+// not a refusal. If expiry wins before opening, persist abort intent and confirm
+// ReleaseReservation(EXPIRED) before rejecting, even if Reserve is still unknown.
+// Never open an expired order. Rejection of Reserve alone emits no release or
+// settlement outcome fact.
 message CreateOrderRequest {
   option (buf.validate.message).cel = {
     id: "create_order.distinct_locations"
@@ -67,12 +80,11 @@ message CreateOrderRequest {
       lte: {seconds: 86400}
     }
   ];
-  // When an unaccepted order expires. The UI pre-fills a default.
-  google.protobuf.Timestamp expires_at = 7 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).timestamp.gt_now = true
-  ];
-  // UUID retry key scoped by caller and method for 24 hours.
+  // When an unaccepted order expires. The UI pre-fills a default. Only a NEW
+  // creation checks expires_at > now, inside the operation AFTER idempotency
+  // lookup; an identical retained retry remains valid after this deadline.
+  google.protobuf.Timestamp expires_at = 7 [(buf.validate.field).required = true];
+  // Required client UUID; see OrderService retry and retention rules.
   string idempotency_key = 8 [(buf.validate.field).string.uuid = true];
 }
 
@@ -134,10 +146,14 @@ message ListMyOrdersRequest {
 }
 
 // Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// others get failed_precondition. Order persists a new assignment UUID for every
+// attempt, including direct acceptance; it is never reused after compensation.
+// A retained identical retry resumes/replays that attempt, not a new assignment.
+// Historical success does not prove the courier is still assigned; use GetOrder.
 message AcceptOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // Required client UUID; see OrderService retry and retention rules.
+  string idempotency_key = 2 [(buf.validate.field).string.uuid = true];
 }
 
 // A counteroffer above the current reward on an Awaiting Courier order. It may
@@ -145,7 +161,7 @@ message AcceptOrderRequest {
 message MakeOfferRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   int64 credits = 2 [(buf.validate.field).int64.gt = 0];
-  // UUID retry key scoped by caller and method for 24 hours.
+  // Required client UUID; see OrderService retry and retention rules.
   string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
 }
 
@@ -157,12 +173,17 @@ message ListOffersRequest {
 
 // Requester only. Raises the reservation to the offer, assigns its courier and
 // voids the other offers. If the requester can't cover the difference, nothing
-// changes and failed_precondition is returned.
+// changes and failed_precondition is returned. The assignment UUID is distinct
+// from this counteroffer's ID; Order records their relationship. A compensated
+// attempt requires a fresh assignment UUID and client key on a later retry.
 message AcceptOfferRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // Required client UUID; see OrderService retry and retention rules.
+  string idempotency_key = 2 [(buf.validate.field).string.uuid = true];
 }
 
-// Assigned courier only. Awaiting Pickup to Delivering.
+// Assigned courier only. Awaiting Pickup to Delivering. Pending financial work,
+// including withdrawal or unassignment compensation, blocks pickup.
 message ConfirmPickupRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -197,18 +218,23 @@ message ConfirmDeliveryRequest {
   bool unattended = 3;
 }
 
-// Requester only. Delivered to Completed, which settles the reward. Repeating
-// returns the completed order without settling again.
+// Requester only. Delivered to Completed. Commit the terminal change and its
+// financial intent atomically before calling Credit's SettleReservation. Credit
+// calculates the payable reward. Lifecycle success does not imply financial
+// processing has finished. Repeating must not schedule a second settlement.
 message ConfirmReceiptRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 // The outcome depends on who cancels and when:
 // requester before pickup: Cancelled, reservation released;
-// courier before pickup: back to Awaiting Courier;
+// courier before pickup: revert the active assignment before Awaiting Courier;
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
-// After pickup, the courier must then record the item's location.
+// After pickup, the courier must then record the item's location. Terminal
+// changes and their financial intent commit atomically before calling Credit.
+// During withdrawal, block pickup and other incompatible actions until the exact
+// assignment is reverted. Reopen using Credit's restored hold amount.
 message CancelOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   optional string reason = 2 [(buf.validate.field).cel = {
@@ -216,6 +242,8 @@ message CancelOrderRequest {
     message: "reason must be at most 500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) <= 500"
   }];
+  // Required client UUID; see OrderService retry and retention rules.
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
 }
 
 // Courier only, after a cancellation following pickup.

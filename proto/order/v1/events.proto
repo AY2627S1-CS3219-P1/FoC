@@ -40,7 +40,7 @@ message OrderStatusChanged {
   google.protobuf.Timestamp occurred_at = 10;
 }
 
-// How an order ended, which decides its settlement.
+// How an order ended. Credit actions are orchestrated separately by Order RPCs.
 enum OrderOutcomeType {
   ORDER_OUTCOME_TYPE_UNSPECIFIED = 0;
   // Pay the courier the payable reward; return the rest to the requester.
@@ -57,14 +57,17 @@ enum OrderOutcomeType {
 }
 
 // Published once when an order reaches Completed, Cancelled, Expired or
-// Failed. Consumed by Credit, which settles each order_id at most once.
+// Failed. This is a lifecycle fact for downstream consumers, not a money-moving
+// command. Credit MUST NOT settle or release in response to this event. Order
+// commits terminal state and financial intent atomically before invoking Credit
+// RPCs. Publication does not assert that financial processing has finished.
 message OrderOutcome {
   string event_id = 1;
   string order_id = 2;
   OrderOutcomeType outcome = 3;
   string requester_id = 4;
   optional string courier_id = 5;
-  // The reservation held for this order.
+  // The locally recorded reservation amount; not proof of Credit's current hold.
   int64 reserved_credits = 6;
   // For the lateness rule on Completed orders.
   google.protobuf.Duration delivery_duration = 7;

@@ -27,7 +27,11 @@ const (
 // Reserves reward_credits from the caller's available balance before the order
 // opens. If Credit refuses, the order is Rejected and failed_precondition is
 // returned. If the reservation can't be confirmed in time, the order stays
-// Pending Reservation and is resolved in the background.
+// Pending Reservation and is resolved in the background. A timeout is unknown,
+// not a refusal. If expiry wins before opening, persist abort intent and confirm
+// ReleaseReservation(EXPIRED) before rejecting, even if Reserve is still unknown.
+// Never open an expired order. Rejection of Reserve alone emits no release or
+// settlement outcome fact.
 type CreateOrderRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	PickupLocationId string                 `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3" json:"pickup_location_id,omitempty"`
@@ -38,9 +42,11 @@ type CreateOrderRequest struct {
 	RewardCredits int64    `protobuf:"varint,5,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
 	// Allowed time from pickup to delivery. The UI pre-fills a default.
 	DeliveryDuration *durationpb.Duration `protobuf:"bytes,6,opt,name=delivery_duration,json=deliveryDuration,proto3" json:"delivery_duration,omitempty"`
-	// When an unaccepted order expires. The UI pre-fills a default.
+	// When an unaccepted order expires. The UI pre-fills a default. Only a NEW
+	// creation checks expires_at > now, inside the operation AFTER idempotency
+	// lookup; an identical retained retry remains valid after this deadline.
 	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	// UUID retry key scoped by caller and method for 24 hours.
+	// Required client UUID; see OrderService retry and retention rules.
 	IdempotencyKey string `protobuf:"bytes,8,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -423,13 +429,17 @@ func (x *ListMyOrdersRequest) GetPageSize() int32 {
 }
 
 // Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// others get failed_precondition. Order persists a new assignment UUID for every
+// attempt, including direct acceptance; it is never reused after compensation.
+// A retained identical retry resumes/replays that attempt, not a new assignment.
+// Historical success does not prove the courier is still assigned; use GetOrder.
 type AcceptOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Required client UUID; see OrderService retry and retention rules.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AcceptOrderRequest) Reset() {
@@ -469,13 +479,20 @@ func (x *AcceptOrderRequest) GetId() string {
 	return ""
 }
 
+func (x *AcceptOrderRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
 // A counteroffer above the current reward on an Awaiting Courier order. It may
 // exceed the requester's available balance; acceptance checks it.
 type MakeOfferRequest struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	OrderId string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	Credits int64                  `protobuf:"varint,2,opt,name=credits,proto3" json:"credits,omitempty"`
-	// UUID retry key scoped by caller and method for 24 hours.
+	// Required client UUID; see OrderService retry and retention rules.
 	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -587,12 +604,16 @@ func (x *ListOffersRequest) GetStatus() OfferStatus {
 
 // Requester only. Raises the reservation to the offer, assigns its courier and
 // voids the other offers. If the requester can't cover the difference, nothing
-// changes and failed_precondition is returned.
+// changes and failed_precondition is returned. The assignment UUID is distinct
+// from this counteroffer's ID; Order records their relationship. A compensated
+// attempt requires a fresh assignment UUID and client key on a later retry.
 type AcceptOfferRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Required client UUID; see OrderService retry and retention rules.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AcceptOfferRequest) Reset() {
@@ -632,7 +653,15 @@ func (x *AcceptOfferRequest) GetId() string {
 	return ""
 }
 
-// Assigned courier only. Awaiting Pickup to Delivering.
+func (x *AcceptOfferRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+// Assigned courier only. Awaiting Pickup to Delivering. Pending financial work,
+// including withdrawal or unassignment compensation, blocks pickup.
 type ConfirmPickupRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
@@ -804,8 +833,10 @@ func (x *ConfirmDeliveryRequest) GetUnattended() bool {
 	return false
 }
 
-// Requester only. Delivered to Completed, which settles the reward. Repeating
-// returns the completed order without settling again.
+// Requester only. Delivered to Completed. Commit the terminal change and its
+// financial intent atomically before calling Credit's SettleReservation. Credit
+// calculates the payable reward. Lifecycle success does not imply financial
+// processing has finished. Repeating must not schedule a second settlement.
 type ConfirmReceiptRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
@@ -852,16 +883,21 @@ func (x *ConfirmReceiptRequest) GetOrderId() string {
 
 // The outcome depends on who cancels and when:
 // requester before pickup: Cancelled, reservation released;
-// courier before pickup: back to Awaiting Courier;
+// courier before pickup: revert the active assignment before Awaiting Courier;
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
-// After pickup, the courier must then record the item's location.
+// After pickup, the courier must then record the item's location. Terminal
+// changes and their financial intent commit atomically before calling Credit.
+// During withdrawal, block pickup and other incompatible actions until the exact
+// assignment is reverted. Reopen using Credit's restored hold amount.
 type CancelOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Reason        *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	// Required client UUID; see OrderService retry and retention rules.
+	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CancelOrderRequest) Reset() {
@@ -904,6 +940,13 @@ func (x *CancelOrderRequest) GetId() string {
 func (x *CancelOrderRequest) GetReason() string {
 	if x != nil && x.Reason != nil {
 		return *x.Reason
+	}
+	return ""
+}
+
+func (x *CancelOrderRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
 	}
 	return ""
 }
@@ -1683,7 +1726,7 @@ var File_order_v1_order_proto protoreflect.FileDescriptor
 
 const file_order_v1_order_proto_rawDesc = "" +
 	"\n" +
-	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"\xbf\x06\n" +
+	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"\xba\x06\n" +
 	"\x12CreateOrderRequest\x126\n" +
 	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x10pickupLocationId\x12;\n" +
 	"\bdelivery\x18\x02 \x01(\v2\x17.order.v1.DeliveryInputB\x06\xbaH\x03\xc8\x01\x01R\bdelivery\x12\xe5\x01\n" +
@@ -1691,9 +1734,9 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"$create_order.item_description_length\x12Titem_description must be 1-1000 characters excluding leading and trailing whitespace\x1a3size(this.trim()) >= 1 && size(this.trim()) <= 1000R\x0fitemDescription\x127\n" +
 	"\x0eitem_image_ids\x18\x04 \x03(\tB\x11\xbaH\x0e\x92\x01\v\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\fitemImageIds\x12.\n" +
 	"\x0ereward_credits\x18\x05 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\rrewardCredits\x12\\\n" +
-	"\x11delivery_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\x14\xbaH\x11\xc8\x01\x01\xaa\x01\v\"\x04\b\x80\xa3\x052\x03\b\xac\x02R\x10deliveryDuration\x12F\n" +
+	"\x11delivery_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\x14\xbaH\x11\xc8\x01\x01\xaa\x01\v\"\x04\b\x80\xa3\x052\x03\b\xac\x02R\x10deliveryDuration\x12A\n" +
 	"\n" +
-	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampB\v\xbaH\b\xc8\x01\x01\xb2\x01\x02@\x01R\texpiresAt\x121\n" +
+	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\texpiresAt\x121\n" +
 	"\x0fidempotency_key\x18\b \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey:\x89\x01\xbaH\x85\x01\x1a\x82\x01\n" +
 	"\x1fcreate_order.distinct_locations\x12)pickup and delivery locations must differ\x1a4this.pickup_location_id != this.delivery.location_id\"\x95\x02\n" +
 	"\rDeliveryInput\x12)\n" +
@@ -1719,18 +1762,20 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x04role\x18\x01 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\".\n" +
+	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"a\n" +
 	"\x12AcceptOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8d\x01\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x121\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"\x8d\x01\n" +
 	"\x10MakeOfferRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12!\n" +
 	"\acredits\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\acredits\x121\n" +
 	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"q\n" +
 	"\x11ListOffersRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x127\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OfferStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\".\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OfferStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\"a\n" +
 	"\x12AcceptOfferRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x121\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\";\n" +
 	"\x14ConfirmPickupRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb3\x01\n" +
 	"\x18CreateProofUploadRequest\x12#\n" +
@@ -1746,11 +1791,12 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"unattended\x18\x03 \x01(\bR\n" +
 	"unattended\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xe9\x01\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\x9c\x02\n" +
 	"\x12CancelOrderRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
-	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01B\t\n" +
+	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01\x121\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKeyB\t\n" +
 	"\a_reason\"\xa2\x02\n" +
 	"\x19RecordItemLocationRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xdf\x01\n" +

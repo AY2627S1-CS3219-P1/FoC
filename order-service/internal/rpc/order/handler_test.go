@@ -252,7 +252,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"accept", func() error {
-			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID}))
+			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, IdempotencyKey: userID}))
 			return e
 		}},
 		{"make offer", func() error {
@@ -260,7 +260,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"accept offer", func() error {
-			_, e := c.order.AcceptOffer(ctx, connect.NewRequest(&pb.AcceptOfferRequest{Id: orderID}))
+			_, e := c.order.AcceptOffer(ctx, connect.NewRequest(&pb.AcceptOfferRequest{Id: orderID, IdempotencyKey: userID}))
 			return e
 		}},
 		{"pickup", func() error {
@@ -280,7 +280,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"cancel", func() error {
-			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID}))
+			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, IdempotencyKey: userID}))
 			return e
 		}},
 		{"location", func() error {
@@ -288,11 +288,11 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"admin cancel", func() error {
-			_, e := c.admin.AdminCancelOrder(ctx, connect.NewRequest(&pb.AdminCancelOrderRequest{Id: orderID, Reason: "Suspended"}))
+			_, e := c.admin.AdminCancelOrder(ctx, connect.NewRequest(&pb.AdminCancelOrderRequest{Id: orderID, Reason: "Suspended", IdempotencyKey: userID}))
 			return e
 		}},
 		{"unassign", func() error {
-			_, e := c.admin.UnassignCourier(ctx, connect.NewRequest(&pb.UnassignCourierRequest{OrderId: orderID, Reason: "Suspended"}))
+			_, e := c.admin.UnassignCourier(ctx, connect.NewRequest(&pb.UnassignCourierRequest{OrderId: orderID, Reason: "Suspended", IdempotencyKey: userID}))
 			return e
 		}},
 	}

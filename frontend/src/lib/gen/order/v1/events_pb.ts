@@ -109,7 +109,10 @@ export const OrderStatusChangedSchema: GenMessage<OrderStatusChanged> = /*@__PUR
 
 /**
  * Published once when an order reaches Completed, Cancelled, Expired or
- * Failed. Consumed by Credit, which settles each order_id at most once.
+ * Failed. This is a lifecycle fact for downstream consumers, not a money-moving
+ * command. Credit MUST NOT settle or release in response to this event. Order
+ * commits terminal state and financial intent atomically before invoking Credit
+ * RPCs. Publication does not assert that financial processing has finished.
  *
  * @generated from message order.v1.OrderOutcome
  */
@@ -140,7 +143,7 @@ export type OrderOutcome = Message<"order.v1.OrderOutcome"> & {
   courierId?: string | undefined;
 
   /**
-   * The reservation held for this order.
+   * The locally recorded reservation amount; not proof of Credit's current hold.
    *
    * @generated from field: int64 reserved_credits = 6;
    */
@@ -249,7 +252,7 @@ export const ActorTypeSchema: GenEnum<ActorType> = /*@__PURE__*/
   enumDesc(file_order_v1_events, 0);
 
 /**
- * How an order ended, which decides its settlement.
+ * How an order ended. Credit actions are orchestrated separately by Order RPCs.
  *
  * @generated from enum order.v1.OrderOutcomeType
  */

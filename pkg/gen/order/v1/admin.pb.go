@@ -102,13 +102,16 @@ func (x *ListUserOrdersRequest) GetPageSize() int32 {
 }
 
 // Cancels an order before pickup, for example when a participant's suspension
-// is deferred. The reservation is released.
+// is deferred. Commit cancellation and release intent atomically, then call
+// Credit. The lifecycle response does not prove release has completed.
 type AdminCancelOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Required client UUID; see OrderService retry and retention rules.
+	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AdminCancelOrderRequest) Reset() {
@@ -155,14 +158,24 @@ func (x *AdminCancelOrderRequest) GetReason() string {
 	return ""
 }
 
+func (x *AdminCancelOrderRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
 // Removes the courier from an Awaiting Pickup order, which returns to Awaiting
-// Courier.
+// Courier only after Credit reverts the exact active assignment. Block pickup
+// and incompatible actions while pending; use Credit's restored hold amount.
 type UnassignCourierRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	OrderId string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Reason  string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Required client UUID; see OrderService retry and retention rules.
+	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UnassignCourierRequest) Reset() {
@@ -205,6 +218,13 @@ func (x *UnassignCourierRequest) GetOrderId() string {
 func (x *UnassignCourierRequest) GetReason() string {
 	if x != nil {
 		return x.Reason
+	}
+	return ""
+}
+
+func (x *UnassignCourierRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
 	}
 	return ""
 }
@@ -359,15 +379,17 @@ const file_order_v1_admin_proto_rawDesc = "" +
 	"\x04role\x18\x02 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x03 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x04 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x05 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"\xf8\x01\n" +
+	"\tpage_size\x18\x05 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"\xab\x02\n" +
 	"\x17AdminCancelOrderRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xc2\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\xa9\x01\xbaH\xa5\x01\xba\x01\xa1\x01\n" +
-	" admin_cancel_order.reason_length\x12Ireason must be 1-500 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 500R\x06reason\"\x80\x02\n" +
+	" admin_cancel_order.reason_length\x12Ireason must be 1-500 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 500R\x06reason\x121\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"\xb3\x02\n" +
 	"\x16UnassignCourierRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xc0\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\xa7\x01\xbaH\xa3\x01\xba\x01\x9f\x01\n" +
-	"\x1eunassign_courier.reason_length\x12Ireason must be 1-500 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 500R\x06reason\"r\n" +
+	"\x1eunassign_courier.reason_length\x12Ireason must be 1-500 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 500R\x06reason\x121\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\"r\n" +
 	"\x16ListUserOrdersResponse\x12'\n" +
 	"\x06orders\x18\x01 \x03(\v2\x0f.order.v1.OrderR\x06orders\x12/\n" +
 	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"A\n" +

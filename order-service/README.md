@@ -40,7 +40,11 @@ The generated mutation/upload handlers remain unimplemented. The internal
 participant RPC is not mounted. Image fields in read responses stay empty.
 
 Contributors should read [the architecture decision](../docs/adr/order-aggregate-foundation.md)
-and the root locking-snapshot landmine first. Add new operations as files in
+and [the proposed Order/Credit contract decision](../docs/adr/order-credit-orchestration.md),
+plus the root locking-snapshot landmine first. Creation is gated on #136 owner
+acknowledgement, contract landing and authenticated Credit integration. The
+[conformance handoff](../docs/testing/order-credit-conformance.md) specifies
+retries, expiry and crash recovery; these workflows remain unimplemented. Add new operations as files in
 `internal/order`; use consumer-owned interfaces and domain values rather than
 protobuf/sqlc types. `Service` owns read operations; `PostgresRepository` implements
 both `Reader` and `Repository`.

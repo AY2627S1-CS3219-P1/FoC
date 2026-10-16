@@ -76,7 +76,7 @@ func (ActorType) EnumDescriptor() ([]byte, []int) {
 	return file_order_v1_events_proto_rawDescGZIP(), []int{0}
 }
 
-// How an order ended, which decides its settlement.
+// How an order ended. Credit actions are orchestrated separately by Order RPCs.
 type OrderOutcomeType int32
 
 const (
@@ -360,7 +360,10 @@ func (x *OrderStatusChanged) GetOccurredAt() *timestamppb.Timestamp {
 }
 
 // Published once when an order reaches Completed, Cancelled, Expired or
-// Failed. Consumed by Credit, which settles each order_id at most once.
+// Failed. This is a lifecycle fact for downstream consumers, not a money-moving
+// command. Credit MUST NOT settle or release in response to this event. Order
+// commits terminal state and financial intent atomically before invoking Credit
+// RPCs. Publication does not assert that financial processing has finished.
 type OrderOutcome struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	EventId     string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
@@ -368,7 +371,7 @@ type OrderOutcome struct {
 	Outcome     OrderOutcomeType       `protobuf:"varint,3,opt,name=outcome,proto3,enum=order.v1.OrderOutcomeType" json:"outcome,omitempty"`
 	RequesterId string                 `protobuf:"bytes,4,opt,name=requester_id,json=requesterId,proto3" json:"requester_id,omitempty"`
 	CourierId   *string                `protobuf:"bytes,5,opt,name=courier_id,json=courierId,proto3,oneof" json:"courier_id,omitempty"`
-	// The reservation held for this order.
+	// The locally recorded reservation amount; not proof of Credit's current hold.
 	ReservedCredits int64 `protobuf:"varint,6,opt,name=reserved_credits,json=reservedCredits,proto3" json:"reserved_credits,omitempty"`
 	// For the lateness rule on Completed orders.
 	DeliveryDuration *durationpb.Duration   `protobuf:"bytes,7,opt,name=delivery_duration,json=deliveryDuration,proto3" json:"delivery_duration,omitempty"`

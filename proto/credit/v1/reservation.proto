@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package credit.v1;
+
+import "buf/validate/validate.proto";
+import "credit/v1/shared_types.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Order's credit reservations: one per permanent Order UUID (order_id). Order
+// alone orchestrates these RPCs. Credit MUST NOT move money from OrderOutcome.
+// Credit owns payable rewards, lateness deductions and refunds; Order supplies
+// reservation amounts and lifecycle observations.
+//
+// Authenticate at the HTTP boundary with Authorization: Bearer <credential>.
+// This dedicated Order-to-Credit service credential is separate from user JWTs;
+// reject user tokens on every method, including GetReservation. Use HTTPS outside
+// local development. Credential verification and method authorization are
+// prerequisites for live integration; these schemas do not implement them.
+//
+// Permanently deduplicate by (method, order_id), or (method, order_id,
+// assignment_id) for adjust/revert. IDs are durable workflow identities, never
+// client retry keys. Persist successful outcomes AND definitive business
+// rejections, including INSUFFICIENT_CREDITS. Concurrent identical calls share
+// one outcome. Identical canonical data replays it; changed data returns
+// IDEMPOTENCY_CONFLICT. A deliberate retry after acquiring more credits requires
+// a new client key and eligible resource (new Order/assignment identity).
+// Authentication, malformed input and transient infrastructure failures are not
+// stored as definitive business rejections.
+//
+// Replayed success describes the original operation, not the current hold after
+// release or compensation. GetReservation returns current state. A timeout is
+// unknown: reconcile or retry with the SAME identity/data before expiry. A
+// not_found read does not prove an in-flight Reserve cannot still complete.
+// Release/revert tombstones permanently fence delayed reserve/adjust calls.
+//
+// Serialize terminal actions with all reservation mutations. Repeated identical
+// settlement/release is harmless; changed data conflicts, and competing terminal
+// actions cannot move money twice. Settled and Released never change. Reports
+// and appeals have no path into this API. Order applies each response only after
+// re-locking its aggregate and checking the persisted workflow identity/state.
+//
+// Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
+// reasons:
+// - INSUFFICIENT_CREDITS (failed_precondition)
+// - IDEMPOTENCY_CONFLICT (already_exists)
+// - RESERVATION_NOT_FOUND (not_found)
+// - RESERVATION_RELEASED (failed_precondition)
+// - RESERVATION_SETTLED (failed_precondition)
+// - RESERVATION_NOT_ASSIGNED (failed_precondition)
+// - ADJUSTMENT_PENDING (failed_precondition)
+// - ADJUSTMENT_REVERTED (failed_precondition)
+// Branch on the reason, not the message. Authentication/validation use
+// unauthenticated, permission_denied or invalid_argument. unavailable,
+// deadline_exceeded, canceled and internal are not definitive business refusals.
+service CreditReservationService {
+  rpc Reserve(ReserveRequest) returns (ReserveResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc AdjustReservation(AdjustReservationRequest) returns (AdjustReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc RevertAdjustment(RevertAdjustmentRequest) returns (RevertAdjustmentResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc SettleReservation(SettleReservationRequest) returns (SettleReservationResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+// Holds amount from the requester's available credits when an order is
+// created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
+// with RESERVATION_RELEASED if release fenced this order before Reserve ran.
+// A stored success/rejection still replays its original outcome. An insufficient
+// balance rejection is permanent for this operation even if credits later grow.
+// A requester without an account first receives the starting credits.
+message ReserveRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string requester_id = 2 [(buf.validate.field).string.uuid = true];
+  int64 amount = 3 [(buf.validate.field).int64.gt = 0];
+}
+
+// Applies an assignment attempt to a Held reservation and records the courier.
+// Order persists a fresh assignment UUID even for direct acceptance at the
+// original reward, and separately records any originating counteroffer. Never
+// reuse an assignment_id after compensation. The hold becomes offer_amount; if
+// the increase exceeds available, the existing hold stays unchanged and the
+// permanent INSUFFICIENT_CREDITS rejection is recorded for this assignment.
+// Revert any other applied assignment first (ADJUSTMENT_PENDING).
+message AdjustReservationRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string assignment_id = 2 [(buf.validate.field).string.uuid = true];
+  string courier_id = 3 [(buf.validate.field).string.uuid = true];
+  // Accepted reward, including the current reward for a direct acceptance.
+  int64 offer_amount = 4 [(buf.validate.field).int64.gt = 0];
+}
+
+// Undoes ONLY this assignment generation after a lost race, withdrawal or admin
+// unassignment. Restore its previous amount and Held state before Order reopens;
+// Order uses Credit's restored amount rather than calculating it. An unknown
+// assignment creates a durable tombstone, even before Reserve; a delayed adjust
+// cannot apply it (ADJUSTMENT_REVERTED). Replayed historical adjust success does
+// not reapply it. Reverting an older generation never undoes a newer assignment.
+// On Released this succeeds without effect; on Settled it fails with
+// RESERVATION_SETTLED. Block incompatible local actions while revert is pending.
+message RevertAdjustmentRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string assignment_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+// Returns the whole hold to the requester when an order is cancelled before
+// pickup, expires or fails. An unknown order creates a durable Released tombstone
+// serialized against Reserve, so a delayed Reserve cannot create a hold. Use
+// EXPIRED when creation expires before opening, even with an unknown Reserve
+// result. Replayed historical Reserve success does not recreate the hold.
+// Fails with RESERVATION_SETTLED on a Settled reservation.
+message ReleaseReservationRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  ReleaseReason reason = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+// Pays the courier when an order completes or the requester cancels after
+// pickup. The reservation must be Assigned. The courier receives the payable
+// amount and the rest of the hold returns to the requester.
+message SettleReservationRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+    Completed completed = 2;
+    CancelledAfterPickup cancelled_after_pickup = 3;
+  }
+
+  // Credit applies the lateness rule. With elapsed = delivered_at -
+  // picked_up_at, T = delivery_duration and R = the hold:
+  // - elapsed <= T pays R;
+  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+  // - elapsed >= 2T pays 0.
+  message Completed {
+    option (buf.validate.message).cel = {
+      id: "completed.delivered_after_pickup"
+      message: "delivered_at must not be before picked_up_at"
+      expression: "this.delivered_at >= this.picked_up_at"
+    };
+    google.protobuf.Timestamp picked_up_at = 1 [(buf.validate.field).required = true];
+    // Allowed time from pickup to delivery.
+    google.protobuf.Duration delivery_duration = 2 [
+      (buf.validate.field).required = true,
+      (buf.validate.field).duration.gt = {}
+    ];
+    google.protobuf.Timestamp delivered_at = 3 [(buf.validate.field).required = true];
+  }
+
+  // Pays the courier the whole hold.
+  message CancelledAfterPickup {}
+}
+
+// Current state, including release tombstones. RESERVATION_NOT_FOUND means no
+// reservation is visible now, not that another Reserve cannot still complete.
+// GetReservation does not replace retrying a mutation to learn its stored result.
+message GetReservationRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ReserveResponse {
+  Reservation reservation = 1;
+}
+message AdjustReservationResponse {
+  Reservation reservation = 1;
+}
+message RevertAdjustmentResponse {
+  Reservation reservation = 1;
+}
+message ReleaseReservationResponse {
+  Reservation reservation = 1;
+}
+message SettleReservationResponse {
+  Reservation reservation = 1;
+}
+message GetReservationResponse {
+  Reservation reservation = 1;
+}

@@ -50,3 +50,13 @@ Triggered by User Service registration (U1).
 - NFR-09.5–09.7 (detect Order/Credit mismatches within 5 min of recovery; reconciliation checks at startup and ≥ every 5 min).
 - NFR-10.3 / NFR-10.3.1 / NFR-10.3.2 / NFR-10.4 (audit credit settlement + admin adjustments; alert admin on unexplained mismatch).
 - NFR-11.7 / NFR-11.18 / NFR-11.19 (tests: repeated credit events, async terminal-outcome settlement, Credit downtime without losing pending settlement).
+
+## Proposed integration deviation
+
+[Order's RPC orchestration proposal](../docs/adr/order-credit-orchestration.md)
+selects reservation/settlement RPCs as the sole money-moving authority; Credit
+must not settle from OrderOutcome. Joint acknowledgement is pending in #136.
+This deliberately deviates from NFR-20's pub-sub settlement assumption and does
+not fulfill NFR-20 or prove the async-event-specific NFR-11.18 case. Contracts
+and [conformance cases](../docs/testing/order-credit-conformance.md) do not
+constitute a Credit implementation or recovery evidence.

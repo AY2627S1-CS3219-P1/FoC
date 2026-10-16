@@ -169,4 +169,4 @@ The following NFRs have no direct foundation test proving the stated requirement
 | NFR-10.3 | Local Order audit persistence is tested, but Credit settlement and review removal/restoration audit actions are outside this foundation. |
 | NFR-18.1 / NFR-18.2 / NFR-18.5 | The storage fake tests interface semantics, without image-count, size-limit or pre-upload rejection workflows. |
 | NFR-19.1 | No request creation rate limiter or requests-per-account test is implemented. |
-| NFR-20 | Durable outbox facts are tested; publication to Credit and downstream settlement are deferred. |
+| NFR-20 | **Not fulfilled:** [Order's proposed RPC settlement ADR](../docs/adr/order-credit-orchestration.md) deliberately deviates from the pub-sub settlement assumption. Durable outbox facts alone and future RPC settlement do not satisfy NFR-20; requirement-owner acknowledgement is pending. |

@@ -102,7 +102,10 @@ data. Compensation is durable work, not an in-memory error handler. Workflow
 state and outbox delivery state are different concerns. Add concrete creation /
 assignment workflow records with their operations; no generic workflow tables,
 recovery worker, saga library, or Credit client is introduced now. #123 and #129
-still disagree on synchronous settlement versus terminal event consumption.
+originally disagreed on synchronous settlement versus terminal event consumption.
+The [Order/Credit orchestration ADR](order-credit-orchestration.md) now records
+Order's RPC baseline proposal; joint acknowledgement and live implementation are
+still pending in #136.
 
 ## Reads, runtime and images
 

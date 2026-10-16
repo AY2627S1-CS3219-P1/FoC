@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/admin.proto.
  */
 export const file_order_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChRvcmRlci92MS9hZG1pbi5wcm90bxIIb3JkZXIudjEiywEKFUxpc3RVc2VyT3JkZXJzUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIxCgRyb2xlGAIgASgOMhkub3JkZXIudjEuUGFydGljaXBhbnRSb2xlQgi6SAWCAQIQARIvCgZzdGF0dXMYAyABKA4yFS5vcmRlci52MS5PcmRlclN0YXR1c0IIukgFggECEAESFQoEcGFnZRgEIAEoBUIHukgEGgIoABIcCglwYWdlX3NpemUYBSABKAVCCbpIBhoEGGQoACLsAQoXQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEroBCgZyZWFzb24YAiABKAlCqQG6SKUBugGhAQogYWRtaW5fY2FuY2VsX29yZGVyLnJlYXNvbl9sZW5ndGgSSXJlYXNvbiBtdXN0IGJlIDEtNTAwIGNoYXJhY3RlcnMgZXhjbHVkaW5nIGxlYWRpbmcgYW5kIHRyYWlsaW5nIHdoaXRlc3BhY2UaMnNpemUodGhpcy50cmltKCkpID49IDEgJiYgc2l6ZSh0aGlzLnRyaW0oKSkgPD0gNTAwIu8BChZVbmFzc2lnbkNvdXJpZXJSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARK4AQoGcmVhc29uGAIgASgJQqcBukijAboBnwEKHnVuYXNzaWduX2NvdXJpZXIucmVhc29uX2xlbmd0aBJJcmVhc29uIG11c3QgYmUgMS01MDAgY2hhcmFjdGVycyBleGNsdWRpbmcgbGVhZGluZyBhbmQgdHJhaWxpbmcgd2hpdGVzcGFjZRoyc2l6ZSh0aGlzLnRyaW0oKSkgPj0gMSAmJiBzaXplKHRoaXMudHJpbSgpKSA8PSA1MDAiYAoWTGlzdFVzZXJPcmRlcnNSZXNwb25zZRIfCgZvcmRlcnMYASADKAsyDy5vcmRlci52MS5PcmRlchIlCglwYWdlX2luZm8YAiABKAsyEi5vcmRlci52MS5QYWdlSW5mbyI6ChhBZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciI5ChdVbmFzc2lnbkNvdXJpZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyMqcCChFPcmRlckFkbWluU2VydmljZRJYCg5MaXN0VXNlck9yZGVycxIfLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVxdWVzdBogLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVzcG9uc2UiA5ACARJeChBBZG1pbkNhbmNlbE9yZGVyEiEub3JkZXIudjEuQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QaIi5vcmRlci52MS5BZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2UiA5ACAhJYCg9VbmFzc2lnbkNvdXJpZXISIC5vcmRlci52MS5VbmFzc2lnbkNvdXJpZXJSZXF1ZXN0GiEub3JkZXIudjEuVW5hc3NpZ25Db3VyaWVyUmVzcG9uc2UiAEKXAQoMY29tLm9yZGVyLnYxQgpBZG1pblByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
+  fileDesc("ChRvcmRlci92MS9hZG1pbi5wcm90bxIIb3JkZXIudjEiywEKFUxpc3RVc2VyT3JkZXJzUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIxCgRyb2xlGAIgASgOMhkub3JkZXIudjEuUGFydGljaXBhbnRSb2xlQgi6SAWCAQIQARIvCgZzdGF0dXMYAyABKA4yFS5vcmRlci52MS5PcmRlclN0YXR1c0IIukgFggECEAESFQoEcGFnZRgEIAEoBUIHukgEGgIoABIcCglwYWdlX3NpemUYBSABKAVCCbpIBhoEGGQoACKPAgoXQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEroBCgZyZWFzb24YAiABKAlCqQG6SKUBugGhAQogYWRtaW5fY2FuY2VsX29yZGVyLnJlYXNvbl9sZW5ndGgSSXJlYXNvbiBtdXN0IGJlIDEtNTAwIGNoYXJhY3RlcnMgZXhjbHVkaW5nIGxlYWRpbmcgYW5kIHRyYWlsaW5nIHdoaXRlc3BhY2UaMnNpemUodGhpcy50cmltKCkpID49IDEgJiYgc2l6ZSh0aGlzLnRyaW0oKSkgPD0gNTAwEiEKD2lkZW1wb3RlbmN5X2tleRgDIAEoCUIIukgFcgOwAQEikgIKFlVuYXNzaWduQ291cmllclJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBErgBCgZyZWFzb24YAiABKAlCpwG6SKMBugGfAQoedW5hc3NpZ25fY291cmllci5yZWFzb25fbGVuZ3RoEklyZWFzb24gbXVzdCBiZSAxLTUwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGjJzaXplKHRoaXMudHJpbSgpKSA+PSAxICYmIHNpemUodGhpcy50cmltKCkpIDw9IDUwMBIhCg9pZGVtcG90ZW5jeV9rZXkYAyABKAlCCLpIBXIDsAEBImAKFkxpc3RVc2VyT3JkZXJzUmVzcG9uc2USHwoGb3JkZXJzGAEgAygLMg8ub3JkZXIudjEuT3JkZXISJQoJcGFnZV9pbmZvGAIgASgLMhIub3JkZXIudjEuUGFnZUluZm8iOgoYQWRtaW5DYW5jZWxPcmRlclJlc3BvbnNlEh4KBW9yZGVyGAEgASgLMg8ub3JkZXIudjEuT3JkZXIiOQoXVW5hc3NpZ25Db3VyaWVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlcjKnAgoRT3JkZXJBZG1pblNlcnZpY2USWAoOTGlzdFVzZXJPcmRlcnMSHy5vcmRlci52MS5MaXN0VXNlck9yZGVyc1JlcXVlc3QaIC5vcmRlci52MS5MaXN0VXNlck9yZGVyc1Jlc3BvbnNlIgOQAgESXgoQQWRtaW5DYW5jZWxPcmRlchIhLm9yZGVyLnYxLkFkbWluQ2FuY2VsT3JkZXJSZXF1ZXN0GiIub3JkZXIudjEuQWRtaW5DYW5jZWxPcmRlclJlc3BvbnNlIgOQAgISWAoPVW5hc3NpZ25Db3VyaWVyEiAub3JkZXIudjEuVW5hc3NpZ25Db3VyaWVyUmVxdWVzdBohLm9yZGVyLnYxLlVuYXNzaWduQ291cmllclJlc3BvbnNlIgBClwEKDGNvbS5vcmRlci52MUIKQWRtaW5Qcm90b1ABWjpnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9vcmRlci92MTtvcmRlcnYxogIDT1hYqgIIT3JkZXIuVjHKAghPcmRlclxWMeICFE9yZGVyXFYxXEdQQk1ldGFkYXRh6gIJT3JkZXI6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_order_v1_shared_types]);
 
 /**
  * One user's orders as requester, courier or either, newest first.
@@ -60,7 +60,8 @@ export const ListUserOrdersRequestSchema: GenMessage<ListUserOrdersRequest> = /*
 
 /**
  * Cancels an order before pickup, for example when a participant's suspension
- * is deferred. The reservation is released.
+ * is deferred. Commit cancellation and release intent atomically, then call
+ * Credit. The lifecycle response does not prove release has completed.
  *
  * @generated from message order.v1.AdminCancelOrderRequest
  */
@@ -74,6 +75,13 @@ export type AdminCancelOrderRequest = Message<"order.v1.AdminCancelOrderRequest"
    * @generated from field: string reason = 2;
    */
   reason: string;
+
+  /**
+   * Required client UUID; see OrderService retry and retention rules.
+   *
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
 };
 
 /**
@@ -85,7 +93,8 @@ export const AdminCancelOrderRequestSchema: GenMessage<AdminCancelOrderRequest> 
 
 /**
  * Removes the courier from an Awaiting Pickup order, which returns to Awaiting
- * Courier.
+ * Courier only after Credit reverts the exact active assignment. Block pickup
+ * and incompatible actions while pending; use Credit's restored hold amount.
  *
  * @generated from message order.v1.UnassignCourierRequest
  */
@@ -99,6 +108,13 @@ export type UnassignCourierRequest = Message<"order.v1.UnassignCourierRequest"> 
    * @generated from field: string reason = 2;
    */
   reason: string;
+
+  /**
+   * Required client UUID; see OrderService retry and retention rules.
+   *
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
 };
 
 /**
@@ -166,7 +182,8 @@ export const UnassignCourierResponseSchema: GenMessage<UnassignCourierResponse> 
 
 /**
  * Administrator-only Order operations. Admins read single orders through
- * OrderService.GetOrder.
+ * OrderService.GetOrder. Keyed mutations follow OrderService's caller/method
+ * scope, 24-hour retention and unresolved-workflow retry rules.
  *
  * @generated from service order.v1.OrderAdminService
  */

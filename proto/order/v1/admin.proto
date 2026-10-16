@@ -6,7 +6,8 @@ import "buf/validate/validate.proto";
 import "order/v1/shared_types.proto";
 
 // Administrator-only Order operations. Admins read single orders through
-// OrderService.GetOrder.
+// OrderService.GetOrder. Keyed mutations follow OrderService's caller/method
+// scope, 24-hour retention and unresolved-workflow retry rules.
 service OrderAdminService {
   rpc ListUserOrders(ListUserOrdersRequest) returns (ListUserOrdersResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 
@@ -30,7 +31,8 @@ message ListUserOrdersRequest {
 }
 
 // Cancels an order before pickup, for example when a participant's suspension
-// is deferred. The reservation is released.
+// is deferred. Commit cancellation and release intent atomically, then call
+// Credit. The lifecycle response does not prove release has completed.
 message AdminCancelOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   string reason = 2 [(buf.validate.field).cel = {
@@ -38,10 +40,13 @@ message AdminCancelOrderRequest {
     message: "reason must be 1-500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
   }];
+  // Required client UUID; see OrderService retry and retention rules.
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
 }
 
 // Removes the courier from an Awaiting Pickup order, which returns to Awaiting
-// Courier.
+// Courier only after Credit reverts the exact active assignment. Block pickup
+// and incompatible actions while pending; use Credit's restored hold amount.
 message UnassignCourierRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   string reason = 2 [(buf.validate.field).cel = {
@@ -49,6 +54,8 @@ message UnassignCourierRequest {
     message: "reason must be 1-500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
   }];
+  // Required client UUID; see OrderService retry and retention rules.
+  string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
 }
 
 message ListUserOrdersResponse {
