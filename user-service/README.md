@@ -107,13 +107,14 @@ testing, add a domain, for example
 `INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
 bootstrapped admin can log in without one.
 
-`RegisterRequest` requires a display name and a phone number. The service trims
-both and validates the trimmed values: display names must be 1 to 100
-characters and phone numbers 1 to 20 characters. The phone number is the
-contact fallback for users who haven't linked Telegram; Telegram is linked
-through the Communication Service, so User Service stores no Telegram details.
-Registration, login, and refresh return these saved fields in the `User`
-message. Accounts created before the phone number was required may have none.
+`RegisterRequest` requires a display name and a phone number. Display names are
+trimmed and must be 1 to 100 characters. Phone numbers are validated with
+libphonenumber (`nyaruka/phonenumbers`), reading numbers without a country code
+as Singapore numbers, and stored in E.164 form such as `+6591234567`. The phone
+number is the contact fallback for users who haven't linked Telegram; Telegram
+is linked through the Communication Service, so User Service stores no Telegram
+details. Registration, login, and refresh return these saved fields in the
+`User` message. The bootstrapped admin has no phone number until they add one.
 
 
 ## First super admin
@@ -165,8 +166,8 @@ signing key and checks the caller's current role in the database.
 
 `UpdateMyProfile` replaces all three editable fields. An omitted description
 becomes empty. A display name must be nonblank after trimming and at most 100
-characters, and a phone number is required and at most 20 characters. The
-description limit is 500 characters. The request cannot update email, ID,
+characters, and a phone number is required and validated as at registration.
+The description limit is 500 characters. The request cannot update email, ID,
 role, or account status.
 
 `super_admin` may change another user's role among `admin`, `user`, and

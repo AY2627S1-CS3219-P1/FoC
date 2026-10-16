@@ -40,7 +40,7 @@ export type Profile = Message<"user.v1.Profile"> & {
   description: string;
 
   /**
-   * Absent only for accounts created before it was required.
+   * E.164. Absent only for the bootstrapped admin until they add one.
    *
    * @generated from field: optional string phone_number = 6;
    */
@@ -108,7 +108,7 @@ export type UpdateMyProfileRequest = Message<"user.v1.UpdateMyProfileRequest"> &
   description: string;
 
   /**
-   * Required. The service trims it and requires 1 to 20 characters afterward.
+   * Required. Validated and stored like RegisterRequest.phone_number.
    *
    * @generated from field: string phone_number = 4;
    */

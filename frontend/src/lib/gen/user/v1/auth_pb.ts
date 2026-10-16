@@ -77,8 +77,9 @@ export type RegisterRequest = Message<"user.v1.RegisterRequest"> & {
   displayName: string;
 
   /**
-   * Required as the contact fallback when Telegram isn't linked. The service
-   * trims it and requires 1 to 20 characters afterward.
+   * Required as the contact fallback when Telegram isn't linked. Validated with
+   * libphonenumber; numbers without a country code are read as Singapore
+   * numbers. Stored and returned in E.164 form, such as +6591234567.
    *
    * @generated from field: string phone_number = 4;
    */
@@ -117,7 +118,7 @@ export type User = Message<"user.v1.User"> & {
   role: UserRole;
 
   /**
-   * Absent only for accounts created before it was required.
+   * E.164. Absent only for the bootstrapped admin until they add one.
    *
    * @generated from field: optional string phone_number = 6;
    */

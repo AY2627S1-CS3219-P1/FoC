@@ -80,20 +80,20 @@ func TestProfileFullReplacementAndSuspension(t *testing.T) {
 		PhoneNumber: ptr("+123"), Role: models.RoleUser,
 	}}}
 	s := &ProfileService{Users: f}
-	got, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: " New ", Description: "", PhoneNumber: "+456"})
-	if err != nil || got.DisplayName != "New" || got.Description != "" || got.PhoneNumber == nil || *got.PhoneNumber != "+456" {
+	got, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: " New ", Description: "", PhoneNumber: "+44 7911 123456"})
+	if err != nil || got.DisplayName != "New" || got.Description != "" || got.PhoneNumber == nil || *got.PhoneNumber != "+447911123456" {
 		t.Fatalf("full replacement = %+v, %v", got, err)
 	}
 	if got.Email != "person@example.com" || got.Role != models.RoleUser || got.ID != id {
 		t.Fatalf("protected fields changed: %+v", got)
 	}
-	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "  ", PhoneNumber: "+123"}); !errors.Is(err, ErrInvalidProfile) {
+	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "  ", PhoneNumber: "+6591234567"}); !errors.Is(err, ErrInvalidProfile) {
 		t.Fatalf("blank name: %v", err)
 	}
 	validName := strings.Repeat("x", MaxDisplayNameLength)
 	got, err = s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: " " + validName + " ",
-		PhoneNumber: " +12345 "})
-	if err != nil || got.DisplayName != validName || got.PhoneNumber == nil || *got.PhoneNumber != "+12345" {
+		PhoneNumber: " 8123 4567 "})
+	if err != nil || got.DisplayName != validName || got.PhoneNumber == nil || *got.PhoneNumber != "+6581234567" {
 		t.Fatalf("normalized 100-character profile: %+v, %v", got, err)
 	}
 	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Valid", PhoneNumber: " "}); !errors.Is(err, ErrInvalidProfile) {
@@ -102,7 +102,7 @@ func TestProfileFullReplacementAndSuspension(t *testing.T) {
 	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Valid", PhoneNumber: strings.Repeat("1", 21)}); !errors.Is(err, ErrInvalidProfile) {
 		t.Fatalf("long phone number: %v", err)
 	}
-	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: strings.Repeat("x", 101), PhoneNumber: "+123"}); !errors.Is(err, ErrInvalidProfile) {
+	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: strings.Repeat("x", 101), PhoneNumber: "+6591234567"}); !errors.Is(err, ErrInvalidProfile) {
 		t.Fatalf("long name: %v", err)
 	}
 	u := f.users[id]
@@ -111,7 +111,7 @@ func TestProfileFullReplacementAndSuspension(t *testing.T) {
 	if _, err := s.GetMyProfile(context.Background(), id); err != nil {
 		t.Fatalf("suspended read: %v", err)
 	}
-	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Other", PhoneNumber: "+123"}); !errors.Is(err, ErrPermissionDenied) {
+	if _, err := s.UpdateMyProfile(context.Background(), id, ProfileInput{DisplayName: "Other", PhoneNumber: "+6591234567"}); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("suspended update: %v", err)
 	}
 }

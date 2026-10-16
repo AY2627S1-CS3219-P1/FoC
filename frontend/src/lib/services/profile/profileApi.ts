@@ -5,7 +5,7 @@ export interface UserProfile {
 	email: string;
 	displayName: string;
 	description: string;
-	/** Absent only for accounts created before it was required. */
+	/** E.164. Absent only for the bootstrapped admin until they add one. */
 	phoneNumber?: string;
 	role: UserRole;
 }

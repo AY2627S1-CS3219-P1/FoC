@@ -325,13 +325,13 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
-	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ", PhoneNumber: " +12345678 "})
+	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ", PhoneNumber: " 9123 4567 "})
 	if err != nil || user.Email != "new@example.com" || user.DisplayName != "New" ||
-		user.PhoneNumber == nil || *user.PhoneNumber != "+12345678" || session.AccessToken == "" {
+		user.PhoneNumber == nil || *user.PhoneNumber != "+6591234567" || session.AccessToken == "" {
 		t.Fatalf("registration: %+v, %+v, %v", user, session, err)
 	}
 	stored := store.users[user.ID]
-	if stored.PhoneNumber == nil || *stored.PhoneNumber != "+12345678" {
+	if stored.PhoneNumber == nil || *stored.PhoneNumber != "+6591234567" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
 	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
@@ -535,6 +535,9 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	}
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "   "}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("blank phone number: %v", err)
+	}
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "12345"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("invalid phone number: %v", err)
 	}
 	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: strings.Repeat("1", 21)}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("phone number exceeding database limit: %v", err)

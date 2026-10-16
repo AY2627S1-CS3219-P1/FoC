@@ -11,6 +11,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
+	"github.com/nyaruka/phonenumbers"
 )
 
 var (
@@ -88,14 +89,19 @@ func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID,
 	return s.GetMyProfile(ctx, actorID)
 }
 
-// MaxPhoneNumberLength is the longest accepted phone number after trimming.
-const MaxPhoneNumberLength = 20
+// DefaultPhoneRegion is assumed for numbers entered without a country code.
+const DefaultPhoneRegion = "SG"
 
-// normalizedPhoneNumber trims a required phone number and checks its length.
+// normalizedPhoneNumber validates a required phone number with libphonenumber
+// and returns it in E.164 form, such as +6591234567.
 func normalizedPhoneNumber(value string) (string, bool) {
 	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || utf8.RuneCountInString(trimmed) > MaxPhoneNumberLength {
+	if trimmed == "" {
 		return "", false
 	}
-	return trimmed, true
+	number, err := phonenumbers.Parse(trimmed, DefaultPhoneRegion)
+	if err != nil || !phonenumbers.IsValidNumber(number) {
+		return "", false
+	}
+	return phonenumbers.Format(number, phonenumbers.E164), true
 }

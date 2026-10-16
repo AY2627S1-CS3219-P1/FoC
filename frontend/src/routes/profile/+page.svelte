@@ -10,6 +10,7 @@
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
+	import PhoneField from '$lib/components/PhoneField.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -110,7 +111,7 @@
 					<form class="data-form" method="POST" use:enhance>
 						<div class="field"><TextFieldOutlined label="Display name" name="displayName" autocomplete="name" required bind:value={$form.displayName} maxlength={Number($constraints.displayName?.maxlength ?? 100)} error={!!$errors.displayName} aria-invalid={$errors.displayName ? 'true' : undefined} />{#if $errors.displayName}<small class="field-error">{$errors.displayName[0]}</small>{/if}</div>
 						<div class="field"><TextFieldOutlinedMultiline label="Description" name="description" rows={5} bind:value={$form.description} maxlength={Number($constraints.description?.maxlength ?? 500)} error={!!$errors.description} aria-invalid={$errors.description ? 'true' : undefined} /><small class="field-meta">{Array.from($form.description).length}/500</small>{#if $errors.description}<small class="field-error">{$errors.description[0]}</small>{/if}</div>
-						<div class="field"><TextFieldOutlined label="Phone number" name="phoneNumber" type="tel" autocomplete="tel" required bind:value={$form.phoneNumber} maxlength={20} error={!!$errors.phoneNumber} aria-invalid={$errors.phoneNumber ? 'true' : undefined} />{#if $errors.phoneNumber}<small class="field-error">{$errors.phoneNumber[0]}</small>{/if}</div>
+						<div class="field"><PhoneField required bind:value={$form.phoneNumber} error={$errors.phoneNumber?.[0] ?? ''} /></div>
 						<div class="form-actions"><Button type="button" variant="outlined" disabled={$submitting || !isTainted($tainted)} onclick={() => reset()}>Cancel</Button><Button type="submit" disabled={$submitting || !isTainted($tainted) || Object.values($errors).some((value) => value?.length)}>{$submitting ? 'Saving…' : 'Save changes'}</Button></div>
 					</form>
 				{/if}

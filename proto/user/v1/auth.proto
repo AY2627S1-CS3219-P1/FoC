@@ -36,8 +36,9 @@ message RegisterRequest {
   // Telegram is connected through the Communication Service instead.
   reserved 3;
   reserved "telegram_handle";
-  // Required as the contact fallback when Telegram isn't linked. The service
-  // trims it and requires 1 to 20 characters afterward.
+  // Required as the contact fallback when Telegram isn't linked. Validated with
+  // libphonenumber; numbers without a country code are read as Singapore
+  // numbers. Stored and returned in E.164 form, such as +6591234567.
   string phone_number = 4;
 }
 
@@ -48,7 +49,7 @@ message User {
   UserRole role = 4;
   reserved 5;
   reserved "telegram_handle";
-  // Absent only for accounts created before it was required.
+  // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
 }
 

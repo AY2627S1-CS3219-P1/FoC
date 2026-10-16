@@ -28,7 +28,7 @@ type Profile struct {
 	Email       string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	// Absent only for accounts created before it was required.
+	// E.164. Absent only for the bootstrapped admin until they add one.
 	PhoneNumber   *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
 	Role          UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -193,7 +193,7 @@ type UpdateMyProfileRequest struct {
 	// The service trims the name and requires 1 to 100 characters afterward.
 	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// Required. The service trims it and requires 1 to 20 characters afterward.
+	// Required. Validated and stored like RegisterRequest.phone_number.
 	PhoneNumber   string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

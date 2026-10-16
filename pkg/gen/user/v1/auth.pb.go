@@ -206,8 +206,9 @@ type RegisterRequest struct {
 	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// The service trims the name and requires 1 to 100 characters afterward.
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	// Required as the contact fallback when Telegram isn't linked. The service
-	// trims it and requires 1 to 20 characters afterward.
+	// Required as the contact fallback when Telegram isn't linked. Validated with
+	// libphonenumber; numbers without a country code are read as Singapore
+	// numbers. Stored and returned in E.164 form, such as +6591234567.
 	PhoneNumber   string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -270,7 +271,7 @@ type User struct {
 	Email       string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Role        UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
-	// Absent only for accounts created before it was required.
+	// E.164. Absent only for the bootstrapped admin until they add one.
 	PhoneNumber   *string `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
