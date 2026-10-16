@@ -39,6 +39,22 @@ func (f *fakeLinker) UnlinkChat(_ context.Context, chatID int64) error {
 	return nil
 }
 
+// fakeChat records which relay entry point the handler used.
+type fakeChat struct{ calls []string }
+
+func (f *fakeChat) HandleMessage(context.Context, *telegram.Message) error {
+	f.calls = append(f.calls, "message")
+	return nil
+}
+func (f *fakeChat) ShowChats(context.Context, *telegram.Message) error {
+	f.calls = append(f.calls, "chats")
+	return nil
+}
+func (f *fakeChat) HandleCallback(context.Context, *telegram.CallbackQuery) error {
+	f.calls = append(f.calls, "callback")
+	return nil
+}
+
 func message(chatType, text string) telegram.Update {
 	return telegram.Update{Message: &telegram.Message{
 		Chat: telegram.Chat{ID: 42, Type: chatType},
@@ -56,7 +72,8 @@ func membership(chatType, status string) telegram.Update {
 
 func newHandler(linker *fakeLinker) (*Handler, *fakeSender) {
 	sender := &fakeSender{}
-	return &Handler{Sender: sender, Linker: linker, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}, sender
+	return &Handler{Sender: sender, Linker: linker, Chat: &fakeChat{},
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}, sender
 }
 
 func TestStartWithoutCodeExplainsLinking(t *testing.T) {
@@ -107,7 +124,7 @@ func TestStartReportsStorageFailure(t *testing.T) {
 func TestIgnoredMessages(t *testing.T) {
 	for name, update := range map[string]telegram.Update{
 		"group start": message("group", "/start code"),
-		"other text":  message("private", "hello"),
+		"group text":  message("group", "hello"),
 		"empty":       {UpdateID: 1},
 	} {
 		linker := &fakeLinker{}
@@ -139,6 +156,35 @@ func TestBlockingTheBotUnlinksChat(t *testing.T) {
 		}
 		if len(linker.unlinkedChats) != 0 {
 			t.Fatalf("unexpected unlink for %+v", update.MyChatMember)
+		}
+	}
+}
+
+func TestChatUpdatesGoToTheRelay(t *testing.T) {
+	for want, update := range map[string]telegram.Update{
+		"message":  message("private", "I'm at the lobby"),
+		"chats":    message("private", "/chat"),
+		"callback": {CallbackQuery: &telegram.CallbackQuery{ID: "1", Data: "chat:x"}},
+	} {
+		h, sender := newHandler(&fakeLinker{})
+		chat := h.Chat.(*fakeChat)
+		if err := h.Handle(context.Background(), update); err != nil {
+			t.Fatal(err)
+		}
+		if len(chat.calls) != 1 || chat.calls[0] != want || len(sender.sent) != 0 {
+			t.Fatalf("%s: relay calls %v, sent %v", want, chat.calls, sender.sent)
+		}
+	}
+}
+
+func TestUnknownCommandsGetHelp(t *testing.T) {
+	for _, text := range []string{"/help", "/settings"} {
+		h, sender := newHandler(&fakeLinker{})
+		if err := h.Handle(context.Background(), message("private", text)); err != nil {
+			t.Fatal(err)
+		}
+		if len(sender.sent) != 1 || sender.sent[0] != helpReply || len(h.Chat.(*fakeChat).calls) != 0 {
+			t.Fatalf("%s: sent %v", text, sender.sent)
 		}
 	}
 }
