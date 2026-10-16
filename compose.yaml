@@ -100,6 +100,39 @@ services:
       # Kafka UI creates dynamic_config.yaml here when settings are saved.
       - kafka-ui-config:/etc/kafkaui
 
+  # Private S3-compatible storage for local Order image uploads.
+  floci:
+    image: floci/floci:2.3.0
+    ports:
+      - "${FLOCI_PORT:-4566}:4566"
+    environment:
+      FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"
+      FLOCI_STORAGE_SERVICES_S3_MODE: persistent
+    volumes:
+      - order-images:/app/data
+
+  order-storage-init:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile.dev
+    working_dir: /app
+    command: ["go", "run", "./cmd/storage-init"]
+    environment:
+      APP_ENV: local
+      ORDER_S3_BUCKET: ${ORDER_S3_BUCKET:-order-images}
+      ORDER_S3_ENDPOINT: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ./order-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+    depends_on:
+      floci:
+        condition: service_started
+    restart: "no"
+
   # Catches all outgoing mail. Read magic links at http://localhost:8025.
   mailpit:
     image: axllent/mailpit:v1.31
@@ -182,6 +215,16 @@ services:
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
+      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL:-}
+      CREDIT_WORKLOAD_TOKEN_FILE: ${CREDIT_WORKLOAD_TOKEN_FILE:-}
+      KAFKA_BROKERS: kafka:9092
+      ORDER_S3_BUCKET: ${ORDER_S3_BUCKET:-order-images}
+      ORDER_S3_ENDPOINT: http://floci:4566
+      ORDER_S3_PUBLIC_ENDPOINT: http://localhost:${FLOCI_PORT:-4566}
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     volumes:
       - ./order-service:/app
       - ./pkg:/pkg
@@ -225,6 +268,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  order-images:
   pgdata:
   kafka-ui-config:
   frontend-node-modules:

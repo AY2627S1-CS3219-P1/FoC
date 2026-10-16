@@ -94,3 +94,31 @@ func TestConfiguration(t *testing.T) {
 		t.Fatalf("config=%+v, err=%v", c, err)
 	}
 }
+
+func TestCreationConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		values map[string]string
+		valid  bool
+	}{
+		{"disabled without dependencies", map[string]string{}, true},
+		{"URL without token", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080"}, false},
+		{"token without URL", map[string]string{"CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"enabled local", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit", "SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080"}, true},
+		{"recovery with admission disabled", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, true},
+		{"no credential URL", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://user:secret@credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"no service path", map[string]string{"SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080/rpc"}, false},
+		{"HTTPS outside local", map[string]string{"APP_ENV": "production", "USER_SERVICE_BASE_URL": "https://user.example", "CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := map[string]string{"DATABASE_URL": "postgresql://order:example@localhost:5432/order_test", "USER_SERVICE_BASE_URL": "http://user:8080", "APP_ENV": "local"}
+			for key, value := range tc.values {
+				base[key] = value
+			}
+			_, err := loadConfig(func(key string) string { return base[key] })
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v err=%v", tc.valid, err)
+			}
+		})
+	}
+}
