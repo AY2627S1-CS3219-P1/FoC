@@ -85,6 +85,17 @@ func TestConfirmReceiptRepeatReturnsCompletedOrderWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestConfirmPickupRepeatReturnsDeliveringOrderWithoutWriting(t *testing.T) {
+	p, tx, current := progressFixture(Delivering)
+	got, err := p.ConfirmPickup(context.Background(), Caller{ID: "courier"}, current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx.applied != 0 || got.Revision != current.Revision || got.Status != Delivering {
+		t.Fatalf("applied=%d result=%+v", tx.applied, got)
+	}
+}
+
 func TestProgressRejectsIneligibleCallersAndStates(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -97,7 +108,8 @@ func TestProgressRejectsIneligibleCallersAndStates(t *testing.T) {
 		{"pickup by admin", AwaitingPickup, pickup, Caller{ID: "admin", Admin: true}, ErrForbidden},
 		{"pickup by stranger", AwaitingPickup, pickup, Caller{ID: "stranger"}, ErrNotFound},
 		{"pickup before assignment", AwaitingCourier, pickup, Caller{ID: "courier"}, ErrPrecondition},
-		{"pickup repeat", Delivering, pickup, Caller{ID: "courier"}, ErrPrecondition},
+		{"pickup repeat by requester", Delivering, pickup, Caller{ID: "requester"}, ErrPrecondition},
+		{"pickup after delivery", Delivered, pickup, Caller{ID: "courier"}, ErrPrecondition},
 		{"receipt by courier", Delivered, receipt, Caller{ID: "courier"}, ErrForbidden},
 		{"receipt by stranger", Delivered, receipt, Caller{ID: "stranger"}, ErrNotFound},
 		{"receipt before delivery", Delivering, receipt, Caller{ID: "requester"}, ErrPrecondition},

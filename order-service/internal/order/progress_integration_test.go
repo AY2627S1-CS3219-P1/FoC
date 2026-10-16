@@ -38,6 +38,11 @@ func TestPostgresProgress(t *testing.T) {
 			t.Fatalf("pickup response and store differ\n%+v\n%+v", picked, stored)
 		}
 
+		repeat, err := progress.ConfirmPickup(f.ctx, Caller{ID: courier.ID}, o.ID)
+		if err != nil || !reflect.DeepEqual(repeat, picked) {
+			t.Fatalf("pickup repeat = %+v, %v", repeat, err)
+		}
+
 		f.mustTransition(t, o.ID, Deliver, courier)
 		requester := Caller{ID: o.RequesterID}
 		completed, err := progress.ConfirmReceipt(f.ctx, requester, o.ID)
@@ -49,7 +54,7 @@ func TestPostgresProgress(t *testing.T) {
 		}
 		audit, outbox, _ := f.counts(t, o.ID)
 
-		repeat, err := progress.ConfirmReceipt(f.ctx, requester, o.ID)
+		repeat, err = progress.ConfirmReceipt(f.ctx, requester, o.ID)
 		if err != nil || !reflect.DeepEqual(repeat, completed) {
 			t.Fatalf("repeat = %+v, %v", repeat, err)
 		}
@@ -62,7 +67,7 @@ func TestPostgresProgress(t *testing.T) {
 		}
 	})
 
-	t.Run("concurrent pickups commit once", func(t *testing.T) {
+	t.Run("concurrent pickups write once and all succeed", func(t *testing.T) {
 		o, courier := assigned(t)
 		var wg sync.WaitGroup
 		errs := make([]error, 8)
@@ -75,12 +80,8 @@ func TestPostgresProgress(t *testing.T) {
 		}
 		wg.Wait()
 
-		succeeded := 0
 		for _, err := range errs {
-			switch {
-			case err == nil:
-				succeeded++
-			case !errors.Is(err, ErrPrecondition):
+			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		}
@@ -88,8 +89,8 @@ func TestPostgresProgress(t *testing.T) {
 		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='pickup'", o.ID).Scan(&pickups); err != nil {
 			t.Fatal(err)
 		}
-		if succeeded != 1 || pickups != 1 {
-			t.Fatalf("succeeded=%d pickup audits=%d", succeeded, pickups)
+		if pickups != 1 {
+			t.Fatalf("pickup audits = %d", pickups)
 		}
 	})
 

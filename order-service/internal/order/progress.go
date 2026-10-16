@@ -21,8 +21,7 @@ func NewProgress(mutator *Mutator) *Progress {
 }
 
 // ConfirmPickup moves the assigned courier's order from Awaiting Pickup to
-// Delivering. A repeat is rejected because Delivering alone doesn't prove which
-// request succeeded.
+// Delivering. A repeat by that courier returns the order without writing.
 func (p *Progress) ConfirmPickup(ctx context.Context, c Caller, id string) (Order, error) {
 	return p.advance(ctx, c, id, Pickup, func(o *Order, now time.Time) { o.PickedUpAt = &now })
 }
