@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { allowedDomainSchema } from './allowedDomainSchema.ts';
 
 describe('allowed domain form schema', () => {
-	it.each(['example.com', 'mail.example.com', 'EXAMPLE.com', 'foo-bar.example'])(
+	it.each(['example.com', 'mail.example.com', 'foo-bar.example'])(
 		'accepts hostname %s', (domain) => {
 			expect(allowedDomainSchema.safeParse({ domain }).success).toBe(true);
 		}
 	);
 
-	it('trims surrounding whitespace', () => {
-		expect(allowedDomainSchema.parse({ domain: ' example.com ' })).toEqual({ domain: 'example.com' });
+	it('trims surrounding whitespace and lowercases the domain', () => {
+		expect(allowedDomainSchema.parse({ domain: ' EXAMPLE.com ' })).toEqual({ domain: 'example.com' });
 	});
 
-	it.each(['', ' ', 'user@example.com', 'https://example.com', '*.example.com', '-foo.com', 'foo-.com', 'foo..com', 'foo_bar.com', 'example.123', '例子.com', 'example.com.', 'mail.example.com.', ' example.com. '])(
+	it.each(['', ' ', 'user@example.com', 'https://example.com', '*.example.com', '-foo.com', 'foo-.com', 'foo..com', 'foo_bar.com', 'example.123', 'example.c', 'localhost', 'intranet', '例子.com', 'example.com.', 'mail.example.com.', ' example.com. '])(
 		'rejects invalid hostname %s', (domain) => {
 			expect(allowedDomainSchema.safeParse({ domain }).success).toBe(false);
 		}
