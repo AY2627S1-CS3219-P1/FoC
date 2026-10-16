@@ -23,6 +23,7 @@ export class SnackbarService {
 
 	show(message: string, options: SnackbarOptions = {}): void {
 		if (this.#timeout) clearTimeout(this.#timeout);
+		this.#timeout = undefined;
 		this.notice.set({
 			id: ++this.#nextID,
 			message,
