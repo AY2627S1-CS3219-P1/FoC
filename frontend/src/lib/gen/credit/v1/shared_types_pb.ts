@@ -457,7 +457,7 @@ export enum LedgerEntryKind {
   UNSPECIFIED = 0,
 
   /**
-   * Starting credits (default 1000), granted once when the account is created.
+   * Starting credits (100, per C1.3.1), granted once when the account is created.
    *
    * @generated from enum value: LEDGER_ENTRY_KIND_GRANT = 1;
    */
