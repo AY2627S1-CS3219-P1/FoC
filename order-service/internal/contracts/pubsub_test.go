@@ -61,3 +61,17 @@ func TestOutcomeKeepsOriginalWireFields(t *testing.T) {
 		t.Fatal("outcome wire contract changed")
 	}
 }
+
+func TestMalformedReservationAndRetryIdentifiers(t *testing.T) {
+	for _, m := range []proto.Message{
+		&credit.ReserveRequest{RequestId: "bad", RequesterId: "49ae3b41-c448-4f6a-9a74-4d23e615b55d", Amount: 10},
+		&credit.ReserveRequest{RequestId: "49ae3b41-c448-4f6a-9a74-4d23e615b55d", RequesterId: "bad", Amount: 10},
+		&order.AcceptOrderRequest{Id: "bad"},
+		&order.MakeOfferRequest{OrderId: "49ae3b41-c448-4f6a-9a74-4d23e615b55d", Credits: 10, IdempotencyKey: "bad"},
+		&order.GetOrderRequest{Id: ""},
+	} {
+		if err := protovalidate.Validate(m); err == nil {
+			t.Fatalf("accepted malformed identifiers in %T", m)
+		}
+	}
+}

@@ -241,7 +241,7 @@ type LedgerEntryKind int32
 
 const (
 	LedgerEntryKind_LEDGER_ENTRY_KIND_UNSPECIFIED LedgerEntryKind = 0
-	// Starting credits (default 1000), granted once when the account is created.
+	// Starting credits (100, per C1.3.1), granted once when the account is created.
 	LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT   LedgerEntryKind = 1
 	LedgerEntryKind_LEDGER_ENTRY_KIND_RESERVE LedgerEntryKind = 2
 	// An accepted offer changed the hold.
