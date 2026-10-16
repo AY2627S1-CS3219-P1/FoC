@@ -4,7 +4,7 @@
 	import { Button, LoadingIndicator } from 'm3-svelte';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { allowedDomainService, authService } from '$lib/services';
-	import AllowedDomainsCard from '$lib/components/admin/AllowedDomainsCard.svelte';
+	import AllowedDomainsCard from './AllowedDomainsCard.svelte';
 
 	let canView = $derived(authService.user?.role === UserRole.ADMIN || authService.user?.role === UserRole.SUPER_ADMIN);
 

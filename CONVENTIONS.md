@@ -199,6 +199,11 @@ Supplier Service uses sqlc:
 - Style M3 components through public props, CSS variables, or application-owned
   wrappers and data attributes. Avoid selectors that depend on internal library
   classes (such as `.m3-container`) or the component's internal DOM structure.
+- Place components used by a single route next to that page (for example
+  `routes/admin/config/AllowedDomainsCard.svelte`). Promote a component to
+  `frontend/src/lib/components/<domain>/` only when a second route consumes it
+  or it has an app-wide role (layout-level components such as `SnackbarHost`).
+  When no page is left in a `lib/components/<domain>/` group, delete the folder.
 
 User Service has legacy GORM-backed domains and may use sqlc for new domains:
 
