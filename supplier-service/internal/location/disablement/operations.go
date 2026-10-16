@@ -51,7 +51,23 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 			if l.ArchivedAt != nil {
 				return "", ErrFailedPrecondition
 			}
-			d := Disablement{ID: uuid.NewString(), LocationID: in.LocationID, StartsAt: now, EndsAt: in.EndsAt, Reason: in.Reason, CreatedBy: c.ID, Revision: 1, CreatedAt: now, UpdatedAt: now}
+
+			resourceID, e := uuid.NewV7()
+			if e != nil {
+				return "", DependencyError("generate disablement ID", e)
+			}
+
+			d := Disablement{
+				ID:         resourceID.String(),
+				LocationID: in.LocationID,
+				StartsAt:   now,
+				EndsAt:     in.EndsAt,
+				Reason:     in.Reason,
+				CreatedBy:  c.ID,
+				Revision:   1,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
 			if in.StartsAt != nil {
 				d.StartsAt = *in.StartsAt
 			}

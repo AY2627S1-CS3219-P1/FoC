@@ -8,6 +8,7 @@ import (
 	"time"
 
 	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
+	"github.com/google/uuid"
 )
 
 func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
@@ -20,6 +21,11 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+
+	if id, err := uuid.Parse(r.ID); err != nil || id.Version() != 7 {
+		t.Fatalf("addition request ID %q must be UUIDv7: %v", r.ID, err)
+	}
+
 	other := additionrequest.Caller{ID: "other", Role: "user"}
 	_, e = app.GetRequest(ctx, other, r.ID)
 	expectError(t, e, additionrequest.ErrNotFound)

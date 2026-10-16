@@ -105,7 +105,12 @@ func (t *postgresTx) Create(ctx context.Context, input Input, now time.Time) (sh
 	if input.Coordinates == nil {
 		return shared.Location{}, errs.NewBadRequestError("coordinates are required")
 	}
-	id := uuid.New()
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return shared.Location{}, fmt.Errorf("generate location ID: %w", err)
+	}
+
 	err = t.queries.InsertLocation(ctx, locationdb.InsertLocationParams{
 		ID: id, Name: input.Name, IsSupplier: input.IsSupplier,
 		BuildingID: building, Floor: input.Floor,

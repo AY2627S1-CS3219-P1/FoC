@@ -8,6 +8,7 @@ import (
 	"time"
 
 	disablement "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/disablement"
+	"github.com/google/uuid"
 )
 
 func TestScheduledDisablementCannotEndEarly(t *testing.T) {
@@ -39,6 +40,11 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	if d.Reason != "maintenance" || d.State(now) != disablement.Scheduled {
 		t.Fatalf("unexpected record: %+v", d)
 	}
+
+	if id, err := uuid.Parse(d.ID); err != nil || id.Version() != 7 {
+		t.Fatalf("disablement ID %q must be UUIDv7: %v", d.ID, err)
+	}
+
 	same, e := app.CreateDisablement(ctx, admin, in)
 	if e != nil || same.ID != d.ID {
 		t.Fatalf("retry: %+v %v", same, e)
