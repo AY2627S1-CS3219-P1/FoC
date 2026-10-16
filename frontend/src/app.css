@@ -83,7 +83,17 @@ a { color: var(--m3c-primary); }
 	cursor: pointer;
 }
 .snackbar-region .snackbar-holder .action { @apply --m3-label-large; padding: 0 0.5rem; }
-.snackbar-region .snackbar-holder .close { margin-right: -1rem; padding: 0 0.75rem; }
+.snackbar-region .snackbar-holder .close {
+	align-self: center;
+	width: 3rem;
+	height: 3rem;
+	margin-right: -0.5rem;
+	border-radius: 50%;
+}
+@media (hover: hover) {
+	.snackbar-region .snackbar-holder .close:hover { background-color: color-mix(in srgb, currentColor 8%, transparent); }
+}
+.snackbar-region .snackbar-holder .close:focus-visible { background-color: color-mix(in srgb, currentColor 12%, transparent); }
 .snackbar-region .snackbar-holder [data-snackbar-item][data-severity='success'] { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
 .snackbar-region .snackbar-holder [data-snackbar-item][data-severity='error'] { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
 .snackbar-region .snackbar-holder [data-snackbar-item][data-severity='warning'] { background: #fff8e1; color: #704600; border-color: #ffcc80; }

@@ -33,7 +33,7 @@
 					{/each}
 					<button
 						type="button"
-						class="close m3-layer"
+						class="close"
 						title="Dismiss notification"
 						aria-label="Dismiss notification"
 						onclick={() => snackbarService.dismiss()}
