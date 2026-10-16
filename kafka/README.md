@@ -8,11 +8,19 @@ declare messages and enums without RPC services.
 | Topic | Value message | Key |
 | --- | --- | --- |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
+| `order.status_changed` | `order.events.v1.OrderStatusChanged` | Order UUID as UTF-8 text |
+| `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
+| `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
 across retries; consumers should deduplicate it. Producers and consumers have
 not yet been wired up.
+
+Order publishes its three topics from its outbox. Topic names match the outbox
+fact kinds. `order.status_changed` drives Communication's notifications,
+`order.outcome` reports how an order ended, and
+`order.courier_warning_requested` asks User Service to warn a courier.
 
 Values use binary Protobuf (`proto.Marshal` / `proto.Unmarshal`), without a
 schema registry framing prefix. The topic identifies its value message.

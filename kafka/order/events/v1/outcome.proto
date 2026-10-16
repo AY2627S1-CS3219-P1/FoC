@@ -1,44 +1,13 @@
 syntax = "proto3";
 
-package order.v1;
+package order.events.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "order/v1/shared_types.proto";
 
-// Events Order publishes through its outbox. Each is keyed by order_id, so one
-// order's events stay in order. Consumers skip event_ids they have already
-// processed, because delivery is at least once.
-
-enum ActorType {
-  ACTOR_TYPE_UNSPECIFIED = 0;
-  ACTOR_TYPE_USER = 1;
-  ACTOR_TYPE_ADMIN = 2;
-  // Timers and recovery.
-  ACTOR_TYPE_SYSTEM = 3;
-}
-
-message Actor {
-  ActorType type = 1;
-  // Absent for the system.
-  optional string user_id = 2;
-}
-
-// Published on every status change. Consumed by Communication for
-// notifications. Carries no exact delivery details.
-message OrderStatusChanged {
-  string event_id = 1;
-  string order_id = 2;
-  // The order's revision after this change.
-  int64 revision = 3;
-  OrderStatus previous_status = 4;
-  OrderStatus status = 5;
-  Actor actor = 6;
-  string requester_id = 7;
-  optional string courier_id = 8;
-  string pickup_location_name = 9;
-  google.protobuf.Timestamp occurred_at = 10;
-}
+// Order publishes this through its outbox, keyed by order_id as UTF-8 text so
+// one order's events stay in order. Delivery is at least once: consumers skip
+// event_ids they have already processed.
 
 // How an order ended, which decides its settlement.
 enum OrderOutcomeType {
@@ -71,18 +40,4 @@ message OrderOutcome {
   google.protobuf.Timestamp picked_up_at = 8;
   google.protobuf.Timestamp delivered_at = 9;
   google.protobuf.Timestamp occurred_at = 10;
-}
-
-enum CourierWarningReason {
-  COURIER_WARNING_REASON_UNSPECIFIED = 0;
-  COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP = 1;
-}
-
-// Asks User Service to record an account warning against the courier.
-message CourierWarningRequested {
-  string event_id = 1;
-  string order_id = 2;
-  string courier_id = 3;
-  CourierWarningReason reason = 4;
-  google.protobuf.Timestamp occurred_at = 5;
 }

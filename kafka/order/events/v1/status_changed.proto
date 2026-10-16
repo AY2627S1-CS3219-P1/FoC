@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+import "google/protobuf/timestamp.proto";
+import "order/events/v1/shared_types.proto";
+
+// Order publishes this through its outbox, keyed by order_id as UTF-8 text so
+// one order's events stay in order. Delivery is at least once: consumers skip
+// event_ids they have already processed.
+
+// Published on every status change. Consumed by Communication for
+// notifications. Carries no exact delivery details.
+message OrderStatusChanged {
+  string event_id = 1;
+  string order_id = 2;
+  // The order's revision after this change.
+  int64 revision = 3;
+  OrderStatus previous_status = 4;
+  OrderStatus status = 5;
+  Actor actor = 6;
+  string requester_id = 7;
+  optional string courier_id = 8;
+  string pickup_location_name = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+}
