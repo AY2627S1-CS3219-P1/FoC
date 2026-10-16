@@ -143,13 +143,21 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   the methods it calls (e.g. a handler's `Logic`, a logic package's
   `UserStore`). Implementations return concrete types; never return an
   interface from a constructor.
-- Layers: `internal/handlers/<domain>` (Connect adapter) →
-  `internal/<domain>` (business rules and the store interfaces they need) →
-  `internal/store` (GORM persistence over `internal/models`).
+- Existing GORM-backed User Service domains use these layers:
+  `internal/handlers/<domain>` (Connect adapter) → `internal/<domain>`
+  (business rules and the store interfaces they need) → `internal/store`
+  (GORM persistence over `internal/models`). New sqlc-backed domains may keep
+  their repository with the domain package when that keeps the feature
+  cohesive.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
 
 ## Database
+
+Use sqlc for new backend services and newly introduced persistence domains.
+Existing GORM-backed domains remain on GORM unless an intentional migration is
+part of the change; extending one should follow its current persistence
+approach.
 
 Supplier Service uses sqlc:
 
@@ -181,17 +189,21 @@ Supplier Service uses sqlc:
 - Use Superforms to validate and manage form
 - Use Svelte-M3 UI components
 
-User Service uses GORM:
+User Service has legacy GORM-backed domains and may use sqlc for new domains:
 
 - `migrations/`: goose migrations, one `0000N_name.sql` per change with
   `-- +goose Up` / `-- +goose Down`. They are embedded in the binary and
   applied on startup unless `RUN_MIGRATIONS=false`. Never edit an applied
   migration. `make migrate-up/down`, `make goose-create name=...`.
-- `internal/models`: GORM structs whose tags mirror the SQL. The migrations
-  own the schema; do not use `AutoMigrate`.
-- `internal/store`: GORM queries. Translate GORM errors (`gorm.ErrRecordNotFound`,
-  `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
-  become a 500.
+- Existing GORM domains use `internal/models` structs whose tags mirror the
+  SQL. The migrations own the schema; do not use `AutoMigrate`.
+- Existing GORM domains use `internal/store` for queries. Translate GORM errors
+  (`gorm.ErrRecordNotFound`, `gorm.ErrDuplicatedKey`, ...) to `store`
+  sentinels; never let a missing row become a 500.
+- New sqlc domains keep queries under `database/query`, generated packages
+  under `internal/database`, and repositories in their owning domain package.
+  Run `make sqlc` after changing queries or the sqlc configuration, and never
+  edit generated files.
 - `internal/models/schema_integration_test.go` runs every migration up, down
   and up again and checks the constraints. It runs only when
   `TEST_DATABASE_URL` points at a throwaway database, because it wipes the schema.
