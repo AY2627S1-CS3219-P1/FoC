@@ -178,7 +178,7 @@
 			<div>
 				<p class="eyebrow">Addition request · {requestStatusLabel(request.status)}</p>
 				<h1>{request.proposal?.name ?? 'Unnamed proposal'}</h1>
-				<p>Submitted {formatTimestamp(request.createdAt)} (Singapore time)</p>
+				<p>Submitted {formatTimestamp(request.createdAt)}</p>
 			</div>
 			<Button variant="outlined" disabled={busy} onclick={() => reload++}>Reload request</Button>
 		</header>
@@ -222,7 +222,7 @@
 						<div>
 							<dt>Opening hours</dt>
 							<dd>
-								{formatOpeningHours(request.proposal.opensAt, request.proposal.closesAt)} (Singapore time)
+								{formatOpeningHours(request.proposal.opensAt, request.proposal.closesAt)}
 							</dd>
 						</div>
 						<div>
@@ -248,7 +248,7 @@
 					</div>
 					<div>
 						<dt>Last updated</dt>
-						<dd>{formatTimestamp(request.updatedAt)} (SGT)</dd>
+						<dd>{formatTimestamp(request.updatedAt)}</dd>
 					</div>
 					<div>
 						<dt>Reviewed by</dt>
@@ -256,7 +256,7 @@
 					</div>
 					<div>
 						<dt>Reviewed at</dt>
-						<dd>{formatTimestamp(request.reviewedAt)} (SGT)</dd>
+						<dd>{formatTimestamp(request.reviewedAt)}</dd>
 					</div>
 					<div>
 						<dt>Review note</dt>

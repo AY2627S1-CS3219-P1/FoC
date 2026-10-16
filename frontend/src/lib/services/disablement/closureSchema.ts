@@ -18,10 +18,10 @@ export const closureSchema = z
 	.object({
 		startsAt: z
 			.string()
-			.refine((v) => !v || !!singaporeDate(v), 'Enter a valid Singapore date and time.'),
+			.refine((v) => !v || !!singaporeDate(v), 'Enter a valid date and time.'),
 		endsAt: z
 			.string()
-			.refine((v) => !v || !!singaporeDate(v), 'Enter a valid Singapore date and time.'),
+			.refine((v) => !v || !!singaporeDate(v), 'Enter a valid date and time.'),
 		reason: z
 			.string()
 			.trim()

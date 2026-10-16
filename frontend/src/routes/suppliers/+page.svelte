@@ -69,7 +69,7 @@
 
 <svelte:head><title>Campus locations · Friend on Campus</title></svelte:head>
 
-<section class="page-content locations-page" aria-labelledby="locations-title">
+<section class="page-content" aria-labelledby="locations-title">
 	<header class="page-heading">
 		<div>
 			<p class="eyebrow">Locations</p>
@@ -112,7 +112,7 @@
 
 			<ul class="cards">
 				{#each result.locations as location (location.id)}
-					<li><LocationCard {location} /></li>
+					<li><LocationCard {location} {isAdmin} /></li>
 				{/each}
 			</ul>
 
@@ -138,10 +138,6 @@
 </section>
 
 <style>
-	.locations-page {
-		max-width: none;
-	}
-
 	.results {
 		display: grid;
 		gap: 1rem;

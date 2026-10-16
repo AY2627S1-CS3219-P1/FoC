@@ -89,7 +89,7 @@
 						<p>
 							{request.proposal?.isSupplier ? 'Supplier' : 'Facility'} · {formatTimestamp(
 								request.createdAt
-							)} (SGT)
+							)}
 						</p>
 						<span class="record-state">{requestStatusLabel(request.status)}</span>
 					</div>

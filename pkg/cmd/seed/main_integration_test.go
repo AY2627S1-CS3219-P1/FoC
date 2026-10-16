@@ -96,7 +96,16 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 			t.Fatalf("seed: %v: %s", err, stderr.String())
 		}
 	}
+	// Existing CSV reference records must be reused without changing their data.
+	mustSQL("supplier_seed_test", "INSERT INTO buildings(id,name,center,radius_m) VALUES ('10000000-0000-4000-8000-000000000001','Hon Sui Sen Memorial Library',ST_SetSRID(ST_MakePoint(103.77,1.29),4326)::geography,100)")
+	mustSQL("supplier_seed_test", "INSERT INTO categories(id,name) VALUES ('10000000-0000-4000-8000-000000000002','Food')")
 	seed(false)
+	if got := mustSQL("supplier_seed_test", "SELECT building_id FROM locations WHERE id='f0c00004-0000-4000-8000-000000000001'"); got != "10000000-0000-4000-8000-000000000001" {
+		t.Fatalf("existing building was not reused: %s", got)
+	}
+	if got := mustSQL("supplier_seed_test", "SELECT count(*) FROM location_categories WHERE location_id='f0c00004-0000-4000-8000-000000000001' AND category_id='10000000-0000-4000-8000-000000000002'"); got != "1" {
+		t.Fatal("existing category was not reused")
+	}
 	if got := mustSQL("user_seed_test", "SELECT count(*) FROM users"); got != "6" {
 		t.Fatalf("users=%s", got)
 	}
@@ -114,10 +123,13 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 		t.Fatalf("normal seed changed location: %q", got)
 	}
 	seed(true)
+	if got := mustSQL("supplier_seed_test", "SELECT radius_m FROM buildings WHERE id='10000000-0000-4000-8000-000000000001'"); got != "100" {
+		t.Fatalf("reset changed the shared building: %s", got)
+	}
 	if got := mustSQL("user_seed_test", "SELECT count(*) FROM users WHERE email='admin@demo.foc.test' AND description='manual edit'"); got != "0" {
 		t.Fatal("reset did not restore user")
 	}
-	if got := mustSQL("supplier_seed_test", fmt.Sprintf("SELECT count(*) FROM locations WHERE id='f0c00004-0000-4000-8000-000000000001' AND name='[Demo] TOMORO COFFEE - HSSML' AND revision>%s", revision)); got != "1" {
+	if got := mustSQL("supplier_seed_test", fmt.Sprintf("SELECT count(*) FROM locations WHERE id='f0c00004-0000-4000-8000-000000000001' AND name='TOMORO COFFEE - HSSML' AND revision>%s", revision)); got != "1" {
 		t.Fatal("reset did not restore location/increase revision")
 	}
 	if got := mustSQL("supplier_seed_test", "SELECT count(*) FROM location_addition_requests WHERE status='pending'"); got != "24" {

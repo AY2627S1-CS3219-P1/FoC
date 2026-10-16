@@ -98,7 +98,7 @@
 				<p class="eyebrow">{location.isSupplier ? 'Supplier' : 'Facility'}</p>
 				<h1>{location.name}</h1>
 				<p>
-					{location.building?.name} · Updated {formatTimestamp(location.updatedAt)} (Singapore time)
+					{location.building?.name} · Updated {formatTimestamp(location.updatedAt)}
 				</p>
 			</div>
 			<Button variant="outlined" href={`/suppliers/${location.id}`}>View location</Button>

@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head><title>Administration · Friend on Campus</title></svelte:head>
-<section class="page-content">
+<section class="page-content admin-overview">
 	<header class="page-heading">
 		<div>
 			<p class="eyebrow">Administration</p>
@@ -26,3 +26,14 @@
 		</div></Card
 	>
 </section>
+
+<style>
+	.admin-overview {
+		width: 100%;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+	}
+
+	.page-heading {
+		grid-column: 1 / -1;
+	}
+</style>

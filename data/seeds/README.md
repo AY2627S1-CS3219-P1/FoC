@@ -41,7 +41,8 @@ Venue names and representative opening hours were checked on 15 October 2026:
 - [HSSML](https://www.nus.edu.sg/nuslibraries/spaces/our-libraries/hon-sui-sen-memorial-library) and [C J Koh Law Library](https://www.nus.edu.sg/nuslibraries/spaces/visiting-c-j-koh-law-library): library identities/contact/access context.
 - Existing `data/assignment/building-seed-data.csv` supplies most building-centre coordinates. Added UTown centres are coarse campus-map approximations, rather than surveyed storefront coordinates; see the [NUS Law UTown map](https://law.nus.edu.sg/trail/wp-content/uploads/sites/9/2026/03/Directions-To-Around-UTown-251204.pdf).
 
-Every fixture has a **[Demo]** label. Real venue identities are used for realistic
+Fixtures use ordinary names and are identified by fixed UUIDs. Real venue
+identities are used for realistic
 search and map testing; all approvals, rejections, archives, closure reasons and
 closure dates are **fictional**. Extra multilingual/long text is explicitly
 sample UI content. These records do not assert that an outlet is actually closed.
@@ -112,8 +113,12 @@ with `docker compose logs -f user-service supplier-service`.
 
 `make seed-demo` inserts missing fixtures and preserves existing fixture edits,
 revisions, category links and lifecycle dates. It does not import/modify the
-separate campus CSV dataset. Fixture reference names have their own [Demo]
-namespace to coexist with the CSV importer.
+separate campus CSV dataset. Buildings and categories reuse matching records by
+name when the CSV importer has already created them; otherwise they receive fixed
+fixture IDs. Reset only updates reference records with fixture IDs.
+
+To refresh labels in databases seeded with the old names, run
+`make seed-demo-reset`. This also restores the fixture states described below.
 
 `make seed-demo-reset` restores the fixed fixture IDs, roles, categories, requests
 and relative closure dates. Existing revisions increase so open stale forms

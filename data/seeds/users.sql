@@ -8,12 +8,12 @@ CREATE TEMP TABLE demo_users (
     description TEXT, telegram_handle TEXT, phone_number TEXT
 ) ON COMMIT DROP;
 INSERT INTO demo_users VALUES
-    ('f0c00001-0000-4000-8000-000000000001', 'superadmin@demo.foc.test', '[Demo] Super Admin', 'super_admin', 'Can promote/demote admins, suspend and reinstate other accounts.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000002', 'admin@demo.foc.test', '[Demo] Admin', 'admin', 'Can manage locations, review proposals and suspend/reinstate ordinary users.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000003', 'student@demo.foc.test', '[Demo] Student', 'user', 'Owns demo requests. Try changing these profile fields.', 'demo_student', '+6500000000'),
-    ('f0c00001-0000-4000-8000-000000000004', 'suspended@demo.foc.test', '[Demo] Suspended Student', 'suspended', 'Read-only profile. Use an administrator to reinstate this account.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000005', 'other@demo.foc.test', '[Demo] Other Student', 'user', '', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000006', 'staff@demo.foc.test', '[Demo] Other Admin', 'admin', 'Target for super-admin demotion and admin-to-admin permission tests.', NULL, NULL);
+    ('f0c00001-0000-4000-8000-000000000001', 'superadmin@demo.foc.test', 'Super Admin', 'super_admin', 'Can promote/demote admins, suspend and reinstate other accounts.', NULL, NULL),
+    ('f0c00001-0000-4000-8000-000000000002', 'admin@demo.foc.test', 'Admin', 'admin', 'Can manage locations, review proposals and suspend/reinstate ordinary users.', NULL, NULL),
+    ('f0c00001-0000-4000-8000-000000000003', 'student@demo.foc.test', 'Student', 'user', 'Owns demo requests. Try changing these profile fields.', 'demo_student', '+6500000000'),
+    ('f0c00001-0000-4000-8000-000000000004', 'suspended@demo.foc.test', 'Suspended Student', 'suspended', 'Read-only profile. Use an administrator to reinstate this account.', NULL, NULL),
+    ('f0c00001-0000-4000-8000-000000000005', 'other@demo.foc.test', 'Other Student', 'user', '', NULL, NULL),
+    ('f0c00001-0000-4000-8000-000000000006', 'staff@demo.foc.test', 'Other Admin', 'admin', 'Target for super-admin demotion and admin-to-admin permission tests.', NULL, NULL);
 
 -- Never take over an unrelated account that already uses a fixture email/ID.
 DO $$ BEGIN
@@ -40,7 +40,7 @@ ON CONFLICT(id) DO UPDATE SET deleted_at=NULL, updated_at=now();
 
 -- Seed one consistent suspension audit, without touching admin_bootstrap or sessions.
 INSERT INTO role_changes(id,user_id,from_role,to_role,reason,created_by,updated_by)
-VALUES ('f0c00001-0000-4000-8000-000000000011','f0c00001-0000-4000-8000-000000000004','user','suspended','[Demo] Seeded suspension for reinstatement testing','f0c00001-0000-4000-8000-000000000002','f0c00001-0000-4000-8000-000000000002')
+VALUES ('f0c00001-0000-4000-8000-000000000011','f0c00001-0000-4000-8000-000000000004','user','suspended','Seeded suspension for reinstatement testing','f0c00001-0000-4000-8000-000000000002','f0c00001-0000-4000-8000-000000000002')
 ON CONFLICT(id) DO NOTHING;
 SELECT email,role FROM users WHERE id IN (SELECT id FROM demo_users) ORDER BY email;
 COMMIT;

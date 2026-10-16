@@ -1,4 +1,4 @@
--- Opt-in UI scenarios, isolated by fixed UUIDs and [Demo] labels.
+-- Opt-in UI scenarios, identified by fixed UUIDs.
 -- Do not add these workflow states to production migrations or the campus CSV importer.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -10,9 +10,9 @@ $$ SELECT ('f0c0000' || kind || '-0000-4000-8000-' || lpad(n::text,12,'0'))::uui
 -- Real venue names; map pins are approximate building centres, not storefront surveys.
 -- Sources and weekday/term-time caveats: data/seeds/README.md.
 CREATE TEMP TABLE demo_buildings (
-    n INTEGER PRIMARY KEY, name TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION
+    n INTEGER PRIMARY KEY, name TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, id UUID
 ) ON COMMIT DROP;
-INSERT INTO demo_buildings VALUES
+INSERT INTO demo_buildings(n,name,lat,lon) VALUES
     (1,'Hon Sui Sen Memorial Library',1.293126,103.771994),
     (2,'Prince George''s Park',1.290888,103.777828),
     (3,'Central Library',1.296262,103.773029),
@@ -31,15 +31,26 @@ INSERT INTO demo_buildings VALUES
     (16,'Engineering Block EA',1.300567,103.770758),
     (17,'Town Plaza',1.3045,103.7730),
     (18,'Stephen Riady Centre',1.3040,103.7737);
+-- Reuse reference records by name when the CSV importer has already created them.
+UPDATE demo_buildings d SET id=COALESCE(
+    (SELECT b.id FROM buildings b WHERE b.name=d.name),pg_temp.demo_id(2,d.n)
+);
 INSERT INTO buildings(id,name,center,radius_m)
-SELECT pg_temp.demo_id(2,n),'[Demo] ' || name,ST_SetSRID(ST_MakePoint(lon,lat),4326)::geography,150
+SELECT id,name,ST_SetSRID(ST_MakePoint(lon,lat),4326)::geography,150
 FROM demo_buildings
 ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,center=EXCLUDED.center,radius_m=EXCLUDED.radius_m
-WHERE (SELECT reset FROM demo_options);
-INSERT INTO categories(id,name) VALUES
-    (pg_temp.demo_id(3,1),'[Demo] Food'),(pg_temp.demo_id(3,2),'[Demo] Drinks'),
-    (pg_temp.demo_id(3,3),'[Demo] Dessert'),(pg_temp.demo_id(3,4),'[Demo] Coffee')
-ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name WHERE (SELECT reset FROM demo_options);
+WHERE (SELECT reset FROM demo_options)
+    AND buildings.id IN (SELECT pg_temp.demo_id(2,n) FROM demo_buildings);
+CREATE TEMP TABLE demo_categories (n INTEGER PRIMARY KEY, name TEXT, id UUID) ON COMMIT DROP;
+INSERT INTO demo_categories(n,name) VALUES
+    (1,'Food'),(2,'Drinks'),(3,'Dessert'),(4,'Coffee');
+UPDATE demo_categories d SET id=COALESCE(
+    (SELECT c.id FROM categories c WHERE c.name=d.name),pg_temp.demo_id(3,d.n)
+);
+INSERT INTO categories(id,name) SELECT id,name FROM demo_categories
+ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name
+WHERE (SELECT reset FROM demo_options)
+    AND categories.id IN (SELECT pg_temp.demo_id(3,n) FROM demo_categories);
 
 CREATE TEMP TABLE demo_venues (
     n INTEGER PRIMARY KEY, name TEXT, building_n INTEGER, category_n INTEGER,
@@ -84,8 +95,8 @@ INSERT INTO demo_venues VALUES
     (34,'Smooy',7,3,NULL,'11:00','21:00',NULL,'Term-time weekdays; weekends/PH and vacation closed.');
 
 CREATE TEMP TABLE demo_locations ON COMMIT DROP AS
-SELECT v.n,pg_temp.demo_id(4,v.n) AS id,'[Demo] ' || v.name AS name,
-    v.category_n IS NOT NULL AS is_supplier,pg_temp.demo_id(2,v.building_n) AS building_id,
+SELECT v.n,pg_temp.demo_id(4,v.n) AS id,v.name,
+    v.category_n IS NOT NULL AS is_supplier,b.id AS building_id,
     v.category_n,v.floor,ST_SetSRID(ST_MakePoint(b.lon,b.lat),4326)::geography AS coordinates,
     v.open_from,v.open_to,v.contact,
     'SIMULATED TEST RECORD. Archive/review/closure states are fictional. Approximate building-centre map pin. '
@@ -106,11 +117,12 @@ WITH written AS (
 ) INSERT INTO demo_written_locations SELECT id FROM written;
 DELETE FROM location_categories WHERE location_id IN (SELECT id FROM demo_written_locations);
 INSERT INTO location_categories(location_id,category_id)
-SELECT l.id,pg_temp.demo_id(3,l.category_n) FROM demo_locations l
-JOIN demo_written_locations w USING(id) WHERE l.is_supplier;
+SELECT l.id,c.id FROM demo_locations l
+JOIN demo_written_locations w USING(id)
+JOIN demo_categories c ON c.n=l.category_n WHERE l.is_supplier;
 INSERT INTO location_categories(location_id,category_id)
-SELECT pg_temp.demo_id(4,1),pg_temp.demo_id(3,1)
-WHERE EXISTS(SELECT 1 FROM demo_written_locations WHERE id=pg_temp.demo_id(4,1))
+SELECT pg_temp.demo_id(4,1),id FROM demo_categories
+WHERE n=1 AND EXISTS(SELECT 1 FROM demo_written_locations WHERE id=pg_temp.demo_id(4,1))
 ON CONFLICT DO NOTHING;
 
 -- 24 pending proposals make the default review queue span two pages.
@@ -129,7 +141,7 @@ WITH written AS (
     SELECT id,submitted_by,name,is_supplier,building_id,floor,coordinates,open_from,open_to,contact,details,status,
         CASE WHEN status IN ('approved','rejected') THEN pg_temp.demo_id(1,2)::text ELSE NULL END,
         CASE WHEN status IN ('approved','rejected') THEN now()-interval '1 day' ELSE NULL END,
-        CASE WHEN status='rejected' THEN '[Demo] Duplicate or unsuitable proposal; try submitting a corrected location.' ELSE NULL END,
+        CASE WHEN status='rejected' THEN 'Duplicate or unsuitable proposal; try submitting a corrected location.' ELSE NULL END,
         resulting_location_id,CASE WHEN status='pending' THEN 1 ELSE 2 END,
         now()-interval '2 days'-n*interval '1 minute',now()-interval '1 day'
     FROM demo_requests
@@ -144,8 +156,9 @@ WITH written AS (
 ) INSERT INTO demo_written_requests SELECT id FROM written;
 DELETE FROM location_addition_request_categories WHERE request_id IN (SELECT id FROM demo_written_requests);
 INSERT INTO location_addition_request_categories(request_id,category_id)
-SELECT r.id,pg_temp.demo_id(3,r.category_n)
-FROM demo_requests r JOIN demo_written_requests w USING(id) WHERE r.is_supplier;
+SELECT r.id,c.id
+FROM demo_requests r JOIN demo_written_requests w USING(id)
+JOIN demo_categories c ON c.n=r.category_n WHERE r.is_supplier;
 
 -- Intervals do not overlap for the same location. History spans two pages.
 CREATE TEMP TABLE demo_closures ON COMMIT DROP AS
@@ -153,16 +166,16 @@ SELECT n,pg_temp.demo_id(6,n) AS id,pg_temp.demo_id(4,8) AS location_id,
     now()-(n+10)*interval '1 day' AS starts_at,
     now()-(n+10)*interval '1 day'+interval '2 hours' AS ends_at,
     NULL::timestamptz AS ended_at,NULL::timestamptz AS cancelled_at,
-    '[Demo] Completed closure ' || lpad(n::text,2,'0') AS reason
+    'Completed closure ' || lpad(n::text,2,'0') AS reason
 FROM generate_series(6,30) n;
 INSERT INTO demo_closures VALUES
-    (1,pg_temp.demo_id(6,1),pg_temp.demo_id(4,6),now()-interval '2 days',NULL,NULL,NULL,'[Demo] Active indefinite repairs'),
-    (2,pg_temp.demo_id(6,2),pg_temp.demo_id(4,7),now()+interval '2 days',now()+interval '3 days',NULL,NULL,'[Demo] Simulated scheduled maintenance'),
-    (3,pg_temp.demo_id(6,3),pg_temp.demo_id(4,8),now()-interval '12 hours',now()+interval '12 hours',NULL,NULL,'[Demo] Active finite closure'),
-    (4,pg_temp.demo_id(6,4),pg_temp.demo_id(4,8),now()+interval '3 days',now()+interval '4 days',NULL,now()-interval '1 day','[Demo] Cancelled future maintenance'),
-    (5,pg_temp.demo_id(6,5),pg_temp.demo_id(4,8),now()-interval '5 days',now()-interval '3 days',now()-interval '4 days',NULL,'[Demo] Closure ended early'),
-    (31,pg_temp.demo_id(6,31),pg_temp.demo_id(4,8),now()+interval '7 days',NULL,NULL,NULL,'[Demo] Scheduled indefinite closure'),
-    (32,pg_temp.demo_id(6,32),pg_temp.demo_id(4,34),now()-interval '4 hours',now()+interval '1 day',NULL,NULL,'[Demo] Approved location temporarily closed');
+    (1,pg_temp.demo_id(6,1),pg_temp.demo_id(4,6),now()-interval '2 days',NULL,NULL,NULL,'Active indefinite repairs'),
+    (2,pg_temp.demo_id(6,2),pg_temp.demo_id(4,7),now()+interval '2 days',now()+interval '3 days',NULL,NULL,'Simulated scheduled maintenance'),
+    (3,pg_temp.demo_id(6,3),pg_temp.demo_id(4,8),now()-interval '12 hours',now()+interval '12 hours',NULL,NULL,'Active finite closure'),
+    (4,pg_temp.demo_id(6,4),pg_temp.demo_id(4,8),now()+interval '3 days',now()+interval '4 days',NULL,now()-interval '1 day','Cancelled future maintenance'),
+    (5,pg_temp.demo_id(6,5),pg_temp.demo_id(4,8),now()-interval '5 days',now()-interval '3 days',now()-interval '4 days',NULL,'Closure ended early'),
+    (31,pg_temp.demo_id(6,31),pg_temp.demo_id(4,8),now()+interval '7 days',NULL,NULL,NULL,'Scheduled indefinite closure'),
+    (32,pg_temp.demo_id(6,32),pg_temp.demo_id(4,34),now()-interval '4 hours',now()+interval '1 day',NULL,NULL,'Approved location temporarily closed');
 -- Match the application's per-location writer lock before checking overlaps.
 SELECT id FROM locations WHERE id IN (SELECT location_id FROM demo_closures) ORDER BY id FOR UPDATE;
 DO $$ BEGIN

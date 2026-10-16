@@ -61,7 +61,7 @@ a { color: var(--m3c-primary); }
 .field > .m3-container { width: 100%; min-width: 0; }
 .field-meta { text-align: end; }
 .field-error { color: var(--m3c-error); font-size: 0.875rem; }
-.form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; }
+.form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: nowrap; }
 .notice { padding: 0.85rem 1rem; border-radius: var(--m3-shape-medium); background: var(--m3c-secondary-container); color: var(--m3c-on-secondary-container); line-height: 1.45; margin: 0; }
 .notice.error { background: var(--m3c-error-container); color: var(--m3c-on-error-container); }
 .search-form { display: grid; grid-template-columns: minmax(12rem, 1fr) auto; align-items: start; gap: 0.75rem; }
