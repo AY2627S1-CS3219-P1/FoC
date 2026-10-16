@@ -46,7 +46,9 @@ export type CreateOrderRequest = Message<"order.v1.CreateOrderRequest"> & {
   itemDescription: string;
 
   /**
-   * From CreateItemImageUpload, after the upload succeeds.
+   * From CreateItemImageUpload, after the upload succeeds. Creation currently
+   * supports orders without images; nonempty image IDs return failed_precondition
+   * until the upload workflow is implemented.
    *
    * @generated from field: repeated string item_image_ids = 4;
    */

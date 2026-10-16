@@ -165,8 +165,21 @@ The following NFRs have no direct foundation test proving the stated requirement
 | NFR | Current coverage limit |
 | --- | --- |
 | NFR-06.2 / NFR-06.3 | Instruction redaction and offer privacy tests do not prove exact-location or proof-image restrictions. Read contracts expose location snapshots; proof-image workflows are deferred. |
-| NFR-09 / NFR-09.5 | Snapshot round trips and transaction tests do not restart the server/database, recover workflows or detect Order/Credit mismatches within five minutes. |
+| NFR-09 / NFR-09.5 | [Creation recovery tests](tests/creation/recovery_test.go) construct a new operation instance after remote success/local rollback and recover persisted intent. This is partial evidence: no whole-server/database restart or general five-minute mismatch detection claim. |
 | NFR-10.3 | Local Order audit persistence is tested, but Credit settlement and review removal/restoration audit actions are outside this foundation. |
 | NFR-18.1 / NFR-18.2 / NFR-18.5 | The storage fake tests interface semantics, without image-count, size-limit or pre-upload rejection workflows. |
-| NFR-19.1 | No request creation rate limiter or requests-per-account test is implemented. |
+| NFR-19.1 | [Creation execution tests](tests/creation/execution_test.go) admit exactly ten of fifty concurrent new requests for one caller per rolling minute; retained retries consume no quota. |
 | NFR-20 | **Not fulfilled:** [Order's proposed RPC settlement ADR](../docs/adr/order-credit-orchestration.md) deliberately deviates from the pub-sub settlement assumption. Durable outbox facts alone and future RPC settlement do not satisfy NFR-20; requirement-owner acknowledgement is pending. |
+
+### Creation execution coverage
+
+[The creation ADR](../docs/adr/order-creation-recovery.md) documents the implemented
+reservation/recovery boundary. [RPC integration tests](tests/creation/execution_test.go)
+cover location snapshots, required inputs, identical/changed retries, fifty
+concurrent duplicates, insufficient-credit refusal, unknown outcomes and expiry
+before opening. [Failure-injection tests](tests/creation/recovery_test.go) cover
+atomic admission and recovery after remote success/local rollback. Remote Connect
+servers are scripted test fixtures, so these tests do not certify Credit storage
+or service authentication enforcement. Orders with images, minimum courier
+ratings and later lifecycle operations remain incomplete; NFR-20 remains
+unfulfilled by this RPC-based integration.

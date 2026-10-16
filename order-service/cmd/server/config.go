@@ -11,18 +11,25 @@ import (
 )
 
 type config struct {
-	Port           string
-	DatabaseURL    string
-	UserServiceURL string
-	RunMigrations  bool
+	Port               string
+	DatabaseURL        string
+	UserServiceURL     string
+	RunMigrations      bool
+	SupplierServiceURL string
+	CreditServiceURL   string
+	CreditTokenFile    string
+	CreationEnabled    bool
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
-		Port:           strings.TrimSpace(getenv("PORT")),
-		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
-		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
-		RunMigrations:  true,
+		Port:               strings.TrimSpace(getenv("PORT")),
+		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
+		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
+		RunMigrations:      true,
+		SupplierServiceURL: strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
+		CreditServiceURL:   strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
+		CreditTokenFile:    strings.TrimSpace(getenv("CREDIT_SERVICE_TOKEN_FILE")),
 	}
 
 	if c.Port == "" {
@@ -55,5 +62,26 @@ func loadConfig(getenv func(string) string) (config, error) {
 		}
 	}
 
+	if value := strings.TrimSpace(getenv("ORDER_CREATION_ENABLED")); value != "" {
+		c.CreationEnabled, err = strconv.ParseBool(value)
+		if err != nil {
+			return config{}, errors.New("ORDER_CREATION_ENABLED must be boolean")
+		}
+	}
+	for name, value := range map[string]string{"SUPPLIER_SERVICE_BASE_URL": c.SupplierServiceURL, "CREDIT_SERVICE_BASE_URL": c.CreditServiceURL} {
+		if value == "" {
+			continue
+		}
+		parsed, err := url.Parse(value)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") || (parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
+		}
+	}
+	if (c.CreditServiceURL == "") != (c.CreditTokenFile == "") {
+		return config{}, errors.New("CREDIT_SERVICE_BASE_URL and CREDIT_SERVICE_TOKEN_FILE must be configured together")
+	}
+	if c.CreationEnabled && (c.SupplierServiceURL == "" || c.CreditServiceURL == "") {
+		return config{}, errors.New("creation requires Supplier URL and Credit URL/token file")
+	}
 	return c, nil
 }

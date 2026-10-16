@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,6 +63,20 @@ func run(ctx context.Context) error {
 		}
 	}
 
+	creator, recoverCreations, err := newCreator(startupCtx, order.NewPostgresRepository(pool), config)
+	if err != nil {
+		return fmt.Errorf("initialize creation: %w", err)
+	}
+
+	workerCtx, stopRecovery := context.WithCancel(ctx)
+	recoveryDone := make(chan struct{})
+	if recoverCreations {
+		go func() { defer close(recoveryDone); creator.RecoverCreations(workerCtx) }()
+	} else {
+		close(recoveryDone)
+	}
+	defer func() { stopRecovery(); <-recoveryDone }()
+
 	authenticator, err := newAuthenticator(startupCtx, 2*time.Second, func(ctx context.Context) (*httpauth.Authenticator, error) {
 		return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
 			UserServiceURL: config.UserServiceURL,
@@ -73,7 +88,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool)
+	services := newRPCServices(pool, creator)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)

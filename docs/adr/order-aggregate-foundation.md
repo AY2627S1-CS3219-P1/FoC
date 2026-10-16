@@ -5,6 +5,8 @@ Status: accepted
 Dependencies: Order contracts [#123](https://github.com/AY2627S1-CS3219-P1/FoC/pull/123)
 (`a0b1e801`), Credit contracts [#129](https://github.com/AY2627S1-CS3219-P1/FoC/pull/129)
 remain under discussion. Foundation base: main `5233ef5`.
+Creation execution subsequently extends this foundation in the
+[creation/recovery ADR](order-creation-recovery.md).
 
 ## Context and source assumptions
 

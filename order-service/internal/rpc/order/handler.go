@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/clients"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/shared"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
@@ -18,12 +19,43 @@ type Operations interface {
 	ListOffers(context.Context, app.Caller, string, app.OfferStatus) ([]app.Offer, error)
 }
 
+type CreationOperations interface {
+	Create(context.Context, app.Caller, app.CreateInput) (app.Order, error)
+}
+
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
 	operations Operations
+	creator    CreationOperations
 }
 
-func NewServer(operations Operations) *Server { return &Server{operations: operations} }
+func NewServer(operations Operations, creator CreationOperations) *Server {
+	return &Server{operations: operations, creator: creator}
+}
+
+func (s *Server) CreateOrder(ctx context.Context, req *connect.Request[pb.CreateOrderRequest]) (*connect.Response[pb.CreateOrderResponse], error) {
+	caller := shared.Caller(ctx)
+	if caller.ID == "" || caller.Suspended {
+		return nil, shared.ConnectError(ctx, app.ErrForbidden)
+	}
+	if s.creator == nil {
+		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
+	}
+	m := req.Msg
+	if m.ExpiresAt == nil || m.ExpiresAt.CheckValid() != nil || m.DeliveryDuration == nil || m.DeliveryDuration.CheckValid() != nil || m.Delivery == nil {
+		return nil, shared.ConnectError(ctx, app.ErrInvalid)
+	}
+	ctx = clients.WithUserBearer(ctx, req.Header().Get("Authorization"))
+	result, err := s.creator.Create(ctx, caller, app.CreateInput{
+		Key: m.IdempotencyKey, PickupID: m.PickupLocationId, DeliveryID: m.Delivery.LocationId,
+		Instructions: m.Delivery.Instructions, ItemDescription: m.ItemDescription, ImageIDs: m.ItemImageIds,
+		RewardCredits: m.RewardCredits, DeliveryDuration: m.DeliveryDuration.AsDuration(), ExpiresAt: m.ExpiresAt.AsTime(),
+	})
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+	return connect.NewResponse(&pb.CreateOrderResponse{Order: shared.Order(result)}), nil
+}
 
 func (s *Server) GetOrder(ctx context.Context, req *connect.Request[pb.GetOrderRequest]) (*connect.Response[pb.GetOrderResponse], error) {
 	o, err := s.operations.GetOrder(ctx, shared.Caller(ctx), req.Msg.GetId())

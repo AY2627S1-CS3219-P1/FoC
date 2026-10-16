@@ -37,7 +37,9 @@ type CreateOrderRequest struct {
 	PickupLocationId string                 `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3" json:"pickup_location_id,omitempty"`
 	Delivery         *DeliveryInput         `protobuf:"bytes,2,opt,name=delivery,proto3" json:"delivery,omitempty"`
 	ItemDescription  string                 `protobuf:"bytes,3,opt,name=item_description,json=itemDescription,proto3" json:"item_description,omitempty"`
-	// From CreateItemImageUpload, after the upload succeeds.
+	// From CreateItemImageUpload, after the upload succeeds. Creation currently
+	// supports orders without images; nonempty image IDs return failed_precondition
+	// until the upload workflow is implemented.
 	ItemImageIds  []string `protobuf:"bytes,4,rep,name=item_image_ids,json=itemImageIds,proto3" json:"item_image_ids,omitempty"`
 	RewardCredits int64    `protobuf:"varint,5,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
 	// Allowed time from pickup to delivery. The UI pre-fills a default.

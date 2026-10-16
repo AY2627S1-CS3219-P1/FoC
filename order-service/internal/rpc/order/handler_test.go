@@ -79,6 +79,11 @@ type clients struct {
 
 func mount(t *testing.T, f *fakeOperations, role string) clients {
 	t.Helper()
+	return mountCreator(t, f, role, nil)
+}
+
+func mountCreator(t *testing.T, f *fakeOperations, role string, creator rpcorder.CreationOperations) clients {
+	t.Helper()
 	// Identity injection isolates method authorization from the HTTP authenticator,
 	// which is exercised at the production server boundary.
 	authenticate := func(next http.Handler) http.Handler {
@@ -91,7 +96,7 @@ func mount(t *testing.T, f *fakeOperations, role string) clients {
 	}
 	server := httptest.NewServer(router.Setup(router.RPCServices{
 		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
-		Order:  rpcorder.NewServer(f),
+		Order:  rpcorder.NewServer(f, creator),
 		Admin:  orderadmin.NewServer(f),
 	}, authenticate))
 	t.Cleanup(server.Close)
@@ -236,7 +241,7 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
+func TestUnavailableCreationAndUnimplementedMutations(t *testing.T) {
 	c := mount(t, &fakeOperations{}, "admin")
 	ctx := context.Background()
 	calls := []struct {
@@ -298,9 +303,75 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	}
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
-			if err := call.call(); connect.CodeOf(err) != connect.CodeUnimplemented {
-				t.Fatalf("err=%v", err)
+			want := connect.CodeUnimplemented
+			if call.name == "create" {
+				want = connect.CodeUnavailable
+			}
+			if err := call.call(); connect.CodeOf(err) != want {
+				t.Fatalf("err=%v, want=%v", err, want)
 			}
 		})
+	}
+}
+
+type fakeCreator struct {
+	called bool
+	caller app.Caller
+	input  app.CreateInput
+	err    error
+}
+
+func (f *fakeCreator) Create(_ context.Context, c app.Caller, in app.CreateInput) (app.Order, error) {
+	f.called, f.caller, f.input = true, c, in
+	return fixture(), f.err
+}
+
+func TestCreateRPCConversionAndValidation(t *testing.T) {
+	request := func() *pb.CreateOrderRequest {
+		return &pb.CreateOrderRequest{
+			PickupLocationId: locationID, Delivery: &pb.DeliveryInput{LocationId: orderID, Instructions: proto.String("Call outside")},
+			ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: durationpb.New(10 * time.Minute),
+			ExpiresAt: timestamppb.New(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)), IdempotencyKey: userID,
+		}
+	}
+	creator := new(fakeCreator)
+	c := mountCreator(t, &fakeOperations{}, "user", creator)
+	got, err := c.order.CreateOrder(context.Background(), connect.NewRequest(request()))
+	if err != nil || got.Msg.Order.Id != orderID || !creator.called || creator.caller.ID != userID || creator.input.Key != userID || creator.input.PickupID != locationID || creator.input.DeliveryID != orderID || creator.input.Instructions == nil || *creator.input.Instructions != "Call outside" || creator.input.RewardCredits != 10 || creator.input.DeliveryDuration != 10*time.Minute || creator.input.ExpiresAt.Year() != 2000 {
+		t.Fatalf("conversion=%+v response=%v err=%v", creator, got, err)
+	}
+	for _, tc := range []struct {
+		name, role string
+		edit       func(*pb.CreateOrderRequest)
+		code       connect.Code
+	}{
+		{"bad timestamp", "user", func(r *pb.CreateOrderRequest) { r.ExpiresAt.Nanos = 1_000_000_000 }, connect.CodeInvalidArgument},
+		{"missing key", "user", func(r *pb.CreateOrderRequest) { r.IdempotencyKey = "" }, connect.CodeInvalidArgument},
+		{"suspended", "suspended_user", func(*pb.CreateOrderRequest) {}, connect.CodePermissionDenied},
+		{"unauthenticated", "", func(*pb.CreateOrderRequest) {}, connect.CodeUnauthenticated},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			creator := new(fakeCreator)
+			c := mountCreator(t, &fakeOperations{}, tc.role, creator)
+			input := request()
+			tc.edit(input)
+			_, err := c.order.CreateOrder(context.Background(), connect.NewRequest(input))
+			if connect.CodeOf(err) != tc.code || creator.called {
+				t.Fatalf("err=%v called=%v", err, creator.called)
+			}
+		})
+	}
+	for _, tc := range []struct {
+		err  error
+		code connect.Code
+	}{
+		{app.ErrAlreadyExists, connect.CodeAlreadyExists}, {app.ErrRateLimited, connect.CodeResourceExhausted},
+		{app.ErrUnavailable, connect.CodeUnavailable}, {app.ErrImagesUnavailable, connect.CodeFailedPrecondition},
+		{app.InsufficientCredits, connect.CodeFailedPrecondition}, {app.CreationExpired, connect.CodeFailedPrecondition},
+	} {
+		c := mountCreator(t, &fakeOperations{}, "user", &fakeCreator{err: tc.err})
+		if _, err := c.order.CreateOrder(context.Background(), connect.NewRequest(request())); connect.CodeOf(err) != tc.code {
+			t.Fatalf("%v: %v", tc.err, err)
+		}
 	}
 }

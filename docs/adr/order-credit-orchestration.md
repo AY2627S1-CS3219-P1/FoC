@@ -1,7 +1,7 @@
 # ADR: Order orchestrates Credit reservation and settlement RPCs
 
 Date: 16 Oct 2026
-Status: proposed by Order; joint owner acknowledgement pending in [#136](https://github.com/AY2627S1-CS3219-P1/FoC/issues/136)
+Status: implemented as Order's integration baseline; Credit owner acknowledged in [#136](https://github.com/AY2627S1-CS3219-P1/FoC/issues/136)
 Owners: Yihao (Order), Xiong Kai (Credit)
 Contracts: Order [#123](https://github.com/AY2627S1-CS3219-P1/FoC/pull/123), Credit [#129](https://github.com/AY2627S1-CS3219-P1/FoC/pull/129)
 Foundation: [Order aggregate ADR](order-aggregate-foundation.md), [#135](https://github.com/AY2627S1-CS3219-P1/FoC/pull/135)
@@ -154,24 +154,23 @@ tests are prerequisites for live calls.
 
 ## Creation handoff and scope
 
-The current foundation has no creation operation or Credit implementation.
-Remove `expires_at > now` from declarative validation, retaining a required
-timestamp. The future creation operation authenticates/validates
-shape, looks up idempotency, and only checks the deadline when admitting a new
-creation. Replaying an identical retained request after its original deadline must
-still reach the existing workflow/result. It must never create a second Order.
-The declarative change alone does not implement this operation check.
+Order now implements creation and recovery against this boundary; see the
+[creation/recovery ADR](order-creation-recovery.md). Credit implementation remains
+separate. Creation validates shape, looks up idempotency and checks the deadline
+only for a new admission. Identical retained requests replay after their deadline
+without creating a second Order. Image uploads remain deferred; new creation
+requires no image IDs.
 
-Next dependencies are joint contract acknowledgement/landing, the authenticated
-Credit boundary and its conformance tests, Supplier location snapshots, image
-ownership/readiness checks, and concrete creation workflow/idempotency storage.
-Creation must cover unknown Reserve results, expiry while reserving and restart
-between remote success and local commit. Persist initial Order, workflow,
-idempotency mapping, audit and status fact atomically. Implement creation against
-the actual agreed Credit boundary, without a speculative production stub.
+Credit's owner acknowledged the baseline in #136. Live financial integration
+still requires the authenticated Credit implementation and its conformance tests.
+Order's creation tests cover unknown Reserve results, expiry while reserving and
+new operation instances recovering after remote success/local rollback. Initial
+Order, workflow, mapping, audit and status fact commit atomically. Production uses
+the real generated Credit client; scripted remote outcomes are test-only.
 Assignment recovery, terminal financial workflows and Kafka relay remain separate
 follow-up work. [Conformance cases](../testing/order-credit-conformance.md) define
-the required behavior; the checked-in tests cover contract shape only.
+the required behavior and identify implemented Order tests versus remaining
+Credit and later-lifecycle acceptance work.
 
 ## Requirements deviation
 

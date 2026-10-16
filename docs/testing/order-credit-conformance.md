@@ -5,12 +5,13 @@ Baseline: [proposed ADR](../adr/order-credit-orchestration.md),
 [Order #123](https://github.com/AY2627S1-CS3219-P1/FoC/pull/123),
 [Credit #129](https://github.com/AY2627S1-CS3219-P1/FoC/pull/129).
 
-These are implementation acceptance cases, not passing integration tests. The
-current branch implements schema validation tests in
-`order-service/internal/contracts/ordercredit`, and updates valid requests in
-handler-mount tests. Saga/recovery and Credit persistence are not implemented.
-Run the cases below against real persistence and the authenticated generated
-Connect boundary when their owning workflows land. Use a controllable clock,
+These are the integration acceptance cases. Contract tests live in
+`order-service/internal/contracts/ordercredit`. Executable Order creation/recovery
+coverage now lives in `order-service/tests/creation`, using PostgreSQL and mounted
+Connect handlers with scripted remote outcomes. See the
+[creation ADR](../adr/order-creation-recovery.md) for implemented boundaries.
+Credit persistence, assignment/terminal workflows and Kafka remain follow-ups.
+Run the remaining cases against their actual owning implementations when they land. Use a controllable clock,
 barriers around remote/local commits and process restarts rather than sleeps.
 
 ## Contract checks implemented here

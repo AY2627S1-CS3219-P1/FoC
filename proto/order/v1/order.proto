@@ -65,7 +65,9 @@ message CreateOrderRequest {
     message: "item_description must be 1-1000 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) >= 1 && size(this.trim()) <= 1000"
   }];
-  // From CreateItemImageUpload, after the upload succeeds.
+  // From CreateItemImageUpload, after the upload succeeds. Creation currently
+  // supports orders without images; nonempty image IDs return failed_precondition
+  // until the upload workflow is implemented.
   repeated string item_image_ids = 4 [(buf.validate.field).repeated = {
     max_items: 5
     unique: true
