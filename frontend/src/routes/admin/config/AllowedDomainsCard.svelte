@@ -31,20 +31,32 @@
 		return 'We could not complete the request. Check your connection and try again.';
 	}
 
-	async function loadDomains(afterChange = false): Promise<void> {
+	async function loadDomains(): Promise<void> {
 		try {
 			await allowedDomainService.listAllowedDomains();
 		} catch (cause) {
 			const message = cause instanceof ConnectError && cause.code === Code.PermissionDenied
 				? 'You no longer have permission to view allowed domains.'
-				: afterChange
-					? 'Your change was saved, but the domain list could not be refreshed. Please try again.'
-					: 'We could not load allowed domains. Please try again.';
+				: 'We could not load allowed domains. Please try again.';
 			snackbarService.show(message, {
-				severity: afterChange ? 'warning' : 'error',
+				severity: 'error',
 				actions: { Retry: () => void loadDomains() },
 				timeout: 8000
 			});
+		}
+	}
+
+	async function refreshAfterChange(): Promise<boolean> {
+		try {
+			await allowedDomainService.listAllowedDomains();
+			return true;
+		} catch {
+			snackbarService.show('Your change was saved, but the domain list could not be refreshed. Please try again.', {
+				severity: 'warning',
+				actions: { Retry: () => void loadDomains() },
+				timeout: 8000
+			});
+			return false;
 		}
 	}
 
@@ -60,13 +72,15 @@
 		async onUpdate({ form: validated }) {
 			if (!validated.valid || !canManage || mutating || allowedDomainService.isLoading) return;
 			adding = true;
+			const domain = validated.data.domain;
 			try {
-				await allowedDomainService.allowDomain(validated.data.domain);
-				snackbarService.show(`${validated.data.domain} is now allowed.`, { severity: 'success' });
+				await allowedDomainService.allowDomain(domain);
 				const empty = { domain: '' };
 				add.reset({ data: empty, newState: empty });
 				validated.data = empty;
-				await loadDomains(true);
+				if (await refreshAfterChange()) {
+					snackbarService.show(`${domain} is now allowed.`, { severity: 'success' });
+				}
 			} catch (cause) {
 				snackbarService.show(errorMessage(cause), { severity: 'error', timeout: 8000 });
 			} finally {
@@ -95,7 +109,6 @@
 			} else {
 				confirmOpen = false;
 				selected = null;
-				// Close the modal before notifying so the snackbar is accessible.
 				await tick();
 				snackbarService.show(errorMessage(cause), { severity: 'error', timeout: 8000 });
 				deleting = false;
@@ -105,8 +118,9 @@
 		confirmOpen = false;
 		selected = null;
 		await tick();
-		snackbarService.show(message, { severity: 'success' });
-		await loadDomains(true);
+		if (await refreshAfterChange()) {
+			snackbarService.show(message, { severity: 'success' });
+		}
 		deleting = false;
 	}
 
@@ -147,7 +161,7 @@
 						{#each allowedDomainService.domains as domain (domain.id)}
 							<tr>
 								<td class="domain-name">{domain.domain}</td>
-								{#if canManage}<td class="actions"><Button variant="text" iconType="full" disabled={mutating} aria-label={`Delete ${domain.domain}`} title={`Delete ${domain.domain}`} onclick={() => reviewRemoval(domain)}><Icon icon={iconDelete} size={24} aria-hidden="true" /></Button></td>{/if}
+								{#if canManage}<td class="actions"><Button variant="text" iconType="full" disabled={mutating || allowedDomainService.isLoading} aria-label={`Delete ${domain.domain}`} title={`Delete ${domain.domain}`} onclick={() => reviewRemoval(domain)}><Icon icon={iconDelete} size={24} aria-hidden="true" /></Button></td>{/if}
 							</tr>
 						{/each}
 					</tbody>
