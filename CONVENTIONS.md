@@ -192,6 +192,10 @@ Supplier Service uses sqlc:
 - Use mutable singletons only in browser lifecycle and event code, never in
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
+- Handle unauthenticated access to protected RPCs at the transport layer: the
+  auth interceptor refreshes and retries, then the redirect interceptor sends
+  the user to `/login`. Pages never check authentication; they redirect only
+  for authorization failures (role checks).
 
 ## Frontend UI
 - Use Superforms to validate and manage form

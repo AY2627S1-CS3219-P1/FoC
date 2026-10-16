@@ -19,7 +19,7 @@
 	});
 
 	onMount(() => {
-		if (!authService.isAuthenticated || canView) void loadDomains();
+		void loadDomains();
 	});
 </script>
 
