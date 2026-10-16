@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Order lifecycle and stored location snapshots.
 type Status string
 
 const (
@@ -21,14 +22,18 @@ const (
 	Rejected           Status = "rejected"
 )
 
-func (s Status) Valid() bool {
+// IsValid reports whether the status belongs to the order lifecycle.
+func (s Status) IsValid() bool {
 	switch s {
 	case PendingReservation, AwaitingCourier, AwaitingPickup, Delivering, Delivered, Completed, Cancelled, Expired, Failed, Rejected:
 		return true
 	}
+
 	return false
 }
-func (s Status) Terminal() bool {
+
+// IsTerminal reports whether ordinary lifecycle transitions have ended.
+func (s Status) IsTerminal() bool {
 	return s == Completed || s == Cancelled || s == Expired || s == Failed || s == Rejected
 }
 
@@ -38,6 +43,7 @@ type LocationSnapshot struct {
 	BuildingName string  `json:"building_name"`
 	Floor        *string `json:"floor,omitempty"`
 }
+
 type Order struct {
 	ID, RequesterID                                            string
 	CourierID                                                  *string
@@ -54,6 +60,8 @@ type Order struct {
 	Revision                                                   int64
 	CreatedAt, UpdatedAt                                       time.Time
 }
+
+// Courier offers retain their own status and history alongside the order.
 type OfferStatus string
 
 const (
@@ -69,6 +77,8 @@ type Offer struct {
 	Status                 OfferStatus
 	CreatedAt, UpdatedAt   time.Time
 }
+
+// Actors identify mutation authors; callers carry the current request identity.
 type ActorKind string
 
 const (
@@ -81,17 +91,28 @@ type Actor struct {
 	Kind ActorKind
 	ID   string
 }
+
 type Caller struct {
 	ID               string
 	Admin, Suspended bool
 }
 
-func (o Order) Requester(id string) bool { return id != "" && strings.EqualFold(o.RequesterID, id) }
-func (o Order) Courier(id string) bool {
-	return id != "" && o.CourierID != nil && strings.EqualFold(*o.CourierID, id)
+// IsRequestedBy reports whether the user created the order.
+func (o Order) IsRequestedBy(userID string) bool {
+	return userID != "" && strings.EqualFold(o.RequesterID, userID)
 }
-func (o Order) Participant(id string) bool { return o.Requester(id) || o.Courier(id) }
 
+// IsAssignedTo reports whether the user is the order's assigned courier.
+func (o Order) IsAssignedTo(userID string) bool {
+	return userID != "" && o.CourierID != nil && strings.EqualFold(*o.CourierID, userID)
+}
+
+// HasParticipant reports whether the user is the requester or assigned courier.
+func (o Order) HasParticipant(userID string) bool {
+	return o.IsRequestedBy(userID) || o.IsAssignedTo(userID)
+}
+
+// Action identifies the operation authorized by the lifecycle policy.
 type Action string
 
 const (
@@ -110,6 +131,7 @@ const (
 	RecordItemLocation Action = "record_item_location"
 )
 
+// Listing filters and pagination are shared by requester, courier and admin reads.
 type Role string
 
 const (
@@ -124,12 +146,14 @@ func (p Page) Normalize() (Page, error) {
 	if p.Number < 0 || p.Size < 0 || p.Size > 100 {
 		return p, ErrInvalid
 	}
+
 	if p.Number == 0 {
 		p.Number = 1
 	}
 	if p.Size == 0 {
 		p.Size = 20
 	}
+
 	return p, nil
 }
 
@@ -142,6 +166,7 @@ func (p PageInfo) TotalPages() int32 {
 	if p.Total == 0 {
 		return 0
 	}
+
 	return int32((p.Total-1)/int64(p.Size) + 1)
 }
 
@@ -151,11 +176,13 @@ type ListRequest struct {
 	Role                 Role
 	PickupID, DeliveryID string
 }
+
 type OrderPage struct {
 	Orders   []Order
 	PageInfo PageInfo
 }
 
+// Domain errors are translated by the RPC boundary.
 var (
 	ErrNotFound     = errors.New("order not found")
 	ErrForbidden    = errors.New("permission denied")

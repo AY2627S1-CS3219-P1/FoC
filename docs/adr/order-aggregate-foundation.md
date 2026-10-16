@@ -32,8 +32,10 @@ operation tests use domain types and no database. Colocated adapters import pgx;
 this is an intentional tradeoff, not package-level infrastructure independence.
 One generated sqlc package owns query bindings/models only. RPC packages mirror
 public services, convert values, validate and authorize methods, and share one
-error mapper. `cmd/server` constructs dependencies and owns configuration,
-routing and lifecycle. No RPC or sqlc type is a business model.
+error mapper. `cmd/server` constructs dependencies and owns configuration and
+lifecycle. `internal/router` mounts the constructed RPC servers and applies
+authentication, authorization and validation. No RPC or sqlc type is a business
+model.
 
 Pickup/delivery snapshots are copied locally and serialized independently of
 protobuf. Other services' IDs are references, without cross-service joins or

@@ -20,10 +20,12 @@ func (m *Mutator) Mutate(ctx context.Context, id string, build func(Order, []Off
 		if err != nil {
 			return err
 		}
+
 		offers, err := tx.Relationships(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		change, err := build(current, offers)
 		if err != nil {
 			return err
@@ -31,9 +33,11 @@ func (m *Mutator) Mutate(ctx context.Context, id string, build func(Order, []Off
 		if change == nil {
 			return nil
 		}
+
 		if !strings.EqualFold(change.Order.ID, id) || change.ExpectedRevision != current.Revision {
 			return ErrConflict
 		}
+
 		return tx.Apply(ctx, *change)
 	})
 }

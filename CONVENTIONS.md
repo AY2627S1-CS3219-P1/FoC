@@ -11,6 +11,25 @@
 - Execution plans under `docs/plans/` describe intended work, not proof that it has
   landed. Verify the target branch before treating a plan as the current structure.
 
+## Go readability
+
+- Separate functions and type declarations with a blank line. Within functions,
+  use blank lines between logical steps such as validation, database access,
+  conversion and response construction.
+- Keep a call, its immediate error check and associated cleanup registration
+  together. Use spacing to group related statements, rather than separating
+  every line.
+- Expand long struct and configuration literals across multiple lines so their
+  fields are easy to scan.
+- Name boolean helpers as predicates that read naturally at call sites, such as
+  `HasParticipant(userID)`, `IsRequestedBy(userID)` and `IsValid()`. Parameter
+  names should identify what is being checked.
+- In longer files, use brief section comments to identify groups of related
+  responsibilities. Within complex functions, mark major phases and explain
+  non-obvious constraints. Avoid decorative banners and comments that simply
+  restate the code.
+- Choose logical spacing deliberately; `gofmt` preserves it but does not add it.
+
 ## Go checks
 
 - Run `make fmt` from the repository root to apply Go formatting.

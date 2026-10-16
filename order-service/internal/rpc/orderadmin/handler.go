@@ -27,9 +27,11 @@ func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.Lis
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	p, err := s.operations.ListUserOrders(ctx, shared.Caller(ctx), m.GetUserId(), r)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	return connect.NewResponse(&pb.ListUserOrdersResponse{Orders: shared.Orders(p.Orders), PageInfo: shared.PageInfo(p.PageInfo)}), nil
 }

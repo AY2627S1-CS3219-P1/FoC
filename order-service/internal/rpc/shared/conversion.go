@@ -16,6 +16,7 @@ func Caller(ctx context.Context) app.Caller {
 	return app.Caller{ID: c.ID, Admin: c.Admin, Suspended: c.Role == "suspended_user"}
 }
 
+// Enum mappings keep protobuf values at the RPC boundary.
 var statuses = map[pb.OrderStatus]app.Status{
 	pb.OrderStatus_ORDER_STATUS_UNSPECIFIED:         "",
 	pb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION: app.PendingReservation,
@@ -44,12 +45,14 @@ var offerStatuses = map[pb.OfferStatus]app.OfferStatus{
 	pb.OfferStatus_OFFER_STATUS_VOID:        app.OfferVoid,
 }
 
+// Request conversion rejects enum values outside the domain contract.
 func ListRequest(page, size int32, status pb.OrderStatus, role pb.ParticipantRole) (app.ListRequest, error) {
 	s, validStatus := statuses[status]
 	r, validRole := roles[role]
 	if !validStatus || !validRole {
 		return app.ListRequest{}, app.ErrInvalid
 	}
+
 	return app.ListRequest{Page: app.Page{Number: page, Size: size}, Status: s, Role: r}, nil
 }
 
@@ -58,9 +61,11 @@ func OfferStatus(status pb.OfferStatus) (app.OfferStatus, error) {
 	if !ok {
 		return "", app.ErrInvalid
 	}
+
 	return s, nil
 }
 
+// Response conversion exposes domain orders and offers as protobuf views.
 func Order(o app.Order) *pb.Order {
 	var status pb.OrderStatus
 	for value, domain := range statuses {
@@ -69,15 +74,32 @@ func Order(o app.Order) *pb.Order {
 			break
 		}
 	}
+
 	return &pb.Order{
-		Id: o.ID, RequesterId: o.RequesterID, CourierId: o.CourierID, Status: status,
-		Pickup: location(o.Pickup), Delivery: &pb.DeliveryDetails{Location: location(o.Delivery), Instructions: o.DeliveryInstructions},
-		ItemDescription: o.ItemDescription, RewardCredits: o.RewardCredits,
-		DeliveryDuration: durationpb.New(o.DeliveryDuration), ExpiresAt: timestamppb.New(o.ExpiresAt),
-		AssignedAt: timestamp(o.AssignedAt), PickedUpAt: timestamp(o.PickedUpAt), DeliveredAt: timestamp(o.DeliveredAt),
-		CompletedAt: timestamp(o.CompletedAt), ClosedAt: timestamp(o.ClosedAt), CloseReason: o.CloseReason,
-		UnattendedDelivery: o.UnattendedDelivery, ItemLocation: o.ItemLocation, Revision: o.Revision,
-		CreatedAt: timestamppb.New(o.CreatedAt), UpdatedAt: timestamppb.New(o.UpdatedAt),
+		Id:          o.ID,
+		RequesterId: o.RequesterID,
+		CourierId:   o.CourierID,
+		Status:      status,
+		Pickup:      location(o.Pickup),
+		Delivery: &pb.DeliveryDetails{
+			Location:     location(o.Delivery),
+			Instructions: o.DeliveryInstructions,
+		},
+		ItemDescription:    o.ItemDescription,
+		RewardCredits:      o.RewardCredits,
+		DeliveryDuration:   durationpb.New(o.DeliveryDuration),
+		ExpiresAt:          timestamppb.New(o.ExpiresAt),
+		AssignedAt:         timestamp(o.AssignedAt),
+		PickedUpAt:         timestamp(o.PickedUpAt),
+		DeliveredAt:        timestamp(o.DeliveredAt),
+		CompletedAt:        timestamp(o.CompletedAt),
+		ClosedAt:           timestamp(o.ClosedAt),
+		CloseReason:        o.CloseReason,
+		UnattendedDelivery: o.UnattendedDelivery,
+		ItemLocation:       o.ItemLocation,
+		Revision:           o.Revision,
+		CreatedAt:          timestamppb.New(o.CreatedAt),
+		UpdatedAt:          timestamppb.New(o.UpdatedAt),
 	}
 }
 
@@ -86,6 +108,7 @@ func Orders(orders []app.Order) []*pb.Order {
 	for i, o := range orders {
 		out[i] = Order(o)
 	}
+
 	return out
 }
 
@@ -97,14 +120,23 @@ func Offer(o app.Offer) *pb.Offer {
 			break
 		}
 	}
-	return &pb.Offer{Id: o.ID, OrderId: o.OrderID, CourierId: o.CourierID, Credits: o.Credits, Status: status,
-		CreatedAt: timestamppb.New(o.CreatedAt), UpdatedAt: timestamppb.New(o.UpdatedAt)}
+
+	return &pb.Offer{
+		Id:        o.ID,
+		OrderId:   o.OrderID,
+		CourierId: o.CourierID,
+		Credits:   o.Credits,
+		Status:    status,
+		CreatedAt: timestamppb.New(o.CreatedAt),
+		UpdatedAt: timestamppb.New(o.UpdatedAt),
+	}
 }
 
 func PageInfo(p app.PageInfo) *pb.PageInfo {
 	return &pb.PageInfo{Page: p.Number, PageSize: p.Size, TotalItems: p.Total, TotalPages: p.TotalPages()}
 }
 
+// Value helpers preserve optional location fields and timestamps.
 func location(l app.LocationSnapshot) *pb.LocationSnapshot {
 	return &pb.LocationSnapshot{LocationId: l.LocationID, Name: l.Name, BuildingName: l.BuildingName, Floor: l.Floor}
 }
@@ -113,5 +145,6 @@ func timestamp(t *time.Time) *timestamppb.Timestamp {
 	if t == nil {
 		return nil
 	}
+
 	return timestamppb.New(*t)
 }

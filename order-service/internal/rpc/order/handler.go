@@ -30,16 +30,19 @@ func (s *Server) GetOrder(ctx context.Context, req *connect.Request[pb.GetOrderR
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	return connect.NewResponse(&pb.GetOrderResponse{Order: shared.Order(o)}), nil
 }
 
 func (s *Server) ListOpenOrders(ctx context.Context, req *connect.Request[pb.ListOpenOrdersRequest]) (*connect.Response[pb.ListOpenOrdersResponse], error) {
 	m := req.Msg
 	r := app.ListRequest{Page: app.Page{Number: m.GetPage(), Size: m.GetPageSize()}, PickupID: m.GetPickupLocationId(), DeliveryID: m.GetDeliveryLocationId()}
+
 	p, err := s.operations.ListOpenOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	return connect.NewResponse(&pb.ListOpenOrdersResponse{Orders: shared.Orders(p.Orders), PageInfo: shared.PageInfo(p.PageInfo)}), nil
 }
 
@@ -49,10 +52,12 @@ func (s *Server) ListMyOrders(ctx context.Context, req *connect.Request[pb.ListM
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	p, err := s.operations.ListMyOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	return connect.NewResponse(&pb.ListMyOrdersResponse{Orders: shared.Orders(p.Orders), PageInfo: shared.PageInfo(p.PageInfo)}), nil
 }
 
@@ -61,13 +66,16 @@ func (s *Server) ListOffers(ctx context.Context, req *connect.Request[pb.ListOff
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	offers, err := s.operations.ListOffers(ctx, shared.Caller(ctx), req.Msg.GetOrderId(), status)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+
 	out := make([]*pb.Offer, len(offers))
 	for i, offer := range offers {
 		out[i] = shared.Offer(offer)
 	}
+
 	return connect.NewResponse(&pb.ListOffersResponse{Offers: out}), nil
 }

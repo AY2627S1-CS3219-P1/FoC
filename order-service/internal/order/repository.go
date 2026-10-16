@@ -7,16 +7,21 @@ import "context"
 type Repository interface {
 	Within(context.Context, func(Tx) error) error
 }
+
 type Tx interface {
 	LockOrder(context.Context, string) (Order, error)
+
 	// Relationships is a separate statement AFTER LockOrder completes.
 	Relationships(context.Context, string) ([]Offer, error)
+
 	Apply(context.Context, Change) error
 }
+
 type OfferChange struct {
 	Offer          Offer
 	ExpectedStatus OfferStatus
 }
+
 type Change struct {
 	ExpectedRevision int64
 	Order            Order

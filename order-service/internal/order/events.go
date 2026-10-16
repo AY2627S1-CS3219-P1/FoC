@@ -5,11 +5,13 @@ import (
 	"time"
 )
 
+// Audit records and durable facts describe the same aggregate revision.
 type AuditEntry struct {
 	PreviousStatus, Status Status
 	At                     time.Time
 	Details                json.RawMessage
 }
+
 type FactKind string
 
 const (
@@ -47,6 +49,7 @@ type FactsPayload struct {
 // NewChange builds mandatory audit/facts. Creation is expected revision zero,
 // Pending Reservation only. Metadata changes produce an audit but no status fact.
 func NewChange(before *Order, after Order, actor Actor, action Action, details json.RawMessage, newID func() string) (Change, error) {
+	// Establish the prior revision before checking the lifecycle and actor.
 	expected := int64(0)
 	previous := Status("")
 	if before != nil {
@@ -56,14 +59,17 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 			return Change{}, ErrInvalid
 		}
 	}
-	if after.Revision <= 0 || after.Revision != expected+1 || !after.Status.Valid() || (before == nil && (after.Status != PendingReservation || action != Create)) {
+
+	if after.Revision <= 0 || after.Revision != expected+1 || !after.Status.IsValid() || (before == nil && (after.Status != PendingReservation || action != Create)) {
 		return Change{}, ErrInvalid
 	}
 	if actor.Kind != System && ((actor.Kind != User && actor.Kind != Admin) || actor.ID == "") {
 		return Change{}, ErrForbidden
 	}
+
+	// Creation, status transitions and metadata amendments have distinct rules.
 	if before == nil {
-		if actor.Kind != User || !after.Requester(actor.ID) {
+		if actor.Kind != User || !after.IsRequestedBy(actor.ID) {
 			return Change{}, ErrForbidden
 		}
 	} else if previous != after.Status {
@@ -74,7 +80,7 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		if repeat || next != after.Status {
 			return Change{}, ErrPrecondition
 		}
-		if action == Assign && !after.Courier(actor.ID) {
+		if action == Assign && !after.IsAssignedTo(actor.ID) {
 			return Change{}, ErrInvalid
 		}
 	} else {
@@ -83,41 +89,75 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		if action != RecordItemLocation {
 			return Change{}, ErrPrecondition
 		}
-		if actor.Kind != User || !before.Courier(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
+		if actor.Kind != User || !before.IsAssignedTo(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
 			return Change{}, ErrPrecondition
 		}
 	}
+
 	if before != nil {
 		if err := validateFields(*before, after, action); err != nil {
 			return Change{}, err
 		}
 	}
 
+	// Every accepted change carries bounded, valid audit details.
 	if len(details) == 0 {
 		details = json.RawMessage(`{}`)
 	}
 	if len(details) > 4096 || !json.Valid(details) {
 		return Change{}, ErrInvalid
 	}
-	c := Change{ExpectedRevision: expected, Order: after, Actor: actor, Action: action, Audit: AuditEntry{PreviousStatus: previous, Status: after.Status, At: after.UpdatedAt, Details: details}}
+
+	c := Change{
+		ExpectedRevision: expected,
+		Order:            after,
+		Actor:            actor,
+		Action:           action,
+		Audit: AuditEntry{
+			PreviousStatus: previous,
+			Status:         after.Status,
+			At:             after.UpdatedAt,
+			Details:        details,
+		},
+	}
 	if previous == after.Status {
 		return c, nil
 	}
+
+	// Status facts preserve observations needed by downstream outcome consumers.
 	var previousCourierID *string
 	if before != nil {
 		previousCourierID = before.CourierID
 	}
-	payload, err := json.Marshal(FactsPayload{PreviousCourierID: previousCourierID, OrderID: after.ID, Revision: after.Revision, RequesterID: after.RequesterID, CourierID: after.CourierID, PreviousStatus: previous, Status: after.Status, Action: action, ReservedCredits: after.ReservedCredits, DeliveryDurationNS: int64(after.DeliveryDuration), PickedUpAt: after.PickedUpAt, DeliveredAt: after.DeliveredAt, AfterPickup: after.PickedUpAt != nil, At: after.UpdatedAt})
+
+	payload, err := json.Marshal(FactsPayload{
+		PreviousCourierID:  previousCourierID,
+		OrderID:            after.ID,
+		Revision:           after.Revision,
+		RequesterID:        after.RequesterID,
+		CourierID:          after.CourierID,
+		PreviousStatus:     previous,
+		Status:             after.Status,
+		Action:             action,
+		ReservedCredits:    after.ReservedCredits,
+		DeliveryDurationNS: int64(after.DeliveryDuration),
+		PickedUpAt:         after.PickedUpAt,
+		DeliveredAt:        after.DeliveredAt,
+		AfterPickup:        after.PickedUpAt != nil,
+		At:                 after.UpdatedAt,
+	})
 	if err != nil {
 		return Change{}, err
 	}
+
 	add := func(k FactKind) { c.Facts = append(c.Facts, Fact{ID: newID(), Kind: k, Version: 1, Payload: payload}) }
 	add(StatusChanged)
 	if after.Status == Completed || after.Status == Cancelled || after.Status == Expired || after.Status == Failed {
 		add(Outcome)
 	}
-	if previous == Delivering && action == Cancel && actor.Kind == User && after.Courier(actor.ID) {
+	if previous == Delivering && action == Cancel && actor.Kind == User && after.IsAssignedTo(actor.ID) {
 		add(CourierWarning)
 	}
+
 	return c, nil
 }

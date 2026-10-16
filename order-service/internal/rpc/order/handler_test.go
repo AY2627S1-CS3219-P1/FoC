@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/validate"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	rpcorder "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/orderadmin"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -79,19 +79,21 @@ type clients struct {
 
 func mount(t *testing.T, f *fakeOperations, role string) clients {
 	t.Helper()
-	mux := http.NewServeMux()
-	path, handler := orderv1connect.NewOrderServiceHandler(rpcorder.NewServer(f), connect.WithInterceptors(auth.RequireCaller(), validate.NewInterceptor()))
-	mux.Handle(path, handler)
-	path, handler = orderv1connect.NewOrderAdminServiceHandler(orderadmin.NewServer(f), connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()))
-	mux.Handle(path, handler)
 	// Identity injection isolates method authorization from the HTTP authenticator,
 	// which is exercised at the production server boundary.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if role != "" {
-			r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: role, Admin: role == "admin" || role == "super_admin"}))
-		}
-		mux.ServeHTTP(w, r)
-	}))
+	authenticate := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if role != "" {
+				r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: role, Admin: role == "admin" || role == "super_admin"}))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	server := httptest.NewServer(router.Setup(router.RPCServices{
+		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+		Order:  rpcorder.NewServer(f),
+		Admin:  orderadmin.NewServer(f),
+	}, authenticate))
 	t.Cleanup(server.Close)
 	return clients{order: orderv1connect.NewOrderServiceClient(server.Client(), server.URL), admin: orderv1connect.NewOrderAdminServiceClient(server.Client(), server.URL), internal: orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL)}
 }

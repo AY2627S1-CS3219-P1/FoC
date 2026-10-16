@@ -133,7 +133,7 @@ func (f *fixture) transition(id string, a Action, actor Actor) error {
 			after.CourierID = nil
 			after.AssignedAt = nil
 		}
-		if status.Terminal() && status != Completed {
+		if status.IsTerminal() && status != Completed {
 			after.ClosedAt = &after.UpdatedAt
 		}
 		c, e := NewChange(&before, after, actor, a, nil, uuid.NewString)

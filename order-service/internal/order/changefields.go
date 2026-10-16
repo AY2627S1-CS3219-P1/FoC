@@ -10,6 +10,7 @@ func validateFields(before, after Order, action Action) error {
 	expected.Status = after.Status
 	expected.Revision = after.Revision
 	expected.UpdatedAt = after.UpdatedAt
+
 	switch action {
 	case Assign:
 		expected.CourierID = after.CourierID
@@ -39,9 +40,11 @@ func validateFields(before, after Order, action Action) error {
 	default:
 		return ErrInvalid
 	}
+
 	if !reflect.DeepEqual(expected, after) {
 		return ErrInvalid
 	}
+
 	return nil
 }
 
@@ -54,17 +57,21 @@ func cloneOrder(o Order) Order {
 	o.DeliveryInstructions = clonePointer(o.DeliveryInstructions)
 	o.CloseReason = clonePointer(o.CloseReason)
 	o.ItemLocation = clonePointer(o.ItemLocation)
+
 	o.AssignedAt = clonePointer(o.AssignedAt)
 	o.PickedUpAt = clonePointer(o.PickedUpAt)
 	o.DeliveredAt = clonePointer(o.DeliveredAt)
 	o.CompletedAt = clonePointer(o.CompletedAt)
 	o.ClosedAt = clonePointer(o.ClosedAt)
+
 	return o
 }
+
 func clonePointer[T any](p *T) *T {
 	if p == nil {
 		return nil
 	}
+
 	v := *p
 	return &v
 }
