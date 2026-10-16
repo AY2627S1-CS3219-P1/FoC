@@ -36,7 +36,10 @@ The read RPCs are `GetOrder`, `ListOpenOrders`, `ListMyOrders`, `ListOffers` and
 admin `ListUserOrders`. HTTP authentication and Connect method authorization run
 before contract validation. Unknown/invisible resources return `not_found`;
 dependency diagnostics are logged and clients receive generic internal errors.
-The generated mutation/upload handlers remain unimplemented. The internal
+`ConfirmPickup` and `ConfirmReceipt` are implemented by `Progress` with local
+writes only; receipt settles through its outcome fact. Callers who can't see the
+order get `not_found`. The other generated mutation/upload handlers remain
+unimplemented. The internal
 participant RPC is not mounted. Image fields in read responses stay empty.
 
 Contributors should read [the architecture decision](../docs/adr/order-aggregate-foundation.md)
