@@ -17,9 +17,12 @@ type Operations interface {
 type Server struct {
 	orderv1connect.UnimplementedOrderAdminServiceHandler
 	operations Operations
+	images     shared.ItemImageViews
 }
 
-func NewServer(operations Operations) *Server { return &Server{operations: operations} }
+func NewServer(operations Operations, images shared.ItemImageViews) *Server {
+	return &Server{operations: operations, images: images}
+}
 
 func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.ListUserOrdersRequest]) (*connect.Response[pb.ListUserOrdersResponse], error) {
 	m := req.Msg
@@ -33,5 +36,9 @@ func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.Lis
 		return nil, shared.ConnectError(ctx, err)
 	}
 
-	return connect.NewResponse(&pb.ListUserOrdersResponse{Orders: shared.Orders(p.Orders), PageInfo: shared.PageInfo(p.PageInfo)}), nil
+	views, err := shared.OrderViews(ctx, shared.Caller(ctx), p.Orders, s.images)
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+	return connect.NewResponse(&pb.ListUserOrdersResponse{Orders: views, PageInfo: shared.PageInfo(p.PageInfo)}), nil
 }

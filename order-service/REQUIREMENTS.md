@@ -170,3 +170,23 @@ The following NFRs have no direct foundation test proving the stated requirement
 | NFR-18.1 / NFR-18.2 / NFR-18.5 | The storage fake tests interface semantics, without image-count, size-limit or pre-upload rejection workflows. |
 | NFR-19.1 | No request creation rate limiter or requests-per-account test is implemented. |
 | NFR-20 | Durable outbox facts are tested; publication to Credit and downstream settlement are deferred. |
+
+### Creation, images and publication execution
+
+The replacement implements R1.1.1–R1.1.9 and R1.1.12 at the backend boundary,
+including the five-image/10,000,000-byte limits and NFR-19.1 admission quota.
+[`tests/creation`](tests/creation) contains runnable PostgreSQL/Connect, Floci and
+Kafka coverage; see [setup and scope](README.md). Credit endpoints are scripted
+fixtures. Minimum courier rating (R1.1.10–11) depends on Review and is incomplete.
+
+| Requirement | Execution evidence and limit |
+| --- | --- |
+| NFR-04 / NFR-09 | Concurrent duplicate creation, stable identities, restart after remote success/local rollback, unknown outcomes, delayed responses and durable publication replay. Whole-deployment recovery is not certified. |
+| NFR-05 / NFR-06 | Image owner/attachment checks and authorized signed download grants. Proof-image workflows and the complete relationship/privacy NFR remain follow-ups. |
+| NFR-18 | Supported types, count, exact signed byte length, altered requests rejected before object storage, atomic attachment and orphan cleanup. Bodies are not decoded or converted. |
+| NFR-19.1 | Fifty distinct attempts admit ten per rolling minute; retained retries consume no quota. |
+| NFR-20 | **Partial:** Order publishes outcome events through real Kafka. Credit consumption, financial deduplication/settlement and five-minute reconciliation/alerts remain Credit dependencies. |
+
+Run `GOCACHE=/tmp/foc-go-build make -C order-service test-creation` from the root.
+Later lifecycle RPCs and browser UI are not implemented by this slice. Existing
+foundation tables above describe their original coverage, not the newer tests.
