@@ -126,9 +126,9 @@ jobs:
         working-directory: .
       - run: make buf-generate
         working-directory: .
-      - run: git diff --exit-code -- pkg/gen frontend/src/lib/gen
+      - run: git diff --exit-code -- pkg/gen pkg/kafkagen frontend/src/lib/gen
         working-directory: .
-      - run: test -z "$(git ls-files --others --exclude-standard -- pkg/gen frontend/src/lib/gen)"
+      - run: test -z "$(git ls-files --others --exclude-standard -- pkg/gen pkg/kafkagen frontend/src/lib/gen)"
         working-directory: .
       - run: npm run check
       - run: npm test
