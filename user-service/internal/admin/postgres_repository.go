@@ -50,7 +50,7 @@ func (p *PostgresAllowedAdminRepository) AllowDomain(ctx context.Context, domain
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch {
-		case pgErr.Code == "23505" && (pgErr.ConstraintName == "allowed_email_domains_domain_key" || pgErr.ConstraintName == "idx_allowed_email_domains_live"):
+		case pgErr.Code == "23505" && pgErr.ConstraintName == "allowed_email_domains_domain_key":
 			return fmt.Errorf("%w: %w", errDomainAlreadyExists, err)
 		case pgErr.Code == "23514" && pgErr.ConstraintName == "allowed_email_domains_domain_check":
 			return fmt.Errorf("%w: %w", errInvalidDomain, err)
