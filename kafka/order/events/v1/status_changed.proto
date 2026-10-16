@@ -23,4 +23,7 @@ message OrderStatusChanged {
   optional string courier_id = 8;
   string pickup_location_name = 9;
   google.protobuf.Timestamp occurred_at = 10;
+  // The assigned courier before this change. Differs from courier_id when the
+  // change removed them, as in a withdrawal or an admin unassignment.
+  optional string previous_courier_id = 11;
 }
