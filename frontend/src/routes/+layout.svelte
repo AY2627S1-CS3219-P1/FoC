@@ -59,20 +59,22 @@
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
 				<div class="nav-tabs">
-					<TabsLink
-						tab={page.url.pathname.startsWith('/admin/config') ? 'config' : page.url.pathname.startsWith('/admin/users') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
-						items={[
-							{ name: 'Home', value: 'home', href: '/' },
-							{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
-							{ name: 'Profile', value: 'profile', href: '/profile' },
-							...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
-								? [
-									{ name: 'Manage users', value: 'admin', href: '/admin/users' },
-									{ name: 'Config', value: 'config', href: '/admin/config' }
-								]
-								: [])
-						]}
-					/>
+					<div class="nav-tabs-content">
+						<TabsLink
+							tab={page.url.pathname.startsWith('/admin/config') ? 'config' : page.url.pathname.startsWith('/admin/users') ? 'admin' : page.url.pathname.startsWith('/profile') ? 'profile' : page.url.pathname.startsWith('/suppliers') ? 'suppliers' : 'home'}
+							items={[
+								{ name: 'Home', value: 'home', href: '/' },
+								{ name: 'Locations', value: 'suppliers', href: '/suppliers' },
+								{ name: 'Profile', value: 'profile', href: '/profile' },
+								...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN
+									? [
+										{ name: 'Manage users', value: 'admin', href: '/admin/users' },
+										{ name: 'Config', value: 'config', href: '/admin/config' }
+									]
+									: [])
+							]}
+						/>
+					</div>
 				</div>
 				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out'}</Button>
 			</nav>

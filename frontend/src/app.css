@@ -47,7 +47,7 @@ a { color: var(--m3c-primary); }
 }
 .site-nav { display: flex; align-items: center; gap: 0.35rem; min-width: 0; max-width: 100%; }
 .nav-tabs { min-width: 0; overflow-x: auto; }
-.nav-tabs > .m3-container { min-width: max-content; }
+.nav-tabs-content { min-width: max-content; }
 .site-nav > button { flex-shrink: 0; white-space: nowrap; }
 .snackbar-region {
 	--m3c-inverse-surface: var(--m3c-surface-container-high);
