@@ -52,7 +52,8 @@ func TestAllowedDomainErrors(t *testing.T) {
 	if err != nil || len(domains) != 0 {
 		t.Fatalf("empty allowlist should succeed: %v, %v", domains, err)
 	}
-	if err := service.AllowDomain(ctx, "example.com", actorID); err != nil {
+	// The service lowercases before persisting; assert the stored value.
+	if err := service.AllowDomain(ctx, "EXAMPLE.COM", actorID); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -99,6 +100,9 @@ func TestAllowedDomainErrors(t *testing.T) {
 	domains, err = service.ListAllowedDomains(ctx)
 	if err != nil || len(domains) != 1 {
 		t.Fatalf("list allowed domains: %v, %v", domains, err)
+	}
+	if domains[0].Domain != "example.com" {
+		t.Fatalf("stored domain %q, want the lowercased request value", domains[0].Domain)
 	}
 	if err := service.RemoveAllowedDomain(ctx, domains[0].ID); err != nil {
 		t.Fatal(err)

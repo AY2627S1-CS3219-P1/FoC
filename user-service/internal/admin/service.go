@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/google/uuid"
@@ -26,8 +27,13 @@ func (s *AllowedDomainService) ListAllowedDomains(
 	return s.repo.ListAllowedDomains(ctx)
 }
 
+// normalizeDomain lowercases and trims client-supplied domain input.
+func normalizeDomain(domain string) string {
+	return strings.ToLower(strings.TrimSpace(domain))
+}
+
 func (s *AllowedDomainService) IsDomainAllowed(ctx context.Context, domain string) (bool, error) {
-	return s.repo.IsDomainAllowed(ctx, domain)
+	return s.repo.IsDomainAllowed(ctx, normalizeDomain(domain))
 }
 
 func (s *AllowedDomainService) AllowDomain(
@@ -35,7 +41,7 @@ func (s *AllowedDomainService) AllowDomain(
 	domain string,
 	actorID uuid.UUID,
 ) error {
-	err := s.repo.AllowDomain(ctx, domain, actorID)
+	err := s.repo.AllowDomain(ctx, normalizeDomain(domain), actorID)
 	switch {
 	case errors.Is(err, errDomainAlreadyExists):
 		return errs.WrapAlreadyExistsError(err, "domain already allowed")
