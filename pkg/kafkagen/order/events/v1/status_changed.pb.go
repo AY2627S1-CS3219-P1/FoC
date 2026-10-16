@@ -37,8 +37,11 @@ type OrderStatusChanged struct {
 	CourierId          *string                `protobuf:"bytes,8,opt,name=courier_id,json=courierId,proto3,oneof" json:"courier_id,omitempty"`
 	PickupLocationName string                 `protobuf:"bytes,9,opt,name=pickup_location_name,json=pickupLocationName,proto3" json:"pickup_location_name,omitempty"`
 	OccurredAt         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// The assigned courier before this change. Differs from courier_id when the
+	// change removed them, as in a withdrawal or an admin unassignment.
+	PreviousCourierId *string `protobuf:"bytes,11,opt,name=previous_courier_id,json=previousCourierId,proto3,oneof" json:"previous_courier_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *OrderStatusChanged) Reset() {
@@ -141,11 +144,18 @@ func (x *OrderStatusChanged) GetOccurredAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *OrderStatusChanged) GetPreviousCourierId() string {
+	if x != nil && x.PreviousCourierId != nil {
+		return *x.PreviousCourierId
+	}
+	return ""
+}
+
 var File_order_events_v1_status_changed_proto protoreflect.FileDescriptor
 
 const file_order_events_v1_status_changed_proto_rawDesc = "" +
 	"\n" +
-	"$order/events/v1/status_changed.proto\x12\x0forder.events.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\"order/events/v1/shared_types.proto\"\xd6\x03\n" +
+	"$order/events/v1/status_changed.proto\x12\x0forder.events.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\"order/events/v1/shared_types.proto\"\xa3\x04\n" +
 	"\x12OrderStatusChanged\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\tR\aorderId\x12\x1a\n" +
@@ -159,8 +169,10 @@ const file_order_events_v1_status_changed_proto_rawDesc = "" +
 	"\x14pickup_location_name\x18\t \x01(\tR\x12pickupLocationName\x12;\n" +
 	"\voccurred_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"occurredAtB\r\n" +
-	"\v_courier_idB\xd0\x01\n" +
+	"occurredAt\x123\n" +
+	"\x13previous_courier_id\x18\v \x01(\tH\x01R\x11previousCourierId\x88\x01\x01B\r\n" +
+	"\v_courier_idB\x16\n" +
+	"\x14_previous_courier_idB\xd0\x01\n" +
 	"\x13com.order.events.v1B\x12StatusChangedProtoP\x01ZGgithub.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1;eventsv1\xa2\x02\x03OEX\xaa\x02\x0fOrder.Events.V1\xca\x02\x0fOrder\\Events\\V1\xe2\x02\x1bOrder\\Events\\V1\\GPBMetadata\xea\x02\x11Order::Events::V1b\x06proto3"
 
 var (
