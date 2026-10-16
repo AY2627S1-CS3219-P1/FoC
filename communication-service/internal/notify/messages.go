@@ -11,6 +11,8 @@ type role int
 const (
 	requester role = iota
 	courier
+	// The courier this change removed from the order.
+	previousCourier
 )
 
 type recipient struct {
@@ -33,18 +35,25 @@ func recipients(e *eventsv1.OrderStatusChanged) []recipient {
 	if id := e.GetCourierId(); id != "" && !strings.EqualFold(id, actor) && !strings.EqualFold(id, e.GetRequesterId()) {
 		out = append(out, recipient{id, courier})
 	}
+	if id := e.GetPreviousCourierId(); id != "" && e.GetCourierId() == "" && !strings.EqualFold(id, actor) {
+		out = append(out, recipient{id, previousCourier})
+	}
 	return out
 }
 
 // message returns the text for one recipient, or "" when the change needs no
 // message for them.
 func message(e *eventsv1.OrderStatusChanged, r role) string {
-	order := "your order"
-	if r == courier {
-		order = "the order you're delivering"
-	}
+	order := map[role]string{requester: "your order", courier: "the order you're delivering", previousCourier: "the order"}[r]
 	if name := e.GetPickupLocationName(); name != "" {
 		order += " from " + name
+	}
+
+	if r == previousCourier {
+		if e.GetStatus() != eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER {
+			return ""
+		}
+		return "You've been unassigned from " + order + ". You don't need to pick it up."
 	}
 
 	switch e.GetStatus() {

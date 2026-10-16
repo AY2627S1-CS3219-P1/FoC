@@ -3,6 +3,8 @@ package notify
 import (
 	"testing"
 
+	"github.com/google/uuid"
+
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 )
 
@@ -31,6 +33,25 @@ func TestRecipientsExcludeTheActor(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUnassignedCourierIsNotified(t *testing.T) {
+	admin := &eventsv1.Actor{Type: eventsv1.ActorType_ACTOR_TYPE_ADMIN, UserId: new(uuid.NewString())}
+	e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER, admin)
+	e.CourierId, e.PreviousCourierId = nil, new(courierID.String())
+	got := recipients(e)
+	if len(got) != 2 || got[0].role != requester || got[1] != (recipient{courierID.String(), previousCourier}) {
+		t.Fatalf("recipients = %+v", got)
+	}
+	if text := message(e, previousCourier); text != "You've been unassigned from the order from Fine Food. You don't need to pick it up." {
+		t.Fatalf("message = %q", text)
+	}
+
+	// A courier who withdraws caused the change, so they aren't told.
+	e.Actor = user(courierID)
+	if got := recipients(e); len(got) != 1 || got[0].role != requester {
+		t.Fatalf("withdrawal recipients = %+v", got)
 	}
 }
 
