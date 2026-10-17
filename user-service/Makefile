@@ -2,9 +2,15 @@
 
 SERVER_PATH=./cmd/server/main.go
 MIGRATIONS_DIR=./migrations
+SQLC_PATH=./database
+
+.PHONY: sqlc
 
 run:
 	@air
+
+sqlc:
+	@cd $(SQLC_PATH) && sqlc generate
 
 # Integration tests reset a shared TEST_DATABASE_URL, so packages must run one at a time.
 test-integration:

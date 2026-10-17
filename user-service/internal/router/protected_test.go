@@ -14,11 +14,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	pagination "github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -55,6 +57,26 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+type reviewStub struct{}
+
+func (reviewStub) SubmitReview(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission) error {
+	return nil
+}
+
+func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
+	return review.ReviewPage{}, nil
+}
+
+func (reviewStub) ListReviewFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
+	return review.ReviewPage{}, nil
+}
+
+func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
+
+func (reviewStub) ListReviewRemovals(context.Context) ([]review.ReviewRemoval, error) {
+	return nil, nil
+}
+
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -74,6 +96,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		router.ProtectedRoutes{
 			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
 			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
+			Review:       &review.Handler{Logic: reviewStub{}},
 			Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
