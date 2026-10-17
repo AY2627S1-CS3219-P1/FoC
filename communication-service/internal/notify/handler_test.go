@@ -35,11 +35,18 @@ type fakeSender struct {
 	errs map[int64]error
 }
 
-func (f *fakeSender) SendMessage(_ context.Context, chatID int64, text string) error {
+func (f *fakeSender) Send(_ context.Context, chatID int64, text string, _ *telegram.InlineKeyboard) (telegram.Message, error) {
 	if err := f.errs[chatID]; err != nil {
-		return err
+		return telegram.Message{}, err
 	}
 	f.sent = append(f.sent, sent{chatID, text})
+	return telegram.Message{MessageID: int64(100 + len(f.sent)), Chat: telegram.Chat{ID: chatID}}, nil
+}
+
+type fakeTargets map[[2]int64]uuid.UUID
+
+func (f fakeTargets) SaveReplyTarget(_ context.Context, chatID, messageID int64, orderID uuid.UUID, _ time.Time) error {
+	f[[2]int64{chatID, messageID}] = orderID
 	return nil
 }
 
@@ -190,5 +197,18 @@ func TestHandleSkipsWithoutSending(t *testing.T) {
 				t.Fatalf("sent = %+v", sender.sent)
 			}
 		})
+	}
+}
+
+func TestHandleMakesNotificationsRepliable(t *testing.T) {
+	h, _, _, _ := newHandler()
+	targets := fakeTargets{}
+	h.ReplyTargets = targets
+	e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, user(courierID))
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+		t.Fatal(err)
+	}
+	if got := targets[[2]int64{1, 101}]; got.String() != e.GetOrderId() {
+		t.Fatalf("reply targets = %v", targets)
 	}
 }

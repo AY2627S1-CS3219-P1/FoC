@@ -1,6 +1,6 @@
 # Communication Service
 
-Runs the FoC Telegram bot. It links FoC accounts to Telegram chats and sends order updates; chat relay will follow.
+Runs the FoC Telegram bot. It links FoC accounts to Telegram chats, sends order updates, and relays chat between an order's requester and courier.
 
 Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`.
 
@@ -20,6 +20,16 @@ The service consumes `order.status_changed` (consumer group `communication-servi
 - **Stale events are skipped.** Events more than an hour old aren't sent. This also stops a new consumer group, which starts from the earliest offset, from sending an old backlog.
 - **Unreachable chats are unlinked.** If Telegram says the user blocked the bot or the chat doesn't exist, the chat is unlinked and the message skipped. Other 4xx rejections are logged and skipped, because they would fail every time.
 - **Telegram outages pause notifications.** A 429, 5xx or network error stops the consumer without committing the event. It restarts after 1 second, doubling up to 1 minute, and retries the event, so later events wait until Telegram recovers.
+
+## Order chat
+
+A requester and courier chat through the bot without seeing each other's Telegram accounts. Each relayed message is labelled with the sender's role and the order, such as "Your courier (Fine Food order):".
+
+- **Who can chat.** The participants are a local copy of each order, kept in `order_participants` by the same `order.status_changed` consumer as notifications. Communication doesn't call Order Service, so chat keeps working while Order is down. Events are applied only if their revision is newer, so replays and late events can't restore an old courier. The copy can lag while the consumer is paused.
+- **When.** From assignment (Awaiting Pickup) until Delivered, and for an hour after a Completed, Cancelled or Failed order ends.
+- **Which order.** A reply to a relayed message or a notification goes to that message's order. Otherwise the message goes to the order chosen with `/chat`, or to the user's only open chat. A user with several open chats who hasn't chosen one is shown buttons to choose. Sending a message also makes its order the sender's current choice.
+- **Failures.** The sender is told when the other person hasn't connected Telegram, has blocked the bot (their chat is then unlinked), or a send failed transiently. Only text is relayed.
+- **Retention.** Relayed messages are stored in `chat_messages` for disputes. An hourly job deletes them 30 days after their order ends, along with that order's routing data and notification records older than 30 days.
 
 ## Run locally
 
@@ -70,16 +80,17 @@ curl -X POST localhost:8084/communication.v1.HealthService/Check -H 'Content-Typ
 | `internal/bot` | Handles `/start` and blocked chats |
 | `internal/linking` | Link codes and links, with the Postgres store |
 | `internal/notify` | Order notification recipients, messages and sent records |
+| `internal/chat` | Order participants, chat relay, `/chat` selection and retention |
 | `internal/handlers/health` | `HealthService` Connect handler |
 | `internal/handlers/telegramlink` | `TelegramLinkService` Connect handler |
 | `internal/router` | Mounts the handlers; everything except health requires an access token |
 
 ## Tests
 
-`go test ./...` runs everything except the Postgres tests, which need a throwaway database because they truncate the linking tables:
+`go test ./...` runs everything except the Postgres tests, which need a throwaway database because they truncate the linking and chat tables:
 
 ```sh
-TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' go test ./internal/linking/
+TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' go test ./internal/linking/ ./internal/chat/
 ```
 
 The notifications test also needs a broker with the `order.status_changed` topic. It runs the consumer against a fake Telegram API that fails the first send, then checks the replay sends once:

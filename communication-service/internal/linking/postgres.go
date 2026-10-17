@@ -92,6 +92,25 @@ func (s *PostgresStore) GetLink(ctx context.Context, userID uuid.UUID) (Link, er
 	return link, nil
 }
 
+// GetLinkByChat implements Store.
+func (s *PostgresStore) GetLinkByChat(ctx context.Context, chatID int64) (Link, error) {
+	link := Link{ChatID: chatID}
+	var username *string
+	err := s.Pool.QueryRow(ctx,
+		`SELECT user_id, telegram_username, linked_at FROM telegram_links WHERE chat_id = $1`, chatID).
+		Scan(&link.UserID, &username, &link.LinkedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Link{}, ErrNotLinked
+	}
+	if err != nil {
+		return Link{}, fmt.Errorf("get link by chat: %w", err)
+	}
+	if username != nil {
+		link.Username = *username
+	}
+	return link, nil
+}
+
 // DeleteLink implements Store.
 func (s *PostgresStore) DeleteLink(ctx context.Context, userID uuid.UUID) error {
 	if _, err := s.Pool.Exec(ctx, `DELETE FROM telegram_links WHERE user_id = $1`, userID); err != nil {

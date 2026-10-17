@@ -1,6 +1,7 @@
 // Command server runs the Communication Service: apply migrations, serve the
 // Telegram linking API and, when a bot token is configured, run the Telegram
-// bot and send order notifications from Kafka until SIGINT/SIGTERM.
+// bot, send order notifications from Kafka and relay order chat until
+// SIGINT/SIGTERM.
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/bot"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/chat"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
@@ -115,8 +117,10 @@ func main() {
 	// Telegram is optional: without a working token the service still serves,
 	// and linking reports unavailable.
 	var botUsername atomic.Pointer[string]
-	if startBot(ctx, cfg, log, links, &botUsername) {
-		startNotifications(ctx, cfg, log, links, pool)
+	chats := &chat.PostgresStore{Pool: pool}
+	go chat.RunCleanup(ctx, chats, log, time.Now)
+	if startBot(ctx, cfg, log, links, chats, &botUsername) {
+		startNotifications(ctx, cfg, log, links, chats, pool)
 	}
 	currentBot := func() string {
 		if name := botUsername.Load(); name != nil {
@@ -153,7 +157,7 @@ func main() {
 // startBot verifies the token and starts polling in the background, and
 // reports whether it started. botUsername holds the bot's username while it
 // is polling.
-func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, botUsername *atomic.Pointer[string]) bool {
+func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore, botUsername *atomic.Pointer[string]) bool {
 	if cfg.telegramToken == "" {
 		log.Warn("TELEGRAM_BOT_TOKEN is not set; Telegram is disabled")
 		return false
@@ -166,9 +170,11 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 	}
 	log.Info("telegram bot ready", "username", me.Username)
 
+	sender := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout})
+	relay := &chat.Relay{Sender: sender, Links: links, Store: chats, Log: log, Now: time.Now}
 	poller := &telegram.Poller{
 		Source:  client,
-		Handle:  (&bot.Handler{Sender: client, Linker: links, Log: log}).Handle,
+		Handle:  (&bot.Handler{Sender: sender, Linker: links, Chat: relay, Log: log}).Handle,
 		Log:     log,
 		Timeout: pollTimeout,
 	}
@@ -183,33 +189,44 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 }
 
 // startNotifications consumes order status changes in the background when
-// Kafka is configured. It runs only with a working bot, so offsets aren't
-// committed for messages that were never sent.
-func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, pool *pgxpool.Pool) {
+// Kafka is configured: it updates the chat participants, then sends
+// notifications. It runs only with a working bot, so offsets aren't committed
+// for messages that were never sent.
+func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore, pool *pgxpool.Pool) {
 	if len(cfg.kafkaBrokers) == 0 {
 		log.Warn("KAFKA_BROKERS is not set; order notifications are disabled")
 		return
 	}
 	handler := &notify.Handler{
-		Sender:     telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
-		Links:      links,
-		Deliveries: &notify.PostgresDeliveries{Pool: pool},
-		Log:        log,
-		Now:        time.Now,
+		Sender:       telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
+		Links:        links,
+		Deliveries:   &notify.PostgresDeliveries{Pool: pool},
+		ReplyTargets: chats,
+		Log:          log,
+		Now:          time.Now,
 	}
-	go runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handler)
+	projection := &chat.Projection{Store: chats, Log: log, Now: time.Now}
+	handle := func(ctx context.Context, meta kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
+		if err := projection.Apply(ctx, e); err != nil {
+			return err
+		}
+		return handler.Handle(ctx, meta, e)
+	}
+	go runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle)
 }
 
 // runNotifications restarts the consumer until ctx is cancelled. pkg/kafka
 // stops a subscriber on any handler error, so a Telegram outage pauses
 // notifications and the restart replays the uncommitted event.
-func runNotifications(ctx context.Context, brokers []string, group string, log *slog.Logger, handler *notify.Handler) {
+func runNotifications(ctx context.Context, brokers []string, group string, log *slog.Logger,
+	handle func(context.Context, kafka.Metadata, *eventsv1.OrderStatusChanged) error,
+) {
 	delay := consumerRestartDelay
 	for {
 		subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: group})
 		if err == nil {
 			err = kafka.Register(subscriber, notify.Topic,
-				func() *eventsv1.OrderStatusChanged { return new(eventsv1.OrderStatusChanged) }, handler.Handle)
+				func() *eventsv1.OrderStatusChanged { return new(eventsv1.OrderStatusChanged) }, handle)
 		}
 		if err != nil {
 			log.Error("order notifications are disabled", "err", err)
