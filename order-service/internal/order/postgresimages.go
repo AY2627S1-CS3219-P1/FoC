@@ -54,21 +54,21 @@ func (r *PostgresRepository) DeleteOrphanImage(ctx context.Context, id string) e
 }
 
 func (t *postgresTx) AttachCreationImages(ctx context.Context, owner, orderID string, items []ItemImageUpload) error {
-	if len(items) > 5 || !t.creationCallers[owner] || !t.applied[orderID] {
-		return t.creationWrite(ErrPrecondition)
+	if len(items) > 5 || !t.idempotencyCallers[IdempotencyScope{CallerID: owner, Method: CreateOrderMethod}] || !t.applied[orderID] {
+		return t.writeResult(ErrPrecondition)
 	}
 	for i, item := range items {
 		orderUUID := uuid.MustParse(orderID)
 		ordinal := int32(i)
 		if item.OwnerID != owner || item.State != "uploading" {
-			return t.creationWrite(ErrPrecondition)
+			return t.writeResult(ErrPrecondition)
 		}
 		n, err := t.q.AttachItemImage(ctx, db.AttachItemImageParams{ID: uuid.MustParse(item.ID), OwnerID: uuid.MustParse(owner), OrderID: &orderUUID, Ordinal: &ordinal, ObjectKey: item.Key, SizeBytes: item.SizeBytes, ContentType: item.ContentType})
 		if err != nil {
-			return t.creationWrite(err)
+			return t.writeResult(err)
 		}
 		if n != 1 {
-			return t.creationWrite(ErrPrecondition)
+			return t.writeResult(ErrPrecondition)
 		}
 	}
 	return nil

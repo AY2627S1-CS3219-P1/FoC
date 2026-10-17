@@ -28,20 +28,6 @@ func (q *Queries) CountRecentCreations(ctx context.Context, arg CountRecentCreat
 	return count, err
 }
 
-const deleteCreationKey = `-- name: DeleteCreationKey :exec
-DELETE FROM order_creation_keys WHERE caller_id = $1 AND method = '/order.v1.OrderService/CreateOrder' AND idempotency_key = $2
-`
-
-type DeleteCreationKeyParams struct {
-	CallerID       uuid.UUID
-	IdempotencyKey uuid.UUID
-}
-
-func (q *Queries) DeleteCreationKey(ctx context.Context, arg DeleteCreationKeyParams) error {
-	_, err := q.db.Exec(ctx, deleteCreationKey, arg.CallerID, arg.IdempotencyKey)
-	return err
-}
-
 const dueCreations = `-- name: DueCreations :many
 SELECT order_id FROM order_creation_workflows
 WHERE phase IN ('reserve_pending','abort_pending') AND lease_until <= $1::timestamptz
@@ -74,55 +60,42 @@ func (q *Queries) DueCreations(ctx context.Context, arg DueCreationsParams) ([]u
 	return items, nil
 }
 
-const getCreationByKey = `-- name: GetCreationByKey :one
-SELECT w.id, w.order_id, w.requester_id, w.canonical_version, w.canonical_request, w.request_hash, w.reservation_amount, w.expires_at, w.phase, w.generation, w.attempts, w.lease_until, w.next_attempt_at, w.last_error, w.rejection, w.result, w.created_at, w.updated_at, k.expires_at AS key_expires_at
-FROM order_creation_keys k JOIN order_creation_workflows w ON w.id = k.workflow_id
-WHERE k.caller_id = $1 AND k.method = '/order.v1.OrderService/CreateOrder' AND k.idempotency_key = $2
-`
-
-type GetCreationByKeyParams struct {
-	CallerID       uuid.UUID
-	IdempotencyKey uuid.UUID
-}
-
-type GetCreationByKeyRow struct {
-	OrderCreationWorkflow OrderCreationWorkflow
-	KeyExpiresAt          time.Time
-}
-
-func (q *Queries) GetCreationByKey(ctx context.Context, arg GetCreationByKeyParams) (GetCreationByKeyRow, error) {
-	row := q.db.QueryRow(ctx, getCreationByKey, arg.CallerID, arg.IdempotencyKey)
-	var i GetCreationByKeyRow
-	err := row.Scan(
-		&i.OrderCreationWorkflow.ID,
-		&i.OrderCreationWorkflow.OrderID,
-		&i.OrderCreationWorkflow.RequesterID,
-		&i.OrderCreationWorkflow.CanonicalVersion,
-		&i.OrderCreationWorkflow.CanonicalRequest,
-		&i.OrderCreationWorkflow.RequestHash,
-		&i.OrderCreationWorkflow.ReservationAmount,
-		&i.OrderCreationWorkflow.ExpiresAt,
-		&i.OrderCreationWorkflow.Phase,
-		&i.OrderCreationWorkflow.Generation,
-		&i.OrderCreationWorkflow.Attempts,
-		&i.OrderCreationWorkflow.LeaseUntil,
-		&i.OrderCreationWorkflow.NextAttemptAt,
-		&i.OrderCreationWorkflow.LastError,
-		&i.OrderCreationWorkflow.Rejection,
-		&i.OrderCreationWorkflow.Result,
-		&i.OrderCreationWorkflow.CreatedAt,
-		&i.OrderCreationWorkflow.UpdatedAt,
-		&i.KeyExpiresAt,
-	)
-	return i, err
-}
-
 const getCreationWorkflow = `-- name: GetCreationWorkflow :one
 SELECT id, order_id, requester_id, canonical_version, canonical_request, request_hash, reservation_amount, expires_at, phase, generation, attempts, lease_until, next_attempt_at, last_error, rejection, result, created_at, updated_at FROM order_creation_workflows WHERE order_id = $1
 `
 
 func (q *Queries) GetCreationWorkflow(ctx context.Context, orderID uuid.UUID) (OrderCreationWorkflow, error) {
 	row := q.db.QueryRow(ctx, getCreationWorkflow, orderID)
+	var i OrderCreationWorkflow
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.RequesterID,
+		&i.CanonicalVersion,
+		&i.CanonicalRequest,
+		&i.RequestHash,
+		&i.ReservationAmount,
+		&i.ExpiresAt,
+		&i.Phase,
+		&i.Generation,
+		&i.Attempts,
+		&i.LeaseUntil,
+		&i.NextAttemptAt,
+		&i.LastError,
+		&i.Rejection,
+		&i.Result,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCreationWorkflowByID = `-- name: GetCreationWorkflowByID :one
+SELECT id, order_id, requester_id, canonical_version, canonical_request, request_hash, reservation_amount, expires_at, phase, generation, attempts, lease_until, next_attempt_at, last_error, rejection, result, created_at, updated_at FROM order_creation_workflows WHERE id = $1
+`
+
+func (q *Queries) GetCreationWorkflowByID(ctx context.Context, id uuid.UUID) (OrderCreationWorkflow, error) {
+	row := q.db.QueryRow(ctx, getCreationWorkflowByID, id)
 	var i OrderCreationWorkflow
 	err := row.Scan(
 		&i.ID,
@@ -158,28 +131,6 @@ func (q *Queries) HasPendingCreations(ctx context.Context) (bool, error) {
 	return exists, err
 }
 
-const insertCreationKey = `-- name: InsertCreationKey :exec
-INSERT INTO order_creation_keys (caller_id,method,idempotency_key,workflow_id,expires_at)
-VALUES ($1,'/order.v1.OrderService/CreateOrder',$2,$3,$4)
-`
-
-type InsertCreationKeyParams struct {
-	CallerID       uuid.UUID
-	IdempotencyKey uuid.UUID
-	WorkflowID     uuid.UUID
-	ExpiresAt      time.Time
-}
-
-func (q *Queries) InsertCreationKey(ctx context.Context, arg InsertCreationKeyParams) error {
-	_, err := q.db.Exec(ctx, insertCreationKey,
-		arg.CallerID,
-		arg.IdempotencyKey,
-		arg.WorkflowID,
-		arg.ExpiresAt,
-	)
-	return err
-}
-
 const insertCreationWorkflow = `-- name: InsertCreationWorkflow :exec
 INSERT INTO order_creation_workflows (id,order_id,requester_id,canonical_version,canonical_request,request_hash,reservation_amount,expires_at,phase,lease_until,next_attempt_at,created_at,updated_at)
 VALUES ($1,$2,$3,1,$4,$5,$6,$7,'reserve_pending',$8,$9,$10,$11)
@@ -213,15 +164,6 @@ func (q *Queries) InsertCreationWorkflow(ctx context.Context, arg InsertCreation
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	return err
-}
-
-const lockCreationCaller = `-- name: LockCreationCaller :exec
-SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
-`
-
-func (q *Queries) LockCreationCaller(ctx context.Context, lockKey string) error {
-	_, err := q.db.Exec(ctx, lockCreationCaller, lockKey)
 	return err
 }
 

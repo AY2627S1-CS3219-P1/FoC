@@ -280,7 +280,7 @@ func TestItemImagesWithS3(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if wins != 1 || f.count(t, "orders") != 1 || f.count(t, "order_creation_keys") != 1 || s.remotes.holds != 1 {
+		if wins != 1 || f.count(t, "orders") != 1 || f.count(t, "order_idempotency_keys") != 1 || s.remotes.holds != 1 {
 			t.Fatal("attachment race admitted twice")
 		}
 	})

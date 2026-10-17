@@ -96,7 +96,7 @@ func (s *Creator) Create(ctx context.Context, caller Caller, input CreateInput) 
 	}
 
 	err = s.repository.WithinCreation(ctx, func(tx CreationTx) error {
-		if err := tx.LockCreationCaller(ctx, caller.ID); err != nil {
+		if err := tx.LockIdempotencyCaller(ctx, IdempotencyScope{CallerID: caller.ID, Method: CreateOrderMethod}); err != nil {
 			return err
 		}
 		now := s.now().UTC()
@@ -145,7 +145,10 @@ func (s *Creator) Create(ctx context.Context, caller Caller, input CreateInput) 
 		if err := tx.InsertCreation(ctx, w, input.Key); err != nil {
 			return err
 		}
-		workflow = &w
+		workflow = &CreationReplay{
+			Workflow: w,
+			Key:      creationIdempotencyKey(w, input.Key),
+		}
 		return nil
 	})
 	if err != nil {
@@ -200,10 +203,11 @@ func canonicalCreation(in CreateInput) (CreateInput, []byte, string, error) {
 	return in, canonical, hex.EncodeToString(digest[:]), nil
 }
 
-func (s *Creator) resume(ctx context.Context, w CreationWorkflow, hash string) (Order, error) {
-	if w.Hash != hash {
-		return Order{}, ErrAlreadyExists
+func (s *Creator) resume(ctx context.Context, replay CreationReplay, hash string) (Order, error) {
+	if err := replay.Key.CheckRequestHash(hash); err != nil {
+		return Order{}, err
 	}
+	w := replay.Workflow
 	if !w.IsResolved() && s.credit != nil {
 		inline, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := s.ProcessCreation(inline, w.OrderID)
@@ -214,18 +218,18 @@ func (s *Creator) resume(ctx context.Context, w CreationWorkflow, hash string) (
 		// An inline budget/dependency failure leaves durable work for recovery. A
 		// database failure is still reported; the admitted identity remains intact.
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			return Order{}, err
+			return Order{}, creationReplayError(err)
 		}
 	}
 	var result Order
 	err := s.repository.WithinCreation(ctx, func(tx CreationTx) error {
 		current, err := tx.LockOrder(ctx, w.OrderID)
 		if err != nil {
-			return err
+			return creationReplayError(err)
 		}
 		workflow, err := tx.LockCreation(ctx, w.OrderID)
 		if err != nil {
-			return err
+			return creationReplayError(err)
 		}
 		switch workflow.Phase {
 		case CreationRejected:
@@ -243,10 +247,10 @@ func (s *Creator) resume(ctx context.Context, w CreationWorkflow, hash string) (
 	return result, err
 }
 
-func (s *Creator) findCreation(ctx context.Context, caller, key string) (*CreationWorkflow, error) {
-	var result *CreationWorkflow
+func (s *Creator) findCreation(ctx context.Context, caller, key string) (*CreationReplay, error) {
+	var result *CreationReplay
 	err := s.repository.WithinCreation(ctx, func(tx CreationTx) error {
-		if err := tx.LockCreationCaller(ctx, caller); err != nil {
+		if err := tx.LockIdempotencyCaller(ctx, IdempotencyScope{CallerID: caller, Method: CreateOrderMethod}); err != nil {
 			return err
 		}
 		var err error
@@ -267,4 +271,13 @@ func (s *Creator) recheckCreation(ctx context.Context, caller, key, hash string,
 		return s.resume(ctx, *existing, hash)
 	}
 	return Order{}, cause
+}
+
+// A key has already been found before replay. Losing its workflow or Order
+// during a later lock/recovery step is still an integrity failure, not not_found.
+func creationReplayError(err error) error {
+	if errors.Is(err, ErrNotFound) {
+		return ErrIdempotencyIntegrity
+	}
+	return err
 }
