@@ -14,7 +14,7 @@ import (
 )
 
 // ErrOffsetOverflow is returned when the requested page and page size map to an
-// offset that would overflow the platform integer. It is a sentinel callers
+// offset that would exceed the database's offset range. It is a sentinel callers
 // compare against to reject a request, never a panic.
 var ErrOffsetOverflow = errors.New("pagination offset out of range")
 
@@ -22,6 +22,10 @@ const (
 	defaultPage     = 1
 	defaultPageSize = 20
 	maxPageSize     = 100
+	// offsetMaxInt32 is the largest OFFSET PostgreSQL accepts: LIMIT/OFFSET
+	// arguments are int4, so a larger offset is rejected by the server. Pages
+	// beyond it are rejected here instead of wrapping or erroring in SQL.
+	offsetMaxInt32 = 2_147_483_647
 )
 
 // Pagination is a request-side offset page. page is the canonical wire field;
@@ -33,8 +37,9 @@ type Pagination struct {
 
 // New normalizes request input into a Pagination. page and page_size are
 // coerced to defaults (page 0 or below -> 1, page_size 0 or below -> 20) and
-// page_size is clamped to a maximum of 100. A page too large to map to a valid
-// offset is rejected with ErrOffsetOverflow rather than silently truncating.
+// page_size is clamped to a maximum of 100. A page whose offset would exceed
+// the database's int4 offset range is rejected with ErrOffsetOverflow rather
+// than wrapping to a bogus page or failing in SQL.
 func New(page, pageSize int) (Pagination, error) {
 	p := page
 	if p <= 0 {
@@ -47,7 +52,9 @@ func New(page, pageSize int) (Pagination, error) {
 	if size > maxPageSize {
 		size = maxPageSize
 	}
-	if p-1 > math.MaxInt/size {
+	// p and size fit in int32 (page comes from an int32 proto field), so the
+	// product fits in int64 and cannot overflow.
+	if int64(p-1)*int64(size) > offsetMaxInt32 {
 		return Pagination{}, ErrOffsetOverflow
 	}
 	return Pagination{page: p, pageSize: size}, nil
