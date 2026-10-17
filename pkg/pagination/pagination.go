@@ -10,7 +10,6 @@ package pagination
 
 import (
 	"errors"
-	"math"
 )
 
 // ErrOffsetOverflow is returned when the requested page and page size map to an
@@ -81,11 +80,12 @@ type PageInfo struct {
 
 // NewPageInfo builds the response PageInfo for a page of page_size rows whose
 // list holds totalItems rows. total_pages is ceil(total_items / page_size),
-// and is zero for an empty result.
+// and is zero for an empty result. The ceiling is computed in integer math:
+// a float64 conversion would lose precision above 2^53.
 func NewPageInfo(page, pageSize int, totalItems int64) PageInfo {
 	totalPages := 0
-	if pageSize > 0 {
-		totalPages = int(math.Ceil(float64(totalItems) / float64(pageSize)))
+	if pageSize > 0 && totalItems > 0 {
+		totalPages = int((totalItems + int64(pageSize) - 1) / int64(pageSize))
 	}
 	return PageInfo{page: page, pageSize: pageSize, totalItems: totalItems, totalPages: totalPages}
 }

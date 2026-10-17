@@ -59,3 +59,13 @@ func TestNewAcceptsOffsetAtDatabaseLimit(t *testing.T) {
 		t.Fatalf("offset = %d, want %d", got, offsetMaxInt32/100*100)
 	}
 }
+
+func TestNewPageInfoTotalPagesExactAboveFloatPrecision(t *testing.T) {
+	// 2^53 + 1 is the smallest integer a float64 cannot represent exactly; the
+	// old math.Ceil(float64/float64) computation would return 2^53 here.
+	const totalItems = int64(1<<53 + 1)
+	info := NewPageInfo(1, 1, totalItems)
+	if got := info.TotalPages(); got != int(totalItems) {
+		t.Fatalf("TotalPages() = %d, want %d", got, totalItems)
+	}
+}
