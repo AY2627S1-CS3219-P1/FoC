@@ -5,8 +5,6 @@ syntax = "proto3";
 // another service's internal pagination message would couple their contracts.
 package pagination.v1;
 
-import "buf/validate/validate.proto";
-
 // Pagination is a request-side offset page. page is the canonical wire field;
 // offset is derived server-side from page and page_size and is never
 // transmitted alongside it. An omitted Pagination is treated as the first page

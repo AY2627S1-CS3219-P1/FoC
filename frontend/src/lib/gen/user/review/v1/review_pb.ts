@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/review/v1/review.proto.
  */
 export const file_user_review_v1_review: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIqEBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiKdAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UiYgoKUmV2aWV3UGFnZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvImUKGUxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQESLQoKcGFnaW5hdGlvbhgCIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJFChRMaXN0TXlSZXZpZXdzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkgKE1JlbW92ZVJldmlld1JlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEhsKBnJlYXNvbhgCIAEoCUILukgIcgYQARigjQYiFgoUUmVtb3ZlUmV2aWV3UmVzcG9uc2UiqwEKDVJldmlld1JlbW92YWwSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmVhc29uGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYByABKAkiGwoZTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdCJJChZSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlEi8KCHJlbW92YWxzGAEgAygLMh0udXNlci5yZXZpZXcudjEuUmV2aWV3UmVtb3ZhbDLoAwoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJdChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GhoudXNlci5yZXZpZXcudjEuUmV2aWV3UGFnZSIAElMKDUxpc3RNeVJldmlld3MSJC51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVxdWVzdBoaLnVzZXIucmV2aWV3LnYxLlJldmlld1BhZ2UiABJbCgxSZW1vdmVSZXZpZXcSIy51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVzcG9uc2UiABJpChJMaXN0UmV2aWV3UmVtb3ZhbHMSKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0GiYudXNlci5yZXZpZXcudjEuUmV2aWV3UmVtb3ZhbHNSZXNwb25zZSIAQr4BChJjb20udXNlci5yZXZpZXcudjFCC1Jldmlld1Byb3RvUAFaQWdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvcmV2aWV3L3YxO3Jldmlld3YxogIDVVJYqgIOVXNlci5SZXZpZXcuVjHKAg5Vc2VyXFJldmlld1xWMeICGlVzZXJcUmV2aWV3XFYxXEdQQk1ldGFkYXRh6gIQVXNlcjo6UmV2aWV3OjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
+  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIqEBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiKdAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UicgoaTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJtChVMaXN0TXlSZXZpZXdzUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJlChlMaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iRQoUTGlzdE15UmV2aWV3c1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJIChNSZW1vdmVSZXZpZXdSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABARIbCgZyZWFzb24YAiABKAlCC7pICHIGEAEYoI0GIhYKFFJlbW92ZVJldmlld1Jlc3BvbnNlIqsBCg1SZXZpZXdSZW1vdmFsEgoKAmlkGAEgASgJEhMKC3Jldmlld2VyX2lkGAIgASgJEhMKC3Jldmlld2VlX2lkGAMgASgJEhAKCG9yZGVyX2lkGAQgASgJEg4KBnJlYXNvbhgFIAEoCRIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpjcmVhdGVkX2J5GAcgASgJIhsKGUxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QiTQoaTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2USLwoIcmVtb3ZhbHMYASADKAsyHS51c2VyLnJldmlldy52MS5SZXZpZXdSZW1vdmFsMocECg1SZXZpZXdTZXJ2aWNlElsKDFN1Ym1pdFJldmlldxIjLnVzZXIucmV2aWV3LnYxLlN1Ym1pdFJldmlld1JlcXVlc3QaJC51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXNwb25zZSIAEm0KEkxpc3RSZXZpZXdzRm9yVXNlchIpLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QaKi51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXNwb25zZSIAEl4KDUxpc3RNeVJldmlld3MSJC51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVxdWVzdBolLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZXNwb25zZSIAElsKDFJlbW92ZVJldmlldxIjLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1JlcXVlc3QaJC51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXNwb25zZSIAEm0KEkxpc3RSZXZpZXdSZW1vdmFscxIpLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QaKi51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXNwb25zZSIAQr4BChJjb20udXNlci5yZXZpZXcudjFCC1Jldmlld1Byb3RvUAFaQWdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvcmV2aWV3L3YxO3Jldmlld3YxogIDVVJYqgIOVXNlci5SZXZpZXcuVjHKAg5Vc2VyXFJldmlld1xWMeICGlVzZXJcUmV2aWV3XFYxXEdQQk1ldGFkYXRh6gIQVXNlcjo6UmV2aWV3OjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
 
 /**
  * A review given by one participant about another for a single request.
@@ -149,11 +149,11 @@ export const SubmitReviewResponseSchema: GenMessage<SubmitReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 3);
 
 /**
- * A page of reviews plus its response totals.
+ * ListReviewsForUserResponse holds the reviews received by a user and its totals.
  *
- * @generated from message user.review.v1.ReviewPage
+ * @generated from message user.review.v1.ListReviewsForUserResponse
  */
-export type ReviewPage = Message<"user.review.v1.ReviewPage"> & {
+export type ListReviewsForUserResponse = Message<"user.review.v1.ListReviewsForUserResponse"> & {
   /**
    * @generated from field: repeated user.review.v1.Review reviews = 1;
    */
@@ -166,11 +166,35 @@ export type ReviewPage = Message<"user.review.v1.ReviewPage"> & {
 };
 
 /**
- * Describes the message user.review.v1.ReviewPage.
- * Use `create(ReviewPageSchema)` to create a new message.
+ * Describes the message user.review.v1.ListReviewsForUserResponse.
+ * Use `create(ListReviewsForUserResponseSchema)` to create a new message.
  */
-export const ReviewPageSchema: GenMessage<ReviewPage> = /*@__PURE__*/
+export const ListReviewsForUserResponseSchema: GenMessage<ListReviewsForUserResponse> = /*@__PURE__*/
   messageDesc(file_user_review_v1_review, 4);
+
+/**
+ * ListMyReviewsResponse holds the reviews the caller gave and its totals.
+ *
+ * @generated from message user.review.v1.ListMyReviewsResponse
+ */
+export type ListMyReviewsResponse = Message<"user.review.v1.ListMyReviewsResponse"> & {
+  /**
+   * @generated from field: repeated user.review.v1.Review reviews = 1;
+   */
+  reviews: Review[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.ListMyReviewsResponse.
+ * Use `create(ListMyReviewsResponseSchema)` to create a new message.
+ */
+export const ListMyReviewsResponseSchema: GenMessage<ListMyReviewsResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 5);
 
 /**
  * @generated from message user.review.v1.ListReviewsForUserRequest
@@ -195,7 +219,7 @@ export type ListReviewsForUserRequest = Message<"user.review.v1.ListReviewsForUs
  * Use `create(ListReviewsForUserRequestSchema)` to create a new message.
  */
 export const ListReviewsForUserRequestSchema: GenMessage<ListReviewsForUserRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 5);
+  messageDesc(file_user_review_v1_review, 6);
 
 /**
  * @generated from message user.review.v1.ListMyReviewsRequest
@@ -212,7 +236,7 @@ export type ListMyReviewsRequest = Message<"user.review.v1.ListMyReviewsRequest"
  * Use `create(ListMyReviewsRequestSchema)` to create a new message.
  */
 export const ListMyReviewsRequestSchema: GenMessage<ListMyReviewsRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 6);
+  messageDesc(file_user_review_v1_review, 7);
 
 /**
  * @generated from message user.review.v1.RemoveReviewRequest
@@ -236,7 +260,7 @@ export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> 
  * Use `create(RemoveReviewRequestSchema)` to create a new message.
  */
 export const RemoveReviewRequestSchema: GenMessage<RemoveReviewRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 7);
+  messageDesc(file_user_review_v1_review, 8);
 
 /**
  * @generated from message user.review.v1.RemoveReviewResponse
@@ -249,7 +273,7 @@ export type RemoveReviewResponse = Message<"user.review.v1.RemoveReviewResponse"
  * Use `create(RemoveReviewResponseSchema)` to create a new message.
  */
 export const RemoveReviewResponseSchema: GenMessage<RemoveReviewResponse> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 8);
+  messageDesc(file_user_review_v1_review, 9);
 
 /**
  * Audit row written when a review is removed.
@@ -298,7 +322,7 @@ export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {
  * Use `create(ReviewRemovalSchema)` to create a new message.
  */
 export const ReviewRemovalSchema: GenMessage<ReviewRemoval> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 9);
+  messageDesc(file_user_review_v1_review, 10);
 
 /**
  * @generated from message user.review.v1.ListReviewRemovalsRequest
@@ -311,12 +335,12 @@ export type ListReviewRemovalsRequest = Message<"user.review.v1.ListReviewRemova
  * Use `create(ListReviewRemovalsRequestSchema)` to create a new message.
  */
 export const ListReviewRemovalsRequestSchema: GenMessage<ListReviewRemovalsRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 10);
+  messageDesc(file_user_review_v1_review, 11);
 
 /**
- * @generated from message user.review.v1.ReviewRemovalsResponse
+ * @generated from message user.review.v1.ListReviewRemovalsResponse
  */
-export type ReviewRemovalsResponse = Message<"user.review.v1.ReviewRemovalsResponse"> & {
+export type ListReviewRemovalsResponse = Message<"user.review.v1.ListReviewRemovalsResponse"> & {
   /**
    * @generated from field: repeated user.review.v1.ReviewRemoval removals = 1;
    */
@@ -324,11 +348,11 @@ export type ReviewRemovalsResponse = Message<"user.review.v1.ReviewRemovalsRespo
 };
 
 /**
- * Describes the message user.review.v1.ReviewRemovalsResponse.
- * Use `create(ReviewRemovalsResponseSchema)` to create a new message.
+ * Describes the message user.review.v1.ListReviewRemovalsResponse.
+ * Use `create(ListReviewRemovalsResponseSchema)` to create a new message.
  */
-export const ReviewRemovalsResponseSchema: GenMessage<ReviewRemovalsResponse> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 11);
+export const ListReviewRemovalsResponseSchema: GenMessage<ListReviewRemovalsResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 12);
 
 /**
  * @generated from service user.review.v1.ReviewService
@@ -348,7 +372,7 @@ export const ReviewService: GenService<{
   listReviewsForUser: {
     methodKind: "unary";
     input: typeof ListReviewsForUserRequestSchema;
-    output: typeof ReviewPageSchema;
+    output: typeof ListReviewsForUserResponseSchema;
   },
   /**
    * @generated from rpc user.review.v1.ReviewService.ListMyReviews
@@ -356,7 +380,7 @@ export const ReviewService: GenService<{
   listMyReviews: {
     methodKind: "unary";
     input: typeof ListMyReviewsRequestSchema;
-    output: typeof ReviewPageSchema;
+    output: typeof ListMyReviewsResponseSchema;
   },
   /**
    * @generated from rpc user.review.v1.ReviewService.RemoveReview
@@ -372,7 +396,7 @@ export const ReviewService: GenService<{
   listReviewRemovals: {
     methodKind: "unary";
     input: typeof ListReviewRemovalsRequestSchema;
-    output: typeof ReviewRemovalsResponseSchema;
+    output: typeof ListReviewRemovalsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_review_v1_review, 0);

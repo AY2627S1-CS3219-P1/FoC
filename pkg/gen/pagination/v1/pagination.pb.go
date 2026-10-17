@@ -11,7 +11,6 @@
 package paginationv1
 
 import (
-	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -162,7 +161,7 @@ var File_pagination_v1_pagination_proto protoreflect.FileDescriptor
 
 const file_pagination_v1_pagination_proto_rawDesc = "" +
 	"\n" +
-	"\x1epagination/v1/pagination.proto\x12\rpagination.v1\x1a\x1bbuf/validate/validate.proto\"=\n" +
+	"\x1epagination/v1/pagination.proto\x12\rpagination.v1\"=\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +

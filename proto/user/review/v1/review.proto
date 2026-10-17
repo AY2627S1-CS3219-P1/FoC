@@ -10,10 +10,10 @@ import "google/protobuf/timestamp.proto";
 
 service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
-  rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ReviewPage) {}
-  rpc ListMyReviews(ListMyReviewsRequest) returns (ReviewPage) {}
+  rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
+  rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
-  rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ReviewRemovalsResponse) {}
+  rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
 }
 
 // A review given by one participant about another for a single request.
@@ -53,8 +53,14 @@ message SubmitReviewRequest {
 
 message SubmitReviewResponse {}
 
-// A page of reviews plus its response totals.
-message ReviewPage {
+// ListReviewsForUserResponse holds the reviews received by a user and its totals.
+message ListReviewsForUserResponse {
+  repeated Review reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+// ListMyReviewsResponse holds the reviews the caller gave and its totals.
+message ListMyReviewsResponse {
   repeated Review reviews = 1;
   pagination.v1.PageInfo pagination = 2;
 }
@@ -94,6 +100,6 @@ message ReviewRemoval {
 
 message ListReviewRemovalsRequest {}
 
-message ReviewRemovalsResponse {
+message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
 }

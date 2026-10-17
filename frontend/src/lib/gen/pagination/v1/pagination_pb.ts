@@ -8,14 +8,13 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file pagination/v1/pagination.proto.
  */
 export const file_pagination_v1_pagination: GenFile = /*@__PURE__*/
-  fileDesc("Ch5wYWdpbmF0aW9uL3YxL3BhZ2luYXRpb24ucHJvdG8SDXBhZ2luYXRpb24udjEiLQoKUGFnaW5hdGlvbhIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBSJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBUK/AQoRY29tLnBhZ2luYXRpb24udjFCD1BhZ2luYXRpb25Qcm90b1ABWkRnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9wYWdpbmF0aW9uL3YxO3BhZ2luYXRpb252MaICA1BYWKoCDVBhZ2luYXRpb24uVjHKAg1QYWdpbmF0aW9uXFYx4gIZUGFnaW5hdGlvblxWMVxHUEJNZXRhZGF0YeoCDlBhZ2luYXRpb246OlYxYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("Ch5wYWdpbmF0aW9uL3YxL3BhZ2luYXRpb24ucHJvdG8SDXBhZ2luYXRpb24udjEiLQoKUGFnaW5hdGlvbhIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBSJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBUK/AQoRY29tLnBhZ2luYXRpb24udjFCD1BhZ2luYXRpb25Qcm90b1ABWkRnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9wYWdpbmF0aW9uL3YxO3BhZ2luYXRpb252MaICA1BYWKoCDVBhZ2luYXRpb24uVjHKAg1QYWdpbmF0aW9uXFYx4gIZUGFnaW5hdGlvblxWMVxHUEJNZXRhZGF0YeoCDlBhZ2luYXRpb246OlYxYgZwcm90bzM");
 
 /**
  * Pagination is a request-side offset page. page is the canonical wire field;

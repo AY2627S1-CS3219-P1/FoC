@@ -66,7 +66,7 @@ func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv
 
 // ListReviewsForUser lists the reviews received by a user. A suspended caller is
 // restricted to their own reviews by authorizeSelfReviews.
-func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[reviewv1.ListReviewsForUserRequest]) (*connect.Response[reviewv1.ReviewPage], error) {
+func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[reviewv1.ListReviewsForUserRequest]) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
 	caller, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
@@ -86,11 +86,11 @@ func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[r
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(toReviewPage(pageResult)), nil
+	return connect.NewResponse(toListReviewsForUserResponse(pageResult)), nil
 }
 
 // ListMyReviews lists the reviews the caller gave.
-func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[reviewv1.ListMyReviewsRequest]) (*connect.Response[reviewv1.ReviewPage], error) {
+func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[reviewv1.ListMyReviewsRequest]) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -103,7 +103,7 @@ func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[review
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(toReviewPage(pageResult)), nil
+	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
 }
 
 // RemoveReview hard-deletes a review on behalf of an administrator and records
@@ -124,7 +124,7 @@ func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv
 }
 
 // ListReviewRemovals returns audit rows for removed reviews, newest first.
-func (h *Handler) ListReviewRemovals(ctx context.Context, _ *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ReviewRemovalsResponse], error) {
+func (h *Handler) ListReviewRemovals(ctx context.Context, _ *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
 	removals, err := h.Logic.ListReviewRemovals(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -133,7 +133,7 @@ func (h *Handler) ListReviewRemovals(ctx context.Context, _ *connect.Request[rev
 	for i, removal := range removals {
 		out[i] = toReviewRemovalProto(removal)
 	}
-	return connect.NewResponse(&reviewv1.ReviewRemovalsResponse{Removals: out}), nil
+	return connect.NewResponse(&reviewv1.ListReviewRemovalsResponse{Removals: out}), nil
 }
 
 // authorizeSelfReviews is the ABAC rule that is too tied to the request message
@@ -163,19 +163,38 @@ func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSub
 	return ReviewSubmission{Rating: int(submission.GetRating()), Comment: submission.GetComment()}
 }
 
-func toReviewPage(page ReviewPage) *reviewv1.ReviewPage {
-	reviews := make([]*reviewv1.Review, len(page.Reviews))
-	for i, review := range page.Reviews {
-		reviews[i] = toReviewProto(review)
+// toListReviewsForUserResponse builds the response for the list-received RPC.
+func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserResponse {
+	return &reviewv1.ListReviewsForUserResponse{
+		Reviews:    toReviewProtos(page.Reviews),
+		Pagination: toProtoPageInfo(page.PageInfo),
 	}
-	return &reviewv1.ReviewPage{
-		Reviews: reviews,
-		Pagination: &paginationv1.PageInfo{
-			Page:       int32(page.PageInfo.Page()),
-			PageSize:   int32(page.PageInfo.PageSize()),
-			TotalItems: page.PageInfo.TotalItems(),
-			TotalPages: int32(page.PageInfo.TotalPages()),
-		},
+}
+
+// toListMyReviewsResponse builds the response for the list-given RPC.
+func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
+	return &reviewv1.ListMyReviewsResponse{
+		Reviews:    toReviewProtos(page.Reviews),
+		Pagination: toProtoPageInfo(page.PageInfo),
+	}
+}
+
+// toReviewProtos converts a slice of reviews to the proto slice.
+func toReviewProtos(reviews []Review) []*reviewv1.Review {
+	out := make([]*reviewv1.Review, len(reviews))
+	for i, review := range reviews {
+		out[i] = toReviewProto(review)
+	}
+	return out
+}
+
+// toProtoPageInfo maps the shared pagination model to the proto PageInfo.
+func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
+	return &paginationv1.PageInfo{
+		Page:       int32(info.Page()),
+		PageSize:   int32(info.PageSize()),
+		TotalItems: info.TotalItems(),
+		TotalPages: int32(info.TotalPages()),
 	}
 }
 
