@@ -58,6 +58,49 @@ type OrderAudit struct {
 	Details         []byte
 }
 
+type OrderCreationWorkflow struct {
+	ID                uuid.UUID
+	OrderID           uuid.UUID
+	RequesterID       uuid.UUID
+	CanonicalVersion  int32
+	CanonicalRequest  []byte
+	RequestHash       string
+	ReservationAmount int64
+	ExpiresAt         time.Time
+	Phase             string
+	Generation        int64
+	Attempts          int32
+	LeaseUntil        time.Time
+	NextAttemptAt     time.Time
+	LastError         string
+	Rejection         string
+	Result            []byte
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type OrderIdempotencyKey struct {
+	CallerID       uuid.UUID
+	Method         string
+	IdempotencyKey uuid.UUID
+	ResourceID     uuid.UUID
+	ExpiresAt      time.Time
+	RequestHash    string
+}
+
+type OrderItemImage struct {
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	ObjectKey       string
+	ContentType     string
+	SizeBytes       int64
+	State           string
+	OrderID         *uuid.UUID
+	Ordinal         *int32
+	CreatedAt       time.Time
+	UploadExpiresAt time.Time
+}
+
 type OrderOutbox struct {
 	EventID        uuid.UUID
 	OrderID        uuid.UUID
@@ -68,4 +111,6 @@ type OrderOutbox struct {
 	Payload        []byte
 	CreatedAt      time.Time
 	PublishedAt    *time.Time
+	LeaseToken     *uuid.UUID
+	LeaseUntil     *time.Time
 }

@@ -148,3 +148,35 @@ func timestamp(t *time.Time) *timestamppb.Timestamp {
 
 	return timestamppb.New(*t)
 }
+
+// ItemImageViews is owned by the RPC projection boundary.
+type ItemImageViews interface {
+	ForOrder(context.Context, app.Caller, app.Order) ([]app.ItemImageView, error)
+}
+
+func OrderView(ctx context.Context, caller app.Caller, o app.Order, images ItemImageViews) (*pb.Order, error) {
+	result := Order(o)
+	if images == nil {
+		return result, nil
+	}
+	views, err := images.ForOrder(ctx, caller, o)
+	if err != nil {
+		return nil, err
+	}
+	for _, image := range views {
+		result.ItemImages = append(result.ItemImages, &pb.ItemImage{Id: image.ID, DownloadUrl: image.DownloadURL})
+	}
+	return result, nil
+}
+
+func OrderViews(ctx context.Context, caller app.Caller, orders []app.Order, images ItemImageViews) ([]*pb.Order, error) {
+	result := make([]*pb.Order, 0, len(orders))
+	for _, o := range orders {
+		view, err := OrderView(ctx, caller, o, images)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, view)
+	}
+	return result, nil
+}
