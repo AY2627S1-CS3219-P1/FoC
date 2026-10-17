@@ -64,8 +64,12 @@ FROM review_removals;
 -- Lock the reviewee row first, then read the aggregate in a separate statement,
 -- so a concurrent submit/remove about the same reviewee converges on the count
 -- and mean. A locking query must not also read the aggregate (see LANDMINES).
+-- FOR NO KEY UPDATE (not FOR UPDATE): the mode still serialises concurrent
+-- recalculations, but does not conflict with the FOR KEY SHARE locks that
+-- InsertReview's foreign-key checks take on the same users rows, so mutual
+-- submissions (A reviews B while B reviews A) cannot deadlock.
 -- name: LockReviewee :exec
-SELECT id FROM users WHERE id = @reviewee_id::UUID FOR UPDATE;
+SELECT id FROM users WHERE id = @reviewee_id::UUID FOR NO KEY UPDATE;
 
 -- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
