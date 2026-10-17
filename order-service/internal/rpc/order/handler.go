@@ -18,12 +18,21 @@ type Operations interface {
 	ListOffers(context.Context, app.Caller, string, app.OfferStatus) ([]app.Offer, error)
 }
 
+// Mutations contains the lifecycle actions consumed by this RPC service.
+type Mutations interface {
+	ConfirmPickup(context.Context, app.Caller, string) (app.Order, error)
+	ConfirmReceipt(context.Context, app.Caller, string) (app.Order, error)
+}
+
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
 	operations Operations
+	mutations  Mutations
 }
 
-func NewServer(operations Operations) *Server { return &Server{operations: operations} }
+func NewServer(operations Operations, mutations Mutations) *Server {
+	return &Server{operations: operations, mutations: mutations}
+}
 
 func (s *Server) GetOrder(ctx context.Context, req *connect.Request[pb.GetOrderRequest]) (*connect.Response[pb.GetOrderResponse], error) {
 	o, err := s.operations.GetOrder(ctx, shared.Caller(ctx), req.Msg.GetId())
@@ -78,4 +87,22 @@ func (s *Server) ListOffers(ctx context.Context, req *connect.Request[pb.ListOff
 	}
 
 	return connect.NewResponse(&pb.ListOffersResponse{Offers: out}), nil
+}
+
+func (s *Server) ConfirmPickup(ctx context.Context, req *connect.Request[pb.ConfirmPickupRequest]) (*connect.Response[pb.ConfirmPickupResponse], error) {
+	o, err := s.mutations.ConfirmPickup(ctx, shared.Caller(ctx), req.Msg.GetOrderId())
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+
+	return connect.NewResponse(&pb.ConfirmPickupResponse{Order: shared.Order(o)}), nil
+}
+
+func (s *Server) ConfirmReceipt(ctx context.Context, req *connect.Request[pb.ConfirmReceiptRequest]) (*connect.Response[pb.ConfirmReceiptResponse], error) {
+	o, err := s.mutations.ConfirmReceipt(ctx, shared.Caller(ctx), req.Msg.GetOrderId())
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+
+	return connect.NewResponse(&pb.ConfirmReceiptResponse{Order: shared.Order(o)}), nil
 }

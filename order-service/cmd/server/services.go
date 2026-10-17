@@ -10,11 +10,13 @@ import (
 )
 
 func newRPCServices(pool *pgxpool.Pool) router.RPCServices {
-	service := order.NewService(order.NewPostgresRepository(pool))
+	repository := order.NewPostgresRepository(pool)
+	service := order.NewService(repository)
+	progress := order.NewProgress(order.NewMutator(repository))
 
 	return router.RPCServices{
 		Health: &healthrpc.Server{DB: pool},
-		Order:  orderrpc.NewServer(service),
+		Order:  orderrpc.NewServer(service, progress),
 		Admin:  adminrpc.NewServer(service),
 	}
 }
