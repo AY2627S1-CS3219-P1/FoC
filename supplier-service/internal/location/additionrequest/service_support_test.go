@@ -19,5 +19,17 @@ func expectError(t *testing.T, got, want error) {
 }
 
 func validProposal() additionrequest.Proposal {
-	return additionrequest.Proposal{Name: " Cafe ", IsSupplier: true, CategoryIDs: []string{categoryID}, BuildingID: buildingID, Floor: ptr(" B1 "), Latitude: 1.294, Longitude: 103.774, OpenFrom: ptr(int64(22 * 3600000000)), OpenTo: ptr(int64(2 * 3600000000)), Contact: ptr(" contact "), Details: " directions "}
+	return additionrequest.Proposal{
+		Name:        " Cafe ",
+		IsSupplier:  true,
+		CategoryIDs: []string{categoryID},
+		BuildingID:  buildingID,
+		Floor:       ptr(" B1 "),
+		Latitude:    1.294,
+		Longitude:   103.774,
+		OpenFrom:    ptr(int64(22 * 3600000000)),
+		OpenTo:      ptr(int64(2 * 3600000000)),
+		Contact:     ptr(" contact "),
+		Details:     " directions ",
+	}
 }

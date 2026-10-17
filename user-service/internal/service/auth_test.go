@@ -89,7 +89,12 @@ func (f *fakeStore) CreateToken(_ context.Context, challenge *models.AuthToken) 
 	return nil
 }
 
-func (f *fakeStore) ConsumeToken(_ context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+func (f *fakeStore) ConsumeToken(
+	_ context.Context,
+	digest [32]byte,
+	purpose models.TokenPurpose,
+	now time.Time,
+) (*models.AuthToken, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	challenges := f.registrations
@@ -173,7 +178,12 @@ func (f fakeAuthTokens) Create(ctx context.Context, token *models.AuthToken) err
 	return f.CreateToken(ctx, token)
 }
 
-func (f fakeAuthTokens) Consume(ctx context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+func (f fakeAuthTokens) Consume(
+	ctx context.Context,
+	digest [32]byte,
+	purpose models.TokenPurpose,
+	now time.Time,
+) (*models.AuthToken, error) {
 	return f.ConsumeToken(ctx, digest, purpose, now)
 }
 
@@ -322,7 +332,14 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		t.Fatal("user was created before verification")
 	}
 	token := linkToken(t, link)
-	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(
+		ctx,
+		"not-a-token",
+		jwt.Profile{DisplayName: "New"},
+	); !errors.Is(
+		err,
+		jwt.ErrRegistrationFailed,
+	) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
 	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ",
@@ -337,7 +354,14 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		stored.PhoneNumber == nil || *stored.PhoneNumber != "+12345678" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New"},
+	); !errors.Is(
+		err,
+		jwt.ErrRegistrationFailed,
+	) {
 		t.Fatalf("reused registration token: %v", err)
 	}
 	oldRefresh := session.RefreshToken
@@ -512,7 +536,11 @@ func TestProductionLinkIsEmailOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("local email-only mode rejected: %v", err)
 	}
-	if err := localEmailOnly.RequestLink(context.Background(), "another@example.com"); err != nil || len(sender.messages) != 2 {
+	if err := localEmailOnly.RequestLink(
+		context.Background(),
+		"another@example.com",
+	); err != nil ||
+		len(sender.messages) != 2 {
 		t.Fatalf("local email mode: %v", err)
 	}
 }
@@ -527,19 +555,54 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	}
 	first := requestLink(t, service, "new@example.com")
 	second := requestLink(t, service, "new@example.com")
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " "}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: " "},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("invalid profile: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 101)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: strings.Repeat("x", 101)},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("display name exceeding database limit: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", TelegramHandle: ptr(strings.Repeat("x", 33))}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", TelegramHandle: ptr(strings.Repeat("x", 33))},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("telegram handle exceeding database limit: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", TelegramHandle: ptr("@invalid")}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", TelegramHandle: ptr("@invalid")},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("invalid telegram handle: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: ptr(strings.Repeat("1", 21))}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", PhoneNumber: ptr(strings.Repeat("1", 21))},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("phone number exceeding database limit: %v", err)
 	}
 	validName := strings.Repeat("x", MaxDisplayNameLength)
@@ -547,7 +610,14 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	if err != nil || user.DisplayName != validName {
 		t.Fatalf("100-character name after trimming: %+v, %v", user, err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, second), jwt.Profile{DisplayName: "Again"}); !errors.Is(err, jwt.ErrAlreadyRegistered) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, second),
+		jwt.Profile{DisplayName: "Again"},
+	); !errors.Is(
+		err,
+		jwt.ErrAlreadyRegistered,
+	) {
 		t.Fatalf("duplicate registration: %v", err)
 	}
 }
@@ -560,7 +630,14 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	ctx := context.Background()
 	token := addRegistrationChallenge(t, store, now)
 
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New"},
+	); !errors.Is(
+		err,
+		jwt.ErrRegistrationFailed,
+	) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
 	if len(store.users) != 0 {
@@ -735,8 +812,13 @@ func addLoginChallenge(t *testing.T, store *fakeStore, now time.Time) string {
 	}
 	user := testModelUser("user@example.com", models.RoleUser)
 	store.users[user.ID] = user
-	store.logins[digest] = models.AuthToken{TokenHash: append([]byte(nil), digest[:]...), Purpose: models.TokenPurposeLogin,
-		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(MagicLinkLifetime)}
+	store.logins[digest] = models.AuthToken{
+		TokenHash: append([]byte(nil), digest[:]...),
+		Purpose:   models.TokenPurposeLogin,
+		Email:     user.Email,
+		UserID:    &user.ID,
+		ExpiresAt: now.Add(MagicLinkLifetime),
+	}
 	return token
 }
 

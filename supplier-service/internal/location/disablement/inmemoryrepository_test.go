@@ -34,7 +34,11 @@ type TestRepository struct {
 }
 
 func newTestRepository() *TestRepository {
-	return &TestRepository{locations: map[string]disablement.Location{}, disablements: map[string]disablement.Disablement{}, keys: map[idempotency.Scope]idempotency.Record{}}
+	return &TestRepository{
+		locations:    map[string]disablement.Location{},
+		disablements: map[string]disablement.Disablement{},
+		keys:         map[idempotency.Scope]idempotency.Record{},
+	}
 }
 func copyValue[T any](v T) T {
 	b, _ := json.Marshal(v)
@@ -103,7 +107,13 @@ func (r *TestRepository) Overlaps(_ context.Context, d disablement.Disablement) 
 	return false, nil
 }
 
-func (r *TestRepository) ListDisablements(_ context.Context, id string, state disablement.DisablementState, now time.Time, p disablement.Page) ([]disablement.Disablement, int64, error) {
+func (r *TestRepository) ListDisablements(
+	_ context.Context,
+	id string,
+	state disablement.DisablementState,
+	now time.Time,
+	p disablement.Page,
+) ([]disablement.Disablement, int64, error) {
 	items := []disablement.Disablement{}
 	for _, v := range r.disablements {
 		if v.LocationID == id && (state == "" || v.State(now) == state) {

@@ -37,8 +37,14 @@ func MountLocationServices(r chi.Router, authenticate func(http.Handler) http.Ha
 		connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()))
 	r.Mount(adminPath, authenticate(adminHandler))
 	options := connect.WithInterceptors(services.DisablementInterceptor)
-	disablementPath, disablementHandler := locationv1connect.NewLocationDisablementServiceHandler(services.Disablement, options)
+	disablementPath, disablementHandler := locationv1connect.NewLocationDisablementServiceHandler(
+		services.Disablement,
+		options,
+	)
 	r.Mount(disablementPath, authenticate(disablementHandler))
-	requestPath, requestHandler := locationv1connect.NewLocationAdditionRequestServiceHandler(services.AdditionRequest, connect.WithInterceptors(services.AdditionRequestInterceptor))
+	requestPath, requestHandler := locationv1connect.NewLocationAdditionRequestServiceHandler(
+		services.AdditionRequest,
+		connect.WithInterceptors(services.AdditionRequestInterceptor),
+	)
 	r.Mount(requestPath, authenticate(requestHandler))
 }

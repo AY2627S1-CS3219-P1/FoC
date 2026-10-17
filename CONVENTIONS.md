@@ -13,6 +13,8 @@
 
 ## Go checks
 
+- Use `gofmt` and `golines` for handwritten Go, with a target line width of
+  120 characters. Generated files are excluded from formatting.
 - Run `make fmt` from the repository root to apply Go formatting.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
