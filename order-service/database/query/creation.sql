@@ -1,18 +1,3 @@
--- name: LockCreationCaller :exec
-SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key)::text, 0));
-
--- name: GetCreationByKey :one
-SELECT sqlc.embed(w), k.expires_at AS key_expires_at
-FROM order_creation_keys k JOIN order_creation_workflows w ON w.id = k.workflow_id
-WHERE k.caller_id = sqlc.arg(caller_id) AND k.method = '/order.v1.OrderService/CreateOrder' AND k.idempotency_key = sqlc.arg(idempotency_key);
-
--- name: DeleteCreationKey :exec
-DELETE FROM order_creation_keys WHERE caller_id = $1 AND method = '/order.v1.OrderService/CreateOrder' AND idempotency_key = $2;
-
--- name: InsertCreationKey :exec
-INSERT INTO order_creation_keys (caller_id,method,idempotency_key,workflow_id,expires_at)
-VALUES (sqlc.arg(caller_id),'/order.v1.OrderService/CreateOrder',sqlc.arg(idempotency_key),sqlc.arg(workflow_id),sqlc.arg(expires_at));
-
 -- name: CountRecentCreations :one
 SELECT count(*) FROM orders WHERE requester_id = sqlc.arg(requester_id) AND created_at > sqlc.arg(since_at)::timestamptz;
 
@@ -22,6 +7,9 @@ VALUES (sqlc.arg(id),sqlc.arg(order_id),sqlc.arg(requester_id),1,sqlc.arg(canoni
 
 -- name: GetCreationWorkflow :one
 SELECT * FROM order_creation_workflows WHERE order_id = $1;
+
+-- name: GetCreationWorkflowByID :one
+SELECT * FROM order_creation_workflows WHERE id = $1;
 
 -- name: LockCreationWorkflow :one
 SELECT * FROM order_creation_workflows WHERE order_id = $1 FOR UPDATE;

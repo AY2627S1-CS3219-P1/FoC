@@ -111,7 +111,7 @@ func databaseFixture(t *testing.T) *fixture {
 
 func (f *fixture) reset(t *testing.T) {
 	t.Helper()
-	if _, err := f.pool.Exec(f.ctx, "TRUNCATE order_outbox,order_audit,offers,orders CASCADE"); err != nil {
+	if _, err := f.pool.Exec(f.ctx, "TRUNCATE order_idempotency_keys,order_outbox,order_audit,offers,orders CASCADE"); err != nil {
 		t.Fatal(err)
 	}
 }

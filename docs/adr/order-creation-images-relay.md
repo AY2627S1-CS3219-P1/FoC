@@ -14,6 +14,24 @@ methods retain their original keyless request shapes.
 Migration 00002 is byte-for-byte preserved from the previous branch to avoid
 rewriting any applied migration. Migration 00003 adds owner-scoped image records
 and expiring outbox claims. No rollback migration or destructive reset is used.
+Migration 00004 renames the key table to `order_idempotency_keys`, removes the
+CreateOrder-only method check and workflow FK, and renames its pointer to generic
+`resource_id`. It backfills `request_hash` from workflows before making that
+column NOT NULL. The primary key remains `(caller_id, method, idempotency_key)`.
+Creation points to its workflow; future MakeOffer points to its offer, using the
+same transactional key lookup/insert/delete adapter and payload comparison.
+
+Key rows contain retry metadata only. Canonical creation payload, progress and
+result stay in the workflow table. The existing immutable workflow hash remains
+an integrity baseline; payload comparison uses the hash on the key row. A lookup
+reads the key before resolving its resource, so a missing or inconsistent
+resource fails internally instead of executing again, even when the key expired.
+The resource and key must be inserted in one owning-operation transaction.
+Caller/method advisory locks serialize duplicate admissions without conflating
+methods. Generic key lookup performs no expiry cleanup: only the operation that
+has resolved its resource may retire its mapping. Downgrade refuses keys that
+cannot be represented by the previous creation-only schema, without deleting them.
+
 Resolved creation mappings may retire after 24 hours; unresolved ones remain
 pinned. Successful responses describe the original creation; GetOrder describes
 current lifecycle. There is no default-off admission flag. Production creation

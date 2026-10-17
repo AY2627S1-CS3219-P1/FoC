@@ -123,8 +123,8 @@ func (w CreationWorkflow) Intent() ReservationIntent {
 // then load its workflow and relationships in subsequent statements.
 type CreationTx interface {
 	Tx
-	LockCreationCaller(context.Context, string) error
-	FindCreationKey(context.Context, string, string, time.Time) (*CreationWorkflow, error)
+	IdempotencyTx
+	FindCreationKey(context.Context, string, string, time.Time) (*CreationReplay, error)
 	CountRecentCreations(context.Context, string, time.Time) (int64, error)
 	InsertCreation(context.Context, CreationWorkflow, string) error
 	TryLockCreationOrder(context.Context, string) (Order, error)

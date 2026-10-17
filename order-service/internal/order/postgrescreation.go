@@ -41,49 +41,33 @@ func (r *PostgresRepository) HasPendingCreations(ctx context.Context) (bool, err
 	return db.New(r.pool).HasPendingCreations(ctx)
 }
 
-func (t *postgresTx) LockCreationCaller(ctx context.Context, caller string) error {
-	id, err := parseID(caller)
-	if err != nil {
-		return err
+func (t *postgresTx) FindCreationKey(ctx context.Context, caller, key string, now time.Time) (*CreationReplay, error) {
+	scope := IdempotencyScope{CallerID: caller, Method: CreateOrderMethod}
+	stored, err := t.FindIdempotencyKey(ctx, scope, key)
+	if err != nil || stored == nil {
+		return nil, err
 	}
-	if err := t.creationWrite(t.q.LockCreationCaller(ctx, "order.creation:"+id.String())); err != nil {
-		return err
-	}
-	if t.creationCallers == nil {
-		t.creationCallers = map[string]bool{}
-	}
-	t.creationCallers[id.String()] = true
-	return nil
-}
 
-func (t *postgresTx) FindCreationKey(ctx context.Context, caller, key string, now time.Time) (*CreationWorkflow, error) {
-	cid, err := parseID(caller)
-	if err != nil {
-		return nil, err
-	}
-	kid, err := parseID(key)
-	if err != nil {
-		return nil, err
-	}
-	if !t.creationCallers[cid.String()] {
-		return nil, ErrPrecondition
-	}
-	row, err := t.q.GetCreationByKey(ctx, db.GetCreationByKeyParams{CallerID: cid, IdempotencyKey: kid})
+	row, err := t.q.GetCreationWorkflowByID(ctx, uuid.MustParse(stored.ResourceID))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, t.writeResult(ErrIdempotencyIntegrity)
 	}
 	if err != nil {
 		return nil, err
 	}
-	w, err := fromCreation(row.OrderCreationWorkflow)
+	w, err := fromCreation(row)
 	if err != nil {
-		return nil, err
+		return nil, t.writeResult(fmt.Errorf("%w: %v", ErrIdempotencyIntegrity, err))
 	}
-	// Never expire an unresolved mapping, regardless of the client's 24h window.
-	if w.IsResolved() && !row.KeyExpiresAt.After(now) {
-		return nil, t.creationWrite(t.q.DeleteCreationKey(ctx, db.DeleteCreationKeyParams{CallerID: cid, IdempotencyKey: kid}))
+	if w.RequesterID != stored.Scope.CallerID || w.Hash != stored.RequestHash {
+		return nil, t.writeResult(ErrIdempotencyIntegrity)
 	}
-	return &w, nil
+	// Resolve the resource BEFORE considering expiry. A dangling expired mapping
+	// cannot silently become a fresh operation; unresolved workflows remain pinned.
+	if w.IsResolved() && !stored.ExpiresAt.After(now) {
+		return nil, t.DeleteIdempotencyKey(ctx, stored.Scope, stored.Key)
+	}
+	return &CreationReplay{Key: *stored, Workflow: w}, nil
 }
 
 func (t *postgresTx) CountRecentCreations(ctx context.Context, caller string, since time.Time) (int64, error) {
@@ -91,7 +75,7 @@ func (t *postgresTx) CountRecentCreations(ctx context.Context, caller string, si
 	if err != nil {
 		return 0, err
 	}
-	if !t.creationCallers[id.String()] {
+	if !t.idempotencyCallers[IdempotencyScope{CallerID: id.String(), Method: CreateOrderMethod}] {
 		return 0, ErrPrecondition
 	}
 	return t.q.CountRecentCreations(ctx, db.CountRecentCreationsParams{RequesterID: id, SinceAt: since})
@@ -114,17 +98,17 @@ func (t *postgresTx) InsertCreation(ctx context.Context, w CreationWorkflow, key
 	if err != nil {
 		return err
 	}
-	if !t.creationCallers[caller.String()] || !t.applied[orderID.String()] || w.Phase != ReservePending {
-		return t.creationWrite(ErrPrecondition)
+	if !t.idempotencyCallers[IdempotencyScope{CallerID: caller.String(), Method: CreateOrderMethod}] || !t.applied[orderID.String()] || w.Phase != ReservePending {
+		return t.writeResult(ErrPrecondition)
 	}
-	if err := t.creationWrite(t.q.InsertCreationWorkflow(ctx, db.InsertCreationWorkflowParams{
+	if err := t.writeResult(t.q.InsertCreationWorkflow(ctx, db.InsertCreationWorkflowParams{
 		ID: id, OrderID: orderID, RequesterID: caller, CanonicalRequest: w.Canonical, RequestHash: w.Hash,
 		ReservationAmount: w.Amount, ExpiresAt: w.ExpiresAt, LeaseUntil: w.LeaseUntil, NextAttemptAt: w.NextAttemptAt,
 		CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt,
 	})); err != nil {
 		return err
 	}
-	return t.creationWrite(t.q.InsertCreationKey(ctx, db.InsertCreationKeyParams{CallerID: caller, IdempotencyKey: kid, WorkflowID: id, ExpiresAt: w.CreatedAt.Add(24 * time.Hour)}))
+	return t.InsertIdempotencyKey(ctx, creationIdempotencyKey(w, kid.String()))
 }
 
 func (t *postgresTx) TryLockCreationOrder(ctx context.Context, orderID string) (Order, error) {
@@ -181,17 +165,17 @@ func (t *postgresTx) SaveCreation(ctx context.Context, w CreationWorkflow, expec
 		!w.CreatedAt.Equal(before.CreatedAt) || w.Generation < expected ||
 		w.Generation > expected+1 ||
 		(before.Phase == AbortPending && w.Phase != AbortPending && w.Phase != CreationRejected) {
-		return t.creationWrite(ErrConflict)
+		return t.writeResult(ErrConflict)
 	}
 	if w.IsResolved() && !t.applied[w.OrderID] {
-		return t.creationWrite(ErrPrecondition)
+		return t.writeResult(ErrPrecondition)
 	}
 	var result []byte
 	var err error
 	if w.Result != nil {
 		result, err = json.Marshal(w.Result)
 		if err != nil {
-			return t.creationWrite(err)
+			return t.writeResult(err)
 		}
 	}
 	n, err := t.q.UpdateCreationWorkflow(ctx, db.UpdateCreationWorkflowParams{
@@ -202,15 +186,7 @@ func (t *postgresTx) SaveCreation(ctx context.Context, w CreationWorkflow, expec
 	if err == nil && n != 1 {
 		err = ErrConflict
 	}
-	return t.creationWrite(err)
-}
-
-func (t *postgresTx) creationWrite(err error) error {
-	err = persistenceError(err)
-	if err != nil {
-		t.failed = err
-	}
-	return err
+	return t.writeResult(err)
 }
 
 func fromCreation(row db.OrderCreationWorkflow) (CreationWorkflow, error) {

@@ -107,19 +107,19 @@ func TestCreationCrashRecovery(t *testing.T) {
 	})
 	t.Run("admission failure rolls back Order mapping audit and facts", func(t *testing.T) {
 		s := newScenario(t, f)
-		_, err := f.pool.Exec(f.ctx, `CREATE FUNCTION fail_creation_mapping() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected admission failure'; END; $$; CREATE TRIGGER fail_creation_mapping BEFORE INSERT ON order_creation_keys FOR EACH ROW EXECUTE FUNCTION fail_creation_mapping();`)
+		_, err := f.pool.Exec(f.ctx, `CREATE FUNCTION fail_creation_mapping() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected admission failure'; END; $$; CREATE TRIGGER fail_creation_mapping BEFORE INSERT ON order_idempotency_keys FOR EACH ROW EXECUTE FUNCTION fail_creation_mapping();`)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			if _, err := f.pool.Exec(f.ctx, "DROP TRIGGER fail_creation_mapping ON order_creation_keys; DROP FUNCTION fail_creation_mapping()"); err != nil {
+			if _, err := f.pool.Exec(f.ctx, "DROP TRIGGER fail_creation_mapping ON order_idempotency_keys; DROP FUNCTION fail_creation_mapping()"); err != nil {
 				t.Error(err)
 			}
 		}()
 		if _, err := create(mount(t, f, s.creator), f.ctx, input(s.clock.Now())); connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("admission failure=%v", err)
 		}
-		for _, table := range []string{"orders", "order_creation_workflows", "order_creation_keys", "order_audit", "order_outbox"} {
+		for _, table := range []string{"orders", "order_creation_workflows", "order_idempotency_keys", "order_audit", "order_outbox"} {
 			if f.count(t, table) != 0 {
 				t.Fatalf("partial admission in %s", table)
 			}
