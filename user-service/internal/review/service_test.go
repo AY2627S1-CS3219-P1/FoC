@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
@@ -149,10 +148,22 @@ func TestSubmitReview(t *testing.T) {
 	})
 	t.Run("duplicate maps to already exists", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errs.WrapAlreadyExistsError(errReviewAlreadyExists, "")}
+		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errReviewAlreadyExists}
 		svc := newTestService(fake)
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 3, Comment: "again"})
 		assertExternal(t, err, http.StatusConflict)
+		if fake.recalcCount != 0 {
+			t.Fatal("stats must not be recomputed when the insert fails")
+		}
+	})
+	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errBoomTest}
+		svc := newTestService(fake)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 3, Comment: "again"})
+		if !errors.Is(err, errBoomTest) {
+			t.Fatalf("non-duplicate insert failure should propagate, got: %v", err)
+		}
 		if fake.recalcCount != 0 {
 			t.Fatal("stats must not be recomputed when the insert fails")
 		}

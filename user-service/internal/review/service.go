@@ -59,10 +59,16 @@ func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orde
 	}
 	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
 		if err := s.repo.InsertReview(ctx, q, input); err != nil {
-			if errors.Is(err, errReviewInvalid) {
+			switch {
+			case errors.Is(err, errReviewInvalid):
 				return errs.WrapBadRequestError(err, "invalid review data")
+			case errors.Is(err, errReviewAlreadyExists):
+				return errs.WrapAlreadyExistsError(err, "review already exists")
+			default:
+				// Anything else (foreign keys, connectivity, timeouts) is not a
+				// duplicate; surface it as an internal error instead of a 409.
+				return err
 			}
-			return errs.WrapAlreadyExistsError(err, "review already exists")
 		}
 		return s.repo.RecalculateStats(ctx, q, revieweeID)
 	})
