@@ -5,7 +5,8 @@
 // source: user/review/v1/review.proto
 
 // Review feature contract for user-service. A review lets one participant of a
-// Completed request rate the other; removals are hard deletes with an audit row.
+// Completed request rate the other; removals are soft deletes recorded with an
+// audit row.
 
 package reviewv1
 

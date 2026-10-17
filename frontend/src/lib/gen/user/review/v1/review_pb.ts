@@ -3,7 +3,8 @@
 /* eslint-disable */
 
 // Review feature contract for user-service. A review lets one participant of a
-// Completed request rate the other; removals are hard deletes with an audit row.
+// Completed request rate the other; removals are soft deletes recorded with an
+// audit row.
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
