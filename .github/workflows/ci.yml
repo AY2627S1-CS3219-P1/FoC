@@ -95,6 +95,10 @@ jobs:
           cache-dependency-path: |
             supplier-service/go.sum
             pkg/go.sum
+      - name: Run seed runner integration tests
+        if: steps.changes.outputs.run == 'true'
+        working-directory: pkg
+        run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration

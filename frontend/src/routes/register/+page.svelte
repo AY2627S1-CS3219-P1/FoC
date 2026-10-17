@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto, replaceState } from '$app/navigation';
+	import { onDestroy } from 'svelte';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { Button, Card, TextFieldOutlined } from 'm3-svelte';
@@ -10,8 +10,17 @@
 	let displayName = $state('');
 	let submitting = $state(false);
 	let error = $state('');
+	let mounted = $state(false);
+	let active = true;
+	onDestroy(() => {
+		active = false;
+	});
 
-	onMount(() => {
+	afterNavigate(async ({ complete }) => {
+		// Initial afterNavigate callbacks run before the router marks itself started.
+		await complete;
+		if (!active) return;
+		mounted = true;
 		token = page.url.searchParams.get('token');
 		if (token) {
 			replaceState('/register', page.state);
@@ -65,13 +74,13 @@
 							type="text"
 							name="displayName"
 							autocomplete="name"
-				maxlength={50}
+							maxlength={50}
 							required
 							bind:value={displayName}
-							disabled={submitting}
+							disabled={!mounted || submitting}
 						/>
 						<div class="form-actions">
-							<Button type="submit" disabled={submitting}>
+							<Button type="submit" disabled={!mounted || submitting}>
 								{submitting ? 'Creating profile…' : 'Complete sign-up'}
 							</Button>
 						</div>

@@ -130,20 +130,20 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 }
 
 func (s *Service) WithdrawRequest(ctx context.Context, c Caller, id string) (AdditionRequest, error) {
-	a, e := s.transitionRequest(ctx, c, id, Withdrawn, "")
+	a, e := s.transitionRequest(ctx, c, id, Withdrawn, "", 0)
 	return a.Request, e
 }
 
-func (s *Service) RejectRequest(ctx context.Context, c Caller, id, note string) (AdditionRequest, error) {
-	a, e := s.transitionRequest(ctx, c, id, Rejected, note)
+func (s *Service) RejectRequest(ctx context.Context, c Caller, id, note string, expectedRevision int64) (AdditionRequest, error) {
+	a, e := s.transitionRequest(ctx, c, id, Rejected, note, expectedRevision)
 	return a.Request, e
 }
 
-func (s *Service) ApproveRequest(ctx context.Context, c Caller, id string) (Approval, error) {
-	return s.transitionRequest(ctx, c, id, Approved, "")
+func (s *Service) ApproveRequest(ctx context.Context, c Caller, id string, expectedRevision int64) (Approval, error) {
+	return s.transitionRequest(ctx, c, id, Approved, "", expectedRevision)
 }
 
-func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, target RequestStatus, note string) (out Approval, err error) {
+func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, target RequestStatus, note string, expectedRevision int64) (out Approval, err error) {
 	if err = requireAuthenticated(c); err != nil {
 		return out, err
 	}
@@ -152,6 +152,9 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 	}
 	if err = validateID(id); err != nil {
 		return out, err
+	}
+	if target != Withdrawn && expectedRevision <= 0 {
+		return out, ErrInvalidArgument
 	}
 	if target == Rejected {
 		note, err = trimAndValidateLength(note, 1, 2000)
@@ -182,6 +185,11 @@ func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, ta
 		}
 		if r.Status != Pending {
 			return ErrFailedPrecondition
+		}
+		// Request holds the parent row lock, including relationship readback.
+		// Compare before creating a Location or recording the decision.
+		if target != Withdrawn && r.Revision != expectedRevision {
+			return ErrAborted
 		}
 		now := s.clock().UTC()
 		if target == Approved {
