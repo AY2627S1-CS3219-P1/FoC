@@ -31,12 +31,13 @@ Shared offset pagination lives in `pkg/pagination` as one self-contained model:
 - `page` is the canonical wire field (supplier-service precedent); `offset` is
   computed server-side. `page` and `offset` are never both transmitted.
 
-The proto `Pagination` request (`proto/user/review/v1/review.proto`) mirrors the
-request model; list responses return a `ReviewPage` with the four response
-fields. Supplier-service's `PageInfo` proto message is intentionally **not**
-imported — it is supplier-internal and importing it would couple the two
-services' contracts. The four response fields are defined locally in the same
-shape.
+The shared `pagination.v1.Pagination` request (`proto/pagination/v1/pagination.proto`)
+mirrors the request model; the list responses (`ListReviewsForUserResponse`,
+`ListMyReviewsResponse`) each nest a `pagination.v1.PageInfo` with the four
+response fields. Supplier-service's `PageInfo` proto message is intentionally
+**not** imported — it is supplier-internal and importing it would couple the two
+services' contracts. The shared `pagination.v1` package serves the same purpose
+without that coupling.
 
 ### Strategy is chosen per endpoint, not forced
 
