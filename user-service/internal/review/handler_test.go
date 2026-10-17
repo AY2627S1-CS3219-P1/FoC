@@ -70,8 +70,8 @@ func (s *handlerLogicStub) ListReviewRemovals(_ context.Context) ([]ReviewRemova
 
 // reviewClient wires the handler with only the request-validation interceptor.
 // The RBAC/ABAC gates the feature needs live here (ABAC in the handler, RBAC in
-// the router interceptor); the token-claim RBAC interceptor is covered by the
-// router tests, so the client exercises the handler's own rules.
+// the token-claim AuthorizeInterceptor); the interceptor is covered by
+// authorization_test.go, so the client exercises the handler's own rules.
 func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect.ReviewServiceClient {
 	t.Helper()
 	_, handler := reviewv1connect.NewReviewServiceHandler(
