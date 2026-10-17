@@ -58,6 +58,13 @@ automatically retried. Creation will use `Repository.Within` and a revision-zero
 change to insert the initial Pending Reservation aggregate, audit and status fact.
 The foundation supplies this persistence boundary, not a creation operation.
 
+External events use the contracts in `kafka/order/events/v1` (Go package
+`pkg/kafkagen/order/events/v1`), as documented in [the Kafka topic map](../kafka/README.md).
+Outbox payloads are versioned internal JSON facts; a future relay must translate
+them into those Protobuf messages before publishing. Terminal `OrderOutcome`
+events drive Credit settlement. Event schemas belong outside the RPC contracts
+under `proto/order/v1`.
+
 Adding an operation also means extending its concrete action and allowed fields
 where needed, and testing prerequisites and repeat semantics. In particular,
 offer creation/update actions must explicitly permit a same-status change in

@@ -3,8 +3,9 @@
 Date: 15 Oct 2026
 Status: accepted
 Dependencies: Order contracts [#123](https://github.com/AY2627S1-CS3219-P1/FoC/pull/123)
-(`a0b1e801`), Credit contracts [#129](https://github.com/AY2627S1-CS3219-P1/FoC/pull/129)
-remain under discussion. Foundation base: main `5233ef5`.
+merged into main at `bd0f30e`. Credit integration remains tracked in
+[#136](https://github.com/AY2627S1-CS3219-P1/FoC/issues/136).
+Foundation base: main `5233ef5`.
 
 ## Context and source assumptions
 
@@ -84,8 +85,10 @@ meaning of its outcome. Facts also retain the previous courier on unassignment.
 The outbox uses stable UUID event IDs, payload versions, and per-Order revision /
 ordinal ordering. Unique constraints protect one fact of each kind per revision,
 ordinals and one terminal outcome per Order. Publication timestamps are separate
-from fact content. No relay exists yet. RPC events in #123 are not persistence
-models, and Kafka serialization/transport belongs to a later relay.
+from fact content. No relay exists yet. The external event contracts from #123
+live under `kafka/order/events/v1` with package `order.events.v1`; they are not
+persistence models. A later relay translates the stored domain facts into these
+Kafka Protobuf messages. Do not add event schemas to the RPC package `order.v1`.
 
 ## Future durable orchestration
 
@@ -101,8 +104,10 @@ A timeout means the remote result is unknown. Retries reuse the same identity an
 data. Compensation is durable work, not an in-memory error handler. Workflow
 state and outbox delivery state are different concerns. Add concrete creation /
 assignment workflow records with their operations; no generic workflow tables,
-recovery worker, saga library, or Credit client is introduced now. #123 and #129
-still disagree on synchronous settlement versus terminal event consumption.
+recovery worker, saga library, or Credit client is introduced now. The merged
+Order contracts use reservation RPCs followed by Kafka `OrderOutcome` terminal
+settlement. Credit execution and workload authentication remain dependencies;
+their integration is tracked in #136.
 
 ## Reads, runtime and images
 
