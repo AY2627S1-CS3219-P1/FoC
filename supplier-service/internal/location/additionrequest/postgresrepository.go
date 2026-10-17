@@ -231,7 +231,12 @@ func (t *transaction) ValidateReferences(ctx context.Context, p Proposal) error 
 	return nil
 }
 func (t *transaction) CreateLocation(ctx context.Context, p Proposal, now time.Time) (Location, error) {
-	resourceID := uuid.NewString()
+	generatedID, err := uuid.NewV7()
+	if err != nil {
+		return Location{}, DependencyError("generate location ID", err)
+	}
+	resourceID := generatedID.String()
+
 	e := t.q.InsertWorkflowLocation(ctx, db.InsertWorkflowLocationParams{ID: id(resourceID), Name: p.Name, IsSupplier: p.IsSupplier, BuildingID: id(p.BuildingID), Floor: text(p.Floor), Latitude: p.Latitude, Longitude: p.Longitude, OpenFrom: wall(p.OpenFrom), OpenTo: wall(p.OpenTo), Contact: text(p.Contact), Details: p.Details, CreatedAt: stamp(now)})
 	if e != nil {
 		return Location{}, mapError(e)

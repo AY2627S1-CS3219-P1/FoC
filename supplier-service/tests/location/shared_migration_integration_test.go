@@ -34,7 +34,7 @@ func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 				}
 			}
 			f.reset(t)
-			if version, err := goose.GetDBVersion(f.db); err != nil || version != 10 {
+			if version, err := goose.GetDBVersion(f.db); err != nil || version != 11 {
 				t.Fatalf("schema version=%d error=%v", version, err)
 			}
 			var validated int
