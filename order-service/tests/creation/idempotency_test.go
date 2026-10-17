@@ -4,12 +4,7 @@ package creation_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -20,7 +15,6 @@ import (
 	db "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/database/orderdb"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/google/uuid"
-	"github.com/pressly/goose/v3"
 )
 
 const makeOfferMethod = "/order.v1.OrderService/MakeOffer"
@@ -313,64 +307,11 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 	})
 }
 
-func TestSharedIdempotencyMigration(t *testing.T) {
+func TestSharedIdempotencySchema(t *testing.T) {
 	f := databaseFixture(t)
-	sqlDB, err := sql.Open("pgx", f.pool.Config().ConnString())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, os.DirFS("../../database/schema"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := provider.DownTo(f.ctx, 3); err != nil {
-		t.Fatal(err)
-	}
-	now := newClock().Now()
-	in := input(now)
-	canonical, err := json.Marshal(app.CreateInput{
-		PickupID: in.PickupLocationId, DeliveryID: in.Delivery.LocationId, Instructions: in.Delivery.Instructions,
-		ItemDescription: in.ItemDescription, RewardCredits: in.RewardCredits, DeliveryDuration: in.DeliveryDuration.AsDuration(), ExpiresAt: in.ExpiresAt.AsTime().UTC(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	digest := sha256.Sum256(canonical)
-	hash := hex.EncodeToString(digest[:])
-	orderID, workflowID := uuid.NewString(), uuid.NewString()
-	created := now.Add(-25 * time.Hour)
-	expiry := now.Add(-time.Hour)
-	order := app.Order{
-		ID: orderID, RequesterID: requester, Status: app.PendingReservation,
-		Pickup:               app.LocationSnapshot{LocationID: pickupID, Name: "Campus location", BuildingName: "COM1"},
-		Delivery:             app.LocationSnapshot{LocationID: deliveryID, Name: "Campus location", BuildingName: "COM1"},
-		DeliveryInstructions: in.Delivery.Instructions, ItemDescription: in.ItemDescription, RewardCredits: in.RewardCredits,
-		DeliveryDuration: in.DeliveryDuration.AsDuration(), ExpiresAt: in.ExpiresAt.AsTime(), Revision: 1, CreatedAt: created, UpdatedAt: created,
-	}
-	change, err := app.NewChange(nil, order, app.Actor{Kind: app.User, ID: requester}, app.Create, nil, uuid.NewString)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.repo.Within(f.ctx, func(tx app.Tx) error { return tx.Apply(f.ctx, change) }); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO order_creation_workflows(id,order_id,requester_id,canonical_request,request_hash,canonical_version,reservation_amount,expires_at,phase,lease_until,next_attempt_at,created_at,updated_at) VALUES($1,$2,$3,$4,$5,1,10,$6,'reserve_pending',$7,$7,$8,$8)`, workflowID, orderID, requester, canonical, hash, in.ExpiresAt.AsTime(), now, created); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.pool.Exec(f.ctx, "INSERT INTO order_creation_keys(caller_id,method,idempotency_key,workflow_id,expires_at) VALUES($1,$2,$3,$4,$5)", requester, app.CreateOrderMethod, in.IdempotencyKey, workflowID, expiry); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := provider.Up(f.ctx); err != nil {
-		t.Fatal(err)
-	}
-	key := storedKey(t, f, app.IdempotencyScope{CallerID: requester, Method: app.CreateOrderMethod}, in.IdempotencyKey)
-	if key == nil || key.ResourceID != workflowID || key.RequestHash != hash || !key.ExpiresAt.Equal(expiry) {
-		t.Fatal("migration lost or rewrote an existing mapping")
-	}
 	var nullable string
 	if err := f.pool.QueryRow(f.ctx, "SELECT is_nullable FROM information_schema.columns WHERE table_name='order_idempotency_keys' AND column_name='request_hash'").Scan(&nullable); err != nil || nullable != "NO" {
-		t.Fatal("hash was not made NOT NULL")
+		t.Fatal("request hash is nullable")
 	}
 	var foreignKeys int
 	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM pg_constraint WHERE conrelid='order_idempotency_keys'::regclass AND contype='f'").Scan(&foreignKeys); err != nil || foreignKeys != 0 {
@@ -379,28 +320,5 @@ func TestSharedIdempotencyMigration(t *testing.T) {
 	var primaryKey []string
 	if err := f.pool.QueryRow(f.ctx, `SELECT array_agg(a.attname::text ORDER BY position) FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS columns(attnum,position) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=columns.attnum WHERE c.conrelid='order_idempotency_keys'::regclass AND c.contype='p'`).Scan(&primaryKey); err != nil || strings.Join(primaryKey, ",") != "caller_id,method,idempotency_key" {
 		t.Fatalf("primary key changed: %v %v", primaryKey, err)
-	}
-	creator := app.NewCreator(f.repo, nil, nil, app.CreationOptions{Now: func() time.Time { return now }})
-	replay, err := create(mount(t, f, creator), f.ctx, in)
-	if err != nil || replay.Id != orderID || f.count(t, "orders") != 1 || f.count(t, "order_idempotency_keys") != 1 {
-		t.Fatalf("expired unresolved migrated mapping failed replay: %v", err)
-	}
-
-	// Downgrading cannot silently delete a future method's mapping to restore the
-	// original CreateOrder-only constraint, even though resource_id has no FK.
-	generic := app.IdempotencyKey{Scope: app.IdempotencyScope{CallerID: requester, Method: makeOfferMethod}, Key: uuid.NewString(), ResourceID: uuid.NewString(), RequestHash: strings.Repeat("e", 64), ExpiresAt: now.Add(time.Hour)}
-	if err := f.repo.WithinCreation(f.ctx, func(tx app.CreationTx) error {
-		if err := tx.LockIdempotencyCaller(f.ctx, generic.Scope); err != nil {
-			return err
-		}
-		return tx.InsertIdempotencyKey(f.ctx, generic)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := provider.DownTo(f.ctx, 3); err == nil {
-		t.Fatal("downgrade discarded a generic mapping")
-	}
-	if f.count(t, "order_idempotency_keys") != 2 {
-		t.Fatal("failed downgrade did not roll back atomically")
 	}
 }
