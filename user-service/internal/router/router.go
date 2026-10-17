@@ -56,7 +56,11 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 
 	if len(protected) > 0 {
 		p := protected[0]
-		interceptors := connect.WithInterceptors(validate.NewInterceptor(), authorizeProtected(p.Users), normalizeRPCError())
+		interceptors := connect.WithInterceptors(
+			validate.NewInterceptor(),
+			authorizeProtected(p.Users),
+			normalizeRPCError(),
+		)
 		profilePath, profileService := userv1connect.NewProfileServiceHandler(
 			p.Profile, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(profilePath, profileService)

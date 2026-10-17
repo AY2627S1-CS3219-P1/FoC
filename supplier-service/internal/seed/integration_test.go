@@ -65,7 +65,12 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 		t.Fatalf("read seeded Supplier: %v", err)
 	}
 	if !isSupplier || floor != "B1" || revision != 1 {
-		t.Fatalf("Supplier classification/floor/revision incorrect: supplier=%v floor=%q revision=%d", isSupplier, floor, revision)
+		t.Fatalf(
+			"Supplier classification/floor/revision incorrect: supplier=%v floor=%q revision=%d",
+			isSupplier,
+			floor,
+			revision,
+		)
 	}
 	if openFrom != "22:00:00" || openTo != "02:00:00" {
 		t.Fatalf("overnight hours changed: %s-%s", openFrom, openTo)
@@ -93,7 +98,8 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 	if !reflect.DeepEqual(unchanged, Report{}) {
 		t.Fatalf("unchanged rerun report = %#v, want no changes", unchanged)
 	}
-	if err := pool.QueryRow(ctx, `SELECT revision FROM locations WHERE id = $1`, supplierID).Scan(&revision); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT revision FROM locations WHERE id = $1`, supplierID).
+		Scan(&revision); err != nil {
 		t.Fatalf("read Supplier after unchanged rerun: %v", err)
 	}
 	if revision != 1 {
@@ -120,16 +126,30 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 		WHERE id = $1`, supplierID).Scan(&updatedID, &supplierName, &updatedDetails, &revision); err != nil {
 		t.Fatalf("read updated Supplier: %v", err)
 	}
-	if updatedID != supplierID || supplierName != "Night Coffee Roastery" || updatedDetails != "Updated without changing identity" || revision != 2 {
-		t.Fatalf("stable update failed: id=%s name=%q details=%q revision=%d", updatedID, supplierName, updatedDetails, revision)
+	if updatedID != supplierID || supplierName != "Night Coffee Roastery" ||
+		updatedDetails != "Updated without changing identity" ||
+		revision != 2 {
+		t.Fatalf(
+			"stable update failed: id=%s name=%q details=%q revision=%d",
+			updatedID,
+			supplierName,
+			updatedDetails,
+			revision,
+		)
 	}
 
 	invalidPaths := writeFixture(t, fixtureOptions{invalidOrdinaryLatitude: true})
-	if _, err := Seed(ctx, pool, invalidPaths); err == nil || !strings.Contains(err.Error(), "Latitude must be between") {
+	if _, err := Seed(
+		ctx,
+		pool,
+		invalidPaths,
+	); err == nil ||
+		!strings.Contains(err.Error(), "Latitude must be between") {
 		t.Fatalf("invalid seed error = %v", err)
 	}
 	assertResourceCounts(t, pool, 2, 2, 2, 2)
-	if err := pool.QueryRow(ctx, `SELECT name, revision FROM locations WHERE id = $1`, supplierID).Scan(&supplierName, &revision); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT name, revision FROM locations WHERE id = $1`, supplierID).
+		Scan(&supplierName, &revision); err != nil {
 		t.Fatalf("read Supplier after rejected seed: %v", err)
 	}
 	if supplierName != "Night Coffee Roastery" || revision != 2 {
@@ -151,17 +171,24 @@ func TestSeedIsTransactionalRepeatableAndSpatiallyCorrect(t *testing.T) {
 		FOR EACH ROW EXECUTE FUNCTION reject_test_supplier()`)
 
 	rollbackPaths := writeFixture(t, fixtureOptions{updatedBuilding: true, rejectedSupplier: true})
-	if _, err := Seed(ctx, pool, rollbackPaths); err == nil || !strings.Contains(err.Error(), "forced Location failure") {
+	if _, err := Seed(
+		ctx,
+		pool,
+		rollbackPaths,
+	); err == nil ||
+		!strings.Contains(err.Error(), "forced Location failure") {
 		t.Fatalf("database-side seed error = %v", err)
 	}
 	var buildingName string
-	if err := pool.QueryRow(ctx, `SELECT name FROM buildings WHERE id = $1`, deterministicUUID("building:central-library")).Scan(&buildingName); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT name FROM buildings WHERE id = $1`, deterministicUUID("building:central-library")).
+		Scan(&buildingName); err != nil {
 		t.Fatalf("read Building after rolled-back seed: %v", err)
 	}
 	if buildingName != "Central Library" {
 		t.Fatalf("database failure did not roll back earlier Building update: name=%q", buildingName)
 	}
-	if err := pool.QueryRow(ctx, `SELECT name, revision FROM locations WHERE id = $1`, supplierID).Scan(&supplierName, &revision); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT name, revision FROM locations WHERE id = $1`, supplierID).
+		Scan(&supplierName, &revision); err != nil {
 		t.Fatalf("read Supplier after rolled-back seed: %v", err)
 	}
 	if supplierName != "Night Coffee Roastery" || revision != 2 {
@@ -207,7 +234,11 @@ func TestCommittedSeedDataImportsRepeatably(t *testing.T) {
 		t.Fatalf("read committed classification invariants: %v", err)
 	}
 	if supplierWithoutCategory != 0 || ordinaryWithCategory != 0 {
-		t.Fatalf("committed classification invariants failed: supplier_without=%d ordinary_with=%d", supplierWithoutCategory, ordinaryWithCategory)
+		t.Fatalf(
+			"committed classification invariants failed: supplier_without=%d ordinary_with=%d",
+			supplierWithoutCategory,
+			ordinaryWithCategory,
+		)
 	}
 
 	var ordinaryMatches int

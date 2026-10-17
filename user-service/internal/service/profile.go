@@ -57,7 +57,11 @@ func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (m
 	return *user, nil
 }
 
-func (s *ProfileService) UpdateMyProfile(ctx context.Context, actorID uuid.UUID, input ProfileInput) (models.User, error) {
+func (s *ProfileService) UpdateMyProfile(
+	ctx context.Context,
+	actorID uuid.UUID,
+	input ProfileInput,
+) (models.User, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	if input.DisplayName == "" || utf8.RuneCountInString(input.DisplayName) > MaxDisplayNameLength ||
 		utf8.RuneCountInString(input.Description) > 500 {

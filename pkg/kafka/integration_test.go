@@ -54,13 +54,18 @@ func TestKafkaIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var failedOffset int64
-	if err := Register(first, topic, func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) }, func(_ context.Context, meta Metadata, message *wrapperspb.StringValue) error {
-		if message.Value != value || string(meta.Key) != value {
-			t.Fatal("expected empty test topic and matching payload/key")
-		}
-		failedOffset = meta.Offset
-		return errTest
-	}); err != nil {
+	if err := Register(
+		first,
+		topic,
+		func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) },
+		func(_ context.Context, meta Metadata, message *wrapperspb.StringValue) error {
+			if message.Value != value || string(meta.Key) != value {
+				t.Fatal("expected empty test topic and matching payload/key")
+			}
+			failedOffset = meta.Offset
+			return errTest
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Run(ctx); !errors.Is(err, errTest) {
@@ -76,13 +81,18 @@ func TestKafkaIntegration(t *testing.T) {
 		return cancelAfterCommit{reader: kafkago.NewReader(cfg), cancel: stop}
 	}
 	replayed := false
-	if err := Register(second, topic, func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) }, func(_ context.Context, meta Metadata, message *wrapperspb.StringValue) error {
-		if meta.Offset != failedOffset || message.Value != value {
-			t.Fatal("uncommitted message was not replayed")
-		}
-		replayed = true
-		return nil
-	}); err != nil {
+	if err := Register(
+		second,
+		topic,
+		func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) },
+		func(_ context.Context, meta Metadata, message *wrapperspb.StringValue) error {
+			if meta.Offset != failedOffset || message.Value != value {
+				t.Fatal("uncommitted message was not replayed")
+			}
+			replayed = true
+			return nil
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.Run(replayCtx); err != nil {

@@ -52,7 +52,12 @@ func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, ema
 	return *target, nil
 }
 
-func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid.UUID, to models.RoleName, reason string) (models.User, error) {
+func (s *RoleService) ChangeUserRole(
+	ctx context.Context,
+	actorID, targetID uuid.UUID,
+	to models.RoleName,
+	reason string,
+) (models.User, error) {
 	if actorID == uuid.Nil {
 		return models.User{}, ErrUnauthenticated
 	}
@@ -95,7 +100,12 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 		if (target.Role == models.RoleSuspended || to == models.RoleSuspended) && reason == "" {
 			return ErrInvalidRoleChange
 		}
-		change := &models.RoleChange{UserID: targetID, FromRole: target.Role, ToRole: to, Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID}}
+		change := &models.RoleChange{
+			UserID:     targetID,
+			FromRole:   target.Role,
+			ToRole:     to,
+			Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID},
+		}
 		if reason != "" {
 			change.Reason = &reason
 		}

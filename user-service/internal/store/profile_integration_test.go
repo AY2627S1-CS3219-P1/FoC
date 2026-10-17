@@ -60,7 +60,10 @@ func TestUsersDelete(t *testing.T) {
 	user := createStoreUser(t, store, "user@example.com")
 
 	sessionHash := testDigest("delete-session")
-	if err := store.Sessions.Create(ctx, &models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}); err != nil {
+	if err := store.Sessions.Create(
+		ctx,
+		&models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.AddFavourite(ctx, user.ID, uuid.New(), now); err != nil {
@@ -125,10 +128,21 @@ func TestAdminWarningsAndUserstamps(t *testing.T) {
 
 	reason := "overturned"
 	removed, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID)
-	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil || *removed.UpdatedBy != admin.ID {
+	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil ||
+		*removed.UpdatedBy != admin.ID {
 		t.Fatalf("remove warning: %+v, %v", removed, err)
 	}
-	if _, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := store.RemoveWarning(
+		ctx,
+		first.ID,
+		time.Now().UTC(),
+		&reason,
+		nil,
+		&admin.ID,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
 		t.Fatalf("repeated remove: %v", err)
 	}
 }

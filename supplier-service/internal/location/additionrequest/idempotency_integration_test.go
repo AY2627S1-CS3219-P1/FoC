@@ -22,7 +22,16 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 	repository := additionrequest.NewPostgresRepository(f.pool, func() time.Time { return now })
 	insert := func(t *testing.T, scope idempotency.Scope, expiresAt time.Time) {
 		t.Helper()
-		f.exec(t, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, requestHash, uuid.NewString(), expiresAt)
+		f.exec(
+			t,
+			"INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)",
+			scope.Caller,
+			scope.Method,
+			scope.Key,
+			requestHash,
+			uuid.NewString(),
+			expiresAt,
+		)
 	}
 
 	t.Run("expired cleanup preserves other scopes and active keys", func(t *testing.T) {
@@ -53,7 +62,9 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		}
 		for _, other := range append(others, active) {
 			var count int
-			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3", other.Caller, other.Method, other.Key).Scan(&count); err != nil || count != 1 {
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3", other.Caller, other.Method, other.Key).
+				Scan(&count); err != nil ||
+				count != 1 {
 				t.Fatalf("cleanup changed another retry scope: scope=%+v count=%d error=%v", other, count, err)
 			}
 		}
@@ -138,7 +149,9 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 			t.Fatalf("independent scope cleanup waited behind another transaction: %v", err)
 		}
 		var count int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3", first.Caller, first.Method, first.Key).Scan(&count); err != nil || count != 1 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency WHERE caller_id=$1 AND method=$2 AND key=$3", first.Caller, first.Method, first.Key).
+			Scan(&count); err != nil ||
+			count != 1 {
 			t.Fatalf("first transaction did not remain uncommitted: count=%d error=%v", count, err)
 		}
 	})
@@ -148,18 +161,34 @@ func TestWorkflowIdempotencyPostGIS(t *testing.T) {
 		runner := idempotency.New(func() time.Time { return now })
 		var createdID string
 		err := repository.Within(f.ctx, func(tx additionrequest.Tx) error {
-			_, err := runner.Run(f.ctx, tx.Idempotency(), scope, "invalid hash", func(createdAt time.Time) (string, error) {
-				location, err := tx.CreateLocation(f.ctx, additionrequest.Proposal{Name: "Rolled back retry", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, createdAt)
-				createdID = location.ID
-				return location.ID, err
-			})
+			_, err := runner.Run(
+				f.ctx,
+				tx.Idempotency(),
+				scope,
+				"invalid hash",
+				func(createdAt time.Time) (string, error) {
+					location, err := tx.CreateLocation(
+						f.ctx,
+						additionrequest.Proposal{
+							Name:       "Rolled back retry",
+							BuildingID: postgresBuildingID,
+							Latitude:   1.294,
+							Longitude:  103.774,
+						},
+						createdAt,
+					)
+					createdID = location.ID
+					return location.ID, err
+				},
+			)
 			return err
 		})
 		if createdID == "" || !errors.Is(err, additionrequest.ErrFailedPrecondition) {
 			t.Fatalf("createdID=%s error=%v", createdID, err)
 		}
 		var locations, keys int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM locations WHERE id=$1", createdID).Scan(&locations); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM locations WHERE id=$1", createdID).
+			Scan(&locations); err != nil {
 			t.Fatal(err)
 		}
 		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM supplier_idempotency").Scan(&keys); err != nil {
