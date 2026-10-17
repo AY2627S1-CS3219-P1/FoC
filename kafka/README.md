@@ -11,9 +11,6 @@ declare messages and enums without RPC services.
 | `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
-| `order.status_changed` | `order.events.v1.OrderStatusChanged` | Order UUID as UTF-8 text |
-| `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
-| `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
