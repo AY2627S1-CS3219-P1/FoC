@@ -117,7 +117,7 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB, db)
+	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: profileLogic},
 		Admin:        &adminhandler.Handler{Logic: roleLogic},
@@ -166,14 +166,21 @@ func newServer(addr string, handler http.Handler) *http.Server {
 }
 
 // newReviewService builds the review service. Reads run against the shared
-// connection pool; the transactional writes bind sqlc queries to the GORM
-// transaction so both share one connection (see LANDMINES for the locking rule).
-func newReviewService(sqlDB *sql.DB, db *gorm.DB) *review.Service {
+// connection pool; transactional writes run on a database/sql transaction, with
+// sqlc queries bound to it (see LANDMINES for the locking rule).
+func newReviewService(sqlDB *sql.DB) *review.Service {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			return operation(reviewdb.New(tx.Statement.ConnPool))
-		})
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		// Rollback is a no-op after a successful Commit.
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
 	})
 }
 

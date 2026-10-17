@@ -12,26 +12,26 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // buildReviewService wires the review repository against a real database. Reads
-// run against the shared pool; the transactional writes bind sqlc queries to the
-// GORM transaction, so every insert, audit row and recalculation commits or
-// rolls back with the caller's transaction.
-func buildReviewService(t *testing.T, db *gorm.DB) *Service {
+// run against the shared pool; the transactional writes run on a database/sql
+// transaction with the sqlc queries bound to it, so every insert, audit row and
+// recalculation commits or rolls back together.
+func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 	t.Helper()
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
 	repo := NewPostgresRepository(reviewdb.New(sqlDB))
 	withTx := func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Bind sqlc and GORM to the same transaction, without opening a
-			// second connection.
-			return operation(reviewdb.New(tx.Statement.ConnPool))
-		})
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		// Rollback is a no-op after a successful Commit.
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
 	}
 	return NewService(repo, withTx)
 }
@@ -84,7 +84,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	service := buildReviewService(t, db)
+	service := buildReviewService(t, sqlDB)
 
 	t.Run("recalculates stats as reviews come and go", func(t *testing.T) {
 		reviewer, second, reviewee, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
