@@ -670,6 +670,7 @@ func (x *ReviewRemoval) GetCreatedBy() string {
 
 type ListReviewRemovalsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pagination    *v1.Pagination         `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -704,9 +705,17 @@ func (*ListReviewRemovalsRequest) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{11}
 }
 
+func (x *ListReviewRemovalsRequest) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
 type ListReviewRemovalsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Removals      []*ReviewRemoval       `protobuf:"bytes,1,rep,name=removals,proto3" json:"removals,omitempty"`
+	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -744,6 +753,13 @@ func (*ListReviewRemovalsResponse) Descriptor() ([]byte, []int) {
 func (x *ListReviewRemovalsResponse) GetRemovals() []*ReviewRemoval {
 	if x != nil {
 		return x.Removals
+	}
+	return nil
+}
+
+func (x *ListReviewRemovalsResponse) GetPagination() *v1.PageInfo {
+	if x != nil {
+		return x.Pagination
 	}
 	return nil
 }
@@ -809,10 +825,16 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"created_by\x18\a \x01(\tR\tcreatedBy\"\x1b\n" +
-	"\x19ListReviewRemovalsRequest\"W\n" +
+	"created_by\x18\a \x01(\tR\tcreatedBy\"V\n" +
+	"\x19ListReviewRemovalsRequest\x129\n" +
+	"\n" +
+	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +
+	"pagination\"\x90\x01\n" +
 	"\x1aListReviewRemovalsResponse\x129\n" +
-	"\bremovals\x18\x01 \x03(\v2\x1d.user.review.v1.ReviewRemovalR\bremovals2\x87\x04\n" +
+	"\bremovals\x18\x01 \x03(\v2\x1d.user.review.v1.ReviewRemovalR\bremovals\x127\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
+	"pagination2\x87\x04\n" +
 	"\rReviewService\x12[\n" +
 	"\fSubmitReview\x12#.user.review.v1.SubmitReviewRequest\x1a$.user.review.v1.SubmitReviewResponse\"\x00\x12m\n" +
 	"\x12ListReviewsForUser\x12).user.review.v1.ListReviewsForUserRequest\x1a*.user.review.v1.ListReviewsForUserResponse\"\x00\x12^\n" +
@@ -862,22 +884,24 @@ var file_user_review_v1_review_proto_depIdxs = []int32{
 	15, // 6: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
 	15, // 7: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
 	13, // 8: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
-	10, // 9: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	2,  // 10: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	6,  // 11: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	7,  // 12: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	8,  // 13: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	11, // 14: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	3,  // 15: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	4,  // 16: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	5,  // 17: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	9,  // 18: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	12, // 19: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	15, // 9: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	10, // 10: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
+	14, // 11: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	2,  // 12: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	6,  // 13: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	7,  // 14: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	8,  // 15: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	11, // 16: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	3,  // 17: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	4,  // 18: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	5,  // 19: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	9,  // 20: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	12, // 21: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	17, // [17:22] is the sub-list for method output_type
+	12, // [12:17] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }

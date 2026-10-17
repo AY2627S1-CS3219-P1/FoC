@@ -49,6 +49,13 @@ type ReviewPage struct {
 	pagination.PageInfo
 }
 
+// RemovalPage is a page of review-removal audit rows with the response totals
+// it came with.
+type RemovalPage struct {
+	Removals []ReviewRemoval
+	pagination.PageInfo
+}
+
 // ReviewInput is a new review handed to the repository inside a transaction.
 type ReviewInput struct {
 	ID         uuid.UUID

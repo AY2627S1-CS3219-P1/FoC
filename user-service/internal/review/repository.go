@@ -24,6 +24,7 @@ type Repository interface {
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
-	ListReviewRemovals(ctx context.Context) ([]ReviewRemoval, error)
+	ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error)
+	CountReviewRemovals(ctx context.Context) (int64, error)
 	UserExists(ctx context.Context, id uuid.UUID) (bool, error)
 }

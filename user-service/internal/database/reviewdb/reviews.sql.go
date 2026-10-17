@@ -11,6 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const countReviewRemovals = `-- name: CountReviewRemovals :one
+SELECT COUNT(*)
+FROM review_removals
+`
+
+func (q *Queries) CountReviewRemovals(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countReviewRemovals)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countReviewsForUser = `-- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
@@ -124,10 +136,16 @@ const listReviewRemovals = `-- name: ListReviewRemovals :many
 SELECT id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
 FROM review_removals
 ORDER BY created_at DESC, id DESC
+LIMIT $2 OFFSET $1
 `
 
-func (q *Queries) ListReviewRemovals(ctx context.Context) ([]ReviewRemoval, error) {
-	rows, err := q.db.QueryContext(ctx, listReviewRemovals)
+type ListReviewRemovalsParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ReviewRemoval, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewRemovals, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

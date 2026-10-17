@@ -129,9 +129,18 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 	})
 }
 
-// ListReviewRemovals returns audit rows for removed reviews, newest first.
-func (s *Service) ListReviewRemovals(ctx context.Context) ([]ReviewRemoval, error) {
-	return s.repo.ListReviewRemovals(ctx)
+// ListReviewRemovals returns a page of audit rows for removed reviews, newest
+// first.
+func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error) {
+	removals, err := s.repo.ListReviewRemovals(ctx, page.Offset(), page.PageSize())
+	if err != nil {
+		return RemovalPage{}, err
+	}
+	total, err := s.repo.CountReviewRemovals(ctx)
+	if err != nil {
+		return RemovalPage{}, err
+	}
+	return RemovalPage{Removals: removals, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
 // newRemoval builds the audit row for a removal, generating its UUIDv7 id.

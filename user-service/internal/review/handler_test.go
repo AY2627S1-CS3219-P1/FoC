@@ -37,8 +37,9 @@ type handlerLogicStub struct {
 	removedBy     uuid.UUID
 	removeErr     error
 
-	removals    []ReviewRemoval
-	removalsErr error
+	removalsPage RemovalPage
+	removalsErr  error
+	removalsFor  pagination.Pagination
 }
 
 func (s *handlerLogicStub) SubmitReview(_ context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error {
@@ -64,8 +65,9 @@ func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason 
 	return s.removeErr
 }
 
-func (s *handlerLogicStub) ListReviewRemovals(_ context.Context) ([]ReviewRemoval, error) {
-	return s.removals, s.removalsErr
+func (s *handlerLogicStub) ListReviewRemovals(_ context.Context, page pagination.Pagination) (RemovalPage, error) {
+	s.removalsFor = page
+	return s.removalsPage, s.removalsErr
 }
 
 // reviewClient wires the handler with only the request-validation interceptor.
@@ -269,15 +271,42 @@ func TestRemoveReviewRPC(t *testing.T) {
 }
 
 func TestListReviewRemovalsRPC(t *testing.T) {
-	stub := &handlerLogicStub{removals: []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}}}
-	client := reviewClient(t, stub, auth.Caller{ID: uuid.New().String(), Admin: true})
-	resp, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{}))
-	if err != nil {
-		t.Fatalf("list removals: %v", err)
+	removalsPage := RemovalPage{
+		Removals: []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}},
+		PageInfo: pagination.NewPageInfo(2, 10, 3),
 	}
-	if len(resp.Msg.Removals) != 1 || resp.Msg.Removals[0].Reason != "abuse" {
-		t.Fatalf("unexpected removals: %+v", resp.Msg.Removals)
-	}
+	admin := uuid.New().String()
+
+	t.Run("maps removals and page info", func(t *testing.T) {
+		stub := &handlerLogicStub{removalsPage: removalsPage}
+		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
+		resp, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+			Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
+		}))
+		if err != nil {
+			t.Fatalf("list removals: %v", err)
+		}
+		if len(resp.Msg.Removals) != 1 || resp.Msg.Removals[0].Reason != "abuse" {
+			t.Fatalf("unexpected removals: %+v", resp.Msg.Removals)
+		}
+		if resp.Msg.Pagination.GetTotalItems() != 3 || resp.Msg.Pagination.GetPage() != 2 || resp.Msg.Pagination.GetPageSize() != 10 {
+			t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
+		}
+		if stub.removalsFor.Page() != 2 || stub.removalsFor.PageSize() != 10 {
+			t.Fatalf("page not passed through: %+v", stub.removalsFor)
+		}
+	})
+
+	t.Run("pagination overflow is rejected", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
+		_, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+			Pagination: &paginationv1.Pagination{Page: 2_147_483_647, PageSize: 2},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("offset overflow should be invalid argument: %v", err)
+		}
+	})
 }
 
 func TestReviewRPCErrorMapping(t *testing.T) {

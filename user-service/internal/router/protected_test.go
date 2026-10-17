@@ -73,8 +73,8 @@ func (reviewStub) ListReviewFromUser(context.Context, uuid.UUID, pagination.Pagi
 
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
 
-func (reviewStub) ListReviewRemovals(context.Context) ([]review.ReviewRemoval, error) {
-	return nil, nil
+func (reviewStub) ListReviewRemovals(context.Context, pagination.Pagination) (review.RemovalPage, error) {
+	return review.RemovalPage{}, nil
 }
 
 func TestProtectedConnectRoutes(t *testing.T) {

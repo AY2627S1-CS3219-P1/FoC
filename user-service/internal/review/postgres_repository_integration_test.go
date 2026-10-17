@@ -133,12 +133,15 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("after removal: count=%d avg=%v, want 1 and 2", c, avg)
 		}
 
-		removals, err := service.ListReviewRemovals(ctx)
+		removals, err := service.ListReviewRemovals(ctx, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatalf("list removals: %v", err)
 		}
-		if len(removals) != 1 || removals[0].Reason != "abuse" || removals[0].CreatedBy != admin {
+		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" || removals.Removals[0].CreatedBy != admin {
 			t.Fatalf("audit row not recorded: %+v", removals)
+		}
+		if removals.TotalItems() != 1 || removals.TotalPages() != 1 {
+			t.Fatalf("unexpected page info: %+v", removals.PageInfo)
 		}
 		// The deleted review is gone; only the rating-2 review remains.
 		received, err = service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))

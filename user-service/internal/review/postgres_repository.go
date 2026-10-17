@@ -129,8 +129,10 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
-func (r *PostgresRepository) ListReviewRemovals(ctx context.Context) ([]ReviewRemoval, error) {
-	rows, err := r.queries.ListReviewRemovals(ctx)
+func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error) {
+	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
+		PageOffset: int32(offset), PageLimit: int32(limit),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list removals: %w", err)
 	}
@@ -139,6 +141,14 @@ func (r *PostgresRepository) ListReviewRemovals(ctx context.Context) ([]ReviewRe
 		out[i] = toReviewRemoval(row)
 	}
 	return out, nil
+}
+
+func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, error) {
+	count, err := r.queries.CountReviewRemovals(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count removals: %w", err)
+	}
+	return count, nil
 }
 
 func (r *PostgresRepository) UserExists(ctx context.Context, id uuid.UUID) (bool, error) {

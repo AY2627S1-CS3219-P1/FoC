@@ -24,7 +24,7 @@ type Logic interface {
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
-	ListReviewRemovals(ctx context.Context) ([]ReviewRemoval, error)
+	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
 
 // Handler adapts the review proto RPCs to the review service. It maps between
@@ -123,17 +123,18 @@ func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv
 	return connect.NewResponse(&reviewv1.RemoveReviewResponse{}), nil
 }
 
-// ListReviewRemovals returns audit rows for removed reviews, newest first.
-func (h *Handler) ListReviewRemovals(ctx context.Context, _ *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
-	removals, err := h.Logic.ListReviewRemovals(ctx)
+// ListReviewRemovals returns a page of audit rows for removed reviews, newest
+// first.
+func (h *Handler) ListReviewRemovals(ctx context.Context, req *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+	pageResult, err := h.Logic.ListReviewRemovals(ctx, page)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	out := make([]*reviewv1.ReviewRemoval, len(removals))
-	for i, removal := range removals {
-		out[i] = toReviewRemovalProto(removal)
-	}
-	return connect.NewResponse(&reviewv1.ListReviewRemovalsResponse{Removals: out}), nil
+	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }
 
 // authorizeSelfReviews is the ABAC rule that is too tied to the request message
@@ -175,6 +176,18 @@ func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserR
 func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
 	return &reviewv1.ListMyReviewsResponse{
 		Reviews:    toReviewProtos(page.Reviews),
+		Pagination: toProtoPageInfo(page.PageInfo),
+	}
+}
+
+// toListReviewRemovalsResponse builds the response for the removals-audit RPC.
+func toListReviewRemovalsResponse(page RemovalPage) *reviewv1.ListReviewRemovalsResponse {
+	out := make([]*reviewv1.ReviewRemoval, len(page.Removals))
+	for i, removal := range page.Removals {
+		out[i] = toReviewRemovalProto(removal)
+	}
+	return &reviewv1.ListReviewRemovalsResponse{
+		Removals:   out,
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }

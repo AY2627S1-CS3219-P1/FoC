@@ -24,6 +24,7 @@ type fakeRepository struct {
 	countForUser  int64
 	countFromUser int64
 	listRemovals  []ReviewRemoval
+	countRemovals int64
 	userExistsErr error
 	listErr       error
 	countErr      error
@@ -92,8 +93,12 @@ func (f *fakeRepository) CountReviewsFromUser(_ context.Context, _ uuid.UUID) (i
 	return f.countFromUser, f.countErr
 }
 
-func (f *fakeRepository) ListReviewRemovals(_ context.Context) ([]ReviewRemoval, error) {
+func (f *fakeRepository) ListReviewRemovals(_ context.Context, _, _ int) ([]ReviewRemoval, error) {
 	return f.listRemovals, f.listErr
+}
+
+func (f *fakeRepository) CountReviewRemovals(_ context.Context) (int64, error) {
+	return f.countRemovals, f.countErr
 }
 
 func newTestService(repo Repository) *Service {
@@ -249,13 +254,20 @@ func TestRemoveReview(t *testing.T) {
 
 func TestListReviewRemovals(t *testing.T) {
 	removals := []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}}
-	fake := &fakeRepository{listRemovals: removals}
+	fake := &fakeRepository{listRemovals: removals, countRemovals: 3}
 	svc := newTestService(fake)
-	got, err := svc.ListReviewRemovals(context.Background())
+	page, err := pagination.New(2, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Reason != "abuse" {
-		t.Fatalf("unexpected removals: %+v", got)
+	got, err := svc.ListReviewRemovals(context.Background(), page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Removals) != 1 || got.Removals[0].Reason != "abuse" {
+		t.Fatalf("unexpected removals: %+v", got.Removals)
+	}
+	if got.TotalItems() != 3 || got.Page() != 2 || got.PageSize() != 10 {
+		t.Fatalf("unexpected page info: page=%d size=%d total=%d", got.Page(), got.PageSize(), got.TotalItems())
 	}
 }

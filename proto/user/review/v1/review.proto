@@ -98,8 +98,11 @@ message ReviewRemoval {
   string created_by = 7;
 }
 
-message ListReviewRemovalsRequest {}
+message ListReviewRemovalsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
 
 message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
+  pagination.v1.PageInfo pagination = 2;
 }

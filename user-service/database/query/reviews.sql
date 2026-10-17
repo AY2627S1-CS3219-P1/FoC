@@ -47,7 +47,12 @@ WHERE reviewer_id = @user_id::UUID;
 -- name: ListReviewRemovals :many
 SELECT id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
 FROM review_removals
-ORDER BY created_at DESC, id DESC;
+ORDER BY created_at DESC, id DESC
+LIMIT @page_limit OFFSET @page_offset;
+
+-- name: CountReviewRemovals :one
+SELECT COUNT(*)
+FROM review_removals;
 
 -- Lock the reviewee row first, then read the aggregate in a separate statement,
 -- so a concurrent submit/remove about the same reviewee converges on the count
