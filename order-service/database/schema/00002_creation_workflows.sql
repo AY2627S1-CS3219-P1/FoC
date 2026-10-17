@@ -23,17 +23,18 @@ CREATE TABLE order_creation_workflows (
 );
 CREATE INDEX creation_due ON order_creation_workflows (next_attempt_at,order_id)
  WHERE phase IN ('reserve_pending','abort_pending');
-CREATE TABLE order_creation_keys (
+CREATE TABLE order_idempotency_keys (
  caller_id uuid NOT NULL,
- method text NOT NULL CHECK (method = '/order.v1.OrderService/CreateOrder'),
+ method text NOT NULL,
  idempotency_key uuid NOT NULL,
- workflow_id uuid NOT NULL REFERENCES order_creation_workflows(id),
+ resource_id uuid NOT NULL,
  expires_at timestamptz NOT NULL,
+ request_hash text NOT NULL CHECK (length(request_hash) = 64),
  PRIMARY KEY (caller_id,method,idempotency_key)
 );
-CREATE INDEX creation_keys_workflow ON order_creation_keys (workflow_id);
+CREATE INDEX order_idempotency_keys_resource ON order_idempotency_keys (resource_id);
 CREATE INDEX orders_creation_rate ON orders (requester_id,created_at);
 -- +goose Down
 DROP INDEX orders_creation_rate;
-DROP TABLE order_creation_keys;
+DROP TABLE order_idempotency_keys;
 DROP TABLE order_creation_workflows;
