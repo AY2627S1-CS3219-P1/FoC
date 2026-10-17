@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -234,14 +235,20 @@ func TestSchema(t *testing.T) {
 		if err := db.Create(domain).Error; err != nil {
 			t.Fatal(err)
 		}
-		if err := db.Create(&m.AllowedEmailDomain{Domain: "U.NUS.EDU"}).Error; err == nil {
+		if err := db.Create(&m.AllowedEmailDomain{Domain: "U.NUS.EDU"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
 			t.Fatal("expected case-insensitive duplicate domain to fail")
 		}
 		if err := db.Delete(domain).Error; err != nil {
 			t.Fatal(err)
 		}
+		if err := db.Create(&m.AllowedEmailDomain{Domain: "u.nus.edu"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+			t.Fatalf("expected domain uniqueness across soft-deleted rows, got: %v", err)
+		}
+		if err := db.Unscoped().Delete(domain).Error; err != nil {
+			t.Fatal(err)
+		}
 		if err := db.Create(&m.AllowedEmailDomain{Domain: "u.nus.edu"}).Error; err != nil {
-			t.Fatalf("re-adding soft-deleted domain: %v", err)
+			t.Fatalf("re-adding hard-deleted domain: %v", err)
 		}
 		sup := uuid.New()
 		if err := db.Create(&m.FavouriteSupplier{UserID: alice.ID, SupplierID: sup}).Error; err != nil {

@@ -13,7 +13,6 @@ import (
 var (
 	ErrNotFound          = errors.New("not found")
 	ErrDuplicate         = errors.New("duplicate")
-	ErrInvalidDomain     = errors.New("invalid domain")
 	ErrRoleConflict      = errors.New("role changed concurrently")
 	ErrChallengeRejected = errors.New("challenge invalid, expired, or used")
 	ErrSessionRejected   = errors.New("session invalid, expired, or revoked")

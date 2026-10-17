@@ -92,6 +92,7 @@ erDiagram
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
+| 00006 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
 
 ## Soft delete
 
@@ -102,8 +103,9 @@ application instead: it soft-deletes the user's sessions and auth tokens and
 removes their favourites. Warnings and role changes stay as history. A user
 still referenced by `admin_bootstrap` cannot be deleted.
 
-`users.email` and `allowed_email_domains.domain` are unique only among rows
-that are not soft-deleted. `account_warnings.source_event_id` stays unique
+`users.email` is unique only among rows that are not soft-deleted.
+`allowed_email_domains.domain` is case-insensitive unique across all rows;
+the sqlc removal query hard-deletes domains. `account_warnings.source_event_id` stays unique
 across all rows so event replays remain idempotent. `role_changes.created_by`
 is the actor who made the change.
 

@@ -228,6 +228,10 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
+	logic.requestErr = service.ErrEmailDomainNotAllowed
+	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("disallowed domain returned %v", err)
+	}
 	logic.requestErr = errors.New("database password details")
 	_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
 	if connect.CodeOf(err) != connect.CodeInternal || strings.Contains(err.Error(), "password details") {
