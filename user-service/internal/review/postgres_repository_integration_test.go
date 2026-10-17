@@ -181,6 +181,42 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	// The unique indexes are not partial, so a soft-deleted review keeps holding
+	// its (reviewer, order) and (reviewee, order) slots: a removed review cannot
+	// be re-submitted for the same request until permanent deletion lands.
+	t.Run("removed review still holds its unique slot", func(t *testing.T) {
+		reviewer, reviewee, order, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "first"}); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list received: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("want 1 review, got %d", len(received.Reviews))
+		}
+		if err := service.RemoveReview(ctx, received.Reviews[0].ID, "abuse", admin); err != nil {
+			t.Fatalf("remove review: %v", err)
+		}
+		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
+			t.Fatalf("removed review still counted: count=%d avg=%v, want 0 and 0", c, avg)
+		}
+		err = service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 3, Comment: "again"})
+		assertExternal(t, err, http.StatusConflict)
+		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
+			t.Fatalf("rejected re-review changed stats: count=%d avg=%v, want 0 and 0", c, avg)
+		}
+		// The reverse direction is unaffected: the other participant can still
+		// review for the same request.
+		if err := service.SubmitReview(ctx, reviewee, reviewer, order, ReviewSubmission{Rating: 4, Comment: "other side"}); err != nil {
+			t.Fatalf("other participant review: %v", err)
+		}
+	})
+
 	t.Run("rating out of range is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
