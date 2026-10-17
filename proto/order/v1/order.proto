@@ -94,7 +94,9 @@ message CreateItemImageUploadRequest {
     in: [
       "image/jpeg",
       "image/png",
-      "image/webp"
+      "image/webp",
+      "image/heic",
+      "image/heif"
     ]
   }];
 }
@@ -177,7 +179,9 @@ message CreateProofUploadRequest {
     in: [
       "image/jpeg",
       "image/png",
-      "image/webp"
+      "image/webp",
+      "image/heic",
+      "image/heif"
     ]
   }];
 }
