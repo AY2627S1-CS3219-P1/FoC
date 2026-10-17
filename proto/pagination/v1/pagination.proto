@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+// Offset-pagination contract, defined once and embedded by every offset
+// paginated list endpoint. It is shared across services on purpose: importing
+// another service's internal pagination message would couple their contracts.
+package pagination.v1;
+
+// Pagination is a request-side offset page. page is the canonical wire field;
+// offset is derived server-side from page and page_size and is never
+// transmitted alongside it. An omitted Pagination is treated as the first page
+// at the default size.
+message Pagination {
+  // One-based page. Zero or omitted means page 1.
+  int32 page = 1;
+  // Rows per page. Zero or omitted means the default; values above the server
+  // maximum are clamped down to it.
+  int32 page_size = 2;
+}
+
+// PageInfo is a response-side summary of a paginated list. It never carries
+// request input.
+message PageInfo {
+  // One-based current page.
+  int32 page = 1;
+  // Effective page size, default 20, maximum 100.
+  int32 page_size = 2;
+  int64 total_items = 3;
+  // Total pages, zero for an empty result.
+  int32 total_pages = 4;
+}
