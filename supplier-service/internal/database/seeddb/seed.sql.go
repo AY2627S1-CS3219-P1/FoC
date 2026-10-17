@@ -232,28 +232,28 @@ VALUES (
     $8,
     $9,
     $10,
-    $11
+    COALESCE($11::TEXT, '')
 )
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
     is_supplier = EXCLUDED.is_supplier,
     building_id = EXCLUDED.building_id,
-    floor = EXCLUDED.floor,
+    floor = COALESCE($5, locations.floor),
     coordinates = EXCLUDED.coordinates,
-    open_from = EXCLUDED.open_from,
-    open_to = EXCLUDED.open_to,
-    contact = EXCLUDED.contact,
-    details = EXCLUDED.details,
+    open_from = COALESCE($8, locations.open_from),
+    open_to = COALESCE($9, locations.open_to),
+    contact = COALESCE(EXCLUDED.contact, locations.contact),
+    details = COALESCE($11::TEXT, locations.details),
     revision = locations.revision + 1
 WHERE locations.name IS DISTINCT FROM EXCLUDED.name
    OR locations.is_supplier IS DISTINCT FROM EXCLUDED.is_supplier
    OR locations.building_id IS DISTINCT FROM EXCLUDED.building_id
-   OR locations.floor IS DISTINCT FROM EXCLUDED.floor
+   OR locations.floor IS DISTINCT FROM COALESCE($5, locations.floor)
    OR NOT ST_Equals(locations.coordinates::GEOMETRY, EXCLUDED.coordinates::GEOMETRY)
-   OR locations.open_from IS DISTINCT FROM EXCLUDED.open_from
-   OR locations.open_to IS DISTINCT FROM EXCLUDED.open_to
-   OR locations.contact IS DISTINCT FROM EXCLUDED.contact
-   OR locations.details IS DISTINCT FROM EXCLUDED.details
+   OR locations.open_from IS DISTINCT FROM COALESCE($8, locations.open_from)
+   OR locations.open_to IS DISTINCT FROM COALESCE($9, locations.open_to)
+   OR locations.contact IS DISTINCT FROM COALESCE(EXCLUDED.contact, locations.contact)
+   OR locations.details IS DISTINCT FROM COALESCE($11::TEXT, locations.details)
 `
 
 type UpsertLocationParams struct {
@@ -267,7 +267,7 @@ type UpsertLocationParams struct {
 	OpenFrom   pgtype.Time
 	OpenTo     pgtype.Time
 	Contact    pgtype.Text
-	Details    string
+	Details    pgtype.Text
 }
 
 func (q *Queries) UpsertLocation(ctx context.Context, arg UpsertLocationParams) (int64, error) {

@@ -77,28 +77,28 @@ VALUES (
     sqlc.narg(open_from),
     sqlc.narg(open_to),
     sqlc.narg(contact),
-    sqlc.arg(details)
+    COALESCE(sqlc.narg(details)::TEXT, '')
 )
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
     is_supplier = EXCLUDED.is_supplier,
     building_id = EXCLUDED.building_id,
-    floor = EXCLUDED.floor,
+    floor = COALESCE(sqlc.narg(floor), locations.floor),
     coordinates = EXCLUDED.coordinates,
-    open_from = EXCLUDED.open_from,
-    open_to = EXCLUDED.open_to,
-    contact = EXCLUDED.contact,
-    details = EXCLUDED.details,
+    open_from = COALESCE(sqlc.narg(open_from), locations.open_from),
+    open_to = COALESCE(sqlc.narg(open_to), locations.open_to),
+    contact = COALESCE(EXCLUDED.contact, locations.contact),
+    details = COALESCE(sqlc.narg(details)::TEXT, locations.details),
     revision = locations.revision + 1
 WHERE locations.name IS DISTINCT FROM EXCLUDED.name
    OR locations.is_supplier IS DISTINCT FROM EXCLUDED.is_supplier
    OR locations.building_id IS DISTINCT FROM EXCLUDED.building_id
-   OR locations.floor IS DISTINCT FROM EXCLUDED.floor
+   OR locations.floor IS DISTINCT FROM COALESCE(sqlc.narg(floor), locations.floor)
    OR NOT ST_Equals(locations.coordinates::GEOMETRY, EXCLUDED.coordinates::GEOMETRY)
-   OR locations.open_from IS DISTINCT FROM EXCLUDED.open_from
-   OR locations.open_to IS DISTINCT FROM EXCLUDED.open_to
-   OR locations.contact IS DISTINCT FROM EXCLUDED.contact
-   OR locations.details IS DISTINCT FROM EXCLUDED.details;
+   OR locations.open_from IS DISTINCT FROM COALESCE(sqlc.narg(open_from), locations.open_from)
+   OR locations.open_to IS DISTINCT FROM COALESCE(sqlc.narg(open_to), locations.open_to)
+   OR locations.contact IS DISTINCT FROM COALESCE(EXCLUDED.contact, locations.contact)
+   OR locations.details IS DISTINCT FROM COALESCE(sqlc.narg(details)::TEXT, locations.details);
 
 -- name: ListLocationCategoryIDs :many
 SELECT category_id
