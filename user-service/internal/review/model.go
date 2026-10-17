@@ -89,4 +89,6 @@ var (
 	errReviewNotFound      = errors.New("review not found")
 	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
 	errReviewInvalid       = errors.New("review data is invalid")
+	errOrderNotFound       = errors.New("order does not exist")
+	errOrderUnavailable    = errors.New("order validation unavailable")
 )

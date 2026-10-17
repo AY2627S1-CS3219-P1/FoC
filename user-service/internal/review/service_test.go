@@ -101,11 +101,33 @@ func (f *fakeRepository) CountReviewRemovals(_ context.Context) (int64, error) {
 	return f.countRemovals, f.countErr
 }
 
-func newTestService(repo Repository) *Service {
+func newTestService(repo Repository, orders OrderGateway) *Service {
 	withTx := func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 		return operation(reviewdb.New(nil))
 	}
-	return NewService(repo, withTx)
+	return NewService(repo, withTx, orders)
+}
+
+// fakeOrderGateway answers with preconfigured participants (or an error) and
+// records the order ids it was asked about.
+type fakeOrderGateway struct {
+	participants OrderParticipants
+	err          error
+	lastOrderID  uuid.UUID
+}
+
+func (f *fakeOrderGateway) GetOrderParticipants(_ context.Context, orderID uuid.UUID) (OrderParticipants, error) {
+	f.lastOrderID = orderID
+	if f.err != nil {
+		return OrderParticipants{}, f.err
+	}
+	return f.participants, nil
+}
+
+// completedOrder builds the gateway answer for a Completed order whose
+// participants are exactly requester and courier.
+func completedOrder(requester, courier uuid.UUID) OrderParticipants {
+	return OrderParticipants{RequesterID: requester, CourierID: courier, Completed: true}
 }
 
 func assertExternal(t *testing.T, err error, wantStatus int) {
@@ -121,28 +143,73 @@ var errBoomTest = errors.New("boom")
 func TestSubmitReview(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		id := uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{id: true}})
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{id: true}}, &fakeOrderGateway{})
 		err := svc.SubmitReview(context.Background(), id, id, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 	t.Run("unknown reviewer is rejected", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewee: true}})
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewee: true}}, &fakeOrderGateway{})
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 	t.Run("unknown reviewee is rejected", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true}})
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true}}, &fakeOrderGateway{})
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
 		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("unknown order is not found", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{err: errOrderNotFound}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
+		assertExternal(t, err, http.StatusNotFound)
+	})
+	t.Run("order that is not completed is rejected", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: OrderParticipants{RequesterID: reviewer, CourierID: reviewee}}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
+		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("non-participants are rejected", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: completedOrder(uuid.New(), uuid.New())}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
+		assertExternal(t, err, http.StatusForbidden)
+	})
+	t.Run("order without an assigned courier is rejected", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: OrderParticipants{RequesterID: reviewer, Completed: true}}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
+		assertExternal(t, err, http.StatusForbidden)
+	})
+	t.Run("unreachable order service fails closed", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{err: errOrderUnavailable}
+		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
+		svc := newTestService(fake, orders)
+		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 4, Comment: "ok"})
+		if !errors.Is(err, errOrderUnavailable) {
+			t.Fatalf("want errOrderUnavailable, got: %v", err)
+		}
+		if fake.recalcCount != 0 {
+			t.Fatal("stats must not be recomputed when validation fails")
+		}
 	})
 	t.Run("inserts the review and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
-		svc := newTestService(fake)
+		orders := &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)}
+		svc := newTestService(fake, orders)
 		if err := svc.SubmitReview(context.Background(), reviewer, reviewee, order, ReviewSubmission{Rating: 4, Comment: "great"}); err != nil {
 			t.Fatalf("submit: %v", err)
+		}
+		if orders.lastOrderID != order {
+			t.Fatalf("gateway was asked about %v, want %v", orders.lastOrderID, order)
 		}
 		if fake.insertedID == uuid.Nil {
 			t.Fatal("no review was inserted")
@@ -154,7 +221,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("duplicate maps to already exists", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errReviewAlreadyExists}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 3, Comment: "again"})
 		assertExternal(t, err, http.StatusConflict)
 		if fake.recalcCount != 0 {
@@ -164,7 +231,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errBoomTest}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 3, Comment: "again"})
 		if !errors.Is(err, errBoomTest) {
 			t.Fatalf("non-duplicate insert failure should propagate, got: %v", err)
@@ -176,7 +243,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("recalculation failure aborts the transaction", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, recalcErr: errBoomTest}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(context.Background(), reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
 		if !errors.Is(err, errBoomTest) {
 			t.Fatalf("recalculation error should propagate: %v", err)
@@ -189,7 +256,7 @@ func TestListReviews(t *testing.T) {
 	reviews := []Review{{ID: uuid.New(), ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order, Rating: 5, CreatedAt: time.Now().UTC()}}
 	t.Run("received reviews come with page totals", func(t *testing.T) {
 		fake := &fakeRepository{listForUser: reviews, countForUser: 3}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{})
 		page, err := pagination.New(2, 10)
 		if err != nil {
 			t.Fatal(err)
@@ -207,7 +274,7 @@ func TestListReviews(t *testing.T) {
 	})
 	t.Run("given reviews come with page totals", func(t *testing.T) {
 		fake := &fakeRepository{listFromUser: reviews, countFromUser: 7}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{})
 		page, err := pagination.New(1, 50)
 		if err != nil {
 			t.Fatal(err)
@@ -227,7 +294,7 @@ func TestRemoveReview(t *testing.T) {
 		reviewer, reviewee, order, id := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		createdBy := uuid.New()
 		fake := &fakeRepository{findReview: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order}}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{})
 		if err := svc.RemoveReview(context.Background(), id, "abuse", createdBy); err != nil {
 			t.Fatalf("remove: %v", err)
 		}
@@ -246,7 +313,7 @@ func TestRemoveReview(t *testing.T) {
 	})
 	t.Run("unknown review is not found", func(t *testing.T) {
 		fake := &fakeRepository{findErr: errReviewNotFound}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{})
 		err := svc.RemoveReview(context.Background(), uuid.New(), "reason", uuid.New())
 		if !errors.Is(err, errReviewNotFound) {
 			t.Fatalf("want review-not-found sentinel, got: %v", err)
@@ -258,7 +325,7 @@ func TestRemoveReview(t *testing.T) {
 func TestListReviewRemovals(t *testing.T) {
 	removals := []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}}
 	fake := &fakeRepository{listRemovals: removals, countRemovals: 3}
-	svc := newTestService(fake)
+	svc := newTestService(fake, &fakeOrderGateway{})
 	page, err := pagination.New(2, 10)
 	if err != nil {
 		t.Fatal(err)
