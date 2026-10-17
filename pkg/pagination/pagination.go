@@ -1,0 +1,96 @@
+// Package pagination is the single, shared offset-pagination model for the
+// project. It owns normalization, offset math and total-page math so every
+// offset-paginated endpoint behaves identically without per-service plumbing.
+//
+// The two types are immutable and valid by construction: build them only
+// through New and NewPageInfo. External packages can neither construct them
+// outside these constructors nor mutate them, so a Pagination can never hold an
+// invalid page or page size and copying is race-free.
+package pagination
+
+import (
+	"errors"
+	"math"
+)
+
+// ErrOffsetOverflow is returned when the requested page and page size map to an
+// offset that would overflow the platform integer. It is a sentinel callers
+// compare against to reject a request, never a panic.
+var ErrOffsetOverflow = errors.New("pagination offset out of range")
+
+const (
+	defaultPage     = 1
+	defaultPageSize = 20
+	maxPageSize     = 100
+)
+
+// Pagination is a request-side offset page. page is the canonical wire field;
+// offset is derived and never transmitted alongside page.
+type Pagination struct {
+	page     int
+	pageSize int
+}
+
+// New normalizes request input into a Pagination. page and page_size are
+// coerced to defaults (page 0 or below -> 1, page_size 0 or below -> 20) and
+// page_size is clamped to a maximum of 100. A page too large to map to a valid
+// offset is rejected with ErrOffsetOverflow rather than silently truncating.
+func New(page, pageSize int) (Pagination, error) {
+	p := page
+	if p <= 0 {
+		p = defaultPage
+	}
+	size := pageSize
+	if size <= 0 {
+		size = defaultPageSize
+	}
+	if size > maxPageSize {
+		size = maxPageSize
+	}
+	if p-1 > math.MaxInt/size {
+		return Pagination{}, ErrOffsetOverflow
+	}
+	return Pagination{page: p, pageSize: size}, nil
+}
+
+// Page returns the effective one-based page number.
+func (p Pagination) Page() int { return p.page }
+
+// PageSize returns the effective page size after defaulting and clamping.
+func (p Pagination) PageSize() int { return p.pageSize }
+
+// Offset returns the database OFFSET for this page: (page - 1) * page_size.
+func (p Pagination) Offset() int { return (p.page - 1) * p.pageSize }
+
+// PageInfo is a response-side holder for the totals of a paginated list. It is
+// immutable and built by the service through NewPageInfo; it never carries
+// request input, so a request Pagination is never polluted with totals.
+type PageInfo struct {
+	page       int
+	pageSize   int
+	totalItems int64
+	totalPages int
+}
+
+// NewPageInfo builds the response PageInfo for a page of page_size rows whose
+// list holds totalItems rows. total_pages is ceil(total_items / page_size),
+// and is zero for an empty result.
+func NewPageInfo(page, pageSize int, totalItems int64) PageInfo {
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = int(math.Ceil(float64(totalItems) / float64(pageSize)))
+	}
+	return PageInfo{page: page, pageSize: pageSize, totalItems: totalItems, totalPages: totalPages}
+}
+
+// Page returns the one-based page returned.
+func (p PageInfo) Page() int { return p.page }
+
+// PageSize returns the page size used.
+func (p PageInfo) PageSize() int { return p.pageSize }
+
+// TotalItems returns the total number of rows across all pages.
+func (p PageInfo) TotalItems() int64 { return p.totalItems }
+
+// TotalPages returns ceil(total_items / page_size), zero for an empty result.
+func (p PageInfo) TotalPages() int { return p.totalPages }
