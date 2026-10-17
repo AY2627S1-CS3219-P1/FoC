@@ -7,8 +7,9 @@ import "credit/v1/shared_types.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-// Order's credit reservations: one per order, keyed by request_id (the Order
-// Service order ID). Called by Order Service only, with its service token.
+// Order's credit reservations: one per delivery request, keyed by request_id
+// (the Order Service request ID). Called by Order Service only, with its
+// service token.
 //
 // Every mutation is idempotent by its key: request_id, or offer_id for
 // adjustments and reverts. Keys never expire. Repeating a call with the same
@@ -37,9 +38,9 @@ service CreditReservationService {
   rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
-// Holds amount from the requester's available credits when an order is
+// Holds amount from the requester's available credits when a request is
 // created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
-// with RESERVATION_RELEASED if the order was already released. A requester
+// with RESERVATION_RELEASED if the request was already released. A requester
 // without an account first receives the starting credits.
 message ReserveRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
@@ -69,7 +70,7 @@ message RevertAdjustmentRequest {
   string offer_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
-// Returns the whole hold to the requester when an order is cancelled before
+// Returns the whole hold to the requester when a request is cancelled before
 // pickup, expires or fails. An unknown request is recorded as released, so a
 // later Reserve for it fails with RESERVATION_RELEASED. Fails with
 // RESERVATION_SETTLED on a Settled reservation.
@@ -81,7 +82,7 @@ message ReleaseReservationRequest {
   }];
 }
 
-// Pays the courier when an order completes or the requester cancels after
+// Pays the courier when a request completes or the requester cancels after
 // pickup. The reservation must be Assigned. The courier receives the payable
 // amount and the rest of the hold returns to the requester.
 message SettleReservationRequest {
