@@ -50,11 +50,9 @@ init script runs only on fresh volumes. User Service public keys are needed to
 serve protected RPCs. Remote Credit/Kafka/S3 reachability is not a startup probe.
 Kafka downtime retains outgoing facts; image storage failures do not create
 invalid image attachments. Embedded migrations run unless `RUN_MIGRATIONS=false`.
-Migration 00002 retains the previous creation schema unchanged; 00003 adds images
-and relay claims. Migration 00004 generalises the existing key table and backfills
-its payload hashes. Deploy it together with the updated Order binary: older
-binaries use the retired table name. Never reset databases or run down migrations
-to switch branches.
+Migration 00002 defines creation workflows and the shared idempotency key table;
+00003 adds images and relay claims. These definitions are for fresh databases;
+Goose does not rerun an edited migration on databases where it was already applied.
 
 Compose configures local Floci with deterministic `test`/`test` credentials and
 an explicit bucket/CORS initialization job. The bucket is private. Use the
