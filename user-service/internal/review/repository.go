@@ -13,8 +13,12 @@ import (
 // repository's own connection.
 type Repository interface {
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error
-	FindReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
-	DeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error
+	// FindReviewLocked returns the live review under a row lock, so a concurrent
+	// removal of the same review serialises and the loser sees it as not found.
+	FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
+	// SoftDeleteReview marks the review removed (deleted_at set); the row is
+	// retained so the removal audit can keep referencing it.
+	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error
 	InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
 	// statement and updates the user's stats, all within q's transaction.

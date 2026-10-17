@@ -100,29 +100,33 @@ func (s *Service) ListReviewFromUser(ctx context.Context, userID uuid.UUID, page
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// RemoveReview hard-deletes a review and records the audit row, then recomputes
-// the reviewee's stats -- all atomically.
+// RemoveReview soft-deletes a review, records the audit row, then recomputes
+// the reviewee's stats -- all atomically. The reviews row is retained (marked
+// deleted_at) so the audit row can keep referencing it, and the stats recompute
+// over non-removed reviews.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
-	removal, err := newRemoval(id, reason, createdBy)
+	removal, err := newRemoval(reason, createdBy)
 	if err != nil {
 		return err
 	}
 	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
-		review, err := s.repo.FindReview(ctx, q, id)
+		review, err := s.repo.FindReviewLocked(ctx, q, id)
 		if err != nil {
 			if errors.Is(err, errReviewNotFound) {
 				return errs.WrapNotFoundError(errReviewNotFound, "review not found")
 			}
 			return err
 		}
-		// The audit row records who was reviewed and for which request.
+		if err := s.repo.SoftDeleteReview(ctx, q, id); err != nil {
+			return err
+		}
+		// The audit row records the removed review, who was reviewed and for
+		// which request.
+		removal.ReviewID = review.ID
 		removal.ReviewerID = review.ReviewerID
 		removal.RevieweeID = review.RevieweeID
 		removal.OrderID = review.OrderID
 		if err := s.repo.InsertReviewRemoval(ctx, q, removal); err != nil {
-			return err
-		}
-		if err := s.repo.DeleteReview(ctx, q, id); err != nil {
 			return err
 		}
 		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
@@ -143,8 +147,10 @@ func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagina
 	return RemovalPage{Removals: removals, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// newRemoval builds the audit row for a removal, generating its UUIDv7 id.
-func newRemoval(id uuid.UUID, reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
+// newRemoval builds the audit row for a removal, generating its UUIDv7 id. The
+// surrogate id is unrelated to the review's id and survives a later permanent
+// deletion of the review.
+func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
 	removalID, err := newID()
 	if err != nil {
 		return ReviewRemoval{}, err

@@ -32,13 +32,13 @@ type fakeRepository struct {
 	insertErr    error
 	findReview   Review
 	findErr      error
-	deleteErr    error
+	softDelErr   error
 	removalErr   error
 	recalcErr    error
 	recalcCount  int
 	insertedID   uuid.UUID
 	audited      ReviewRemoval
-	deletedID    uuid.UUID
+	softDeleted  uuid.UUID
 	recalculated uuid.UUID
 }
 
@@ -54,16 +54,16 @@ func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, in
 	return f.insertErr
 }
 
-func (f *fakeRepository) FindReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
+func (f *fakeRepository) FindReviewLocked(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
 	if f.findErr != nil {
 		return Review{}, f.findErr
 	}
 	return f.findReview, nil
 }
 
-func (f *fakeRepository) DeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) error {
-	f.deletedID = id
-	return f.deleteErr
+func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) error {
+	f.softDeleted = id
+	return f.softDelErr
 }
 
 func (f *fakeRepository) InsertReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
@@ -223,7 +223,7 @@ func TestListReviews(t *testing.T) {
 }
 
 func TestRemoveReview(t *testing.T) {
-	t.Run("deletes the review, audits it, and recomputes stats", func(t *testing.T) {
+	t.Run("soft-deletes the review, audits it, and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order, id := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		createdBy := uuid.New()
 		fake := &fakeRepository{findReview: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order}}
@@ -231,8 +231,11 @@ func TestRemoveReview(t *testing.T) {
 		if err := svc.RemoveReview(context.Background(), id, "abuse", createdBy); err != nil {
 			t.Fatalf("remove: %v", err)
 		}
-		if fake.deletedID != id {
-			t.Fatalf("wrong review deleted: %v", fake.deletedID)
+		if fake.softDeleted != id {
+			t.Fatalf("wrong review soft-deleted: %v", fake.softDeleted)
+		}
+		if fake.audited.ReviewID != id {
+			t.Fatalf("audit row does not reference the removed review: %+v", fake.audited)
 		}
 		if fake.audited.ReviewerID != reviewer || fake.audited.RevieweeID != reviewee || fake.audited.OrderID != order || fake.audited.Reason != "abuse" || fake.audited.CreatedBy != createdBy {
 			t.Fatalf("audit row not captured correctly: %+v", fake.audited)

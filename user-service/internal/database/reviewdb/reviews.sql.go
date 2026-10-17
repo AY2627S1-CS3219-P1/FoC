@@ -26,7 +26,7 @@ func (q *Queries) CountReviewRemovals(ctx context.Context) (int64, error) {
 const countReviewsForUser = `-- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewee_id = $1::UUID
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
 `
 
 func (q *Queries) CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -39,7 +39,7 @@ func (q *Queries) CountReviewsForUser(ctx context.Context, userID uuid.UUID) (in
 const countReviewsFromUser = `-- name: CountReviewsFromUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewer_id = $1::UUID
+WHERE reviewer_id = $1::UUID AND deleted_at IS NULL
 `
 
 func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -49,27 +49,22 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
-const deleteReview = `-- name: DeleteReview :exec
-DELETE FROM reviews
-WHERE id = $1::UUID
-`
-
-func (q *Queries) DeleteReview(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteReview, id)
-	return err
-}
-
-const findReview = `-- name: FindReview :one
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+const findReviewLocked = `-- name: FindReviewLocked :one
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE id = $1::UUID
+WHERE id = $1::UUID AND deleted_at IS NULL
+FOR UPDATE
 `
 
-func (q *Queries) FindReview(ctx context.Context, id uuid.UUID) (Review, error) {
-	row := q.db.QueryRowContext(ctx, findReview, id)
+// Find the live review and lock it: removal serialises on this lock, so a
+// concurrent removal of the same review sees the row already soft-deleted and
+// reports not found instead of writing a second audit row.
+func (q *Queries) FindReviewLocked(ctx context.Context, id uuid.UUID) (Review, error) {
+	row := q.db.QueryRowContext(ctx, findReviewLocked, id)
 	var i Review
 	err := row.Scan(
 		&i.ID,
+		&i.DeletedAt,
 		&i.ReviewerID,
 		&i.RevieweeID,
 		&i.OrderID,
@@ -107,12 +102,13 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 }
 
 const insertReviewRemoval = `-- name: InsertReviewRemoval :exec
-INSERT INTO review_removals (id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
-VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, now(), $6::UUID)
+INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
 `
 
 type InsertReviewRemovalParams struct {
 	ID         uuid.UUID
+	ReviewID   uuid.UUID
 	ReviewerID uuid.UUID
 	RevieweeID uuid.UUID
 	OrderID    uuid.UUID
@@ -123,6 +119,7 @@ type InsertReviewRemovalParams struct {
 func (q *Queries) InsertReviewRemoval(ctx context.Context, arg InsertReviewRemovalParams) error {
 	_, err := q.db.ExecContext(ctx, insertReviewRemoval,
 		arg.ID,
+		arg.ReviewID,
 		arg.ReviewerID,
 		arg.RevieweeID,
 		arg.OrderID,
@@ -133,7 +130,7 @@ func (q *Queries) InsertReviewRemoval(ctx context.Context, arg InsertReviewRemov
 }
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
-SELECT id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
+SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
 FROM review_removals
 ORDER BY created_at DESC, id DESC
 LIMIT $2 OFFSET $1
@@ -155,6 +152,7 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 		var i ReviewRemoval
 		if err := rows.Scan(
 			&i.ID,
+			&i.ReviewID,
 			&i.ReviewerID,
 			&i.RevieweeID,
 			&i.OrderID,
@@ -176,9 +174,9 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 }
 
 const listReviewsForUser = `-- name: ListReviewsForUser :many
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE reviewee_id = $1::UUID
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $2
 `
@@ -200,6 +198,7 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 		var i Review
 		if err := rows.Scan(
 			&i.ID,
+			&i.DeletedAt,
 			&i.ReviewerID,
 			&i.RevieweeID,
 			&i.OrderID,
@@ -221,9 +220,9 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 }
 
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE reviewer_id = $1::UUID
+WHERE reviewer_id = $1::UUID AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $2
 `
@@ -245,6 +244,7 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 		var i Review
 		if err := rows.Scan(
 			&i.ID,
+			&i.DeletedAt,
 			&i.ReviewerID,
 			&i.RevieweeID,
 			&i.OrderID,
@@ -280,7 +280,7 @@ func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error 
 const revieweeStatistics = `-- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
-WHERE reviewee_id = $1::UUID
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
 `
 
 type RevieweeStatisticsRow struct {
@@ -293,6 +293,19 @@ func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) 
 	var i RevieweeStatisticsRow
 	err := row.Scan(&i.ReviewCount, &i.SumRating)
 	return i, err
+}
+
+const softDeleteReview = `-- name: SoftDeleteReview :exec
+UPDATE reviews
+SET deleted_at = now()
+WHERE id = $1::UUID AND deleted_at IS NULL
+`
+
+// Mark the review removed; the row is retained so review_removals can keep
+// referencing it. A no-op when the row is already soft-deleted.
+func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, softDeleteReview, id)
+	return err
 }
 
 const updateRevieweeStats = `-- name: UpdateRevieweeStats :exec

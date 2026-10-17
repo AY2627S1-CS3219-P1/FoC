@@ -7,45 +7,52 @@ SELECT EXISTS (
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
 
--- name: FindReview :one
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+-- Find the live review and lock it: removal serialises on this lock, so a
+-- concurrent removal of the same review sees the row already soft-deleted and
+-- reports not found instead of writing a second audit row.
+-- name: FindReviewLocked :one
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE id = @id::UUID;
+WHERE id = @id::UUID AND deleted_at IS NULL
+FOR UPDATE;
 
--- name: DeleteReview :exec
-DELETE FROM reviews
-WHERE id = @id::UUID;
+-- Mark the review removed; the row is retained so review_removals can keep
+-- referencing it. A no-op when the row is already soft-deleted.
+-- name: SoftDeleteReview :exec
+UPDATE reviews
+SET deleted_at = now()
+WHERE id = @id::UUID AND deleted_at IS NULL;
 
 -- name: InsertReviewRemoval :exec
-INSERT INTO review_removals (id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
-VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
+INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
+VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
 -- name: ListReviewsForUser :many
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE reviewee_id = @user_id::UUID
+WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: ListReviewsFromUser :many
-SELECT id, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 FROM reviews
-WHERE reviewer_id = @user_id::UUID
+WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewee_id = @user_id::UUID;
+WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL;
 
 -- name: CountReviewsFromUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewer_id = @user_id::UUID;
+WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
 -- name: ListReviewRemovals :many
-SELECT id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
+SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
 FROM review_removals
 ORDER BY created_at DESC, id DESC
 LIMIT @page_limit OFFSET @page_offset;
@@ -63,7 +70,7 @@ SELECT id FROM users WHERE id = @reviewee_id::UUID FOR UPDATE;
 -- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
-WHERE reviewee_id = @reviewee_id::UUID;
+WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
 
 -- name: UpdateRevieweeStats :exec
 UPDATE users

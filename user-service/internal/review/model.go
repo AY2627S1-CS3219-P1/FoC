@@ -1,7 +1,7 @@
 // Package review implements the review subdomain: participants rate each other
-// for a Completed request, and administrators hard-delete reviews and audit it.
-// The whole stack -- domain model, repository interface, transactional service
-// logic, sqlc repository and Connect handler -- lives here.
+// for a Completed request, and administrators remove (soft-delete) reviews and
+// audit it. The whole stack -- domain model, repository interface, transactional
+// service logic, sqlc repository and Connect handler -- lives here.
 package review
 
 import (
@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// Review is one participant's rating of the other for a single request.
+// Review is one participant's rating of the other for a single request. Reads
+// only return live rows, so DeletedAt is always the zero time in practice; the
+// field mirrors the soft-delete marker the table carries.
 type Review struct {
 	ID         uuid.UUID
 	ReviewerID uuid.UUID
@@ -22,6 +24,7 @@ type Review struct {
 	Rating     int
 	Comment    string
 	CreatedAt  time.Time
+	DeletedAt  time.Time
 }
 
 // ReviewSubmission is the rating and comment a caller submits about a reviewee.
@@ -30,9 +33,11 @@ type ReviewSubmission struct {
 	Comment string
 }
 
-// ReviewRemoval is the audit row recorded when a review is hard-deleted.
+// ReviewRemoval is the audit row recorded when a review is removed. ReviewID
+// references the soft-deleted (retained) review the audit is about.
 type ReviewRemoval struct {
 	ID         uuid.UUID
+	ReviewID   uuid.UUID
 	ReviewerID uuid.UUID
 	RevieweeID uuid.UUID
 	OrderID    uuid.UUID

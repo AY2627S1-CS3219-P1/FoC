@@ -106,7 +106,7 @@ func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[review
 	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
 }
 
-// RemoveReview hard-deletes a review on behalf of an administrator and records
+// RemoveReview soft-deletes a review on behalf of an administrator and records
 // the audit row. RBAC (admin only) is enforced by the interceptor.
 func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv1.RemoveReviewRequest]) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)

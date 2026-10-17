@@ -35,21 +35,27 @@ func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queri
 	return mapReviewError("insert review", err)
 }
 
-func (r *PostgresRepository) FindReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
-	row, err := q.FindReview(ctx, id)
+// FindReviewLocked returns the live review under a row lock (see the Repository
+// contract). The snapshot comes from the locked row itself, so no relationship
+// subquery is involved.
+func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	row, err := q.FindReviewLocked(ctx, id)
 	if err != nil {
 		return Review{}, mapReviewError("find review", err)
 	}
 	return toReview(row), nil
 }
 
-func (r *PostgresRepository) DeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error {
-	return mapReviewError("delete review", q.DeleteReview(ctx, id))
+// SoftDeleteReview marks the review removed inside q's transaction. The row is
+// retained so the removal audit can keep referencing it.
+func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error {
+	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
 }
 
 func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error {
 	return mapReviewError("insert review removal", q.InsertReviewRemoval(ctx, reviewdb.InsertReviewRemovalParams{
 		ID:         removal.ID,
+		ReviewID:   removal.ReviewID,
 		ReviewerID: removal.ReviewerID,
 		RevieweeID: removal.RevieweeID,
 		OrderID:    removal.OrderID,
@@ -168,12 +174,14 @@ func toReview(row reviewdb.Review) Review {
 		Rating:     int(row.Rating),
 		Comment:    row.Comment,
 		CreatedAt:  row.CreatedAt,
+		DeletedAt:  row.DeletedAt.Time,
 	}
 }
 
 func toReviewRemoval(row reviewdb.ReviewRemoval) ReviewRemoval {
 	return ReviewRemoval{
 		ID:         row.ID,
+		ReviewID:   row.ReviewID,
 		ReviewerID: row.ReviewerID,
 		RevieweeID: row.RevieweeID,
 		OrderID:    row.OrderID,

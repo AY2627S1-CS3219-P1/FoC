@@ -143,7 +143,17 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if removals.TotalItems() != 1 || removals.TotalPages() != 1 {
 			t.Fatalf("unexpected page info: %+v", removals.PageInfo)
 		}
-		// The deleted review is gone; only the rating-2 review remains.
+		// The removed review's row is retained with deleted_at set, so the
+		// audit row can keep referencing it.
+		var deletedAt sql.NullTime
+		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", firstReview).Scan(&deletedAt); err != nil {
+			t.Fatalf("read removed review: %v", err)
+		}
+		if !deletedAt.Valid {
+			t.Fatal("removed review still live: deleted_at is not set")
+		}
+		// The removed review no longer appears in listings; only the rating-2
+		// review remains.
 		received, err = service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatalf("list received after removal: %v", err)
@@ -152,7 +162,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("expected only the rating-2 review, got %+v", received.Reviews)
 		}
 		if err := service.RemoveReview(ctx, firstReview, "abuse", admin); !errors.Is(err, errReviewNotFound) {
-			t.Fatalf("re-removing a deleted review should be not found, got %v", err)
+			t.Fatalf("re-removing a removed review should be not found, got %v", err)
 		}
 	})
 

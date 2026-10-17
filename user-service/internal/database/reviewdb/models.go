@@ -5,6 +5,7 @@
 package reviewdb
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 
 type Review struct {
 	ID         uuid.UUID
+	DeletedAt  sql.NullTime
 	ReviewerID uuid.UUID
 	RevieweeID uuid.UUID
 	OrderID    uuid.UUID
@@ -22,6 +24,7 @@ type Review struct {
 
 type ReviewRemoval struct {
 	ID         uuid.UUID
+	ReviewID   uuid.UUID
 	ReviewerID uuid.UUID
 	RevieweeID uuid.UUID
 	OrderID    uuid.UUID
