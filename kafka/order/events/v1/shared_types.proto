@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+// Types shared by Order's events. OrderStatus mirrors order.v1.OrderStatus;
+// Kafka contracts can't import the RPC module, so keep the two in step.
+
+// Terminal statuses are immutable.
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  // Saved while Credit reserves the reward. Never shown to couriers.
+  ORDER_STATUS_PENDING_RESERVATION = 1;
+  ORDER_STATUS_AWAITING_COURIER = 2;
+  ORDER_STATUS_AWAITING_PICKUP = 3;
+  ORDER_STATUS_DELIVERING = 4;
+  ORDER_STATUS_DELIVERED = 5;
+  ORDER_STATUS_COMPLETED = 6;
+  ORDER_STATUS_CANCELLED = 7;
+  ORDER_STATUS_EXPIRED = 8;
+  ORDER_STATUS_FAILED = 9;
+  // Credit refused the reservation, or it could not be confirmed. Never opened.
+  ORDER_STATUS_REJECTED = 10;
+}
+
+enum ActorType {
+  ACTOR_TYPE_UNSPECIFIED = 0;
+  ACTOR_TYPE_USER = 1;
+  ACTOR_TYPE_ADMIN = 2;
+  // Timers and recovery.
+  ACTOR_TYPE_SYSTEM = 3;
+}
+
+message Actor {
+  ActorType type = 1;
+  // Absent for the system.
+  optional string user_id = 2;
+}
