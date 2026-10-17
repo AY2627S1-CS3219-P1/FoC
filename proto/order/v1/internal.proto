@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package order.v1;
+
+import "buf/validate/validate.proto";
+import "order/v1/shared_types.proto";
+
+// Service-to-service reads. Not exposed to the frontend.
+service OrderInternalService {
+  rpc GetOrderParticipants(GetOrderParticipantsRequest) returns (GetOrderParticipantsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+// Used by Communication to relay chat only between an order's participants.
+message GetOrderParticipantsRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetOrderParticipantsResponse {
+  string order_id = 1;
+  string requester_id = 2;
+  // Absent while no courier is assigned.
+  optional string courier_id = 3;
+  OrderStatus status = 4;
+}

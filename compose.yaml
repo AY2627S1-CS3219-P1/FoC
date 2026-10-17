@@ -40,6 +40,65 @@ services:
       retries: 5
     restart: unless-stopped
 
+  kafka:
+    image: apache/kafka:4.2.2
+    container_name: foc-kafka
+    ports:
+      - "${KAFKA_PORT:-9092}:19092"
+    healthcheck:
+      test:
+        - CMD
+        - /opt/kafka/bin/kafka-topics.sh
+        - --bootstrap-server
+        - localhost:9092
+        - --list
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    environment:
+      # Setting KAFKA_* variables replaces the image's default broker config.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # Containers use kafka:9092; host clients use localhost:${KAFKA_PORT:-9092}.
+      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LOG_DIRS: /var/lib/kafka/data/kraft-combined-logs
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    restart: unless-stopped
+
+  kafka-init:
+    image: apache/kafka:4.2.2
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_SCHEMA_DIR: /schemas
+    volumes:
+      - ./infra/kafka:/setup:ro
+      - ./kafka:/schemas:ro
+    entrypoint: ["/bin/sh", "/setup/create-topics.sh"]
+
+  kafka-ui:
+    container_name: foc-kafka-ui
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    volumes:
+      # Kafka UI creates dynamic_config.yaml here when settings are saved.
+      - kafka-ui-config:/etc/kafkaui
+
   # Catches all outgoing mail. Read magic links at http://localhost:8025.
   mailpit:
     image: axllent/mailpit:v1.31
@@ -138,6 +197,7 @@ services:
 
 volumes:
   pgdata:
+  kafka-ui-config:
   frontend-node-modules:
   frontend-svelte-kit:
   go-modules:
