@@ -97,6 +97,14 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   authentication at the HTTP middleware boundary and method-level
   authorization through Connect interceptors. Generated RPC paths do not
   inherit REST middleware mounted under `/api`.
+- Treat stale authorization claims after a token-backed user attribute changes
+  as an access-token lifecycle concern, not as a page-specific error-recovery
+  concern. Do not refresh authentication or clear page state in response to a
+  `PermissionDenied` solely to compensate for a role change. Until centralized
+  revocation is implemented, changes such as administrator demotion may leave
+  the UI's token-derived state stale until the access token expires. The planned
+  solution is Redis-backed access-token revocation whenever any user attribute
+  stored in the token changes.
 - Use Connect interceptors for RPC-wide validation, authorization, logging,
   tracing, and error normalization. Keep business logic in shared operations
   when REST and RPC adapters expose the same behavior.
@@ -184,10 +192,22 @@ Supplier Service uses sqlc:
 - Use mutable singletons only in browser lifecycle and event code, never in
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
+- Handle unauthenticated access to protected RPCs at the transport layer: the
+  auth interceptor refreshes and retries, then the redirect interceptor sends
+  the user to `/login`. Pages never check authentication; they redirect only
+  for authorization failures (role checks).
 
 ## Frontend UI
 - Use Superforms to validate and manage form
 - Use Svelte-M3 UI components
+- Style M3 components through public props, CSS variables, or application-owned
+  wrappers and data attributes. Avoid selectors that depend on internal library
+  classes (such as `.m3-container`) or the component's internal DOM structure.
+- Place components used by a single route next to that page (for example
+  `routes/admin/config/AllowedDomainsCard.svelte`). Promote a component to
+  `frontend/src/lib/components/<domain>/` only when a second route consumes it
+  or it has an app-wide role (layout-level components such as `SnackbarHost`).
+  When no page is left in a `lib/components/<domain>/` group, delete the folder.
 
 User Service has legacy GORM-backed domains and may use sqlc for new domains:
 
