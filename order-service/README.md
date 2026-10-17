@@ -51,7 +51,10 @@ serve protected RPCs. Remote Credit/Kafka/S3 reachability is not a startup probe
 Kafka downtime retains outgoing facts; image storage failures do not create
 invalid image attachments. Embedded migrations run unless `RUN_MIGRATIONS=false`.
 Migration 00002 retains the previous creation schema unchanged; 00003 adds images
-and relay claims. Never reset databases or run down migrations to switch branches.
+and relay claims. Migration 00004 generalises the existing key table and backfills
+its payload hashes. Deploy it together with the updated Order binary: older
+binaries use the retired table name. Never reset databases or run down migrations
+to switch branches.
 
 Compose configures local Floci with deterministic `test`/`test` credentials and
 an explicit bucket/CORS initialization job. The bucket is private. Use the
@@ -152,3 +155,11 @@ per Order. Different topics have no common ordering guarantee. Pending creation
 recovers immediately on startup, with bounded calls, leased claims and backoff.
 Unattached uploads older than 24 hours are cleaned up; attached history is retained.
 Credit owns terminal settlement and startup/five-minute reconciliation and alerts.
+
+The shared `order_idempotency_keys` table uses `(caller_id, method, idempotency_key)`
+as its primary key and stores `request_hash`, `resource_id` and expiry. Creation
+references its workflow; future MakeOffer will reference its offer in the same
+table. Workflow payload, progress and result remain separate. Insert resource and
+key in one transaction. Resolve the resource before deciding expiry; a missing
+resource is an integrity error, never permission to execute again. There is no
+generic expired-key cleanup that could remove unresolved creation mappings.

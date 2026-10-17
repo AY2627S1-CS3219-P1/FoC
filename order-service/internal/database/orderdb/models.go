@@ -58,14 +58,6 @@ type OrderAudit struct {
 	Details         []byte
 }
 
-type OrderCreationKey struct {
-	CallerID       uuid.UUID
-	Method         string
-	IdempotencyKey uuid.UUID
-	WorkflowID     uuid.UUID
-	ExpiresAt      time.Time
-}
-
 type OrderCreationWorkflow struct {
 	ID                uuid.UUID
 	OrderID           uuid.UUID
@@ -85,6 +77,15 @@ type OrderCreationWorkflow struct {
 	Result            []byte
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+type OrderIdempotencyKey struct {
+	CallerID       uuid.UUID
+	Method         string
+	IdempotencyKey uuid.UUID
+	ResourceID     uuid.UUID
+	ExpiresAt      time.Time
+	RequestHash    string
 }
 
 type OrderItemImage struct {

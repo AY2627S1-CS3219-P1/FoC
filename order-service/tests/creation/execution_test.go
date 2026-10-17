@@ -288,7 +288,7 @@ func TestCreationExecution(t *testing.T) {
 				t.Fatalf("duplicate=%+v expected=%s", result, id)
 			}
 		}
-		if f.count(t, "order_creation_workflows") != 1 || f.count(t, "order_creation_keys") != 1 || f.count(t, "order_audit") != 2 {
+		if f.count(t, "order_creation_workflows") != 1 || f.count(t, "order_idempotency_keys") != 1 || f.count(t, "order_audit") != 2 {
 			t.Fatal("duplicate workflow or revision")
 		}
 		s.remotes.mu.Lock()
@@ -344,7 +344,7 @@ func TestCreationExecution(t *testing.T) {
 		if _, err := create(c, f.ctx, input(s.clock.Now())); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 			t.Fatal(err)
 		}
-		if f.count(t, "orders") != 0 || f.count(t, "order_creation_keys") != 0 {
+		if f.count(t, "orders") != 0 || f.count(t, "order_idempotency_keys") != 0 {
 			t.Fatal("invalid request admitted")
 		}
 	})
@@ -376,7 +376,7 @@ func TestCreationExecution(t *testing.T) {
 		if err != nil || opened.Id == pending.Id {
 			t.Fatalf("resolved key reuse=%v err=%v", opened, err)
 		}
-		if f.count(t, "order_creation_workflows") != 2 || f.count(t, "order_creation_keys") != 1 {
+		if f.count(t, "order_creation_workflows") != 2 || f.count(t, "order_idempotency_keys") != 1 {
 			t.Fatal("workflow history or mapping retention incorrect")
 		}
 	})
@@ -486,7 +486,7 @@ func TestCreationPreflightRaces(t *testing.T) {
 			t.Fatal(err)
 		}
 		second, err := s.creator.Create(ctx, app.Caller{ID: uuid.NewString()}, in)
-		if err != nil || first.ID == second.ID || f.count(t, "order_creation_keys") != 2 {
+		if err != nil || first.ID == second.ID || f.count(t, "order_idempotency_keys") != 2 {
 			t.Fatalf("caller scope second=%+v err=%v", second, err)
 		}
 	})

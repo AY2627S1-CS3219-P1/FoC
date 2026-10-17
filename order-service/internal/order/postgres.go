@@ -63,12 +63,12 @@ func rollback(ctx context.Context, tx pgx.Tx) {
 
 // postgresTx tracks lock baselines, fresh relationship reads and applied changes.
 type postgresTx struct {
-	q                 *db.Queries
-	locked            map[string]Order
-	related, applied  map[string]bool
-	failed            error
-	creationCallers   map[string]bool
-	creationBaselines map[string]CreationWorkflow
+	q                  *db.Queries
+	locked             map[string]Order
+	related, applied   map[string]bool
+	failed             error
+	idempotencyCallers map[IdempotencyScope]bool
+	creationBaselines  map[string]CreationWorkflow
 }
 
 // LockOrder keeps an independent baseline for validating the eventual change.
@@ -360,3 +360,12 @@ func parseID(id string) (uuid.UUID, error) {
 
 var _ Repository = (*PostgresRepository)(nil)
 var _ Reader = (*PostgresRepository)(nil)
+
+// writeResult poisons the shared transaction after a failed persistence write.
+func (t *postgresTx) writeResult(err error) error {
+	err = persistenceError(err)
+	if err != nil {
+		t.failed = err
+	}
+	return err
+}
