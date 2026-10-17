@@ -204,6 +204,11 @@ func mapReviewError(operation string, err error) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23503":
+			// Currently unreachable: users are never deleted (no delete RPC, and
+			// store.Users.Delete is a GORM soft delete that keeps the row), so
+			// foreign keys cannot fail. Revisit when user deletion lands — an
+			// InsertReview violation means a missing reviewer/reviewee, not a
+			// missing review, so distinguish by pgErr.ConstraintName then.
 			return errReviewNotFound
 		case "23505":
 			return errReviewAlreadyExists

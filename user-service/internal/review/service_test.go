@@ -212,7 +212,7 @@ func TestListReviews(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result, err := svc.ListReviewFromUser(context.Background(), reviewer, page)
+		result, err := svc.ListReviewsFromUser(context.Background(), reviewer, page)
 		if err != nil {
 			t.Fatal(err)
 		}

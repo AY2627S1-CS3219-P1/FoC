@@ -87,8 +87,8 @@ func (s *Service) ListReviewsForUser(ctx context.Context, userID uuid.UUID, page
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// ListReviewFromUser returns the reviews a user gave on a page.
-func (s *Service) ListReviewFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
+// ListReviewsFromUser returns the reviews a user gave on a page.
+func (s *Service) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
 	reviews, err := s.repo.ListReviewsFromUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
 		return ReviewPage{}, err

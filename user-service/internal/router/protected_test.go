@@ -67,7 +67,7 @@ func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagi
 	return review.ReviewPage{}, nil
 }
 
-func (reviewStub) ListReviewFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
+func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
 	return review.ReviewPage{}, nil
 }
 

@@ -22,7 +22,7 @@ import (
 type Logic interface {
 	SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
-	ListReviewFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
@@ -99,7 +99,7 @@ func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[review
 	if err != nil {
 		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
-	pageResult, err := h.Logic.ListReviewFromUser(ctx, actorID, page)
+	pageResult, err := h.Logic.ListReviewsFromUser(ctx, actorID, page)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

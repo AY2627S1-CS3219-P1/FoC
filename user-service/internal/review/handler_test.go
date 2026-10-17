@@ -53,7 +53,7 @@ func (s *handlerLogicStub) ListReviewsForUser(_ context.Context, userID uuid.UUI
 	return s.forUserPage, s.forUserErr
 }
 
-func (s *handlerLogicStub) ListReviewFromUser(_ context.Context, userID uuid.UUID, _ pagination.Pagination) (ReviewPage, error) {
+func (s *handlerLogicStub) ListReviewsFromUser(_ context.Context, userID uuid.UUID, _ pagination.Pagination) (ReviewPage, error) {
 	s.listedFor = userID
 	return ReviewPage{}, s.forUserErr
 }
