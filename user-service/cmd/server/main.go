@@ -25,6 +25,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
@@ -56,6 +57,7 @@ type config struct {
 	privateKey      string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
+	orderServiceURL string
 	smtp            email.SMTPSender
 	bootstrap       bootstrap.Config
 }
@@ -117,7 +119,7 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB)
+	reviewLogic := newReviewService(sqlDB, cfg.orderServiceURL)
 	protected := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: profileLogic},
 		Admin:        &adminhandler.Handler{Logic: roleLogic},
@@ -167,9 +169,22 @@ func newServer(addr string, handler http.Handler) *http.Server {
 
 // newReviewService builds the review service. Reads run against the shared
 // connection pool; transactional writes run on a database/sql transaction, with
-// sqlc queries bound to it (see LANDMINES for the locking rule).
-func newReviewService(sqlDB *sql.DB) *review.Service {
+// sqlc queries bound to it (see LANDMINES for the locking rule). The order
+// gateway reads the order service's internal listener, which is mounted
+// separately from its public routes and never published to the internet.
+func newReviewService(sqlDB *sql.DB, orderServiceURL string) *review.Service {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	var orders review.OrderGateway
+	if orderServiceURL == "" {
+		// The order service is not implemented yet (order-service REQUIREMENTS,
+		// R1 planned week 9). Fail closed: every submission is rejected until
+		// ORDER_SERVICE_URL points at its internal listener. Validation is
+		// never skipped.
+		orders = review.UnavailableOrderGateway{}
+	} else {
+		orders = review.NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(
+			&http.Client{Timeout: 5 * time.Second}, orderServiceURL))
+	}
 	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
@@ -181,7 +196,7 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	})
+	}, orders)
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -203,6 +218,7 @@ func loadConfig() (config, error) {
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		orderServiceURL: envString("ORDER_SERVICE_URL", ""),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -244,6 +260,12 @@ func loadConfig() (config, error) {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))
 	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
 		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
+	}
+	if cfg.orderServiceURL != "" {
+		u, err := url.Parse(cfg.orderServiceURL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			errs = append(errs, fmt.Errorf("ORDER_SERVICE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL))
+		}
 	}
 	return cfg, errors.Join(errs...)
 }

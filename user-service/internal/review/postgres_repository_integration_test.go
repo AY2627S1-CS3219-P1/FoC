@@ -15,10 +15,26 @@ import (
 )
 
 // buildReviewService wires the review repository against a real database. Reads
+// buildReviewService wires the review repository against a real database. Reads
 // run against the shared pool; the transactional writes run on a database/sql
 // transaction with the sqlc queries bound to it, so every insert, audit row and
 // recalculation commits or rolls back together.
-func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
+//
+// stubOrders answers eligibility from a per-order table the test fills in;
+// an unregistered order is not found.
+type stubOrders struct {
+	byOrder map[uuid.UUID]OrderParticipants
+}
+
+func (s *stubOrders) GetOrderParticipants(_ context.Context, orderID uuid.UUID) (OrderParticipants, error) {
+	p, ok := s.byOrder[orderID]
+	if !ok {
+		return OrderParticipants{}, errOrderNotFound
+	}
+	return p, nil
+}
+
+func buildReviewService(t *testing.T, sqlDB *sql.DB, orders OrderGateway) *Service {
 	t.Helper()
 	repo := NewPostgresRepository(reviewdb.New(sqlDB))
 	withTx := func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
@@ -33,7 +49,7 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx)
+	return NewService(repo, withTx, orders)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -84,11 +100,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	service := buildReviewService(t, sqlDB)
+	orders := &stubOrders{byOrder: map[uuid.UUID]OrderParticipants{}}
+	service := buildReviewService(t, sqlDB, orders)
 
 	t.Run("recalculates stats as reviews come and go", func(t *testing.T) {
 		reviewer, second, reviewee, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		order1, order2 := uuid.New(), uuid.New()
+		orders.byOrder[order1] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
+		orders.byOrder[order2] = OrderParticipants{RequesterID: second, CourierID: reviewee, Completed: true}
 		for _, id := range []uuid.UUID{reviewer, second, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -168,6 +187,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 
 	t.Run("duplicate review is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		orders.byOrder[order] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -186,6 +206,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	// be re-submitted for the same request until permanent deletion lands.
 	t.Run("removed review still holds its unique slot", func(t *testing.T) {
 		reviewer, reviewee, order, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		orders.byOrder[order] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
 		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -219,6 +240,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 
 	t.Run("rating out of range is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		orders.byOrder[order] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
