@@ -153,10 +153,10 @@ are application + real PostgreSQL18 tests with scripted Credit responses, not
 real Credit cross-service E2E. Evidence: ignored
 .local/order-offers-evidence/postgres-round-{one,two}.jsonl.
 
-The two formal rounds are consumed for this feature. Rebase and new API/UI work
-do not reset that cap. New combined-lineage DB/browser verification is NOT run or
-claimed. Orchestrator requires explicit user authorization before another formal
-round. Ordinary targeted development checks remain allowed.
+At the initial integration stop, the two formal rounds were consumed. Rebase and
+new API/UI work did not reset that cap, so combined-lineage verification was not
+claimed then. The user subsequently authorized the single bounded final run
+recorded below. Any further formal round still requires explicit authorization.
 
 New contract generation/lint/breaking checks, isolated mounted Connect unit tests,
 generated Go compilation, Svelte type checks and in-memory feature-client tests
@@ -201,8 +201,9 @@ completed findings and sanitized provenance remain ignored under
   unavailable, not definitive rejection. The follow-up confirmed these paths but
   found that suspension can deny a replay after the original was admitted.
   Final fix 9f09e2a leaves PermissionDenied uncertain and extends the client
-  regression cases. That final fix and test edit are UNVERIFIED: no further
-  verification or independent-review round was run after the second review.
+  regression cases. It was unverified at the second-review stop. The subsequent
+  user-authorized final run below verified the code/test change. Independent
+  Opus review still stops at 8e81430; no third model-review round is claimed.
 - **F2:** Repeating counteroffer acceptance explicitly warns that recovery may
   allow a new financial attempt and requires confirmation. It is not described
   as a read-only check. Confirmed by the scoped follow-up, not browser execution.
@@ -229,9 +230,59 @@ completed findings and sanitized provenance remain ignored under
 
 At 8e81430, targeted Go domain/Connect units, 11 in-memory client/storage tests,
 Svelte checks (zero errors/warnings), production build and formatting/lint passed.
-These results do not cover final fix 9f09e2a, full PostgreSQL/Connect assignment
-integration, real Credit, or mounted browser controls. F4/F5 remain unresolved,
+Those checkpoint results did not cover final fix 9f09e2a. The authorized final
+run below supplies later test evidence, but no combined real-DB acceptance RPC
+scenario, real Credit, or mounted browser controls. F4/F5 remain unresolved,
 not waived. Exact review execution is complete with findings; feature approval
 is not claimed. Remote PR #159 remains 17f535a. Publishing the rebased local branch,
 F0 shared UI composition and any new formal verification require their existing
 explicit authorizations/handoffs.
+
+## Authorized final verification
+
+The user authorized final verification, relayed by F0 and explicitly acknowledged
+by OrderOrchestrator for clean 39f298fbd8a6aa5f08d9556411639d1d21c73069.
+The tested dependency was 6066038d53a95e3b1e9291d0f74dddd2188597ea and the final
+suspension fix was 9f09e2a22a57401b604f9acd34be199050a2c007.
+
+One bounded pass completed successfully without retries or working-tree changes:
+
+1. **V1:** Root `make fmt && make lint`, zero issues.
+2. **V2:** Full Order module `GOWORK=off go test -mod=readonly -json ./...` passed.
+3. **V3:** Combined migrations 00004/00005 and race-enabled aggregate/RPC/shared
+   suites passed using disposable PostgreSQL18 Testcontainers with random ports.
+   TEST_DATABASE_URL was removed from the environment and cleanup was enabled.
+   No shared database, Compose, Kafka or S3 was used.
+4. **V4:** Frontend type checking passed with zero errors/warnings, all 12
+   feature-client/storage tests passed, and the production build passed.
+
+Repeatable combined-suite command from order-service/:
+
+```sh
+env -u TEST_DATABASE_URL GOWORK=off TESTCONTAINERS_RYUK_DISABLED=false \
+  go test -mod=readonly -p 1 -race -tags=integration \
+  ./internal/order ./internal/rpc/order ./internal/rpc/shared \
+  -count=1 -timeout=10m -json
+```
+
+Ignored evidence .local/order-offers-evidence/final-authorized.jsonl records exact
+commits, commands, stage exit codes, full Go test events and final PASS with a
+clean tested tree. The associated final-*.log files retain stage output. The
+runner .local/order-offers-evidence/run-final-authorized.py is pinned to the exact
+tested checkpoint and refuses a changed head/tree. Evidence is local, not an
+uploaded PR attachment.
+
+V3 includes 50-courier contention and retained retry, counteroffer balance and
+refusal fencing, restart/expiry compensation, frozen proposals/cancellation,
+aggregate transaction invariants, assignment history/privacy, migration
+up/down/up, and mounted read-privacy Connect behavior. The race invocation also
+runs unit tests, so its 141 passed test events must not be described as 141
+separate PostgreSQL integration scenarios.
+
+Important boundaries remain: aggregate assignments against PostgreSQL and mounted
+Connect read-privacy tests are separate seams. This run does not exercise actual
+acceptance RPCs against a real database as one scenario, mount the B1 component
+in F0 routes, or certify real Credit. Actual Opus review still covers 8e81430,
+not final fix 9f09e2a; successful tests do not extend model-review provenance.
+Issues 161/162 are unresolved and not waived. Remote remains 17f535a. No
+non-fast-forward push, peer composition or merge is authorized by this run.
