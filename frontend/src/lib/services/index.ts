@@ -5,6 +5,7 @@ import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
 import { createOrderApi } from './order/index.ts';
+import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
@@ -33,6 +34,7 @@ const orderTransport = createCustomTransport({
 	interceptors: [authService.interceptor]
 });
 export const orderApi = createOrderApi(orderTransport);
+export const orderOffersApi = createOrderOffersApi(orderTransport);
 
 const creditTransport = createCustomTransport({
 	baseUrl: env.PUBLIC_CREDIT_SERVICE_URL ?? 'http://localhost:8085',
