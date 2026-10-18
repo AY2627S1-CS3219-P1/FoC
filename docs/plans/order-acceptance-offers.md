@@ -66,12 +66,47 @@ from preventing later attempts on an insufficient-funds proposal. This mapping
 requires contract review and acknowledgment, not an assumption about Credit's
 backend. Direct acceptance also records an offer for the assigned amount.
 
-Shared edits require explicit owner acknowledgment before changes: Order proto
-and generated Go/TypeScript, aggregate action/field/fact policy, RPC handler,
-composition/worker lifecycle, schema numbering, and assignment-history write seam.
-Messenger currently refuses further DMs at its ten-message session limit. The
-coordination need is visible in OrderOffers status. No silent dependency merges,
-guessed UI exports, or guessed history schema are permitted.
+D11: Orchestrator acknowledged ownership in PR #159 comment 6249016717.
+B1 owns migration 00005, separate assignment adapter/query files, acceptance/offer
+action policies, feature RPC methods and worker wiring. F0 owns migration 00004,
+the sole atomic history hook in existing Transaction.Apply and response/read
+projection. B1 delegates to existing Apply without extra history SQL or API calls.
+Messenger sends now work, clearing the earlier ten-message coordination blocker.
+
+D12: Reserved protobuf additions do not collide. F0 uses Order.delivery_building_name
+field 23 and ListOpenOrdersRequest.delivery_building_name field 5, retaining but
+rejecting exact delivery_location_id field 2. B1 reserves AcceptOrderRequest.attempt_id
+field 2, AcceptOrderResponse.attempt field 2 and AcceptOfferResponse.attempt field 3.
+The new AssignmentAttemptResult has attempt_id/status/rejection fields 1/2/3 and a
+separate enum. Orchestrator explicitly requires waiting for the verified F0 backend
+handoff before integrating partial peer commits or finalizing B1 generation.
+F0's proto-only 2e663e1 and frontend da8e5fc are not that backend handoff.
+F0 subsequently published verified backend head 6066038 atop 2e663e1, based on
+e056db71ca814eb96aa45aea96cb82e5aeefedd2. Orchestrator accepted that dependency
+handoff and requires a verified clean B1 checkpoint before the authorized rebase.
+Published history must not be force-updated without explicit authorization.
+
+D13: F0's acknowledged response seam remains shared.OrderView(ctx, caller, order,
+images), a projection rather than visibility authorization. B1 must first obtain
+current/historical visibility through Service.GetOrder using its same-snapshot
+history policy. A failed/offer-only attempt without read visibility retains its
+own attempt/offer response and omits Order on ErrNotFound. No raw shared.Order
+projection of a historical attempt's current aggregate is allowed.
+
+D14: A definitive insufficient-credit response still enters RevertPending until
+Credit acknowledges a fence and a fresh matching baseline is observed. This avoids
+assuming insufficient-funds errors are permanently cached while an older generation's
+same-key Adjust may still be delayed. The public counteroffer reopens only after
+that fence; direct synthetic offers become Void. The written external contract is
+proto/credit/v1/reservation.proto: mutation keys never expire, and an unknown offer
+is recorded as reverted so later same-key Adjust fails ADJUSTMENT_REVERTED. Scripted
+fixtures prove Order follows this contract, not that real Credit implements it.
+
+D15: F0 and orchestrator acknowledge the outcome mapping: rejected acceptance
+returns failed_precondition with typed AssignmentAttemptResult details. Pending or
+compensating results do not mean successful assignment. Historical success returns
+its retained attempt plus caller-authorized current Order. B1's feature-local
+client must decode error details and invoke shared refresh after mutations.
 
 The future withdrawal seam must fence any in-flight attempt, persist required
 compensation, and avoid reopening for a new assignment before reversal is

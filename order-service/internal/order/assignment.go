@@ -221,6 +221,9 @@ func (s *Assigner) AcceptOrder(ctx context.Context, caller Caller, orderID, key 
 			}
 			return nil, err
 		}
+		if o.ReservedCredits <= 0 {
+			return nil, ErrNotFound
+		}
 		if s.credit == nil {
 			return nil, ErrUnavailable
 		}

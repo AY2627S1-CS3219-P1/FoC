@@ -17,12 +17,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func newRPCServices(pool *pgxpool.Pool, creator *order.Creator, images *order.ItemImages) router.RPCServices {
+func newRPCServices(pool *pgxpool.Pool, creator *order.Creator, images *order.ItemImages, assignments ...orderrpc.AssignmentOperations) router.RPCServices {
 	service := order.NewService(order.NewPostgresRepository(pool))
 
 	return router.RPCServices{
 		Health: &healthrpc.Server{DB: pool},
-		Order:  orderrpc.NewServer(service, creator, images),
+		Order:  orderrpc.NewServer(service, creator, images, assignments...),
 		Admin:  adminrpc.NewServer(service, images),
 	}
 }

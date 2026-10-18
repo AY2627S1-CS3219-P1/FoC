@@ -73,20 +73,23 @@ func (s *Assigner) ProcessAssignment(ctx context.Context, attemptID string) erro
 		var change *Change
 		switch {
 		case w.Phase == RevertPending:
-			if confirmsRevert(observation.reservation, w) {
+			if confirmsRevert(observation.reservation, w, o) {
 				w.Phase = AssignmentRejected
-				change, err = s.resolveOffer(o, offers, w, OfferVoid, now)
+				status := OfferVoid
+				if w.Method != AcceptOrderMethod && w.Rejection == "insufficient_credits" && o.Status == AwaitingCourier && o.ExpiresAt.After(now) {
+					status = OfferOpen
+				}
+				change, err = s.resolveOffer(o, offers, w, status, now)
 			}
 		case o.Status != AwaitingCourier || !o.ExpiresAt.After(now):
 			w.Phase, w.Rejection = RevertPending, "order_unavailable"
 			revertReady = true
 		case observation.refused:
-			w.Phase, w.Rejection = AssignmentRejected, "insufficient_credits"
-			status := OfferOpen
-			if w.Method == AcceptOrderMethod {
-				status = OfferVoid
-			}
-			change, err = s.resolveOffer(o, offers, w, status, now)
+			// Another generation may still have a delayed Adjust in flight.
+			// Fence this key even after refusal; do not assume Credit retains
+			// insufficient-funds errors forever when the balance later changes.
+			w.Phase, w.Rejection = RevertPending, "insufficient_credits"
+			revertReady = true
 		case confirmsAdjustment(observation.reservation, w, o):
 			change, err = s.assignChange(o, offers, w, now)
 			if err == nil {
@@ -149,8 +152,8 @@ func confirmsAdjustment(v *AssignmentReservation, w AssignmentAttempt, o Order) 
 		v.OfferID == w.ID && v.CourierID == w.CourierID && v.ReservedAmount == w.Amount && v.OriginalAmount == w.OriginalAmount
 }
 
-func confirmsRevert(v *AssignmentReservation, w AssignmentAttempt) bool {
-	if v == nil || v.OrderID != w.OrderID || v.OfferID != "" || v.CourierID != "" {
+func confirmsRevert(v *AssignmentReservation, w AssignmentAttempt, o Order) bool {
+	if v == nil || v.OrderID != w.OrderID || v.RequesterID != o.RequesterID || v.OriginalAmount != w.OriginalAmount || v.OfferID != "" || v.CourierID != "" {
 		return false
 	}
 	return (v.State == "held" && v.ReservedAmount == w.OriginalAmount && v.OriginalAmount == w.OriginalAmount) ||
