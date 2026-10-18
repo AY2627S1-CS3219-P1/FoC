@@ -13,11 +13,14 @@ export interface OrderOffersApi {
  acceptOffer(offerId: string): Promise<AcceptanceResult>;
 }
 
+/** An acknowledged input/admission rejection does not leave a retry locked forever. */
+export class OrderActionRejected extends Error {}
+
 /** A rejected attempt is still failure, not a successful mutation response. */
-export class AcceptanceRejected extends Error {
+export class AcceptanceRejected extends OrderActionRejected {
  constructor(readonly attempt: AssignmentAttemptResult) {
   super(attempt.rejection === 'insufficient_credits'
-   ? 'Insufficient credits. The proposal remains open after compensation is confirmed.'
+   ? 'Insufficient credits. Refresh offers to check whether the proposal is still open.'
    : 'This acceptance attempt was rejected. Refresh the current order.');
   this.name = 'AcceptanceRejected';
  }
@@ -39,6 +42,9 @@ function throwAcceptanceError(cause: unknown): never {
    .find(detail => detail.status === AssignmentAttemptStatus.REJECTED && detail.attemptId);
   if (attempt) throw new AcceptanceRejected(attempt);
  }
+ if ([Code.InvalidArgument, Code.FailedPrecondition, Code.PermissionDenied, Code.NotFound, Code.AlreadyExists].includes(error.code)) {
+  throw new OrderActionRejected('This request was rejected. Refresh before starting a deliberate new action.');
+ }
  throw cause;
 }
 
@@ -47,9 +53,11 @@ export function createOrderOffersApi(transport: Transport): OrderOffersApi {
  return {
   async listOffers(orderId) { return (await client.listOffers({ orderId })).offers; },
   async makeOffer(orderId, credits, idempotencyKey) {
-   const result = (await client.makeOffer({ orderId, credits, idempotencyKey })).offer;
-   if (!result) throw new Error('Proposal response did not contain an offer');
-   return result;
+   try {
+    const result = (await client.makeOffer({ orderId, credits, idempotencyKey })).offer;
+    if (!result) throw new Error('Proposal response did not contain an offer');
+    return result;
+   } catch (cause) { return throwAcceptanceError(cause); }
   },
   async acceptOrder(id, attemptId) {
    try {

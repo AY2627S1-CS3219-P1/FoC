@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
 import { AssignmentAttemptResultSchema, AssignmentAttemptStatus, OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
-import { AcceptanceRejected, createOrderOffersApi } from './index';
+import { AcceptanceRejected, OrderActionRejected, createOrderOffersApi } from './index';
 import { clearOfferAction, loadOfferAction, saveOfferAction, type RetryStorage } from './retry';
 const key='c55ce32c-2af7-46d1-a088-6a976d3bdbaf';
 const attempt='41dbf670-f32c-4cca-9473-5861c274e789';
@@ -37,13 +37,30 @@ describe('acceptance contract adapter',()=>{
   try {await api.acceptOrder('order',key);throw new Error('expected rejection');}
   catch(error){expect(error).toBeInstanceOf(AcceptanceRejected);expect((error as AcceptanceRejected).attempt.attemptId).toBe(attempt);}
  });
- it('keeps untyped rejection and missing outcomes uncertain',async()=>{
+ // Review F1 counterexample: a permanently void offer returned an untyped precondition
+ // and locked every control into the same failing retry. Unknown results differ.
+ it('resolves definitive admission rejection without fabricating an attempt outcome',async()=>{
   const api=createOrderOffersApi(createRouterTransport(router=>router.service(OrderService,{
    acceptOrder:async()=>{throw new ConnectError('unknown precondition',Code.FailedPrecondition);},
    acceptOffer:async()=>({})
   })));
+  await expect(api.acceptOrder('order',key)).rejects.toBeInstanceOf(OrderActionRejected);
   await expect(api.acceptOrder('order',key)).rejects.not.toBeInstanceOf(AcceptanceRejected);
   await expect(api.acceptOffer('offer')).rejects.toThrow('valid attempt outcome');
+ });
+ // Source: durable recovery keeps unavailable/deadline/aborted outcomes uncertain.
+ it.each([Code.Unavailable,Code.DeadlineExceeded,Code.Aborted])('retains uncertainty for transport or processing code %s',async(code)=>{
+  const api=createOrderOffersApi(createRouterTransport(router=>router.service(OrderService,{
+   acceptOrder:async()=>{throw new ConnectError('unknown result',code);}
+  })));
+  await expect(api.acceptOrder('order',key)).rejects.not.toBeInstanceOf(OrderActionRejected);
+ });
+ // Source: MakeOffer validates price before admission and has no financial call.
+ it('resolves a rejected proposal so its immutable input can be replaced deliberately',async()=>{
+  const api=createOrderOffersApi(createRouterTransport(router=>router.service(OrderService,{
+   makeOffer:async()=>{throw new ConnectError('bad price',Code.InvalidArgument);}
+  })));
+  await expect(api.makeOffer('order',1n,key)).rejects.toBeInstanceOf(OrderActionRejected);
  });
  it('preserves int64 proposal values and the original retry key',async()=>{
   const seen:unknown[]=[];

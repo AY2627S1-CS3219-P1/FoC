@@ -1,8 +1,9 @@
 <script lang="ts">
  import { onDestroy } from 'svelte';
+ import { Code, ConnectError } from '@connectrpc/connect';
  import { timestampDate } from '@bufbuild/protobuf/wkt';
  import { AssignmentAttemptStatus, OfferStatus, OrderStatus, type Offer, type Order } from '$lib/gen/order/v1/shared_types_pb';
- import { AcceptanceRejected, type OrderOffersApi } from '$lib/services/order-offers';
+ import { OrderActionRejected, type OrderOffersApi } from '$lib/services/order-offers';
  import { clearOfferAction, loadOfferAction, saveOfferAction, type OfferAction } from '$lib/services/order-offers/retry';
  import { describeOrderError } from '$lib/services/order/errors';
  let { order, refresh, api, callerId, suspended }: {
@@ -19,7 +20,7 @@
  function outcomeMessage(value: OfferAction): string {
   switch (value.outcome) {
    case 'pending': return 'Acceptance is pending. No assignment success has been confirmed.';
-   case 'compensating': return 'Credit recovery is pending. Do not start another acceptance yet.';
+   case 'compensating': return 'Credit recovery is pending. Refresh offers for a read-only update. Repeating counteroffer acceptance can start a new financial attempt after recovery.';
    case 'succeeded': return 'This earlier attempt succeeded. Check the refreshed order for its CURRENT assignment.';
    case 'rejected': return 'This attempt was rejected. A deliberate new action needs a new retry identity.';
    default: return 'The previous result is uncertain. Retry the same saved request, not a new action.';
@@ -28,7 +29,7 @@
  $effect(() => {
   const scope = `${callerId}:${order.id}`;
   if (scope === loadedScope) return;
-  loadedScope = scope; epoch++;
+  loadedScope = scope; epoch++; offerRead++;
   action = null; offers = []; amount = ''; message = ''; error = ''; listError = ''; storageReady = false; busy = false;
   if (!callerId) return;
   try {
@@ -42,7 +43,7 @@
   try {
    const result = await api.listOffers(id);
    if (read === offerRead && callerId === caller && order.id === id) { offers = result; listError = ''; }
-  } catch (cause) { if (read === offerRead) listError = describeOrderError(cause, 'load offers'); }
+  } catch (cause) { if (read === offerRead && callerId === caller && order.id === id) listError = describeOrderError(cause, 'load offers'); }
  }
  $effect(() => { const revision = order.revision; void revision; void loadOffers(); });
  $effect(() => { const timer = setInterval(() => { now = Date.now(); }, 1000); return () => clearInterval(timer); });
@@ -67,11 +68,13 @@
    }
   } catch (cause) {
    if (current !== epoch) return;
-   if (cause instanceof AcceptanceRejected) {
+   if (cause instanceof OrderActionRejected) {
     action = { ...next, outcome: 'rejected' };
     try { saveOfferAction(sessionStorage, caller, id, action); } catch { storageReady = false; }
     message = cause.message;
-   } else { error = describeOrderError(cause, 'complete this action') + ' Keep the saved identity for an uncertain result.'; }
+   } else { error = ConnectError.from(cause).code === Code.Aborted
+    ? 'A competing update or assignment may be in progress. Refresh and retry the saved request.'
+    : describeOrderError(cause, 'complete this action') + ' Keep the saved identity for an uncertain result.'; }
   } finally {
    if (current === epoch) {
     try { await refresh(); await loadOffers(); }
@@ -79,6 +82,11 @@
     finally { if (current === epoch) busy = false; }
    }
   }
+ }
+ function retrySaved() {
+  if (!action) return;
+  if (action.kind === 'counteroffer' && !window.confirm('Repeating acceptance may start a new financial attempt after an earlier refusal. Refresh offers instead for a read-only update. Repeat acceptance?')) return;
+  void perform(action);
  }
  function propose(event: SubmitEvent) {
   event.preventDefault();
@@ -106,7 +114,7 @@
  {#if error}<p role="alert">{error}</p>{/if}
  {#if action}
   {#if resolved}<button type="button" disabled={busy || suspended} onclick={newIntent}>Start a deliberate new action</button>
-  {:else}<button type="button" disabled={busy || suspended || !storageReady} onclick={() => action && void perform(action)}>{busy ? 'Checking…' : 'Retry / check saved action'}</button>{/if}
+  {:else}<button type="button" disabled={busy || suspended || !storageReady} onclick={retrySaved}>{busy ? 'Sending…' : action.kind === 'counteroffer' ? 'Repeat saved acceptance (may start a new financial attempt)' : 'Retry the same saved request'}</button>{/if}
  {/if}
  {#if !requester}
   <button type="button" disabled={!canStart} onclick={() => void perform({ kind:'accept', key:crypto.randomUUID(), outcome:'uncertain' })}>Accept current reward ({order.rewardCredits.toString()} credits)</button>

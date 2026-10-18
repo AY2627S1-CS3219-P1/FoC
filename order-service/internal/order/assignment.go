@@ -354,7 +354,10 @@ func (s *Assigner) resumeAssignment(ctx context.Context, caller Caller, a Assign
 			return AssignmentResult{}, ctx.Err()
 		}
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
-			return AssignmentResult{}, err
+			// Admission already committed durable intent. A processing failure
+			// does not establish financial rejection, even if an internal
+			// validation/CAS error would otherwise map to a business RPC code.
+			return AssignmentResult{}, ErrUnavailable
 		}
 	}
 	var result AssignmentResult

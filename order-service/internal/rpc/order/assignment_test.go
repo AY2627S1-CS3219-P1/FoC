@@ -159,3 +159,15 @@ func TestAcceptanceReplayWithoutCurrentVisibilityOmitsOrder(t *testing.T) {
 		t.Fatalf("historical attempt leaked current aggregate: %v %v", result, err)
 	}
 }
+
+// Source: failure to read/project current state must not turn a recorded success
+// into an admission rejection that would cause the client to discard its key.
+func TestAcceptedOutcomeProjectionFailureRemainsRetryable(t *testing.T) {
+	f := &acceptanceRPCFixture{result: app.AssignmentResult{Order: app.Order{ID: orderID}, AttemptID: locationID, Phase: app.AssignmentSucceeded}}
+	server := rpcorder.NewServer(&fakeOperations{err: app.ErrForbidden}, nil, nil, f)
+	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: userID, Role: "user"})
+	_, err := server.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
+	if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("projection failure was treated as admission rejection: %v", err)
+	}
+}

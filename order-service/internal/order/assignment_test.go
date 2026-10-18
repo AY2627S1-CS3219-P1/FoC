@@ -206,3 +206,16 @@ func TestAssignmentOfferPolicyRejectsForgedChanges(t *testing.T) {
 		})
 	}
 }
+
+// Source: persisted financial intent is not a rejected request when recovery
+// encounters a processing/CAS failure. The caller must retain its retry identity.
+func TestAdmittedAssignmentProcessingFailureRemainsUnavailable(t *testing.T) {
+	r, caller, _ := replayAssignmentFixture()
+	r.attempt.Phase = AdjustmentPending
+	// This fixture intentionally reports no active owner, causing a processing
+	// conflict after admission. It does not simulate a completed Credit transfer.
+	_, err := NewAssigner(r, &revertObservationCredit{}, AssignmentOptions{}).resumeAssignment(context.Background(), caller, r.attempt)
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("processing conflict became a definitive business rejection: %v", err)
+	}
+}

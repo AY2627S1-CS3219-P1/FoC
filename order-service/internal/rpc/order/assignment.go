@@ -101,11 +101,11 @@ func (s *Server) assignmentView(ctx context.Context, caller app.Caller, result a
 		return nil, attempt, nil
 	}
 	if err != nil {
-		return nil, nil, shared.ConnectError(ctx, err)
+		return nil, nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
 	view, err := shared.OrderView(ctx, caller, current, s.images)
 	if err != nil {
-		return nil, nil, shared.ConnectError(ctx, err)
+		return nil, nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
 	return view, attempt, nil
 }
