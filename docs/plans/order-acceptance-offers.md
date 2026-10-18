@@ -184,6 +184,54 @@ GOWORK=off go test -mod=readonly -race -tags=integration \
 ```
 
 The combined financial service remains a scripted contract seam until Credit's
-real implementation and financial-key mapping are verified. Exact independent
-B1 model review is separate from F0's completed review and must record the actual
-native runtime/model metadata and completed findings.
+real implementation and financial-key mapping are verified.
+
+## Independent B1 review and final dispositions
+
+Native Devin session bygone-haircut, runtime 3000.11.92, completed the independent
+review of 6066038..cf4b42c and the scoped follow-up cf4b42c..8e81430. Both exports
+identify the actual agent as Claude Opus 5.5 Medium and every inference model as
+claude-opus-5-5-medium. The follow-up export contains two completed final messages
+and only read/grep/find tools, with no execution, edits or tests. Raw exports,
+completed findings and sanitized provenance remain ignored under
+.local/order-offers-exact-review/. This is B1 evidence, not borrowed F0 approval.
+
+- **F1:** Definitive admission/input rejection no longer locks the UI into endless
+  retries. Financial-processing and current-view failures after admission remain
+  unavailable, not definitive rejection. The follow-up confirmed these paths but
+  found that suspension can deny a replay after the original was admitted.
+  Final fix 9f09e2a leaves PermissionDenied uncertain and extends the client
+  regression cases. That final fix and test edit are UNVERIFIED: no further
+  verification or independent-review round was run after the second review.
+- **F2:** Repeating counteroffer acceptance explicitly warns that recovery may
+  allow a new financial attempt and requires confirmation. It is not described
+  as a read-only check. Confirmed by the scoped follow-up, not browser execution.
+- **F3:** Aborted competition now has explicit busy feedback and preserves the
+  saved identity. Direct and counteroffer transport outcomes remain intentionally
+  different because only direct acceptance has a caller-generated attempt UUID.
+  Confirmed by the follow-up.
+- **F4:** OPEN, https://github.com/AY2627S1-CS3219-P1/FoC/issues/161.
+  Fresh acceptance UUIDs against an existing unavailable Order can accumulate
+  permanent rejected attempts and reveal limited private-ID existence. The issue
+  records the exact source-traced sequence and conflict between admission abuse
+  limits, historical identity retention and nonparticipant visibility. No live
+  abuse reproduction or policy acceptance is claimed.
+- **F5:** OPEN, https://github.com/AY2627S1-CS3219-P1/FoC/issues/162.
+  After the documented 24-hour MakeOffer key guarantee expires, an old saved
+  proposal retry can void even a newer Open offer from the same courier. Valid
+  request expiry has no 24-hour maximum. This is permitted outside the server's
+  guarantee, but the client's unbounded retry horizon is unresolved. The issue
+  records a source-traced sequence, not a delayed integration reproduction.
+  Expired retries of already accepted/void proposals may also be presented as
+  rejected although originally recorded. No retention-policy change is approved.
+- **F6:** Caller/order changes invalidate pending offer reads; late errors check
+  the captured scope as well as the read counter. Confirmed by the follow-up.
+
+At 8e81430, targeted Go domain/Connect units, 11 in-memory client/storage tests,
+Svelte checks (zero errors/warnings), production build and formatting/lint passed.
+These results do not cover final fix 9f09e2a, full PostgreSQL/Connect assignment
+integration, real Credit, or mounted browser controls. F4/F5 remain unresolved,
+not waived. Exact review execution is complete with findings; feature approval
+is not claimed. Remote PR #159 remains 17f535a. Publishing the rebased local branch,
+F0 shared UI composition and any new formal verification require their existing
+explicit authorizations/handoffs.
