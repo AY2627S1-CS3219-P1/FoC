@@ -1,0 +1,6 @@
+# Compose provides the service, shared pkg module and persistent module cache.
+FROM golang:1.27.0
+WORKDIR /app
+RUN go install github.com/air-verse/air@v1.67.4
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]

@@ -146,3 +146,27 @@ Suspended users cannot submit reviews (U6.5). Report outcome may request review 
 - NFR-05.2.3/05.2.5, NFR-06.2/06.3 (auth by persisted request relationship; exact locations and proof images restricted to participants + assigned admin).
 - NFR-09 / NFR-09.5 (restart without losing orders; detect Order/Credit mismatches within 5 min).
 - NFR-10.3 (audit: credit settlement, review removal/restoration), NFR-18.1/18.2/18.5 (≤5 images, ≤10MB each, reject oversize before storage), NFR-19.1 (≤10 requests/min/account).
+
+### Foundation test traceability
+
+These links map the checked-in NFR summaries above to existing tests. Test comments
+link back to the corresponding anchor here. The source PRD PDF is unavailable in
+this repository; bundled subclauses retain their existing grouping. Evidence below
+covers the foundation boundaries and does not certify the complete NFR.
+
+| NFR | Tests | Coverage and remaining work |
+| --- | --- | --- |
+| <a id="nfr-02"></a>NFR-02 / NFR-11.6 | [`TestPostgresFoundation/competing mutations serialize to one courier`](internal/order/postgres_integration_test.go#L403); [`TestPostgresFoundation/assignment racing expiry commits one change`](internal/order/postgres_integration_test.go#L429) | **Partial:** one courier wins among 16 local assignment mutations, and assignment/expiry commits one local change. The required 50 concurrent acceptance RPCs and their future saga are not exercised. |
+| <a id="nfr-04"></a>NFR-04 / NFR-04.1 | [`TestCancellationDefaultsAndRepeats`](internal/order/transitions_test.go#L64); [`TestMutateRecognizedRepeatCommitsWithoutWrites`](internal/order/mutation_test.go#L79); [`TestSameStatusAssignmentRepeatCannotCommit`](internal/order/change_invariants_test.go#L63); [Postgres receipt repeat](internal/order/postgres_integration_test.go#L188); [revision conflicts](internal/order/postgres_integration_test.go#L319); [conditional revision writes](internal/order/postgres_integration_test.go#L356); [atomic rollback](internal/order/postgres_integration_test.go#L370); [outbox duplicate protection](internal/order/postgres_integration_test.go#L502) | **Partial:** action-specific local repeats, revision checks, atomic rollback and persisted fact uniqueness. Kafka delivery/replay and downstream idempotency are not exercised. |
+| <a id="nfr-05-auth"></a>NFR-05.2.3 / NFR-05.2.5 | [persisted authorization baseline](internal/order/transaction_invariants_integration_test.go#L25); [persisted participant/history visibility](internal/order/reads_integration_test.go#L110); [persisted offer visibility](internal/order/reads_integration_test.go#L141); [`TestTransitions`](internal/order/transitions_test.go#L10); [`TestGetOrderAccessAndRedaction`](internal/order/service_test.go#L42); [`TestListValidationAndAdminAuthorizationOrder`](internal/order/service_test.go#L109); [`TestAuthorizationBeforeValidation`](internal/rpc/order/handler_test.go#L142) | **Foundation reads and mutation boundary:** integration tests use stored relationships. Domain fakes verify policy; the RPC test verifies method authorization before validation with injected identity. Future mutation operations and end-to-end JWT authentication need their own coverage. |
+
+The following NFRs have no direct foundation test proving the stated requirement:
+
+| NFR | Current coverage limit |
+| --- | --- |
+| NFR-06.2 / NFR-06.3 | Instruction redaction and offer privacy tests do not prove exact-location or proof-image restrictions. Read contracts expose location snapshots; proof-image workflows are deferred. |
+| NFR-09 / NFR-09.5 | Snapshot round trips and transaction tests do not restart the server/database, recover workflows or detect Order/Credit mismatches within five minutes. |
+| NFR-10.3 | Local Order audit persistence is tested, but Credit settlement and review removal/restoration audit actions are outside this foundation. |
+| NFR-18.1 / NFR-18.2 / NFR-18.5 | The storage fake tests interface semantics, without image-count, size-limit or pre-upload rejection workflows. |
+| NFR-19.1 | No request creation rate limiter or requests-per-account test is implemented. |
+| NFR-20 | Durable outbox facts are tested; publication to Credit and downstream settlement are deferred. |
