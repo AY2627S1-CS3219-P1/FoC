@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/clients"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	creditpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1"
 	orderpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
 	"github.com/google/uuid"
@@ -382,7 +383,7 @@ func TestCreationExecution(t *testing.T) {
 	})
 	t.Run("caller cancellation after admission remains recoverable", func(t *testing.T) {
 		s := newScenario(t, f)
-		ctx, cancel := context.WithCancel(clients.WithUserBearer(f.ctx, "Bearer user-token"))
+		ctx, cancel := context.WithCancel(auth.WithUserBearer(f.ctx, "Bearer user-token"))
 		defer cancel()
 		var once atomic.Bool
 		s.remotes.onGet = func(*creditpb.Reservation) {
@@ -479,7 +480,7 @@ func TestCreationPreflightRaces(t *testing.T) {
 	t.Run("same key has independent caller scopes", func(t *testing.T) {
 		s := newScenario(t, f)
 		key := uuid.NewString()
-		ctx := clients.WithUserBearer(f.ctx, "Bearer user-token")
+		ctx := auth.WithUserBearer(f.ctx, "Bearer user-token")
 		in := app.CreateInput{Key: key, PickupID: pickupID, DeliveryID: deliveryID, ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: 10 * time.Minute, ExpiresAt: s.clock.Now().Add(time.Hour)}
 		first, err := s.creator.Create(ctx, app.Caller{ID: requester}, in)
 		if err != nil {

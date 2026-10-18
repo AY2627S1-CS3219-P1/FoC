@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/clients"
 	db "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/database/orderdb"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/google/uuid"
 )
 
@@ -62,7 +62,7 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		otherCaller := uuid.NewString()
-		second, err := s.creator.Create(clients.WithUserBearer(f.ctx, "Bearer user-token"), app.Caller{ID: otherCaller}, app.CreateInput{
+		second, err := s.creator.Create(auth.WithUserBearer(f.ctx, "Bearer user-token"), app.Caller{ID: otherCaller}, app.CreateInput{
 			Key: in.IdempotencyKey, PickupID: pickupID, DeliveryID: deliveryID, Instructions: in.Delivery.Instructions,
 			ItemDescription: in.ItemDescription, RewardCredits: in.RewardCredits, DeliveryDuration: in.DeliveryDuration.AsDuration(), ExpiresAt: in.ExpiresAt.AsTime(),
 		})

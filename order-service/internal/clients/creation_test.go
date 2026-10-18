@@ -14,8 +14,10 @@ import (
 
 	"connectrpc.com/connect"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
@@ -77,7 +79,7 @@ func TestCreditReadsRotatedServiceCredential(t *testing.T) {
 		if err := os.Rename(replacement, file); err != nil {
 			t.Fatal(err)
 		}
-		ctx := WithUserBearer(context.Background(), "Bearer private-user-token")
+		ctx := auth.WithUserBearer(context.Background(), "Bearer private-user-token")
 		if _, err := client.GetReservation(ctx, "order"); err != nil {
 			t.Fatal(err)
 		}
@@ -160,4 +162,33 @@ func TestFileTokensRequireCurrentWorkloadClaims(t *testing.T) {
 	}
 	// Sender-side claim inspection does not prove the signature; the Credit
 	// receiver must verify it using #29. These are explicitly test credentials.
+}
+
+func TestSupplierForwardsVerifiedUserBearer(t *testing.T) {
+	const bearer = "Bearer verified-user-token"
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if got := r.Header.Get("Authorization"); got != bearer {
+			t.Errorf("authorization=%q", got)
+		}
+		http.Error(w, "location unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	client := Supplier{Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL)}
+	if _, err := client.GetLocation(context.Background(), "location"); !errors.Is(err, app.ErrUnavailable) {
+		t.Fatalf("missing credential: %v", err)
+	}
+	if calls != 0 {
+		t.Fatal("sent unauthenticated lookup")
+	}
+
+	ctx := auth.WithUserBearer(context.Background(), bearer)
+	if _, err := client.GetLocation(ctx, "location"); !errors.Is(err, app.ErrUnavailable) {
+		t.Fatalf("unavailable supplier: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls=%d, want 1", calls)
+	}
 }

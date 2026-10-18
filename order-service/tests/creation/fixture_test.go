@@ -279,6 +279,7 @@ func mountImages(t *testing.T, f *fixture, creator *app.Creator, images *app.Ite
 				return
 			}
 			r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: caller.ID, Role: callerRole(caller), Admin: caller.Admin}))
+			r = r.WithContext(auth.WithUserBearer(r.Context(), r.Header.Get("Authorization")))
 			next.ServeHTTP(w, r)
 		})
 	}
