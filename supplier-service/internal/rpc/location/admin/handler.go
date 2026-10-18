@@ -31,7 +31,10 @@ func NewServer(service LocationAdmin) *Server {
 	return &Server{service: service}
 }
 
-func (s *Server) CreateLocation(ctx context.Context, req *connect.Request[locationv1.CreateLocationRequest]) (*connect.Response[locationv1.CreateLocationResponse], error) {
+func (s *Server) CreateLocation(
+	ctx context.Context,
+	req *connect.Request[locationv1.CreateLocationRequest],
+) (*connect.Response[locationv1.CreateLocationResponse], error) {
 	input := req.Msg.GetLocation()
 	if input == nil || input.IsSupplier == nil || input.Coordinates == nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("classification and coordinates are required"))
@@ -39,14 +42,20 @@ func (s *Server) CreateLocation(ctx context.Context, req *connect.Request[locati
 	if err := checkClockPrecision(input.OpensAt, input.ClosesAt); err != nil {
 		return nil, err
 	}
-	loc, err := s.service.Create(ctx, locationadmin.CreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Create(
+		ctx,
+		locationadmin.CreateRequest{Key: req.Msg.GetIdempotencyKey(), Input: fromProtoLocationInput(input)},
+	)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.CreateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *Server) UpdateLocation(ctx context.Context, req *connect.Request[locationv1.UpdateLocationRequest]) (*connect.Response[locationv1.UpdateLocationResponse], error) {
+func (s *Server) UpdateLocation(
+	ctx context.Context,
+	req *connect.Request[locationv1.UpdateLocationRequest],
+) (*connect.Response[locationv1.UpdateLocationResponse], error) {
 	paths := req.Msg.GetUpdateMask().GetPaths()
 	input := req.Msg.GetLocation()
 	if input != nil {
@@ -63,14 +72,25 @@ func (s *Server) UpdateLocation(ctx context.Context, req *connect.Request[locati
 			}
 		}
 	}
-	loc, err := s.service.Update(ctx, locationadmin.UpdateRequest{ID: req.Msg.GetId(), ExpectedRevision: req.Msg.GetExpectedRevision(), Paths: paths, Input: fromProtoLocationInput(input)})
+	loc, err := s.service.Update(
+		ctx,
+		locationadmin.UpdateRequest{
+			ID:               req.Msg.GetId(),
+			ExpectedRevision: req.Msg.GetExpectedRevision(),
+			Paths:            paths,
+			Input:            fromProtoLocationInput(input),
+		},
+	)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&locationv1.UpdateLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *Server) ArchiveLocation(ctx context.Context, req *connect.Request[locationv1.ArchiveLocationRequest]) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
+func (s *Server) ArchiveLocation(
+	ctx context.Context,
+	req *connect.Request[locationv1.ArchiveLocationRequest],
+) (*connect.Response[locationv1.ArchiveLocationResponse], error) {
 	loc, err := s.service.Archive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -78,7 +98,10 @@ func (s *Server) ArchiveLocation(ctx context.Context, req *connect.Request[locat
 	return connect.NewResponse(&locationv1.ArchiveLocationResponse{Location: rpcshared.ToProtoLocation(loc)}), nil
 }
 
-func (s *Server) UnarchiveLocation(ctx context.Context, req *connect.Request[locationv1.UnarchiveLocationRequest]) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
+func (s *Server) UnarchiveLocation(
+	ctx context.Context,
+	req *connect.Request[locationv1.UnarchiveLocationRequest],
+) (*connect.Response[locationv1.UnarchiveLocationResponse], error) {
 	loc, err := s.service.Unarchive(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -90,10 +113,22 @@ func fromProtoLocationInput(in *locationv1.LocationInput) locationadmin.Input {
 	if in == nil {
 		return locationadmin.Input{}
 	}
-	out := locationadmin.Input{Name: in.Name, IsSupplier: in.GetIsSupplier(), CategoryIDs: in.CategoryIds, BuildingID: in.BuildingId,
-		Floor: in.Floor, OpensAt: fromProtoClock(in.OpensAt), ClosesAt: fromProtoClock(in.ClosesAt), Contact: in.Contact, Details: in.Details}
+	out := locationadmin.Input{
+		Name:        in.Name,
+		IsSupplier:  in.GetIsSupplier(),
+		CategoryIDs: in.CategoryIds,
+		BuildingID:  in.BuildingId,
+		Floor:       in.Floor,
+		OpensAt:     fromProtoClock(in.OpensAt),
+		ClosesAt:    fromProtoClock(in.ClosesAt),
+		Contact:     in.Contact,
+		Details:     in.Details,
+	}
 	if in.Coordinates != nil {
-		out.Coordinates = &domainshared.Coordinates{Latitude: in.Coordinates.Latitude, Longitude: in.Coordinates.Longitude}
+		out.Coordinates = &domainshared.Coordinates{
+			Latitude:  in.Coordinates.Latitude,
+			Longitude: in.Coordinates.Longitude,
+		}
 	}
 	return out
 }
@@ -108,7 +143,10 @@ func fromProtoClock(in *timeofday.TimeOfDay) *domainshared.Clock {
 func checkClockPrecision(times ...*timeofday.TimeOfDay) error {
 	for _, value := range times {
 		if value != nil && (value.Seconds != 0 || value.Nanos != 0) {
-			return connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError("opening hours must use whole minutes"))
+			return connect.NewError(
+				connect.CodeInvalidArgument,
+				errs.NewBadRequestError("opening hours must use whole minutes"),
+			)
 		}
 	}
 	return nil

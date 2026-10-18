@@ -67,22 +67,68 @@ func TestMutationReadbackFailureRollsBack(t *testing.T) {
 			if operation == "end" {
 				start = now.Add(-time.Hour)
 			}
-			repository.disablements[dID] = disablement.Disablement{ID: dID, LocationID: locationID, StartsAt: start, Reason: "original", CreatedBy: admin.ID, Revision: 1, CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-2 * time.Hour)}
-			repository.requests[rID] = additionrequest.AdditionRequest{ID: rID, Proposal: additionrequest.Proposal{Name: "original", BuildingID: buildingID, Latitude: 1.294, Longitude: 103.774}, SubmittedBy: owner.ID, Status: additionrequest.Pending, Revision: 1, CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-2 * time.Hour)}
-			locations, disablements, requests := copyValue(repository.locations), copyValue(repository.disablements), copyValue(repository.requests)
+			repository.disablements[dID] = disablement.Disablement{
+				ID:         dID,
+				LocationID: locationID,
+				StartsAt:   start,
+				Reason:     "original",
+				CreatedBy:  admin.ID,
+				Revision:   1,
+				CreatedAt:  now.Add(-2 * time.Hour),
+				UpdatedAt:  now.Add(-2 * time.Hour),
+			}
+			repository.requests[rID] = additionrequest.AdditionRequest{
+				ID: rID,
+				Proposal: additionrequest.Proposal{
+					Name:       "original",
+					BuildingID: buildingID,
+					Latitude:   1.294,
+					Longitude:  103.774,
+				},
+				SubmittedBy: owner.ID,
+				Status:      additionrequest.Pending,
+				Revision:    1,
+				CreatedAt:   now.Add(-2 * time.Hour),
+				UpdatedAt:   now.Add(-2 * time.Hour),
+			}
+			locations, disablements, requests := copyValue(
+				repository.locations,
+			), copyValue(
+				repository.disablements,
+			), copyValue(
+				repository.requests,
+			)
 			failure := additionrequest.DependencyError("read saved resource", context.DeadlineExceeded)
 			decorated := &readbackFailureRepository{repository: repository, failure: failure}
 			service := newTestService(decorated, func() time.Time { return now })
 			var err error
 			switch operation {
 			case "update disablement":
-				_, err = service.UpdateDisablement(ctx, admin, disablement.UpdateDisablement{ID: dID, ExpectedRevision: 1, Paths: []string{"reason"}, Reason: "changed"})
+				_, err = service.UpdateDisablement(
+					ctx,
+					admin,
+					disablement.UpdateDisablement{
+						ID:               dID,
+						ExpectedRevision: 1,
+						Paths:            []string{"reason"},
+						Reason:           "changed",
+					},
+				)
 			case "end":
 				_, err = service.EndDisablement(ctx, admin, dID)
 			case "cancel":
 				_, err = service.CancelDisablement(ctx, admin, dID)
 			case "update request":
-				_, err = service.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: rID, ExpectedRevision: 1, Paths: []string{"details"}, Proposal: additionrequest.Proposal{Details: "changed"}})
+				_, err = service.UpdateRequest(
+					ctx,
+					owner,
+					additionrequest.UpdateRequest{
+						ID:               rID,
+						ExpectedRevision: 1,
+						Paths:            []string{"details"},
+						Proposal:         additionrequest.Proposal{Details: "changed"},
+					},
+				)
 			case "withdraw":
 				_, err = service.WithdrawRequest(ctx, owner, rID)
 			case "reject":
@@ -96,7 +142,9 @@ func TestMutationReadbackFailureRollsBack(t *testing.T) {
 			if decorated.writes != 1 {
 				t.Fatalf("failure did not follow successful Save: writes=%d", decorated.writes)
 			}
-			if !reflect.DeepEqual(repository.locations, locations) || !reflect.DeepEqual(repository.disablements, disablements) || !reflect.DeepEqual(repository.requests, requests) {
+			if !reflect.DeepEqual(repository.locations, locations) ||
+				!reflect.DeepEqual(repository.disablements, disablements) ||
+				!reflect.DeepEqual(repository.requests, requests) {
 				t.Fatal("readback failure did not roll back resource/revision/audit/relationship writes")
 			}
 		})

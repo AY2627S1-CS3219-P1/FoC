@@ -52,7 +52,13 @@ func New(clock func() time.Time) *Runner { return &Runner{clock: clock} }
 
 // Run must be called inside the transaction that owns store. The lock is held
 // through creation and saving by that transaction.
-func (r *Runner) Run(ctx context.Context, store Store, scope Scope, hash string, create func(time.Time) (string, error)) (string, error) {
+func (r *Runner) Run(
+	ctx context.Context,
+	store Store,
+	scope Scope,
+	hash string,
+	create func(time.Time) (string, error),
+) (string, error) {
 	key, err := uuid.Parse(scope.Key)
 	if err != nil {
 		return "", fmt.Errorf("parse idempotency key: %w", ErrInvalidKey)
@@ -76,7 +82,11 @@ func (r *Runner) Run(ctx context.Context, store Store, scope Scope, hash string,
 	if err != nil {
 		return "", fmt.Errorf("create idempotent resource: %w", err)
 	}
-	if err := store.Save(ctx, scope, Record{Hash: hash, ResourceID: id, ExpiresAt: now.Add(24 * time.Hour)}); err != nil {
+	if err := store.Save(
+		ctx,
+		scope,
+		Record{Hash: hash, ResourceID: id, ExpiresAt: now.Add(24 * time.Hour)},
+	); err != nil {
 		return "", fmt.Errorf("save idempotency record: %w", err)
 	}
 	return id, nil

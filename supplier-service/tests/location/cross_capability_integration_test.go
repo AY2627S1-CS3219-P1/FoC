@@ -22,7 +22,12 @@ func TestIndependentDisablementPostGIS(t *testing.T) {
 	service := d.NewService(store, clock)
 	caller := d.Caller{ID: "admin", Role: "admin"}
 	start := now.Add(time.Hour)
-	input := d.CreateDisablement{LocationID: postgresLocationID, StartsAt: &start, Reason: "maintenance", Key: uuid.NewString()}
+	input := d.CreateDisablement{
+		LocationID: postgresLocationID,
+		StartsAt:   &start,
+		Reason:     "maintenance",
+		Key:        uuid.NewString(),
+	}
 	first, err := service.CreateDisablement(f.ctx, caller, input)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +43,16 @@ func TestIndependentDisablementPostGIS(t *testing.T) {
 		wg.Add(1)
 		go func(reason string) {
 			defer wg.Done()
-			_, err := service.UpdateDisablement(f.ctx, caller, d.UpdateDisablement{ID: first.ID, ExpectedRevision: first.Revision, Reason: reason, Paths: []string{"reason"}})
+			_, err := service.UpdateDisablement(
+				f.ctx,
+				caller,
+				d.UpdateDisablement{
+					ID:               first.ID,
+					ExpectedRevision: first.Revision,
+					Reason:           reason,
+					Paths:            []string{"reason"},
+				},
+			)
 			results <- err
 		}(reason)
 	}

@@ -27,14 +27,33 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	if e != nil || list.PageInfo.TotalItems != 0 {
 		t.Fatalf("hidden list: %+v %v", list, e)
 	}
-	updated, e := app.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{Details: "updated"}, Paths: []string{"details"}, ExpectedRevision: 1})
+	updated, e := app.UpdateRequest(
+		ctx,
+		owner,
+		additionrequest.UpdateRequest{
+			ID:               r.ID,
+			Proposal:         additionrequest.Proposal{Details: "updated"},
+			Paths:            []string{"details"},
+			ExpectedRevision: 1,
+		},
+	)
 	if e != nil || updated.Revision != 2 || updated.Proposal.Name != "Cafe" {
 		t.Fatalf("patch: %+v %v", updated, e)
 	}
-	_, e = app.UpdateRequest(ctx, admin, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{Details: "stale"}, Paths: []string{"details"}, ExpectedRevision: 1})
+	_, e = app.UpdateRequest(
+		ctx,
+		admin,
+		additionrequest.UpdateRequest{
+			ID:               r.ID,
+			Proposal:         additionrequest.Proposal{Details: "stale"},
+			Paths:            []string{"details"},
+			ExpectedRevision: 1,
+		},
+	)
 	expectError(t, e, additionrequest.ErrAborted)
 	result, e := app.ApproveRequest(ctx, admin, r.ID)
-	if e != nil || result.Location.ID == "" || result.Request.Status != additionrequest.Approved || result.Location.Proposal.Details != "updated" {
+	if e != nil || result.Location.ID == "" || result.Request.Status != additionrequest.Approved ||
+		result.Location.Proposal.Details != "updated" {
 		t.Fatalf("approval: %+v %v", result, e)
 	}
 	retry, e := app.ApproveRequest(ctx, admin, r.ID)
@@ -42,7 +61,8 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 		t.Fatalf("approval retry: %+v %v", retry, e)
 	}
 	public, e := app.GetRequest(ctx, other, r.ID)
-	if e != nil || public.SubmittedBy != "" || public.ReviewedBy != nil || public.ReviewNote != nil || public.ReviewedAt == nil {
+	if e != nil || public.SubmittedBy != "" || public.ReviewedBy != nil || public.ReviewNote != nil ||
+		public.ReviewedAt == nil {
 		t.Fatalf("redaction: %+v %v", public, e)
 	}
 	full, e := app.GetRequest(ctx, owner, r.ID)
@@ -57,7 +77,11 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 	_, e = app.WithdrawRequest(ctx, owner, r.ID)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
-	_, e = app.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: r.ID, Paths: []string{"details"}, ExpectedRevision: 3})
+	_, e = app.UpdateRequest(
+		ctx,
+		owner,
+		additionrequest.UpdateRequest{ID: r.ID, Paths: []string{"details"}, ExpectedRevision: 3},
+	)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 }
 
@@ -91,7 +115,11 @@ func TestRequestWithdrawRejectAndApprovalRollback(t *testing.T) {
 	}
 	_, e = app.RejectRequest(ctx, admin, r.ID, "note")
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
-	r, e = app.SubmitRequest(ctx, owner, additionrequest.SubmitRequest{Proposal: validProposal(), Key: "c3600892-6029-4910-b1c9-d3e892039f63"})
+	r, e = app.SubmitRequest(
+		ctx,
+		owner,
+		additionrequest.SubmitRequest{Proposal: validProposal(), Key: "c3600892-6029-4910-b1c9-d3e892039f63"},
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -134,7 +162,10 @@ func TestApprovalRollsBackLocationWhenRequestSaveFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Status != additionrequest.Pending || stored.Revision != 1 || stored.ResultingLocationID != nil || stored.ReviewedBy != nil || stored.ReviewedAt != nil || stored.ReviewNote != nil {
+	if stored.Status != additionrequest.Pending || stored.Revision != 1 || stored.ResultingLocationID != nil ||
+		stored.ReviewedBy != nil ||
+		stored.ReviewedAt != nil ||
+		stored.ReviewNote != nil {
 		t.Fatalf("rollback changed pending request: %+v", stored)
 	}
 }
@@ -167,7 +198,8 @@ func TestRequestIdempotencyScopesExpiryAndPagination(t *testing.T) {
 		t.Fatalf("expiry: %+v %v", next, e)
 	}
 	list, e := app.ListRequests(ctx, owner, additionrequest.Pending, additionrequest.Page{Size: 1})
-	if e != nil || len(list.Items) != 1 || list.Items[0].ID != next.ID || list.PageInfo.TotalItems != 2 || list.PageInfo.TotalPages != 2 {
+	if e != nil || len(list.Items) != 1 || list.Items[0].ID != next.ID || list.PageInfo.TotalItems != 2 ||
+		list.PageInfo.TotalPages != 2 {
 		t.Fatalf("page: %+v %v", list, e)
 	}
 	list, e = app.ListRequests(ctx, owner, "", additionrequest.Page{Number: 2147483647, Size: 100})
@@ -188,8 +220,20 @@ func TestRequestPatchClearsFieldsAndClassificationAtomically(t *testing.T) {
 		_, e = app.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: r.ID, Paths: paths, ExpectedRevision: 1})
 		expectError(t, e, additionrequest.ErrInvalidArgument)
 	}
-	v, e := app.UpdateRequest(ctx, admin, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{IsSupplier: false}, Paths: []string{"is_supplier", "floor", "contact", "details", "open_from", "open_to"}, ExpectedRevision: 1})
-	if e != nil || v.Proposal.Floor != nil || v.Proposal.Contact != nil || v.Proposal.Details != "" || v.Proposal.OpenFrom != nil || v.Proposal.IsSupplier || len(v.Proposal.CategoryIDs) != 0 {
+	v, e := app.UpdateRequest(
+		ctx,
+		admin,
+		additionrequest.UpdateRequest{
+			ID:               r.ID,
+			Proposal:         additionrequest.Proposal{IsSupplier: false},
+			Paths:            []string{"is_supplier", "floor", "contact", "details", "open_from", "open_to"},
+			ExpectedRevision: 1,
+		},
+	)
+	if e != nil || v.Proposal.Floor != nil || v.Proposal.Contact != nil || v.Proposal.Details != "" ||
+		v.Proposal.OpenFrom != nil ||
+		v.Proposal.IsSupplier ||
+		len(v.Proposal.CategoryIDs) != 0 {
 		t.Fatalf("clear: %+v %v", v, e)
 	}
 }
@@ -246,7 +290,16 @@ func TestLegacyProposalCoordinatesCanBeRepairedBeforeApproval(t *testing.T) {
 	repo.requests[r.ID] = legacy
 	_, e = app.ApproveRequest(ctx, admin, r.ID)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
-	repaired, e := app.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{Latitude: 1.294, Longitude: 103.774}, Paths: []string{"coordinates"}, ExpectedRevision: 1})
+	repaired, e := app.UpdateRequest(
+		ctx,
+		owner,
+		additionrequest.UpdateRequest{
+			ID:               r.ID,
+			Proposal:         additionrequest.Proposal{Latitude: 1.294, Longitude: 103.774},
+			Paths:            []string{"coordinates"},
+			ExpectedRevision: 1,
+		},
+	)
 	if e != nil || repaired.Proposal.CoordinatesMissing {
 		t.Fatalf("repair: %+v %v", repaired, e)
 	}

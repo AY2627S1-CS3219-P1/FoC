@@ -101,6 +101,9 @@ type publicKeyService struct {
 	keys *userv1.GetPublicKeysResponse
 }
 
-func (s publicKeyService) GetPublicKeys(context.Context, *connect.Request[userv1.GetPublicKeysRequest]) (*connect.Response[userv1.GetPublicKeysResponse], error) {
+func (s publicKeyService) GetPublicKeys(
+	context.Context,
+	*connect.Request[userv1.GetPublicKeysRequest],
+) (*connect.Response[userv1.GetPublicKeysResponse], error) {
 	return connect.NewResponse(s.keys), nil
 }
