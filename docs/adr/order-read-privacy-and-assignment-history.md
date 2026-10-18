@@ -1,7 +1,7 @@
 # ADR: Order read privacy and durable assignment history
 
 Date: 18 Oct 2026
-Status: accepted policy; implementation and independent review pending
+Status: accepted policy
 
 Order history must survive courier withdrawal or administrative unassignment
 (R1.8), but history membership must not grant the current courier's operational
@@ -42,9 +42,11 @@ assignment from an offer or widen `Order.HasParticipant` to authorize historical
 couriers for lifecycle actions.
 
 The selected approach keeps the existing Order and its location snapshots rather
-than creating a duplicate full-Order snapshot per courier. Exact schema,
-backfill evidence and transaction interfaces require coordinated design before
-writer integration. Do not fabricate past assignments when evidence is absent.
+than creating a duplicate full-Order snapshot per courier. Migration 00004 backfills
+from durable assignment/removal facts and the current courier snapshot. Missing
+historical assignment times/revisions remain unknown. The central Postgres Apply
+hook maintains future episodes atomically, without feature-specific history SQL.
+Do not fabricate past assignments when evidence is absent.
 
 ## Ownership and consequences
 

@@ -128,8 +128,8 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	if err != nil || f.request.Role != app.CourierRole || f.request.Status != app.Completed || f.request.Page.Number != 2 || my.Msg.PageInfo.TotalItems != 21 || my.Msg.PageInfo.TotalPages != 2 {
 		t.Fatalf("mine filters/page: fake=%+v response=%v err=%v", f, my, err)
 	}
-	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryLocationId: proto.String(orderID), Page: 3, PageSize: 10}))
-	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryID != orderID || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
+	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryBuildingName: "COM3", Page: 3, PageSize: 10}))
+	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryBuildingName != "COM3" || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
 		t.Fatalf("open filters: %+v err=%v", f, err)
 	}
 	offers, err := c.order.ListOffers(ctx, connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus_OFFER_STATUS_ACCEPTED}))

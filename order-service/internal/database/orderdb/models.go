@@ -46,6 +46,19 @@ type Order struct {
 	UpdatedAt            time.Time
 }
 
+type OrderAssignmentHistory struct {
+	ID               uuid.UUID
+	OrderID          uuid.UUID
+	CourierID        uuid.UUID
+	AssignedRevision *int64
+	AssignedAt       *time.Time
+	EndedRevision    *int64
+	EndedAt          *time.Time
+	EndReason        *string
+	IsCurrent        bool
+	Source           string
+}
+
 type OrderAudit struct {
 	OrderID         uuid.UUID
 	Revision        int64
