@@ -1701,11 +1701,13 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"locationId\x12\xc7\x01\n" +
 	"\finstructions\x18\x02 \x01(\tB\x9d\x01\xbaH\x99\x01\xba\x01\x95\x01\n" +
 	"\"delivery_input.instructions_length\x12Uinstructions must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\finstructions\x88\x01\x01B\x0f\n" +
-	"\r_instructions\"k\n" +
-	"\x1cCreateItemImageUploadRequest\x12K\n" +
-	"\fcontent_type\x18\x01 \x01(\tB(\xbaH%r#R\n" +
+	"\r_instructions\"\x83\x01\n" +
+	"\x1cCreateItemImageUploadRequest\x12c\n" +
+	"\fcontent_type\x18\x01 \x01(\tB@\xbaH=r;R\n" +
 	"image/jpegR\timage/pngR\n" +
-	"image/webpR\vcontentType\"+\n" +
+	"image/webpR\n" +
+	"image/heicR\n" +
+	"image/heifR\vcontentType\"+\n" +
 	"\x0fGetOrderRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8a\x02\n" +
 	"\x15ListOpenOrdersRequest\x12;\n" +
@@ -1732,13 +1734,15 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x12AcceptOfferRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
 	"\x14ConfirmPickupRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb3\x01\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xcb\x01\n" +
 	"\x18CreateProofUploadRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12%\n" +
-	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\x12K\n" +
-	"\fcontent_type\x18\x03 \x01(\tB(\xbaH%r#R\n" +
+	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\x12c\n" +
+	"\fcontent_type\x18\x03 \x01(\tB@\xbaH=r;R\n" +
 	"image/jpegR\timage/pngR\n" +
-	"image/webpR\vcontentType\"\x8f\x01\n" +
+	"image/webpR\n" +
+	"image/heicR\n" +
+	"image/heifR\vcontentType\"\x8f\x01\n" +
 	"\x16ConfirmDeliveryRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x120\n" +
 	"\tproof_ids\x18\x02 \x03(\tB\x13\xbaH\x10\x92\x01\r\b\x01\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\bproofIds\x12\x1e\n" +

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Order publishes this through its outbox, keyed by order_id as UTF-8 text so
+// one order's events stay in order. Delivery is at least once: consumers skip
+// event_ids they have already processed.
+
+enum CourierWarningReason {
+  COURIER_WARNING_REASON_UNSPECIFIED = 0;
+  COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP = 1;
+}
+
+// Asks User Service to record an account warning against the courier.
+message CourierWarningRequested {
+  string event_id = 1;
+  string order_id = 2;
+  string courier_id = 3;
+  CourierWarningReason reason = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+}
