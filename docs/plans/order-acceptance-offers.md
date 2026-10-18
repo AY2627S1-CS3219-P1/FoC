@@ -135,6 +135,55 @@ independent devin/claude-opus-5.5 design/implementation reviews are required, or
 explicit user waiver. Never claim fixture-based financial integration as live
 Credit fulfillment.
 
-After all non-blocked work is done, start a bounded managed waiter that checks F0
-readiness every five minutes. Rebase only onto the exact acknowledged exporter
-commit, finish dependent integration, and publish consumer/exporter identities.
+## Integration checkpoints and remaining verification
+
+The five-minute bounded handoff monitor ran and was stopped once F0 published
+verified backend 6066038. The verified B1 pre-rebase checkpoint 17f535a was pushed
+to draft PR #159. The clean working branch was then rebased onto exact 6066038,
+excluding later F0 commits. The only conflict was generated models.go, resolved by
+sqlc 1.30.0 regeneration from combined migrations 00004 and 00005. Remote history
+remains untouched after 17f535a because force-push is not authorized.
+
+Both formal pre-rebase PostgreSQL verification rounds passed. The second covers
+50 competing accepts, retained successful/rejected replay after removal, the
+70-credit/two-20-hold counteroffer scenario, blocked refusal fencing and restart,
+late adjustment expiry compensation, frozen proposal replacement/cancellation,
+and the existing aggregate foundation tests under the race detector. These
+are application + real PostgreSQL18 tests with scripted Credit responses, not
+real Credit cross-service E2E. Evidence: ignored
+.local/order-offers-evidence/postgres-round-{one,two}.jsonl.
+
+The two formal rounds are consumed for this feature. Rebase and new API/UI work
+do not reset that cap. New combined-lineage DB/browser verification is NOT run or
+claimed. Orchestrator requires explicit user authorization before another formal
+round. Ordinary targeted development checks remain allowed.
+
+New contract generation/lint/breaking checks, isolated mounted Connect unit tests,
+generated Go compilation, Svelte type checks and in-memory feature-client tests
+cover the API/UI slice only. The required UUID intentionally rejects old keyless
+callers despite protobuf wire compatibility. The feature component is
+$lib/components/order-offers/OrderOfferControls.svelte with acknowledged props
+{order, refresh, api, callerId, suspended}; factory createOrderOffersApi(transport)
+is in $lib/services/order-offers. F0 retains singleton/detail snippet composition.
+No shared frontend file is modified by B1 and no visible integrated UI/browser
+result is claimed. F0 must consume an exact published exporter handoff first.
+
+Proposed additional verification after explicit authorization: run combined
+migration/history/assignment tests under PostgreSQL18 and the race detector,
+exercise the acceptance API plus retained failed/successful replay through a
+mounted Connect server backed by that database, then compose the feature control
+through F0 and run a browser scenario for lost responses, refresh-retained keys,
+pending/compensating/rejected feedback and caller change. Existing repeatable
+backend command (not rerun after rebase):
+
+```sh
+cd order-service
+GOWORK=off go test -mod=readonly -race -tags=integration \
+  ./internal/order ./internal/rpc/order ./internal/rpc/shared \
+  -count=1 -timeout=10m
+```
+
+The combined financial service remains a scripted contract seam until Credit's
+real implementation and financial-key mapping are verified. Exact independent
+B1 model review is separate from F0's completed review and must record the actual
+native runtime/model metadata and completed findings.
