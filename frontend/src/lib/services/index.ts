@@ -4,6 +4,8 @@ import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { createOrderApi } from './order/index.ts';
+import { createCreditAccountApi } from './credit/index.ts';
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -25,3 +27,15 @@ const supplierTransport = createCustomTransport({
 });
 
 export const locationApi = createLocationApi(supplierTransport);
+
+const orderTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_ORDER_SERVICE_URL ?? 'http://localhost:8083',
+	interceptors: [authService.interceptor]
+});
+export const orderApi = createOrderApi(orderTransport);
+
+const creditTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_CREDIT_SERVICE_URL ?? 'http://localhost:8085',
+	interceptors: [authService.interceptor]
+});
+export const creditAccountApi = createCreditAccountApi(creditTransport);
