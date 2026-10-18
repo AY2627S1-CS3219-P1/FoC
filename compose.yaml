@@ -27,6 +27,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       USER_DB: ${USER_DB:-user_dev}
       SUPPLIER_DB: ${SUPPLIER_DB:-supplier_dev}
+      ORDER_DB: ${ORDER_DB:-order_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -159,6 +160,31 @@ services:
       - ./pkg:/pkg
       # Supplier Service imports the auth middleware from user-service/pkg.
       - ./user-service:/user-service
+      - go-modules:/go/pkg/mod
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile.dev
+    container_name: foc-order-service
+    ports:
+      - "${ORDER_PORT:-8083}:8080"
+    environment:
+      PORT: "8080"
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+    volumes:
+      - ./order-service:/app
+      - ./pkg:/pkg
       - go-modules:/go/pkg/mod
       - /app/tmp
     depends_on:
