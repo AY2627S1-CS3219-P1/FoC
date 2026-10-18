@@ -152,13 +152,14 @@ func seedAcceptanceOrder(t *testing.T, ctx context.Context, repo *app.PostgresRe
 	if err = repo.Within(ctx, func(tx app.Tx) error { return tx.Apply(ctx, change) }); err != nil {
 		t.Fatal(err)
 	}
-	after := o
-	after.Status, after.Revision, after.UpdatedAt = app.AwaitingCourier, 2, now.Add(time.Second)
-	change, err = app.NewChange(&o, after, app.Actor{Kind: app.System}, app.ConfirmReservation, nil, uuid.NewString)
+	var after app.Order
+	err = app.NewMutator(repo).Mutate(ctx, o.ID, func(before app.Order, _ []app.Offer) (*app.Change, error) {
+		after = before
+		after.Status, after.Revision, after.UpdatedAt = app.AwaitingCourier, before.Revision+1, now.Add(time.Second)
+		change, err := app.NewChange(&before, after, app.Actor{Kind: app.System}, app.ConfirmReservation, nil, uuid.NewString)
+		return &change, err
+	})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err = repo.Within(ctx, func(tx app.Tx) error { return tx.Apply(ctx, change) }); err != nil {
 		t.Fatal(err)
 	}
 	return after
