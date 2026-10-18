@@ -14,5 +14,7 @@ export function describeOrderError(error: unknown, action = 'load orders'): stri
 
 /** Only explicit business rejection permits changing a previously submitted payload. */
 export function isDefinitiveRejection(error: unknown): boolean {
-	return [Code.InvalidArgument, Code.FailedPrecondition, Code.ResourceExhausted, Code.PermissionDenied, Code.NotFound].includes(ConnectError.from(error).code);
+	// Suspension can deny a retry before the server looks up an earlier creation.
+	// It cannot establish that the original uncertain submission was rejected.
+	return [Code.InvalidArgument, Code.FailedPrecondition, Code.ResourceExhausted, Code.NotFound].includes(ConnectError.from(error).code);
 }
