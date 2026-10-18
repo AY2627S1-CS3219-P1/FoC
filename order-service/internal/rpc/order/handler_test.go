@@ -257,7 +257,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"accept", func() error {
-			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID}))
+			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
 			return e
 		}},
 		{"make offer", func() error {
@@ -304,7 +304,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "create" || call.name == "image upload" || call.name == "make offer" {
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {
