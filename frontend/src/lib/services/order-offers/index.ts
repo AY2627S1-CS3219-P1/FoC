@@ -42,7 +42,9 @@ function throwAcceptanceError(cause: unknown): never {
    .find(detail => detail.status === AssignmentAttemptStatus.REJECTED && detail.attemptId);
   if (attempt) throw new AcceptanceRejected(attempt);
  }
- if ([Code.InvalidArgument, Code.FailedPrecondition, Code.PermissionDenied, Code.NotFound, Code.AlreadyExists].includes(error.code)) {
+ // PermissionDenied can follow suspension after an earlier admitted request.
+ // It says nothing about that earlier financial outcome or retained result.
+ if ([Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound, Code.AlreadyExists].includes(error.code)) {
   throw new OrderActionRejected('This request was rejected. Refresh before starting a deliberate new action.');
  }
  throw cause;

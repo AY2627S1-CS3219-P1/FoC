@@ -49,7 +49,8 @@ describe('acceptance contract adapter',()=>{
   await expect(api.acceptOffer('offer')).rejects.toThrow('valid attempt outcome');
  });
  // Source: durable recovery keeps unavailable/deadline/aborted outcomes uncertain.
- it.each([Code.Unavailable,Code.DeadlineExceeded,Code.Aborted])('retains uncertainty for transport or processing code %s',async(code)=>{
+ // Follow-up review: suspension may deny replay after the original was admitted.
+ it.each([Code.Unavailable,Code.DeadlineExceeded,Code.Aborted,Code.PermissionDenied])('retains uncertainty for transport or processing code %s',async(code)=>{
   const api=createOrderOffersApi(createRouterTransport(router=>router.service(OrderService,{
    acceptOrder:async()=>{throw new ConnectError('unknown result',code);}
   })));
