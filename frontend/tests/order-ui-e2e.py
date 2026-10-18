@@ -82,6 +82,8 @@ def main():
         elif method == "ListMyOrders":
             state["history"].append(body)
             response = {"orders": [order()], "pageInfo": {"page": 1, "pageSize": 20, "totalItems": "1", "totalPages": 1}}
+        elif method == "ListOffers":
+            response = {"offers": []}
         elif method == "GetOrder":
             state["reads"] += 1
             response = {"order": order(private=not state["suspended"])}
