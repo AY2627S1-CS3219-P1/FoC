@@ -55,10 +55,11 @@ User confirmed the complete scope before implementation.
   Backend reservation is authoritative. An unavailable balance is not zero.
 - D10: proposed routine UI defaults are delivery within 30 minutes of pickup and
   expiry 60 minutes from form opening, both editable and revalidated at submit.
-- D11: central transaction detection of courier assignment/removal is the proposed
+- D11: central transaction detection of courier assignment/removal is the agreed
   writer seam. Keep episode history in the same local transaction as Order/audit/
-  outbox, rather than requiring three feature writers to duplicate SQL. Exact
-  schema, migration number, historical backfill and ownership await acknowledgment.
+  outbox, rather than requiring three feature writers to duplicate SQL. Migration 00004 records evidenced assignment/removal and current snapshots.
+  Missing historical assignment times/revisions remain unknown. The existing
+  `Tx.Apply(ctx, change)` is the only writer seam; feature writers add no calls.
 - D12: use snapshot building names for the initial coarse filter because stored
   Order snapshots do not contain stable Building IDs. Do not resolve an exact
   destination ID into a coarse filter on a caller's behalf.
@@ -69,39 +70,65 @@ F0 retains shared frontend services/routes/composition/detail shell and the safe
 read/history design. B1 owns acceptance/offers, B2 delivery proof, B3 cancellation/
 disposition and existing pickup/receipt frontend controls, B4 timers and B5 admin
 operations/case authorization. No peer backend is merged or recreated here.
-Shared backend proto, conversion, read, persistence and migration ownership must
-be acknowledged before editing. Publish exact exports and exporter commit, and
-acknowledge feature-local integration requests with consumer commits.
+Shared backend ownership is acknowledged in [PR #158 comment 6249016359](https://github.com/AY2627S1-CS3219-P1/FoC/pull/158#issuecomment-6249016359).
+F0 owns migration 00004, read/projection/filter queries and the sole Postgres Apply
+history hook. B1 owns migration 00005 and feature-local assignment workflow files.
+B1, B3 and B5 consume `Tx.Apply` without history SQL or a second history method.
+
+### Concrete backend contracts
+
+- `Order.delivery_building_name = 23`; `ListOpenOrdersRequest.delivery_building_name = 5`.
+  Legacy exact `delivery_location_id = 2` remains deprecated and is rejected even
+  when explicitly present but empty. Proto/generated commit: `2e663e1`; verified backend: `6066038`.
+- `Reader.GetWithParticipation(ctx, orderID, callerID) (Order, bool, error)` reads
+  Order and history in one repeatable-read snapshot. `Service.GetOrder` authorizes
+  visibility, then projects. List/count use the same `EXISTS` membership predicate.
+- `Tx.Apply(ctx, change)` detects changed courier identity from its validated locked
+  baseline, closes/opens assignment episodes, and commits with Order/audit/outbox.
+  History failure poisons the transaction even if a caller swallows the error.
+  `Order.HasParticipant` stays current-only. A retained terminal courier remains
+  the current snapshot participant; completion does not fabricate a removal.
+- `shared.OrderView(ctx, caller, order, images)` applies response-only privacy to
+  all read/mutation responses. Nonparticipants get explicit coarse area and absent
+  `delivery`, no disposition/closure text, and no later attachment URLs. This is
+  projection, not visibility authorization. Replay handlers first call
+  `Service.GetOrder`; omit Order on `ErrNotFound` for offer-only/failed attempts.
+- B1 reservations: `AcceptOrderRequest.attempt_id = 2`, response `attempt = 2`,
+  `AcceptOfferResponse.attempt = 3`, separate `AssignmentAttemptResult` and status.
+  Integration/regeneration waits for the full verified backend handoff, not the
+  proto-only commit. No peer merge/rebase/force-push is performed by F0.
 
 ## Current blockers and status
 
-- ADR committed as `c378d61`; draft PR #158 published on #150's branch.
-- Messenger rejects sends because the session message budget is exhausted.
-  Shared-backend ownership/numbering request is posted on PR #158 as a fallback,
-  not treated as acknowledgment. Frontend work proceeds under existing F0 ownership.
-- Shared frontend exports/read pages are committed as `53b5e7d`; creation and
-  repeatable browser evidence as `0904eef`. The delivery projection policy and
-  its unit test are `7e302ce`, but no production handler calls it yet.
-- Backend safe read/mutation wiring, coarse destination contract/filtering,
-  assignment episodes/backfill/list-count membership and item-image authorization
-  integration remain unimplemented pending shared-file acknowledgment. The coarse
-  frontend filter is disabled, and the adapter rejects it rather than silently
-  dropping an unsupported protobuf field.
-- Exact-model review is still a completion gate. The Agent override recorded
-  `openai-codex/gpt-6.1-sol`, so that run does not count. A direct CLI invocation
-  explicitly selecting `devin/claude-opus-5.5` is being attempted without fallback.
-- `npm run check`: 0 errors/warnings. `npm test`: 11 files, 61 tests passed.
-  `npm run build` passed before the final picker/sign-out layout fixes; current
-  source passed the second type/unit/browser round. `make fmt && make lint` passed
-  with the pinned linter (0 issues in each module). Full Order Go tests passed.
-- Browser evidence passed at explicit Connect/S3 fixtures: retained image after
-  lost upload response, explicit invalid-image removal, lost CreateOrder response,
-  same-payload/key/image-ID recovery after refresh without re-upload, authoritative
-  status refresh, suspended history, no page exceptions and no horizontal scrolling
-  at 360/768/1440px. Source: `frontend/tests/order-ui-e2e.py`. Report/screenshots/video:
-  ignored `.local/order-ui-evidence/`. This is frontend seam evidence, not real
-  backend authorization/history, S3 signatures, Credit settlement or Telegram.
-- First browser triage exposed a narrow-screen Location picker layout issue. The
-  second round passed after fixing the picker/sign-out layout. No third broad
-  verification round is planned. Independent-review fixes, if any, must be labelled
-  unverified unless the user authorizes additional verification.
+- Shared ownership is resolved. Backend implementation passed its final verification round after the first
+  round identified intentional deprecated-field access requiring a localized
+  staticcheck suppression. No further broad verification round is planned for this increment.
+- `make fmt && make lint`: zero issues in all four modules. Full Order Go unit
+  suite passed. Race-enabled PostgreSQL18 aggregate/RPC/shared suites passed,
+  including migration up/down/up, evidence backfill, repeated assignment/removal,
+  list/count uniqueness, forced history failure rollback and mounted Connect
+  reads after withdrawal/reassignment/completion. Authentication identity is
+  injected at the existing middleware seam, not tested against a live issuer.
+- Updated frontend: type check zero errors/warnings, 62 tests, production build
+  passed. Destination selector now uses the actual coarse field, not the retired
+  exact filter. The final fixture browser run timed out resolving the exact destination
+  select label. Its selector was adjusted to a substring match but not rerun
+  after the second verification round. Earlier recovery-fixture evidence does
+  not certify this latest browser source.
+- Backend repeatable proof: `order-service/internal/order/assignmenthistory_integration_test.go`
+  and `order-service/internal/rpc/order/readprivacy_integration_test.go`. Captured
+  logs/report: ignored `.local/order-ui-backend-evidence/`.
+- Browser recovery proof remains explicitly at Connect/S3 fixtures, not production
+  authorization or S3/Credit/Kafka/Telegram integration. Source:
+  `frontend/tests/order-ui-e2e.py`; local artifacts: `.local/order-ui-evidence/`.
+- Exact-model review remains a completion gate. The Agent override recorded
+  `openai-codex/gpt-6.1-sol`, not Opus. The original exact CLI attempt emitted no
+  runtime output for about 25 minutes and was stopped. The isolated provider-only
+  Pi attempt also emitted no runtime output by its bounded startup deadline and
+  was stopped. A native Devin CLI `claude-opus-5.5` review is now running with a
+  600-second deadline and session export. Runtime/session metadata and completion
+  must be inspected before it can count. No fallback or requested-model argument
+  is counted as exact provenance.
+- B5's authoritative open-case assignment is external. Admin-only sensitive access
+  fails closed. Peer lifecycle controls/recovery workers and proof authorization
+  require their own integration/verification and are not certified here.

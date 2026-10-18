@@ -81,8 +81,7 @@
 				<label>Order status<select value={page.url.searchParams.get('status') ?? ''} onchange={(e) => update('status', e.currentTarget.value)}><option value="">All statuses</option>{#each orderStatuses as [value, label]}<option value={value}>{label}</option>{/each}</select></label>
 			{:else}
 				<LocationPicker label="Pickup location filter" bind:value={pickup} onchange={(location) => update('pickup', location.id)} />
-				<label>Destination building/area<select disabled aria-describedby="destination-filter-pending" value={query.deliveryBuildingName ?? ''} onchange={(e) => update('destination', e.currentTarget.value)}><option value="">All destination areas</option>{#each buildings as building (building.id)}<option value={building.name}>{building.name}</option>{/each}</select></label>
-				<small id="destination-filter-pending">Destination filtering is awaiting the backend privacy contract.</small>
+				<label>Destination building/area<select value={query.deliveryBuildingName ?? ''} onchange={(e) => update('destination', e.currentTarget.value)}><option value="">All destination areas</option>{#each buildings as building (building.id)}<option value={building.name}>{building.name}</option>{/each}</select></label>
 				{#if buildingError}<p class="notice error" role="alert">{buildingError}</p>{/if}
 			{/if}
 			<a href={page.url.pathname}>Clear filters</a>

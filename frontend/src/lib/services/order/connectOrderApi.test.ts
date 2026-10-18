@@ -35,3 +35,12 @@ it('does not replace malformed responses with fabricated success data', async ()
 	const api = new ConnectOrderApi({ getOrder: async () => ({}) } as unknown as Client<typeof OrderService>);
 	await expect(api.getOrder('order')).rejects.toThrow('did not contain an order');
 });
+
+// The approved privacy contract permits coarse building filtering, not exact IDs.
+it('sends the coarse destination contract without an exact destination ID', async () => {
+ const listOpenOrders = vi.fn(async (_request: unknown) => ({ orders: [], pageInfo: create(PageInfoSchema) }));
+ const api = new ConnectOrderApi({ listOpenOrders } as unknown as Client<typeof OrderService>);
+ await api.listOpenOrders({ deliveryBuildingName: 'COM3' });
+ expect(listOpenOrders).toHaveBeenCalledWith(expect.objectContaining({ deliveryBuildingName: 'COM3' }));
+ expect(listOpenOrders.mock.calls[0]?.[0]).not.toHaveProperty('deliveryLocationId');
+});

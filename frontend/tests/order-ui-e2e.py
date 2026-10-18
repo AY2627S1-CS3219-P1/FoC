@@ -35,7 +35,7 @@ def main():
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     origin = args.url.rstrip("/")
-    state = {"suspended": False, "create": [], "uploads": 0, "reads": 0, "history": [], "lost_create": True, "deadline": False}
+    state = {"suspended": False, "create": [], "uploads": 0, "reads": 0, "history": [], "open": [], "lost_create": True, "deadline": False}
     assertions = []
     cors = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "content-type,authorization,connect-protocol-version,connect-timeout-ms", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Expose-Headers": "*"}
 
@@ -43,7 +43,7 @@ def main():
         delivery = {"location": {"buildingName": "COM3"}}
         if private:
             delivery = {"location": {"locationId": DELIVERY, "name": "Room 02-15", "buildingName": "COM3", "floor": "2"}, "instructions": "Call when outside"}
-        return {"id": ORDER, "requesterId": USER if private else OTHER, "status": "ORDER_STATUS_EXPIRED" if state["deadline"] else "ORDER_STATUS_AWAITING_COURIER", "pickup": {"locationId": PICKUP, "name": "Campus Cafe", "buildingName": "COM3"}, "delivery": delivery, "itemDescription": "Two meals for a study group", "rewardCredits": "20", "deliveryDuration": "1800s", "expiresAt": stamp(600), "revision": "2", "createdAt": stamp(-30), "updatedAt": stamp()}
+        return {"id": ORDER, "deliveryBuildingName": "COM3", "requesterId": USER if private else OTHER, "status": "ORDER_STATUS_EXPIRED" if state["deadline"] else "ORDER_STATUS_AWAITING_COURIER", "pickup": {"locationId": PICKUP, "name": "Campus Cafe", "buildingName": "COM3"}, "delivery": delivery, "itemDescription": "Two meals for a study group", "rewardCredits": "20", "deliveryDuration": "1800s", "expiresAt": stamp(600), "revision": "2", "createdAt": stamp(-30), "updatedAt": stamp()}
 
     def route_request(route):
         request = route.request
@@ -77,6 +77,7 @@ def main():
             location_id = DELIVERY if "room" in name.lower() else PICKUP
             response = {"locations": [{"id": location_id, "name": "Room 02-15" if location_id == DELIVERY else "Campus Cafe", "building": {"id": BUILDING, "name": "COM3"}}], "page": 1, "pageSize": 20, "totalItems": "1", "totalPages": 1}
         elif method == "ListOpenOrders":
+            state["open"].append(body)
             response = {"orders": [order()], "pageInfo": {"page": 1, "pageSize": 20, "totalItems": "1", "totalPages": 1}}
         elif method == "ListMyOrders":
             state["history"].append(body)
@@ -122,6 +123,12 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"horizontal overflow at {width}"
             page.screenshot(path=str(out / f"browse-{width}.png"), full_page=True)
         assertions.append("Browse renders coarse fixture destinations without horizontal scrolling at 360/768/1440")
+        page.get_by_label("Destination building/area").select_option("COM3")
+        expect(page).to_have_url(origin + "/orders?destination=COM3")
+        expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
+        assert state["open"][-1].get("deliveryBuildingName") == "COM3"
+        assert "deliveryLocationId" not in state["open"][-1]
+        assertions.append("Destination filter sends the explicit coarse building field, never an exact Location ID")
 
         page.goto(origin + "/orders/new")
         expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()

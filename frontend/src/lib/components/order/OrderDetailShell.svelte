@@ -17,7 +17,7 @@
 		<h1>{order.itemDescription}</h1>
 		<dl>
 			<dt>Pickup</dt><dd>{order.pickup?.name} · {order.pickup?.buildingName}{order.pickup?.floor ? ' · ' + order.pickup.floor : ''}</dd>
-			<dt>Destination area</dt><dd>{order.delivery?.location?.buildingName || 'Area unavailable'}</dd>
+			<dt>Destination area</dt><dd>{order.deliveryBuildingName || 'Area unavailable'}</dd>
 			{#if order.delivery?.location?.locationId}
 				<dt>Exact destination</dt><dd>{order.delivery.location.name}{order.delivery.location.floor ? ' · ' + order.delivery.location.floor : ''}</dd>
 			{:else}<dt>Destination access</dt><dd>Exact destination is restricted to authorized participants.</dd>{/if}

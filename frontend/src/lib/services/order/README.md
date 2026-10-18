@@ -32,10 +32,12 @@ Exporter/consumer commit handoffs are required; an export does not transfer owne
 - `/orders/[id]`: shared detail/read shell with active-page refresh.
 - `/orders/new`: creation, optional item uploads and submitted recovery.
 
-The destination filter's new protobuf field and explicit approximate projection
-remain pending shared-backend ownership acknowledgment. Do not interpret this
-frontend interface as a published backend contract or proof of privacy compliance.
-The current backend still uses exact destination filters/current courier history.
+Destination filtering uses `ListOpenOrdersRequest.delivery_building_name = 5`.
+`Order.delivery_building_name = 23` is the explicit approximate destination.
+Nonparticipants receive no `delivery` object. The legacy exact destination filter
+at field 2 is retained but rejected. Former-courier history is backed by durable
+assignment episodes, not inferred from offers or current-courier-only snapshots.
+Backend privacy proof is separate from the mocked browser scenario below.
 No lifecycle adapter methods or controls are promised without a concrete consumer
 request and acknowledged commit handoff.
 
@@ -70,3 +72,7 @@ uses explicit Connect/S3 fixtures, not real User/Credit/Supplier/Order deploymen
 S3 signature validation, Kafka settlement or Telegram consumption. Artifacts are
 written to ignored `.local/order-ui-evidence/`. Python Playwright and installed
 Chrome (or matching Playwright Chromium without `--channel`) are prerequisites.
+
+The latest coarse-filter browser extension timed out on exact label lookup. Its
+selector adjustment has not been rerun. Type checks, 62 unit tests and production
+build passed; prior fixture-recovery evidence does not certify that latest script.

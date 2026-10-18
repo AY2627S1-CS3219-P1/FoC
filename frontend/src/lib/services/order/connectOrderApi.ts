@@ -24,14 +24,10 @@ export class ConnectOrderApi implements OrderApi {
 	}
 
 	async listOpenOrders(query: OrderQuery): Promise<OrderPage> {
-		// The pinned backend has no coarse filter descriptor yet. Never silently
-		// drop a requested filter or send an exact destination ID instead.
-		if (query.deliveryBuildingName) {
-			throw new Error('Destination area filtering is awaiting the coordinated backend contract.');
-		}
 		const request = {
 			page: query.page ?? 1, pageSize: query.pageSize ?? 20,
-			pickupLocationId: query.pickupLocationId || undefined
+			pickupLocationId: query.pickupLocationId || undefined,
+			deliveryBuildingName: query.deliveryBuildingName ?? ''
 		};
 		const response = await this.client.listOpenOrders(request);
 		return page(response.orders, response.pageInfo);

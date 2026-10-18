@@ -10,7 +10,7 @@
 		<p class="status">{statusLabel(order.status)}</p>
 		<h2><a href={'/orders/' + encodeURIComponent(order.id)}>{order.itemDescription}</a></h2>
 		<p>Pick up: {order.pickup?.name ?? 'Unavailable'} · {order.pickup?.buildingName ?? ''}</p>
-		<p>Deliver to: {order.delivery?.location?.buildingName || 'Area unavailable'}</p>
+		<p>Deliver to: {order.deliveryBuildingName || 'Area unavailable'}</p>
 		<p>{order.rewardCredits.toString()} credits</p>
 		<small>Requester: {order.requesterId}</small>
 		{#if order.courierId}<small>Current courier: {order.courierId}</small>{/if}
