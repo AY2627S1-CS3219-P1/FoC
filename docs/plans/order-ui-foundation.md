@@ -121,14 +121,15 @@ B1, B3 and B5 consume `Tx.Apply` without history SQL or a second history method.
 - Browser recovery proof remains explicitly at Connect/S3 fixtures, not production
   authorization or S3/Credit/Kafka/Telegram integration. Source:
   `frontend/tests/order-ui-e2e.py`; local artifacts: `.local/order-ui-evidence/`.
-- Exact-model review remains a completion gate. The Agent override recorded
-  `openai-codex/gpt-6.1-sol`, not Opus. The original exact CLI attempt emitted no
-  runtime output for about 25 minutes and was stopped. The isolated provider-only
-  Pi attempt also emitted no runtime output by its bounded startup deadline and
-  was stopped. A native Devin CLI `claude-opus-5.5` review is now running with a
-  600-second deadline and session export. Runtime/session metadata and completion
-  must be inspected before it can count. No fallback or requested-model argument
-  is counted as exact provenance.
+- Exact independent read-only review completed in native Devin session
+  `swamp-captain`, runtime version `3000.11.92`. Export metadata records
+  `Claude Opus 5.5 Medium` and inference `generation_model=claude-opus-5-5-medium`.
+  Final findings: no confirmed correctness/security bugs; one stale NFR-06.2
+  traceability entry, corrected in `order-service/REQUIREMENTS.md`. Unconfirmed
+  concerns are not promoted to defects. Full export and sanitized provenance:
+  ignored `.local/order-ui-exact-review/`. The reviewer did not run tests and
+  did not certify peer integration or the browser-selector adjustment.
+  Earlier wrong-model/silent attempts do not count toward this completed review.
 - B5's authoritative open-case assignment is external. Admin-only sensitive access
   fails closed. Peer lifecycle controls/recovery workers and proof authorization
   require their own integration/verification and are not certified here.
