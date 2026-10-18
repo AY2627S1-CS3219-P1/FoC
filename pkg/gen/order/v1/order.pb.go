@@ -241,8 +241,8 @@ func (x *CreateItemImageUploadRequest) GetContentType() string {
 	return ""
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 type GetOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -292,8 +292,13 @@ func (x *GetOrderRequest) GetId() string {
 type ListOpenOrdersRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Filters are optional.
-	PickupLocationId   *string `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3,oneof" json:"pickup_location_id,omitempty"`
+	PickupLocationId *string `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3,oneof" json:"pickup_location_id,omitempty"`
+	// Legacy exact filter is rejected: membership would disclose a hidden Location.
+	//
+	// Deprecated: Marked as deprecated in order/v1/order.proto.
 	DeliveryLocationId *string `protobuf:"bytes,2,opt,name=delivery_location_id,json=deliveryLocationId,proto3,oneof" json:"delivery_location_id,omitempty"`
+	// Filter by the destination snapshot building/area, never an exact Location ID.
+	DeliveryBuildingName string `protobuf:"bytes,5,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
@@ -339,9 +344,17 @@ func (x *ListOpenOrdersRequest) GetPickupLocationId() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in order/v1/order.proto.
 func (x *ListOpenOrdersRequest) GetDeliveryLocationId() string {
 	if x != nil && x.DeliveryLocationId != nil {
 		return *x.DeliveryLocationId
+	}
+	return ""
+}
+
+func (x *ListOpenOrdersRequest) GetDeliveryBuildingName() string {
+	if x != nil {
+		return x.DeliveryBuildingName
 	}
 	return ""
 }
@@ -360,7 +373,7 @@ func (x *ListOpenOrdersRequest) GetPageSize() int32 {
 	return 0
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 type ListMyOrdersRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Role   ParticipantRole        `protobuf:"varint,1,opt,name=role,proto3,enum=order.v1.ParticipantRole" json:"role,omitempty"`
@@ -1729,10 +1742,12 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"image/heicR\n" +
 	"image/heifR\vcontentType\"+\n" +
 	"\x0fGetOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8a\x02\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xcc\x02\n" +
 	"\x15ListOpenOrdersRequest\x12;\n" +
-	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x10pickupLocationId\x88\x01\x01\x12?\n" +
-	"\x14delivery_location_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\x12deliveryLocationId\x88\x01\x01\x12\x1b\n" +
+	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x10pickupLocationId\x88\x01\x01\x12A\n" +
+	"\x14delivery_location_id\x18\x02 \x01(\tB\n" +
+	"\xbaH\x05r\x03\xb0\x01\x01\x18\x01H\x01R\x12deliveryLocationId\x88\x01\x01\x12>\n" +
+	"\x16delivery_building_name\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x14deliveryBuildingName\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSizeB\x15\n" +
 	"\x13_pickup_location_idB\x17\n" +
