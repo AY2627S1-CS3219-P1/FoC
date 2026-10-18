@@ -79,8 +79,29 @@ acknowledge feature-local integration requests with consumer commits.
 - Messenger rejects sends because the session message budget is exhausted.
   Shared-backend ownership/numbering request is posted on PR #158 as a fallback,
   not treated as acknowledgment. Frontend work proceeds under existing F0 ownership.
-- Exact `devin/claude-opus-5.5` independent design review requested. Runtime success
-  and findings remain to be checked. Successful review or user waiver is required
-  before feature-ready/completion.
-- No application checks or E2E evidence have passed yet. Infrastructure must be
-  coordinated before E2E and must not claim real Credit/Telegram consumption.
+- Shared frontend exports/read pages are committed as `53b5e7d`; creation and
+  repeatable browser evidence as `0904eef`. The delivery projection policy and
+  its unit test are `7e302ce`, but no production handler calls it yet.
+- Backend safe read/mutation wiring, coarse destination contract/filtering,
+  assignment episodes/backfill/list-count membership and item-image authorization
+  integration remain unimplemented pending shared-file acknowledgment. The coarse
+  frontend filter is disabled, and the adapter rejects it rather than silently
+  dropping an unsupported protobuf field.
+- Exact-model review is still a completion gate. The Agent override recorded
+  `openai-codex/gpt-6.1-sol`, so that run does not count. A direct CLI invocation
+  explicitly selecting `devin/claude-opus-5.5` is being attempted without fallback.
+- `npm run check`: 0 errors/warnings. `npm test`: 11 files, 61 tests passed.
+  `npm run build` passed before the final picker/sign-out layout fixes; current
+  source passed the second type/unit/browser round. `make fmt && make lint` passed
+  with the pinned linter (0 issues in each module). Full Order Go tests passed.
+- Browser evidence passed at explicit Connect/S3 fixtures: retained image after
+  lost upload response, explicit invalid-image removal, lost CreateOrder response,
+  same-payload/key/image-ID recovery after refresh without re-upload, authoritative
+  status refresh, suspended history, no page exceptions and no horizontal scrolling
+  at 360/768/1440px. Source: `frontend/tests/order-ui-e2e.py`. Report/screenshots/video:
+  ignored `.local/order-ui-evidence/`. This is frontend seam evidence, not real
+  backend authorization/history, S3 signatures, Credit settlement or Telegram.
+- First browser triage exposed a narrow-screen Location picker layout issue. The
+  second round passed after fixing the picker/sign-out layout. No third broad
+  verification round is planned. Independent-review fixes, if any, must be labelled
+  unverified unless the user authorizes additional verification.
