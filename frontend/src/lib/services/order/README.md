@@ -73,6 +73,10 @@ S3 signature validation, Kafka settlement or Telegram consumption. Artifacts are
 written to ignored `.local/order-ui-evidence/`. Python Playwright and installed
 Chrome (or matching Playwright Chromium without `--channel`) are prerequisites.
 
-The latest coarse-filter browser extension timed out on exact label lookup. Its
-selector adjustment has not been rerun. Type checks, 62 unit tests and production
-build passed; prior fixture-recovery evidence does not certify that latest script.
+The user-authorized final round passed at `b8111fd`, including the coarse-filter
+selector, identical retry payload/image IDs/key after refresh, one upload despite
+lost acknowledgments, suspended history and 360/768/1440-pixel layouts. Type checks,
+62 unit tests and production build also passed. Fresh report/screenshots/video:
+`.local/order-ui-evidence/final-authorized-b8111fd/`. Captured final backend/frontend
+logs and the combined manifest: `.local/order-ui-final-verification/b8111fd/`.
+These local artifacts are not uploaded PR attachments or live-service proof.

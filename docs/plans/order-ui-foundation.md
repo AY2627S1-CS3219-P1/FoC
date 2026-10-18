@@ -63,6 +63,8 @@ User confirmed the complete scope before implementation.
 - D12: use snapshot building names for the initial coarse filter because stored
   Order snapshots do not contain stable Building IDs. Do not resolve an exact
   destination ID into a coarse filter on a caller's behalf.
+- D13: user authorized one final verification round at actual head `b8111fd`.
+  This does not waive B1 issues #161/#162 or authorize force-push/merge.
 
 ## Ownership and handoff
 
@@ -100,21 +102,24 @@ B1, B3 and B5 consume `Tx.Apply` without history SQL or a second history method.
 
 ## Current blockers and status
 
-- Shared ownership is resolved. Backend implementation passed its final verification round after the first
-  round identified intentional deprecated-field access requiring a localized
-  staticcheck suppression. No further broad verification round is planned for this increment.
-- `make fmt && make lint`: zero issues in all four modules. Full Order Go unit
+- Shared ownership is resolved. The user-authorized final verification round
+  passed at clean head `b8111fd`, with no application-code fixes or further loop.
+  Post-verification edits only record these results.
+- `make fmt-check && make lint`: zero issues in all four modules. Full Order Go unit
   suite passed. Race-enabled PostgreSQL18 aggregate/RPC/shared suites passed,
   including migration up/down/up, evidence backfill, repeated assignment/removal,
   list/count uniqueness, forced history failure rollback and mounted Connect
   reads after withdrawal/reassignment/completion. Authentication identity is
   injected at the existing middleware seam, not tested against a live issuer.
 - Updated frontend: type check zero errors/warnings, 62 tests, production build
-  passed. Destination selector now uses the actual coarse field, not the retired
-  exact filter. The final fixture browser run timed out resolving the exact destination
-  select label. Its selector was adjusted to a substring match but not rerun
-  after the second verification round. Earlier recovery-fixture evidence does
-  not certify this latest browser source.
+  passed. The fresh bounded browser scenario also passed, including the earlier
+  selector adjustment and coarse destination request (field 5, no exact filter).
+  Lost upload acknowledgment plus lost creation response replayed identical
+  fields/image IDs/key after refresh: two creation requests, one upload attempt.
+  Explicit failed-image removal, backend-authoritative refresh, suspended courier
+  history and 360/768/1440-pixel layouts passed at mocked Connect/S3 seams.
+  Fresh report/screenshots/video: `.local/order-ui-evidence/final-authorized-b8111fd/`.
+  Combined exact-head manifest/logs: `.local/order-ui-final-verification/b8111fd/`.
 - Backend repeatable proof: `order-service/internal/order/assignmenthistory_integration_test.go`
   and `order-service/internal/rpc/order/readprivacy_integration_test.go`. Captured
   logs/report: ignored `.local/order-ui-backend-evidence/`.
@@ -128,8 +133,13 @@ B1, B3 and B5 consume `Tx.Apply` without history SQL or a second history method.
   traceability entry, corrected in `order-service/REQUIREMENTS.md`. Unconfirmed
   concerns are not promoted to defects. Full export and sanitized provenance:
   ignored `.local/order-ui-exact-review/`. The reviewer did not run tests and
-  did not certify peer integration or the browser-selector adjustment.
+  did not certify peer integration or execute the browser-selector adjustment;
+  execution is now separately covered by the authorized final round.
   Earlier wrong-model/silent attempts do not count toward this completed review.
 - B5's authoritative open-case assignment is external. Admin-only sensitive access
   fails closed. Peer lifecycle controls/recovery workers and proof authorization
   require their own integration/verification and are not certified here.
+
+- B1 mounting is separate and remains blocked on a verified published exporter
+  and disposition of open issues #161/#162. No peer lifecycle component was
+  mounted, peer code merged, remote history rewritten or issue waived here.
