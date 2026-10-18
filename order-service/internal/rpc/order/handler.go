@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/clients"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/images"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/shared"
@@ -53,7 +52,6 @@ func (s *Server) CreateOrder(ctx context.Context, req *connect.Request[pb.Create
 	if m.ExpiresAt == nil || m.ExpiresAt.CheckValid() != nil || m.DeliveryDuration == nil || m.DeliveryDuration.CheckValid() != nil || m.Delivery == nil {
 		return nil, shared.ConnectError(ctx, app.ErrInvalid)
 	}
-	ctx = clients.WithUserBearer(ctx, req.Header().Get("Authorization"))
 	result, err := s.creator.Create(ctx, caller, app.CreateInput{
 		Key: m.IdempotencyKey, PickupID: m.PickupLocationId, DeliveryID: m.Delivery.LocationId,
 		Instructions: m.Delivery.Instructions, ItemDescription: m.ItemDescription, ImageIDs: m.ItemImageIds,

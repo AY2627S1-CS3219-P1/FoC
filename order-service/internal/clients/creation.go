@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	creditpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
 	locationpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
@@ -21,14 +22,6 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
-type userBearerKey struct{}
-
-// WithUserBearer is called only after incoming HTTP authentication. The delegated
-// credential is used for Supplier discovery and never persisted or sent to Credit.
-func WithUserBearer(ctx context.Context, authorization string) context.Context {
-	return context.WithValue(ctx, userBearerKey{}, authorization)
-}
-
 func NoRedirect(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 
 type Supplier struct {
@@ -36,7 +29,7 @@ type Supplier struct {
 }
 
 func (s *Supplier) GetLocation(ctx context.Context, id string) (app.SelectableLocation, error) {
-	bearer, _ := ctx.Value(userBearerKey{}).(string)
+	bearer, _ := auth.UserBearerFromContext(ctx)
 	if bearer == "" {
 		return app.SelectableLocation{}, app.ErrUnavailable
 	}

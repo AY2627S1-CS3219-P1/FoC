@@ -61,6 +61,12 @@ These are implementation defaults, not PRD business policy. Image cleanup runs
 at startup and each minute. Service cancellation stops workers before clients and
 database pools close. Credit/Kafka/S3 are not probed for reachability on startup.
 
+Shared `pkg/auth/httpauth` middleware stores both the verified caller and its
+Bearer authorization header in request context after authentication. Supplier
+lookups retrieve the delegated header through `auth.UserBearerFromContext`; RPC
+handlers do not copy credentials from incoming headers. The credential stays
+separate from `Caller`, is not persisted, and is never sent to Credit.
+
 TokenSource is the consuming Order adapter's workload-credential boundary. The
 file provider consumes externally issued JWTs, checks dispatch expiry/subject/
 audience, and rereads rotations; it does not authenticate the caller to Credit.
