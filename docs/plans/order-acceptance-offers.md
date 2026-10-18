@@ -286,3 +286,84 @@ in F0 routes, or certify real Credit. Actual Opus review still covers 8e81430,
 not final fix 9f09e2a; successful tests do not extend model-review provenance.
 Issues 161/162 are unresolved and not waived. Remote remains 17f535a. No
 non-fast-forward push, peer composition or merge is authorized by this run.
+
+## Approved combined F0/B1 integration
+
+This supersedes the earlier unpublished-exporter and publication-blocker status,
+not the recorded verification scope of those checkpoints. The user explicitly
+authorized B1 control integration, final combined verification, and publication
+to existing PR #159 with exact force-with-lease checks. Issues 161/162 were
+explicitly left UNRESOLVED, with no fixing, acceptance or deferment authorized.
+No PR merge or deployment was authorized or performed.
+
+Publication first checked expected remote 17f535a and leased it to 830fea7. B1
+then cleanly rebased onto F0's latest exact 1c93d4f, preserving its later frontend
+changes. F0's tracked branch/history was not changed. B1 added the mounted
+acceptance test (5840a88), applied only F0's exact approved shared composition
+patch (3689b31), and its browser evidence patch (a712f36). A fresh remote check
+confirmed B1's known own 830fea7, then an explicit lease published the frozen
+combined a712f367e2fe1c7d0b940b8e55c8506dece074c0. PR #159 was retargeted to
+andrew/feat/order-ui-foundation by acknowledged coordination. No broad force or
+unexpected remote advance was bypassed.
+
+The combined run and read-only review held a712f36 unchanged until all runners,
+readers and F0's browser server completed and cleanup was confirmed:
+
+- **V1:** Formatting/lint passed with zero issues.
+- **V2:** Full Order unit suites passed, with 176 passed test events.
+- **V3:** The PostgreSQL race invocation recorded 141 passed events and one failed
+  test (counts include unit tests). New TestAcceptanceThroughConnectAndPostgres
+  failed during seed ConfirmReservation because direct Apply lacked the required
+  locked aggregate and fresh relationships. Its actual mounted acceptance path
+  was NOT EXECUTED. This is a fixture failure, not an application pass/fail claim.
+  Other PostgreSQL aggregate/history/read-RPC suites passed.
+- **V4:** The unrun frontend stages then passed at the same frozen head: zero
+  type errors/warnings, all 74 tests across 12 files, and production build.
+- **V5:** F0 executed both committed browser scripts sequentially from B1 using
+  isolated Vite port 50978. Both passed with unchanged end HEAD; server cleanup
+  completed. Actual controls covered responsive 360/768/1440 widths, a lost
+  acceptance response followed by suspension PermissionDenied retaining the
+  identical uncertain UUID, suspended reload with disabled mutations, restored
+  replay with historical success and a different CURRENT courier, proposal-only
+  behavior, and explicit counteroffer confirmation/typed rejection. Foundation
+  checks also passed. Browser Connect/S3 responses were fixtures, not live
+  PostgreSQL, Credit, JWT or S3 proof.
+- **V6:** The independent native final review completed at a712f36, runtime
+  3000.11.92, session bygone-haircut. Actual agent model Claude Opus 5.5 Medium and
+  every inference model claude-opus-5-5-medium were inspected in the exported
+  transcript. Its 7212-character final confirms the suspension/composition fixes
+  with no new confirmed static defects and retains 161/162 unresolved. Static
+  endorsement of test structure does not override the executed seed failure.
+
+Ignored evidence, available locally rather than uploaded PR attachments:
+
+- .local/order-offers-evidence/integrated-authorized.jsonl (backend failure).
+- .local/order-offers-evidence/integrated-frontend.jsonl (remaining stages).
+- .local/order-offers-evidence/integrated-manifest.json (consolidated status).
+- .local/order-offers-combined-evidence/a712f36/browser-f0.json and scenario
+  reports, screenshots and video under foundation/ and controls/.
+- .local/order-offers-exact-review/native-integrated.json,
+  integrated-provenance.json and integrated-findings.md.
+
+## Narrow post-round corrections, not verified
+
+After the freeze was released, acknowledged fixture correction 20e618d changed
+seed reservation confirmation to the existing Mutator.Mutate boundary, using its
+locked before image and freshly read relationships. No application workflow was
+changed. This correction was committed but NOT executed or independently reviewed.
+The failed mounted acceptance scenario still has no passing execution evidence.
+
+F0 separately identified a source-traced creation retry identity gap, not an
+executed reproduction: suspension can deny CreateOrder before retained lookup,
+but the shared frontend helper considered PermissionDenied definitive and could
+clear an earlier uncertain submission. B1 applied only F0's approved exact patch
+(SHA256 470e1b62c876437d039a8ed692fe6c107e4438653fad3fbe117d74129ff115e7)
+in separate commit 1f3ea55, removing that classification and adding a D7-derived
+regression. This code/test change is UNVERIFIED. It lives on combined B1 only;
+standalone F0 remains 1c93d4f and is not claimed fixed.
+
+No additional test, type/build, PostgreSQL, browser or model round was authorized
+or run for either post-round correction. The passing a712f36 results and review
+must not be extended to them. Further execution needs explicit user authorization.
+Issues 161/162 remain independently UNRESOLVED and untouched. The branch remains
+a draft, not feature-approved, merged or deployed.
