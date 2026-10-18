@@ -1,6 +1,5 @@
 -include .env
 
-SERVER_PATH=./cmd/server/main.go
 SQLC_PATH=./database
 
 run:
