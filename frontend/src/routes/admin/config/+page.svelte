@@ -15,7 +15,7 @@
 	}
 
 	$effect(() => {
-		if (authService.isAuthenticated && !canView) void goto('/', { replaceState: true });
+		if (!canView) void goto('/', { replaceState: true });
 	});
 
 	onMount(() => {
