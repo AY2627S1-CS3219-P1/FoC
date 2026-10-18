@@ -4,15 +4,13 @@ package credit.v1;
 
 import "buf/validate/validate.proto";
 import "credit/v1/shared_types.proto";
-import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
 
 // Order's credit reservations: one per order, keyed by request_id (the Order
 // Service order ID). Called by Order Service only, with its service token.
 //
 // Terminal settlement is driven exclusively by Kafka order.outcome events.
-// Order does not call SettleReservation or use ReleaseReservation for an opened
-// order. ReleaseReservation is compensation for creation that never opened;
+// Order does not use ReleaseReservation for an opened order.
+// ReleaseReservation is compensation for creation that never opened;
 // RevertAdjustment compensates assignment attempts. Credit serializes these
 // operations with event settlement. request_id is the permanent Order UUID.
 //
@@ -39,10 +37,6 @@ service CreditReservationService {
   rpc AdjustReservation(AdjustReservationRequest) returns (AdjustReservationResponse) { option idempotency_level = IDEMPOTENT; }
   rpc RevertAdjustment(RevertAdjustmentRequest) returns (RevertAdjustmentResponse) { option idempotency_level = IDEMPOTENT; }
   rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse) { option idempotency_level = IDEMPOTENT; }
-  rpc SettleReservation(SettleReservationRequest) returns (SettleReservationResponse) {
-    option deprecated = true;
-    option idempotency_level = IDEMPOTENT;
-  }
   rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
@@ -90,43 +84,6 @@ message ReleaseReservationRequest {
   }];
 }
 
-// Deprecated: Order publishes order.outcome; Credit settles in its consumer.
-// This draft RPC must not be authorized for Order.
-// Pays the courier when an order completes or the requester cancels after
-// pickup. The reservation must be Assigned. The courier receives the payable
-// amount and the rest of the hold returns to the requester.
-message SettleReservationRequest {
-  string request_id = 1 [(buf.validate.field).string.uuid = true];
-  oneof outcome {
-    option (buf.validate.oneof).required = true;
-    Completed completed = 2;
-    CancelledAfterPickup cancelled_after_pickup = 3;
-  }
-
-  // Credit applies the lateness rule. With elapsed = delivered_at -
-  // picked_up_at, T = delivery_duration and R = the hold:
-  // - elapsed <= T pays R;
-  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
-  // - elapsed >= 2T pays 0.
-  message Completed {
-    option (buf.validate.message).cel = {
-      id: "completed.delivered_after_pickup"
-      message: "delivered_at must not be before picked_up_at"
-      expression: "this.delivered_at >= this.picked_up_at"
-    };
-    google.protobuf.Timestamp picked_up_at = 1 [(buf.validate.field).required = true];
-    // Allowed time from pickup to delivery.
-    google.protobuf.Duration delivery_duration = 2 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).duration.gt = {}
-    ];
-    google.protobuf.Timestamp delivered_at = 3 [(buf.validate.field).required = true];
-  }
-
-  // Pays the courier the whole hold.
-  message CancelledAfterPickup {}
-}
-
 // Includes tombstones. Fails with RESERVATION_NOT_FOUND for unknown requests.
 message GetReservationRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
@@ -142,9 +99,6 @@ message RevertAdjustmentResponse {
   Reservation reservation = 1;
 }
 message ReleaseReservationResponse {
-  Reservation reservation = 1;
-}
-message SettleReservationResponse {
   Reservation reservation = 1;
 }
 message GetReservationResponse {

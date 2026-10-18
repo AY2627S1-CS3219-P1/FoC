@@ -13,8 +13,8 @@ Order calls Reserve/GetReservation during creation, AdjustReservation during
 assignment and RevertAdjustment for assignment compensation. ReleaseReservation
 is only creation compensation when an Order never opened. Credit consumes
 `order.outcome` to pay or return funds for Completed, Cancelled, Expired and Failed.
-Order never calls SettleReservation; its draft method is deprecated and must not
-be authorized for Order. No opened Order is released by RPC. Credit serializes
+The draft SettleReservation RPC has been removed; terminal settlement uses
+order.outcome exclusively. No opened Order is released by RPC. Credit serializes
 compensation, reservation mutations and event settlement against one reservation.
 Credit owns reward/lateness/refund calculation and the PRD's 100-credit initial
 grant. This change does not choose a new lateness formula or grant policy.
