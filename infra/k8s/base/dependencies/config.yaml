@@ -9,10 +9,10 @@ data:
   RPC_MODE: mesh
   PORT: "8080"
   RUN_MIGRATIONS: "false"
-  FRONTEND_BASE_URL: https://localhost:8443
-  ORIGIN: https://localhost:8443
-  PUBLIC_USER_SERVICE_URL: https://localhost:8443
-  PUBLIC_SUPPLIER_SERVICE_URL: https://localhost:8443
+  FRONTEND_BASE_URL: https://localhost:5173
+  ORIGIN: https://localhost:5173
+  PUBLIC_USER_SERVICE_URL: https://localhost:5173
+  PUBLIC_SUPPLIER_SERVICE_URL: https://localhost:5173
   USER_SERVICE_BASE_URL: http://user-service-internal:8080
   JWT_PRIVATE_KEY_FILE: /var/run/foc/auth/jwt-signing-private.pem
   BOOTSTRAP_SUPERADMIN_EMAIL: ""

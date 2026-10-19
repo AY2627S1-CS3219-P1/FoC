@@ -33,7 +33,7 @@ Kubernetes 1.35.0 and Istio 1.31.2. No commits were made.
   destination proxy configuration requires client certificates.
 - Admission rejects injection-disabled/fake-proxy and privileged-extra-init
   Pods; a genuine injected Pod is accepted.
-- `bash scripts/k8s/proxy-startup-smoke.sh`: an unavailable proxy exhausts its
+- `make k8s-proxy-startup-smoke`: an unavailable proxy exhausts its
   startup probe and restarts; the application never starts.
 - Real Mailpit delivery, bootstrap superadmin magic-link login, secure refresh
   cookie attributes, protected User/Supplier calls, refresh rotation, logout
@@ -41,7 +41,7 @@ Kubernetes 1.35.0 and Istio 1.31.2. No commits were made.
   bootstrap account, not an existing Compose account.
 - Kafka UI redirects unauthenticated callers, accepts its separate operator
   credentials and reports the configured `foc` cluster ONLINE with one broker.
-- `bash scripts/k8s/persistence-smoke.sh`: PostgreSQL retains the same bootstrap
+- `make k8s-persistence-smoke`: PostgreSQL retains the same bootstrap
   identity and Kafka retains an acknowledged record after both StatefulSet
   pods are replaced. PVCs were retained. A uniquely named
   `foc.infrastructure-smoke-*` test topic remains in the local broker.

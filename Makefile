@@ -43,37 +43,57 @@ buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
 
 # Local Kubernetes operators; see docs/runbooks/kubernetes.md.
-.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit k8s-test
+K8S_TOOLS_DIR ?= .tools/k8s
+K8S_BUN_VERSION := $(shell cat .bun-version)
+K8S_CACHED_BUN := $(K8S_TOOLS_DIR)/bun
+K8S_SYSTEM_BUN := $(shell command -v bun 2>/dev/null)
+ifeq ($(shell test -n "$(K8S_SYSTEM_BUN)" && "$(K8S_SYSTEM_BUN)" --version | grep -Fxq "$(K8S_BUN_VERSION)" && echo yes),yes)
+K8S_BUN := $(K8S_SYSTEM_BUN)
+else
+K8S_BUN := $(K8S_CACHED_BUN)
+endif
 
-k8s-tools:
-	bash scripts/k8s/tools.sh
+.PHONY: k8s-bun k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit k8s-proxy-startup-smoke k8s-persistence-smoke k8s-test
 
-k8s-up:
-	bash scripts/k8s/k8s.sh up
+k8s-bun:
+	@if [ "$(K8S_BUN)" = "$(K8S_CACHED_BUN)" ]; then bash scripts/k8s/bootstrap-bun.sh; fi
+	@test "$$($(K8S_BUN) --version)" = "$(K8S_BUN_VERSION)"
 
-k8s-deploy:
-	bash scripts/k8s/k8s.sh deploy "$(service)"
+k8s-tools: k8s-bun
+	$(K8S_BUN) run scripts/k8s/tools.ts
 
-k8s-access:
-	bash scripts/k8s/k8s.sh access
+k8s-up: k8s-bun
+	$(K8S_BUN) run scripts/k8s/k8s.ts up
 
-k8s-status:
-	bash scripts/k8s/k8s.sh status
+k8s-deploy: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts deploy "$(service)"
 
-k8s-smoke:
-	bash scripts/k8s/k8s.sh smoke
+k8s-access: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts access
 
-k8s-demo:
-	bash scripts/k8s/k8s.sh demo
+k8s-status: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts status
 
-k8s-delete-cluster:
-	bash scripts/k8s/k8s.sh delete-cluster
+k8s-smoke: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts smoke
 
-k8s-kafka-ui:
-	bash scripts/k8s/k8s.sh kafka-ui
+k8s-demo: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts demo
 
-k8s-mailpit:
-	bash scripts/k8s/k8s.sh mailpit
+k8s-delete-cluster: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts delete-cluster
 
-k8s-test:
-	bash scripts/k8s/tests.sh
+k8s-kafka-ui: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts kafka-ui
+
+k8s-mailpit: k8s-tools
+	$(K8S_BUN) run scripts/k8s/k8s.ts mailpit
+
+k8s-proxy-startup-smoke: k8s-tools
+	$(K8S_BUN) run scripts/k8s/proxy-startup-smoke.ts
+
+k8s-persistence-smoke: k8s-tools
+	$(K8S_BUN) run scripts/k8s/persistence-smoke.ts
+
+k8s-test: k8s-bun
+	$(K8S_BUN) test scripts/k8s

@@ -1,11 +1,11 @@
-#!/usr/bin/env node
-// Node 24; no npm dependencies. Missing K8S_BOOTSTRAP_SUPERADMIN_EMAIL skips
+#!/usr/bin/env bun
+// Bun 1.4.3; no npm dependencies. Missing K8S_BOOTSTRAP_SUPERADMIN_EMAIL skips
 // without making requests. Use a disposable, already bootstrapped test account.
-// SMOKE_ORIGIN is the browser/Origin-header origin (e.g. https://localhost:8443).
+// SMOKE_ORIGIN is the browser/Origin-header origin (e.g. https://localhost:5173).
 // SMOKE_USER_ORIGIN is the reachable gateway (e.g. https://localhost:18443);
 // SMOKE_SUPPLIER_ORIGIN defaults to that same gateway. Compose may override both.
-// SMOKE_MAILPIT_URL defaults to http://127.0.0.1:18025. All endpoints must be local.
-// Trust the local TLS CA through NODE_EXTRA_CA_CERTS; TLS verification stays on.
+// SMOKE_MAILPIT_URL defaults to http://127.0.0.1:8025. All endpoints must be local.
+// Trust the local TLS CA through SMOKE_TLS_CA_FILE; TLS verification stays on.
 // Exit 0: passed or explicitly SKIPped. Exit 1: configuration or smoke failure.
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
@@ -110,13 +110,14 @@ export async function runAuthSmoke(env = process.env, log = console.log) {
 		log('[auth-smoke] SKIP: set K8S_BOOTSTRAP_SUPERADMIN_EMAIL to an already bootstrapped test account');
 		return { skipped: true };
 	}
-	requireCondition(Number(process.versions.node.split('.')[0]) >= 24, 'Node.js 24 or newer is required');
-	requireCondition(env.NODE_TLS_REJECT_UNAUTHORIZED !== '0', 'use NODE_EXTRA_CA_CERTS instead of disabling TLS verification');
+	const [bunMajor, bunMinor] = (process.versions.bun || '').split('.').map(Number);
+	requireCondition(bunMajor > 1 || (bunMajor === 1 && bunMinor >= 4), 'Bun 1.4 or newer is required');
+	requireCondition(env.NODE_TLS_REJECT_UNAUTHORIZED !== '0', 'do not disable TLS verification; set SMOKE_TLS_CA_FILE instead');
 	requireCondition(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'configured bootstrap email is invalid');
-	const origin = localOrigin(env.SMOKE_ORIGIN || 'https://localhost:8443', 'SMOKE_ORIGIN');
+	const origin = localOrigin(env.SMOKE_ORIGIN || 'https://localhost:5173', 'SMOKE_ORIGIN');
 	const userOrigin = localOrigin(env.SMOKE_USER_ORIGIN || origin, 'SMOKE_USER_ORIGIN');
 	const supplierOrigin = localOrigin(env.SMOKE_SUPPLIER_ORIGIN || userOrigin, 'SMOKE_SUPPLIER_ORIGIN');
-	const mailpit = localOrigin(env.SMOKE_MAILPIT_URL || 'http://127.0.0.1:18025', 'SMOKE_MAILPIT_URL');
+	const mailpit = localOrigin(env.SMOKE_MAILPIT_URL || 'http://127.0.0.1:8025', 'SMOKE_MAILPIT_URL');
 	const timeout = Number(env.SMOKE_TIMEOUT_MS || 90_000);
 	requireCondition(Number.isSafeInteger(timeout) && timeout >= 1000 && timeout <= 300_000,
 		'SMOKE_TIMEOUT_MS must be an integer between 1000 and 300000');
@@ -125,12 +126,15 @@ export async function runAuthSmoke(env = process.env, log = console.log) {
 	let stage = 'Mailpit preflight';
 	let activeSession = false;
 
+	const ca = env.SMOKE_TLS_CA_FILE ? await Bun.file(env.SMOKE_TLS_CA_FILE).text() : undefined;
 	async function request(base, path, options = {}, cleanup = false) {
 		let response;
 		let data;
 		try {
-			response = await fetch(new URL(path, base), {
+			const url = new URL(path, base);
+			response = await fetch(url, {
 				...options,
+				...(url.protocol === 'https:' && ca ? { tls: { ca } } : {}),
 				redirect: 'error',
 				signal: cleanup ? AbortSignal.timeout(5000)
 					: AbortSignal.any([overall, AbortSignal.timeout(10_000)])
@@ -148,7 +152,7 @@ export async function runAuthSmoke(env = process.env, log = console.log) {
 			if (error instanceof SmokeError) throw error;
 			const tls = /CERT|SELF_SIGNED|ISSUER/.test(error.cause?.code || '');
 			throw new SmokeError(tls
-				? 'TLS validation failed; set NODE_EXTRA_CA_CERTS to the local CA certificate'
+				? 'TLS validation failed; set SMOKE_TLS_CA_FILE to the local CA certificate'
 				: 'request failed, timed out, redirected, or returned invalid JSON');
 		}
 		requireCondition(data && typeof data === 'object' && !Array.isArray(data), 'expected a JSON response object');

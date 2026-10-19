@@ -7,23 +7,25 @@ business workflow. See [verification results](kubernetes-verification.md).
 
 ## Start locally
 
-Prerequisites: Docker, Bash, curl, OpenSSL, tar, Node.js 24 for authentication
-smoke checks, and approximately 4 available CPUs / 8 GiB RAM. Tool downloads
+Prerequisites: Docker, make, curl, unzip, OpenSSL, tar, and approximately 4
+available CPUs / 8 GiB RAM. Bun 1.4.3 is used and cached in `.tools/k8s` if not
+already installed globally; Node.js is not required. Tool and image downloads
 require internet access. The validated environment is Linux amd64; consult
 [landmines](../../LANDMINES/README.md) before using PostGIS on Apple Silicon.
 
 ```sh
 # First deployment: choose the first administrator explicitly.
 K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
-
-# Once bootstrap has finished (do not run concurrently with deployment):
+# `k8s-up` deploys, then stays attached to configured forwards; Ctrl+C closes
+# the forwards while keeping the cluster running. Smoke from another terminal:
 K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-smoke
-
-# In separate terminals:
-make k8s-access
-make k8s-mailpit
-make k8s-kafka-ui
 ```
+
+Copy `.env.example` to `.env` first. `K8S_HTTPS_PORT`, `K8S_KAFKA_UI_PORT`, and
+`K8S_MAILPIT_PORT` configure local forwards; blank disables one. Defaults match
+Compose's browser/Mailpit ports and Kafka UI's local port. Do not run Compose
+and Kubernetes simultaneously. The developer-facing
+[Kubernetes setup](../../infra/k8s/README.md) has the short version.
 
 `k8s-up` installs checksum-verified tools into `.tools/k8s`, creates/reuses
 kind cluster `foc`, installs pinned Istio charts from its verified release
@@ -44,11 +46,11 @@ Use a consistent `K8S_STATE_DIR` override if choosing another private location.
 
 | Caller | Address | Meaning |
 | -- | -- | -- |
-| Browser | `https://localhost:8443` | TLS gateway; frontend and public RPCs share one origin |
+| Browser | `https://localhost:5173` | TLS gateway; frontend and public RPCs share one origin |
 | Supplier calling User | `http://user-service-internal:8080` | Private Kubernetes DNS; Istio supplies network mTLS |
 | Gateway calling User | `user-service-external:8080` | Private ClusterIP Service pointing only to public handlers |
-| Developer opening Kafka UI | `http://localhost:18080` | Private operator port-forward; login required |
-| Developer opening Mailpit | `http://localhost:18025` | Local/development mailbox port-forward |
+| Developer opening Kafka UI | `http://localhost:8080` | Private operator port-forward; login required |
+| Developer opening Mailpit | `http://localhost:8025` | Local/development mailbox port-forward |
 
 Both `-external` and `-internal` are ClusterIP Services: private addresses, not
 internet listeners. Both expose Service port 8080. Kubernetes maps the external
@@ -192,8 +194,8 @@ make k8s-deploy service=supplier-service
 make k8s-deploy
 
 # Additional explicit local tests:
-bash scripts/k8s/proxy-startup-smoke.sh
-bash scripts/k8s/persistence-smoke.sh
+make k8s-proxy-startup-smoke
+make k8s-persistence-smoke
 ```
 
 The persistence test briefly restarts local PostgreSQL/Kafka without deleting

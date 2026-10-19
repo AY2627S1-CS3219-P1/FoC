@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/kubernetes.yml'
+      - '.bun-version'
+      - '.env.example'
       - 'infra/**'
       - 'scripts/k8s/**'
       - 'docker/k8s/**'
@@ -26,14 +28,14 @@ jobs:
       K8S_BOOTSTRAP_SUPERADMIN_EMAIL: admin@example.test
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24'
+          bun-version-file: .bun-version
       - uses: actions/setup-go@v7
         with:
           go-version-file: pkg/go.mod
           cache-dependency-path: pkg/go.sum
-      - name: Verify operator scripts and render manifests
+      - name: Verify Bun operator and render manifests
         run: |
           make k8s-tools
           make k8s-test
@@ -58,7 +60,7 @@ jobs:
             RPC_SMOKE_CA_FILE="$GITHUB_WORKSPACE/.local/k8s/secrets/tls.crt" \
             GOWORK=off go test -mod=readonly ./server -run TestMeshGateway -count=1
       - name: Verify application cannot start without a ready proxy
-        run: bash scripts/k8s/proxy-startup-smoke.sh
+        run: make k8s-proxy-startup-smoke
       - name: Report bounded deployment status on failure
         if: failure()
         run: make k8s-status || true
