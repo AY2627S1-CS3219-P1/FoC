@@ -8,3 +8,4 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Recreated services rebuild Go dependencies](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |
 | [Locking a row does not refresh relationship subqueries](locked-row-relationship-snapshots.md) | A PostgreSQL locking query reads relationships that another transaction can change while holding the parent row lock. |
 | [Initial navigation callbacks precede shallow-routing readiness](sveltekit-initial-navigation.md) | Frontend code calls `pushState` or `replaceState` during initial hydration, including `afterNavigate` callbacks. |
+| [Read-only Go caches hide lint failures](sandbox-go-caches.md) | An agent sandbox cannot write the default Go build or golangci-lint caches. |

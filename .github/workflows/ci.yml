@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, order-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, order-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -47,6 +47,7 @@ jobs:
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
+            order-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -101,6 +102,24 @@ jobs:
         run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
+        run: make test-integration
+
+  order-integration:
+    name: Order integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: order-service
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: order-service/go.mod
+          cache-dependency-path: |
+            order-service/go.sum
+            pkg/go.sum
+      - name: Run Order database integration tests
         run: make test-integration
 
   frontend:
