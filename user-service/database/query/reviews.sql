@@ -28,17 +28,25 @@ INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, 
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
 -- name: ListReviewsForUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: ListReviewsFromUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: CountReviewsForUser :one

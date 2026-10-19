@@ -35,10 +35,13 @@ type Review struct {
 	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
 	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
 	// Opaque request id owned by the order service; no foreign key here.
-	OrderId       string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Rating        int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
-	Comment       string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	OrderId   string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Rating    int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment   string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// display_name of the reviewer and reviewee, joined at read time.
+	ReviewerName  string `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
+	RevieweeName  string `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -120,6 +123,20 @@ func (x *Review) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Review) GetReviewerName() string {
+	if x != nil {
+		return x.ReviewerName
+	}
+	return ""
+}
+
+func (x *Review) GetRevieweeName() string {
+	if x != nil {
+		return x.RevieweeName
+	}
+	return ""
 }
 
 // The rating and comment a caller submits about a reviewee.
@@ -769,7 +786,7 @@ var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe2\x01\n" +
+	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x02\n" +
 	"\x06Review\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -780,7 +797,9 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x06rating\x18\x05 \x01(\x05R\x06rating\x12\x18\n" +
 	"\acomment\x18\x06 \x01(\tR\acomment\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\\\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"\rreviewer_name\x18\b \x01(\tR\freviewerName\x12#\n" +
+	"\rreviewee_name\x18\t \x01(\tR\frevieweeName\"\\\n" +
 	"\x10ReviewSubmission\x12!\n" +
 	"\x06rating\x18\x01 \x01(\x05B\t\xbaH\x06\x1a\x04\x18\x05(\x01R\x06rating\x12%\n" +
 	"\acomment\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\acomment\"\xbc\x01\n" +

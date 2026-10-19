@@ -17,14 +17,16 @@ import (
 // only return live rows, so DeletedAt is always the zero time in practice; the
 // field mirrors the soft-delete marker the table carries.
 type Review struct {
-	ID         uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int
-	Comment    string
-	CreatedAt  time.Time
-	DeletedAt  time.Time
+	ID           uuid.UUID
+	ReviewerID   uuid.UUID
+	ReviewerName string
+	RevieweeID   uuid.UUID
+	RevieweeName string
+	OrderID      uuid.UUID
+	Rating       int
+	Comment      string
+	CreatedAt    time.Time
+	DeletedAt    time.Time
 }
 
 // ReviewSubmission is the rating and comment a caller submits about a reviewee.

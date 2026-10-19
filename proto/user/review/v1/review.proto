@@ -27,6 +27,9 @@ message Review {
   int32 rating = 5;
   string comment = 6;
   google.protobuf.Timestamp created_at = 7;
+  // display_name of the reviewer and reviewee, joined at read time.
+  string reviewer_name = 8;
+  string reviewee_name = 9;
 }
 
 // The rating and comment a caller submits about a reviewee.

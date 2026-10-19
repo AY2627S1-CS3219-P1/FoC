@@ -7,6 +7,8 @@ package reviewdb
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -174,10 +176,14 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 }
 
 const listReviewsForUser = `-- name: ListReviewsForUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3 OFFSET $2
 `
 
@@ -187,15 +193,28 @@ type ListReviewsForUserParams struct {
 	PageLimit  int32
 }
 
-func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]Review, error) {
+type ListReviewsForUserRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]ListReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsForUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Review{}
+	items := []ListReviewsForUserRow{}
 	for rows.Next() {
-		var i Review
+		var i ListReviewsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeletedAt,
@@ -205,6 +224,8 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ReviewerName,
+			&i.RevieweeName,
 		); err != nil {
 			return nil, err
 		}
@@ -220,10 +241,14 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 }
 
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewer_id = $1::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3 OFFSET $2
 `
 
@@ -233,15 +258,28 @@ type ListReviewsFromUserParams struct {
 	PageLimit  int32
 }
 
-func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]Review, error) {
+type ListReviewsFromUserRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsFromUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Review{}
+	items := []ListReviewsFromUserRow{}
 	for rows.Next() {
-		var i Review
+		var i ListReviewsFromUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeletedAt,
@@ -251,6 +289,8 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ReviewerName,
+			&i.RevieweeName,
 		); err != nil {
 			return nil, err
 		}

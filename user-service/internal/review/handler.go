@@ -213,13 +213,15 @@ func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
 
 func toReviewProto(review Review) *reviewv1.Review {
 	return &reviewv1.Review{
-		Id:         review.ID.String(),
-		ReviewerId: review.ReviewerID.String(),
-		RevieweeId: review.RevieweeID.String(),
-		OrderId:    review.OrderID.String(),
-		Rating:     int32(review.Rating),
-		Comment:    review.Comment,
-		CreatedAt:  timestamppb.New(review.CreatedAt),
+		Id:           review.ID.String(),
+		ReviewerId:   review.ReviewerID.String(),
+		ReviewerName: review.ReviewerName,
+		RevieweeId:   review.RevieweeID.String(),
+		RevieweeName: review.RevieweeName,
+		OrderId:      review.OrderID.String(),
+		Rating:       int32(review.Rating),
+		Comment:      review.Comment,
+		CreatedAt:    timestamppb.New(review.CreatedAt),
 	}
 }
 

@@ -100,7 +100,7 @@ func (r *PostgresRepository) ListReviewsForUser(ctx context.Context, userID uuid
 	}
 	out := make([]Review, len(rows))
 	for i, row := range rows {
-		out[i] = toReview(row)
+		out[i] = toReviewForUser(row)
 	}
 	return out, nil
 }
@@ -114,7 +114,7 @@ func (r *PostgresRepository) ListReviewsFromUser(ctx context.Context, userID uui
 	}
 	out := make([]Review, len(rows))
 	for i, row := range rows {
-		out[i] = toReview(row)
+		out[i] = toReviewFromUser(row)
 	}
 	return out, nil
 }
@@ -175,6 +175,38 @@ func toReview(row reviewdb.Review) Review {
 		Comment:    row.Comment,
 		CreatedAt:  row.CreatedAt,
 		DeletedAt:  row.DeletedAt.Time,
+	}
+}
+
+// The list queries join users for display names, so each carries its own row
+// type alongside the plain review columns.
+func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
+	}
+}
+
+func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
 	}
 }
 
