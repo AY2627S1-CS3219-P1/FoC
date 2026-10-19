@@ -1,7 +1,7 @@
 -- +goose Up
 -- Order sends a fresh assignment ID for every acceptance. An APPLIED
--- assignment set the hold to offer_amount, and reverting it restores
--- previous_amount. REVERTED is permanent.
+-- assignment set the hold to offer_amount, and reverting it restores the
+-- reservation's original_amount. REVERTED is permanent.
 --
 -- A REVERTED row without a courier is a tombstone: Order reverted an
 -- assignment that Credit had not applied, so a later Adjust for it must fail.
@@ -9,18 +9,16 @@ CREATE TABLE assignments (
     order_id        UUID        NOT NULL REFERENCES reservations (order_id),
     assignment_id   UUID        NOT NULL,
     courier_id      UUID,
-    previous_amount BIGINT,
     offer_amount    BIGINT,
     status          TEXT        NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reverted_at     TIMESTAMPTZ,
-    PRIMARY KEY (order_id, assignment_id),
+    PRIMARY KEY (order_id, assignment_id),  
     CONSTRAINT assignments_status_check CHECK (status IN ('APPLIED', 'REVERTED')),
     CONSTRAINT assignments_reverted_check CHECK ((status = 'REVERTED') = (reverted_at IS NOT NULL)),
     CONSTRAINT assignments_applied_check CHECK (
-        (courier_id IS NULL AND previous_amount IS NULL AND offer_amount IS NULL AND status = 'REVERTED')
-        OR (courier_id IS NOT NULL AND previous_amount IS NOT NULL AND offer_amount IS NOT NULL
-            AND previous_amount > 0 AND offer_amount > 0)
+        (courier_id IS NULL AND offer_amount IS NULL AND status = 'REVERTED')
+        OR (courier_id IS NOT NULL AND offer_amount IS NOT NULL AND offer_amount > 0)
     )
 );
 
