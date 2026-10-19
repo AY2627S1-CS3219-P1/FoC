@@ -132,9 +132,11 @@ func (q *Queries) InsertReviewRemoval(ctx context.Context, arg InsertReviewRemov
 }
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
-SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
-FROM review_removals
-ORDER BY created_at DESC, id DESC
+SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
+       creator.display_name AS created_by_name
+FROM review_removals rr
+JOIN users creator ON creator.id = rr.created_by
+ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT $2 OFFSET $1
 `
 
@@ -143,15 +145,27 @@ type ListReviewRemovalsParams struct {
 	PageLimit  int32
 }
 
-func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ReviewRemoval, error) {
+type ListReviewRemovalsRow struct {
+	ID            uuid.UUID
+	ReviewID      uuid.UUID
+	ReviewerID    uuid.UUID
+	RevieweeID    uuid.UUID
+	OrderID       uuid.UUID
+	Reason        string
+	CreatedAt     time.Time
+	CreatedBy     uuid.UUID
+	CreatedByName string
+}
+
+func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ListReviewRemovalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewRemovals, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ReviewRemoval{}
+	items := []ListReviewRemovalsRow{}
 	for rows.Next() {
-		var i ReviewRemoval
+		var i ListReviewRemovalsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ReviewID,
@@ -161,6 +175,7 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			&i.Reason,
 			&i.CreatedAt,
 			&i.CreatedBy,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}

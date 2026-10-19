@@ -227,12 +227,13 @@ func toReviewProto(review Review) *reviewv1.Review {
 
 func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 	return &reviewv1.ReviewRemoval{
-		Id:         removal.ID.String(),
-		ReviewerId: removal.ReviewerID.String(),
-		RevieweeId: removal.RevieweeID.String(),
-		OrderId:    removal.OrderID.String(),
-		Reason:     removal.Reason,
-		CreatedAt:  timestamppb.New(removal.CreatedAt),
-		CreatedBy:  removal.CreatedBy.String(),
+		Id:            removal.ID.String(),
+		ReviewerId:    removal.ReviewerID.String(),
+		RevieweeId:    removal.RevieweeID.String(),
+		OrderId:       removal.OrderID.String(),
+		Reason:        removal.Reason,
+		CreatedAt:     timestamppb.New(removal.CreatedAt),
+		CreatedBy:     removal.CreatedBy.String(),
+		CreatedByName: removal.CreatedByName,
 	}
 }

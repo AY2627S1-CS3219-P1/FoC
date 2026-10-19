@@ -60,9 +60,11 @@ FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
 -- name: ListReviewRemovals :many
-SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
-FROM review_removals
-ORDER BY created_at DESC, id DESC
+SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
+       creator.display_name AS created_by_name
+FROM review_removals rr
+JOIN users creator ON creator.id = rr.created_by
+ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: CountReviewRemovals :one

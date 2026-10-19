@@ -144,7 +144,7 @@ func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, lim
 	}
 	out := make([]ReviewRemoval, len(rows))
 	for i, row := range rows {
-		out[i] = toReviewRemoval(row)
+		out[i] = toReviewRemovalListed(row)
 	}
 	return out, nil
 }
@@ -210,16 +210,19 @@ func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	}
 }
 
-func toReviewRemoval(row reviewdb.ReviewRemoval) ReviewRemoval {
+// The removals query joins users for the creator's display name, so it returns
+// its own row type rather than the table model.
+func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
 	return ReviewRemoval{
-		ID:         row.ID,
-		ReviewID:   row.ReviewID,
-		ReviewerID: row.ReviewerID,
-		RevieweeID: row.RevieweeID,
-		OrderID:    row.OrderID,
-		Reason:     row.Reason,
-		CreatedAt:  row.CreatedAt,
-		CreatedBy:  row.CreatedBy,
+		ID:            row.ID,
+		ReviewID:      row.ReviewID,
+		ReviewerID:    row.ReviewerID,
+		RevieweeID:    row.RevieweeID,
+		OrderID:       row.OrderID,
+		Reason:        row.Reason,
+		CreatedAt:     row.CreatedAt,
+		CreatedBy:     row.CreatedBy,
+		CreatedByName: row.CreatedByName,
 	}
 }
 

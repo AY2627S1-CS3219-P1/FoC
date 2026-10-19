@@ -100,6 +100,8 @@ message ReviewRemoval {
   string reason = 5;
   google.protobuf.Timestamp created_at = 6;
   string created_by = 7;
+  // display_name of the user who created this audit row, joined at read time.
+  string created_by_name = 8;
 }
 
 message ListReviewRemovalsRequest {

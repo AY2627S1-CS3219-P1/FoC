@@ -38,14 +38,15 @@ type ReviewSubmission struct {
 // ReviewRemoval is the audit row recorded when a review is removed. ReviewID
 // references the soft-deleted (retained) review the audit is about.
 type ReviewRemoval struct {
-	ID         uuid.UUID
-	ReviewID   uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Reason     string
-	CreatedAt  time.Time
-	CreatedBy  uuid.UUID
+	ID            uuid.UUID
+	ReviewID      uuid.UUID
+	ReviewerID    uuid.UUID
+	RevieweeID    uuid.UUID
+	OrderID       uuid.UUID
+	Reason        string
+	CreatedAt     time.Time
+	CreatedBy     uuid.UUID
+	CreatedByName string
 }
 
 // ReviewPage is a page of reviews with the response totals it came with. It
