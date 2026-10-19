@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Button, LoadingIndicator } from 'm3-svelte';
+	import { ConnectError } from '@connectrpc/connect';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { allowedDomainService, authService } from '$lib/services';
+	import { allowedDomainService, authService, snackbarService } from '$lib/services';
 	import AllowedDomainsCard from './AllowedDomainsCard.svelte';
 
 	let canView = $derived(authService.user?.role === UserRole.ADMIN || authService.user?.role === UserRole.SUPER_ADMIN);
@@ -11,7 +12,18 @@
 	async function loadDomains(): Promise<void> {
 		try {
 			await allowedDomainService.listAllowedDomains();
-		} catch {}
+		} catch (cause) {
+			// Surface the first-load failure with a snackbar (CodeRabbit, PR #133):
+			// previously this catch was empty and only a "Try again" button showed.
+			// The message is the backend's own (ConnectError.rawMessage); the generic
+			// fallback covers cases with no backend text (e.g. a network error). This
+			// per-page handling is temporary until errors are centralized.
+			const message =
+				cause instanceof ConnectError && cause.rawMessage.trim()
+					? cause.rawMessage
+					: 'We could not load allowed domains. Please try again.';
+			snackbarService.show(message, { severity: 'error', timeout: 8000 });
+		}
 	}
 
 	$effect(() => {
