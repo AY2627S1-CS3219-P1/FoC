@@ -6,9 +6,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 )
 
 // AuthorizeInterceptor enforces token-claim RBAC per procedure after the
@@ -20,9 +19,9 @@ import (
 func AuthorizeInterceptor() connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			caller, ok := auth.CallerFromContext(ctx)
-			if !ok {
-				return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
+			caller, err := userdto.Actor(ctx)
+			if err != nil {
+				return nil, api.ToConnectError(ctx, err)
 			}
 			if err := authorizeCaller(caller, req.Spec().Procedure); err != nil {
 				return nil, api.ToConnectError(ctx, err)
@@ -35,11 +34,11 @@ func AuthorizeInterceptor() connect.Interceptor {
 // authorizeCaller denies a procedure the caller's role cannot perform. Only
 // procedures with a role gate are enumerated here; any procedure not matched is
 // allowed for any authenticated caller.
-func authorizeCaller(c auth.Caller, procedure string) error {
+func authorizeCaller(c userdto.Caller, procedure string) error {
 	switch procedure {
 	case reviewv1connect.ReviewServiceSubmitReviewProcedure:
 		// A suspended participant cannot rate the other side of their request.
-		if c.Role == string(tokenclaims.RoleSuspendedUser) {
+		if c.IsSuspended() {
 			return errs.NewForbiddenError("suspended users cannot submit reviews")
 		}
 	case reviewv1connect.ReviewServiceRemoveReviewProcedure, reviewv1connect.ReviewServiceListReviewRemovalsProcedure:

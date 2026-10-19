@@ -6,8 +6,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
@@ -67,9 +65,9 @@ func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv
 // ListReviewsForUser lists the reviews received by a user. A suspended caller is
 // restricted to their own reviews by authorizeSelfReviews.
 func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[reviewv1.ListReviewsForUserRequest]) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
-	caller, ok := auth.CallerFromContext(ctx)
-	if !ok {
-		return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("invalid or missing access token"))
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
 	}
 	userID, err := uuid.Parse(req.Msg.GetUserId())
 	if err != nil || userID == uuid.Nil {
@@ -140,8 +138,8 @@ func (h *Handler) ListReviewRemovals(ctx context.Context, req *connect.Request[r
 // authorizeSelfReviews is the ABAC rule that is too tied to the request message
 // for the token-claim interceptor: a suspended caller may only list the reviews
 // received by their own user.
-func authorizeSelfReviews(c auth.Caller, userID uuid.UUID) error {
-	if c.Role != string(tokenclaims.RoleSuspendedUser) {
+func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
+	if !c.IsSuspended() {
 		return nil
 	}
 	callerID, err := uuid.Parse(c.ID)
