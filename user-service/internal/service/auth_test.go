@@ -322,22 +322,19 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		t.Fatal("user was created before verification")
 	}
 	token := linkToken(t, link)
-	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
-	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ",
-		TelegramHandle: ptr(" new_handle "), PhoneNumber: ptr(" +12345678 ")})
+	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ", PhoneNumber: " 9123 4567 "})
 	if err != nil || user.Email != "new@example.com" || user.DisplayName != "New" ||
-		user.TelegramHandle == nil || *user.TelegramHandle != "new_handle" ||
-		user.PhoneNumber == nil || *user.PhoneNumber != "+12345678" || session.AccessToken == "" {
+		user.PhoneNumber == nil || *user.PhoneNumber != "+6591234567" || session.AccessToken == "" {
 		t.Fatalf("registration: %+v, %+v, %v", user, session, err)
 	}
 	stored := store.users[user.ID]
-	if stored.TelegramHandle == nil || *stored.TelegramHandle != "new_handle" ||
-		stored.PhoneNumber == nil || *stored.PhoneNumber != "+12345678" {
+	if stored.PhoneNumber == nil || *stored.PhoneNumber != "+6591234567" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("reused registration token: %v", err)
 	}
 	oldRefresh := session.RefreshToken
@@ -527,27 +524,30 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	}
 	first := requestLink(t, service, "new@example.com")
 	second := requestLink(t, service, "new@example.com")
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " "}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " ", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("invalid profile: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 101)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 101), PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("display name exceeding database limit: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", TelegramHandle: ptr(strings.Repeat("x", 33))}); !errors.Is(err, jwt.ErrInvalidProfile) {
-		t.Fatalf("telegram handle exceeding database limit: %v", err)
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("missing phone number: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", TelegramHandle: ptr("@invalid")}); !errors.Is(err, jwt.ErrInvalidProfile) {
-		t.Fatalf("invalid telegram handle: %v", err)
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "   "}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("blank phone number: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: ptr(strings.Repeat("1", 21))}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "12345"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+		t.Fatalf("invalid phone number: %v", err)
+	}
+	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: strings.Repeat("1", 21)}); !errors.Is(err, jwt.ErrInvalidProfile) {
 		t.Fatalf("phone number exceeding database limit: %v", err)
 	}
 	validName := strings.Repeat("x", MaxDisplayNameLength)
-	user, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " " + validName + " "})
+	user, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " " + validName + " ", PhoneNumber: "+6591234567"})
 	if err != nil || user.DisplayName != validName {
 		t.Fatalf("100-character name after trimming: %+v, %v", user, err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, second), jwt.Profile{DisplayName: "Again"}); !errors.Is(err, jwt.ErrAlreadyRegistered) {
+	if _, _, err := service.Register(ctx, linkToken(t, second), jwt.Profile{DisplayName: "Again", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrAlreadyRegistered) {
 		t.Fatalf("duplicate registration: %v", err)
 	}
 }
@@ -560,7 +560,7 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	ctx := context.Background()
 	token := addRegistrationChallenge(t, store, now)
 
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
 	if len(store.users) != 0 {
@@ -571,7 +571,7 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	}
 
 	store.allowedDomains["example.com"] = struct{}{}
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New"}); err != nil {
+	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err != nil {
 		t.Fatalf("registration after allowing the domain: %v", err)
 	}
 }
@@ -583,14 +583,14 @@ func TestSessionStorageFailurePreservesMagicLink(t *testing.T) {
 	ctx := context.Background()
 	registration := requestLink(t, service, "new@example.com")
 	store.failSession = true
-	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New"}); err == nil {
+	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err == nil {
 		t.Fatal("registration succeeded despite session storage failure")
 	}
 	if len(store.users) != 0 {
 		t.Fatal("failed registration created a user")
 	}
 	store.failSession = false
-	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New"}); err != nil {
+	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err != nil {
 		t.Fatalf("registration link lost after storage failure: %v", err)
 	}
 	login := requestLink(t, service, "new@example.com")
@@ -681,14 +681,18 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service := newService(t, store)
 		token := addRegistrationChallenge(t, store, now)
 		service.deps.WithTransaction = nil
-		assertPanics(t, func() { _, _, _ = service.Register(ctx, token, jwt.Profile{DisplayName: "New"}) })
+		assertPanics(t, func() {
+			_, _, _ = service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"})
+		})
 	})
 	t.Run("token codec while completing registration", func(t *testing.T) {
 		store := newFakeStore()
 		service := newService(t, store)
 		token := addRegistrationChallenge(t, store, now)
 		service.deps.TokenCodec = nil
-		assertPanics(t, func() { _, _, _ = service.Register(ctx, token, jwt.Profile{DisplayName: "New"}) })
+		assertPanics(t, func() {
+			_, _, _ = service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"})
+		})
 	})
 	t.Run("token codec while refreshing", func(t *testing.T) {
 		service := newService(t, newFakeStore())
