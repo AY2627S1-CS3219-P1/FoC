@@ -367,3 +367,57 @@ or run for either post-round correction. The passing a712f36 results and review
 must not be extended to them. Further execution needs explicit user authorization.
 Issues 161/162 remain independently UNRESOLVED and untouched. The branch remains
 a draft, not feature-approved, merged or deployed.
+
+## Authorized focused follow-up: PASS at 6797951
+
+The user's subsequent authorization covers the focused PostgreSQL/Connect and
+creation-recovery verification. This supersedes the preceding unverified status
+of 20e618d/1f3ea55 and the missing mounted acceptance proof, not the historical
+seed failure or exact-model review scope.
+
+F0 solely executed one bounded run at clean, unchanged
+67979519fc06316484ae0496a1c6357675f64f50. Its only delta from application checkpoint
+db3b4d6165dd4f2c8186f1a0f9ccc8d25093d335 is frontend/tests/order-ui-e2e.py: an
+optional --suspension-retry scenario. B1 inspected the complete test-only diff,
+recorded commands/results and raw acceptance test output, and independently
+verified all 23 artifact sizes/SHA256 values in the manifest. No duplicate run,
+application edit, retry or further model review occurred.
+
+- **V1:** make fmt-check and make lint passed.
+- **V3:** Corrected TestAcceptanceThroughConnectAndPostgres passed under the race
+  detector against real disposable PostgreSQL18 through generated Connect client,
+  mounted router/handler, Assigner, migrations 00004/00005 and Apply/history. The
+  complete scenario executed: committed response loss, suspension-denied replay
+  preserving retained success, permanent losing UUID after reopening, redacted
+  former-courier current view, insufficient-credit typed rejection/fenced baseline,
+  pending counteroffer and same-attempt recovery. Credit/auth/removal are scripted
+  contract seams, not live ledger/JWT/withdrawal proof.
+- **V4:** All 22 targeted creation/offer regressions passed, including the creation
+  PermissionDenied classification regression. Type checking reported zero errors
+  and warnings; production build passed.
+- **V5:** Focused actual creation browser recovery passed at mocked Connect/S3
+  seams. Three CreateOrder bodies retained identical fields, retry key and image
+  IDs through lost response, PermissionDenied, suspended reload and restored
+  success. Exactly one upload occurred; the saved submission cleared only after
+  success. No unrelated browser suite was repeated. This is not live backend/S3
+  proof.
+
+Repeatable backend command from order-service/:
+
+```sh
+env -u TEST_DATABASE_URL GOWORK=off go test -mod=readonly -race -p 1 \
+  -tags=integration ./internal/rpc/order \
+  -run '^TestAcceptanceThroughConnectAndPostgres$' -count=1 -timeout=10m -json
+```
+
+Evidence: .local/order-offers-evidence/focused-6797951/manifest.json, checks.json,
+browser-check.json, raw stage logs and browser/report.json. Browser screenshots
+and video are under browser/. Artifacts remain local, not uploaded PR attachments.
+All runners exited; Vite stopped and its port closed; no Docker containers
+remained at cleanup. Source HEAD and working tree stayed unchanged during checks.
+
+Independent Opus review remains scoped to a712f36, not the post-review corrections
+or new fixture. Passing execution does not extend that review. Standalone F0
+remains 1c93d4f without the child-only creation correction; its human-review PR
+status is not merge approval. Issues 161/162 remain UNRESOLVED, untouched and not
+accepted or deferred. No PR merge or deployment occurred.
