@@ -18,15 +18,18 @@ type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries)
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
+	orders          OrderGateway
 }
 
-func NewService(repo Repository, withTransaction WithTransaction) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction}
+func NewService(repo Repository, withTransaction WithTransaction, orders OrderGateway) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, orders: orders}
 }
 
 // SubmitReview records one participant's review of the other and, in the same
 // transaction, recomputes the reviewee's stats so they are current when it
-// returns.
+// returns. The order must exist, be Completed, and have exactly the caller and
+// reviewee as its participants; when the order service cannot answer, the
+// submission fails closed.
 func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error {
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
@@ -44,6 +47,19 @@ func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orde
 	}
 	if !ok {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
+	}
+	participants, err := s.orders.GetOrderParticipants(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, errOrderNotFound) {
+			return errs.WrapNotFoundError(err, "order does not exist")
+		}
+		return err
+	}
+	if !participants.Completed {
+		return errs.NewBadRequestError("order is not completed")
+	}
+	if !participants.Contains(reviewerID, revieweeID) {
+		return errs.NewForbiddenError("not a participant of this order")
 	}
 	id, err := newID()
 	if err != nil {
