@@ -10,12 +10,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 )
 
-// AuthorizeInterceptor enforces token-claim RBAC per procedure after the
-// request has been authenticated. It reads the Caller the HTTP middleware
-// resolved and gates each procedure on the caller's role only. It never touches
-// the request body and never performs a database lookup, so a role change takes
-// effect on the next token without waiting for the DB-resolved authorization to
-// re-resolve the actor.
+// AuthorizeInterceptor gates each procedure on the caller's token-claim role.
+// It never touches the request body and never performs a database lookup, so a
+// role change takes effect on the next token rather than immediately.
 func AuthorizeInterceptor() connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -31,13 +28,11 @@ func AuthorizeInterceptor() connect.Interceptor {
 	})
 }
 
-// authorizeCaller denies a procedure the caller's role cannot perform. Only
-// procedures with a role gate are enumerated here; any procedure not matched is
-// allowed for any authenticated caller.
+// authorizeCaller enumerates only the procedures with a role gate; any
+// procedure not matched is allowed for any authenticated caller.
 func authorizeCaller(c userdto.Caller, procedure string) error {
 	switch procedure {
 	case reviewv1connect.ReviewServiceSubmitReviewProcedure:
-		// A suspended participant cannot rate the other side of their request.
 		if c.IsSuspended() {
 			return errs.NewForbiddenError("suspended users cannot submit reviews")
 		}

@@ -359,8 +359,7 @@ SET deleted_at = now()
 WHERE id = $1::UUID AND deleted_at IS NULL
 `
 
-// Mark the review removed; the row is retained so review_removals can keep
-// referencing it. A no-op when the row is already soft-deleted.
+// The row is retained (not deleted) so review_removals can keep referencing it.
 func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteReview, id)
 	return err

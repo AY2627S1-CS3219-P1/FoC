@@ -21,8 +21,7 @@ import (
 )
 
 // handlerLogicStub records the arguments the handler passes so tests can assert
-// the adapter parsed the request correctly. It only implements the Logic
-// methods the handler calls, matching the consumer-defined interface rule.
+// the adapter parsed the request correctly.
 type handlerLogicStub struct {
 	submitted ReviewSubmission
 	submitter uuid.UUID
@@ -70,10 +69,8 @@ func (s *handlerLogicStub) ListReviewRemovals(_ context.Context, page pagination
 	return s.removalsPage, s.removalsErr
 }
 
-// reviewClient wires the handler with only the request-validation interceptor.
-// The RBAC/ABAC gates the feature needs live here (ABAC in the handler, RBAC in
-// the token-claim AuthorizeInterceptor); the interceptor is covered by
-// authorization_test.go, so the client exercises the handler's own rules.
+// reviewClient mounts the handler without the RBAC interceptor (covered by
+// authorization_test.go), so tests exercise the handler's own ABAC rules.
 func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect.ReviewServiceClient {
 	t.Helper()
 	_, handler := reviewv1connect.NewReviewServiceHandler(

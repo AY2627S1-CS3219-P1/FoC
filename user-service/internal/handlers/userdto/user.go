@@ -31,13 +31,10 @@ type Caller struct {
 	auth.Caller
 }
 
-// IsSuspended reports whether the caller's role suspends their actions.
 func (c Caller) IsSuspended() bool {
 	return tokenclaims.Role(c.Role) == tokenclaims.RoleSuspendedUser
 }
 
-// Actor returns the verified caller for handlers that need more than the
-// actor's ID, such as role-based restrictions.
 func Actor(ctx context.Context) (Caller, error) {
 	caller, ok := auth.CallerFromContext(ctx)
 	if !ok {

@@ -15,8 +15,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Logic is the review surface the handler needs from the service. It lists only
-// the methods this adapter calls; the concrete service implements it.
 type Logic interface {
 	SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
@@ -25,17 +23,14 @@ type Logic interface {
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
 
-// Handler adapts the review proto RPCs to the review service. It maps between
-// protobuf and domain types and maps domain errors to Connect codes; business
-// rules stay in the service.
+// Handler adapts the review proto RPCs to the review service.
 type Handler struct {
 	reviewv1connect.UnimplementedReviewServiceHandler
 	Logic Logic
 }
 
-// SubmitReview records one participant's review of the other. The reviewer is
-// the authenticated caller; the request's `from` must match it so impersonation
-// is rejected.
+// SubmitReview records the caller's review of the other participant; `from`
+// must be the caller so impersonation is rejected.
 func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv1.SubmitReviewRequest]) (*connect.Response[reviewv1.SubmitReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
@@ -62,8 +57,8 @@ func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
 }
 
-// ListReviewsForUser lists the reviews received by a user. A suspended caller is
-// restricted to their own reviews by authorizeSelfReviews.
+// ListReviewsForUser lists the reviews a user received; a suspended caller may
+// only list their own.
 func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[reviewv1.ListReviewsForUserRequest]) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
 	caller, err := userdto.Actor(ctx)
 	if err != nil {
@@ -87,7 +82,6 @@ func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[r
 	return connect.NewResponse(toListReviewsForUserResponse(pageResult)), nil
 }
 
-// ListMyReviews lists the reviews the caller gave.
 func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[reviewv1.ListMyReviewsRequest]) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
@@ -104,8 +98,8 @@ func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[review
 	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
 }
 
-// RemoveReview soft-deletes a review on behalf of an administrator and records
-// the audit row. RBAC (admin only) is enforced by the interceptor.
+// RemoveReview soft-deletes a review and records the removal audit row; the
+// admin-only gate lives in the interceptor.
 func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv1.RemoveReviewRequest]) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
@@ -121,8 +115,6 @@ func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv
 	return connect.NewResponse(&reviewv1.RemoveReviewResponse{}), nil
 }
 
-// ListReviewRemovals returns a page of audit rows for removed reviews, newest
-// first.
 func (h *Handler) ListReviewRemovals(ctx context.Context, req *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
@@ -149,8 +141,7 @@ func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	return nil
 }
 
-// newPage normalizes the optional proto pagination into the shared model; a nil
-// or empty page means page 1 at the default size.
+// newPage normalizes the optional proto pagination into the shared model.
 func newPage(p *paginationv1.Pagination) (pagination.Pagination, error) {
 	if p == nil {
 		return pagination.New(0, 0)
@@ -162,7 +153,6 @@ func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSub
 	return ReviewSubmission{Rating: int(submission.GetRating()), Comment: submission.GetComment()}
 }
 
-// toListReviewsForUserResponse builds the response for the list-received RPC.
 func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserResponse {
 	return &reviewv1.ListReviewsForUserResponse{
 		Reviews:    toReviewProtos(page.Reviews),
@@ -170,7 +160,6 @@ func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserR
 	}
 }
 
-// toListMyReviewsResponse builds the response for the list-given RPC.
 func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
 	return &reviewv1.ListMyReviewsResponse{
 		Reviews:    toReviewProtos(page.Reviews),
@@ -178,7 +167,6 @@ func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
 	}
 }
 
-// toListReviewRemovalsResponse builds the response for the removals-audit RPC.
 func toListReviewRemovalsResponse(page RemovalPage) *reviewv1.ListReviewRemovalsResponse {
 	out := make([]*reviewv1.ReviewRemoval, len(page.Removals))
 	for i, removal := range page.Removals {
@@ -190,7 +178,6 @@ func toListReviewRemovalsResponse(page RemovalPage) *reviewv1.ListReviewRemovals
 	}
 }
 
-// toReviewProtos converts a slice of reviews to the proto slice.
 func toReviewProtos(reviews []Review) []*reviewv1.Review {
 	out := make([]*reviewv1.Review, len(reviews))
 	for i, review := range reviews {
@@ -199,7 +186,6 @@ func toReviewProtos(reviews []Review) []*reviewv1.Review {
 	return out
 }
 
-// toProtoPageInfo maps the shared pagination model to the proto PageInfo.
 func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
 	return &paginationv1.PageInfo{
 		Page:       int32(info.Page()),

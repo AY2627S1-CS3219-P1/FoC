@@ -91,15 +91,11 @@ export const ReviewSchema: GenMessage<Review> = /*@__PURE__*/
  */
 export type ReviewSubmission = Message<"user.review.v1.ReviewSubmission"> & {
   /**
-   * One to five stars.
-   *
    * @generated from field: int32 rating = 1;
    */
   rating: number;
 
   /**
-   * Non-empty, at most 100000 characters.
-   *
    * @generated from field: string comment = 2;
    */
   comment: string;
@@ -162,8 +158,6 @@ export const SubmitReviewResponseSchema: GenMessage<SubmitReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 3);
 
 /**
- * ListReviewsForUserResponse holds the reviews received by a user and its totals.
- *
  * @generated from message user.review.v1.ListReviewsForUserResponse
  */
 export type ListReviewsForUserResponse = Message<"user.review.v1.ListReviewsForUserResponse"> & {
@@ -186,8 +180,6 @@ export const ListReviewsForUserResponseSchema: GenMessage<ListReviewsForUserResp
   messageDesc(file_user_review_v1_review, 4);
 
 /**
- * ListMyReviewsResponse holds the reviews the caller gave and its totals.
- *
  * @generated from message user.review.v1.ListMyReviewsResponse
  */
 export type ListMyReviewsResponse = Message<"user.review.v1.ListMyReviewsResponse"> & {
@@ -214,8 +206,7 @@ export const ListMyReviewsResponseSchema: GenMessage<ListMyReviewsResponse> = /*
  */
 export type ListReviewsForUserRequest = Message<"user.review.v1.ListReviewsForUserRequest"> & {
   /**
-   * Reviews received BY this user. A suspended caller may only request their
-   * own id; the handler enforces this.
+   * A suspended caller may only request their own id; the handler enforces this.
    *
    * @generated from field: string user_id = 1;
    */
@@ -261,7 +252,7 @@ export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> 
   id: string;
 
   /**
-   * Recorded on the audit row; non-empty, at most 100000 characters.
+   * Recorded on the audit row.
    *
    * @generated from field: string reason = 2;
    */
@@ -289,8 +280,6 @@ export const RemoveReviewResponseSchema: GenMessage<RemoveReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 9);
 
 /**
- * Audit row written when a review is removed.
- *
  * @generated from message user.review.v1.ReviewRemoval
  */
 export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {

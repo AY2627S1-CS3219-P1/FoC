@@ -141,11 +141,9 @@ func (x *Review) GetRevieweeName() string {
 
 // The rating and comment a caller submits about a reviewee.
 type ReviewSubmission struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// One to five stars.
-	Rating int32 `protobuf:"varint,1,opt,name=rating,proto3" json:"rating,omitempty"`
-	// Non-empty, at most 100000 characters.
-	Comment       string `protobuf:"bytes,2,opt,name=comment,proto3" json:"comment,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rating        int32                  `protobuf:"varint,1,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment       string                 `protobuf:"bytes,2,opt,name=comment,proto3" json:"comment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -300,7 +298,6 @@ func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{3}
 }
 
-// ListReviewsForUserResponse holds the reviews received by a user and its totals.
 type ListReviewsForUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reviews       []*Review              `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
@@ -353,7 +350,6 @@ func (x *ListReviewsForUserResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
-// ListMyReviewsResponse holds the reviews the caller gave and its totals.
 type ListMyReviewsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reviews       []*Review              `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
@@ -408,8 +404,7 @@ func (x *ListMyReviewsResponse) GetPagination() *v1.PageInfo {
 
 type ListReviewsForUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Reviews received BY this user. A suspended caller may only request their
-	// own id; the handler enforces this.
+	// A suspended caller may only request their own id; the handler enforces this.
 	UserId        string         `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Pagination    *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -507,7 +502,7 @@ func (x *ListMyReviewsRequest) GetPagination() *v1.Pagination {
 type RemoveReviewRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Recorded on the audit row; non-empty, at most 100000 characters.
+	// Recorded on the audit row.
 	Reason        string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -593,7 +588,6 @@ func (*RemoveReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{9}
 }
 
-// Audit row written when a review is removed.
 type ReviewRemoval struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`

@@ -21,8 +21,6 @@ func NewPostgresRepository(queries *reviewdb.Queries) *PostgresRepository {
 
 var _ Repository = (*PostgresRepository)(nil)
 
-// Transactional write operations receive the review queries bound to the active
-// transaction.
 func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error {
 	err := q.InsertReview(ctx, reviewdb.InsertReviewParams{
 		ID:         input.ID,
@@ -35,9 +33,8 @@ func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queri
 	return mapReviewError("insert review", err)
 }
 
-// FindReviewLocked returns the live review under a row lock (see the Repository
-// contract). The snapshot comes from the locked row itself, so no relationship
-// subquery is involved.
+// The snapshot comes from the locked row itself, so no relationship subquery is
+// involved (see LANDMINES/locked-row-relationship-snapshots.md).
 func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
 	row, err := q.FindReviewLocked(ctx, id)
 	if err != nil {
@@ -46,8 +43,6 @@ func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Q
 	return toReview(row), nil
 }
 
-// SoftDeleteReview marks the review removed inside q's transaction. The row is
-// retained so the removal audit can keep referencing it.
 func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error {
 	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
 }
@@ -64,10 +59,8 @@ func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewd
 	}))
 }
 
-// RecalculateStats recomputes the reviewee's review_count and avg_rating from
-// their remaining reviews. It locks the users row first, then reads the
-// aggregate in a separate statement (see LANDMINES/locked-row-relationship-
-// snapshots.md), then writes the stats -- all within q's transaction.
+// The lock-then-read-then-write order matters; see the LockReviewee query for
+// why, and LANDMINES/locked-row-relationship-snapshots.md.
 func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error {
 	if err := q.LockReviewee(ctx, revieweeID); err != nil {
 		return fmt.Errorf("lock reviewee: %w", err)
@@ -90,7 +83,6 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 	return nil
 }
 
-// Reads use the repository's own connection.
 func (r *PostgresRepository) ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error) {
 	rows, err := r.queries.ListReviewsForUser(ctx, reviewdb.ListReviewsForUserParams{
 		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
@@ -178,8 +170,6 @@ func toReview(row reviewdb.Review) Review {
 	}
 }
 
-// The list queries join users for display names, so each carries its own row
-// type alongside the plain review columns.
 func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
 	return Review{
 		ID:           row.ID,
@@ -210,8 +200,6 @@ func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	}
 }
 
-// The removals query joins users for the creator's display name, so it returns
-// its own row type rather than the table model.
 func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
 	return ReviewRemoval{
 		ID:            row.ID,
@@ -226,8 +214,6 @@ func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
 	}
 }
 
-// mapReviewError turns database failures into domain sentinels so the service
-// can map them to client codes without the repository touching the api layer.
 func mapReviewError(operation string, err error) error {
 	if err == nil {
 		return nil

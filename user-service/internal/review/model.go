@@ -29,14 +29,13 @@ type Review struct {
 	DeletedAt    time.Time
 }
 
-// ReviewSubmission is the rating and comment a caller submits about a reviewee.
 type ReviewSubmission struct {
 	Rating  int
 	Comment string
 }
 
-// ReviewRemoval is the audit row recorded when a review is removed. ReviewID
-// references the soft-deleted (retained) review the audit is about.
+// ReviewRemoval is the audit row for a removed review; ReviewID references the
+// soft-deleted (retained) review.
 type ReviewRemoval struct {
 	ID            uuid.UUID
 	ReviewID      uuid.UUID
@@ -49,22 +48,16 @@ type ReviewRemoval struct {
 	CreatedByName string
 }
 
-// ReviewPage is a page of reviews with the response totals it came with. It
-// embeds the shared offset-pagination model so the handler maps it straight to
-// the proto ReviewPage that nests proto PageInfo.
 type ReviewPage struct {
 	Reviews []Review
 	pagination.PageInfo
 }
 
-// RemovalPage is a page of review-removal audit rows with the response totals
-// it came with.
 type RemovalPage struct {
 	Removals []ReviewRemoval
 	pagination.PageInfo
 }
 
-// ReviewInput is a new review handed to the repository inside a transaction.
 type ReviewInput struct {
 	ID         uuid.UUID
 	ReviewerID uuid.UUID
@@ -74,9 +67,8 @@ type ReviewInput struct {
 	Comment    string
 }
 
-// newID generates a UUIDv7 identifier. The database default stays
-// gen_random_uuid() until yihao's system-wide uuidv7 migration lands, so IDs
-// are always produced here in Go.
+// newID generates identifiers in Go because the database column default is
+// still gen_random_uuid() until a system-wide uuidv7 migration lands.
 func newID() (uuid.UUID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {

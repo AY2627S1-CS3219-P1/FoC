@@ -16,8 +16,7 @@ FROM reviews
 WHERE id = @id::UUID AND deleted_at IS NULL
 FOR UPDATE;
 
--- Mark the review removed; the row is retained so review_removals can keep
--- referencing it. A no-op when the row is already soft-deleted.
+-- The row is retained (not deleted) so review_removals can keep referencing it.
 -- name: SoftDeleteReview :exec
 UPDATE reviews
 SET deleted_at = now()

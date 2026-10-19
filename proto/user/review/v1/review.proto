@@ -34,12 +34,10 @@ message Review {
 
 // The rating and comment a caller submits about a reviewee.
 message ReviewSubmission {
-  // One to five stars.
   int32 rating = 1 [(buf.validate.field).int32 = {
     gte: 1
     lte: 5
   }];
-  // Non-empty, at most 100000 characters.
   string comment = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 100000
@@ -57,21 +55,18 @@ message SubmitReviewRequest {
 
 message SubmitReviewResponse {}
 
-// ListReviewsForUserResponse holds the reviews received by a user and its totals.
 message ListReviewsForUserResponse {
   repeated Review reviews = 1;
   pagination.v1.PageInfo pagination = 2;
 }
 
-// ListMyReviewsResponse holds the reviews the caller gave and its totals.
 message ListMyReviewsResponse {
   repeated Review reviews = 1;
   pagination.v1.PageInfo pagination = 2;
 }
 
 message ListReviewsForUserRequest {
-  // Reviews received BY this user. A suspended caller may only request their
-  // own id; the handler enforces this.
+  // A suspended caller may only request their own id; the handler enforces this.
   string user_id = 1 [(buf.validate.field).string.uuid = true];
   pagination.v1.Pagination pagination = 2;
 }
@@ -82,7 +77,7 @@ message ListMyReviewsRequest {
 
 message RemoveReviewRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
-  // Recorded on the audit row; non-empty, at most 100000 characters.
+  // Recorded on the audit row.
   string reason = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 100000
@@ -91,7 +86,6 @@ message RemoveReviewRequest {
 
 message RemoveReviewResponse {}
 
-// Audit row written when a review is removed.
 message ReviewRemoval {
   string id = 1;
   string reviewer_id = 2;

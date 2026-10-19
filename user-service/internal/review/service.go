@@ -10,9 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// WithTransaction runs operation inside a transaction, giving it the review
-// queries bound to that transaction. It is wired to the service's GORM pool in
-// the composition root.
+// WithTransaction runs operation inside a database/sql transaction with the
+// sqlc queries bound to it; the composition root wires it to the GORM pool.
 type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries) error) error
 
 type Service struct {
@@ -24,9 +23,8 @@ func NewService(repo Repository, withTransaction WithTransaction) *Service {
 	return &Service{repo: repo, withTransaction: withTransaction}
 }
 
-// SubmitReview records one participant's review of the other and, in the same
-// transaction, recomputes the reviewee's stats so they are current when it
-// returns.
+// SubmitReview inserts the review and recomputes the reviewee's stats in the
+// same transaction, so the stats are current when it returns.
 func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error {
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
@@ -74,7 +72,6 @@ func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orde
 	})
 }
 
-// ListReviewsForUser returns the reviews received by a user on a page.
 func (s *Service) ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
 	reviews, err := s.repo.ListReviewsForUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
@@ -87,7 +84,6 @@ func (s *Service) ListReviewsForUser(ctx context.Context, userID uuid.UUID, page
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// ListReviewsFromUser returns the reviews a user gave on a page.
 func (s *Service) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
 	reviews, err := s.repo.ListReviewsFromUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
@@ -100,10 +96,8 @@ func (s *Service) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, pag
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// RemoveReview soft-deletes a review, records the audit row, then recomputes
-// the reviewee's stats -- all atomically. The reviews row is retained (marked
-// deleted_at) so the audit row can keep referencing it, and the stats recompute
-// over non-removed reviews.
+// RemoveReview soft-deletes the review, records the audit row and recomputes
+// the reviewee's stats atomically.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	removal, err := newRemoval(reason, createdBy)
 	if err != nil {
@@ -120,8 +114,6 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		if err := s.repo.SoftDeleteReview(ctx, q, id); err != nil {
 			return err
 		}
-		// The audit row records the removed review, who was reviewed and for
-		// which request.
 		removal.ReviewID = review.ID
 		removal.ReviewerID = review.ReviewerID
 		removal.RevieweeID = review.RevieweeID
@@ -133,8 +125,6 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 	})
 }
 
-// ListReviewRemovals returns a page of audit rows for removed reviews, newest
-// first.
 func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error) {
 	removals, err := s.repo.ListReviewRemovals(ctx, page.Offset(), page.PageSize())
 	if err != nil {
@@ -147,9 +137,8 @@ func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagina
 	return RemovalPage{Removals: removals, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// newRemoval builds the audit row for a removal, generating its UUIDv7 id. The
-// surrogate id is unrelated to the review's id and survives a later permanent
-// deletion of the review.
+// The surrogate id is unrelated to the review's id and survives a later
+// permanent deletion of the review.
 func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
 	removalID, err := newID()
 	if err != nil {
