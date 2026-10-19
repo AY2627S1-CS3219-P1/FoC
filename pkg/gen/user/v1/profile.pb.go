@@ -23,16 +23,16 @@ const (
 )
 
 type Profile struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Email          string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	DisplayName    string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Description    string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	TelegramHandle *string                `protobuf:"bytes,5,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
-	PhoneNumber    *string                `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
-	Role           UserRole               `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Email       string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// E.164. Absent only for the bootstrapped admin until they add one.
+	PhoneNumber   *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	Role          UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Profile) Reset() {
@@ -89,13 +89,6 @@ func (x *Profile) GetDisplayName() string {
 func (x *Profile) GetDescription() string {
 	if x != nil {
 		return x.Description
-	}
-	return ""
-}
-
-func (x *Profile) GetTelegramHandle() string {
-	if x != nil && x.TelegramHandle != nil {
-		return *x.TelegramHandle
 	}
 	return ""
 }
@@ -194,17 +187,16 @@ func (x *GetMyProfileResponse) GetProfile() *Profile {
 	return nil
 }
 
-// Every editable field is replaced. Omitted contact fields are cleared.
+// Every editable field is replaced.
 type UpdateMyProfileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The service trims the name and requires 1 to 100 characters afterward.
 	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// The service trims and validates contacts; blank values are cleared.
-	TelegramHandle *string `protobuf:"bytes,3,opt,name=telegram_handle,json=telegramHandle,proto3,oneof" json:"telegram_handle,omitempty"`
-	PhoneNumber    *string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Required. Validated and stored like RegisterRequest.phone_number.
+	PhoneNumber   string `protobuf:"bytes,4,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateMyProfileRequest) Reset() {
@@ -251,16 +243,9 @@ func (x *UpdateMyProfileRequest) GetDescription() string {
 	return ""
 }
 
-func (x *UpdateMyProfileRequest) GetTelegramHandle() string {
-	if x != nil && x.TelegramHandle != nil {
-		return *x.TelegramHandle
-	}
-	return ""
-}
-
 func (x *UpdateMyProfileRequest) GetPhoneNumber() string {
-	if x != nil && x.PhoneNumber != nil {
-		return *x.PhoneNumber
+	if x != nil {
+		return x.PhoneNumber
 	}
 	return ""
 }
@@ -313,27 +298,22 @@ var File_user_v1_profile_proto protoreflect.FileDescriptor
 
 const file_user_v1_profile_proto_rawDesc = "" +
 	"\n" +
-	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"\x96\x02\n" +
+	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"\xeb\x01\n" +
 	"\aProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12,\n" +
-	"\x0ftelegram_handle\x18\x05 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
-	"\fphone_number\x18\x06 \x01(\tH\x01R\vphoneNumber\x88\x01\x01\x12%\n" +
-	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04roleB\x12\n" +
-	"\x10_telegram_handleB\x0f\n" +
-	"\r_phone_number\"\x15\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12&\n" +
+	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01\x12%\n" +
+	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04roleB\x0f\n" +
+	"\r_phone_numberJ\x04\b\x05\x10\x06R\x0ftelegram_handle\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
-	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\xe2\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\xa1\x01\n" +
 	"\x16UpdateMyProfileRequest\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12*\n" +
-	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12,\n" +
-	"\x0ftelegram_handle\x18\x03 \x01(\tH\x00R\x0etelegramHandle\x88\x01\x01\x12&\n" +
-	"\fphone_number\x18\x04 \x01(\tH\x01R\vphoneNumber\x88\x01\x01B\x12\n" +
-	"\x10_telegram_handleB\x0f\n" +
-	"\r_phone_number\"E\n" +
+	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12!\n" +
+	"\fphone_number\x18\x04 \x01(\tR\vphoneNumberJ\x04\b\x03\x10\x04R\x0ftelegram_handle\"E\n" +
 	"\x17UpdateMyProfileResponse\x12*\n" +
 	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile2\xb7\x01\n" +
 	"\x0eProfileService\x12M\n" +
@@ -384,7 +364,6 @@ func file_user_v1_profile_proto_init() {
 	}
 	file_user_v1_auth_proto_init()
 	file_user_v1_profile_proto_msgTypes[0].OneofWrappers = []any{}
-	file_user_v1_profile_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
