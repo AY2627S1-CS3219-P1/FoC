@@ -41,3 +41,39 @@ buf-generate-rpc: $(BUF)
 
 buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
+
+# Local Kubernetes operators; see docs/runbooks/kubernetes.md.
+.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit k8s-test
+
+k8s-tools:
+	bash scripts/k8s/tools.sh
+
+k8s-up:
+	bash scripts/k8s/k8s.sh up
+
+k8s-deploy:
+	bash scripts/k8s/k8s.sh deploy "$(service)"
+
+k8s-access:
+	bash scripts/k8s/k8s.sh access
+
+k8s-status:
+	bash scripts/k8s/k8s.sh status
+
+k8s-smoke:
+	bash scripts/k8s/k8s.sh smoke
+
+k8s-demo:
+	bash scripts/k8s/k8s.sh demo
+
+k8s-delete-cluster:
+	bash scripts/k8s/k8s.sh delete-cluster
+
+k8s-kafka-ui:
+	bash scripts/k8s/k8s.sh kafka-ui
+
+k8s-mailpit:
+	bash scripts/k8s/k8s.sh mailpit
+
+k8s-test:
+	bash scripts/k8s/tests.sh

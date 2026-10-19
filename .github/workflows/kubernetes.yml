@@ -1,0 +1,67 @@
+name: Kubernetes bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/kubernetes.yml'
+      - 'infra/**'
+      - 'scripts/k8s/**'
+      - 'docker/k8s/**'
+      - 'pkg/**'
+      - 'user-service/**'
+      - 'supplier-service/**'
+      - 'order-service/**'
+      - 'frontend/**'
+      - 'Makefile'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-mesh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      K8S_BOOTSTRAP_SUPERADMIN_EMAIL: admin@example.test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: pkg/go.mod
+          cache-dependency-path: pkg/go.sum
+      - name: Verify operator scripts and render manifests
+        run: |
+          make k8s-tools
+          make k8s-test
+          .tools/k8s/kubectl kustomize infra/k8s/overlays/local > /tmp/foc-local.yaml
+          .tools/k8s/kubectl kustomize infra/k8s/overlays/production > /tmp/foc-production.yaml
+      - name: Build and deploy into isolated kind cluster
+        run: make k8s-up
+      - name: Verify gateway, mTLS and private routing
+        run: make k8s-smoke
+      - name: Verify Connect HTTP/1.1 and native gRPC through the gateway
+        run: |
+          .tools/k8s/kubectl --kubeconfig .local/k8s/clusters/foc.config -n istio-ingress \
+            port-forward --address 127.0.0.1 svc/istio-ingressgateway 19543:443 >/tmp/foc-protocol-forward.log 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --cacert .local/k8s/secrets/tls.crt -fsS https://localhost:19543/ >/dev/null; then break; fi
+            sleep 1
+          done
+          cd pkg
+          RPC_SMOKE_BASE_URL=https://localhost:19543 \
+            RPC_SMOKE_CA_FILE="$GITHUB_WORKSPACE/.local/k8s/secrets/tls.crt" \
+            GOWORK=off go test -mod=readonly ./server -run TestMeshGateway -count=1
+      - name: Verify application cannot start without a ready proxy
+        run: bash scripts/k8s/proxy-startup-smoke.sh
+      - name: Report bounded deployment status on failure
+        if: failure()
+        run: make k8s-status || true
+      - name: Remove the CI-only cluster
+        if: always()
+        run: K8S_CONFIRM_DELETE=foc make k8s-delete-cluster

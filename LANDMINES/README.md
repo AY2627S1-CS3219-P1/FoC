@@ -6,5 +6,7 @@ This directory records non-obvious failures that can affect future work. Each en
 | -- | -- |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
 | [Recreated services rebuild Go dependencies](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |
+| [An existing Compose volume lacks a newly added database](compose-existing-databases.md) | Compose reuses a PostgreSQL volume created before a service database was added to the initialization script. |
+| [Compose creates a root-owned local state directory](compose-owned-local-directory.md) | Kubernetes bootstrap uses `.local/k8s` after Compose created `.local` as root. |
 | [Locking a row does not refresh relationship subqueries](locked-row-relationship-snapshots.md) | A PostgreSQL locking query reads relationships that another transaction can change while holding the parent row lock. |
 | [Read-only Go caches hide lint failures](sandbox-go-caches.md) | An agent sandbox cannot write the default Go build or golangci-lint caches. |

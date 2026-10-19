@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafka
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafka-ui
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mailpit
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-provision
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-migrate
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: supplier-migrate
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: order-migrate
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafka-init
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-service
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: supplier-service
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: order-service
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false

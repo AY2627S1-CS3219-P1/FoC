@@ -1,0 +1,19 @@
+pilot:
+  env:
+    ENABLE_NATIVE_SIDECARS: "true"
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    startupProbe:
+      enabled: true
+      failureThreshold: 60
+meshConfig:
+  accessLogFile: /dev/stdout
+  accessLogEncoding: JSON
+  defaultConfig:
+    terminationDrainDuration: 5s

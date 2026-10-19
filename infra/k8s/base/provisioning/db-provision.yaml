@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-provision
+  labels:
+    foc.dev/stage: provisioning
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: db-provision
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: db-provision
+      restartPolicy: Never
+      containers:
+        - name: db-provision
+          image: postgis/postgis:18-3.6@sha256:b4466ea2ba7e3af54fcbba996d45325720f4b3ecb4f43f99b2f41367dc196f23
+          command: ["/bin/sh", "/setup/provision.sh"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: postgres-admin
+          volumeMounts:
+            - {name: script, mountPath: /setup, readOnly: true}
+            - {name: user, mountPath: /secrets/user, readOnly: true}
+            - {name: supplier, mountPath: /secrets/supplier, readOnly: true}
+            - {name: order, mountPath: /secrets/order, readOnly: true}
+      volumes:
+        - name: script
+          configMap:
+            name: db-provision-script
+        - name: user
+          secret:
+            secretName: user-db
+        - name: supplier
+          secret:
+            secretName: supplier-db
+        - name: order
+          secret:
+            secretName: order-db

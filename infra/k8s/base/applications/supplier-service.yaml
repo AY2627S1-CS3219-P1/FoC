@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supplier-service
+  labels:
+    foc.dev/stage: applications
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 180
+  selector:
+    matchLabels:
+      app: supplier-service
+  template:
+    metadata:
+      labels:
+        app: supplier-service
+        foc.dev/rpc: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: supplier-service
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: supplier-service
+          image: foc/supplier-service:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: foc-config
+            - secretRef:
+                name: supplier-db
+          env:
+            - {name: RPC_MODE, value: mesh}
+          ports:
+            - {name: http2-public, containerPort: 8080}
+            - {name: http2-internal, containerPort: 8081}
+          startupProbe:
+            exec:
+              command: ["/app/server", "probe", "live"]
+            failureThreshold: 40
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/app/server", "probe", "live"]
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["/app/server", "probe", "ready"]
+            periodSeconds: 5
+            timeoutSeconds: 4
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supplier-service-external
+spec:
+  selector:
+    app: supplier-service
+  ports:
+    - {name: http2-public, port: 8080, targetPort: 8080, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supplier-service-internal
+spec:
+  selector:
+    app: supplier-service
+  ports:
+    - {name: http2-internal, port: 8080, targetPort: 8081, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: supplier-service
+spec:
+  workloadSelector:
+    labels:
+      app: supplier-service
+  ingress:
+    - port:
+        number: 8080
+        name: http2-public
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8080
+    - port:
+        number: 8081
+        name: http2-internal
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8081
+  egress:
+    - hosts: ["./*", "istio-system/*"]

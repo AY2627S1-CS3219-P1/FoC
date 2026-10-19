@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: user-migrate
+  labels:
+    foc.dev/stage: initialization
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: user-migrate
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: user-migrate
+      restartPolicy: Never
+      containers:
+        - name: user-migrate
+          image: foc/user-service:local
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: user-db
