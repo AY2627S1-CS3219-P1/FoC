@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--out", default=".local/order-ui-evidence")
     parser.add_argument("--channel", default=None, help="Use installed Chrome with --channel chrome")
     parser.add_argument("--diagnose", action="store_true", help="Capture initial-page diagnostics only")
+    parser.add_argument("--suspension-retry", action="store_true", help="Verify denied creation retry preserves an earlier uncertain submission")
     args = parser.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -93,6 +94,11 @@ def main():
                 state["lost_create"] = False
                 route.abort("connectionreset")
                 return
+            if args.suspension_retry and len(state["create"]) == 2:
+                # Suspension can deny a retry before retained-creation lookup,
+                # while the browser still has the earlier active-user view.
+                route.fulfill(status=403, headers=cors, content_type="application/json", body=json.dumps({"code": "permission_denied", "message": "Suspended after earlier creation admission"}))
+                return
             response = {"order": order(private=True)}
         else:
             route.fulfill(status=501, headers=cors, content_type="application/json", body=json.dumps({"code": "unimplemented", "message": method}))
@@ -108,27 +114,28 @@ def main():
         expect.set_options(timeout=20000)
         console_errors = []
         page.on("pageerror", lambda error: console_errors.append(str(error)))
-        page.goto(origin + "/orders")
-        if args.diagnose:
-            page.wait_for_load_state("networkidle", timeout=30000)
-            page.screenshot(path=str(out / "diagnostic.png"), full_page=True)
-            print(json.dumps({"body": page.locator("body").inner_text(), "page_errors": console_errors, "fixture": state}, indent=2))
-            context.close()
-            browser.close()
-            return
-        expect(page.get_by_role("heading", name="Browse orders")).to_be_visible()
-        expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
-        for width in (360, 768, 1440):
-            page.set_viewport_size({"width": width, "height": 900})
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"horizontal overflow at {width}"
-            page.screenshot(path=str(out / f"browse-{width}.png"), full_page=True)
-        assertions.append("Browse renders coarse fixture destinations without horizontal scrolling at 360/768/1440")
-        page.get_by_label("Destination building/area").select_option("COM3")
-        expect(page).to_have_url(origin + "/orders?destination=COM3")
-        expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
-        assert state["open"][-1].get("deliveryBuildingName") == "COM3"
-        assert "deliveryLocationId" not in state["open"][-1]
-        assertions.append("Destination filter sends the explicit coarse building field, never an exact Location ID")
+        if not args.suspension_retry:
+            page.goto(origin + "/orders")
+            if args.diagnose:
+                page.wait_for_load_state("networkidle", timeout=30000)
+                page.screenshot(path=str(out / "diagnostic.png"), full_page=True)
+                print(json.dumps({"body": page.locator("body").inner_text(), "page_errors": console_errors, "fixture": state}, indent=2))
+                context.close()
+                browser.close()
+                return
+            expect(page.get_by_role("heading", name="Browse orders")).to_be_visible()
+            expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
+            for width in (360, 768, 1440):
+                page.set_viewport_size({"width": width, "height": 900})
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"horizontal overflow at {width}"
+                page.screenshot(path=str(out / f"browse-{width}.png"), full_page=True)
+            assertions.append("Browse renders coarse fixture destinations without horizontal scrolling at 360/768/1440")
+            page.get_by_label("Destination building/area").select_option("COM3")
+            expect(page).to_have_url(origin + "/orders?destination=COM3")
+            expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
+            assert state["open"][-1].get("deliveryBuildingName") == "COM3"
+            assert "deliveryLocationId" not in state["open"][-1]
+            assertions.append("Destination filter sends the explicit coarse building field, never an exact Location ID")
 
         page.goto(origin + "/orders/new")
         expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()
@@ -143,17 +150,18 @@ def main():
         png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
         page.get_by_label("Item images", exact=False).set_input_files({"name": "meal.png", "mimeType": "image/png", "buffer": png})
         expect(page.get_by_text("Upload status unknown.", exact=False)).to_be_visible()
-        page.get_by_label("Item images", exact=False).set_input_files({"name": "notes.txt", "mimeType": "text/plain", "buffer": b"not an image"})
-        expect(page.get_by_text("Choose JPEG, PNG, WebP, HEIC or HEIF.", exact=True)).to_be_visible()
-        page.get_by_role("button", name="Create Order", exact=True).click()
-        expect(page.get_by_text("Not submitted. Retry or remove failed images first.", exact=True)).to_be_visible()
-        assert not state["create"], "Failed selected image must not be silently omitted"
-        page.locator(".uploads li").filter(has_text="notes.txt").get_by_role("button", name="Remove image", exact=True).click()
-        assertions.append("Invalid selected image blocks creation until explicit removal, preserving the other image reference")
-        for width in (360, 768, 1440):
-            page.set_viewport_size({"width": width, "height": 900})
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"creation horizontal overflow at {width}"
-            page.screenshot(path=str(out / f"creation-{width}.png"), full_page=True)
+        if not args.suspension_retry:
+            page.get_by_label("Item images", exact=False).set_input_files({"name": "notes.txt", "mimeType": "text/plain", "buffer": b"not an image"})
+            expect(page.get_by_text("Choose JPEG, PNG, WebP, HEIC or HEIF.", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Create Order", exact=True).click()
+            expect(page.get_by_text("Not submitted. Retry or remove failed images first.", exact=True)).to_be_visible()
+            assert not state["create"], "Failed selected image must not be silently omitted"
+            page.locator(".uploads li").filter(has_text="notes.txt").get_by_role("button", name="Remove image", exact=True).click()
+            assertions.append("Invalid selected image blocks creation until explicit removal, preserving the other image reference")
+            for width in (360, 768, 1440):
+                page.set_viewport_size({"width": width, "height": 900})
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"creation horizontal overflow at {width}"
+                page.screenshot(path=str(out / f"creation-{width}.png"), full_page=True)
         page.get_by_role("button", name="Create Order", exact=True).click()
         expect(page.get_by_text("Failed to confirm the result.", exact=False)).to_be_visible()
         assert len(state["create"]) == 1 and state["create"][0]["itemImageIds"] == [IMAGE]
@@ -162,32 +170,58 @@ def main():
         assertions.append("Lost upload acknowledgment does not silently remove the image or create an Order before explicit submission")
         page.reload()
         expect(page.get_by_text("Recovered a submitted Order.", exact=False)).to_be_visible()
+        if args.suspension_retry:
+            # Approved submitted-recovery contract: a later denied retry is
+            # not a resolution of the earlier request with a lost response.
+            saved_key = "foc.order.submission." + USER
+            saved = page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key)
+            assert saved and saved["key"] == state["create"][0]["idempotencyKey"]
+            page.get_by_role("button", name="Check/retry same submission", exact=True).click()
+            expect(page.get_by_text("Failed to confirm the result.", exact=False)).to_be_visible()
+            assert len(state["create"]) == 2 and state["create"][0] == state["create"][1]
+            assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
+            expect(page.get_by_role("button", name="Create Order", exact=True)).to_be_disabled()
+            page.screenshot(path=str(out / "denied-creation-retry.png"), full_page=True)
+            state["suspended"] = True
+            page.reload()
+            expect(page.get_by_text("Your account is suspended. Creation is unavailable.", exact=False)).to_be_visible()
+            expect(page.get_by_role("button", name="Check/retry same submission", exact=True)).to_have_count(0)
+            assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
+            assert len(state["create"]) == 2 and state["uploads"] == 1
+            page.screenshot(path=str(out / "suspended-creation-recovery.png"), full_page=True)
+            state["suspended"] = False
+            page.reload()
+            expect(page.get_by_text("Recovered a submitted Order.", exact=False)).to_be_visible()
+            assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
+            assertions.append("PermissionDenied after lost creation response retains identical saved fields/image IDs/key; suspended reload disables retry; restored caller recovers the original submission")
         page.get_by_role("button", name="Check/retry same submission", exact=True).click()
         expect(page).to_have_url(origin + "/orders/" + ORDER)
         expect(page.get_by_role("heading", name="Two meals for a study group", exact=True)).to_be_visible()
-        assert len(state["create"]) == 2 and state["create"][0] == state["create"][1]
+        assert len(state["create"]) == (3 if args.suspension_retry else 2)
+        assert all(request == state["create"][0] for request in state["create"])
         assert state["uploads"] == 1
         assert page.evaluate("Object.keys(sessionStorage).filter(k => k.startsWith('foc.order.submission.')).length") == 0
         assertions.append("Lost CreateOrder response survives refresh; retry sends identical fields/image IDs/key, without re-upload; resolution clears tab record")
 
-        state["deadline"] = True
-        page.get_by_role("button", name="Refresh order", exact=True).click()
-        expect(page.get_by_text("Expired", exact=True)).to_be_visible()
-        assertions.append("Explicit refresh renders authoritative backend status rather than deriving terminality in the browser")
-        state["suspended"] = True
-        page.goto(origin + "/orders/mine?role=courier")
-        expect(page.get_by_role("heading", name="My Orders", exact=True)).to_be_visible()
-        expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
-        assert state["history"][-1].get("role") == "PARTICIPANT_ROLE_COURIER"
-        page.goto(origin + "/orders/new")
-        expect(page.get_by_text("Your account is suspended. Creation is unavailable.", exact=False)).to_be_visible()
-        expect(page.get_by_role("button", name="Create Order", exact=True)).to_have_count(0)
-        assertions.append("Suspended user retains courier-filtered history while CreateOrder UI is unavailable")
+        if not args.suspension_retry:
+            state["deadline"] = True
+            page.get_by_role("button", name="Refresh order", exact=True).click()
+            expect(page.get_by_text("Expired", exact=True)).to_be_visible()
+            assertions.append("Explicit refresh renders authoritative backend status rather than deriving terminality in the browser")
+            state["suspended"] = True
+            page.goto(origin + "/orders/mine?role=courier")
+            expect(page.get_by_role("heading", name="My Orders", exact=True)).to_be_visible()
+            expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
+            assert state["history"][-1].get("role") == "PARTICIPANT_ROLE_COURIER"
+            page.goto(origin + "/orders/new")
+            expect(page.get_by_text("Your account is suspended. Creation is unavailable.", exact=False)).to_be_visible()
+            expect(page.get_by_role("button", name="Create Order", exact=True)).to_have_count(0)
+            assertions.append("Suspended user retains courier-filtered history while CreateOrder UI is unavailable")
         assert not console_errors, console_errors
-        page.screenshot(path=str(out / "suspended.png"), full_page=True)
+        page.screenshot(path=str(out / ("resolved-creation.png" if args.suspension_retry else "suspended.png")), full_page=True)
         context.close()
         browser.close()
-    report = {"status": "PASS", "scope": "Frontend at mocked Connect and S3 seams; not real backend authorization, S3 signature, Credit or Kafka evidence", "assertions": assertions, "create_requests": len(state["create"]), "object_put_attempts": state["uploads"], "browser": "Chromium", "artifacts": str(out)}
+    report = {"status": "PASS", "scope": "Frontend at mocked Connect and S3 seams; not real backend authorization, S3 signature, Credit or Kafka evidence", "scenario": "creation suspension retry" if args.suspension_retry else "foundation", "assertions": assertions, "create_requests": len(state["create"]), "object_put_attempts": state["uploads"], "browser": "Chromium", "artifacts": str(out)}
     (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 
