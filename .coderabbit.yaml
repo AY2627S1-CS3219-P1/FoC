@@ -1,0 +1,11 @@
+# Disable CodeRabbit auto-review (replaced by Devin Review).
+reviews:
+  auto_review:
+    enabled: false
+    drafts: false
+  request_changes_workflow: false
+  high_level_summary: false
+  poem: false
+  review_status: false
+chat:
+  auto_reply: false
