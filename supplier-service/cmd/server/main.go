@@ -2,12 +2,19 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
+	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
+	migrations "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
@@ -17,9 +24,8 @@ import (
 )
 
 const (
-	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
-	AUTH_STARTUP_TIMEOUT    = time.Minute
-	AUTH_RETRY_INTERVAL     = 2 * time.Second
+	AUTH_STARTUP_TIMEOUT = time.Minute
+	AUTH_RETRY_INTERVAL  = 2 * time.Second
 )
 
 func main() {
@@ -28,47 +34,45 @@ func main() {
 	if err := godotenv.Load(".env"); err != nil {
 		slog.Error("Error loading .env file", "error", err)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, os.Args[1:]); err != nil {
+		slog.Error("Supplier service stopped", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, args []string) error {
+	if handled, err := transport.ExecuteCommand(ctx, args, os.Getenv, supplierv1connect.HealthServiceCheckProcedure, migrations.Migrate); handled {
+		return err
+	}
+	transportConfig, err := transport.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
 	config := env.Get()
 
 	pgxPool := database.Connect(config.DatabaseURL)
 	defer pgxPool.Close()
 
 	// Fetches User Service public keys, so User Service must be reachable.
-	authenticator, err := newAuthenticator(context.Background())
+	authenticator, err := newAuthenticator(ctx)
 	if err != nil {
-		slog.Error("Error initializing authentication", "error", err)
-		panic(err)
+		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
 	services, err := newRPCServices(pgxPool, time.Now)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 
-	port := config.Port
-
-	server := newServer(":"+port, cors)
-
-	slog.Info("Listening on :" + port)
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error("Server failed to start: %v", "error", err)
-		panic(err)
-	}
+	return transport.Run(ctx, transport.ShutdownTimeout, transportConfig.Servers(cors, nil)...)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
-	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	return &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-		Protocols:         protocols,
-	}
+	return transport.New(addr, handler)
 }
 
 // getCorsConfig allows credentialed cross-origin requests from HTTP localhost
@@ -110,13 +114,27 @@ func getCorsConfig() *cors.Cors {
 // newAuthenticator retries while User Service starts, since its public keys
 // are fetched once at startup.
 func newAuthenticator(ctx context.Context) (*httpauth.Authenticator, error) {
-	deadline := time.Now().Add(AUTH_STARTUP_TIMEOUT)
+	return retryAuthenticator(ctx, AUTH_RETRY_INTERVAL, httpauth.NewUserServiceAuthenticator)
+}
+
+func retryAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+	ctx, cancel := context.WithTimeout(ctx, AUTH_STARTUP_TIMEOUT)
+	defer cancel()
 	for {
-		authenticator, err := httpauth.NewUserServiceAuthenticator(ctx)
-		if err == nil || time.Now().After(deadline) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		authenticator, err := build(ctx)
+		if err == nil {
 			return authenticator, err
 		}
 		slog.Warn("User Service not ready; retrying", "error", err)
-		time.Sleep(AUTH_RETRY_INTERVAL)
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
 	}
 }

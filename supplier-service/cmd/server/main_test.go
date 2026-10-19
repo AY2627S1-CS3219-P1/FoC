@@ -16,7 +16,7 @@ import (
 
 func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 	path, handler := supplierv1connect.NewHealthServiceHandler(
-		supplierrpc.NewServer(),
+		supplierrpc.NewServer(healthyDatabase{}),
 	)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
@@ -95,3 +95,7 @@ func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 		})
 	}
 }
+
+type healthyDatabase struct{}
+
+func (healthyDatabase) Ping(context.Context) error { return nil }

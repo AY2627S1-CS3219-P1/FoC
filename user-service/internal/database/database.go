@@ -60,12 +60,30 @@ func Migrator(db *gorm.DB) (*goose.Provider, error) {
 }
 
 func Migrate(db *gorm.DB) error {
+	return MigrateContext(context.Background(), db)
+}
+
+func MigrateContext(ctx context.Context, db *gorm.DB) error {
 	p, err := Migrator(db)
 	if err != nil {
 		return err
 	}
-	if _, err := p.Up(context.Background()); err != nil {
+	if _, err := p.Up(ctx); err != nil {
 		return fmt.Errorf("goose up: %w", err)
 	}
 	return nil
+}
+
+// MigrateURL is the migration Job entrypoint; it needs no auth or SMTP config.
+func MigrateURL(ctx context.Context, databaseURL string) error {
+	db, err := Open(databaseURL, 2, 1)
+	if err != nil {
+		return err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sqlDB.Close() }()
+	return MigrateContext(ctx, db)
 }

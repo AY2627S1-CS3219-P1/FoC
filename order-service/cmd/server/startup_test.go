@@ -66,6 +66,7 @@ func TestConfiguration(t *testing.T) {
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
 		{"unsafe production auth", "APP_ENV", "production"},
 		{"invalid port", "PORT", "-1"},
+		{"invalid mode", "RPC_MODE", "typo"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -92,5 +93,17 @@ func TestConfiguration(t *testing.T) {
 	})
 	if err != nil || c.RunMigrations {
 		t.Fatalf("config=%+v, err=%v", c, err)
+	}
+}
+
+func TestMeshAllowsHTTPUserOriginOutsideLocalMode(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":          "postgresql://localhost/order_dev",
+		"USER_SERVICE_BASE_URL": "http://user-service:8081",
+		"APP_ENV":               "production", "RPC_MODE": "mesh", "RUN_MIGRATIONS": "false",
+	}
+	cfg, err := loadConfig(func(key string) string { return values[key] })
+	if err != nil || cfg.RunMigrations {
+		t.Fatalf("mesh config: %v", err)
 	}
 }

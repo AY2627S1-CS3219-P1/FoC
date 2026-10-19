@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type config struct {
+	Transport      server.Config
 	Port           string
 	DatabaseURL    string
 	UserServiceURL string
@@ -18,19 +20,16 @@ type config struct {
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
+	transport, err := server.LoadConfig(getenv)
+	if err != nil {
+		return config{}, err
+	}
 	c := config{
-		Port:           strings.TrimSpace(getenv("PORT")),
+		Transport:      transport,
+		Port:           transport.Port,
 		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:  true,
-	}
-
-	if c.Port == "" {
-		c.Port = "8080"
-	}
-	port, err := strconv.Atoi(c.Port)
-	if err != nil || port < 1 || port > 65535 {
-		return config{}, errors.New("PORT must be between 1 and 65535")
 	}
 
 	if c.DatabaseURL == "" {
@@ -44,7 +43,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {
+	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" && c.Transport.Mode != server.Mesh {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
 	}
 

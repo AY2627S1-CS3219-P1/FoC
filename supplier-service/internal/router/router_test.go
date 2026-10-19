@@ -17,7 +17,7 @@ import (
 
 func TestLegacyAuthRoutesAreRemoved(t *testing.T) {
 	router := Setup(&deps.Env{}, nil, RPCServices{
-		Health:      healthrpc.NewServer(),
+		Health:      healthrpc.NewServer(nil),
 		Discovery:   discoveryrpc.NewServer(discovery.NewService(nil)),
 		Admin:       adminrpc.NewServer(nil),
 		Disablement: &disablementrpc.Server{}, AdditionRequest: &additionrequestrpc.Server{},

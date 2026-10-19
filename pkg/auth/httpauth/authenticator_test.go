@@ -88,7 +88,20 @@ func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
 }
 
 func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
+	for _, mode := range []string{"single", "mesh"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("RPC_MODE", mode)
+			if mode == "mesh" {
+				t.Setenv("APP_ENV", "production")
+			} else {
+				t.Setenv("APP_ENV", "local")
+			}
+			testAuthenticatorVerifyTypedClaims(t)
+		})
+	}
+}
+
+func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -197,6 +210,7 @@ func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
 }
 
 func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
+	t.Setenv("RPC_MODE", "single")
 	for _, environment := range []string{"", "production"} {
 		t.Run(environment, func(t *testing.T) {
 			t.Setenv("APP_ENV", environment)
@@ -208,6 +222,26 @@ func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
 				t.Fatalf("got %v, want insecure user service URL rejection", err)
 			}
 		})
+	}
+}
+
+func TestAuthenticatorRejectsInvalidModeAndNonOriginURLs(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	for _, tc := range []struct{ mode, url string }{
+		{"meshh", "http://user-service:8081"},
+		{"mesh", "http://user-service:8081/api"},
+		{"mesh", "http://user:password@user-service:8081"},
+		{"mesh", "http://user-service:8081?query=1"},
+		{"mesh", "http://user-service:8081#fragment"},
+	} {
+		t.Setenv("RPC_MODE", tc.mode)
+		_, err := NewAuthenticator(context.Background(), AuthConfig{
+			UserServiceURL: tc.url,
+			Issuer:         TokenIssuer, Audience: TokenAudience,
+		})
+		if err == nil {
+			t.Fatal("invalid mode or origin accepted")
+		}
 	}
 }
 

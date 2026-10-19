@@ -28,6 +28,29 @@ type ProtectedRoutes struct {
 }
 
 func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) *chi.Mux {
+	return setup(health, auth, true, protected...)
+}
+
+// SetupMesh constructs public services once and delegates to them from the
+// internal superset. Public key distribution is only reachable internally.
+func SetupMesh(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) (http.Handler, http.Handler) {
+	public := setup(health, auth, false, protected...)
+	internal := http.NewServeMux()
+	keysPath, keysService := publicKeyHandler(auth)
+	internal.Handle(keysPath, keysService)
+	internal.Handle("/", public)
+	return public, internal
+}
+
+func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {
+	return userv1connect.NewPublicKeyServiceHandler(
+		auth,
+		connect.WithInterceptors(normalizeRPCError()),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
+	)
+}
+
+func setup(health *healthhandler.Handler, auth *authhandler.Handler, includeKeys bool, protected ...ProtectedRoutes) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
@@ -47,12 +70,10 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 	)
 	r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
 
-	keysPath, keysService := userv1connect.NewPublicKeyServiceHandler(
-		auth,
-		connect.WithInterceptors(normalizeRPCError()),
-		connect.WithReadMaxBytes(maxRPCMessageBytes),
-	)
-	r.Mount(keysPath, keysService)
+	if includeKeys {
+		keysPath, keysService := publicKeyHandler(auth)
+		r.Mount(keysPath, keysService)
+	}
 
 	if len(protected) > 0 {
 		p := protected[0]
