@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package order.v1;
+
+// HealthService is public and reports Order database availability.
+service HealthService {
+  rpc Check(CheckRequest) returns (CheckResponse) {}
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  string status = 1;
+}

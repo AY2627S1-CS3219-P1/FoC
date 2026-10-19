@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Order publishes this through its outbox, keyed by order_id as UTF-8 text so
+// one order's events stay in order. Delivery is at least once: consumers skip
+// event_ids they have already processed.
+
+// How an order ended, which decides its settlement.
+enum OrderOutcomeType {
+  ORDER_OUTCOME_TYPE_UNSPECIFIED = 0;
+  // Pay the courier the payable reward; return the rest to the requester.
+  ORDER_OUTCOME_TYPE_COMPLETED = 1;
+  // Requester or admin cancelled before pickup. Release the reservation.
+  ORDER_OUTCOME_TYPE_CANCELLED_BEFORE_PICKUP = 2;
+  // Requester cancelled after pickup. Transfer the reward to the courier.
+  ORDER_OUTCOME_TYPE_CANCELLED_AFTER_PICKUP = 3;
+  // No courier before expiry. Release the reservation.
+  ORDER_OUTCOME_TYPE_EXPIRED = 4;
+  // Courier cancelled after pickup, or delivery took twice the allowed
+  // duration. Release the reservation.
+  ORDER_OUTCOME_TYPE_FAILED = 5;
+}
+
+// Published once when an order reaches Completed, Cancelled, Expired or
+// Failed. Consumed by Credit, which settles each order_id at most once.
+message OrderOutcome {
+  string event_id = 1;
+  string order_id = 2;
+  OrderOutcomeType outcome = 3;
+  string requester_id = 4;
+  optional string courier_id = 5;
+  // The reservation held for this order.
+  int64 reserved_credits = 6;
+  // For the lateness rule on Completed orders.
+  google.protobuf.Duration delivery_duration = 7;
+  google.protobuf.Timestamp picked_up_at = 8;
+  google.protobuf.Timestamp delivered_at = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+}
