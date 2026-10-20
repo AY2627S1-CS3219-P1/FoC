@@ -10,7 +10,7 @@ Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the t
 2. In Telegram, the user presses Start. The bot redeems the code and stores the user's chat ID.
 3. The frontend polls `GetTelegramLink` until `linked` is true.
 
-Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 hashes. A new code replaces the user's unused ones. Each FoC account has at most one chat and each chat at most one account; linking again replaces the old pairing. Blocking the bot unlinks the chat. `DeleteTelegramLink` unlinks from the app.
+Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 hashes. A new code replaces the user's unused ones. Each FoC account has at most one chat and each chat at most one account; linking again replaces the old pairing. Blocking the bot unlinks the chat. `UnlinkTelegram` unlinks from the app.
 
 ## Run locally
 
@@ -65,8 +65,10 @@ curl -X POST localhost:8084/communication.v1.HealthService/Check -H 'Content-Typ
 
 ## Tests
 
-`go test ./...` runs everything except the Postgres tests, which need a throwaway database because they truncate the linking tables:
+`go test ./...` runs everything except the Postgres tests. They need a throwaway database because they truncate the linking tables, so don't point them at the Compose database. Start a separate one, run the tests, then remove it:
 
 ```sh
+docker run -d --rm --name communication-test-db -p 55432:5432 -e POSTGRES_PASSWORD=test postgres:18
 TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' go test ./internal/linking/
+docker rm -f communication-test-db
 ```

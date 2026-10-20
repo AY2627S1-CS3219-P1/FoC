@@ -34,6 +34,10 @@ const (
 	// User Service may still be starting; its public keys are fetched at startup.
 	authStartupTimeout = time.Minute
 	authRetryInterval  = 2 * time.Second
+	// Telegram may be briefly unreachable at startup; only a rejected token is
+	// final.
+	botRetryDelay = 2 * time.Second
+	botMaxDelay   = time.Minute
 )
 
 type config struct {
@@ -131,34 +135,61 @@ func main() {
 	}
 }
 
-// startBot verifies the token and starts polling in the background.
-// botUsername holds the bot's username while it is polling.
+// startBot checks the token and starts polling in the background. A rejected
+// token disables Telegram; other failures are retried, so a network problem at
+// startup doesn't disable Telegram until a restart. botUsername holds the bot's
+// username while it is polling.
 func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, botUsername *atomic.Pointer[string]) {
 	if cfg.telegramToken == "" {
 		log.Warn("TELEGRAM_BOT_TOKEN is not set; Telegram is disabled")
 		return
 	}
 	client := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: pollTimeout + 10*time.Second})
-	me, err := client.GetMe(ctx)
-	if err != nil {
-		log.Error("Telegram is disabled: bot check failed", "err", err)
-		return
-	}
-	log.Info("telegram bot ready", "username", me.Username)
-
-	poller := &telegram.Poller{
-		Source:  client,
-		Handle:  (&bot.Handler{Sender: client, Linker: links, Log: log}).Handle,
-		Log:     log,
-		Timeout: pollTimeout,
-	}
-	botUsername.Store(&me.Username)
 	go func() {
+		me, err := waitForBot(ctx, client, log, botRetryDelay)
+		if err != nil {
+			if ctx.Err() == nil {
+				log.Error("Telegram is disabled: bot check failed", "err", err)
+			}
+			return
+		}
+		log.Info("telegram bot ready", "username", me.Username)
+
+		poller := &telegram.Poller{
+			Source:  client,
+			Handle:  (&bot.Handler{Sender: client, Linker: links, Log: log}).Handle,
+			Log:     log,
+			Timeout: pollTimeout,
+		}
+		botUsername.Store(&me.Username)
 		defer botUsername.Store(nil)
 		if err := poller.Run(ctx); err != nil {
 			log.Error("telegram polling stopped", "err", err)
 		}
 	}()
+}
+
+// botChecker is the part of the Bot API waitForBot needs.
+type botChecker interface {
+	GetMe(ctx context.Context) (telegram.User, error)
+}
+
+// waitForBot calls getMe until it succeeds, Telegram rejects the token, or ctx
+// ends. The delay between attempts doubles up to botMaxDelay.
+func waitForBot(ctx context.Context, client botChecker, log *slog.Logger, delay time.Duration) (telegram.User, error) {
+	for {
+		me, err := client.GetMe(ctx)
+		if err == nil || errors.Is(err, telegram.ErrUnauthorized) {
+			return me, err
+		}
+		log.Warn("Telegram bot check failed; retrying", "err", err, "delay", delay.String())
+		select {
+		case <-ctx.Done():
+			return telegram.User{}, ctx.Err()
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, botMaxDelay)
+	}
 }
 
 func newAuthenticator(ctx context.Context, log *slog.Logger) (*httpauth.Authenticator, error) {
