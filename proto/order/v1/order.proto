@@ -139,11 +139,13 @@ message ListMyOrdersRequest {
   }];
 }
 
-// Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// Starts one immutable acceptance attempt at the current reward. The caller
+// generates attempt_id once and reuses it after an uncertain result. An
+// intentional new attempt requires a new UUID, including after withdrawal.
+// Recognized business rejections retain the UUID for the retained Order's life.
 message AcceptOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  string attempt_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
 // A counteroffer above the current reward on an Awaiting Courier order. It may
@@ -259,7 +261,10 @@ message ListMyOrdersResponse {
   PageInfo page_info = 2;
 }
 message AcceptOrderResponse {
+  // Current caller-authorized state, not the historical acceptance snapshot.
+  // Absent when the attempt itself does not grant current Order visibility.
   Order order = 1;
+  AssignmentAttemptResult attempt = 2;
 }
 message MakeOfferResponse {
   Offer offer = 1;
@@ -270,6 +275,7 @@ message ListOffersResponse {
 message AcceptOfferResponse {
   Order order = 1;
   Offer offer = 2;
+  AssignmentAttemptResult attempt = 3;
 }
 message ConfirmPickupResponse {
   Order order = 1;
