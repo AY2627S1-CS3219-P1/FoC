@@ -36,7 +36,7 @@ type RoleDispatchStore interface {
 }
 
 func (s *RoleService) applyRoleDispatch(ctx context.Context, d models.RoleDispatch) (models.User, error) {
-	if s.Effects == nil {
+	if s.Effects == nil || s.Dispatches == nil {
 		return models.User{}, ErrRoleEffectsUnconfigured
 	}
 	if d.RejectedAt != nil {

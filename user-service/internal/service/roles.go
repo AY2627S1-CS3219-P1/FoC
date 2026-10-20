@@ -97,8 +97,14 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 		if target.Role == to {
 			return ErrRoleUnchanged
 		}
-		if (target.Role == models.RoleSuspended || to == models.RoleSuspended) && reason == "" {
-			return ErrInvalidRoleChange
+		changesSuspension := target.Role == models.RoleSuspended || to == models.RoleSuspended
+		if changesSuspension {
+			if reason == "" {
+				return ErrInvalidRoleChange
+			}
+			if s.Effects == nil || s.Dispatches == nil || tx.Dispatches == nil {
+				return ErrRoleEffectsUnconfigured
+			}
 		}
 		if tx.Dispatches != nil {
 			pending, err := tx.Dispatches.PendingRoleDispatch(ctx, targetID)
@@ -113,10 +119,7 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 				return nil
 			}
 		}
-		if target.Role == models.RoleSuspended || to == models.RoleSuspended {
-			if s.Effects == nil || tx.Dispatches == nil {
-				return ErrRoleEffectsUnconfigured
-			}
+		if changesSuspension {
 			dispatch = &models.RoleDispatch{
 				ID:        uuid.New(),
 				UserID:    targetID,

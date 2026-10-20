@@ -1,7 +1,10 @@
 # Immediate suspension: verification and remaining gates
 
 Depends on B3 PR #179. See [the architecture decision](../adr/immediate-suspension.md).
-Local checks passed for the implementation in `b2a2f63`.
+Core behavior checks passed for the implementation in `b2a2f63`.
+The dispatch-store guard additionally passed User-scoped formatting/lint, the full
+User module suite and service race tests. Those guard checks required no database;
+the previously verified Order and database suites were not rerun.
 Production authenticated dispatch remains disabled pending
 [#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29).
 
@@ -45,6 +48,14 @@ remain visible, immutable and unfinalized without repeated dispatch. Persistence
 tests verify that rejected rows are excluded from recovery but still block
 replacement and unsafe startup. `TestRoleDecisionWaitsForOrderAndRecoversSameIdentity`
 verifies retryable lost-reply recovery and finalization after acknowledgment.
+
+Suspension and reinstatement require transport plus both service-level and
+transaction-level dispatch stores. `TestMissingRootDispatchStoreFailsBeforeAdmission`
+verifies that a missing service-level store creates no intent, role/audit change or
+Order call, even with transport and transaction persistence configured.
+`TestMissingRootDispatchStorePreservesExistingIntent` covers retry, direct apply
+and recovery without changing existing intent. `TestOrdinaryRoleChangesDoNotRequireRootDispatchStore`
+preserves promotion/demotion without a suspension-dispatch dependency.
 
 ## Deleted targets and startup availability
 
@@ -119,6 +130,7 @@ credentials, access policy or production transport was introduced. Missing
 assignment identity and definite decision rejection remain explicit reconciliation
 cases, not permission to infer financial identity or replace immutable intent.
 
-Source-pinned Devin CLI Opus follow-up remains required before publication.
+Focused Devin CLI Opus follow-up on the dispatch-store guard remains required
+before publication.
 Passing local checks does not establish PR readiness or production authenticated
 suspension completion.
