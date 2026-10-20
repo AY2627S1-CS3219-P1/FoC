@@ -153,6 +153,7 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
+      KAFKA_BROKERS: kafka:9092
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
@@ -175,6 +176,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   supplier-service:

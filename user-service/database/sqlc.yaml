@@ -15,3 +15,14 @@ sql:
         overrides:
           - db_type: "citext"
             go_type: "string"
+  - name: "warnings"
+    engine: "postgresql"
+    queries: "query/warnings.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "warningdb"
+        out: "../internal/database/warningdb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true

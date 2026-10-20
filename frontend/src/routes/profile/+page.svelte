@@ -104,6 +104,7 @@
 		<Card variant="outlined">
 			<div class="panel-body">
 				<div class="account-facts"><div><span>Email</span><strong>{profile.email}</strong></div><div><span>Account role</span><strong>{roleLabel(profile.role)}</strong></div></div>
+				<div class="form-actions"><Button variant="outlined" href="/profile/warnings">View My Warnings</Button></div>
 				{#if profile.role === UserRole.SUSPENDED_USER}
 					<p class="notice" role="status">Your account is suspended. You can view your profile, but editing is unavailable.</p>
 				<div class="account-facts"><div><span>Display name</span><strong>{profile.displayName}</strong></div><div><span>Description</span><strong>{profile.description || '—'}</strong></div><div><span>Phone</span><strong>{profile.phoneNumber || '—'}</strong></div></div>

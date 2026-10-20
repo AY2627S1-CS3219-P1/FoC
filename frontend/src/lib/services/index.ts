@@ -4,6 +4,7 @@ import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { createWarningService } from './warning/index.ts';
 import { createOrderApi } from './order/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 import { createTelegramLinkApi } from './telegram/index.ts';
@@ -20,6 +21,7 @@ const protectedUserTransport = createCustomTransport({
 
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
+export const warningService = createWarningService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
 const supplierTransport = createCustomTransport({

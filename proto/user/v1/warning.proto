@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+service WarningService {
+  rpc GetMyWarnings(GetMyWarningsRequest) returns (GetMyWarningsResponse) {}
+  rpc GetWarningsForUser(GetWarningsForUserRequest) returns (GetWarningsForUserResponse) {}
+}
+
+enum WarningStatus {
+  WARNING_STATUS_UNSPECIFIED = 0;
+  WARNING_STATUS_ACTIVE = 1;
+  WARNING_STATUS_REMOVED = 2;
+}
+
+message AccountWarning {
+  string id = 1;
+  string request_id = 2;
+  string reason = 3;
+  WarningStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp removed_at = 6;
+  optional string removed_reason = 7;
+}
+
+message GetMyWarningsRequest {}
+
+message GetMyWarningsResponse {
+  repeated AccountWarning warnings = 1;
+}
+
+message GetWarningsForUserRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetWarningsForUserResponse {
+  repeated AccountWarning warnings = 1;
+}
