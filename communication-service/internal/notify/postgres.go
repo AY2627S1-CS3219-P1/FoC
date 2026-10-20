@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,10 +19,7 @@ type PostgresDeliveries struct {
 
 // Sent implements Deliveries.
 func (d *PostgresDeliveries) Sent(ctx context.Context, eventID, userID uuid.UUID) (bool, error) {
-	var sent bool
-	err := d.Pool.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM order_notifications_sent WHERE event_id = $1 AND user_id = $2)`,
-		eventID, userID).Scan(&sent)
+	sent, err := db.New(d.Pool).NotificationSent(ctx, db.NotificationSentParams{EventID: eventID, UserID: userID})
 	if err != nil {
 		return false, fmt.Errorf("check sent: %w", err)
 	}
@@ -30,9 +28,9 @@ func (d *PostgresDeliveries) Sent(ctx context.Context, eventID, userID uuid.UUID
 
 // RecordSent implements Deliveries. Recording twice is harmless.
 func (d *PostgresDeliveries) RecordSent(ctx context.Context, eventID, userID uuid.UUID, at time.Time) error {
-	if _, err := d.Pool.Exec(ctx, `
-		INSERT INTO order_notifications_sent (event_id, user_id, sent_at) VALUES ($1, $2, $3)
-		ON CONFLICT DO NOTHING`, eventID, userID, at); err != nil {
+	if err := db.New(d.Pool).RecordNotificationSent(ctx, db.RecordNotificationSentParams{
+		EventID: eventID, UserID: userID, SentAt: at,
+	}); err != nil {
 		return fmt.Errorf("record sent: %w", err)
 	}
 	return nil
