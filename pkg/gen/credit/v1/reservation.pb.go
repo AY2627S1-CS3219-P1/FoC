@@ -88,7 +88,9 @@ func (x *ReserveRequest) GetAmount() int64 {
 
 // Applies an accepted offer to a Held reservation and records the courier.
 // Accepting at the original reward is also an offer, so Order supplies an
-// offer_id for every acceptance. The hold becomes offer_amount; if the
+// offer_id for every acceptance. offer_amount must be at least
+// original_amount (invalid_argument otherwise), so a revert never needs back
+// credits the requester has spent. The hold becomes offer_amount; if the
 // increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
 // returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
 type AdjustReservationRequest struct {
@@ -216,11 +218,11 @@ func (x *RevertAdjustmentRequest) GetOfferId() string {
 	return ""
 }
 
-// Returns the whole hold to the requester only as compensation for creation
-// that never opened. Opened orders settle exclusively through Kafka
-// order.outcome events, including cancellation, expiry and failure. An unknown
-// request is recorded as released, so a later Reserve for it fails with
-// RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled reservation.
+// Returns the whole hold to the requester, only as compensation for a creation
+// that never opened. Opened orders settle through order.outcome instead. An
+// unknown request is recorded as released, so a later Reserve for it fails
+// with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+// reservation.
 type ReleaseReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`

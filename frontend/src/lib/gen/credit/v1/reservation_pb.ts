@@ -50,7 +50,9 @@ export const ReserveRequestSchema: GenMessage<ReserveRequest> = /*@__PURE__*/
 /**
  * Applies an accepted offer to a Held reservation and records the courier.
  * Accepting at the original reward is also an offer, so Order supplies an
- * offer_id for every acceptance. The hold becomes offer_amount; if the
+ * offer_id for every acceptance. offer_amount must be at least
+ * original_amount (invalid_argument otherwise), so a revert never needs back
+ * credits the requester has spent. The hold becomes offer_amount; if the
  * increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
  * returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
  *
@@ -114,11 +116,11 @@ export const RevertAdjustmentRequestSchema: GenMessage<RevertAdjustmentRequest> 
   messageDesc(file_credit_v1_reservation, 2);
 
 /**
- * Returns the whole hold to the requester only as compensation for creation
- * that never opened. Opened orders settle exclusively through Kafka
- * order.outcome events, including cancellation, expiry and failure. An unknown
- * request is recorded as released, so a later Reserve for it fails with
- * RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled reservation.
+ * Returns the whole hold to the requester, only as compensation for a creation
+ * that never opened. Opened orders settle through order.outcome instead. An
+ * unknown request is recorded as released, so a later Reserve for it fails
+ * with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+ * reservation.
  *
  * @generated from message credit.v1.ReleaseReservationRequest
  */
@@ -249,21 +251,20 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
  * Order's credit reservations: one per order, keyed by request_id (the Order
  * Service order ID). Called by Order Service only, with its service token.
  *
- * Terminal settlement is driven exclusively by Kafka order.outcome events.
- * Order does not use ReleaseReservation for an opened order.
- * ReleaseReservation is compensation for creation that never opened;
- * RevertAdjustment compensates assignment attempts. Credit serializes these
- * operations with event settlement. request_id is the permanent Order UUID.
+ * Order never settles by RPC. Credit pays the courier and refunds the rest when
+ * it consumes Order's order.outcome event (#136), including for cancelled,
+ * expired and failed orders. ReleaseReservation only compensates a creation
+ * that never opened, and RevertAdjustment compensates assignment attempts.
+ * Credit serializes these calls with event settlement.
  *
  * Every mutation is idempotent by its key: request_id, or offer_id for
- * adjustments and reverts. Keys never expire. Different data for a retained
- * key is already_exists. Same-data retries return the stored result unless a
- * later state transition prevents that operation: Reserve after release returns
- * RESERVATION_RELEASED, and AdjustReservation for a reverted offer returns
- * ADJUSTMENT_REVERTED, rather than replaying the earlier success. Retrying never
- * reapplies the credit mutation. Settled and Released reservations never change
- * again, so no call pays or returns credits twice. Reports and appeals have no
- * path into this API.
+ * adjustments and reverts. Keys never expire. Different data for a key is
+ * already_exists. Repeating a call with the same data returns the stored
+ * result, unless a later transition prevents the operation: Reserve after a
+ * release returns RESERVATION_RELEASED, and AdjustReservation for a reverted
+ * offer returns ADJUSTMENT_REVERTED. A retry never reapplies a credit change.
+ * Settled and Released reservations never change again, so credits are paid or
+ * returned at most once. Reports and appeals have no path into this API.
  *
  * Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
  * reasons:
@@ -272,7 +273,6 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
  * - RESERVATION_NOT_FOUND (not_found)
  * - RESERVATION_RELEASED (failed_precondition)
  * - RESERVATION_SETTLED (failed_precondition)
- * - RESERVATION_NOT_ASSIGNED (failed_precondition)
  * - ADJUSTMENT_PENDING (failed_precondition)
  * - ADJUSTMENT_REVERTED (failed_precondition)
  * Branch on the reason, not the message. After a timeout, repeat the call with

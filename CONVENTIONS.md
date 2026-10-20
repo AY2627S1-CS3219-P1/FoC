@@ -182,6 +182,11 @@ Supplier and Order Services use sqlc:
   `internal/database/orderdb`, from `order-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
+Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
+and generates `internal/database/orderdb`; Communication keeps it at the service
+root, reads `migrations` and `queries`, and generates
+`internal/database/communicationdb`. Run `make sqlc` in the service directory.
+
 ## Frontend services
 
 - Keep each domain's service, API interface, and Connect adapter together under

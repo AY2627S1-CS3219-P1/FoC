@@ -4,6 +4,7 @@ import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { createTelegramLinkApi } from './telegram/index.ts';
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -25,3 +26,11 @@ const supplierTransport = createCustomTransport({
 });
 
 export const locationApi = createLocationApi(supplierTransport);
+
+const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
+const communicationTransport = createCustomTransport({
+	baseUrl: communicationServiceBaseUrl,
+	interceptors: [authService.interceptor]
+});
+
+export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
