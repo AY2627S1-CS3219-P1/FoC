@@ -887,12 +887,15 @@ func (x *ConfirmReceiptRequest) GetOrderId() string {
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
+// Keyless calls use current state and must never be automatically retried after uncertainty.
+// A fresh key expresses a new cancellation; retained keys replay their operation.
 type CancelOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Reason        *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IdempotencyKey *string                `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason         *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CancelOrderRequest) Reset() {
@@ -923,6 +926,13 @@ func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CancelOrderRequest.ProtoReflect.Descriptor instead.
 func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CancelOrderRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
 }
 
 func (x *CancelOrderRequest) GetId() string {
@@ -1652,6 +1662,7 @@ func (x *ConfirmReceiptResponse) GetOrder() *Order {
 type CancelOrderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Cancellation  *CancellationResult    `protobuf:"bytes,2,opt,name=cancellation,proto3" json:"cancellation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1689,6 +1700,13 @@ func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
 func (x *CancelOrderResponse) GetOrder() *Order {
 	if x != nil {
 		return x.Order
+	}
+	return nil
+}
+
+func (x *CancelOrderResponse) GetCancellation() *CancellationResult {
+	if x != nil {
+		return x.Cancellation
 	}
 	return nil
 }
@@ -1814,11 +1832,13 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"unattended\x18\x03 \x01(\bR\n" +
 	"unattended\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xe9\x01\n" +
-	"\x12CancelOrderRequest\x12\x18\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb5\x02\n" +
+	"\x12CancelOrderRequest\x126\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x0eidempotencyKey\x88\x01\x01\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
-	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01B\t\n" +
+	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x01R\x06reason\x88\x01\x01B\x12\n" +
+	"\x10_idempotency_keyB\t\n" +
 	"\a_reason\"\xa2\x02\n" +
 	"\x19RecordItemLocationRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xdf\x01\n" +
@@ -1866,9 +1886,10 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x17ConfirmDeliveryResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"?\n" +
 	"\x16ConfirmReceiptResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"<\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"~\n" +
 	"\x13CancelOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"C\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12@\n" +
+	"\fcancellation\x18\x02 \x01(\v2\x1c.order.v1.CancellationResultR\fcancellation\"C\n" +
 	"\x1aRecordItemLocationResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\x98\n" +
 	"\n" +
@@ -1947,6 +1968,7 @@ var file_order_v1_order_proto_goTypes = []any{
 	(*PageInfo)(nil),                      // 38: order.v1.PageInfo
 	(*AssignmentAttemptResult)(nil),       // 39: order.v1.AssignmentAttemptResult
 	(*Offer)(nil),                         // 40: order.v1.Offer
+	(*CancellationResult)(nil),            // 41: order.v1.CancellationResult
 }
 var file_order_v1_order_proto_depIdxs = []int32{
 	1,  // 0: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
@@ -1975,42 +1997,43 @@ var file_order_v1_order_proto_depIdxs = []int32{
 	37, // 23: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
 	37, // 24: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
 	37, // 25: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
-	37, // 26: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
-	0,  // 27: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
-	2,  // 28: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
-	3,  // 29: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
-	4,  // 30: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
-	5,  // 31: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
-	6,  // 32: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
-	7,  // 33: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
-	8,  // 34: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
-	9,  // 35: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
-	10, // 36: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
-	11, // 37: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
-	12, // 38: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
-	13, // 39: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
-	14, // 40: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
-	15, // 41: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
-	16, // 42: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
-	17, // 43: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
-	18, // 44: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
-	19, // 45: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
-	20, // 46: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
-	21, // 47: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
-	22, // 48: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
-	23, // 49: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
-	24, // 50: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
-	25, // 51: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
-	26, // 52: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
-	27, // 53: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
-	28, // 54: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
-	29, // 55: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
-	30, // 56: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
-	42, // [42:57] is the sub-list for method output_type
-	27, // [27:42] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	41, // 26: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
+	37, // 27: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
+	0,  // 28: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
+	2,  // 29: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
+	3,  // 30: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
+	4,  // 31: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
+	5,  // 32: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
+	6,  // 33: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
+	7,  // 34: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
+	8,  // 35: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
+	9,  // 36: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
+	10, // 37: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
+	11, // 38: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
+	12, // 39: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
+	13, // 40: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
+	14, // 41: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
+	15, // 42: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
+	16, // 43: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
+	17, // 44: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
+	18, // 45: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
+	19, // 46: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
+	20, // 47: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
+	21, // 48: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
+	22, // 49: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
+	23, // 50: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
+	24, // 51: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
+	25, // 52: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
+	26, // 53: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
+	27, // 54: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
+	28, // 55: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
+	29, // 56: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
+	30, // 57: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
+	43, // [43:58] is the sub-list for method output_type
+	28, // [28:43] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_order_proto_init() }

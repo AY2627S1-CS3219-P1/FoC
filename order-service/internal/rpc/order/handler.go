@@ -31,10 +31,11 @@ type ImageOperations interface {
 
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
-	operations  Operations
-	creator     CreationOperations
-	images      ImageOperations
-	assignments AssignmentOperations
+	operations    Operations
+	creator       CreationOperations
+	images        ImageOperations
+	assignments   AssignmentOperations
+	cancellations CancellationOperations
 }
 
 func NewServer(operations Operations, creator CreationOperations, images ImageOperations, assignments ...AssignmentOperations) *Server {

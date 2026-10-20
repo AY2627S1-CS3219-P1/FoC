@@ -304,7 +304,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" {
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {
