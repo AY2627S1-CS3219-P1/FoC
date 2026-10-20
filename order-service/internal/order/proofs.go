@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -126,7 +125,7 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 		if err != nil {
 			return nil, err
 		}
-		if !reflect.DeepEqual(stored, upload) || !grant.ExpiresAt.After(s.timestamp()) {
+		if !proofUploadMatches(stored, upload) || !grant.ExpiresAt.After(s.timestamp()) {
 			return nil, ErrConflict
 		}
 		return nil, nil
@@ -508,6 +507,17 @@ func canUploadProof(o Order, caller Caller, now time.Time) error {
 		return ErrPrecondition
 	}
 	return nil
+}
+
+// proofUploadMatches compares persisted values, not time zone or monotonic
+// clock representation, while rejecting any changed identity or grant field.
+func proofUploadMatches(stored, expected ProofUpload) bool {
+	return stored.State == expected.State && stored.ID == expected.ID &&
+		stored.OrderID == expected.OrderID && stored.CourierID == expected.CourierID &&
+		stored.UploadID == expected.UploadID && stored.Key == expected.Key &&
+		stored.ContentType == expected.ContentType && stored.SizeBytes == expected.SizeBytes &&
+		stored.Generation == expected.Generation && stored.GrantedAt.Equal(expected.GrantedAt) &&
+		stored.ExpiresAt.Equal(expected.ExpiresAt) && stored.CreatedAt.Equal(expected.CreatedAt)
 }
 
 func proofBelongsTo(row ProofUpload, orderID, courierID string) bool {

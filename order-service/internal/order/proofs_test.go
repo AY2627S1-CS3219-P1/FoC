@@ -30,6 +30,7 @@ type proofMemory struct {
 	mu                sync.Mutex
 	order             Order
 	uploads           map[string]ProofUpload
+	readLocation      *time.Location
 	confirmation      *ProofConfirmation
 	changes           []Change
 	inside            bool
@@ -94,6 +95,11 @@ func (r *proofMemory) GetProofUpload(_ context.Context, id string) (ProofUpload,
 	if !ok {
 		return ProofUpload{}, ErrNotFound
 	}
+	if r.readLocation != nil {
+		row.GrantedAt = row.GrantedAt.In(r.readLocation)
+		row.ExpiresAt = row.ExpiresAt.In(r.readLocation)
+		row.CreatedAt = row.CreatedAt.In(r.readLocation)
+	}
 	return row, nil
 }
 func (r *proofMemory) SaveProofUpload(_ context.Context, row ProofUpload) error {
@@ -123,7 +129,7 @@ func (r *proofMemory) SaveProofConfirmation(_ context.Context, c ProofConfirmati
 		return ErrConflict
 	}
 	for _, row := range rows {
-		if stored, ok := r.uploads[row.ID]; !ok || !reflect.DeepEqual(stored, row) {
+		if stored, ok := r.uploads[row.ID]; !ok || !proofUploadMatches(stored, row) {
 			return ErrConflict
 		}
 	}
