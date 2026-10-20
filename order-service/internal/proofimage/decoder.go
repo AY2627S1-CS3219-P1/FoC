@@ -95,6 +95,12 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 		if bounded.Err() != nil {
 			return app.ErrUnavailable
 		}
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) || exit.ProcessState == nil || !exit.Exited() {
+			// Spawn failures and external kills are unknown validation results,
+			// not evidence that immutable, previously verified bytes are bad.
+			return app.ErrUnavailable
+		}
 		return app.ErrPrecondition
 	}
 	if output.written < 3 || output.written%3 != 0 {

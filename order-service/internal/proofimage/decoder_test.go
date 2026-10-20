@@ -103,3 +103,15 @@ func TestProofDecoderExecutionTimeoutIsRetryable(t *testing.T) {
 		t.Fatalf("timeout classified as invalid media: %v", err)
 	}
 }
+
+// A killed native decoder must preserve an admitted receipt for retry rather
+// than label previously verified immutable evidence as invalid media.
+func TestProofDecoderExternalKillIsRetryable(t *testing.T) {
+	binary := t.TempDir() + "/killed-decoder"
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nkill -KILL $$\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewDecoder(binary).Validate(t.Context(), "image/png", []byte("previously verified pixels")); !errors.Is(err, app.ErrUnavailable) {
+		t.Fatalf("external kill classified as invalid media: %v", err)
+	}
+}
