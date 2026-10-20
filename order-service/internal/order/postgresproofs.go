@@ -204,7 +204,7 @@ func (t *postgresTx) SaveProofConfirmation(ctx context.Context, c ProofConfirmat
 		if err != nil {
 			return t.writeResult(err)
 		}
-		if !proofUploadMatches(stored, expected) || stored.State != ProofUploading || !proofBelongsTo(stored, c.OrderID, c.CourierID) || stored.VerifiedAt == nil || stored.VerifiedAt.After(receipt.ReceivedAt) {
+		if !proofEvidenceMatches(stored, expected) || stored.State != ProofUploading || !proofBelongsTo(stored, c.OrderID, c.CourierID) || stored.VerifiedAt == nil || expected.VerifiedAt == nil || !stored.VerifiedAt.Equal(*expected.VerifiedAt) || stored.VerifiedAt.After(receipt.ReceivedAt) {
 			return t.writeResult(ErrPrecondition)
 		}
 		n, err := t.q.AcceptProofUpload(ctx, uuid.MustParse(stored.ID))

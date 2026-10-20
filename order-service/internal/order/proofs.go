@@ -618,6 +618,16 @@ func canUploadProof(o Order, caller Caller, now time.Time) error {
 	return nil
 }
 
+// proofEvidenceMatches excludes renewable grant metadata. Credential rotation
+// cannot replace immutable, already-verified bytes or invalidate their receipt.
+func proofEvidenceMatches(stored, expected ProofUpload) bool {
+	return stored.State == expected.State && stored.ID == expected.ID &&
+		stored.OrderID == expected.OrderID && stored.CourierID == expected.CourierID &&
+		stored.UploadID == expected.UploadID && stored.Key == expected.Key &&
+		stored.ContentType == expected.ContentType && stored.SizeBytes == expected.SizeBytes &&
+		stored.UploadScope == expected.UploadScope && stored.CreatedAt.Equal(expected.CreatedAt)
+}
+
 // proofUploadMatches compares persisted values, not time zone or monotonic
 // clock representation, while rejecting any changed identity or grant field.
 func proofUploadMatches(stored, expected ProofUpload) bool {
