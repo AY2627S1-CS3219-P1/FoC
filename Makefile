@@ -3,7 +3,7 @@ BUF := .tools/buf/$(BUF_VERSION)/buf
 
 GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
-GO_MODULES := pkg user-service supplier-service order-service credit-service
+GO_MODULES := pkg user-service supplier-service order-service communication-service credit-service
 
 .PHONY: buf-lint buf-generate buf-generate-rpc buf-generate-kafka fmt fmt-check lint
 

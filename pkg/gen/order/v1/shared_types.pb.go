@@ -239,11 +239,13 @@ type Order struct {
 	// Where the item ended up after cancellation following pickup.
 	ItemLocation *string `protobuf:"bytes,19,opt,name=item_location,json=itemLocation,proto3,oneof" json:"item_location,omitempty"`
 	// For optimistic concurrency.
-	Revision      int64                  `protobuf:"varint,20,opt,name=revision,proto3" json:"revision,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,21,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,22,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Revision  int64                  `protobuf:"varint,20,opt,name=revision,proto3" json:"revision,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,21,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,22,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Approximate destination, available without exact delivery access.
+	DeliveryBuildingName string `protobuf:"bytes,23,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Order) Reset() {
@@ -430,6 +432,13 @@ func (x *Order) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Order) GetDeliveryBuildingName() string {
+	if x != nil {
+		return x.DeliveryBuildingName
+	}
+	return ""
+}
+
 // A Supplier Location copied when the order is created, so later Location
 // edits or archiving don't change existing orders.
 type LocationSnapshot struct {
@@ -502,10 +511,9 @@ func (x *LocationSnapshot) GetFloor() string {
 
 type DeliveryDetails struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Visible to couriers browsing open orders.
+	// Exact destination. Absent without participant or authoritative case access.
 	Location *LocationSnapshot `protobuf:"bytes,1,opt,name=location,proto3" json:"location,omitempty"`
-	// How to hand the item over. Redacted unless the caller is a participant
-	// or an admin.
+	// How to hand the item over. Restricted with the exact destination.
 	Instructions  *string `protobuf:"bytes,2,opt,name=instructions,proto3,oneof" json:"instructions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -777,7 +785,7 @@ var File_order_v1_shared_types_proto protoreflect.FileDescriptor
 
 const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfc\b\n" +
+	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb2\t\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12\"\n" +
@@ -808,7 +816,8 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\r\n" +
+	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
+	"\x16delivery_building_name\x18\x17 \x01(\tR\x14deliveryBuildingNameB\r\n" +
 	"\v_courier_idB\x0f\n" +
 	"\r_close_reasonB\x10\n" +
 	"\x0e_item_location\"\x91\x01\n" +

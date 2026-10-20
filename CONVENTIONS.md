@@ -37,7 +37,8 @@
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
   default golangci-lint correctness linters across `pkg`, `user-service`,
-  `supplier-service`, `order-service` and `credit-service`. CI installs the tool
+  `supplier-service`, `order-service`, `communication-service` and
+  `credit-service`. CI installs the tool
   with the official action, then runs the same target for each module. The
   Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
@@ -183,6 +184,11 @@ Supplier, Order and Credit Services use sqlc:
   `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
   generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
+and generates `internal/database/orderdb`; Communication keeps it at the service
+root, reads `migrations` and `queries`, and generates
+`internal/database/communicationdb`. Run `make sqlc` in the service directory.
 
 ## Frontend services
 

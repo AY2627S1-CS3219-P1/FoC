@@ -11,7 +11,7 @@ type ReadQuery struct {
 
 // Reader provides non-locking, consistent snapshots for every multi-query call.
 type Reader interface {
-	Get(context.Context, string) (Order, error)
+	GetWithParticipation(context.Context, string, string) (Order, bool, error)
 	List(context.Context, ReadQuery) (OrderPage, error)
 	Offers(context.Context, Caller, string, OfferStatus) ([]Offer, error)
 }

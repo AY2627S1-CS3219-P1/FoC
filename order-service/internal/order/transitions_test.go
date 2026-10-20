@@ -40,7 +40,7 @@ func TestTransitions(t *testing.T) {
 				if s == AwaitingCourier && a == Assign && actor == courier {
 					expected = AwaitingPickup
 				}
-				expectedRepeat := (s == AwaitingPickup && a == Assign && actor == courier) || (s == Completed && a == ConfirmReceipt && actor == requester)
+				expectedRepeat := (s == AwaitingPickup && a == Assign && actor == courier) || (s == Delivering && a == Pickup && actor == courier) || (s == Completed && a == ConfirmReceipt && actor == requester)
 				if expectedRepeat {
 					expected = s
 				}
