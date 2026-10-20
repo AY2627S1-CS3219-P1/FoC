@@ -38,6 +38,8 @@ type Server struct {
 	cancellations CancellationOperations
 	progress      ProgressOperations
 	disposition   DispositionOperations
+	proofs        ProofOperations
+	proofReceipts ProofReceiptOperations
 }
 
 func NewServer(operations Operations, creator CreationOperations, images ImageOperations, assignments ...AssignmentOperations) *Server {
@@ -94,7 +96,11 @@ func (s *Server) ListOpenOrders(ctx context.Context, req *connect.Request[pb.Lis
 	if m.DeliveryLocationId != nil {
 		return nil, shared.ConnectError(ctx, app.ErrInvalid)
 	}
-	r := app.ListRequest{Page: app.Page{Number: m.GetPage(), Size: m.GetPageSize()}, PickupID: m.GetPickupLocationId(), DeliveryBuildingName: m.GetDeliveryBuildingName()}
+	r := app.ListRequest{
+		Page:                 app.Page{Number: m.GetPage(), Size: m.GetPageSize()},
+		PickupID:             m.GetPickupLocationId(),
+		DeliveryBuildingName: m.GetDeliveryBuildingName(),
+	}
 
 	p, err := s.operations.ListOpenOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {

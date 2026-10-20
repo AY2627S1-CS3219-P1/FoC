@@ -62,6 +62,9 @@ func (t *postgresTx) CountStagedProofs(ctx context.Context, orderID, courierID s
 }
 
 func (t *postgresTx) GetProofUpload(ctx context.Context, id string) (ProofUpload, error) {
+	if len(t.locked) == 0 {
+		return ProofUpload{}, ErrPrecondition
+	}
 	parsed, err := parseID(id)
 	if err != nil {
 		return ProofUpload{}, err
@@ -71,7 +74,7 @@ func (t *postgresTx) GetProofUpload(ctx context.Context, id string) (ProofUpload
 		return ProofUpload{}, persistenceError(err)
 	}
 	if err := t.proofLocked(row.OrderID.String()); err != nil {
-		return ProofUpload{}, err
+		return ProofUpload{}, ErrNotFound
 	}
 	return fromProofUpload(row), nil
 }
@@ -80,6 +83,15 @@ func (t *postgresTx) SaveProofUpload(ctx context.Context, row ProofUpload) error
 	if err := t.proofLocked(row.OrderID); err != nil {
 		return t.writeResult(err)
 	}
+	_, existingErr := t.q.GetProofUpload(ctx, uuid.MustParse(row.ID))
+	if errors.Is(persistenceError(existingErr), ErrNotFound) {
+		if err := t.proofIdentityBudget(ctx, row.OrderID, row.CourierID); err != nil {
+			return t.writeResult(err)
+		}
+	} else if existingErr != nil {
+		return t.writeResult(existingErr)
+	}
+
 	fenced, err := t.q.ProofIdentityFenced(ctx, db.ProofIdentityFencedParams{OrderID: uuid.MustParse(row.OrderID), CourierID: uuid.MustParse(row.CourierID), UploadID: uuid.MustParse(row.UploadID)})
 	if err != nil {
 		return t.writeResult(err)
@@ -87,7 +99,22 @@ func (t *postgresTx) SaveProofUpload(ctx context.Context, row ProofUpload) error
 	if fenced {
 		return t.writeResult(ErrPrecondition)
 	}
-	n, err := t.q.SaveProofUpload(ctx, db.SaveProofUploadParams{ID: uuid.MustParse(row.ID), OrderID: uuid.MustParse(row.OrderID), CourierID: uuid.MustParse(row.CourierID), UploadID: uuid.MustParse(row.UploadID), ObjectKey: row.Key, ContentType: row.ContentType, SizeBytes: row.SizeBytes, State: string(row.State), Generation: row.Generation, SigningEpoch: row.SigningEpoch, GrantedAt: row.GrantedAt, ExpiresAt: row.ExpiresAt, CreatedAt: row.CreatedAt})
+	n, err := t.q.SaveProofUpload(ctx, db.SaveProofUploadParams{
+		ID:           uuid.MustParse(row.ID),
+		OrderID:      uuid.MustParse(row.OrderID),
+		CourierID:    uuid.MustParse(row.CourierID),
+		UploadID:     uuid.MustParse(row.UploadID),
+		ObjectKey:    row.Key,
+		ContentType:  row.ContentType,
+		SizeBytes:    row.SizeBytes,
+		State:        string(row.State),
+		Generation:   row.Generation,
+		SigningEpoch: row.SigningEpoch,
+		UploadScope:  row.UploadScope,
+		GrantedAt:    row.GrantedAt,
+		ExpiresAt:    row.ExpiresAt,
+		CreatedAt:    row.CreatedAt,
+	})
 	return t.proofWrite(n, err)
 }
 
@@ -127,7 +154,18 @@ func (t *postgresTx) AbandonProofUpload(ctx context.Context, orderID, courierID,
 			return t.writeResult(ErrPrecondition)
 		}
 	}
-	if err := t.q.FenceProofIdentity(ctx, db.FenceProofIdentityParams{OrderID: uuid.MustParse(orderID), CourierID: uuid.MustParse(courierID), UploadID: uuid.MustParse(uploadID), RetiredAt: at}); err != nil {
+	if errors.Is(err, ErrNotFound) {
+		if err = t.proofIdentityBudget(ctx, orderID, courierID); err != nil {
+			return t.writeResult(err)
+		}
+	}
+
+	if err := t.q.FenceProofIdentity(ctx, db.FenceProofIdentityParams{
+		OrderID:   uuid.MustParse(orderID),
+		CourierID: uuid.MustParse(courierID),
+		UploadID:  uuid.MustParse(uploadID),
+		RetiredAt: at,
+	}); err != nil {
 		return t.writeResult(err)
 	}
 	_, err = t.q.RetireProofUpload(ctx, db.RetireProofUploadParams{OrderID: uuid.MustParse(orderID), CourierID: uuid.MustParse(courierID), UploadID: uuid.MustParse(uploadID)})
@@ -189,11 +227,38 @@ func (t *postgresTx) SaveProofConfirmation(ctx context.Context, c ProofConfirmat
 }
 
 func fromProofUpload(row db.OrderProofUpload) ProofUpload {
-	return ProofUpload{ID: row.ID.String(), OrderID: row.OrderID.String(), CourierID: row.CourierID.String(), UploadID: row.UploadID.String(), Key: row.ObjectKey, ContentType: row.ContentType, SizeBytes: row.SizeBytes, State: ProofState(row.State), Generation: row.Generation, SigningEpoch: row.SigningEpoch, GrantedAt: row.GrantedAt, ExpiresAt: row.ExpiresAt, CreatedAt: row.CreatedAt, VerifiedAt: row.VerifiedAt}
+	return ProofUpload{
+		ID:           row.ID.String(),
+		OrderID:      row.OrderID.String(),
+		CourierID:    row.CourierID.String(),
+		UploadID:     row.UploadID.String(),
+		Key:          row.ObjectKey,
+		ContentType:  row.ContentType,
+		SizeBytes:    row.SizeBytes,
+		State:        ProofState(row.State),
+		Generation:   row.Generation,
+		SigningEpoch: row.SigningEpoch,
+		UploadScope:  row.UploadScope,
+		GrantedAt:    row.GrantedAt,
+		ExpiresAt:    row.ExpiresAt,
+		CreatedAt:    row.CreatedAt,
+		VerifiedAt:   row.VerifiedAt,
+	}
 }
 
 func fromDeliveryReceipt(row db.OrderDeliveryReceipt) (DeliveryReceipt, error) {
-	result := DeliveryReceipt{ID: row.ID.String(), OrderID: row.OrderID.String(), CourierID: row.CourierID.String(), ProofIDs: []string{}, Unattended: row.Unattended, WithoutProof: row.WithoutProof, ReceivedAt: row.ReceivedAt, ProcessedAt: row.ProcessedAt, State: row.State, AttemptCount: row.AttemptCount}
+	result := DeliveryReceipt{
+		ID:           row.ID.String(),
+		OrderID:      row.OrderID.String(),
+		CourierID:    row.CourierID.String(),
+		ProofIDs:     []string{},
+		Unattended:   row.Unattended,
+		WithoutProof: row.WithoutProof,
+		ReceivedAt:   row.ReceivedAt,
+		ProcessedAt:  row.ProcessedAt,
+		State:        row.State,
+		AttemptCount: row.AttemptCount,
+	}
 	for _, id := range row.ProofIds {
 		result.ProofIDs = append(result.ProofIDs, id.String())
 	}
@@ -239,7 +304,16 @@ func (t *postgresTx) InsertDeliveryReceipt(ctx context.Context, r DeliveryReceip
 	if err != nil {
 		return t.writeResult(err)
 	}
-	return t.writeResult(t.q.InsertDeliveryReceipt(ctx, db.InsertDeliveryReceiptParams{ID: uuid.MustParse(r.ID), OrderID: uuid.MustParse(r.OrderID), CourierID: uuid.MustParse(r.CourierID), ProofIds: ids, Unattended: r.Unattended, WithoutProof: r.WithoutProof, ReceivedAt: r.ReceivedAt, Outage: outage}))
+	return t.writeResult(t.q.InsertDeliveryReceipt(ctx, db.InsertDeliveryReceiptParams{
+		ID:           uuid.MustParse(r.ID),
+		OrderID:      uuid.MustParse(r.OrderID),
+		CourierID:    uuid.MustParse(r.CourierID),
+		ProofIds:     ids,
+		Unattended:   r.Unattended,
+		WithoutProof: r.WithoutProof,
+		ReceivedAt:   r.ReceivedAt,
+		Outage:       outage,
+	}))
 }
 
 func (t *postgresTx) FinishDeliveryReceipt(ctx context.Context, id, state string, at time.Time) error {
@@ -262,8 +336,8 @@ func (r *PostgresRepository) DeliveryReceipt(ctx context.Context, id string) (De
 	return fromDeliveryReceipt(row)
 }
 
-func (r *PostgresRepository) DueProofReceipts(ctx context.Context, now time.Time, limit int32) ([]string, error) {
-	rows, err := db.New(r.pool).DueProofReceipts(ctx, db.DueProofReceiptsParams{NextAttemptAt: now, Limit: limit})
+func (r *PostgresRepository) DueProofReceipts(ctx context.Context, limit int32) ([]string, error) {
+	rows, err := db.New(r.pool).DueProofReceipts(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -274,12 +348,12 @@ func (r *PostgresRepository) DueProofReceipts(ctx context.Context, now time.Time
 	return ids, nil
 }
 
-func (r *PostgresRepository) RetryProofReceipt(ctx context.Context, receipt DeliveryReceipt, next time.Time) error {
-	return db.New(r.pool).RetryProofReceipt(ctx, db.RetryProofReceiptParams{ID: uuid.MustParse(receipt.ID), NextAttemptAt: next})
+func (r *PostgresRepository) RetryProofReceipt(ctx context.Context, receipt DeliveryReceipt) error {
+	return db.New(r.pool).RetryProofReceipt(ctx, uuid.MustParse(receipt.ID))
 }
 
-func (r *PostgresRepository) AlertProofReceipt(ctx context.Context, id string, now time.Time) (bool, error) {
-	n, err := db.New(r.pool).AlertProofReceipt(ctx, db.AlertProofReceiptParams{ID: uuid.MustParse(id), AlertedAt: &now, AlertedAt_2: &[]time.Time{now.Add(-time.Hour)}[0]})
+func (r *PostgresRepository) AlertProofReceipt(ctx context.Context, id string) (bool, error) {
+	n, err := db.New(r.pool).AlertProofReceipt(ctx, uuid.MustParse(id))
 	return n == 1, err
 }
 
@@ -300,3 +374,20 @@ func (t *postgresTx) IsProofOutageCurrent(ctx context.Context, outage ProofOutag
 var _ ProofRepository = (*PostgresRepository)(nil)
 var _ ReceiptRepository = (*PostgresRepository)(nil)
 var _ ReceiptTx = (*postgresTx)(nil)
+
+// Bound unknown-identity tombstones as well as upload admission. Refreshes and
+// retirement of already-known identities remain possible at the budget limit.
+func (t *postgresTx) proofIdentityBudget(ctx context.Context, orderID, courierID string) error {
+	now, err := t.ProofServerTime(ctx)
+	if err != nil {
+		return err
+	}
+	count, err := t.q.CountRecentProofIdentities(ctx, db.CountRecentProofIdentitiesParams{OrderID: uuid.MustParse(orderID), CourierID: uuid.MustParse(courierID), SinceAt: now.Add(-time.Hour)})
+	if err != nil {
+		return err
+	}
+	if count >= MaxNewProofIdentitiesPerHour {
+		return ErrRateLimited
+	}
+	return nil
+}

@@ -25,12 +25,15 @@ type Proofs struct {
 	validator         ProofImageValidator
 	outages           ProofOutageAuthority
 	uploadScope       string
+	outageScope       string
 	verificationSlots chan struct{}
+	clockOverride     bool
 	now               func() time.Time
 	newID             func() string
 }
 
 func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects ProofObjects, validator ProofImageValidator, options ProofOptions) *Proofs {
+	clockOverride := options.Now != nil
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -38,6 +41,9 @@ func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects Proo
 		options.NewID = uuid.NewString
 	}
 
+	if options.OutageScope == "" {
+		options.OutageScope = options.UploadScope
+	}
 	return &Proofs{
 		repository:        repository,
 		grants:            grants,
@@ -45,7 +51,9 @@ func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects Proo
 		validator:         validator,
 		outages:           options.Outages,
 		uploadScope:       options.UploadScope,
+		outageScope:       options.OutageScope,
 		verificationSlots: make(chan struct{}, 2),
+		clockOverride:     clockOverride,
 		now:               options.Now,
 		newID:             options.NewID,
 	}
@@ -69,9 +77,17 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 		return ProofUpload{}, images.UploadGrant{}, ErrUnavailable
 	}
 
+	epoch, credentialExpiry, err := s.grants.ProofSigningEpoch(ctx)
+	if err != nil || epoch == "" {
+		return ProofUpload{}, images.UploadGrant{}, ErrUnavailable
+	}
+
 	var upload ProofUpload
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
-		now := s.timestamp()
+		now, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
 		if err := canUploadProof(o, caller, now); err != nil {
 			return nil, err
 		}
@@ -91,17 +107,24 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 			stored = ProofUpload{
 				ID: proofID, OrderID: o.ID, CourierID: caller.ID, UploadID: in.UploadID,
 				Key: "order/proof/" + proofID, ContentType: in.ContentType, SizeBytes: in.SizeBytes,
-				CreatedAt: now, State: ProofUploading,
+				CreatedAt: now, State: ProofUploading, UploadScope: s.uploadScope,
 			}
-		} else if stored.State != ProofUploading {
+		} else if stored.State != ProofUploading || stored.UploadScope != s.uploadScope {
 			return nil, ErrPrecondition
 		} else if stored.ContentType != in.ContentType || stored.SizeBytes != in.SizeBytes {
 			return nil, ErrAlreadyExists
 		}
-		if stored.Generation == 0 || !stored.ExpiresAt.After(now) {
+		if stored.Generation == 0 || !stored.ExpiresAt.After(now) || stored.SigningEpoch != epoch {
 			stored.Generation++
-			stored.GrantedAt = now
-			stored.ExpiresAt = now.Add(ImageUploadLifetime)
+			stored.GrantedAt = now.Truncate(time.Second)
+			stored.SigningEpoch = epoch
+			stored.ExpiresAt = stored.GrantedAt.Add(ImageUploadLifetime)
+			if !credentialExpiry.IsZero() && credentialExpiry.Before(stored.ExpiresAt) {
+				stored.ExpiresAt = credentialExpiry
+			}
+			if !stored.ExpiresAt.After(now) {
+				return nil, ErrUnavailable
+			}
 			if err := tx.SaveProofUpload(ctx, stored); err != nil {
 				return nil, err
 			}
@@ -118,14 +141,18 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 		return ProofUpload{}, images.UploadGrant{}, ErrUnavailable
 	}
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
-		if err := canUploadProof(o, caller, s.timestamp()); err != nil {
+		now, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		if err := canUploadProof(o, caller, now); err != nil {
 			return nil, err
 		}
 		stored, err := tx.GetProofUpload(ctx, upload.ID)
 		if err != nil {
 			return nil, err
 		}
-		if !proofUploadMatches(stored, upload) || !grant.ExpiresAt.After(s.timestamp()) {
+		if !proofUploadMatches(stored, upload) || !grant.ExpiresAt.After(now) {
 			return nil, ErrConflict
 		}
 		return nil, nil
@@ -160,7 +187,11 @@ func (s *Proofs) AbandonUpload(ctx context.Context, caller Caller, orderID, uplo
 		if err == nil && row.State == ProofAccepted {
 			return nil, ErrPrecondition
 		}
-		return nil, tx.AbandonProofUpload(ctx, orderID, caller.ID, id.String(), s.timestamp())
+		now, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		return nil, tx.AbandonProofUpload(ctx, orderID, caller.ID, id.String(), now)
 	})
 }
 
@@ -180,7 +211,11 @@ func (s *Proofs) VerifyUpload(ctx context.Context, caller Caller, orderID, proof
 
 	var upload ProofUpload
 	err = s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
-		if err := canUploadProof(o, caller, s.timestamp()); err != nil {
+		now, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		if err := canUploadProof(o, caller, now); err != nil {
 			return nil, err
 		}
 		row, err := tx.GetProofUpload(ctx, id.String())
@@ -200,18 +235,17 @@ func (s *Proofs) VerifyUpload(ctx context.Context, caller Caller, orderID, proof
 		return err
 	}
 	return s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
-		if err := canUploadProof(o, caller, s.timestamp()); err != nil {
+		now, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		if err := canUploadProof(o, caller, now); err != nil {
 			return nil, err
 		}
 		if err := s.recheckProofs(ctx, tx, o, caller, []ProofUpload{upload}); err != nil {
 			return nil, err
 		}
-		if verified, ok := tx.(interface {
-			MarkProofVerified(context.Context, string) error
-		}); ok {
-			return nil, verified.MarkProofVerified(ctx, upload.ID)
-		}
-		return nil, nil
+		return nil, tx.MarkProofVerified(ctx, upload.ID)
 	})
 }
 
@@ -272,6 +306,7 @@ func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDe
 	if in.WithoutProof {
 		if receipt != nil && receipt.Outage != nil {
 			outage = *receipt.Outage
+
 		} else {
 			if s.outages == nil {
 				return Order{}, ErrPrecondition
@@ -285,7 +320,7 @@ func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDe
 		if receipt != nil {
 			at = receipt.ReceivedAt
 		}
-		if !s.isCurrentProofOutage(outage, at) {
+		if receipt == nil && !s.isCurrentProofOutage(outage, at) {
 			return Order{}, ErrPrecondition
 		}
 	} else {
@@ -301,7 +336,10 @@ func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDe
 		if err != nil {
 			return nil, err
 		}
-		processedAt := s.timestamp()
+		processedAt, err := s.proofTime(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
 		if receipt != nil {
 			processedAt, err = tx.(ReceiptTx).ProofServerTime(ctx)
 			if err != nil {
@@ -373,7 +411,7 @@ func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDe
 // record under the parent lock before using its earlier effective timestamp.
 func (s *Proofs) receiptTime(ctx context.Context, tx ProofTx, c Caller, in ConfirmDeliveryInput, expected *DeliveryReceipt) (time.Time, error) {
 	if expected == nil {
-		return s.timestamp(), nil
+		return s.proofTime(ctx, tx)
 	}
 	receipts, ok := tx.(ReceiptTx)
 	if !ok {
@@ -426,6 +464,9 @@ func (s *Proofs) recheckProofs(ctx context.Context, tx ProofTx, o Order, caller 
 }
 
 func (s *Proofs) verifyObject(ctx context.Context, upload ProofUpload) error {
+	if upload.UploadScope != s.uploadScope {
+		return ErrUnavailable
+	}
 	// Admit before fetching or allocating object bytes. Do not retain an
 	// unbounded queue of 10 MB bodies waiting for the native decoder.
 	select {
@@ -479,12 +520,21 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 	}
 	var confirmation ProofConfirmation
 	var rows []ProofUpload
+	var pending *DeliveryReceipt
 	err = s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
 		if !o.HasParticipant(caller.ID) {
 			return nil, ErrNotFound
 		}
 		stored, err := tx.GetProofConfirmation(ctx, orderID)
 		if errors.Is(err, ErrNotFound) {
+			if receiptTx, ok := tx.(ReceiptTx); ok && o.IsAssignedTo(caller.ID) {
+				value, e := receiptTx.GetPendingDeliveryReceipt(ctx, orderID)
+				if e == nil {
+					pending = &value
+				} else if !errors.Is(e, ErrNotFound) {
+					return nil, e
+				}
+			}
 			return nil, nil
 		}
 		if err != nil {
@@ -499,6 +549,9 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 			if row.State != ProofAccepted || !proofBelongsTo(row, orderID, stored.CourierID) {
 				return nil, ErrPrecondition
 			}
+			if row.UploadScope != s.uploadScope {
+				return nil, ErrUnavailable
+			}
 			rows = append(rows, row)
 		}
 		return nil, nil
@@ -507,7 +560,7 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 		return DeliveryProofView{}, err
 	}
 
-	out := DeliveryProofView{Proofs: []ProofView{}, OutageReason: confirmation.OutageReason}
+	out := DeliveryProofView{Proofs: []ProofView{}, OutageReason: confirmation.OutageReason, Pending: pending}
 	for _, row := range rows {
 		if s.objects == nil {
 			return DeliveryProofView{}, ErrUnavailable
@@ -516,7 +569,7 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 		if err != nil {
 			return DeliveryProofView{}, ErrUnavailable
 		}
-		out.Proofs = append(out.Proofs, ProofView{ID: row.ID, DownloadURL: grant.URL, ExpiresAt: grant.ExpiresAt})
+		out.Proofs = append(out.Proofs, ProofView{ID: row.ID, DownloadURL: grant.URL, ExpiresAt: grant.ExpiresAt, ContentType: row.ContentType})
 	}
 	return out, nil
 }
@@ -572,7 +625,7 @@ func proofUploadMatches(stored, expected ProofUpload) bool {
 		stored.OrderID == expected.OrderID && stored.CourierID == expected.CourierID &&
 		stored.UploadID == expected.UploadID && stored.Key == expected.Key &&
 		stored.ContentType == expected.ContentType && stored.SizeBytes == expected.SizeBytes &&
-		stored.Generation == expected.Generation && stored.SigningEpoch == expected.SigningEpoch && stored.GrantedAt.Equal(expected.GrantedAt) &&
+		stored.Generation == expected.Generation && stored.SigningEpoch == expected.SigningEpoch && stored.UploadScope == expected.UploadScope && stored.GrantedAt.Equal(expected.GrantedAt) &&
 		stored.ExpiresAt.Equal(expected.ExpiresAt) && stored.CreatedAt.Equal(expected.CreatedAt)
 }
 
@@ -583,7 +636,7 @@ func proofBelongsTo(row ProofUpload, orderID, courierID string) bool {
 func (s *Proofs) isCurrentProofOutage(outage ProofOutage, now time.Time) bool {
 	return outage.Reason == "storage_service_unavailable" &&
 		len(outage.EvidenceID) > 0 && len(outage.EvidenceID) <= 200 && outage.Generation > 0 &&
-		s.uploadScope != "" && outage.UploadScope == s.uploadScope &&
+		s.uploadScope != "" && outage.UploadScope == s.outageScope &&
 		!outage.ObservedAt.After(now) && now.Sub(outage.ObservedAt) <= maxProofOutageAge &&
 		outage.ValidUntil.After(now) && !outage.ValidUntil.After(outage.ObservedAt.Add(maxProofOutageAge))
 }
@@ -603,4 +656,13 @@ func (s *Proofs) locked(ctx context.Context, id string, build func(Order, ProofT
 			return build(o, tx)
 		})
 	})
+}
+
+// Tests may inject a clock. Live proof admission and lifecycle checks share the
+// authoritative database clock, sampled after acquiring the parent lock.
+func (s *Proofs) proofTime(ctx context.Context, tx ProofTx) (time.Time, error) {
+	if s.clockOverride {
+		return s.timestamp(), nil
+	}
+	return tx.ProofServerTime(ctx)
 }

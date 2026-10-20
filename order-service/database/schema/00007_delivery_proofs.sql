@@ -10,12 +10,16 @@ CREATE TABLE order_proof_uploads (
  state text NOT NULL CHECK (state IN ('uploading','accepted','deleting')),
  generation bigint NOT NULL CHECK (generation > 0),
  signing_epoch text NOT NULL DEFAULT '',
+ upload_scope text NOT NULL,
  granted_at timestamptz NOT NULL,
  expires_at timestamptz NOT NULL,
  created_at timestamptz NOT NULL,
  verified_at timestamptz,
+ cleanup_after timestamptz NOT NULL DEFAULT clock_timestamp(),
  UNIQUE(order_id,courier_id,upload_id)
 );
+CREATE INDEX order_proof_cleanup ON order_proof_uploads(upload_scope,cleanup_after,id) WHERE state<>'accepted';
+CREATE INDEX order_proof_staged ON order_proof_uploads(order_id,courier_id) WHERE state='uploading';
 CREATE TABLE order_proof_fences (
  order_id uuid NOT NULL REFERENCES orders(id),
  courier_id uuid NOT NULL,
@@ -42,7 +46,7 @@ CREATE TABLE order_delivery_receipts (
         (NOT without_proof AND cardinality(proof_ids) BETWEEN 1 AND 5))
 );
 CREATE UNIQUE INDEX order_delivery_one_pending ON order_delivery_receipts(order_id) WHERE state='pending';
-CREATE INDEX order_delivery_pending_scan ON order_delivery_receipts(received_at,order_id) WHERE state='pending';
+CREATE INDEX order_delivery_pending_scan ON order_delivery_receipts(next_attempt_at,received_at,id) WHERE state='pending';
 CREATE TABLE order_proof_confirmations (
  order_id uuid PRIMARY KEY REFERENCES orders(id),
  payload jsonb NOT NULL

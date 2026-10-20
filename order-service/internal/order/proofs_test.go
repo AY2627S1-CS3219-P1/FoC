@@ -175,7 +175,12 @@ func (d *proofDependencies) CreateProofGrant(_ context.Context, row ProofUpload)
 	if d.unavailable {
 		return images.UploadGrant{}, errors.New("signing failure")
 	}
-	return images.UploadGrant{URL: fmt.Sprintf("https://storage.invalid/%s?generation=%d", row.Key, row.Generation), Method: "PUT", ExpiresAt: row.ExpiresAt, Headers: map[string]string{"If-None-Match": "*"}}, nil
+	return images.UploadGrant{
+		URL:       fmt.Sprintf("https://storage.invalid/%s?generation=%d", row.Key, row.Generation),
+		Method:    "PUT",
+		ExpiresAt: row.ExpiresAt,
+		Headers:   map[string]string{"If-None-Match": "*"},
+	}, nil
 }
 func (d *proofDependencies) Inspect(context.Context, string) (images.ObjectInfo, error) {
 	d.outside()
@@ -485,7 +490,14 @@ func TestProofOutageExceptionRequiresFreshServerAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, r, d, now := proofScenario()
-			d.outage = ProofOutage{Reason: tc.reason, ObservedAt: now.Add(-tc.age), ValidUntil: now.Add(-tc.age).Add(30 * time.Second), UploadScope: "proof-primary", EvidenceID: "server-outage-1", Generation: 1}
+			d.outage = ProofOutage{
+				Reason:      tc.reason,
+				ObservedAt:  now.Add(-tc.age),
+				ValidUntil:  now.Add(-tc.age).Add(30 * time.Second),
+				UploadScope: "proof-primary",
+				EvidenceID:  "server-outage-1",
+				Generation:  1,
+			}
 			r.outageCurrent = true
 			if !tc.authority {
 				s.outages = nil
@@ -582,4 +594,22 @@ func (r *proofMemory) HasPendingDelivery(context.Context, string) (bool, error) 
 
 func (r *proofMemory) ProofServerTime(context.Context) (time.Time, error) {
 	return time.Now().UTC().Truncate(time.Microsecond), nil
+}
+
+func (d *proofDependencies) ProofSigningEpoch(context.Context) (string, time.Time, error) {
+	d.outside()
+	return "test-epoch", time.Time{}, nil
+}
+
+func (r *proofMemory) MarkProofVerified(_ context.Context, id string) error {
+	row, ok := r.uploads[id]
+	if !ok {
+		return ErrNotFound
+	}
+	if row.VerifiedAt == nil {
+		at := row.CreatedAt
+		row.VerifiedAt = &at
+		r.uploads[id] = row
+	}
+	return nil
 }

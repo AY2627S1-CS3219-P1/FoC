@@ -13,6 +13,9 @@ import (
 // Retired identities remain fenced and cleanup-eligible; they are not revived.
 const MaxStagedProofs = 20
 
+// MaxNewProofIdentitiesPerHour bounds abandoned/unknown identity storage per order/courier.
+const MaxNewProofIdentitiesPerHour = 200
+
 type ProofState string
 
 const (
@@ -22,12 +25,13 @@ const (
 )
 
 // ProofUpload retains immutable identity and signing metadata, not bearer URLs.
-// A grant generation changes only when its previous grant has expired.
+// A generation refreshes on expiry or signing-credential rotation.
 type ProofUpload struct {
 	State                            ProofState
 	ID, OrderID, CourierID, UploadID string
 	Key, ContentType                 string
 	SigningEpoch                     string
+	UploadScope                      string
 	VerifiedAt                       *time.Time
 	SizeBytes                        int64
 	Generation                       int64
@@ -58,11 +62,12 @@ type ConfirmDeliveryInput struct {
 }
 
 type ProofView struct {
-	ID, DownloadURL string
-	ExpiresAt       time.Time
+	ID, DownloadURL, ContentType string
+	ExpiresAt                    time.Time
 }
 
 type DeliveryProofView struct {
+	Pending      *DeliveryReceipt
 	Proofs       []ProofView
 	OutageReason string
 }
@@ -81,6 +86,8 @@ type ProofTx interface {
 	CountStagedProofs(context.Context, string, string) (int64, error)
 	GetProofUpload(context.Context, string) (ProofUpload, error)
 	SaveProofUpload(context.Context, ProofUpload) error
+	// Preserve the first successful server verification instant across retries.
+	MarkProofVerified(context.Context, string) error
 	// Atomically fence this scoped identity, including when no upload row exists
 	// yet. Exclude it from CountStagedProofs, never retire an accepted proof, and
 	// retain the identity fence while the order can admit uploads. Delete bytes
@@ -108,6 +115,7 @@ type ProofRepository interface {
 // rotate. No concrete retry-stable signing adapter is wired until that contract
 // has an acknowledged owner.
 type ProofGrantIssuer interface {
+	ProofSigningEpoch(context.Context) (string, time.Time, error)
 	CreateProofGrant(context.Context, ProofUpload) (images.UploadGrant, error)
 }
 
@@ -142,6 +150,7 @@ type ProofOutageAuthority interface {
 type ProofOptions struct {
 	// Stable server-controlled upload-path/bucket identity, never client input.
 	UploadScope string
+	OutageScope string
 	Now         func() time.Time
 	NewID       func() string
 	Outages     ProofOutageAuthority

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"time"
 
@@ -69,6 +70,20 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 		"-limit", "disk", "0", "-limit", "width", "8192", "-limit", "height", "8192",
 		"-limit", "area", "24000001", "-limit", "thread", "1", "-limit", "time", "5",
 		coder+":-", "-resize", "1x1!", "-depth", "8", "rgb:-")
+	// Some codecs spool bounded stdin for seeking. Keep that input in a private
+	// request directory, distinct from disabled pixel-cache spill, and remove it
+	// on every exit. Child codecs do not inherit workload tokens/AWS secrets.
+	temporary, err := os.MkdirTemp("", "order-proof-image-")
+	if err != nil {
+		return app.ErrUnavailable
+	}
+	defer func() { _ = os.RemoveAll(temporary) }()
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"LANG=C.UTF-8",
+		"MAGICK_CONFIGURE_PATH=" + os.Getenv("MAGICK_CONFIGURE_PATH"),
+		"MAGICK_TEMPORARY_PATH=" + temporary,
+	}
 	cmd.Stdin = bytes.NewReader(body)
 	output := &boundedOutput{remaining: 1536}
 	cmd.Stdout = output

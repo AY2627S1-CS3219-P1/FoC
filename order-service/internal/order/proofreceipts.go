@@ -42,9 +42,9 @@ type ReceiptTx interface {
 type ReceiptRepository interface {
 	ProofRepository
 	DeliveryReceipt(context.Context, string) (DeliveryReceipt, error)
-	DueProofReceipts(context.Context, time.Time, int32) ([]string, error)
-	RetryProofReceipt(context.Context, DeliveryReceipt, time.Time) error
-	AlertProofReceipt(context.Context, string, time.Time) (bool, error)
+	DueProofReceipts(context.Context, int32) ([]string, error)
+	RetryProofReceipt(context.Context, DeliveryReceipt) error
+	AlertProofReceipt(context.Context, string) (bool, error)
 }
 
 // ProofReceipts is the production confirmation entry point. Admission commits
@@ -80,6 +80,9 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 	var receipt DeliveryReceipt
 	var accepted *Order
 	err = s.proofs.locked(ctx, in.OrderID, func(o Order, base ProofTx) (*Change, error) {
+		if !o.IsAssignedTo(c.ID) {
+			return nil, ErrNotFound
+		}
 		tx, ok := base.(ReceiptTx)
 		if !ok {
 			return nil, ErrUnavailable
@@ -119,7 +122,7 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 			if e != nil {
 				return nil, ErrPrecondition
 			}
-			if !proofBelongsTo(row, o.ID, c.ID) || row.State != ProofUploading || row.VerifiedAt == nil || row.VerifiedAt.After(now) {
+			if !proofBelongsTo(row, o.ID, c.ID) || row.UploadScope != s.proofs.uploadScope || row.State != ProofUploading || row.VerifiedAt == nil || row.VerifiedAt.After(now) {
 				return nil, ErrPrecondition
 			}
 		}
@@ -135,7 +138,17 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 				return nil, ErrPrecondition
 			}
 		}
-		receipt = DeliveryReceipt{ID: s.proofs.newID(), OrderID: o.ID, CourierID: c.ID, ProofIDs: slices.Clone(in.ProofIDs), Unattended: in.Unattended, WithoutProof: in.WithoutProof, ReceivedAt: now, State: "pending", Outage: outage}
+		receipt = DeliveryReceipt{
+			ID:           s.proofs.newID(),
+			OrderID:      o.ID,
+			CourierID:    c.ID,
+			ProofIDs:     slices.Clone(in.ProofIDs),
+			Unattended:   in.Unattended,
+			WithoutProof: in.WithoutProof,
+			ReceivedAt:   now,
+			State:        "pending",
+			Outage:       outage,
+		}
 		return nil, tx.InsertDeliveryReceipt(ctx, receipt)
 	})
 	if err != nil {
@@ -179,25 +192,22 @@ func (s *ProofReceipts) process(ctx context.Context, r DeliveryReceipt) (Order, 
 			return Order{}, finishErr
 		}
 	} else {
-		now := time.Now().UTC()
-		if e := s.repository.RetryProofReceipt(ctx, r, now.Add(time.Duration(min(r.AttemptCount+1, 30))*2*time.Second)); e != nil {
+		if e := s.repository.RetryProofReceipt(ctx, r); e != nil {
 			return Order{}, e
 		}
-		if now.Sub(r.ReceivedAt) >= 5*time.Minute {
-			alert, e := s.repository.AlertProofReceipt(ctx, r.ID, now)
-			if e != nil {
-				return Order{}, e
-			}
-			if alert {
-				slog.Error("delivery proof validation remains pending", "order_id", r.OrderID, "receipt_id", r.ID, "received_at", r.ReceivedAt)
-			}
+		alert, e := s.repository.AlertProofReceipt(ctx, r.ID)
+		if e != nil {
+			return Order{}, e
+		}
+		if alert {
+			slog.Error("delivery proof validation remains pending", "order_id", r.OrderID, "receipt_id", r.ID, "received_at", r.ReceivedAt)
 		}
 	}
 	return Order{}, err
 }
 
 func (s *ProofReceipts) RecoverOnce(ctx context.Context) error {
-	ids, err := s.repository.DueProofReceipts(ctx, time.Now().UTC(), 20)
+	ids, err := s.repository.DueProofReceipts(ctx, 20)
 	if err != nil {
 		return err
 	}

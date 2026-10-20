@@ -25,21 +25,36 @@ func (q *Queries) AcceptProofUpload(ctx context.Context, id uuid.UUID) (int64, e
 }
 
 const alertProofReceipt = `-- name: AlertProofReceipt :execrows
-UPDATE order_delivery_receipts SET alerted_at=$2 WHERE id=$1 AND state='pending' AND (alerted_at IS NULL OR alerted_at<$3)
+UPDATE order_delivery_receipts SET alerted_at=clock_timestamp() WHERE id=$1 AND state='pending' AND received_at<=clock_timestamp()-interval '5 minutes' AND (alerted_at IS NULL OR alerted_at<clock_timestamp()-interval '1 hour')
 `
 
-type AlertProofReceiptParams struct {
-	ID          uuid.UUID
-	AlertedAt   *time.Time
-	AlertedAt_2 *time.Time
-}
-
-func (q *Queries) AlertProofReceipt(ctx context.Context, arg AlertProofReceiptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, alertProofReceipt, arg.ID, arg.AlertedAt, arg.AlertedAt_2)
+func (q *Queries) AlertProofReceipt(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, alertProofReceipt, id)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const countRecentProofIdentities = `-- name: CountRecentProofIdentities :one
+SELECT count(*) FROM (
+ SELECT u.upload_id FROM order_proof_uploads u WHERE u.order_id=$1 AND u.courier_id=$2 AND u.created_at>=$3
+ UNION
+ SELECT f.upload_id FROM order_proof_fences f WHERE f.order_id=$1 AND f.courier_id=$2 AND f.retired_at>=$3
+) identities
+`
+
+type CountRecentProofIdentitiesParams struct {
+	OrderID   uuid.UUID
+	CourierID uuid.UUID
+	SinceAt   time.Time
+}
+
+func (q *Queries) CountRecentProofIdentities(ctx context.Context, arg CountRecentProofIdentitiesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentProofIdentities, arg.OrderID, arg.CourierID, arg.SinceAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countStagedProofs = `-- name: CountStagedProofs :one
@@ -78,16 +93,11 @@ func (q *Queries) CurrentProofOutage(ctx context.Context, scope string) (OrderPr
 }
 
 const dueProofReceipts = `-- name: DueProofReceipts :many
-SELECT id FROM order_delivery_receipts WHERE state='pending' AND next_attempt_at <= $1 ORDER BY next_attempt_at,received_at,id LIMIT $2
+SELECT id FROM order_delivery_receipts WHERE state='pending' AND next_attempt_at <= clock_timestamp() ORDER BY next_attempt_at,received_at,id LIMIT $1
 `
 
-type DueProofReceiptsParams struct {
-	NextAttemptAt time.Time
-	Limit         int32
-}
-
-func (q *Queries) DueProofReceipts(ctx context.Context, arg DueProofReceiptsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, dueProofReceipts, arg.NextAttemptAt, arg.Limit)
+func (q *Queries) DueProofReceipts(ctx context.Context, limit int32) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, dueProofReceipts, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +138,7 @@ func (q *Queries) FenceProofIdentity(ctx context.Context, arg FenceProofIdentity
 }
 
 const findProofUpload = `-- name: FindProofUpload :one
-SELECT id, order_id, courier_id, upload_id, object_key, content_type, size_bytes, state, generation, signing_epoch, granted_at, expires_at, created_at, verified_at FROM order_proof_uploads WHERE order_id=$1 AND courier_id=$2 AND upload_id=$3
+SELECT id, order_id, courier_id, upload_id, object_key, content_type, size_bytes, state, generation, signing_epoch, upload_scope, granted_at, expires_at, created_at, verified_at, cleanup_after FROM order_proof_uploads WHERE order_id=$1 AND courier_id=$2 AND upload_id=$3
 `
 
 type FindProofUploadParams struct {
@@ -151,10 +161,12 @@ func (q *Queries) FindProofUpload(ctx context.Context, arg FindProofUploadParams
 		&i.State,
 		&i.Generation,
 		&i.SigningEpoch,
+		&i.UploadScope,
 		&i.GrantedAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.VerifiedAt,
+		&i.CleanupAfter,
 	)
 	return i, err
 }
@@ -239,7 +251,7 @@ func (q *Queries) GetProofConfirmation(ctx context.Context, orderID uuid.UUID) (
 }
 
 const getProofUpload = `-- name: GetProofUpload :one
-SELECT id, order_id, courier_id, upload_id, object_key, content_type, size_bytes, state, generation, signing_epoch, granted_at, expires_at, created_at, verified_at FROM order_proof_uploads WHERE id=$1
+SELECT id, order_id, courier_id, upload_id, object_key, content_type, size_bytes, state, generation, signing_epoch, upload_scope, granted_at, expires_at, created_at, verified_at, cleanup_after FROM order_proof_uploads WHERE id=$1
 `
 
 func (q *Queries) GetProofUpload(ctx context.Context, id uuid.UUID) (OrderProofUpload, error) {
@@ -256,10 +268,12 @@ func (q *Queries) GetProofUpload(ctx context.Context, id uuid.UUID) (OrderProofU
 		&i.State,
 		&i.Generation,
 		&i.SigningEpoch,
+		&i.UploadScope,
 		&i.GrantedAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.VerifiedAt,
+		&i.CleanupAfter,
 	)
 	return i, err
 }
@@ -330,6 +344,46 @@ func (q *Queries) LockProofOutage(ctx context.Context, scope string) (OrderProof
 		&i.Active,
 	)
 	return i, err
+}
+
+const proofCleanupCandidates = `-- name: ProofCleanupCandidates :many
+SELECT u.id,u.order_id FROM order_proof_uploads u JOIN orders o ON o.id=u.order_id
+WHERE u.upload_scope=$2 AND u.state<>'accepted' AND u.expires_at <= $1 AND u.cleanup_after <= $1
+AND (u.state='deleting' OR o.status<>'delivering' OR
+ clock_timestamp() >= o.picked_up_at + ((o.delivery_duration_ns*2+999)/1000)*interval '1 microsecond')
+AND NOT EXISTS(SELECT 1 FROM order_delivery_receipts r WHERE r.order_id=u.order_id AND r.state='pending')
+ORDER BY u.cleanup_after,u.id LIMIT $3
+`
+
+type ProofCleanupCandidatesParams struct {
+	ExpiresAt   time.Time
+	UploadScope string
+	Limit       int32
+}
+
+type ProofCleanupCandidatesRow struct {
+	ID      uuid.UUID
+	OrderID uuid.UUID
+}
+
+func (q *Queries) ProofCleanupCandidates(ctx context.Context, arg ProofCleanupCandidatesParams) ([]ProofCleanupCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, proofCleanupCandidates, arg.ExpiresAt, arg.UploadScope, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProofCleanupCandidatesRow
+	for rows.Next() {
+		var i ProofCleanupCandidatesRow
+		if err := rows.Scan(&i.ID, &i.OrderID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const proofIdentityFenced = `-- name: ProofIdentityFenced :one
@@ -422,16 +476,11 @@ func (q *Queries) RetireProofUpload(ctx context.Context, arg RetireProofUploadPa
 }
 
 const retryProofReceipt = `-- name: RetryProofReceipt :exec
-UPDATE order_delivery_receipts SET next_attempt_at=$2,attempt_count=attempt_count+1 WHERE id=$1 AND state='pending'
+UPDATE order_delivery_receipts SET next_attempt_at=clock_timestamp()+LEAST(attempt_count+1,30)*interval '2 seconds',attempt_count=attempt_count+1 WHERE id=$1 AND state='pending'
 `
 
-type RetryProofReceiptParams struct {
-	ID            uuid.UUID
-	NextAttemptAt time.Time
-}
-
-func (q *Queries) RetryProofReceipt(ctx context.Context, arg RetryProofReceiptParams) error {
-	_, err := q.db.Exec(ctx, retryProofReceipt, arg.ID, arg.NextAttemptAt)
+func (q *Queries) RetryProofReceipt(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, retryProofReceipt, id)
 	return err
 }
 
@@ -450,12 +499,12 @@ func (q *Queries) SaveProofConfirmation(ctx context.Context, arg SaveProofConfir
 }
 
 const saveProofUpload = `-- name: SaveProofUpload :execrows
-INSERT INTO order_proof_uploads(id,order_id,courier_id,upload_id,object_key,content_type,size_bytes,state,generation,signing_epoch,granted_at,expires_at,created_at)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+INSERT INTO order_proof_uploads(id,order_id,courier_id,upload_id,object_key,content_type,size_bytes,state,generation,signing_epoch,granted_at,expires_at,created_at,upload_scope)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 ON CONFLICT(id) DO UPDATE SET generation=EXCLUDED.generation,signing_epoch=EXCLUDED.signing_epoch,granted_at=EXCLUDED.granted_at,expires_at=EXCLUDED.expires_at
 WHERE order_proof_uploads.state='uploading' AND EXCLUDED.state='uploading'
 AND order_proof_uploads.order_id=EXCLUDED.order_id AND order_proof_uploads.courier_id=EXCLUDED.courier_id
-AND order_proof_uploads.upload_id=EXCLUDED.upload_id AND order_proof_uploads.object_key=EXCLUDED.object_key
+AND order_proof_uploads.upload_scope=EXCLUDED.upload_scope AND order_proof_uploads.upload_id=EXCLUDED.upload_id AND order_proof_uploads.object_key=EXCLUDED.object_key
 AND order_proof_uploads.content_type=EXCLUDED.content_type AND order_proof_uploads.size_bytes=EXCLUDED.size_bytes
 `
 
@@ -473,6 +522,7 @@ type SaveProofUploadParams struct {
 	GrantedAt    time.Time
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
+	UploadScope  string
 }
 
 func (q *Queries) SaveProofUpload(ctx context.Context, arg SaveProofUploadParams) (int64, error) {
@@ -490,6 +540,7 @@ func (q *Queries) SaveProofUpload(ctx context.Context, arg SaveProofUploadParams
 		arg.GrantedAt,
 		arg.ExpiresAt,
 		arg.CreatedAt,
+		arg.UploadScope,
 	)
 	if err != nil {
 		return 0, err
@@ -497,8 +548,25 @@ func (q *Queries) SaveProofUpload(ctx context.Context, arg SaveProofUploadParams
 	return result.RowsAffected(), nil
 }
 
+const scheduleProofCleanup = `-- name: ScheduleProofCleanup :execrows
+UPDATE order_proof_uploads SET cleanup_after=$2 WHERE id=$1 AND state='deleting' AND cleanup_after <= clock_timestamp()
+`
+
+type ScheduleProofCleanupParams struct {
+	ID           uuid.UUID
+	CleanupAfter time.Time
+}
+
+func (q *Queries) ScheduleProofCleanup(ctx context.Context, arg ScheduleProofCleanupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, scheduleProofCleanup, arg.ID, arg.CleanupAfter)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const verifyProofUpload = `-- name: VerifyProofUpload :execrows
-UPDATE order_proof_uploads SET verified_at=clock_timestamp() WHERE id=$1 AND state='uploading'
+UPDATE order_proof_uploads SET verified_at=COALESCE(verified_at,clock_timestamp()) WHERE id=$1 AND state='uploading'
 `
 
 func (q *Queries) VerifyProofUpload(ctx context.Context, id uuid.UUID) (int64, error) {

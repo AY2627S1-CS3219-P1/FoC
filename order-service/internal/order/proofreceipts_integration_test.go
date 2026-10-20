@@ -3,6 +3,7 @@
 package order
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -224,4 +225,149 @@ func TestPostgresProofReceipts(t *testing.T) {
 		}
 	})
 
+	t.Run("reverification cannot move preexistence past the receipt", func(t *testing.T) {
+		proofs, service, d, o, courier, row := prepare(t)
+		d.unavailable = true
+		input := ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}
+		if _, err := service.ConfirmDelivery(f.ctx, courier, input); !errors.Is(err, ErrUnavailable) {
+			t.Fatal(err)
+		}
+		var first time.Time
+		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).Scan(&first); err != nil {
+			t.Fatal(err)
+		}
+		d.unavailable = false
+		if err := proofs.VerifyUpload(f.ctx, courier, o.ID, row.ID); err != nil {
+			t.Fatal(err)
+		}
+		var again time.Time
+		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).Scan(&again); err != nil || !first.Equal(again) {
+			t.Fatalf("verification moved: %v %v %v", first, again, err)
+		}
+		if _, err := service.ConfirmDelivery(f.ctx, courier, input); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("unknown identities are bounded without blocking known retry or removal", func(t *testing.T) {
+		proofs, _, d, o, courier, row := prepare(t)
+		for range MaxNewProofIdentitiesPerHour - 1 {
+			if err := proofs.AbandonUpload(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		input := ProofUploadInput{OrderID: o.ID, UploadID: row.UploadID, ContentType: row.ContentType, SizeBytes: int64(len(d.body))}
+		if again, _, err := proofs.CreateUpload(f.ctx, courier, input); err != nil || again.ID != row.ID {
+			t.Fatalf("known retry blocked: %v", err)
+		}
+		input.UploadID = uuid.NewString()
+		if _, _, err := proofs.CreateUpload(f.ctx, courier, input); !errors.Is(err, ErrRateLimited) {
+			t.Fatalf("unbounded new identities: %v", err)
+		}
+		if err := proofs.AbandonUpload(f.ctx, courier, o.ID, row.UploadID); err != nil {
+			t.Fatalf("known retirement blocked: %v", err)
+		}
+	})
+	t.Run("cleanup fences unaccepted bytes and reaps late writes without touching accepted photos", func(t *testing.T) {
+		proofs, service, d, o, courier, row := prepare(t)
+		abandoned, _, err := proofs.CreateUpload(f.ctx, courier, ProofUploadInput{OrderID: o.ID, UploadID: uuid.NewString(), ContentType: "image/png", SizeBytes: int64(len(d.body))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, abandoned.UploadID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}); err != nil {
+			t.Fatal(err)
+		}
+		// Represent expiration of all issued grants, not an attempt to revoke them.
+		if _, err = f.pool.Exec(f.ctx, "UPDATE order_proof_uploads SET expires_at=clock_timestamp()-interval '1 second' WHERE order_id=$1", o.ID); err != nil {
+			t.Fatal(err)
+		}
+		deleted := &proofCleanupRecorder{}
+		cleaner := NewProofCleaner(proofs, f.repo, deleted)
+		if err = cleaner.CleanOnce(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if len(deleted.keys) != 1 || deleted.keys[0] != abandoned.Key {
+			t.Fatalf("wrong cleanup: %v", deleted.keys)
+		}
+		// A pre-expiry PUT may finish after deletion. Retain its fence and revisit.
+		if _, err = f.pool.Exec(f.ctx, "UPDATE order_proof_uploads SET cleanup_after=clock_timestamp()-interval '1 second' WHERE id=$1", abandoned.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err = cleaner.CleanOnce(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if len(deleted.keys) != 2 || deleted.keys[1] != abandoned.Key {
+			t.Fatal("late object not reaped")
+		}
+		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, row.UploadID); !errors.Is(err, ErrPrecondition) {
+			t.Fatal("accepted evidence was retired")
+		}
+		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, row.ID); err != nil {
+			t.Fatalf("nonce fence collision: %v", err)
+		}
+		if _, err = proofs.ForOrder(f.ctx, Caller{ID: uuid.NewString(), Admin: true}, o.ID); !errors.Is(err, ErrNotFound) || d.downloads != 0 {
+			t.Fatalf("role-only admin signed private evidence: %v", err)
+		}
+		view, err := proofs.ForOrder(f.ctx, Caller{ID: o.RequesterID}, o.ID)
+		if err != nil || len(view.Proofs) != 1 || view.Proofs[0].ID != row.ID {
+			t.Fatalf("accepted evidence damaged: %+v %v", view, err)
+		}
+	})
+	t.Run("admitted outage survives later recovery and a browser-route change", func(t *testing.T) {
+		proofs, service, _, o, courier, _ := prepare(t)
+		probe := &probeSequence{err: errors.New("ordinary failed request")}
+		authority := NewProofOutages(f.repo, probe, proofs.outageScope)
+		proofs.outages = authority
+		_ = authority.ProbeOnce(f.ctx)
+		input := ConfirmDeliveryInput{OrderID: o.ID, WithoutProof: true, Unattended: true}
+		if _, err := service.ConfirmDelivery(f.ctx, courier, input); !errors.Is(err, ErrPrecondition) {
+			t.Fatalf("ordinary failure bypassed proof: %v", err)
+		}
+		probe.err = nil
+		probe.result.Unavailable = true
+		for range 2 {
+			if err := authority.ProbeOnce(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		proofs.repository = &proofAfterCommitRepository{ProofRepository: f.repo, after: func() {
+			if err := f.repo.PublishProofOutage(f.ctx, proofs.outageScope, false); err != nil {
+				t.Fatal(err)
+			}
+			proofs.outageScope = "replacement-browser-route"
+		}}
+		delivered, err := service.ConfirmDelivery(f.ctx, courier, input)
+		if err != nil || delivered.Status != Delivered || !delivered.UnattendedDelivery {
+			t.Fatalf("admitted outage lost eligibility: %+v %v", delivered, err)
+		}
+		view, err := proofs.ForOrder(f.ctx, Caller{ID: o.RequesterID}, o.ID)
+		if err != nil || len(view.Proofs) != 0 || view.OutageReason == "" {
+			t.Fatalf("server outage not recorded: %+v %v", view, err)
+		}
+	})
+
+}
+
+type proofCleanupRecorder struct{ keys []string }
+
+func (s *proofCleanupRecorder) Delete(_ context.Context, key string) error {
+	s.keys = append(s.keys, key)
+	return nil
+}
+
+type proofAfterCommitRepository struct {
+	ProofRepository
+	after func()
+}
+
+func (r *proofAfterCommitRepository) WithinProofs(ctx context.Context, fn func(ProofTx) error) error {
+	err := r.ProofRepository.WithinProofs(ctx, fn)
+	if err == nil && r.after != nil {
+		after := r.after
+		r.after = nil
+		after()
+	}
+	return err
 }

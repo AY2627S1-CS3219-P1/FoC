@@ -2,7 +2,7 @@
 
 Use a maintained ImageMagick installation with JPEG, PNG, WebP and libheif delegates to validate actual proof pixels outside the Order transaction. The accepted media types include HEIC and HEIF, which Go's standard image packages do not decode. Metadata inspection alone cannot reject a text file labelled JPEG. Implementing our own codecs would add parser maintenance and security obligations without advancing the delivery workflow.
 
-This decision applies to the feature-local implementation. Production enablement remains conditional on the deployment guarantees below. The validator establishes that the bytes decode as the declared image type, not that the photograph shows a delivery.
+This decision applies to the mounted proof runtime. Production enablement requires the deployment guarantees below. The production image installs the codecs and checks all five formats under its restricted policy before enabling grants. The validator establishes that the bytes decode as the declared image type, not that the photograph shows a delivery.
 
 ## Alternatives
 
@@ -20,6 +20,6 @@ An execution timeout is a retryable server validation failure, not evidence of a
 
 ## Evidence lifetime and authorization
 
-Explicit photo removal must retire its scoped upload identity before the browser discards it. Retirement releases the active staging slot and atomically leaves a fence even if the original admission response was lost. Late signing/admission and confirmation cannot revive or attach that identity. Accepted evidence cannot be retired. A future persistence/cleanup adapter must keep the identity fence while the order can admit uploads, preserve outstanding grant expiry, and delete abandoned bytes only after those grants expire. Retirement does not revoke an already issued PUT URL. The active staging cap is not a total abandoned-object or request-rate quota; deployment still needs authenticated admission rate and storage controls.
+Explicit photo removal must retire its scoped upload identity before the browser discards it. Retirement releases the active staging slot and atomically leaves a fence even if the original admission response was lost. Late signing/admission and confirmation cannot revive or attach that identity. Accepted evidence cannot be retired. The concrete persistence/cleanup adapter keeps the identity fence, preserves outstanding grant expiry and deletes abandoned bytes only after those grants expire. Retired keys are periodically revisited to reap a PUT that finished after an earlier deletion. Retirement does not revoke an already issued PUT URL. The active staging cap is not a total abandoned-object or request-rate quota; deployment still needs authenticated admission rate and storage controls.
 
 Nonparticipant admin proof reads stay unavailable. A remote boolean case-assignment check is not revocation-safe between lookup and download signing. Reintroducing case-admin access requires an authoritative authorization design that defines revocation and signed-link lifetime together. Current requester/courier access is unchanged, and automated retention remains separately deferred.

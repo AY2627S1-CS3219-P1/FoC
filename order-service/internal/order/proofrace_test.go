@@ -63,7 +63,14 @@ func TestProofOutageRejectsWrongScopeRecoveryAndDeadline(t *testing.T) {
 	for _, kind := range []string{"wrong scope", "recovered", "deadline", "missing evidence", "unbounded validity"} {
 		t.Run(kind, func(t *testing.T) {
 			s, r, d, now := proofScenario()
-			d.outage = ProofOutage{Reason: "storage_service_unavailable", EvidenceID: "evidence-1", UploadScope: "proof-primary", Generation: 1, ObservedAt: *now, ValidUntil: now.Add(30 * time.Second)}
+			d.outage = ProofOutage{
+				Reason:      "storage_service_unavailable",
+				EvidenceID:  "evidence-1",
+				UploadScope: "proof-primary",
+				Generation:  1,
+				ObservedAt:  *now,
+				ValidUntil:  now.Add(30 * time.Second),
+			}
 			r.outageCurrent = true
 			switch kind {
 			case "wrong scope":
@@ -106,4 +113,8 @@ func TestProofSaturationRejectsBeforeReadingObject(t *testing.T) {
 	if d.inspections != 0 || r.confirmation != nil || r.order.Status != Delivering {
 		t.Fatal("saturated verification read storage or changed delivery")
 	}
+}
+
+func (concurrentProofIssuer) ProofSigningEpoch(context.Context) (string, time.Time, error) {
+	return "test-epoch", time.Time{}, nil
 }

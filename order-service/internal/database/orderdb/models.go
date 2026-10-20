@@ -218,8 +218,10 @@ type OrderProofUpload struct {
 	State        string
 	Generation   int64
 	SigningEpoch string
+	UploadScope  string
 	GrantedAt    time.Time
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	VerifiedAt   *time.Time
+	CleanupAfter time.Time
 }
