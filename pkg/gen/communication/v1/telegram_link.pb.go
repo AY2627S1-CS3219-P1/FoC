@@ -216,26 +216,26 @@ func (x *GetTelegramLinkResponse) GetLinkedAt() *timestamppb.Timestamp {
 }
 
 // Stops all Telegram messages to the caller. Succeeds when nothing is linked.
-type DeleteTelegramLinkRequest struct {
+type UnlinkTelegramRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteTelegramLinkRequest) Reset() {
-	*x = DeleteTelegramLinkRequest{}
+func (x *UnlinkTelegramRequest) Reset() {
+	*x = UnlinkTelegramRequest{}
 	mi := &file_communication_v1_telegram_link_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteTelegramLinkRequest) String() string {
+func (x *UnlinkTelegramRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteTelegramLinkRequest) ProtoMessage() {}
+func (*UnlinkTelegramRequest) ProtoMessage() {}
 
-func (x *DeleteTelegramLinkRequest) ProtoReflect() protoreflect.Message {
+func (x *UnlinkTelegramRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_communication_v1_telegram_link_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -247,31 +247,31 @@ func (x *DeleteTelegramLinkRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteTelegramLinkRequest.ProtoReflect.Descriptor instead.
-func (*DeleteTelegramLinkRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UnlinkTelegramRequest.ProtoReflect.Descriptor instead.
+func (*UnlinkTelegramRequest) Descriptor() ([]byte, []int) {
 	return file_communication_v1_telegram_link_proto_rawDescGZIP(), []int{4}
 }
 
-type DeleteTelegramLinkResponse struct {
+type UnlinkTelegramResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteTelegramLinkResponse) Reset() {
-	*x = DeleteTelegramLinkResponse{}
+func (x *UnlinkTelegramResponse) Reset() {
+	*x = UnlinkTelegramResponse{}
 	mi := &file_communication_v1_telegram_link_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteTelegramLinkResponse) String() string {
+func (x *UnlinkTelegramResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteTelegramLinkResponse) ProtoMessage() {}
+func (*UnlinkTelegramResponse) ProtoMessage() {}
 
-func (x *DeleteTelegramLinkResponse) ProtoReflect() protoreflect.Message {
+func (x *UnlinkTelegramResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_communication_v1_telegram_link_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -283,8 +283,8 @@ func (x *DeleteTelegramLinkResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteTelegramLinkResponse.ProtoReflect.Descriptor instead.
-func (*DeleteTelegramLinkResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UnlinkTelegramResponse.ProtoReflect.Descriptor instead.
+func (*UnlinkTelegramResponse) Descriptor() ([]byte, []int) {
 	return file_communication_v1_telegram_link_proto_rawDescGZIP(), []int{5}
 }
 
@@ -303,13 +303,13 @@ const file_communication_v1_telegram_link_proto_rawDesc = "" +
 	"\x06linked\x18\x01 \x01(\bR\x06linked\x120\n" +
 	"\x11telegram_username\x18\x02 \x01(\tH\x00R\x10telegramUsername\x88\x01\x01\x127\n" +
 	"\tlinked_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blinkedAtB\x14\n" +
-	"\x12_telegram_username\"\x1b\n" +
-	"\x19DeleteTelegramLinkRequest\"\x1c\n" +
-	"\x1aDeleteTelegramLinkResponse2\xeb\x02\n" +
+	"\x12_telegram_username\"\x17\n" +
+	"\x15UnlinkTelegramRequest\"\x18\n" +
+	"\x16UnlinkTelegramResponse2\xdf\x02\n" +
 	"\x13TelegramLinkService\x12q\n" +
 	"\x12CreateTelegramLink\x12+.communication.v1.CreateTelegramLinkRequest\x1a,.communication.v1.CreateTelegramLinkResponse\"\x00\x12k\n" +
-	"\x0fGetTelegramLink\x12(.communication.v1.GetTelegramLinkRequest\x1a).communication.v1.GetTelegramLinkResponse\"\x03\x90\x02\x01\x12t\n" +
-	"\x12DeleteTelegramLink\x12+.communication.v1.DeleteTelegramLinkRequest\x1a,.communication.v1.DeleteTelegramLinkResponse\"\x03\x90\x02\x02B\xd6\x01\n" +
+	"\x0fGetTelegramLink\x12(.communication.v1.GetTelegramLinkRequest\x1a).communication.v1.GetTelegramLinkResponse\"\x03\x90\x02\x01\x12h\n" +
+	"\x0eUnlinkTelegram\x12'.communication.v1.UnlinkTelegramRequest\x1a(.communication.v1.UnlinkTelegramResponse\"\x03\x90\x02\x02B\xd6\x01\n" +
 	"\x14com.communication.v1B\x11TelegramLinkProtoP\x01ZJgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1;communicationv1\xa2\x02\x03CXX\xaa\x02\x10Communication.V1\xca\x02\x10Communication\\V1\xe2\x02\x1cCommunication\\V1\\GPBMetadata\xea\x02\x11Communication::V1b\x06proto3"
 
 var (
@@ -330,8 +330,8 @@ var file_communication_v1_telegram_link_proto_goTypes = []any{
 	(*CreateTelegramLinkResponse)(nil), // 1: communication.v1.CreateTelegramLinkResponse
 	(*GetTelegramLinkRequest)(nil),     // 2: communication.v1.GetTelegramLinkRequest
 	(*GetTelegramLinkResponse)(nil),    // 3: communication.v1.GetTelegramLinkResponse
-	(*DeleteTelegramLinkRequest)(nil),  // 4: communication.v1.DeleteTelegramLinkRequest
-	(*DeleteTelegramLinkResponse)(nil), // 5: communication.v1.DeleteTelegramLinkResponse
+	(*UnlinkTelegramRequest)(nil),      // 4: communication.v1.UnlinkTelegramRequest
+	(*UnlinkTelegramResponse)(nil),     // 5: communication.v1.UnlinkTelegramResponse
 	(*timestamppb.Timestamp)(nil),      // 6: google.protobuf.Timestamp
 }
 var file_communication_v1_telegram_link_proto_depIdxs = []int32{
@@ -339,10 +339,10 @@ var file_communication_v1_telegram_link_proto_depIdxs = []int32{
 	6, // 1: communication.v1.GetTelegramLinkResponse.linked_at:type_name -> google.protobuf.Timestamp
 	0, // 2: communication.v1.TelegramLinkService.CreateTelegramLink:input_type -> communication.v1.CreateTelegramLinkRequest
 	2, // 3: communication.v1.TelegramLinkService.GetTelegramLink:input_type -> communication.v1.GetTelegramLinkRequest
-	4, // 4: communication.v1.TelegramLinkService.DeleteTelegramLink:input_type -> communication.v1.DeleteTelegramLinkRequest
+	4, // 4: communication.v1.TelegramLinkService.UnlinkTelegram:input_type -> communication.v1.UnlinkTelegramRequest
 	1, // 5: communication.v1.TelegramLinkService.CreateTelegramLink:output_type -> communication.v1.CreateTelegramLinkResponse
 	3, // 6: communication.v1.TelegramLinkService.GetTelegramLink:output_type -> communication.v1.GetTelegramLinkResponse
-	5, // 7: communication.v1.TelegramLinkService.DeleteTelegramLink:output_type -> communication.v1.DeleteTelegramLinkResponse
+	5, // 7: communication.v1.TelegramLinkService.UnlinkTelegram:output_type -> communication.v1.UnlinkTelegramResponse
 	5, // [5:8] is the sub-list for method output_type
 	2, // [2:5] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name

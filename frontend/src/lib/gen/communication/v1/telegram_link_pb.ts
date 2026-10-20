@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file communication/v1/telegram_link.proto.
  */
 export const file_communication_v1_telegram_link: GenFile = /*@__PURE__*/
-  fileDesc("CiRjb21tdW5pY2F0aW9uL3YxL3RlbGVncmFtX2xpbmsucHJvdG8SEGNvbW11bmljYXRpb24udjEiGwoZQ3JlYXRlVGVsZWdyYW1MaW5rUmVxdWVzdCJeChpDcmVhdGVUZWxlZ3JhbUxpbmtSZXNwb25zZRIQCghsaW5rX3VybBgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIYChZHZXRUZWxlZ3JhbUxpbmtSZXF1ZXN0Io4BChdHZXRUZWxlZ3JhbUxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSHgoRdGVsZWdyYW1fdXNlcm5hbWUYAiABKAlIAIgBARItCglsaW5rZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQhQKEl90ZWxlZ3JhbV91c2VybmFtZSIbChlEZWxldGVUZWxlZ3JhbUxpbmtSZXF1ZXN0IhwKGkRlbGV0ZVRlbGVncmFtTGlua1Jlc3BvbnNlMusCChNUZWxlZ3JhbUxpbmtTZXJ2aWNlEnEKEkNyZWF0ZVRlbGVncmFtTGluaxIrLmNvbW11bmljYXRpb24udjEuQ3JlYXRlVGVsZWdyYW1MaW5rUmVxdWVzdBosLmNvbW11bmljYXRpb24udjEuQ3JlYXRlVGVsZWdyYW1MaW5rUmVzcG9uc2UiABJrCg9HZXRUZWxlZ3JhbUxpbmsSKC5jb21tdW5pY2F0aW9uLnYxLkdldFRlbGVncmFtTGlua1JlcXVlc3QaKS5jb21tdW5pY2F0aW9uLnYxLkdldFRlbGVncmFtTGlua1Jlc3BvbnNlIgOQAgESdAoSRGVsZXRlVGVsZWdyYW1MaW5rEisuY29tbXVuaWNhdGlvbi52MS5EZWxldGVUZWxlZ3JhbUxpbmtSZXF1ZXN0GiwuY29tbXVuaWNhdGlvbi52MS5EZWxldGVUZWxlZ3JhbUxpbmtSZXNwb25zZSIDkAICQtYBChRjb20uY29tbXVuaWNhdGlvbi52MUIRVGVsZWdyYW1MaW5rUHJvdG9QAVpKZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vY29tbXVuaWNhdGlvbi92MTtjb21tdW5pY2F0aW9udjGiAgNDWFiqAhBDb21tdW5pY2F0aW9uLlYxygIQQ29tbXVuaWNhdGlvblxWMeICHENvbW11bmljYXRpb25cVjFcR1BCTWV0YWRhdGHqAhFDb21tdW5pY2F0aW9uOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiRjb21tdW5pY2F0aW9uL3YxL3RlbGVncmFtX2xpbmsucHJvdG8SEGNvbW11bmljYXRpb24udjEiGwoZQ3JlYXRlVGVsZWdyYW1MaW5rUmVxdWVzdCJeChpDcmVhdGVUZWxlZ3JhbUxpbmtSZXNwb25zZRIQCghsaW5rX3VybBgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIYChZHZXRUZWxlZ3JhbUxpbmtSZXF1ZXN0Io4BChdHZXRUZWxlZ3JhbUxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSHgoRdGVsZWdyYW1fdXNlcm5hbWUYAiABKAlIAIgBARItCglsaW5rZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQhQKEl90ZWxlZ3JhbV91c2VybmFtZSIXChVVbmxpbmtUZWxlZ3JhbVJlcXVlc3QiGAoWVW5saW5rVGVsZWdyYW1SZXNwb25zZTLfAgoTVGVsZWdyYW1MaW5rU2VydmljZRJxChJDcmVhdGVUZWxlZ3JhbUxpbmsSKy5jb21tdW5pY2F0aW9uLnYxLkNyZWF0ZVRlbGVncmFtTGlua1JlcXVlc3QaLC5jb21tdW5pY2F0aW9uLnYxLkNyZWF0ZVRlbGVncmFtTGlua1Jlc3BvbnNlIgASawoPR2V0VGVsZWdyYW1MaW5rEiguY29tbXVuaWNhdGlvbi52MS5HZXRUZWxlZ3JhbUxpbmtSZXF1ZXN0GikuY29tbXVuaWNhdGlvbi52MS5HZXRUZWxlZ3JhbUxpbmtSZXNwb25zZSIDkAIBEmgKDlVubGlua1RlbGVncmFtEicuY29tbXVuaWNhdGlvbi52MS5VbmxpbmtUZWxlZ3JhbVJlcXVlc3QaKC5jb21tdW5pY2F0aW9uLnYxLlVubGlua1RlbGVncmFtUmVzcG9uc2UiA5ACAkLWAQoUY29tLmNvbW11bmljYXRpb24udjFCEVRlbGVncmFtTGlua1Byb3RvUAFaSmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL2NvbW11bmljYXRpb24vdjE7Y29tbXVuaWNhdGlvbnYxogIDQ1hYqgIQQ29tbXVuaWNhdGlvbi5WMcoCEENvbW11bmljYXRpb25cVjHiAhxDb21tdW5pY2F0aW9uXFYxXEdQQk1ldGFkYXRh6gIRQ29tbXVuaWNhdGlvbjo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Returns a one-time link that opens the bot in Telegram. Pressing Start
@@ -106,29 +106,29 @@ export const GetTelegramLinkResponseSchema: GenMessage<GetTelegramLinkResponse> 
 /**
  * Stops all Telegram messages to the caller. Succeeds when nothing is linked.
  *
- * @generated from message communication.v1.DeleteTelegramLinkRequest
+ * @generated from message communication.v1.UnlinkTelegramRequest
  */
-export type DeleteTelegramLinkRequest = Message<"communication.v1.DeleteTelegramLinkRequest"> & {
+export type UnlinkTelegramRequest = Message<"communication.v1.UnlinkTelegramRequest"> & {
 };
 
 /**
- * Describes the message communication.v1.DeleteTelegramLinkRequest.
- * Use `create(DeleteTelegramLinkRequestSchema)` to create a new message.
+ * Describes the message communication.v1.UnlinkTelegramRequest.
+ * Use `create(UnlinkTelegramRequestSchema)` to create a new message.
  */
-export const DeleteTelegramLinkRequestSchema: GenMessage<DeleteTelegramLinkRequest> = /*@__PURE__*/
+export const UnlinkTelegramRequestSchema: GenMessage<UnlinkTelegramRequest> = /*@__PURE__*/
   messageDesc(file_communication_v1_telegram_link, 4);
 
 /**
- * @generated from message communication.v1.DeleteTelegramLinkResponse
+ * @generated from message communication.v1.UnlinkTelegramResponse
  */
-export type DeleteTelegramLinkResponse = Message<"communication.v1.DeleteTelegramLinkResponse"> & {
+export type UnlinkTelegramResponse = Message<"communication.v1.UnlinkTelegramResponse"> & {
 };
 
 /**
- * Describes the message communication.v1.DeleteTelegramLinkResponse.
- * Use `create(DeleteTelegramLinkResponseSchema)` to create a new message.
+ * Describes the message communication.v1.UnlinkTelegramResponse.
+ * Use `create(UnlinkTelegramResponseSchema)` to create a new message.
  */
-export const DeleteTelegramLinkResponseSchema: GenMessage<DeleteTelegramLinkResponse> = /*@__PURE__*/
+export const UnlinkTelegramResponseSchema: GenMessage<UnlinkTelegramResponse> = /*@__PURE__*/
   messageDesc(file_communication_v1_telegram_link, 5);
 
 /**
@@ -159,12 +159,12 @@ export const TelegramLinkService: GenService<{
     output: typeof GetTelegramLinkResponseSchema;
   },
   /**
-   * @generated from rpc communication.v1.TelegramLinkService.DeleteTelegramLink
+   * @generated from rpc communication.v1.TelegramLinkService.UnlinkTelegram
    */
-  deleteTelegramLink: {
+  unlinkTelegram: {
     methodKind: "unary";
-    input: typeof DeleteTelegramLinkRequestSchema;
-    output: typeof DeleteTelegramLinkResponseSchema;
+    input: typeof UnlinkTelegramRequestSchema;
+    output: typeof UnlinkTelegramResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_communication_v1_telegram_link, 0);

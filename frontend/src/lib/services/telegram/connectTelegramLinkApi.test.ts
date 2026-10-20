@@ -11,7 +11,7 @@ function api(overrides: Record<string, unknown>) {
 	const client = {
 		createTelegramLink: vi.fn(),
 		getTelegramLink: vi.fn(),
-		deleteTelegramLink: vi.fn(async () => ({})),
+		unlinkTelegram: vi.fn(async () => ({})),
 		...overrides
 	} as unknown as Client<typeof TelegramLinkService>;
 	return { client, api: new ConnectTelegramLinkApi(client) };
@@ -40,6 +40,6 @@ describe('ConnectTelegramLinkApi', () => {
 	it('unlinks', async () => {
 		const { client, api: linkApi } = api({});
 		await linkApi.unlink();
-		expect(client.deleteTelegramLink).toHaveBeenCalledWith({});
+		expect(client.unlinkTelegram).toHaveBeenCalledWith({});
 	});
 });
