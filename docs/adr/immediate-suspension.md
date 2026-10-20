@@ -1,14 +1,10 @@
 # ADR: Immediate suspension, durable handoff and Order authority
 
 Date: 20 Oct 2026
-Status: local review fixes implemented; P2 regression awaits rerun after fixture
-correction. Production disabled pending #29.
-Foundation: B3 PR #179, pinned `dea9c7c78130853793e8e5a8774f607cace02256`.
-Review base: `9044eccbb19488030ca1840aa2425d67fc318037`.
-Original auth work `f1b8957` remains preserved; cherry-pick `abb3cb1` applies it
-without overwriting B3. `99c5a49` preserves assignment-specific removal/recovery.
+Status: implemented and locally verified. Production disabled pending #29.
+Dependency: B3 PR #179 for assignment-specific cancellation and recovery.
 
-## Approved behavior and ownership
+## Approved behavior and scope
 
 An explicit admin decision with a nonblank reason suspends immediately. Warnings
 never suspend automatically. Block new requests, acceptance and pickup, including
@@ -25,8 +21,9 @@ orders and receipt confirmation continue. Normal B4 delivery timeout still appli
 No wait-for-delivery or deferred-suspension policy is introduced.
 
 B5 has no standalone code scope. No general manual admin cancellation/removal or
-admin UI is added. History/privacy stays with F0, financial recovery with B1,
-cancellation/disposition/pickup/receipt with B3, proof with B2, and timers with B4.
+admin UI is added. History/privacy stays with the existing history workflow,
+financial recovery with B1, cancellation/disposition/pickup/receipt with B3, proof
+with B2, and timers with B4.
 B4's durable-receipt deadline policy must not be replaced with B2's processing-time
 behavior. This change adds no timer/frontend business code or new microservice.
 
@@ -70,16 +67,24 @@ reconciliation. Uncertain failures remain retryable. Migration 00008 guards roll
 past the dispatch history whenever any revision tombstone exists, including applied
 or rejected decisions. It does not rewrite applied migration 00007.
 Bounded recovery retries use the same decision, never a saved human session.
-Reinstatement advances the revision; older delayed facts cannot undo it. This is immediate command recovery, not a policy to suspend after
-delivery or at a scheduled time. Successful admin completion requires the Order
-fence already committed. A crash after Order commit retains the intent needed to
+Reinstatement advances the revision; older delayed facts cannot undo it. This is
+immediate command recovery, not a policy to suspend after delivery or at a scheduled
+time. Successful admin completion requires the Order fence already committed. A crash after Order commit retains the intent needed to
 finish the User projection. Immutable dispatch records preserve the originating
 actor without blocking deletion; audit userstamps retain their existing nullable
-semantics if that account disappears. Soft-deleted target decisions remain as
-immutable history without a forged acknowledgment or removal of the Order fence.
-They are excluded from recovery and the startup guard. A live target's unfinished
-or rejected decision still fails closed when transport is unavailable. A recovery
-item loaded before deletion rechecks the target before sending and finalizing.
+semantics if that account disappears.
+
+## Deleted targets and fail-closed startup
+
+Soft-deleted target decisions remain as immutable history without a forged
+acknowledgment or removal of the Order fence. They are excluded from recovery and
+the startup guard. A recovery item loaded before deletion rechecks the target
+before sending and finalizing.
+
+A live target's unfinished or rejected decision still fails closed when transport
+is unavailable. User Service cannot start in that state, affecting login and the
+fresh-role lookups used by Supplier and Order. This deliberately retains the
+fail-closed boundary rather than silently abandoning live intent.
 
 ## Authoritative Order transaction
 
@@ -117,9 +122,8 @@ while that assignment remains for reconciliation without a guessed reversal.
 Picked-up or replacement assignments are unchanged. Automatic admission/completion
 use explicit system audit actions. Discovery includes only assigned AwaitingPickup
 orders and AwaitingCourier orders with relevant AdjustmentPending attempts or a
-RevertPending attempt whose
-offer is still accepting. Existing RevertPending work retains its generation,
-lease and compensation owner. Suspension voids the in-flight offer, so an
+RevertPending attempt whose offer is still accepting. Existing RevertPending work
+retains its generation, lease and compensation owner. Suspension voids the in-flight offer, so an
 insufficient-credit compensation cannot reopen it even after reinstatement.
 
 Migration `20261020140000` adds the immutable suspension decision ID to B3's
@@ -130,29 +134,22 @@ uses the original immutable assignment ID outside the transaction; acknowledged
 reversal plus a matching Held reservation at the original amount is required.
 Only then does recovery re-lock/revalidate and restore reward/reservation, clear
 the assignment and reopen with unchanged expiry. No second financial worker exists.
-The cancellation-migration test now explicitly rolls back migration 6 instead of
-assuming it is the newest migration. All sqlc/Buf output is generated.
+Database and RPC bindings are generated, not hand-edited.
 
 ## Deferred service-auth dependency and production behavior
 
-The authenticated retry/trusted-caller dependency is tracked in existing
-[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29). No duplicate issue or
-separate auth implementation is added after Andrew deferred that work.
-
-PR #167 at `f51a16a85dd073bfc70c5b49d514e78d1017b2fb` was fetched/read as context:
-separate User/Order service accounts, mandatory proxies, STRICT Istio mTLS,
-loopback listeners and internal Order port 8081 denied to the gateway. Its current
-policy trusts all FoC workloads, so it does **not** establish User-only authority
-for this mutation. It is open/unmerged and live deployment is unverified.
-
-The clean prerequisite branch `andrew/feat/user-order-suspension-auth` preserves
-that inspected source at `/workspace/FoC-user-order-auth`; it has no tracked
-implementation/configuration changes. Suspension does not duplicate #167.
+The authenticated retry/trusted-caller dependency is deferred to
+[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29).
+Service-mesh integration in PR #167 provides context for separate service accounts,
+mandatory proxies, STRICT Istio mTLS and a private Order listener. A namespace-wide
+policy trusting all FoC workloads does not establish User-only authority for this
+mutation. Listener isolation and mTLS alone do not satisfy intended-caller
+authorization, and live deployment remains unverified.
 
 Production deliberately leaves `RoleService.Effects` nil: suspension/reinstatement
 fails with FailedPrecondition BEFORE admitting a role/dispatch change. Startup
-also refuses to silently abandon an existing unfinished dispatch if transport is
-unavailable. `SetupSuspension` requires BOTH authentication middleware and a
+also refuses to silently abandon an existing live-target unfinished dispatch if
+transport is unavailable. `SetupSuspension` requires BOTH authentication middleware and a
 User-only authorization interceptor, otherwise returns 503. It is not mounted in
 the public router or current production composition. Test identities exist only
 in tests. No plaintext fallback, trusted client header, Credit-token reuse,
@@ -166,12 +163,13 @@ HTTP client or trusting the current broad namespace policy is insufficient.
 These are explicit unmet deployment/transport dependencies, not passing live
 security evidence.
 
-## Review and remaining verification
+## Verification and remaining gates
 
-Devin CLI Opus reviewed the pinned review base and requested changes. That review
-does not cover the subsequent remediation. Source-pinned Opus follow-up and
-publication remain separate acceptance steps owned by the parent session. No
-production authenticated-suspension completion or PR-ready status is claimed.
+Local formatting, lint, module and focused PostgreSQL/race checks passed, including
+the insufficient-credit offer-retirement regression across reinstatement. See
+[verification evidence and repeat commands](../testing/immediate-suspension.md).
 
-See [verification evidence](../testing/immediate-suspension.md). B2 proof and B4
-live timer behavior, real Credit, mesh enforcement and deployment remain uncertified.
+Source-pinned Devin CLI Opus follow-up remains required before publication. Passing
+local checks does not establish PR readiness or production authenticated suspension
+completion. B2 proof and B4 live timer behavior, real Credit, mesh enforcement and
+deployment remain uncertified.
