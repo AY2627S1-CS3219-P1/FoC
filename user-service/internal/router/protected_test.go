@@ -66,9 +66,9 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actorID, targetID := uuid.New(), uuid.New()
 	actor := models.User{ID: actorID, Email: "actor@example.com", DisplayName: "Actor", Role: models.RoleUser}
-	contact := "private_handle"
+	contact := "+6590000000"
 	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target",
-		TelegramHandle: &contact, Role: models.RoleUser}
+		PhoneNumber: &contact, Role: models.RoleUser}
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
@@ -97,8 +97,8 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		t.Fatalf("ordinary user lookup: %v", err)
 	}
 	profileUpdate := connect.NewRequest(&userv1.UpdateMyProfileRequest{
-		DisplayName:    " " + strings.Repeat("N", 100) + " ",
-		TelegramHandle: stringPtr(" private_handle "), PhoneNumber: stringPtr(" +123 "),
+		DisplayName: " " + strings.Repeat("N", 100) + " ",
+		PhoneNumber: " +123 ",
 	})
 	profileUpdate.Header().Set("Authorization", "Bearer "+token)
 	if _, err := profileClient.UpdateMyProfile(ctx, profileUpdate); err != nil {
@@ -106,7 +106,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actor.Role = models.RoleSuspended
 	users.users[actorID] = actor
-	update := connect.NewRequest(&userv1.UpdateMyProfileRequest{DisplayName: "New"})
+	update := connect.NewRequest(&userv1.UpdateMyProfileRequest{DisplayName: "New", PhoneNumber: "+123"})
 	update.Header().Set("Authorization", "Bearer "+token)
 	if _, err := profileClient.UpdateMyProfile(ctx, update); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("suspended update with stale user token: %v", err)

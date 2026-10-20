@@ -8,6 +8,9 @@
 -- snapshot from reservation_revisions. The only stored rejection is
 -- INSUFFICIENT_CREDITS from RESERVE or ADJUST. Other refusals are recomputed
 -- from current state and leave no row.
+--
+-- Settlement has no row here: it comes only from the order.outcome consumer,
+-- which deduplicates by event ID (#136).
 CREATE TABLE reservation_operations (
     operation        TEXT        NOT NULL,
     order_id         UUID        NOT NULL,
@@ -18,7 +21,7 @@ CREATE TABLE reservation_operations (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT reservation_operations_identity_key UNIQUE NULLS NOT DISTINCT (operation, order_id, assignment_id),
     CONSTRAINT reservation_operations_operation_check CHECK (
-        operation IN ('RESERVE', 'ADJUST', 'REVERT', 'RELEASE', 'SETTLE')
+        operation IN ('RESERVE', 'ADJUST', 'REVERT', 'RELEASE')
     ),
     CONSTRAINT reservation_operations_assignment_check CHECK (
         (assignment_id IS NOT NULL) = (operation IN ('ADJUST', 'REVERT'))

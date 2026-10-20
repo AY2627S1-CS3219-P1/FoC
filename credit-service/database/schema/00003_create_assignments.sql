@@ -1,9 +1,10 @@
 -- +goose Up
 -- Order sends a fresh assignment ID for every acceptance. An APPLIED
--- assignment set the hold to offer_amount, and reverting it restores the
--- reservation's original_amount. REVERTED is permanent.
+-- assignment sets the hold to offer_amount, and reverting it restores the
+-- reservation's original_amount. REVERTED is permanent, and a reverted
+-- assignment keeps the courier and offer it was applied with.
 --
--- A REVERTED row without a courier is a tombstone: Order reverted an
+-- A REVERTED row without a courier or offer is a tombstone: Order reverted an
 -- assignment that Credit had not applied, so a later Adjust for it must fail.
 CREATE TABLE assignments (
     order_id        UUID        NOT NULL REFERENCES reservations (order_id),

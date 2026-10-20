@@ -1,5 +1,6 @@
 -include .env
 
+CREDIT_DB ?= credit_dev
 SQLC_PATH=./database
 
 sqlc:
@@ -21,7 +22,7 @@ goose-create:
 	@cd database/schema && goose create $(name) sql
 
 dropDB:
-	@dropdb credit_dev
+	@dropdb --if-exists $(CREDIT_DB)
 
 createDB:
-	@createdb credit_dev
+	@createdb $(CREDIT_DB)

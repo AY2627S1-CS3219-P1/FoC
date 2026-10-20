@@ -2,6 +2,8 @@
 -- One reservation per order, keyed by the Order Service order ID. HELD and
 -- ASSIGNED hold credits. RELEASED and SETTLED are terminal and never change
 -- again, so an order's credits are paid or returned at most once (C1.2.14).
+-- The order.outcome consumer settles or releases an opened order; Order calls
+-- ReleaseReservation only to compensate a creation that never opened.
 --
 -- A RELEASED row without a requester is a tombstone: Order released an order
 -- that Credit had not seen, so a later Reserve for it must fail.
@@ -95,6 +97,11 @@ $$;
 CREATE TRIGGER reservations_terminal_immutable
     BEFORE UPDATE OR DELETE ON reservations
     FOR EACH ROW EXECUTE FUNCTION reject_terminal_reservation_change();
+
+-- Each UPDATE produces the next revision, which reservation_revisions records.
+CREATE TRIGGER reservations_bump_revision
+    BEFORE UPDATE ON reservations
+    FOR EACH ROW EXECUTE FUNCTION bump_revision();
 
 -- Every revision of every reservation. A replayed RPC returns the revision
 -- its first call produced, not the current state. Columns mirror

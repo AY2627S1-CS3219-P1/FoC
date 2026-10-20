@@ -24,6 +24,24 @@ END;
 $$;
 -- +goose StatementEnd
 
+-- Bumps revision and updated_at on every UPDATE, so writers cannot reuse a
+-- revision or leave updated_at stale.
+-- +goose StatementBegin
+CREATE FUNCTION bump_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.revision := OLD.revision + 1;
+    NEW.updated_at := CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$;
+-- +goose StatementEnd
+
+CREATE TRIGGER accounts_bump_revision
+    BEFORE UPDATE ON accounts
+    FOR EACH ROW EXECUTE FUNCTION bump_revision();
+
 -- +goose Down
-DROP FUNCTION reject_append_only_change();
 DROP TABLE accounts;
+DROP FUNCTION bump_revision();
+DROP FUNCTION reject_append_only_change();
