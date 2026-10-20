@@ -18,6 +18,7 @@ var ErrObjectNotFound = errors.New("image object not found")
 type UploadRequest struct {
 	Key         string
 	ContentType string
+	SizeBytes   int64
 }
 
 // UploadGrant contains the temporary upload URL and the exact request

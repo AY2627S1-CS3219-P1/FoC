@@ -14,6 +14,10 @@ func ConnectError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
+	var rejection app.CreationRejection
+	if errors.As(err, &rejection) {
+		return connect.NewError(connect.CodeFailedPrecondition, rejection)
+	}
 	for _, entry := range []struct {
 		err  error
 		code connect.Code
@@ -25,6 +29,9 @@ func ConnectError(ctx context.Context, err error) error {
 		{app.ErrInvalid, connect.CodeInvalidArgument},
 		{app.ErrPrecondition, connect.CodeFailedPrecondition},
 		{app.ErrConflict, connect.CodeAborted},
+		{app.ErrAlreadyExists, connect.CodeAlreadyExists},
+		{app.ErrUnavailable, connect.CodeUnavailable},
+		{app.ErrRateLimited, connect.CodeResourceExhausted},
 	} {
 		if errors.Is(err, entry.err) {
 			return connect.NewError(entry.code, entry.err)

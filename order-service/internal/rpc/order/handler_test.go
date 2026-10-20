@@ -51,20 +51,25 @@ func (f *fakeOperations) GetOrder(_ context.Context, c app.Caller, id string) (a
 	f.called, f.caller, f.id = "get", c, id
 	return fixture(), f.err
 }
+
 func (f *fakeOperations) page(name string, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	f.called, f.caller, f.request = name, c, r
 	return app.OrderPage{Orders: []app.Order{fixture()}, PageInfo: app.PageInfo{Page: app.Page{Number: 2, Size: 20}, Total: 21}}, f.err
 }
+
 func (f *fakeOperations) ListOpenOrders(_ context.Context, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	return f.page("open", c, r)
 }
+
 func (f *fakeOperations) ListMyOrders(_ context.Context, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	return f.page("mine", c, r)
 }
+
 func (f *fakeOperations) ListUserOrders(_ context.Context, c app.Caller, id string, r app.ListRequest) (app.OrderPage, error) {
 	f.id = id
 	return f.page("user", c, r)
 }
+
 func (f *fakeOperations) ListOffers(_ context.Context, c app.Caller, id string, status app.OfferStatus) ([]app.Offer, error) {
 	f.called, f.caller, f.id, f.status = "offers", c, id, status
 	o := fixture()
@@ -100,8 +105,8 @@ func mount(t *testing.T, f *fakeOperations, role string) clients {
 	}
 	server := httptest.NewServer(router.Setup(router.RPCServices{
 		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
-		Order:  rpcorder.NewServer(f, f),
-		Admin:  orderadmin.NewServer(f),
+		Order:  rpcorder.NewServerWithProgress(f, nil, nil, f),
+		Admin:  orderadmin.NewServer(f, nil),
 	}, authenticate))
 	t.Cleanup(server.Close)
 	return clients{order: orderv1connect.NewOrderServiceClient(server.Client(), server.URL), admin: orderv1connect.NewOrderAdminServiceClient(server.Client(), server.URL), internal: orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL)}
@@ -322,7 +327,11 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	}
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
-			if err := call.call(); connect.CodeOf(err) != connect.CodeUnimplemented {
+			want := connect.CodeUnimplemented
+			if call.name == "create" || call.name == "image upload" {
+				want = connect.CodeUnavailable
+			}
+			if err := call.call(); connect.CodeOf(err) != want {
 				t.Fatalf("err=%v", err)
 			}
 		})
