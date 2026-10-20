@@ -89,8 +89,8 @@ message Settlement {
   ReleaseReason release_reason = 5;
 }
 
-// Opened with the starting credits when Credit consumes the user's
-// users.create event.
+// Opened with the starting credits by the user's users.create event or first
+// Reserve or payout, whichever comes first.
 message Account {
   string user_id = 1;
   // Credits the user owns, including credits held in reservations.
@@ -103,8 +103,7 @@ message Account {
 
 enum LedgerEntryKind {
   LEDGER_ENTRY_KIND_UNSPECIFIED = 0;
-  // Starting credits (100), granted once when Credit consumes the user's
-  // users.create event.
+  // Starting credits (100), granted once when the account is opened.
   LEDGER_ENTRY_KIND_GRANT = 1;
   LEDGER_ENTRY_KIND_RESERVE = 2;
   // An accepted offer changed the hold.

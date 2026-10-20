@@ -97,11 +97,11 @@ export const ListMyLedgerEntriesResponseSchema: GenMessage<ListMyLedgerEntriesRe
 
 /**
  * The caller's own credits, identified by their User Service JWT. Reads have no
- * side effects and never create an account. Credit opens the account with the
- * starting credits when it consumes the user's users.create event, once per
- * user ID, so a redelivered event grants nothing more. Until then, both RPCs
- * fail with not_found and a google.rpc.ErrorInfo with domain "credit.v1" and
- * reason ACCOUNT_NOT_FOUND.
+ * side effects and never open an account. Credit opens it with the starting
+ * credits, once per user, when it consumes the user's users.create event or on
+ * the user's first Reserve or payout, whichever comes first. Until then, both
+ * RPCs fail with not_found and a google.rpc.ErrorInfo with domain "credit.v1"
+ * and reason ACCOUNT_NOT_FOUND.
  *
  * @generated from service credit.v1.CreditAccountService
  */

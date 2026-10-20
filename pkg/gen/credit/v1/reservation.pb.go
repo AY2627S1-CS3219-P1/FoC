@@ -24,8 +24,8 @@ const (
 
 // Holds amount from the requester's available credits when a request is
 // created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
-// with RESERVATION_RELEASED if the request was already released. Fails with
-// ACCOUNT_NOT_FOUND if Credit has not yet opened the requester's account.
+// with RESERVATION_RELEASED if the request was already released. A requester
+// without an account first receives the starting credits.
 type ReserveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
