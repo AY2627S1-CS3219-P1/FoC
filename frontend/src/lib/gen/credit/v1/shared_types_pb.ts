@@ -173,7 +173,8 @@ export const SettlementSchema: GenMessage<Settlement> = /*@__PURE__*/
   messageDesc(file_credit_v1_shared_types, 2);
 
 /**
- * Created the first time Credit sees a user, with the starting credits.
+ * Opened with the starting credits by the user's users.create event or first
+ * Reserve or payout, whichever comes first.
  *
  * @generated from message credit.v1.Account
  */
@@ -343,8 +344,8 @@ export enum ReservationStatus {
   RELEASED = 3,
 
   /**
-   * The payable reward went to the courier and any remainder returned to the
-   * requester.
+   * From Order's order.outcome event: the payable reward went to the courier
+   * and any remainder returned to the requester.
    *
    * @generated from enum value: RESERVATION_STATUS_SETTLED = 4;
    */
@@ -398,11 +399,20 @@ export enum SettlementOutcome {
   RELEASED = 1,
 
   /**
+   * Credit applies the lateness rule. With elapsed = delivered_at -
+   * picked_up_at, T = the allowed delivery duration and R = the
+   * accepted offer_amount:
+   * - elapsed <= T pays R;
+   * - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+   * - elapsed >= 2T pays 0.
+   *
    * @generated from enum value: SETTLEMENT_OUTCOME_COMPLETED = 2;
    */
   COMPLETED = 2,
 
   /**
+   * Pays the courier the accepted offer_amount.
+   *
    * @generated from enum value: SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP = 3;
    */
   CANCELLED_AFTER_PICKUP = 3,
@@ -457,7 +467,7 @@ export enum LedgerEntryKind {
   UNSPECIFIED = 0,
 
   /**
-   * Starting credits (100, per C1.3.1), granted once when the account is created.
+   * Starting credits (100), granted once when the account is opened.
    *
    * @generated from enum value: LEDGER_ENTRY_KIND_GRANT = 1;
    */

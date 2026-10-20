@@ -37,7 +37,19 @@ func encode(f Fact) (proto.Message, error) {
 		if !ok {
 			return nil, errors.New("invalid Order actor")
 		}
-		return &events.OrderStatusChanged{EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision, PreviousStatus: previous, Status: status, Actor: &events.Actor{Type: actor, UserId: f.ActorID}, RequesterId: p.RequesterID, CourierId: p.CourierID, PickupLocationName: f.PickupName, OccurredAt: timestamppb.New(p.At)}, nil
+		return &events.OrderStatusChanged{
+			EventId:            f.ID,
+			OrderId:            f.OrderID,
+			Revision:           f.Revision,
+			PreviousStatus:     previous,
+			Status:             status,
+			Actor:              &events.Actor{Type: actor, UserId: f.ActorID},
+			RequesterId:        p.RequesterID,
+			CourierId:          p.CourierID,
+			PreviousCourierId:  p.PreviousCourierID,
+			PickupLocationName: f.PickupName,
+			OccurredAt:         timestamppb.New(p.At),
+		}, nil
 	case app.Outcome:
 		outcome, err := outcomeType(p)
 		if err != nil {

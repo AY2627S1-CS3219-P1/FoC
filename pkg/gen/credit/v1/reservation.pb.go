@@ -10,8 +10,6 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	durationpb "google.golang.org/protobuf/types/known/durationpb"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -90,7 +88,9 @@ func (x *ReserveRequest) GetAmount() int64 {
 
 // Applies an accepted offer to a Held reservation and records the courier.
 // Accepting at the original reward is also an offer, so Order supplies an
-// offer_id for every acceptance. The hold becomes offer_amount; if the
+// offer_id for every acceptance. offer_amount must be at least
+// original_amount (invalid_argument otherwise), so a revert never needs back
+// credits the requester has spent. The hold becomes offer_amount; if the
 // increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
 // returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
 type AdjustReservationRequest struct {
@@ -218,10 +218,11 @@ func (x *RevertAdjustmentRequest) GetOfferId() string {
 	return ""
 }
 
-// Returns the whole hold to the requester when an order is cancelled before
-// pickup, expires or fails. An unknown request is recorded as released, so a
-// later Reserve for it fails with RESERVATION_RELEASED. Fails with
-// RESERVATION_SETTLED on a Settled reservation.
+// Returns the whole hold to the requester, only as compensation for a creation
+// that never opened. Opened orders settle through order.outcome instead. An
+// unknown request is recorded as released, so a later Reserve for it fails
+// with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+// reservation.
 type ReleaseReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -274,101 +275,6 @@ func (x *ReleaseReservationRequest) GetReason() ReleaseReason {
 	return ReleaseReason_RELEASE_REASON_UNSPECIFIED
 }
 
-// Deprecated: Order publishes order.outcome; Credit settles in its consumer.
-// This draft RPC must not be authorized for Order.
-// Pays the courier when an order completes or the requester cancels after
-// pickup. The reservation must be Assigned. The courier receives the payable
-// amount and the rest of the hold returns to the requester.
-type SettleReservationRequest struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	// Types that are valid to be assigned to Outcome:
-	//
-	//	*SettleReservationRequest_Completed_
-	//	*SettleReservationRequest_CancelledAfterPickup_
-	Outcome       isSettleReservationRequest_Outcome `protobuf_oneof:"outcome"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SettleReservationRequest) Reset() {
-	*x = SettleReservationRequest{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SettleReservationRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SettleReservationRequest) ProtoMessage() {}
-
-func (x *SettleReservationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SettleReservationRequest.ProtoReflect.Descriptor instead.
-func (*SettleReservationRequest) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *SettleReservationRequest) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *SettleReservationRequest) GetOutcome() isSettleReservationRequest_Outcome {
-	if x != nil {
-		return x.Outcome
-	}
-	return nil
-}
-
-func (x *SettleReservationRequest) GetCompleted() *SettleReservationRequest_Completed {
-	if x != nil {
-		if x, ok := x.Outcome.(*SettleReservationRequest_Completed_); ok {
-			return x.Completed
-		}
-	}
-	return nil
-}
-
-func (x *SettleReservationRequest) GetCancelledAfterPickup() *SettleReservationRequest_CancelledAfterPickup {
-	if x != nil {
-		if x, ok := x.Outcome.(*SettleReservationRequest_CancelledAfterPickup_); ok {
-			return x.CancelledAfterPickup
-		}
-	}
-	return nil
-}
-
-type isSettleReservationRequest_Outcome interface {
-	isSettleReservationRequest_Outcome()
-}
-
-type SettleReservationRequest_Completed_ struct {
-	Completed *SettleReservationRequest_Completed `protobuf:"bytes,2,opt,name=completed,proto3,oneof"`
-}
-
-type SettleReservationRequest_CancelledAfterPickup_ struct {
-	CancelledAfterPickup *SettleReservationRequest_CancelledAfterPickup `protobuf:"bytes,3,opt,name=cancelled_after_pickup,json=cancelledAfterPickup,proto3,oneof"`
-}
-
-func (*SettleReservationRequest_Completed_) isSettleReservationRequest_Outcome() {}
-
-func (*SettleReservationRequest_CancelledAfterPickup_) isSettleReservationRequest_Outcome() {}
-
 // Includes tombstones. Fails with RESERVATION_NOT_FOUND for unknown requests.
 type GetReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -379,7 +285,7 @@ type GetReservationRequest struct {
 
 func (x *GetReservationRequest) Reset() {
 	*x = GetReservationRequest{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[5]
+	mi := &file_credit_v1_reservation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -391,7 +297,7 @@ func (x *GetReservationRequest) String() string {
 func (*GetReservationRequest) ProtoMessage() {}
 
 func (x *GetReservationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[5]
+	mi := &file_credit_v1_reservation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -404,7 +310,7 @@ func (x *GetReservationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReservationRequest.ProtoReflect.Descriptor instead.
 func (*GetReservationRequest) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{5}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetReservationRequest) GetRequestId() string {
@@ -423,7 +329,7 @@ type ReserveResponse struct {
 
 func (x *ReserveResponse) Reset() {
 	*x = ReserveResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[6]
+	mi := &file_credit_v1_reservation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -435,7 +341,7 @@ func (x *ReserveResponse) String() string {
 func (*ReserveResponse) ProtoMessage() {}
 
 func (x *ReserveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[6]
+	mi := &file_credit_v1_reservation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -448,7 +354,7 @@ func (x *ReserveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveResponse.ProtoReflect.Descriptor instead.
 func (*ReserveResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{6}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReserveResponse) GetReservation() *Reservation {
@@ -467,7 +373,7 @@ type AdjustReservationResponse struct {
 
 func (x *AdjustReservationResponse) Reset() {
 	*x = AdjustReservationResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[7]
+	mi := &file_credit_v1_reservation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -479,7 +385,7 @@ func (x *AdjustReservationResponse) String() string {
 func (*AdjustReservationResponse) ProtoMessage() {}
 
 func (x *AdjustReservationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[7]
+	mi := &file_credit_v1_reservation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,7 +398,7 @@ func (x *AdjustReservationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdjustReservationResponse.ProtoReflect.Descriptor instead.
 func (*AdjustReservationResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{7}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AdjustReservationResponse) GetReservation() *Reservation {
@@ -511,7 +417,7 @@ type RevertAdjustmentResponse struct {
 
 func (x *RevertAdjustmentResponse) Reset() {
 	*x = RevertAdjustmentResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[8]
+	mi := &file_credit_v1_reservation_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -523,7 +429,7 @@ func (x *RevertAdjustmentResponse) String() string {
 func (*RevertAdjustmentResponse) ProtoMessage() {}
 
 func (x *RevertAdjustmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[8]
+	mi := &file_credit_v1_reservation_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -536,7 +442,7 @@ func (x *RevertAdjustmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevertAdjustmentResponse.ProtoReflect.Descriptor instead.
 func (*RevertAdjustmentResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{8}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RevertAdjustmentResponse) GetReservation() *Reservation {
@@ -555,7 +461,7 @@ type ReleaseReservationResponse struct {
 
 func (x *ReleaseReservationResponse) Reset() {
 	*x = ReleaseReservationResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[9]
+	mi := &file_credit_v1_reservation_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -567,7 +473,7 @@ func (x *ReleaseReservationResponse) String() string {
 func (*ReleaseReservationResponse) ProtoMessage() {}
 
 func (x *ReleaseReservationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[9]
+	mi := &file_credit_v1_reservation_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -580,54 +486,10 @@ func (x *ReleaseReservationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseReservationResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseReservationResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{9}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReleaseReservationResponse) GetReservation() *Reservation {
-	if x != nil {
-		return x.Reservation
-	}
-	return nil
-}
-
-type SettleReservationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reservation   *Reservation           `protobuf:"bytes,1,opt,name=reservation,proto3" json:"reservation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SettleReservationResponse) Reset() {
-	*x = SettleReservationResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SettleReservationResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SettleReservationResponse) ProtoMessage() {}
-
-func (x *SettleReservationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SettleReservationResponse.ProtoReflect.Descriptor instead.
-func (*SettleReservationResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *SettleReservationResponse) GetReservation() *Reservation {
 	if x != nil {
 		return x.Reservation
 	}
@@ -643,7 +505,7 @@ type GetReservationResponse struct {
 
 func (x *GetReservationResponse) Reset() {
 	*x = GetReservationResponse{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[11]
+	mi := &file_credit_v1_reservation_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +517,7 @@ func (x *GetReservationResponse) String() string {
 func (*GetReservationResponse) ProtoMessage() {}
 
 func (x *GetReservationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[11]
+	mi := &file_credit_v1_reservation_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +530,7 @@ func (x *GetReservationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReservationResponse.ProtoReflect.Descriptor instead.
 func (*GetReservationResponse) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{11}
+	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetReservationResponse) GetReservation() *Reservation {
@@ -678,114 +540,11 @@ func (x *GetReservationResponse) GetReservation() *Reservation {
 	return nil
 }
 
-// Credit applies the lateness rule. With elapsed = delivered_at -
-// picked_up_at, T = delivery_duration and R = the hold:
-// - elapsed <= T pays R;
-// - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
-// - elapsed >= 2T pays 0.
-type SettleReservationRequest_Completed struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	PickedUpAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=picked_up_at,json=pickedUpAt,proto3" json:"picked_up_at,omitempty"`
-	// Allowed time from pickup to delivery.
-	DeliveryDuration *durationpb.Duration   `protobuf:"bytes,2,opt,name=delivery_duration,json=deliveryDuration,proto3" json:"delivery_duration,omitempty"`
-	DeliveredAt      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=delivered_at,json=deliveredAt,proto3" json:"delivered_at,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *SettleReservationRequest_Completed) Reset() {
-	*x = SettleReservationRequest_Completed{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SettleReservationRequest_Completed) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SettleReservationRequest_Completed) ProtoMessage() {}
-
-func (x *SettleReservationRequest_Completed) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SettleReservationRequest_Completed.ProtoReflect.Descriptor instead.
-func (*SettleReservationRequest_Completed) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{4, 0}
-}
-
-func (x *SettleReservationRequest_Completed) GetPickedUpAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.PickedUpAt
-	}
-	return nil
-}
-
-func (x *SettleReservationRequest_Completed) GetDeliveryDuration() *durationpb.Duration {
-	if x != nil {
-		return x.DeliveryDuration
-	}
-	return nil
-}
-
-func (x *SettleReservationRequest_Completed) GetDeliveredAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.DeliveredAt
-	}
-	return nil
-}
-
-// Pays the courier the whole hold.
-type SettleReservationRequest_CancelledAfterPickup struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SettleReservationRequest_CancelledAfterPickup) Reset() {
-	*x = SettleReservationRequest_CancelledAfterPickup{}
-	mi := &file_credit_v1_reservation_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SettleReservationRequest_CancelledAfterPickup) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SettleReservationRequest_CancelledAfterPickup) ProtoMessage() {}
-
-func (x *SettleReservationRequest_CancelledAfterPickup) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_v1_reservation_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SettleReservationRequest_CancelledAfterPickup.ProtoReflect.Descriptor instead.
-func (*SettleReservationRequest_CancelledAfterPickup) Descriptor() ([]byte, []int) {
-	return file_credit_v1_reservation_proto_rawDescGZIP(), []int{4, 1}
-}
-
 var File_credit_v1_reservation_proto protoreflect.FileDescriptor
 
 const file_credit_v1_reservation_proto_rawDesc = "" +
 	"\n" +
-	"\x1bcredit/v1/reservation.proto\x12\tcredit.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1ccredit/v1/shared_types.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x87\x01\n" +
+	"\x1bcredit/v1/reservation.proto\x12\tcredit.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1ccredit/v1/shared_types.proto\"\x87\x01\n" +
 	"\x0eReserveRequest\x12'\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\trequestId\x12+\n" +
@@ -806,20 +565,7 @@ const file_credit_v1_reservation_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\trequestId\x12<\n" +
 	"\x06reason\x18\x02 \x01(\x0e2\x18.credit.v1.ReleaseReasonB\n" +
-	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06reason\"\x9d\x05\n" +
-	"\x18SettleReservationRequest\x12'\n" +
-	"\n" +
-	"request_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\trequestId\x12M\n" +
-	"\tcompleted\x18\x02 \x01(\v2-.credit.v1.SettleReservationRequest.CompletedH\x00R\tcompleted\x12p\n" +
-	"\x16cancelled_after_pickup\x18\x03 \x01(\v28.credit.v1.SettleReservationRequest.CancelledAfterPickupH\x00R\x14cancelledAfterPickup\x1a\xec\x02\n" +
-	"\tCompleted\x12D\n" +
-	"\fpicked_up_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\n" +
-	"pickedUpAt\x12S\n" +
-	"\x11delivery_duration\x18\x02 \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x01\xaa\x01\x02*\x00R\x10deliveryDuration\x12E\n" +
-	"\fdelivered_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\vdeliveredAt:}\xbaHz\x1ax\n" +
-	" completed.delivered_after_pickup\x12,delivered_at must not be before picked_up_at\x1a&this.delivered_at >= this.picked_up_at\x1a\x16\n" +
-	"\x14CancelledAfterPickupB\x10\n" +
-	"\aoutcome\x12\x05\xbaH\x02\b\x01\"@\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06reason\"@\n" +
 	"\x15GetReservationRequest\x12'\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\trequestId\"K\n" +
@@ -830,17 +576,14 @@ const file_credit_v1_reservation_proto_rawDesc = "" +
 	"\x18RevertAdjustmentResponse\x128\n" +
 	"\vreservation\x18\x01 \x01(\v2\x16.credit.v1.ReservationR\vreservation\"V\n" +
 	"\x1aReleaseReservationResponse\x128\n" +
-	"\vreservation\x18\x01 \x01(\v2\x16.credit.v1.ReservationR\vreservation\"U\n" +
-	"\x19SettleReservationResponse\x128\n" +
 	"\vreservation\x18\x01 \x01(\v2\x16.credit.v1.ReservationR\vreservation\"R\n" +
 	"\x16GetReservationResponse\x128\n" +
-	"\vreservation\x18\x01 \x01(\v2\x16.credit.v1.ReservationR\vreservation2\xd4\x04\n" +
+	"\vreservation\x18\x01 \x01(\v2\x16.credit.v1.ReservationR\vreservation2\xec\x03\n" +
 	"\x18CreditReservationService\x12E\n" +
 	"\aReserve\x12\x19.credit.v1.ReserveRequest\x1a\x1a.credit.v1.ReserveResponse\"\x03\x90\x02\x02\x12c\n" +
 	"\x11AdjustReservation\x12#.credit.v1.AdjustReservationRequest\x1a$.credit.v1.AdjustReservationResponse\"\x03\x90\x02\x02\x12`\n" +
 	"\x10RevertAdjustment\x12\".credit.v1.RevertAdjustmentRequest\x1a#.credit.v1.RevertAdjustmentResponse\"\x03\x90\x02\x02\x12f\n" +
-	"\x12ReleaseReservation\x12$.credit.v1.ReleaseReservationRequest\x1a%.credit.v1.ReleaseReservationResponse\"\x03\x90\x02\x02\x12f\n" +
-	"\x11SettleReservation\x12#.credit.v1.SettleReservationRequest\x1a$.credit.v1.SettleReservationResponse\"\x06\x88\x02\x01\x90\x02\x02\x12Z\n" +
+	"\x12ReleaseReservation\x12$.credit.v1.ReleaseReservationRequest\x1a%.credit.v1.ReleaseReservationResponse\"\x03\x90\x02\x02\x12Z\n" +
 	"\x0eGetReservation\x12 .credit.v1.GetReservationRequest\x1a!.credit.v1.GetReservationResponse\"\x03\x90\x02\x01B\xa4\x01\n" +
 	"\rcom.credit.v1B\x10ReservationProtoP\x01Z<github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1;creditv1\xa2\x02\x03CXX\xaa\x02\tCredit.V1\xca\x02\tCredit\\V1\xe2\x02\x15Credit\\V1\\GPBMetadata\xea\x02\n" +
 	"Credit::V1b\x06proto3"
@@ -857,57 +600,43 @@ func file_credit_v1_reservation_proto_rawDescGZIP() []byte {
 	return file_credit_v1_reservation_proto_rawDescData
 }
 
-var file_credit_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_credit_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_credit_v1_reservation_proto_goTypes = []any{
-	(*ReserveRequest)(nil),                                // 0: credit.v1.ReserveRequest
-	(*AdjustReservationRequest)(nil),                      // 1: credit.v1.AdjustReservationRequest
-	(*RevertAdjustmentRequest)(nil),                       // 2: credit.v1.RevertAdjustmentRequest
-	(*ReleaseReservationRequest)(nil),                     // 3: credit.v1.ReleaseReservationRequest
-	(*SettleReservationRequest)(nil),                      // 4: credit.v1.SettleReservationRequest
-	(*GetReservationRequest)(nil),                         // 5: credit.v1.GetReservationRequest
-	(*ReserveResponse)(nil),                               // 6: credit.v1.ReserveResponse
-	(*AdjustReservationResponse)(nil),                     // 7: credit.v1.AdjustReservationResponse
-	(*RevertAdjustmentResponse)(nil),                      // 8: credit.v1.RevertAdjustmentResponse
-	(*ReleaseReservationResponse)(nil),                    // 9: credit.v1.ReleaseReservationResponse
-	(*SettleReservationResponse)(nil),                     // 10: credit.v1.SettleReservationResponse
-	(*GetReservationResponse)(nil),                        // 11: credit.v1.GetReservationResponse
-	(*SettleReservationRequest_Completed)(nil),            // 12: credit.v1.SettleReservationRequest.Completed
-	(*SettleReservationRequest_CancelledAfterPickup)(nil), // 13: credit.v1.SettleReservationRequest.CancelledAfterPickup
-	(ReleaseReason)(0),                                    // 14: credit.v1.ReleaseReason
-	(*Reservation)(nil),                                   // 15: credit.v1.Reservation
-	(*timestamppb.Timestamp)(nil),                         // 16: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),                           // 17: google.protobuf.Duration
+	(*ReserveRequest)(nil),             // 0: credit.v1.ReserveRequest
+	(*AdjustReservationRequest)(nil),   // 1: credit.v1.AdjustReservationRequest
+	(*RevertAdjustmentRequest)(nil),    // 2: credit.v1.RevertAdjustmentRequest
+	(*ReleaseReservationRequest)(nil),  // 3: credit.v1.ReleaseReservationRequest
+	(*GetReservationRequest)(nil),      // 4: credit.v1.GetReservationRequest
+	(*ReserveResponse)(nil),            // 5: credit.v1.ReserveResponse
+	(*AdjustReservationResponse)(nil),  // 6: credit.v1.AdjustReservationResponse
+	(*RevertAdjustmentResponse)(nil),   // 7: credit.v1.RevertAdjustmentResponse
+	(*ReleaseReservationResponse)(nil), // 8: credit.v1.ReleaseReservationResponse
+	(*GetReservationResponse)(nil),     // 9: credit.v1.GetReservationResponse
+	(ReleaseReason)(0),                 // 10: credit.v1.ReleaseReason
+	(*Reservation)(nil),                // 11: credit.v1.Reservation
 }
 var file_credit_v1_reservation_proto_depIdxs = []int32{
-	14, // 0: credit.v1.ReleaseReservationRequest.reason:type_name -> credit.v1.ReleaseReason
-	12, // 1: credit.v1.SettleReservationRequest.completed:type_name -> credit.v1.SettleReservationRequest.Completed
-	13, // 2: credit.v1.SettleReservationRequest.cancelled_after_pickup:type_name -> credit.v1.SettleReservationRequest.CancelledAfterPickup
-	15, // 3: credit.v1.ReserveResponse.reservation:type_name -> credit.v1.Reservation
-	15, // 4: credit.v1.AdjustReservationResponse.reservation:type_name -> credit.v1.Reservation
-	15, // 5: credit.v1.RevertAdjustmentResponse.reservation:type_name -> credit.v1.Reservation
-	15, // 6: credit.v1.ReleaseReservationResponse.reservation:type_name -> credit.v1.Reservation
-	15, // 7: credit.v1.SettleReservationResponse.reservation:type_name -> credit.v1.Reservation
-	15, // 8: credit.v1.GetReservationResponse.reservation:type_name -> credit.v1.Reservation
-	16, // 9: credit.v1.SettleReservationRequest.Completed.picked_up_at:type_name -> google.protobuf.Timestamp
-	17, // 10: credit.v1.SettleReservationRequest.Completed.delivery_duration:type_name -> google.protobuf.Duration
-	16, // 11: credit.v1.SettleReservationRequest.Completed.delivered_at:type_name -> google.protobuf.Timestamp
-	0,  // 12: credit.v1.CreditReservationService.Reserve:input_type -> credit.v1.ReserveRequest
-	1,  // 13: credit.v1.CreditReservationService.AdjustReservation:input_type -> credit.v1.AdjustReservationRequest
-	2,  // 14: credit.v1.CreditReservationService.RevertAdjustment:input_type -> credit.v1.RevertAdjustmentRequest
-	3,  // 15: credit.v1.CreditReservationService.ReleaseReservation:input_type -> credit.v1.ReleaseReservationRequest
-	4,  // 16: credit.v1.CreditReservationService.SettleReservation:input_type -> credit.v1.SettleReservationRequest
-	5,  // 17: credit.v1.CreditReservationService.GetReservation:input_type -> credit.v1.GetReservationRequest
-	6,  // 18: credit.v1.CreditReservationService.Reserve:output_type -> credit.v1.ReserveResponse
-	7,  // 19: credit.v1.CreditReservationService.AdjustReservation:output_type -> credit.v1.AdjustReservationResponse
-	8,  // 20: credit.v1.CreditReservationService.RevertAdjustment:output_type -> credit.v1.RevertAdjustmentResponse
-	9,  // 21: credit.v1.CreditReservationService.ReleaseReservation:output_type -> credit.v1.ReleaseReservationResponse
-	10, // 22: credit.v1.CreditReservationService.SettleReservation:output_type -> credit.v1.SettleReservationResponse
-	11, // 23: credit.v1.CreditReservationService.GetReservation:output_type -> credit.v1.GetReservationResponse
-	18, // [18:24] is the sub-list for method output_type
-	12, // [12:18] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 0: credit.v1.ReleaseReservationRequest.reason:type_name -> credit.v1.ReleaseReason
+	11, // 1: credit.v1.ReserveResponse.reservation:type_name -> credit.v1.Reservation
+	11, // 2: credit.v1.AdjustReservationResponse.reservation:type_name -> credit.v1.Reservation
+	11, // 3: credit.v1.RevertAdjustmentResponse.reservation:type_name -> credit.v1.Reservation
+	11, // 4: credit.v1.ReleaseReservationResponse.reservation:type_name -> credit.v1.Reservation
+	11, // 5: credit.v1.GetReservationResponse.reservation:type_name -> credit.v1.Reservation
+	0,  // 6: credit.v1.CreditReservationService.Reserve:input_type -> credit.v1.ReserveRequest
+	1,  // 7: credit.v1.CreditReservationService.AdjustReservation:input_type -> credit.v1.AdjustReservationRequest
+	2,  // 8: credit.v1.CreditReservationService.RevertAdjustment:input_type -> credit.v1.RevertAdjustmentRequest
+	3,  // 9: credit.v1.CreditReservationService.ReleaseReservation:input_type -> credit.v1.ReleaseReservationRequest
+	4,  // 10: credit.v1.CreditReservationService.GetReservation:input_type -> credit.v1.GetReservationRequest
+	5,  // 11: credit.v1.CreditReservationService.Reserve:output_type -> credit.v1.ReserveResponse
+	6,  // 12: credit.v1.CreditReservationService.AdjustReservation:output_type -> credit.v1.AdjustReservationResponse
+	7,  // 13: credit.v1.CreditReservationService.RevertAdjustment:output_type -> credit.v1.RevertAdjustmentResponse
+	8,  // 14: credit.v1.CreditReservationService.ReleaseReservation:output_type -> credit.v1.ReleaseReservationResponse
+	9,  // 15: credit.v1.CreditReservationService.GetReservation:output_type -> credit.v1.GetReservationResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_credit_v1_reservation_proto_init() }
@@ -916,17 +645,13 @@ func file_credit_v1_reservation_proto_init() {
 		return
 	}
 	file_credit_v1_shared_types_proto_init()
-	file_credit_v1_reservation_proto_msgTypes[4].OneofWrappers = []any{
-		(*SettleReservationRequest_Completed_)(nil),
-		(*SettleReservationRequest_CancelledAfterPickup_)(nil),
-	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_credit_v1_reservation_proto_rawDesc), len(file_credit_v1_reservation_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
