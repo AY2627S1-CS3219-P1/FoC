@@ -1,6 +1,12 @@
 # Delivery proof
 
-Status: user-approved design; partial feature-local implementation, NOT wired or feature-ready. Starting base: `e056db71ca814eb96aa45aea96cb82e5aeefedd2` (#150). No dependency merges authorized. #148 pickup/receipt is not present.
+Status: user-approved design; partial feature-local implementation, NOT wired or feature-ready. Starting base: `e056db71ca814eb96aa45aea96cb82e5aeefedd2` (#150). No dependency merge has been performed. #148 pickup/receipt is not present.
+
+## Publication authorization
+
+Andrew explicitly requested publication now, treating UI #158 and acceptance/offers #159 as delivered dependencies and B3–B5 as downstream consumers. This supersedes waiting for unavailable shared owners before publishing B2. Target `andrew/feat/order-acceptance-offers` (#159), not the rewritten #150 branch. Inspected #158 head `049157b4f346b1ef0e8af9de9bc7146fd274bcf3` and #159 head `de1968e0f20174bf1f20fcb89986b0fbfd66d5ee`, including their PR descriptions and actual service/route/history contracts. Their unresolved findings are not waived by this dependency assumption.
+
+The B1-to-B2 three-dot diff contains only the 15 B2 files; no UI/B1 code was copied or replaced. B2's original tests do not certify the unmerged combined stack. Publish as a draft for independent Opus review and downstream inspection, with persistence/RPC/UI integration, deployment capability and E2E limits explicit. Exact-model review remains required; publication is not feature-ready approval.
 
 ## Approved decisions
 
