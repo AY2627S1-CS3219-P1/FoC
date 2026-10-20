@@ -1,0 +1,142 @@
+package order
+
+import (
+	"context"
+	"io"
+	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/images"
+)
+
+// MaxStagedProofs is an operational resource limit, separate from the five
+// accepted delivery photos. Existing upload identities remain retryable.
+const MaxStagedProofs = 20
+
+type ProofState string
+
+const (
+	ProofUploading ProofState = "uploading"
+	ProofAccepted  ProofState = "accepted"
+	ProofDeleting  ProofState = "deleting"
+)
+
+// ProofUpload retains immutable identity and signing metadata, not bearer URLs.
+// A grant generation changes only when its previous grant has expired.
+type ProofUpload struct {
+	State                            ProofState
+	ID, OrderID, CourierID, UploadID string
+	Key, ContentType                 string
+	SizeBytes                        int64
+	Generation                       int64
+	GrantedAt, ExpiresAt, CreatedAt  time.Time
+}
+
+type ProofUploadInput struct {
+	OrderID, UploadID, ContentType string
+	SizeBytes                      int64
+}
+
+type ProofConfirmation struct {
+	OrderID, CourierID string
+	ProofIDs           []string
+	Unattended         bool
+	OutageReason       string
+	Outage             *ProofOutage
+	ConfirmedAt        time.Time
+}
+
+type ConfirmDeliveryInput struct {
+	OrderID    string
+	ProofIDs   []string
+	Unattended bool
+	// This requests the exception, not authority to grant it. The server must
+	// independently confirm an upload outage and supply its own reason.
+	WithoutProof bool
+}
+
+type ProofView struct {
+	ID, DownloadURL string
+	ExpiresAt       time.Time
+}
+
+type DeliveryProofView struct {
+	Proofs       []ProofView
+	OutageReason string
+}
+
+// ProofTx must be backed by the SAME transaction as Tx. Lock the order before
+// reading these relationships in separate statements. SaveConfirmation attaches
+// exactly these proofs and persists the accepted input atomically with Apply.
+// Its adapter must reject cross-order/courier proofs, duplicate confirmations,
+// changed proof metadata and rows already fenced for cleanup.
+type ProofTx interface {
+	Tx
+	FindProofUpload(context.Context, string, string, string) (ProofUpload, error)
+	CountStagedProofs(context.Context, string, string) (int64, error)
+	GetProofUpload(context.Context, string) (ProofUpload, error)
+	SaveProofUpload(context.Context, ProofUpload) error
+	GetProofConfirmation(context.Context, string) (ProofConfirmation, error)
+	SaveProofConfirmation(context.Context, ProofConfirmation, []ProofUpload) error
+	// This is a LOCAL authoritative read under the order lock, not a remote probe.
+	// It must reject superseded/recovered evidence and a mismatched upload scope.
+	// Hold a shared lock on the authoritative outage generation through commit,
+	// serializing confirmation with recovery publication of that record.
+	IsProofOutageCurrent(context.Context, ProofOutage) (bool, error)
+}
+
+type ProofRepository interface {
+	WithinProofs(context.Context, func(ProofTx) error) error
+}
+
+// ProofGrantIssuer reuses the existing immutable S3 signing infrastructure.
+// Implementations must return identical grants for a persisted generation, even
+// across process restarts, and expire any signing identity when its credentials
+// rotate. No concrete retry-stable signing adapter is wired until that contract
+// has an acknowledged owner.
+type ProofGrantIssuer interface {
+	CreateProofGrant(context.Context, ProofUpload) (images.UploadGrant, error)
+}
+
+// ProofObjects keeps storage and decoding outside order transactions. ReadProof
+// enforces the bound while reading, not after allocating an unbounded body.
+type ProofObjects interface {
+	Inspect(context.Context, string) (images.ObjectInfo, error)
+	ReadProof(context.Context, string, int64) (io.ReadCloser, error)
+	CreateDownload(context.Context, string) (images.DownloadGrant, error)
+}
+
+// ProofImageValidator must fully decode the declared format with byte, pixel,
+// memory and execution bounds. Merely sniffing a header is insufficient.
+type ProofImageValidator interface {
+	Validate(context.Context, string, []byte) error
+}
+
+type ProofOutage struct {
+	Reason, EvidenceID, UploadScope string
+	Generation                      int64
+	ObservedAt, ValidUntil          time.Time
+}
+
+// ProofOutageAuthority is server-controlled. Missing objects, invalid input,
+// local signing errors, credentials/configuration failures and a single failed
+// client upload never establish an upload-service outage. An absent authority
+// fails closed; callers cannot provide an outage reason or observation.
+type ProofOutageAuthority interface {
+	ConfirmProofOutage(context.Context) (ProofOutage, error)
+}
+
+// ProofCaseAccess is the unresolved Reports/Appeals authorization seam. It must
+// authoritatively verify an admin's assignment to an associated OPEN case. Nil,
+// false and lookup errors all deny proof access; role alone never grants it.
+type ProofCaseAccess interface {
+	CanReadProof(context.Context, string, string) (bool, error)
+}
+
+type ProofOptions struct {
+	// Stable server-controlled upload-path/bucket identity, never client input.
+	UploadScope string
+	Now         func() time.Time
+	NewID       func() string
+	CaseAccess  ProofCaseAccess
+	Outages     ProofOutageAuthority
+}
