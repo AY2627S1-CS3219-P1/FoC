@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliveryProofController, ProofRejectedError, type DeliveryProofAPI } from './controller';
+import { DeliveryProofController, ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from './controller';
 
 // Expected behavior comes from approved Q1/Q4/Q5/Q8/Q11 and NFR-13.
 function scenario() {
@@ -11,7 +11,7 @@ function scenario() {
 		verifyUpload: vi.fn(async () => {}),
 		confirmDelivery: vi.fn(async () => {})
 	};
-	const put = vi.fn(async () => {});
+	const put = vi.fn(async (_grant: ProofGrant, _file: File, _signal: AbortSignal) => {});
 	const controller = new DeliveryProofController('order', api, () => {}, put);
 	return { api, put, controller };
 }
@@ -209,4 +209,60 @@ describe('acknowledged proof removal', () => {
   expect(vi.mocked(api.abandonUpload).mock.calls[1].slice(0,2)).toEqual(['order',id]);
   expect(controller.snapshot().files).toHaveLength(0);
  });
+});
+
+// The reviewed slow-network example is an 8 MB photo on a 3 Mbps connection,
+// which requires about 22 seconds. API calls still use their shorter budget.
+describe('separate upload and API budgets', () => {
+	it('allows an 8 MB photo to finish after the old 15-second upload cutoff', async () => {
+		vi.useFakeTimers();
+		const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+			const controller = new AbortController();
+			setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), milliseconds);
+			return controller.signal;
+		});
+		try {
+			const { api, controller, put } = scenario();
+			put.mockImplementationOnce((_grant, _file, signal) => new Promise<void>((resolve, reject) => {
+				setTimeout(resolve, 22_000);
+				signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+			}));
+			controller.addFiles([new File([new Uint8Array(8_000_000)], 'phone.heic', { type: 'image/heic' })]);
+			const work = controller.upload();
+			await vi.advanceTimersByTimeAsync(22_000);
+			await work;
+			expect(controller.snapshot().files[0].outcome).toBe('Succeeded');
+			expect(api.verifyUpload).toHaveBeenCalledOnce();
+			expect(api.confirmDelivery).not.toHaveBeenCalled();
+		} finally {
+			timeout.mockRestore();
+			vi.clearAllTimers();
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps the API timeout short and retains a large photo after unknown admission', async () => {
+		vi.useFakeTimers();
+		const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+			const controller = new AbortController();
+			setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), milliseconds);
+			return controller.signal;
+		});
+		try {
+			const { api, controller, put } = scenario();
+			vi.mocked(api.createUpload).mockReturnValueOnce(new Promise(() => {}));
+			const file = new File([new Uint8Array(8_000_000)], 'phone.heic', { type: 'image/heic' });
+			controller.addFiles([file]);
+			const id = controller.snapshot().files[0].id;
+			const work = controller.upload();
+			await vi.advanceTimersByTimeAsync(15_000);
+			await work;
+			expect(put).not.toHaveBeenCalled();
+			expect(controller.snapshot().files[0]).toMatchObject({ id, file, outcome: 'Failed' });
+		} finally {
+			timeout.mockRestore();
+			vi.clearAllTimers();
+			vi.useRealTimers();
+		}
+	});
 });

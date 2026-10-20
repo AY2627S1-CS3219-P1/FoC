@@ -47,6 +47,9 @@ export type ProofSnapshot = {
 
 const types = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 const maxBytes = 10_000_000;
+const apiTimeoutMs = 15_000;
+// Allow 64 KiB/s plus API-sized overhead for a bounded direct upload.
+const uploadBytesPerSecond = 64 * 1024;
 
 type PutPhoto = (grant: ProofGrant, file: File, signal: AbortSignal) => Promise<void>;
 
@@ -96,8 +99,8 @@ export class DeliveryProofController {
 		this.lifetime.abort();
 	}
 
-	private async bounded<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
-		const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15_000)]);
+	private async bounded<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs = apiTimeoutMs): Promise<T> {
+		const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(timeoutMs)]);
 		signal.throwIfAborted();
 		return new Promise<T>((resolve, reject) => {
 			const abort = () => reject(signal.reason);
@@ -190,7 +193,8 @@ export class DeliveryProofController {
 					// Always inspect after a PUT, including a lost response or a 412
 					// from retrying an already stored immutable object.
 					try {
-						await this.bounded((signal) => this.put(grant, row.file, signal));
+						const uploadTimeoutMs = apiTimeoutMs + Math.ceil(row.file.size / uploadBytesPerSecond) * 1000;
+						await this.bounded((signal) => this.put(grant, row.file, signal), uploadTimeoutMs);
 					} catch {
 						row.message = 'Upload result is unknown. Checking whether the photo was saved…';
 						this.publish();
