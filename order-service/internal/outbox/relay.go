@@ -41,17 +41,18 @@ func New(repository Repository, publisher Publisher) *Relay {
 }
 
 func (r *Relay) Drain(ctx context.Context, limit int) error {
+	var deferred error
 	for range limit {
 		if err := ctx.Err(); err != nil {
-			return err
+			return errors.Join(deferred, err)
 		}
 		now := r.now().UTC()
 		fact, err := r.repository.Claim(ctx, now, now.Add(30*time.Second))
 		if err != nil {
-			return err
+			return errors.Join(deferred, err)
 		}
 		if fact == nil {
-			return nil
+			return deferred
 		}
 		message, err := encode(*fact)
 		if err == nil {
@@ -60,15 +61,21 @@ func (r *Relay) Drain(ctx context.Context, limit int) error {
 			cancel()
 		}
 		if err != nil {
-			return errors.Join(err, r.repository.Retry(ctx, *fact, r.now().UTC().Add(2*time.Second)))
+			deferred = errors.Join(deferred, err)
+			if retryErr := r.repository.Retry(ctx, *fact, r.now().UTC().Add(2*time.Second)); retryErr != nil {
+				return errors.Join(deferred, retryErr)
+			}
+			// This Order remains blocked behind its deferred fact. Other Orders
+			// can still use the rest of this bounded batch.
+			continue
 		}
 		// A local failure here deliberately leaves the event outstanding. The next
 		// owner republishes the same ID even if Kafka already accepted it.
 		if err := r.repository.Published(ctx, *fact, r.now().UTC()); err != nil {
-			return err
+			return errors.Join(deferred, err)
 		}
 	}
-	return nil
+	return deferred
 }
 
 func (r *Relay) Run(ctx context.Context) {

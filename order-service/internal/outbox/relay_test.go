@@ -127,3 +127,99 @@ func TestRelayShutdownCancelsClaim(t *testing.T) {
 		t.Fatal("relay did not stop")
 	}
 }
+
+func TestCourierRemovalPreservesPreviousRecipient(t *testing.T) {
+	for _, actor := range []string{"user", "admin"} {
+		t.Run(actor, func(t *testing.T) {
+			courier := "removed-courier"
+			payload, err := json.Marshal(app.FactsPayload{
+				OrderID: "order", Revision: 2, RequesterID: "requester",
+				PreviousStatus: app.AwaitingPickup, Status: app.AwaitingCourier,
+				PreviousCourierID: &courier, At: time.Now(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			message, err := encode(Fact{ID: "removal", OrderID: "order", Revision: 2, Kind: string(app.StatusChanged), Version: 1, Payload: payload, ActorKind: actor})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Check the serialized message that consumers actually receive.
+			wire, err := proto.Marshal(message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var event events.OrderStatusChanged
+			if err := proto.Unmarshal(wire, &event); err != nil {
+				t.Fatal(err)
+			}
+			if event.GetPreviousCourierId() != courier || event.CourierId != nil {
+				t.Fatalf("lost removal recipient: %v", &event)
+			}
+		})
+	}
+}
+
+type batchFacts struct {
+	facts     []Fact
+	retried   []string
+	published []string
+	retryErr  error
+}
+
+func (b *batchFacts) Claim(context.Context, time.Time, time.Time) (*Fact, error) {
+	if len(b.facts) == 0 {
+		return nil, nil
+	}
+	fact := b.facts[0]
+	b.facts = b.facts[1:]
+	return &fact, nil
+}
+
+func (b *batchFacts) Published(_ context.Context, f Fact, _ time.Time) error {
+	b.published = append(b.published, f.ID)
+	return nil
+}
+
+func (b *batchFacts) Retry(_ context.Context, f Fact, _ time.Time) error {
+	b.retried = append(b.retried, f.ID)
+	return b.retryErr
+}
+
+func TestDeferredFactDoesNotStopIndependentOrder(t *testing.T) {
+	for _, invalidPayload := range []bool{false, true} {
+		payload, err := json.Marshal(app.FactsPayload{OrderID: "order", Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: time.Now()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := Fact{ID: "deferred", OrderID: "order", Revision: 1, Version: 1, Kind: string(app.StatusChanged), Payload: payload, ActorKind: "user"}
+		if invalidPayload {
+			first.Version = 0
+		}
+		second := first
+		second.ID, second.OrderID, second.Version = "independent", "other-order", 1
+		second.Payload, err = json.Marshal(app.FactsPayload{OrderID: second.OrderID, Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: time.Now()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		store := &batchFacts{facts: []Fact{first, second}}
+		publisher := &recordingPublisher{fail: !invalidPayload}
+		if err := New(store, publisher).Drain(context.Background(), 3); err == nil {
+			t.Fatal("deferred publication error was lost")
+		}
+		if len(store.retried) != 1 || store.retried[0] != first.ID || len(store.published) != 1 || store.published[0] != second.ID {
+			t.Fatalf("retried=%v published=%v", store.retried, store.published)
+		}
+	}
+}
+
+func TestRetryFailureStopsBatch(t *testing.T) {
+	retryErr := errors.New("retry persistence failed")
+	store := &batchFacts{facts: []Fact{{Version: 0}, {Version: 0}}, retryErr: retryErr}
+	if err := New(store, &recordingPublisher{}).Drain(context.Background(), 2); !errors.Is(err, retryErr) {
+		t.Fatalf("got %v, want retry persistence failure", err)
+	}
+	if len(store.facts) != 1 || len(store.retried) != 1 {
+		t.Fatal("continued claiming after failure to defer")
+	}
+}
