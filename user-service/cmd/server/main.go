@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -26,11 +27,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -114,9 +117,11 @@ func main() {
 			})
 		},
 	}
+	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: profileLogic},
 		Admin:        &adminhandler.Handler{Logic: roleLogic},
+		Review:       &review.Handler{Logic: reviewLogic},
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
@@ -158,6 +163,25 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
+}
+
+// newReviewService builds the review service. Reads run against the shared
+// connection pool; transactional writes run on a database/sql transaction, with
+// sqlc queries bound to it (see LANDMINES for the locking rule).
+func newReviewService(sqlDB *sql.DB) *review.Service {
+	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		// Rollback is a no-op after a successful Commit.
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
 }
 
 // loadConfig reads .env (if present) and the environment once, applying

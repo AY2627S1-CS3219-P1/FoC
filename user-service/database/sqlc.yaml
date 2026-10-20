@@ -1,0 +1,17 @@
+version: "2"
+sql:
+  - name: "review"
+    engine: "postgresql"
+    queries: "query/reviews.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "reviewdb"
+        out: "../internal/database/reviewdb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "citext"
+            go_type: "string"
