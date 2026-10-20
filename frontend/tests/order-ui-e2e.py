@@ -1,6 +1,7 @@
 """Repeatable frontend E2E at mocked Connect/S3 seams, not backend certification.
 
-Prerequisites: Python Playwright with Chromium and a running frontend.
+Prerequisites: Python Playwright with Chromium and a running Vite dev server.
+Caller-switch checks use the dev server to import the auth composition root.
 Run: python3 frontend/tests/order-ui-e2e.py --url http://127.0.0.1:5187
 Artifacts default to .local/order-ui-evidence/ (ignored).
 """
@@ -36,7 +37,7 @@ def main():
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     origin = args.url.rstrip("/")
-    state = {"suspended": False, "create": [], "uploads": 0, "reads": 0, "history": [], "open": [], "lost_create": True, "deadline": False}
+    state = {"suspended": False, "create": [], "uploads": 0, "reads": 0, "history": [], "open": [], "lost_create": True, "deadline": False, "caller": USER, "balance_failure": False}
     assertions = []
     cors = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "content-type,authorization,connect-protocol-version,connect-timeout-ms", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Expose-Headers": "*"}
 
@@ -66,9 +67,12 @@ def main():
         body = request.post_data_json or {}
         method = parsed.path.rsplit("/", 1)[-1]
         if method == "Refresh":
-            response = {"accessToken": "fixture-token-not-a-real-credential", "user": {"id": USER, "email": "fixture@example.test", "displayName": "Fixture Requester", "role": "USER_ROLE_SUSPENDED_USER" if state["suspended"] else "USER_ROLE_USER"}}
+            response = {"accessToken": "fixture-token-not-a-real-credential", "user": {"id": state["caller"], "email": "fixture@example.test", "displayName": "Fixture Requester", "role": "USER_ROLE_SUSPENDED_USER" if state["suspended"] else "USER_ROLE_USER"}}
         elif method == "GetMyAccount":
-            response = {"account": {"userId": USER, "balance": "100", "reserved": "0", "available": "100"}}
+            if state["balance_failure"]:
+                route.fulfill(status=503, headers=cors, content_type="application/json", body=json.dumps({"code": "unavailable", "message": "Credit temporarily unavailable"}))
+                return
+            response = {"account": {"userId": state["caller"], "balance": "100", "reserved": "0", "available": "100"}}
         elif method == "ListBuildings":
             response = {"buildings": [{"id": BUILDING, "name": "COM3"}]}
         elif method == "ListCategories":
@@ -136,9 +140,43 @@ def main():
             assert state["open"][-1].get("deliveryBuildingName") == "COM3"
             assert "deliveryLocationId" not in state["open"][-1]
             assertions.append("Destination filter sends the explicit coarse building field, never an exact Location ID")
+            picker = page.get_by_role("group", name="Pickup location filter", exact=True)
+            picker.get_by_label("Pickup location filter search", exact=True).fill("Cafe")
+            picker.get_by_role("button", name="Search", exact=True).click()
+            picker.get_by_role("button", name="Campus Cafe · COM3", exact=True).click()
+            expect(page).to_have_url(origin + "/orders?destination=COM3&pickup=" + PICKUP)
+            expect(picker.get_by_text("Selected:", exact=False)).to_be_visible()
+            page.get_by_role("link", name="Clear filters", exact=True).click()
+            expect(page).to_have_url(origin + "/orders")
+            expect(picker.get_by_text("Selected:", exact=False)).to_have_count(0)
+            page.go_back()
+            expect(page).to_have_url(origin + "/orders?destination=COM3&pickup=" + PICKUP)
+            expect(picker.get_by_text("Selected:", exact=False)).to_be_visible()
+            page.go_back()
+            expect(page).to_have_url(origin + "/orders?destination=COM3")
+            expect(picker.get_by_text("Selected:", exact=False)).to_have_count(0)
+            assertions.append("Pickup selection follows URL after selection, clearing filters and browser back navigation")
 
         page.goto(origin + "/orders/new")
         expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()
+        if not args.suspension_retry:
+            # Change the authenticated caller without remounting this route.
+            # The next account's failed lookup must not expose the old balance.
+            state["caller"], state["balance_failure"] = OTHER, True
+            page.evaluate("async () => { const { authService } = await import('/src/lib/services/index.ts'); await authService.refresh(); }")
+            expect(page.get_by_text("Balance unavailable.", exact=False)).to_be_visible()
+            expect(page.get_by_text("Available credits:", exact=False)).to_have_count(0)
+            state["balance_failure"] = False
+            page.get_by_role("button", name="Retry balance", exact=True).click()
+            expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()
+            state["caller"], state["balance_failure"] = USER, True
+            page.evaluate("async () => { const { authService } = await import('/src/lib/services/index.ts'); await authService.refresh(); }")
+            expect(page.get_by_text("Balance unavailable.", exact=False)).to_be_visible()
+            expect(page.get_by_text("Available credits:", exact=False)).to_have_count(0)
+            state["balance_failure"] = False
+            page.get_by_role("button", name="Retry balance", exact=True).click()
+            expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()
+            assertions.append("Switching caller clears old credits even if the new balance lookup fails; explicit balance retry recovers")
         for label, search, button in (("Pickup location", "Cafe", "Campus Cafe · COM3"), ("Delivery location", "room", "Room 02-15 · COM3")):
             group = page.get_by_role("group", name=label, exact=True)
             group.get_by_label(label + " search", exact=True).fill(search)
