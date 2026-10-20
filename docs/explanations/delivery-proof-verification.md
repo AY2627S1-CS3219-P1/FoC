@@ -63,6 +63,8 @@ Opus's final verdict is **ready on the declared B3+B2+B4 stack, with no blockers
 
 One nonblocking follow-up, **N1**, remains: a decoder output-cap error can be reported as unavailable rather than a known output-cap rejection. It is code-traced in the review, not separately runtime-reproduced. Such input cannot pass first verification, reserve a receipt or cause false acceptance. No unverified fix was added after the second verification round.
 
+A second nonblocking standards caveat, **N2**, remains: the service adapter imports `DeliveryProofAPI` and `ProofRejectedError` from the feature controller instead of colocating them under the service domain as the frontend convention requires. The error import is a real module dependency, not just an erased type import. An automatic review marked its comment resolved without a corresponding relocation; that closure is not claimed as a code fix. Relocation was not added after the final verification round. It does not change the passing proof flow, but remains explicit follow-up work.
+
 Operational warnings remain explicit: custom-store endpoint identity must stay stable or be deliberately migrated, cleanup revisits retired keys at bounded throughput and a persistent candidate error can delay a batch, proof reads briefly take the parent lock, probe replicas can churn certification generations, runtime package versions are not digest-pinned, and recovery replicas may redundantly inspect the same pending receipt. A normally exiting decoder allocation failure can still appear as a precondition failure; the externally killed process path is covered. These are disclosed constraints, not claims of production HA, queue-scale or peak-RSS validation.
 
 ## Deployed codec boundary

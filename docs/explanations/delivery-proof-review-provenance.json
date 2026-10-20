@@ -158,5 +158,17 @@
     "pkg/gen/order/v1/orderv1connect/order.connect.go": "eb3a5fc64d96955d31e7bae356e295f6ca7c58e34e5b24672daee63577d8d43d",
     "proto/order/v1/order.proto": "0f5bd060d1779b012bf38ee06d4edce46d5c70ffa2e54eef66686b6cac4262db"
   },
-  "runtime_source_matches_after_readiness_documentation": true
+  "runtime_source_matches_after_readiness_documentation": true,
+  "nonblocking_findings": [
+    {
+      "id": "N1",
+      "summary": "Decoder output-cap errors can be reported as unavailable; no unverified proof admission or false acceptance.",
+      "verification": "Code-traced by native review, not separately runtime-reproduced."
+    },
+    {
+      "id": "N2",
+      "summary": "Service adapter imports the feature-owned API and error instead of service-domain colocation.",
+      "verification": "Confirmed against CONVENTIONS.md and current import; automatic thread closure is not a relocation."
+    }
+  ]
 }
