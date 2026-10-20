@@ -26,10 +26,15 @@ const (
 	proofOther     = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
 )
 
+type proofUploadIdentity struct {
+	orderID, courierID, uploadID string
+}
+
 type proofMemory struct {
 	mu                sync.Mutex
 	order             Order
 	uploads           map[string]ProofUpload
+	retired           map[proofUploadIdentity]time.Time
 	readLocation      *time.Location
 	confirmation      *ProofConfirmation
 	changes           []Change
@@ -43,12 +48,13 @@ func (r *proofMemory) WithinProofs(_ context.Context, fn func(ProofTx) error) er
 	defer r.mu.Unlock()
 	before := r.order
 	uploads := maps.Clone(r.uploads)
+	retired := maps.Clone(r.retired)
 	confirmation := r.confirmation
 	changes := slices.Clone(r.changes)
 	r.inside = true
 	defer func() { r.inside = false }()
 	if err := fn(r); err != nil {
-		r.order, r.uploads, r.confirmation, r.changes = before, uploads, confirmation, changes
+		r.order, r.uploads, r.retired, r.confirmation, r.changes = before, uploads, retired, confirmation, changes
 		return err
 	}
 	return nil
@@ -73,6 +79,9 @@ func (r *proofMemory) Apply(_ context.Context, c Change) error {
 	return nil
 }
 func (r *proofMemory) FindProofUpload(_ context.Context, orderID, courierID, uploadID string) (ProofUpload, error) {
+	if at, ok := r.retired[proofUploadIdentity{orderID, courierID, uploadID}]; ok {
+		return ProofUpload{State: ProofDeleting, OrderID: orderID, CourierID: courierID, UploadID: uploadID, CreatedAt: at}, nil
+	}
 	for _, row := range r.uploads {
 		if row.OrderID == orderID && row.CourierID == courierID && row.UploadID == uploadID {
 			return row, nil
@@ -545,15 +554,26 @@ func TestProofVerifyResolvesLostUploadResponseWithoutDelivery(t *testing.T) {
 }
 
 func (r *proofMemory) AbandonProofUpload(ctx context.Context, orderID, courierID, uploadID string, at time.Time) error {
+	identity := proofUploadIdentity{orderID, courierID, uploadID}
+	if _, ok := r.retired[identity]; ok {
+		return nil
+	}
 	row, err := r.FindProofUpload(ctx, orderID, courierID, uploadID)
-	if errors.Is(err, ErrNotFound) {
-		row = ProofUpload{ID: uploadID, OrderID: orderID, CourierID: courierID, UploadID: uploadID, CreatedAt: at}
-	} else if err != nil {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
-	if row.State == ProofAccepted {
-		return ErrPrecondition
+	if err == nil {
+		if row.State == ProofAccepted {
+			return ErrPrecondition
+		}
+		row.State = ProofDeleting
+		if err := r.SaveProofUpload(ctx, row); err != nil {
+			return err
+		}
 	}
-	row.State = ProofDeleting
-	return r.SaveProofUpload(ctx, row)
+	if r.retired == nil {
+		r.retired = make(map[proofUploadIdentity]time.Time)
+	}
+	r.retired[identity] = at
+	return nil
 }

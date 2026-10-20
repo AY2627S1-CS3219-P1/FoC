@@ -88,3 +88,45 @@ func TestProofActiveQuotaStillAppliesAndAbandonmentProtectsAcceptedProofs(t *tes
 		t.Fatal("accepted evidence altered")
 	}
 }
+
+// A client nonce may equal a server proof ID without naming that proof's
+// admission identity. Its fence must not corrupt accepted delivery evidence.
+func TestProofAbandonmentDoesNotAliasServerProofIDs(t *testing.T) {
+	s, r, d, _ := proofScenario()
+	row := uploadedProof(t, s, d)
+	in := proofConfirmationInput(row)
+	if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, in); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.uploads) != 1 || r.uploads[row.ID].State != ProofAccepted || r.uploads[row.ID].UploadID != row.UploadID {
+		t.Fatal("client nonce overwrote accepted server proof")
+	}
+	view, err := s.ForOrder(t.Context(), Caller{ID: proofRequester}, proofOrderID)
+	if err != nil || len(view.Proofs) != 1 {
+		t.Fatalf("accepted evidence no longer readable: %v", err)
+	}
+	if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, in); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.UploadID); !errors.Is(err, ErrPrecondition) {
+		t.Fatal(err)
+	}
+}
+
+func TestProofAbandonmentFenceRollsBackWithTransaction(t *testing.T) {
+	s, r, d, _ := proofScenario()
+	row := uploadedProof(t, s, d)
+	aborted := errors.New("transaction aborted")
+	err := r.WithinProofs(t.Context(), func(tx ProofTx) error {
+		if err := tx.AbandonProofUpload(t.Context(), proofOrderID, proofCourier, row.UploadID, row.CreatedAt); err != nil {
+			return err
+		}
+		return aborted
+	})
+	if !errors.Is(err, aborted) || len(r.retired) != 0 || r.uploads[row.ID].State != ProofUploading {
+		t.Fatal("aborted retirement left a fence or altered evidence")
+	}
+}

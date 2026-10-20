@@ -80,6 +80,9 @@ type ProofTx interface {
 	// yet. Exclude it from CountStagedProofs, never retire an accepted proof, and
 	// retain the identity fence while the order can admit uploads. Delete bytes
 	// only after outstanding grants expire; abandoned grants are not revoked.
+	// Fence keys are (order, courier, client upload ID), not server proof IDs.
+	// Unknown fences must use separate storage or independent server row keys.
+	// A client upload ID equal to a proof ID must never overwrite that proof.
 	AbandonProofUpload(context.Context, string, string, string, time.Time) error
 	GetProofConfirmation(context.Context, string) (ProofConfirmation, error)
 	SaveProofConfirmation(context.Context, ProofConfirmation, []ProofUpload) error
