@@ -100,6 +100,15 @@ func (t *assignmentPostgresTx) remember(row db.OrderAssignmentAttempt, err error
 	return w, nil
 }
 
+func (t *assignmentPostgresTx) HasRejectedAcceptance(ctx context.Context, orderID, callerID string) (bool, error) {
+	if _, locked := t.locked[orderID]; !locked || !t.related[orderID] {
+		return false, ErrPrecondition
+	}
+	return t.q.HasRejectedAcceptance(ctx, db.HasRejectedAcceptanceParams{
+		OrderID: uuid.MustParse(orderID), CallerID: uuid.MustParse(callerID),
+	})
+}
+
 func (t *assignmentPostgresTx) FindAssignment(ctx context.Context, attemptID string) (AssignmentAttempt, error) {
 	id, err := parseID(attemptID)
 	if err != nil {

@@ -21,20 +21,16 @@ grant. This change does not choose a new lateness formula or grant policy.
 
 Credit keeps `request_id` (the permanent Order UUID) and `offer_id` field names.
 Existing creation/offer retry keys remain. AcceptOrder is an explicitly approved
-exception to the original keyless mutation design: it will require a client-generated
+exception to the original keyless mutation design: it requires a client-generated
 acceptance-attempt UUID. Other mutation requests do not gain required keys.
 Creation deadline checks run after retained-key lookup, since an identical retry
 after expiry must still find the original operation.
 
-## Accepted acceptance-retry decision (not implemented)
+## Acceptance retries (implemented in #159)
 
-AcceptOrder currently carries only the Order ID. If a courier accepts, withdraws,
-and a delayed retry arrives after reopening, that request is indistinguishable
-from an intentional new acceptance. Optional attempt identity would preserve
-existing callers but leave keyless callers exposed to that ambiguity. Because
-acceptance execution is not implemented yet, require the UUID rather than retain
-a weaker keyless fallback. This is a planned API contract change, not current
-server behavior.
+AcceptOrder requires a client-generated acceptance-attempt UUID. After a courier
+withdraws and the Order reopens, the UUID distinguishes a delayed retry from an
+intentional new acceptance. There is no keyless fallback.
 
 The caller generates one UUID for an intentional acceptance attempt and reuses it
 for retries, including after a timeout or lost response. Order persists the attempt
@@ -51,10 +47,26 @@ is no longer assigned. Replaying that attempt never assigns the courier again.
 The public attempt UUID and Credit's stable offer_id serve different boundaries;
 their exact mapping remains part of the assignment workflow design.
 
-The contract and generated clients, server validation, durable attempt storage,
-recovery, and frontend retry behavior must be changed together after the shared
-understanding gate and shared-file ownership acknowledgments. No legacy keyless
-execution path is part of this accepted decision.
+Fresh direct acceptance is admitted only while the Order is Awaiting Courier and
+has not expired. A fresh key for an assigned, terminal or otherwise private Order
+returns not_found, just like a nonexistent Order, and stores no attempt. Recognized
+keys are resolved first and still return their historical outcome and the current
+caller-authorized Order.
+
+While an Order is public, competing couriers may each have one retained rejection
+when an assignment is already pending. Further fresh keys from that courier return
+failed_precondition without creating more rows. The retained rejection stays
+replayable for the Order's lifetime. This preserves contention among 50 eligible
+couriers while bounding rejected-key growth per caller and Order. Admission
+failures have no operation identity and must not be automatically retried after
+the Order changes. An intentional new acceptance always uses a new UUID.
+
+Proposal keys retain the existing 24-hour guarantee. Before sending a proposal,
+the browser saves the original amount, key and first-dispatch timestamp. It will
+retry only within that window. After 24 hours, or when an older saved proposal has
+no timestamp, the user must refresh offers and deliberately start a new proposal.
+That new proposal can replace an existing Open offer. Financial acceptance UUIDs
+keep their lifetime guarantee; this proposal limit does not apply to them.
 
 ## Publication and recovery
 
