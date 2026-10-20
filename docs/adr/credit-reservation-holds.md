@@ -15,24 +15,24 @@ for the future consumer.
 
 ## Decisions
 
-### A lower accepted offer does not shrink the hold
+### An accepted offer never lowers the hold
 
-AdjustReservation sets the hold to `max(original_amount, offer_amount)`, not to
-`offer_amount`. If the hold shrank, the requester could spend the freed credits
+AdjustReservation rejects an `offer_amount` below `original_amount` with
+invalid argument, and otherwise sets the hold to `offer_amount`. Order accepts
+only offers at or above the order's reward, and its client expects
+`reserved_amount` to equal `offer_amount` once Assigned (credit.v1 contract).
+
+If a lower offer shrank the hold, the requester could spend the freed credits
 on another order. A later RevertAdjustment would then need to restore more than
 the requester holds. That would violate `available >= 0` (C1.1.2), and the
-schema cannot store a rejected revert. With this rule, a revert only ever
-reduces the hold, so it always succeeds.
+schema cannot store a rejected revert. Because an offer only raises the hold, a
+revert only ever lowers it, so it always succeeds.
 
 Settlement pays from `offer_amount`. Lateness applies to the offer, and
 everything above the payout returns to the requester. The requester's final
-cost therefore still equals the courier's payout (C1.2.6). An increase above
-the original is still checked against available credits when the offer is
-accepted (C1.2.2).
-
-Follow-up: the `AdjustReservationRequest` comment in
-`proto/credit/v1/reservation.proto` says "The hold becomes offer_amount" and
-should say `max(original, offer)`.
+cost therefore still equals the courier's payout (C1.2.6). The increase above
+the original is checked against available credits when the offer is accepted
+(C1.2.2).
 
 ### Event settlement relies on terminality, not an event table
 

@@ -70,8 +70,7 @@ type Reservation struct {
 	Status      Status
 	// Amount at Reserve. Zero for a tombstone.
 	OriginalAmount int64
-	// Current hold: max(OriginalAmount, offer) while Assigned, zero once
-	// terminal.
+	// Current hold: the applied offer while Assigned, zero once terminal.
 	ReservedAmount int64
 	// The applied assignment while Assigned, and the paid one once Settled.
 	AssignmentID string

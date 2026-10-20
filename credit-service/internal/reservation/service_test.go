@@ -131,18 +131,40 @@ func TestAdjustRaisesTheHoldAndRevertRestoresIt(t *testing.T) {
 	repo.checkLedger(t)
 }
 
-func TestLowerOfferKeepsTheOriginalHold(t *testing.T) {
+func TestAdjustRejectsAnOfferBelowTheOriginal(t *testing.T) {
 	ctx := context.Background()
 	s, repo := newService()
 	must(t)(s.Reserve(ctx, orderID, requester, 50))
-	r := must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 30))
-	if r.ReservedAmount != 50 || r.Adjustment.OfferAmount != 30 {
-		t.Fatalf("adjust: %+v %+v", r, r.Adjustment)
+
+	_, err := s.AdjustReservation(ctx, orderID, offerID, courier, 30)
+	expect(t, err, reservation.ErrInvalidArgument)
+
+	r := must(t)(s.GetReservation(ctx, orderID))
+	if r.Status != reservation.Held || r.ReservedAmount != 50 || r.Revision != 1 {
+		t.Fatalf("reservation changed: %+v", r)
 	}
-	// Spend every remaining credit; the revert still succeeds.
+
+	// The same offer at the original amount is accepted and keeps the hold.
+	r = must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 50))
+	if r.Status != reservation.Assigned || r.ReservedAmount != 50 {
+		t.Fatalf("adjust at original: %+v", r)
+	}
+	repo.checkLedger(t)
+}
+
+func TestRevertSucceedsAfterTheRequesterSpendsTheRest(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newService()
+	must(t)(s.Reserve(ctx, orderID, requester, 30))
+	must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 50))
+
+	// Spend every remaining credit; the revert only lowers the hold.
 	must(t)(s.Reserve(ctx, otherOrder, requester, 50))
-	must(t)(s.RevertAdjustment(ctx, orderID, offerID))
-	if a := repo.balance(requester); a.Reserved != 100 {
+	r := must(t)(s.RevertAdjustment(ctx, orderID, offerID))
+	if r.Status != reservation.Held || r.ReservedAmount != 30 {
+		t.Fatalf("revert: %+v", r)
+	}
+	if a := repo.balance(requester); a.Reserved != 80 {
 		t.Fatalf("account: %+v", a)
 	}
 	repo.checkLedger(t)
@@ -225,7 +247,7 @@ func TestCompletedOrderPaysTheLatenessAdjustedReward(t *testing.T) {
 		{"on time", 40, 40, 30 * time.Minute, 40, 0},
 		{"late", 40, 40, 90 * time.Minute, 20, 20},
 		{"twice the duration", 40, 40, 2 * time.Hour, 0, 40},
-		{"lower offer refunds the extra hold", 50, 30, time.Hour, 30, 20},
+		{"late raised offer pays from the offer", 30, 50, 90 * time.Minute, 25, 25},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

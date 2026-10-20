@@ -35,7 +35,7 @@ func TestPostgresReservations(t *testing.T) {
 	t.Run("completed order pays the courier and refunds the rest", func(t *testing.T) {
 		order, req, cour := uuid.NewString(), uuid.NewString(), uuid.NewString()
 		offer := uuid.NewString()
-		must(t)(s.Reserve(ctx, order, req, 50))
+		must(t)(s.Reserve(ctx, order, req, 30))
 		must(t)(s.AdjustReservation(ctx, order, offer, cour, 30))
 		picked := time.Date(2026, 10, 20, 9, 0, 0, 123456789, time.UTC)
 		r, applied, err := s.ApplyOutcome(ctx, reservation.OrderOutcome{
@@ -45,7 +45,7 @@ func TestPostgresReservations(t *testing.T) {
 		if err != nil || !applied {
 			t.Fatalf("apply: %v %v", applied, err)
 		}
-		if r.Settlement.PaidToCourier != 15 || r.Settlement.ReturnedToRequester != 35 {
+		if r.Settlement.PaidToCourier != 15 || r.Settlement.ReturnedToRequester != 15 {
 			t.Fatalf("settlement: %+v", r.Settlement)
 		}
 		got := must(t)(s.GetReservation(ctx, order))

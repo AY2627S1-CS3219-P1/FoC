@@ -71,9 +71,9 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 }
 
 // AdjustReservation applies an accepted offer to a Held reservation and
-// records the courier. The hold becomes max(original, offer): credits an
-// offer below the original would free stay held until settlement, so
-// RevertAdjustment never needs more credits than the requester holds.
+// records the courier. The hold becomes the offer, which must be at least the
+// original amount, so RevertAdjustment only ever lowers the hold and never
+// needs back credits the requester has spent.
 func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, courierID string, offerAmount int64) (Reservation, error) {
 	if err := canonicalIDs(&orderID, &assignmentID, &courierID); err != nil {
 		return Reservation{}, err
@@ -97,6 +97,9 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		if err := requireOpen(r); err != nil {
 			return result{}, err
 		}
+		if offerAmount < r.OriginalAmount {
+			return result{}, ErrInvalidArgument
+		}
 
 		a, err := tx.Assignment(ctx, orderID, assignmentID)
 		if err != nil {
@@ -109,8 +112,8 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 			return result{}, ErrAdjustmentPending
 		}
 
-		// Check that the requester can cover any increase in the hold.
-		hold := max(r.OriginalAmount, offerAmount)
+		// Check that the requester can cover the increase in the hold.
+		hold := offerAmount
 		delta := hold - r.ReservedAmount
 		accounts, err := tx.LockAccounts(ctx, now, r.RequesterID)
 		if err != nil {
