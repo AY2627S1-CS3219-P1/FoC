@@ -58,8 +58,8 @@ The build and restricted nonroot runtime both printed `PROOF DECODER PASS: JPEG 
 
 ## Remaining findings and operational limits
 
-- **N1:** Decoder output-cap failures can appear as retryable unavailability rather than a known rejection. This is code-traced, not separately reproduced at runtime. Such input cannot pass first verification, reserve a receipt or cause false acceptance.
-- **N2:** The service adapter imports `DeliveryProofAPI` and `ProofRejectedError` from the feature controller instead of colocating them in the service domain as the frontend convention requires. This placement is not fixed.
+- Decoder RGB output beyond its cap is a precondition rejection. A subprocess regression covers the writer-error path; execution timeouts and external kills remain retryable.
+- `DeliveryProofAPI`, upload grants and authoritative rejection errors live in the delivery-proof service domain. The adapter and UI controller import that shared contract.
 - A normally exiting decoder allocation failure can still appear as a precondition rejection; external-kill and timeout handling are retryable.
 - Custom-store endpoint identity must stay stable or be deliberately migrated. Cleanup has bounded revisit throughput and a persistent candidate error can delay a batch. Proof reads briefly lock the parent. Probe/recovery replicas may duplicate work or churn certification generations. Runtime dependencies are not digest-pinned; production HA, queue scale and peak RSS are not verified.
 - Report/appeal closure-dependent retention and revocation-safe nonparticipant case-admin access remain deferred. Admin role alone grants no proof access.

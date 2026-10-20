@@ -95,6 +95,9 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 		if bounded.Err() != nil {
 			return app.ErrUnavailable
 		}
+		if output.exceeded {
+			return app.ErrPrecondition
+		}
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ProcessState == nil || !exit.Exited() {
 			// Spawn failures and external kills are unknown validation results,
@@ -109,10 +112,15 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 	return nil
 }
 
-type boundedOutput struct{ remaining, written int }
+type boundedOutput struct {
+	remaining int
+	written   int
+	exceeded  bool
+}
 
 func (b *boundedOutput) Write(p []byte) (int, error) {
 	if len(p) > b.remaining {
+		b.exceeded = true
 		return 0, errors.New("image decoder output limit exceeded")
 	}
 	b.remaining -= len(p)
