@@ -18,12 +18,13 @@ import (
 type operations struct {
 	calls    int
 	decision app.AccountSuspensionDecision
+	err      error
 }
 
 func (o *operations) Apply(_ context.Context, d app.AccountSuspensionDecision) error {
 	o.calls++
 	o.decision = d
-	return nil
+	return o.err
 }
 
 type fixtureIdentity struct{}
@@ -70,6 +71,16 @@ func TestSuspensionRPCRequiresExplicitTrustedCallerBoundary(t *testing.T) {
 			t.Fatalf("workload dispatch: %+v %v", response, err)
 		}
 	}
+	// A skipped stale revision must not echo a successful acknowledgment that
+	// lets User finalize a role without the corresponding Order fence.
+	op.err = app.ErrConflict
+	req := connect.NewRequest(message)
+	req.Header().Set("X-Test-Workload", "user-service")
+	if response, err := client.ApplyAccountSuspension(context.Background(), req); response != nil || connect.CodeOf(err) != connect.CodeAborted {
+		t.Fatalf("stale decision acknowledged: %+v %v", response, err)
+	}
+	op.err = nil
+
 	for _, missing := range []bool{true, false} {
 		var authenticate func(http.Handler) http.Handler = testAuthentication
 		var authorize connect.Interceptor = testAuthorization()
@@ -85,7 +96,7 @@ func TestSuspensionRPCRequiresExplicitTrustedCallerBoundary(t *testing.T) {
 		}
 		_ = resp.Body.Close()
 		closed.Close()
-		if resp.StatusCode != http.StatusServiceUnavailable || op.calls != 2 {
+		if resp.StatusCode != http.StatusServiceUnavailable || op.calls != 3 {
 			t.Fatalf("unconfigured boundary: HTTP %d calls=%d", resp.StatusCode, op.calls)
 		}
 	}
@@ -95,7 +106,7 @@ func TestSuspensionRPCRequiresExplicitTrustedCallerBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("internal RPC exposed publicly: HTTP %d", resp.StatusCode)
 	}

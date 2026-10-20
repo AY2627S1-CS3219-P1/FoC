@@ -70,7 +70,7 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 		}
 		if current != nil {
 			if current.Revision > decision.Revision {
-				return nil
+				return ErrConflict
 			}
 			if current.Revision == decision.Revision {
 				if !reflect.DeepEqual(*current, decision) {
@@ -97,7 +97,8 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 			if err != nil {
 				return err
 			}
-			if _, err := tx.Relationships(ctx, id); err != nil {
+			offers, err := tx.Relationships(ctx, id)
+			if err != nil {
 				return err
 			}
 			if o.Status == AwaitingPickup && o.IsAssignedTo(decision.UserID) && o.PickedUpAt == nil {
@@ -106,7 +107,9 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 					return err
 				}
 				if assignment == nil {
-					return ErrPrecondition
+					// Preserve the account fence without inventing financial identity.
+					// Pickup stays forbidden; this assignment requires reconciliation.
+					continue
 				}
 				bound := NewCanceller(boundSuspensionRecovery{tx}, s.credit, s.options)
 				target := SuspensionRemoval{
@@ -123,20 +126,25 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 
 			// Compensation remains B1's responsibility. Advancing generation
 			// here prevents an already-dispatched Adjust reply from assigning.
+			if o.Status != AwaitingCourier {
+				continue
+			}
 			active, err := tx.ActiveAssignment(ctx, id)
 			if err != nil {
 				return err
 			}
-			if active == nil || (active.CourierID != decision.UserID && active.CallerID != decision.UserID) {
+			if active == nil || (active.Phase != AdjustmentPending && active.Phase != RevertPending) || (active.CourierID != decision.UserID && active.CallerID != decision.UserID) {
 				continue
 			}
 			now := s.options.Now().UTC()
-			expected := active.Generation
-			active.Generation++
-			active.Phase, active.Rejection = RevertPending, "account_suspended"
-			active.LeaseUntil, active.NextAttemptAt, active.UpdatedAt = now, now, now
-			if err := tx.SaveAssignment(ctx, *active, expected); err != nil {
-				return err
+			if active.Phase == AdjustmentPending {
+				expected := active.Generation
+				active.Generation++
+				active.Phase, active.Rejection = RevertPending, "account_suspended"
+				active.LeaseUntil, active.NextAttemptAt, active.UpdatedAt = now, now, now
+				if err := tx.SaveAssignment(ctx, *active, expected); err != nil {
+					return err
+				}
 			}
 			after := cloneOrder(o)
 			after.Revision++
@@ -144,6 +152,14 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 			change, err := NewChange(&o, after, Actor{Kind: System}, FenceSuspendedAcceptance, nil, s.options.NewID)
 			if err != nil {
 				return err
+			}
+			// Retire the public offer independently of financial recovery. An
+			// insufficient-credit revert must not reopen it after reinstatement.
+			for _, offer := range offers {
+				if offer.ID == active.OfferID && offer.Status == OfferAccepting {
+					offer.Status, offer.UpdatedAt = OfferVoid, now
+					change.Offers = append(change.Offers, OfferChange{Offer: offer, ExpectedStatus: OfferAccepting})
+				}
 			}
 			if err := tx.Apply(ctx, change); err != nil {
 				return err

@@ -21,7 +21,10 @@ ON CONFLICT(user_id) DO UPDATE SET decision_id=EXCLUDED.decision_id,
  admin_id=EXCLUDED.admin_id,reason=EXCLUDED.reason;
 
 -- name: AccountSuspensionOrders :many
-SELECT id FROM orders o WHERE o.courier_id=$1 OR EXISTS (
+SELECT id FROM orders o WHERE (o.status='awaiting_pickup' AND o.courier_id=$1) OR
+ (o.status='awaiting_courier' AND EXISTS (
  SELECT 1 FROM order_assignment_attempts a WHERE a.order_id=o.id
- AND a.phase IN ('adjustment_pending','revert_pending') AND (a.courier_id=$1 OR a.caller_id=$1)
-) ORDER BY id;
+ AND (a.phase='adjustment_pending' OR (a.phase='revert_pending' AND EXISTS (
+ SELECT 1 FROM offers f WHERE f.id=a.offer_id AND f.status='accepting'
+ ))) AND (a.courier_id=$1 OR a.caller_id=$1)
+)) ORDER BY id;

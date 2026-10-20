@@ -72,7 +72,7 @@ func (t *accountSuspensionPostgresTx) AccountOrderIDs(ctx context.Context, userI
 	uid := uuid.MustParse(userID)
 	rows, err := t.q.AccountSuspensionOrders(ctx, &uid)
 	if err != nil {
-		return nil, err
+		return nil, persistenceError(err)
 	}
 	ids := make([]string, len(rows))
 	for i, id := range rows {

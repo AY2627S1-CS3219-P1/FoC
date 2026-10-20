@@ -283,8 +283,8 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 	if err := coordinator.Apply(ctx, newer); err != nil {
 		t.Fatal(err)
 	}
-	if err := coordinator.Apply(ctx, decision); err != nil {
-		t.Fatal(err)
+	if err := coordinator.Apply(ctx, decision); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale decision acknowledged as applied: %v", err)
 	}
 	// Old delivery must not undo reinstatement or act on a later assignment.
 	if result, err := assigner.AcceptOrder(ctx, courier, o.ID, uuid.NewString()); err != nil || result.Phase != AssignmentSucceeded {
