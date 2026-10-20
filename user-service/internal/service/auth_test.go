@@ -18,17 +18,20 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
 type fakeStore struct {
-	mu             sync.Mutex
-	users          map[uuid.UUID]models.User
-	logins         map[[32]byte]models.AuthToken
-	registrations  map[[32]byte]models.AuthToken
-	sessions       map[uuid.UUID]models.Session
-	allowedDomains map[string]struct{}
-	failSession    bool
+	mu               sync.Mutex
+	users            map[uuid.UUID]models.User
+	logins           map[[32]byte]models.AuthToken
+	registrations    map[[32]byte]models.AuthToken
+	sessions         map[uuid.UUID]models.Session
+	createdEvents    []userdomain.CreatedEvent
+	allowedDomains   map[string]struct{}
+	failSession      bool
+	failCreatedEvent error
 }
 
 func newFakeStore() *fakeStore {
@@ -69,6 +72,9 @@ func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
 	}
 	if user.ID == uuid.Nil {
 		user.ID = uuid.New()
+	}
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now().UTC()
 	}
 	f.users[user.ID] = *user
 	return nil
@@ -202,12 +208,23 @@ func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
 	return ok, nil
 }
 
+type fakeUserCreatedEvents struct{ *fakeStore }
+
+func (f fakeUserCreatedEvents) Append(_ context.Context, event userdomain.CreatedEvent) error {
+	if f.failCreatedEvent != nil {
+		return f.failCreatedEvent
+	}
+	f.createdEvents = append(f.createdEvents, event)
+	return nil
+}
+
 func (f *fakeStore) stores() Store {
 	return Store{
-		Users:      fakeUsers{f},
-		AuthTokens: fakeAuthTokens{f},
-		Sessions:   fakeSessions{f},
-		Domains:    fakeDomains{f},
+		Users:             fakeUsers{f},
+		AuthTokens:        fakeAuthTokens{f},
+		Sessions:          fakeSessions{f},
+		Domains:           fakeDomains{f},
+		UserCreatedEvents: fakeUserCreatedEvents{f},
 	}
 }
 
@@ -215,12 +232,14 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
-		users:          cloneMap(f.users),
-		logins:         cloneMap(f.logins),
-		registrations:  cloneMap(f.registrations),
-		sessions:       cloneMap(f.sessions),
-		allowedDomains: cloneMap(f.allowedDomains),
-		failSession:    f.failSession,
+		users:            cloneMap(f.users),
+		logins:           cloneMap(f.logins),
+		registrations:    cloneMap(f.registrations),
+		sessions:         cloneMap(f.sessions),
+		createdEvents:    append([]userdomain.CreatedEvent(nil), f.createdEvents...),
+		allowedDomains:   cloneMap(f.allowedDomains),
+		failSession:      f.failSession,
+		failCreatedEvent: f.failCreatedEvent,
 	}
 	if err := operation(tx.stores()); err != nil {
 		return err
@@ -229,7 +248,9 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 	f.logins = tx.logins
 	f.registrations = tx.registrations
 	f.sessions = tx.sessions
+	f.createdEvents = tx.createdEvents
 	f.allowedDomains = tx.allowedDomains
+	f.failCreatedEvent = tx.failCreatedEvent
 	return nil
 }
 
@@ -334,6 +355,14 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	if stored.PhoneNumber == nil || *stored.PhoneNumber != "+6591234567" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
+	if len(store.createdEvents) != 1 {
+		t.Fatalf("registration emitted %d user-created events, want 1", len(store.createdEvents))
+	}
+	event := store.createdEvents[0]
+	if event.EventID == uuid.Nil || event.UserID != user.ID || event.Email != user.Email ||
+		event.DisplayName != user.DisplayName || event.CreatedAt.IsZero() || !event.CreatedAt.Equal(user.CreatedAt) {
+		t.Fatalf("unexpected user-created event: %+v for user %+v", event, user)
+	}
 	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
 		t.Fatalf("reused registration token: %v", err)
 	}
@@ -361,6 +390,30 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	}
 	if err := service.Logout(ctx, rotated.RefreshToken); err != nil {
 		t.Fatalf("idempotent logout: %v", err)
+	}
+}
+
+func TestUserCreatedOutboxFailureRollsBackRegistration(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	service := setupService(t, store, &now, true, nil)
+	ctx := context.Background()
+	registration := requestLink(t, service, "new@example.com")
+	store.failCreatedEvent = errors.New("outbox unavailable")
+
+	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err == nil {
+		t.Fatal("registration succeeded despite outbox failure")
+	}
+	if len(store.users) != 0 || len(store.sessions) != 0 || len(store.createdEvents) != 0 {
+		t.Fatalf("failed registration left partial state: users=%d sessions=%d events=%d", len(store.users), len(store.sessions), len(store.createdEvents))
+	}
+
+	store.failCreatedEvent = nil
+	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err != nil {
+		t.Fatalf("registration token was consumed by failed outbox write: %v", err)
+	}
+	if len(store.users) != 1 || len(store.createdEvents) != 1 {
+		t.Fatalf("retry did not commit registration and event: users=%d events=%d", len(store.users), len(store.createdEvents))
 	}
 }
 

@@ -14,8 +14,9 @@ declare messages and enums without RPC services.
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
-across retries; consumers should deduplicate it. Producers and consumers have
-not yet been wired up.
+across retries; consumers should deduplicate it. User Service publishes this
+event from its transactional outbox after registration commits. Credit's
+subscriber is separate work.
 
 Order publishes its three topics from its outbox. Topic names match the outbox
 fact kinds. `order.status_changed` drives Communication's notifications,
