@@ -96,6 +96,11 @@ CREATE TRIGGER reservations_terminal_immutable
     BEFORE UPDATE OR DELETE ON reservations
     FOR EACH ROW EXECUTE FUNCTION reject_terminal_reservation_change();
 
+-- Each UPDATE produces the next revision, which reservation_revisions records.
+CREATE TRIGGER reservations_bump_revision
+    BEFORE UPDATE ON reservations
+    FOR EACH ROW EXECUTE FUNCTION bump_revision();
+
 -- Every revision of every reservation. A replayed RPC returns the revision
 -- its first call produced, not the current state. Columns mirror
 -- reservations; add any new reservations column here too.
