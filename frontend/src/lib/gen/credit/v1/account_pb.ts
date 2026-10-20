@@ -97,8 +97,8 @@ export const ListMyLedgerEntriesResponseSchema: GenMessage<ListMyLedgerEntriesRe
 
 /**
  * The caller's own credits. Read-only; the caller is identified by their User
- * Service JWT. The first call creates the caller's account with the starting
- * credits.
+ * Service JWT. Account initialization is handled by registration or Reserve;
+ * these RPCs only read the caller's account and ledger.
  *
  * @generated from service credit.v1.CreditAccountService
  */
