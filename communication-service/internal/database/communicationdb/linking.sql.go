@@ -30,6 +30,15 @@ func (q *Queries) DeleteLinkByChat(ctx context.Context, chatID int64) error {
 	return err
 }
 
+const deleteUnusedCodes = `-- name: DeleteUnusedCodes :exec
+DELETE FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL
+`
+
+func (q *Queries) DeleteUnusedCodes(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUnusedCodes, userID)
+	return err
+}
+
 const getLink = `-- name: GetLink :one
 SELECT user_id, chat_id, telegram_username, linked_at FROM telegram_links WHERE user_id = $1
 `
