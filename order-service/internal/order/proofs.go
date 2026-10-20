@@ -24,7 +24,6 @@ type Proofs struct {
 	grants            ProofGrantIssuer
 	objects           ProofObjects
 	validator         ProofImageValidator
-	cases             ProofCaseAccess
 	outages           ProofOutageAuthority
 	uploadScope       string
 	verificationSlots chan struct{}
@@ -45,7 +44,6 @@ func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects Proo
 		grants:            grants,
 		objects:           objects,
 		validator:         validator,
-		cases:             options.CaseAccess,
 		outages:           options.Outages,
 		uploadScope:       options.UploadScope,
 		verificationSlots: make(chan struct{}, 2),
@@ -387,9 +385,9 @@ func (s *Proofs) verifyObject(ctx context.Context, upload ProofUpload) error {
 	return nil
 }
 
-// ForOrder authorizes before exposing any object identity or signing downloads.
-// Case lookup is outside the transaction; a new locked read follows that lookup.
-// No ordinary browse/history permission grants sensitive access.
+// ForOrder authorizes participants before signing downloads. Nonparticipant
+// admins fail closed until a revocation-safe case authority is implemented.
+// A cached boolean case lookup is not sufficient authorization.
 func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (DeliveryProofView, error) {
 	var err error
 	caller, orderID, err = proofCaller(caller, orderID)
@@ -398,44 +396,32 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 	}
 	var confirmation ProofConfirmation
 	var rows []ProofUpload
-	load := func(caseAllowed bool) error {
-		return s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
-			if !o.HasParticipant(caller.ID) && !(caller.Admin && caseAllowed) {
-				return nil, ErrNotFound
-			}
-			stored, err := tx.GetProofConfirmation(ctx, orderID)
-			if errors.Is(err, ErrNotFound) {
-				return nil, nil
-			}
+	err = s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
+		if !o.HasParticipant(caller.ID) {
+			return nil, ErrNotFound
+		}
+		stored, err := tx.GetProofConfirmation(ctx, orderID)
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		confirmation = stored
+		for _, id := range stored.ProofIDs {
+			row, err := tx.GetProofUpload(ctx, id)
 			if err != nil {
 				return nil, err
 			}
-			confirmation = stored
-			rows = nil
-			for _, id := range stored.ProofIDs {
-				row, err := tx.GetProofUpload(ctx, id)
-				if err != nil {
-					return nil, err
-				}
-				if row.State != ProofAccepted || !proofBelongsTo(row, orderID, stored.CourierID) {
-					return nil, ErrPrecondition
-				}
-				rows = append(rows, row)
+			if row.State != ProofAccepted || !proofBelongsTo(row, orderID, stored.CourierID) {
+				return nil, ErrPrecondition
 			}
-			return nil, nil
-		})
-	}
-	if err := load(false); err != nil {
-		if !errors.Is(err, ErrNotFound) || !caller.Admin || s.cases == nil {
-			return DeliveryProofView{}, err
+			rows = append(rows, row)
 		}
-		allowed, lookupErr := s.cases.CanReadProof(ctx, caller.ID, orderID)
-		if lookupErr != nil || !allowed {
-			return DeliveryProofView{}, ErrNotFound
-		}
-		if err := load(true); err != nil {
-			return DeliveryProofView{}, err
-		}
+		return nil, nil
+	})
+	if err != nil {
+		return DeliveryProofView{}, err
 	}
 
 	out := DeliveryProofView{Proofs: []ProofView{}, OutageReason: confirmation.OutageReason}

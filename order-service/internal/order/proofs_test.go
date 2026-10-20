@@ -145,8 +145,6 @@ type proofDependencies struct {
 	onInspect, onGrant            func()
 	outage                        ProofOutage
 	outageErr                     error
-	caseAllowed                   bool
-	caseErr                       error
 }
 
 func (d *proofDependencies) outside() {
@@ -198,11 +196,6 @@ func (d *proofDependencies) ConfirmProofOutage(context.Context) (ProofOutage, er
 	d.outside()
 	return d.outage, d.outageErr
 }
-func (d *proofDependencies) CanReadProof(context.Context, string, string) (bool, error) {
-	d.outside()
-	return d.caseAllowed, d.caseErr
-}
-
 func proofScenario() (*Proofs, *proofMemory, *proofDependencies, *time.Time) {
 	now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
 	picked := now.Add(-10 * time.Minute)
@@ -497,34 +490,25 @@ func TestProofOutageExceptionRequiresFreshServerAuthority(t *testing.T) {
 	}
 }
 
+// Q10 explicitly denies nonparticipant admin access while the authoritative,
+// revocation-safe case authorization dependency is unavailable.
 func TestProofReadAuthorizationPrecedesSignedDownloads(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		caller    Caller
-		caseCheck bool
-		caseError bool
-		allowed   bool
+		name    string
+		caller  Caller
+		allowed bool
 	}{
-		{"requester", Caller{ID: proofRequester}, false, false, true},
-		{"courier", Caller{ID: proofCourier}, false, false, true},
-		{"former courier", Caller{ID: proofOther}, false, false, false},
-		{"admin no authority", Caller{ID: proofOther, Admin: true}, false, false, false},
-		{"unassigned admin", Caller{ID: proofOther, Admin: true}, true, false, false},
-		{"case service down", Caller{ID: proofOther, Admin: true}, true, true, false},
-		{"assigned case admin", Caller{ID: proofOther, Admin: true}, true, false, true},
+		{"requester", Caller{ID: proofRequester}, true},
+		{"courier", Caller{ID: proofCourier}, true},
+		{"former courier", Caller{ID: proofOther}, false},
+		{"nonparticipant admin", Caller{ID: proofOther, Admin: true}, false},
+		{"participant admin", Caller{ID: proofRequester, Admin: true}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, _, d, _ := proofScenario()
 			row := uploadedProof(t, s, d)
 			if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); err != nil {
 				t.Fatal(err)
-			}
-			if tc.caseCheck {
-				s.cases = d
-				d.caseAllowed = tc.allowed
-			}
-			if tc.caseError {
-				d.caseErr = errors.New("case lookup unavailable")
 			}
 			view, err := s.ForOrder(t.Context(), tc.caller, proofOrderID)
 			if tc.allowed {

@@ -125,18 +125,10 @@ type ProofOutageAuthority interface {
 	ConfirmProofOutage(context.Context) (ProofOutage, error)
 }
 
-// ProofCaseAccess is the unresolved Reports/Appeals authorization seam. It must
-// authoritatively verify an admin's assignment to an associated OPEN case. Nil,
-// false and lookup errors all deny proof access; role alone never grants it.
-type ProofCaseAccess interface {
-	CanReadProof(context.Context, string, string) (bool, error)
-}
-
 type ProofOptions struct {
 	// Stable server-controlled upload-path/bucket identity, never client input.
 	UploadScope string
 	Now         func() time.Time
 	NewID       func() string
-	CaseAccess  ProofCaseAccess
 	Outages     ProofOutageAuthority
 }
