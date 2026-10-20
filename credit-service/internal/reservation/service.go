@@ -12,12 +12,13 @@ import (
 )
 
 type Service struct {
-	repo  Repository
-	clock func() time.Time
+	repo   Repository
+	clock  func() time.Time
+	payout PayoutRule
 }
 
-func NewService(repo Repository, clock func() time.Time) *Service {
-	return &Service{repo: repo, clock: clock}
+func NewService(repo Repository, clock func() time.Time, payout PayoutRule) *Service {
+	return &Service{repo: repo, clock: clock, payout: payout}
 }
 
 // GetReservation returns the current reservation, including tombstones.

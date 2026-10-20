@@ -5,6 +5,21 @@ import (
 	"time"
 )
 
+// PayoutRule returns how much of the accepted offer the courier is paid for an
+// outcome that pays a courier. Credit applies the lateness rule today. If
+// Order later computes the charge, a rule that reads it from the outcome
+// replaces this one; settlement itself does not change.
+type PayoutRule func(offer int64, o OrderOutcome) int64
+
+// LatenessPayout pays the whole offer, reduced by the lateness rule for
+// completed orders (C1.2.4–C1.2.7).
+func LatenessPayout(offer int64, o OrderOutcome) int64 {
+	if o.Type != OrderCompleted {
+		return offer
+	}
+	return Payable(offer, o.DeliveredAt.Sub(o.PickedUpAt), o.DeliveryDuration)
+}
+
 // Payable applies the lateness rule to reward R, with elapsed = delivered -
 // picked up and T = allowed:
 //   - elapsed <= T pays R (C1.2.4);

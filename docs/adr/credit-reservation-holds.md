@@ -34,6 +34,18 @@ cost therefore still equals the courier's payout (C1.2.6). The increase above
 the original is checked against available credits when the offer is accepted
 (C1.2.2).
 
+### The payout rule is injectable
+
+Credit owns the lateness calculation today (`docs/adr/order-credit-pubsub.md`).
+Settlement asks a `reservation.PayoutRule` how much of the accepted offer the
+courier is paid; `LatenessPayout` applies the lateness rule and is injected
+from the composition root. Settlement rejects any payout below zero or above
+the hold with `ErrOutcomeMismatch` and changes nothing.
+
+If Order later computes the charge (agreed on #136), add the payable amount to
+`order.outcome`, carry it on `OrderOutcome`, and inject a rule that returns it.
+Settlement, the ledger and the schema do not change.
+
 ### Event settlement relies on terminality, not an event table
 
 Credit records no consumed `event_id`. Settled and Released reservations never

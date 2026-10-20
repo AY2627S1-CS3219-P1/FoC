@@ -23,8 +23,12 @@ const (
 var now = time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
 
 func newService() (*reservation.Service, *memoryRepository) {
+	return newServiceWith(reservation.LatenessPayout)
+}
+
+func newServiceWith(payout reservation.PayoutRule) (*reservation.Service, *memoryRepository) {
 	repo := newMemoryRepository()
-	return reservation.NewService(repo, func() time.Time { return now }), repo
+	return reservation.NewService(repo, func() time.Time { return now }, payout), repo
 }
 
 func expect(t *testing.T, err, want error) {
@@ -315,6 +319,38 @@ func TestReleaseOutcomesReturnTheHold(t *testing.T) {
 			}
 			repo.checkLedger(t)
 		})
+	}
+}
+
+func TestSettlementPaysWhatThePayoutRuleDecides(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newServiceWith(func(int64, reservation.OrderOutcome) int64 { return 7 })
+	must(t)(s.Reserve(ctx, orderID, requester, 30))
+	must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 40))
+
+	r, applied, err := s.ApplyOutcome(ctx, completed(now, now, time.Hour))
+	if err != nil || !applied || r.Settlement.PaidToCourier != 7 || r.Settlement.ReturnedToRequester != 33 {
+		t.Fatalf("apply: %+v %v %v", r.Settlement, applied, err)
+	}
+	if a := repo.balance(courier); a.Balance != 107 {
+		t.Fatalf("courier: %+v", a)
+	}
+	repo.checkLedger(t)
+}
+
+func TestSettlementRejectsAPayoutAboveTheHold(t *testing.T) {
+	ctx := context.Background()
+	for _, paid := range []int64{-1, 41} {
+		s, repo := newServiceWith(func(int64, reservation.OrderOutcome) int64 { return paid })
+		must(t)(s.Reserve(ctx, orderID, requester, 40))
+		must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 40))
+
+		_, _, err := s.ApplyOutcome(ctx, completed(now, now, time.Hour))
+		expect(t, err, reservation.ErrOutcomeMismatch)
+		if r := must(t)(s.GetReservation(ctx, orderID)); r.Status != reservation.Assigned {
+			t.Fatalf("payout %d changed the reservation: %+v", paid, r)
+		}
+		repo.checkLedger(t)
 	}
 }
 

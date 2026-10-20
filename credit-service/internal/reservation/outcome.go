@@ -58,7 +58,7 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 			return ErrReservationNotAssigned
 		}
 
-		out, err = settle(ctx, tx, *r, o, now)
+		out, err = settle(ctx, tx, *r, o, s.payout, now)
 		applied = err == nil
 		return err
 	})
@@ -70,9 +70,9 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 }
 
 // settle pays the courier and returns the rest of the hold to the requester.
-// The payable reward is based on the accepted offer; any hold above it is
-// refunded, so the requester's final cost equals the payout (C1.2.6).
-func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, now time.Time) (Reservation, error) {
+// payout decides the courier's share of the accepted offer; any hold above it
+// is refunded, so the requester's final cost equals the payout (C1.2.6).
+func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, payout PayoutRule, now time.Time) (Reservation, error) {
 	a, err := tx.Assignment(ctx, r.OrderID, r.AssignmentID)
 	if err != nil {
 		return Reservation{}, err
@@ -84,16 +84,20 @@ func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, now time.
 		return Reservation{}, ErrOutcomeMismatch
 	}
 
-	// Compute the payout from the accepted offer.
+	// Compute the payout from the accepted offer. The rule may come from
+	// outside Credit later, so never pay more than the hold.
+	payable := payout(a.OfferAmount, o)
+	if payable < 0 || payable > r.ReservedAmount {
+		return Reservation{}, ErrOutcomeMismatch
+	}
+
 	settlement := &Settlement{Outcome: o.settlementOutcome(), SettledAt: now}
-	payable := a.OfferAmount
 	if o.Type == OrderCompleted {
 		settlement.Completion = &Completion{
 			PickedUpAt:       o.PickedUpAt,
 			DeliveredAt:      o.DeliveredAt,
 			DeliveryDuration: o.DeliveryDuration,
 		}
-		payable = Payable(a.OfferAmount, o.DeliveredAt.Sub(o.PickedUpAt), o.DeliveryDuration)
 	}
 	settlement.PaidToCourier = payable
 	settlement.ReturnedToRequester = r.ReservedAmount - payable
