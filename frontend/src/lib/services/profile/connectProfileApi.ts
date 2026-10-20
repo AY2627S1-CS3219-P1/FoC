@@ -14,7 +14,6 @@ function toProfile(profile: ProtoProfile | undefined): UserProfile {
 		email: profile.email,
 		displayName: profile.displayName,
 		description: profile.description,
-		telegramHandle: profile.telegramHandle,
 		phoneNumber: profile.phoneNumber,
 		role: profile.role
 	};
@@ -36,8 +35,7 @@ export class ConnectProfileApi implements ProfileApi {
 		const response = await this.#client.updateMyProfile({
 			displayName: input.displayName.trim(),
 			description: input.description,
-			telegramHandle: input.telegramHandle?.trim() || undefined,
-			phoneNumber: input.phoneNumber?.trim() || undefined
+			phoneNumber: input.phoneNumber.trim()
 		});
 		return toProfile(response.profile);
 	}
