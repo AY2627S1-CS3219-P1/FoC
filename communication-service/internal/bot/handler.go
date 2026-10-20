@@ -34,6 +34,7 @@ const (
 	startReply   = "Hi! This is the Friend on Campus bot. To get order updates here, choose Connect Telegram in the FoC app."
 	linkedReply  = "Connected. You'll get FoC order updates here. You can disconnect anytime from your FoC profile."
 	invalidReply = "This link has expired or was already used. Choose Connect Telegram in the FoC app to get a new one."
+	retryReply   = "Something went wrong connecting your account. Please press Start again."
 )
 
 // Handle processes one update. Only private chats are handled.
@@ -71,7 +72,10 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 		return h.Sender.SendMessage(ctx, msg.Chat.ID, invalidReply)
 	}
 	if err != nil {
-		return fmt.Errorf("redeem link code: %w", err)
+		// The poller acknowledges this update anyway, but the code is still
+		// unused, so the user can retry.
+		h.Log.Error("telegram link failed", "chat_id", msg.Chat.ID, "err", err)
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, retryReply)
 	}
 	h.Log.Info("telegram linked", "user_id", link.UserID, "chat_id", link.ChatID)
 	return h.Sender.SendMessage(ctx, msg.Chat.ID, linkedReply)

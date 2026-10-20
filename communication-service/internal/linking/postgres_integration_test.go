@@ -204,3 +204,21 @@ func TestConcurrentRedemptionsFromOneChat(t *testing.T) {
 		t.Fatalf("accounts linked to chat 300 = %d, want 1", linked)
 	}
 }
+
+func TestUnlinkInvalidatesPendingCodes(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	alice := uuid.New()
+
+	// A code from another tab is still pending when Alice disconnects.
+	pending, _, err := svc.CreateCode(ctx, alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Unlink(ctx, alice); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Redeem(ctx, pending, Chat{ID: 42}); !errors.Is(err, ErrInvalidCode) {
+		t.Fatalf("pending code after unlink: %v", err)
+	}
+}

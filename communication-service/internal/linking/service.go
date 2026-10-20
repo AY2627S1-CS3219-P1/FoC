@@ -49,6 +49,7 @@ type Store interface {
 	RedeemCode(ctx context.Context, codeHash []byte, chat Chat, now time.Time) (Link, error)
 	// GetLink returns ErrNotLinked when the user has no chat.
 	GetLink(ctx context.Context, userID uuid.UUID) (Link, error)
+	// DeleteLink also deletes the user's unused codes.
 	DeleteLink(ctx context.Context, userID uuid.UUID) error
 	DeleteLinkByChat(ctx context.Context, chatID int64) error
 }

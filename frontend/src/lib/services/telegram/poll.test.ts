@@ -34,6 +34,16 @@ describe('pollUntilLinked', () => {
 		expect(getStatus).toHaveBeenCalledTimes(5);
 	});
 
+	it('checks once more at expiry', async () => {
+		const time = clock();
+		const getStatus = vi.fn(async () => ({ linked: time.now() >= 10_000 }));
+
+		const status = await pollUntilLinked({ getStatus }, { until: new Date(10_000), intervalMs: 3000, ...time });
+
+		expect(status).toEqual({ linked: true });
+		expect(getStatus).toHaveBeenCalledTimes(4);
+	});
+
 	it('stops when aborted', async () => {
 		const time = clock();
 		const controller = new AbortController();
