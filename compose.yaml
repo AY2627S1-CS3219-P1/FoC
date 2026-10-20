@@ -28,6 +28,7 @@ services:
       USER_DB: ${USER_DB:-user_dev}
       SUPPLIER_DB: ${SUPPLIER_DB:-supplier_dev}
       ORDER_DB: ${ORDER_DB:-order_dev}
+      CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
