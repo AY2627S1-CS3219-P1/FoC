@@ -1,10 +1,10 @@
 # ADR: Immediate suspension, durable handoff and Order authority
 
 Date: 20 Oct 2026
-Status: local behavior implemented/tested; production disabled pending #29;
-required Devin Opus review and PR publication not completed.
-Base: B3 PR #179, pinned `dea9c7c78130853793e8e5a8774f607cace02256`.
-Branch/worktree: `andrew/feat/immediate-suspension-b3`, `/workspace/FoC-suspension`.
+Status: local review fixes implemented; P2 regression awaits rerun after fixture
+correction. Production disabled pending #29.
+Foundation: B3 PR #179, pinned `dea9c7c78130853793e8e5a8774f607cace02256`.
+Review base: `9044eccbb19488030ca1840aa2425d67fc318037`.
 Original auth work `f1b8957` remains preserved; cherry-pick `abb3cb1` applies it
 without overwriting B3. `99c5a49` preserves assignment-specific removal/recovery.
 
@@ -63,14 +63,23 @@ reason and timestamps. No bearer credential is persisted.
    observe the completed row instead of writing a second audit.
 
 A lost/uncertain reply retains durable intent and reports Unavailable. Changed
-pending intent is rejected. Bounded recovery retries use the same decision, never
-a saved human session. Reinstatement advances the revision; older delayed facts
-cannot undo it. This is immediate command recovery, not a policy to suspend after
+pending intent is rejected. Definite Order rejections are recorded with
+`rejected_at`, reported as FailedPrecondition, and excluded from automatic recovery.
+They retain the immutable decision and block replacement/finalization until explicit
+reconciliation. Uncertain failures remain retryable. Migration 00008 guards rollback
+past the dispatch history whenever any revision tombstone exists, including applied
+or rejected decisions. It does not rewrite applied migration 00007.
+Bounded recovery retries use the same decision, never a saved human session.
+Reinstatement advances the revision; older delayed facts cannot undo it. This is immediate command recovery, not a policy to suspend after
 delivery or at a scheduled time. Successful admin completion requires the Order
 fence already committed. A crash after Order commit retains the intent needed to
 finish the User projection. Immutable dispatch records preserve the originating
 actor without blocking deletion; audit userstamps retain their existing nullable
-semantics if that account disappears.
+semantics if that account disappears. Soft-deleted target decisions remain as
+immutable history without a forged acknowledgment or removal of the Order fence.
+They are excluded from recovery and the startup guard. A live target's unfinished
+or rejected decision still fails closed when transport is unavailable. A recovery
+item loaded before deletion rechecks the target before sending and finalizing.
 
 ## Authoritative Order transaction
 
@@ -88,8 +97,9 @@ pre-pickup assignment identities into B3 recovery, and advances the generation o
 pending acceptance work into B1 compensation. In-flight Adjust replies cannot
 assign afterward. Pickup-first orders retain custody and continue delivery.
 Reinstatement changes eligibility only; it never resurrects removed assignments.
-Older decisions are acknowledged without effects; conflicting payloads at the same
-revision fail closed. Rollback cannot discard revision tombstones or active fences.
+Older decisions are rejected as stale without effects or a successful dispatch
+acknowledgment. Conflicting payloads at the same revision fail closed. Rollback
+cannot discard revision tombstones or active fences.
 
 The sole Postgres Apply boundary checks the persisted account fence for creates,
 offers, acceptance and pickup. It checks both the initiating user and the target
@@ -101,9 +111,16 @@ cancellation, disposition and receipt keep their existing participant rules.
 
 `Canceller.RemoveSuspendedAssignment` targets the immutable successful assignment,
 not the current occupant of an Order ID. Duplicates join pending recovery without
-another audit/event/Credit call. Missing assignment identity fails closed; picked-up
-or replacement assignments are unchanged. Automatic admission/completion use
-explicit system audit actions.
+another audit/event/Credit call. Missing assignment identity fails closed for
+removal, not for the account fence: suspension still commits and prevents pickup,
+while that assignment remains for reconciliation without a guessed reversal.
+Picked-up or replacement assignments are unchanged. Automatic admission/completion
+use explicit system audit actions. Discovery includes only assigned AwaitingPickup
+orders and AwaitingCourier orders with relevant AdjustmentPending attempts or a
+RevertPending attempt whose
+offer is still accepting. Existing RevertPending work retains its generation,
+lease and compensation owner. Suspension voids the in-flight offer, so an
+insufficient-credit compensation cannot reopen it even after reinstatement.
 
 Migration `20261020140000` adds the immutable suspension decision ID to B3's
 cancellation record. Timestamp versions avoid claiming B4's next Order migration
@@ -151,11 +168,10 @@ security evidence.
 
 ## Review and remaining verification
 
-Andrew requires Devin CLI with Opus, or an additional Devin Opus review on the
-public PR. No `pi`, `devin`, `devin-cli` executable or callable Devin connector is
-available here; no substitute model was launched. PR metadata lookup through
-`gh pr view 179` returned `Forbidden` from GitHub GraphQL and was not retried via
-another API. No exact-model review or ready-PR status is claimed.
+Devin CLI Opus reviewed the pinned review base and requested changes. That review
+does not cover the subsequent remediation. Source-pinned Opus follow-up and
+publication remain separate acceptance steps owned by the parent session. No
+production authenticated-suspension completion or PR-ready status is claimed.
 
 See [verification evidence](../testing/immediate-suspension.md). B2 proof and B4
 live timer behavior, real Credit, mesh enforcement and deployment remain uncertified.
