@@ -128,8 +128,8 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	if err != nil || f.request.Role != app.CourierRole || f.request.Status != app.Completed || f.request.Page.Number != 2 || my.Msg.PageInfo.TotalItems != 21 || my.Msg.PageInfo.TotalPages != 2 {
 		t.Fatalf("mine filters/page: fake=%+v response=%v err=%v", f, my, err)
 	}
-	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryLocationId: proto.String(orderID), Page: 3, PageSize: 10}))
-	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryID != orderID || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
+	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryBuildingName: "COM3", Page: 3, PageSize: 10}))
+	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryBuildingName != "COM3" || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
 		t.Fatalf("open filters: %+v err=%v", f, err)
 	}
 	offers, err := c.order.ListOffers(ctx, connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus_OFFER_STATUS_ACCEPTED}))
@@ -241,7 +241,7 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
+func TestUnconfiguredParticipantRPCsFailClosedAndUploadRemainsUnimplemented(t *testing.T) {
 	c := mount(t, &fakeOperations{}, "admin")
 	ctx := context.Background()
 	calls := []struct {
@@ -257,7 +257,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"accept", func() error {
-			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID}))
+			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
 			return e
 		}},
 		{"make offer", func() error {
@@ -285,7 +285,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"cancel", func() error {
-			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID}))
+			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, ExpectedRevision: 1}))
 			return e
 		}},
 		{"location", func() error {
@@ -304,7 +304,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "create" || call.name == "image upload" {
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" || call.name == "pickup" || call.name == "receipt" || call.name == "location" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {

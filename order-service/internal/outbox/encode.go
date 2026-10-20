@@ -37,7 +37,14 @@ func encode(f Fact) (proto.Message, error) {
 		if !ok {
 			return nil, errors.New("invalid Order actor")
 		}
-		return &events.OrderStatusChanged{EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision, PreviousStatus: previous, Status: status, Actor: &events.Actor{Type: actor, UserId: f.ActorID}, RequesterId: p.RequesterID, CourierId: p.CourierID, PickupLocationName: f.PickupName, OccurredAt: timestamppb.New(p.At)}, nil
+		return &events.OrderStatusChanged{
+			EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision,
+			PreviousStatus: previous, Status: status,
+			Actor:       &events.Actor{Type: actor, UserId: f.ActorID},
+			RequesterId: p.RequesterID, CourierId: p.CourierID,
+			PreviousCourierId:  p.PreviousCourierID,
+			PickupLocationName: f.PickupName, OccurredAt: timestamppb.New(p.At),
+		}, nil
 	case app.Outcome:
 		outcome, err := outcomeType(p)
 		if err != nil {
@@ -48,7 +55,16 @@ func encode(f Fact) (proto.Message, error) {
 		if p.CourierID == nil || !p.AfterPickup || p.Status != app.Failed {
 			return nil, errors.New("invalid courier warning fact")
 		}
-		return &events.CourierWarningRequested{EventId: f.ID, OrderId: f.OrderID, CourierId: *p.CourierID, Reason: events.CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP, OccurredAt: timestamppb.New(p.At)}, nil
+		reason := events.CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP
+		if p.Action == app.Timeout {
+			reason = events.CourierWarningReason_COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD
+		} else if p.Action != app.Cancel {
+			return nil, errors.New("unsupported courier warning action")
+		}
+		return &events.CourierWarningRequested{
+			EventId: f.ID, OrderId: f.OrderID, CourierId: *p.CourierID,
+			Reason: reason, OccurredAt: timestamppb.New(p.At),
+		}, nil
 	default:
 		return nil, errors.New("unsupported Order fact kind")
 	}

@@ -17,21 +17,21 @@ SELECT count(*) FROM orders WHERE
  (NOT $1::boolean OR (status = 'awaiting_courier' AND requester_id <> $2::uuid AND expires_at > $3::timestamptz))
  AND ($4::text = '' OR
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
-    ($5::text IN ('','courier') AND courier_id = NULLIF($4::text,'')::uuid)))
+    ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
  AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'location_id' = $8::text)
+ AND ($8::text = '' OR delivery->>'building_name' = $8::text)
 `
 
 type CountOrdersParams struct {
-	OpenOnly     bool
-	CallerID     uuid.UUID
-	NowAt        time.Time
-	UserID       string
-	Role         string
-	StatusFilter string
-	PickupID     string
-	DeliveryID   string
+	OpenOnly             bool
+	CallerID             uuid.UUID
+	NowAt                time.Time
+	UserID               string
+	Role                 string
+	StatusFilter         string
+	PickupID             string
+	DeliveryBuildingName string
 }
 
 func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error) {
@@ -43,7 +43,7 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 		arg.Role,
 		arg.StatusFilter,
 		arg.PickupID,
-		arg.DeliveryID,
+		arg.DeliveryBuildingName,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -51,7 +51,7 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 }
 
 const getOrder = `-- name: GetOrder :one
-SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at FROM orders WHERE id = $1
+SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id FROM orders WHERE id = $1
 `
 
 func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -81,6 +81,7 @@ func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PendingCancellationID,
 	)
 	return i, err
 }
@@ -173,33 +174,34 @@ func (q *Queries) InsertOffer(ctx context.Context, arg InsertOfferParams) error 
 }
 
 const insertOrder = `-- name: InsertOrder :exec
-INSERT INTO orders (id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+INSERT INTO orders (id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 `
 
 type InsertOrderParams struct {
-	ID                   uuid.UUID
-	RequesterID          uuid.UUID
-	CourierID            *uuid.UUID
-	Status               string
-	Pickup               []byte
-	Delivery             []byte
-	DeliveryInstructions *string
-	ItemDescription      string
-	RewardCredits        int64
-	ReservedCredits      int64
-	DeliveryDurationNs   int64
-	ExpiresAt            time.Time
-	AssignedAt           *time.Time
-	PickedUpAt           *time.Time
-	DeliveredAt          *time.Time
-	CompletedAt          *time.Time
-	ClosedAt             *time.Time
-	CloseReason          *string
-	ItemLocation         *string
-	UnattendedDelivery   bool
-	Revision             int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                    uuid.UUID
+	RequesterID           uuid.UUID
+	CourierID             *uuid.UUID
+	Status                string
+	Pickup                []byte
+	Delivery              []byte
+	DeliveryInstructions  *string
+	ItemDescription       string
+	RewardCredits         int64
+	ReservedCredits       int64
+	DeliveryDurationNs    int64
+	ExpiresAt             time.Time
+	AssignedAt            *time.Time
+	PickedUpAt            *time.Time
+	DeliveredAt           *time.Time
+	CompletedAt           *time.Time
+	ClosedAt              *time.Time
+	CloseReason           *string
+	ItemLocation          *string
+	UnattendedDelivery    bool
+	Revision              int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	PendingCancellationID *uuid.UUID
 }
 
 func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) error {
@@ -227,32 +229,33 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) error 
 		arg.Revision,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.PendingCancellationID,
 	)
 	return err
 }
 
 const listOrders = `-- name: ListOrders :many
-SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at FROM orders WHERE
+SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id FROM orders WHERE
  (NOT $1::boolean OR (status = 'awaiting_courier' AND requester_id <> $2::uuid AND expires_at > $3::timestamptz))
  AND ($4::text = '' OR
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
-    ($5::text IN ('','courier') AND courier_id = NULLIF($4::text,'')::uuid)))
+    ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
  AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'location_id' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
+ AND ($8::text = '' OR delivery->>'building_name' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
 `
 
 type ListOrdersParams struct {
-	OpenOnly     bool
-	CallerID     uuid.UUID
-	NowAt        time.Time
-	UserID       string
-	Role         string
-	StatusFilter string
-	PickupID     string
-	DeliveryID   string
-	PageOffset   int64
-	PageSize     int32
+	OpenOnly             bool
+	CallerID             uuid.UUID
+	NowAt                time.Time
+	UserID               string
+	Role                 string
+	StatusFilter         string
+	PickupID             string
+	DeliveryBuildingName string
+	PageOffset           int64
+	PageSize             int32
 }
 
 func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
@@ -264,7 +267,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		arg.Role,
 		arg.StatusFilter,
 		arg.PickupID,
-		arg.DeliveryID,
+		arg.DeliveryBuildingName,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -299,6 +302,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PendingCancellationID,
 		); err != nil {
 			return nil, err
 		}
@@ -311,7 +315,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 }
 
 const lockOrder = `-- name: LockOrder :one
-SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at FROM orders WHERE id = $1 FOR UPDATE
+SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id FROM orders WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -341,6 +345,7 @@ func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PendingCancellationID,
 	)
 	return i, err
 }
@@ -409,36 +414,38 @@ func (q *Queries) UpdateOffer(ctx context.Context, arg UpdateOfferParams) (int64
 }
 
 const updateOrder = `-- name: UpdateOrder :execrows
-UPDATE orders SET courier_id = $1, status = $2, pickup = $3, delivery = $4, delivery_instructions = $5, item_description = $6, reward_credits = $7, reserved_credits = $8, delivery_duration_ns = $9, expires_at = $10, assigned_at = $11, picked_up_at = $12, delivered_at = $13, completed_at = $14, closed_at = $15, close_reason = $16, item_location = $17, unattended_delivery = $18, revision = $19, updated_at = $20 WHERE id = $21 AND revision = $22
+UPDATE orders SET pending_cancellation_id = $1, courier_id = $2, status = $3, pickup = $4, delivery = $5, delivery_instructions = $6, item_description = $7, reward_credits = $8, reserved_credits = $9, delivery_duration_ns = $10, expires_at = $11, assigned_at = $12, picked_up_at = $13, delivered_at = $14, completed_at = $15, closed_at = $16, close_reason = $17, item_location = $18, unattended_delivery = $19, revision = $20, updated_at = $21 WHERE id = $22 AND revision = $23
 `
 
 type UpdateOrderParams struct {
-	CourierID            *uuid.UUID
-	Status               string
-	Pickup               []byte
-	Delivery             []byte
-	DeliveryInstructions *string
-	ItemDescription      string
-	RewardCredits        int64
-	ReservedCredits      int64
-	DeliveryDurationNs   int64
-	ExpiresAt            time.Time
-	AssignedAt           *time.Time
-	PickedUpAt           *time.Time
-	DeliveredAt          *time.Time
-	CompletedAt          *time.Time
-	ClosedAt             *time.Time
-	CloseReason          *string
-	ItemLocation         *string
-	UnattendedDelivery   bool
-	Revision             int64
-	UpdatedAt            time.Time
-	ID                   uuid.UUID
-	ExpectedRevision     int64
+	PendingCancellationID *uuid.UUID
+	CourierID             *uuid.UUID
+	Status                string
+	Pickup                []byte
+	Delivery              []byte
+	DeliveryInstructions  *string
+	ItemDescription       string
+	RewardCredits         int64
+	ReservedCredits       int64
+	DeliveryDurationNs    int64
+	ExpiresAt             time.Time
+	AssignedAt            *time.Time
+	PickedUpAt            *time.Time
+	DeliveredAt           *time.Time
+	CompletedAt           *time.Time
+	ClosedAt              *time.Time
+	CloseReason           *string
+	ItemLocation          *string
+	UnattendedDelivery    bool
+	Revision              int64
+	UpdatedAt             time.Time
+	ID                    uuid.UUID
+	ExpectedRevision      int64
 }
 
 func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateOrder,
+		arg.PendingCancellationID,
 		arg.CourierID,
 		arg.Status,
 		arg.Pickup,

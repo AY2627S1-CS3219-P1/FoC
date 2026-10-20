@@ -13,7 +13,7 @@ import (
 )
 
 func TestOriginalIdentitiesAndMutations(t *testing.T) {
-	for _, m := range []proto.Message{&order.AcceptOrderRequest{}, &order.AcceptOfferRequest{}, &order.CancelOrderRequest{}, &order.AdminCancelOrderRequest{}, &order.UnassignCourierRequest{}} {
+	for _, m := range []proto.Message{&order.AcceptOrderRequest{}, &order.AcceptOfferRequest{}, &order.AdminCancelOrderRequest{}, &order.UnassignCourierRequest{}} {
 		if m.ProtoReflect().Descriptor().Fields().ByName("idempotency_key") != nil {
 			t.Fatalf("unexpected new retry key: %T", m)
 		}
@@ -22,7 +22,7 @@ func TestOriginalIdentitiesAndMutations(t *testing.T) {
 		m      proto.Message
 		name   string
 		number protoreflect.FieldNumber
-	}{{&credit.ReserveRequest{}, "request_id", 1}, {&credit.AdjustReservationRequest{}, "offer_id", 2}, {&order.CreateOrderRequest{}, "idempotency_key", 8}} {
+	}{{&credit.ReserveRequest{}, "request_id", 1}, {&credit.AdjustReservationRequest{}, "offer_id", 2}, {&order.CreateOrderRequest{}, "idempotency_key", 8}, {&order.CancelOrderRequest{}, "idempotency_key", 3}} {
 		f := tc.m.ProtoReflect().Descriptor().Fields().ByName(protoreflect.Name(tc.name))
 		if f == nil || f.Number() != tc.number {
 			t.Fatalf("changed identity: %T %s", tc.m, tc.name)

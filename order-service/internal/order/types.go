@@ -45,6 +45,7 @@ type LocationSnapshot struct {
 }
 
 type Order struct {
+	PendingCancellationID                                      *string
 	ID, RequesterID                                            string
 	CourierID                                                  *string
 	Status                                                     Status
@@ -175,6 +176,7 @@ type ListRequest struct {
 	Status               Status
 	Role                 Role
 	PickupID, DeliveryID string
+	DeliveryBuildingName string
 }
 
 type OrderPage struct {

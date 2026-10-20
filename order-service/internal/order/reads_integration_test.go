@@ -57,7 +57,7 @@ func TestPostgresReads(t *testing.T) {
 		expired.Status = AwaitingCourier
 		expired.ExpiresAt = time.Now().Add(-time.Second)
 		f.seed(t, expired)
-		p, err := service.ListOpenOrders(f.ctx, caller, ListRequest{Page: Page{Size: 2}, PickupID: strings.ToUpper(pickup), DeliveryID: strings.ToUpper(delivery)})
+		p, err := service.ListOpenOrders(f.ctx, caller, ListRequest{Page: Page{Size: 2}, PickupID: strings.ToUpper(pickup), DeliveryBuildingName: "PGP"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,7 +116,7 @@ func TestPostgresReads(t *testing.T) {
 		f.seed(t, o)
 		for _, caller := range []Caller{{ID: o.RequesterID, Suspended: true}, {ID: courier, Suspended: true}, {ID: uuid.NewString(), Admin: true}} {
 			got, err := service.GetOrder(f.ctx, caller, o.ID)
-			if err != nil || got.DeliveryInstructions == nil {
+			if err != nil || (got.DeliveryInstructions != nil) != !caller.Admin {
 				t.Fatal(got, err)
 			}
 		}

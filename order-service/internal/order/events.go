@@ -83,13 +83,34 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		if action == Assign && !after.IsAssignedTo(actor.ID) {
 			return Change{}, ErrInvalid
 		}
-	} else {
-		// Same-status lifecycle actions are never evidence of a repeat. The
-		// operation recognizes repeats and returns a nil change before writing.
-		if action != RecordItemLocation {
-			return Change{}, ErrPrecondition
+		if action == AcceptCounteroffer && (after.CourierID == nil || *after.CourierID == "" || after.IsAssignedTo(before.RequesterID)) {
+			return Change{}, ErrInvalid
 		}
-		if actor.Kind != User || !before.IsAssignedTo(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
+	} else {
+		// Metadata actions are explicit, not same-status lifecycle repeats.
+		// AssignmentTx additionally checks offers and immutable attempt ownership.
+		switch action {
+		case BeginWithdrawal:
+			if actor.Kind != User || before.Status != AwaitingPickup || !before.IsAssignedTo(actor.ID) || before.PendingCancellationID != nil || after.PendingCancellationID == nil {
+				return Change{}, ErrPrecondition
+			}
+		case RecordItemLocation:
+			if actor.Kind != User || !before.IsAssignedTo(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
+				return Change{}, ErrPrecondition
+			}
+		case ProposeOffer:
+			if actor.Kind != User || before.Status != AwaitingCourier || before.IsRequestedBy(actor.ID) {
+				return Change{}, ErrForbidden
+			}
+		case BeginAssignment:
+			if actor.Kind != User || before.Status != AwaitingCourier {
+				return Change{}, ErrForbidden
+			}
+		case ResolveAssignment:
+			if actor.Kind != User {
+				return Change{}, ErrForbidden
+			}
+		default:
 			return Change{}, ErrPrecondition
 		}
 	}
@@ -155,7 +176,8 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 	if after.Status == Completed || after.Status == Cancelled || after.Status == Expired || after.Status == Failed {
 		add(Outcome)
 	}
-	if previous == Delivering && action == Cancel && actor.Kind == User && after.IsAssignedTo(actor.ID) {
+	if previous == Delivering && ((action == Cancel && actor.Kind == User && after.IsAssignedTo(actor.ID)) ||
+		(action == Timeout && actor.Kind == System && after.PickedUpAt != nil && after.CourierID != nil)) {
 		add(CourierWarning)
 	}
 

@@ -64,7 +64,9 @@ Credit results, deadlines and delivery proof remain operation prerequisites.
 Repeat recognition belongs to each action: a matching destination status is not
 sufficient. Recognized repeats return a nil change and write nothing. Currently,
 assignment by the assigned courier and receipt by the completed Order's requester
-have state-proven repeats. Same-status lifecycle writes are rejected. Terminal
+have state-proven repeats, as does pickup by the Delivering Order's courier,
+since only the assigned courier reaches Delivering and the courier cannot change
+afterwards. Same-status lifecycle writes are rejected. Terminal
 item-location amendments are restricted to disposition metadata and never reopen
 an Order or emit another outcome. Future offer mutations must add their concrete
 actions and permitted fields to the change policy when implemented.
@@ -130,3 +132,7 @@ AWS S3 is the intended backend; evaluate Floci locally when implementing uploads
 SDK clients, credentials, buckets, signing, image persistence and upload workflows
 are deferred. A configurable fake exists only in tests and is never wired into the
 server or injected as an unused Order dependency.
+
+Participant cancellation and durable withdrawal now follow
+[the cancellation ADR](order-participant-cancellation.md), including optional
+lifetime retry keys, pending withdrawal, pickup fencing and Credit reversal recovery.

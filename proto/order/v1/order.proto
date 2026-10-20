@@ -102,8 +102,8 @@ message CreateItemImageUploadRequest {
   }];
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -113,7 +113,10 @@ message GetOrderRequest {
 message ListOpenOrdersRequest {
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
-  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true];
+  // Legacy exact filter is rejected: membership would disclose a hidden Location.
+  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true, deprecated = true];
+  // Filter by the destination snapshot building/area, never an exact Location ID.
+  string delivery_building_name = 5 [(buf.validate.field).string.max_len = 200];
   // One-based; zero means 1.
   int32 page = 3 [(buf.validate.field).int32.gte = 0];
   // Zero means 20; maximum 100.
@@ -123,7 +126,7 @@ message ListOpenOrdersRequest {
   }];
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 message ListMyOrdersRequest {
   ParticipantRole role = 1 [(buf.validate.field).enum.defined_only = true];
   OrderStatus status = 2 [(buf.validate.field).enum.defined_only = true];
@@ -136,11 +139,13 @@ message ListMyOrdersRequest {
   }];
 }
 
-// Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// Starts one immutable acceptance attempt at the current reward. The caller
+// generates attempt_id once and reuses it after an uncertain result. An
+// intentional new attempt requires a new UUID, including after withdrawal.
+// Recognized business rejections retain the UUID for the retained Order's life.
 message AcceptOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  string attempt_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
 // A counteroffer above the current reward on an Awaiting Courier order. It may
@@ -214,13 +219,18 @@ message ConfirmReceiptRequest {
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
+// Keyless calls use current state and must never be automatically retried after uncertainty.
+// A fresh key expresses a new cancellation; retained keys replay their operation.
 message CancelOrderRequest {
+  optional string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
   string id = 1 [(buf.validate.field).string.uuid = true];
   optional string reason = 2 [(buf.validate.field).cel = {
     id: "cancel_order.reason_length"
     message: "reason must be at most 500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) <= 500"
   }];
+  // Revision whose cancellation consequences the participant confirmed.
+  int64 expected_revision = 4 [(buf.validate.field).int64.gt = 0];
 }
 
 // Courier only, after a cancellation following pickup.
@@ -256,7 +266,10 @@ message ListMyOrdersResponse {
   PageInfo page_info = 2;
 }
 message AcceptOrderResponse {
+  // Current caller-authorized state, not the historical acceptance snapshot.
+  // Absent when the attempt itself does not grant current Order visibility.
   Order order = 1;
+  AssignmentAttemptResult attempt = 2;
 }
 message MakeOfferResponse {
   Offer offer = 1;
@@ -267,6 +280,7 @@ message ListOffersResponse {
 message AcceptOfferResponse {
   Order order = 1;
   Offer offer = 2;
+  AssignmentAttemptResult attempt = 3;
 }
 message ConfirmPickupResponse {
   Order order = 1;
@@ -285,6 +299,7 @@ message ConfirmReceiptResponse {
 }
 message CancelOrderResponse {
   Order order = 1;
+  CancellationResult cancellation = 2;
 }
 message RecordItemLocationResponse {
   Order order = 1;
