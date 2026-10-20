@@ -49,7 +49,7 @@ func TestPostgresConfirmedCancellationReplay(t *testing.T) {
 	}
 }
 
-// Reproduced PR171 review finding: no configured Credit means no recoverer.
+// With no configured Credit there is no recoverer.
 // Refuse new withdrawal without writing a pickup-blocking pending command.
 func TestPostgresWithdrawalWithoutCreditRefusesNewIntent(t *testing.T) {
 	f := setup(t)

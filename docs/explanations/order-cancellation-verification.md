@@ -65,10 +65,12 @@ Two independent source-only reviews ran through Devin using Claude Opus 5.5
 and provider session state recorded `claude-opus-5.5`. Reviewers did not execute
 tests; execution evidence above is separate.
 
-Final reviewed source bundle SHA256:
+Main feature review source bundle SHA256:
 `c30926689eec8455253364c08bb885e6ef636ce112ab60110e24839b69bab35e`.
-Subsequent changes were Go literal layout, a test-fixture injection wrapper and
-this evidence/documentation, not production behavior.
+The initial follow-up changes were Go literal layout, a test-fixture injection
+wrapper and evidence/documentation. Remote PR review subsequently identified a
+legacy persisted-key compatibility issue, covered by the separate upgrade proof
+and incremental review below.
 
 | Finding | Disposition |
 | --- | --- |
@@ -84,6 +86,28 @@ this evidence/documentation, not production behavior.
 Final Spec review reported no actionable findings. Final Standards review reported
 no blockers; its minor notes are disposed of above. No actionable review item is
 left open.
+
+## Upgrade compatibility follow-up
+
+Remote review identified a retained-key upgrade regression. New confirmed requests
+hash the revision, while pre-upgrade keys used only order and reason. The fix
+recognizes that original hash only for a retained caller/method-scoped key, then
+still validates the loaded operation's caller, order and reason. New admissions
+remain revision-bound. No mapping, operation or financial result is rewritten.
+
+`TestPostgresLegacyCancellationUpgradeReplay` passed against PostgreSQL18: terminal
+and pending old keys replay after upgrade, a raised reward recovers to its original
+baseline, a replacement courier remains assigned, changed payload/caller is
+rejected, a corrupt resource pointer fails closed, and no duplicate audit/outbox
+effects occur. The test independently checks the old persisted JSON-array hash.
+Modern revision-change rejection remains covered by the confirmed-replay test.
+
+Repository lint, full Order race tests and the complete targeted database/Connect
+suite passed again after this fix. Independent incremental Standards and Spec
+reviews both recorded Devin Claude Opus 5.5 and reported no actionable findings.
+Incremental source bundle SHA256:
+`c5848e765b564720493ca10a94f0e424999f3c69feae0bb82cee778b7590641e`.
+The production frontend is unchanged by this backend compatibility fix.
 
 ## Artifacts and limits
 

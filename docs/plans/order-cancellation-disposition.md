@@ -51,7 +51,10 @@ preconditions may seed a delivery accepted at that external seam.
   B3 UI always supplies a stable UUID and never changes its revision/reason/key
   on uncertain retries. Keyless callers must not automatically retry uncertainty.
 - `Canceller.CancelConfirmed` compares retained payload before current revision.
-  A new mismatched revision returns conflict without admission. New withdrawals
+  A new mismatched revision returns conflict without admission. Already-retained
+  pre-upgrade keys may match the original order/reason hash, but must still load
+  an operation matching caller, order and reason. Never rewrite their hash or
+  admit a new legacy intent through this compatibility path. New withdrawals
   are refused if Credit is unconfigured; requester terminal cancellation remains
   available. This fixes the verified PR171 stranded-withdrawal review finding.
 - Durable `Cancellation` retains immutable original assignment identity. Pending

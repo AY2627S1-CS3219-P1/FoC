@@ -35,11 +35,25 @@ func NewCanceller(repository CancellationRepository, credit CancellationCredit, 
 	}
 }
 
+// A legacy hash is accepted only for an already-retained key. New admissions
+// always store RequestHash, including the confirmed revision when supplied.
+type cancellationRequestKey struct {
+	IdempotencyKey
+	legacyHash string
+}
+
+func (k cancellationRequestKey) checkRetainedHash(stored IdempotencyKey) error {
+	if stored.RequestHash == k.legacyHash {
+		return nil
+	}
+	return stored.CheckRequestHash(k.RequestHash)
+}
+
 type cancellationRepository struct{ tx CancellationTx }
 
 func (r cancellationRepository) Within(_ context.Context, fn func(Tx) error) error { return fn(r.tx) }
 
-func (s *Canceller) mutate(ctx context.Context, id string, requestKey *IdempotencyKey, fn func(CancellationTx, Order, []Offer) (*Change, error)) error {
+func (s *Canceller) mutate(ctx context.Context, id string, requestKey *cancellationRequestKey, fn func(CancellationTx, Order, []Offer) (*Change, error)) error {
 	return s.repository.WithinCancellation(ctx, func(tx CancellationTx) error {
 		if requestKey != nil {
 			if err := tx.LockIdempotencyCaller(ctx, requestKey.Scope); err != nil {
@@ -52,7 +66,7 @@ func (s *Canceller) mutate(ctx context.Context, id string, requestKey *Idempoten
 				return err
 			}
 			if stored != nil {
-				if err := stored.CheckRequestHash(requestKey.RequestHash); err != nil {
+				if err := requestKey.checkRetainedHash(*stored); err != nil {
 					return err
 				}
 			}
@@ -113,9 +127,12 @@ func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, 
 		scope = &IdempotencyScope{CallerID: caller.ID, Method: CancelOrderMethod}
 	}
 	hash := cancellationHash(orderID, reason, revision...)
-	var requestKey *IdempotencyKey
+	var requestKey *cancellationRequestKey
 	if scope != nil {
-		requestKey = &IdempotencyKey{Scope: *scope, Key: key, RequestHash: hash}
+		requestKey = &cancellationRequestKey{
+			IdempotencyKey: IdempotencyKey{Scope: *scope, Key: key, RequestHash: hash},
+			legacyHash:     cancellationHash(orderID, reason),
+		}
 	}
 	var operation Cancellation
 	err = s.mutate(ctx, orderID, requestKey, func(tx CancellationTx, o Order, offers []Offer) (*Change, error) {
@@ -132,7 +149,7 @@ func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, 
 				return nil, err
 			}
 			if stored != nil {
-				if err := stored.CheckRequestHash(hash); err != nil {
+				if err := requestKey.checkRetainedHash(*stored); err != nil {
 					return nil, err
 				}
 				operation, err = tx.FindCancellation(ctx, stored.ResourceID)
