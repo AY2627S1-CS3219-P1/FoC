@@ -62,6 +62,8 @@ message Order {
   int64 revision = 20;
   google.protobuf.Timestamp created_at = 21;
   google.protobuf.Timestamp updated_at = 22;
+  // Approximate destination, available without exact delivery access.
+  string delivery_building_name = 23;
 }
 
 // A Supplier Location copied when the order is created, so later Location
@@ -74,10 +76,9 @@ message LocationSnapshot {
 }
 
 message DeliveryDetails {
-  // Visible to couriers browsing open orders.
+  // Exact destination. Absent without participant or authoritative case access.
   LocationSnapshot location = 1;
-  // How to hand the item over. Redacted unless the caller is a participant
-  // or an admin.
+  // How to hand the item over. Restricted with the exact destination.
   optional string instructions = 2;
 }
 

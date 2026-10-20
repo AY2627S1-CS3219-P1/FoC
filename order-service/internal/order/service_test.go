@@ -9,6 +9,7 @@ import (
 )
 
 type readFake struct {
+	historical   bool
 	order        Order
 	getErr       error
 	page         OrderPage
@@ -25,6 +26,10 @@ type readFake struct {
 func (f *readFake) Get(_ context.Context, id string) (Order, error) {
 	f.getID = id
 	return f.order, f.getErr
+}
+func (f *readFake) GetWithParticipation(ctx context.Context, id, _ string) (Order, bool, error) {
+	o, err := f.Get(ctx, id)
+	return o, f.historical, err
 }
 func (f *readFake) List(_ context.Context, q ReadQuery) (OrderPage, error) {
 	f.listQuery = q
@@ -50,7 +55,7 @@ func TestGetOrderAccessAndRedaction(t *testing.T) {
 		{name: "requester sees instructions", caller: Caller{ID: "requester"}, status: AwaitingPickup, wantSecret: true},
 		{name: "suspended requester keeps participant history", caller: Caller{ID: "requester", Suspended: true}, status: Cancelled, wantSecret: true},
 		{name: "courier sees instructions", caller: Caller{ID: "courier"}, status: Delivering, wantSecret: true},
-		{name: "admin sees instructions", caller: Caller{ID: "admin", Admin: true}, status: Cancelled, wantSecret: true},
+		{name: "admin without case grant is redacted", caller: Caller{ID: "admin", Admin: true}, status: Cancelled},
 		{name: "open browser receives redacted instructions", caller: Caller{ID: "browser"}, status: AwaitingCourier},
 		{name: "closed stranger cannot inspect", caller: Caller{ID: "stranger"}, status: Delivered, wantErr: ErrNotFound},
 		{name: "expired open order is invisible", caller: Caller{ID: "browser"}, status: AwaitingCourier, wantErr: ErrNotFound},
@@ -71,7 +76,7 @@ func TestGetOrderAccessAndRedaction(t *testing.T) {
 			if tc.wantErr == nil && (got.DeliveryInstructions != nil) != tc.wantSecret {
 				t.Fatalf("instructions = %v, want visible %v", got.DeliveryInstructions, tc.wantSecret)
 			}
-			if f.getID != "o1" {
+			if tc.caller.ID != "" && f.getID != "o1" {
 				t.Fatalf("reader got id %q", f.getID)
 			}
 		})
@@ -93,7 +98,7 @@ func TestListReadsApplyDefaultsAndForwardFilters(t *testing.T) {
 		t.Fatal("open browser received delivery instructions")
 	}
 
-	filter := ListRequest{Page: Page{Number: 2, Size: 7}, Status: AwaitingPickup, Role: CourierRole, PickupID: "p", DeliveryID: "d"}
+	filter := ListRequest{Page: Page{Number: 2, Size: 7}, Status: AwaitingPickup, Role: CourierRole, PickupID: "p", DeliveryBuildingName: "COM3"}
 	if _, err := s.ListMyOrders(context.Background(), Caller{ID: "suspended-user", Suspended: true}, filter); err != nil {
 		t.Fatalf("suspended participant history read: %v", err)
 	}

@@ -69,8 +69,7 @@ message CreateOrderRequest {
   ];
   // When an unaccepted order expires. The UI pre-fills a default.
   google.protobuf.Timestamp expires_at = 7 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).timestamp.gt_now = true
+    (buf.validate.field).required = true
   ];
   // UUID retry key scoped by caller and method for 24 hours.
   string idempotency_key = 8 [(buf.validate.field).string.uuid = true];
@@ -90,6 +89,8 @@ message DeliveryInput {
 // Returns a signed URL for one item image. Upload with PUT and the same
 // content type, then pass image_id to CreateOrder.
 message CreateItemImageUploadRequest {
+  // Exact body length, enforced by the signed upload request before storage.
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {gte: 1, lte: 10000000}];
   string content_type = 1 [(buf.validate.field).string = {
     in: [
       "image/jpeg",
@@ -101,8 +102,8 @@ message CreateItemImageUploadRequest {
   }];
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -112,7 +113,10 @@ message GetOrderRequest {
 message ListOpenOrdersRequest {
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
-  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true];
+  // Legacy exact filter is rejected: membership would disclose a hidden Location.
+  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true, deprecated = true];
+  // Filter by the destination snapshot building/area, never an exact Location ID.
+  string delivery_building_name = 5 [(buf.validate.field).string.max_len = 200];
   // One-based; zero means 1.
   int32 page = 3 [(buf.validate.field).int32.gte = 0];
   // Zero means 20; maximum 100.
@@ -122,7 +126,7 @@ message ListOpenOrdersRequest {
   }];
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 message ListMyOrdersRequest {
   ParticipantRole role = 1 [(buf.validate.field).enum.defined_only = true];
   OrderStatus status = 2 [(buf.validate.field).enum.defined_only = true];
@@ -236,6 +240,8 @@ message CreateOrderResponse {
   Order order = 1;
 }
 message CreateItemImageUploadResponse {
+  // Send these headers with PUT. The browser supplies Content-Length from the File.
+  map<string, string> upload_headers = 4;
   string image_id = 1;
   // PUT the image here before it expires.
   string upload_url = 2;
