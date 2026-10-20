@@ -224,7 +224,7 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 	var repeat bool
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
 		var err error
-		repeat, err = s.confirmationState(ctx, tx, o, caller, in)
+		repeat, err = s.confirmationState(ctx, tx, o, caller, in, s.timestamp())
 		if err != nil {
 			return nil, err
 		}
@@ -272,7 +272,8 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 	}
 
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
-		repeat, err := s.confirmationState(ctx, tx, o, caller, in)
+		now := s.timestamp()
+		repeat, err := s.confirmationState(ctx, tx, o, caller, in, now)
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +281,6 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 			result = o
 			return nil, nil
 		}
-		now := s.timestamp()
 		if in.WithoutProof {
 			if !s.isCurrentProofOutage(outage, now) {
 				return nil, ErrPrecondition
@@ -337,7 +337,7 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 // confirmationState recognizes only a durable, matching accepted input, before
 // checking a first confirmation's status or deadline. Completed alone is not
 // evidence that this particular confirmation succeeded.
-func (s *Proofs) confirmationState(ctx context.Context, tx ProofTx, o Order, caller Caller, in ConfirmDeliveryInput) (bool, error) {
+func (s *Proofs) confirmationState(ctx context.Context, tx ProofTx, o Order, caller Caller, in ConfirmDeliveryInput, now time.Time) (bool, error) {
 	if !o.IsAssignedTo(caller.ID) {
 		return false, ErrNotFound
 	}
@@ -354,7 +354,7 @@ func (s *Proofs) confirmationState(ctx context.Context, tx ProofTx, o Order, cal
 	if !errors.Is(err, ErrNotFound) {
 		return false, err
 	}
-	return false, canUploadProof(o, caller, s.timestamp())
+	return false, canUploadProof(o, caller, now)
 }
 
 func (s *Proofs) recheckProofs(ctx context.Context, tx ProofTx, o Order, caller Caller, rows []ProofUpload) error {
