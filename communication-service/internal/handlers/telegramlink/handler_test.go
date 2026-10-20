@@ -77,7 +77,7 @@ func TestRequiresCaller(t *testing.T) {
 	if _, err := h.GetTelegramLink(ctx, connect.NewRequest(&communicationv1.GetTelegramLinkRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("bad caller ID: err = %v", err)
 	}
-	if _, err := h.DeleteTelegramLink(context.Background(), connect.NewRequest(&communicationv1.DeleteTelegramLinkRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := h.UnlinkTelegram(context.Background(), connect.NewRequest(&communicationv1.UnlinkTelegramRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("no caller: err = %v", err)
 	}
 }
@@ -100,10 +100,10 @@ func TestGetTelegramLink(t *testing.T) {
 	}
 }
 
-func TestDeleteTelegramLink(t *testing.T) {
+func TestUnlinkTelegram(t *testing.T) {
 	logic := &fakeLogic{}
-	if _, err := handler(logic, "").DeleteTelegramLink(signedIn(),
-		connect.NewRequest(&communicationv1.DeleteTelegramLinkRequest{})); err != nil {
+	if _, err := handler(logic, "").UnlinkTelegram(signedIn(),
+		connect.NewRequest(&communicationv1.UnlinkTelegramRequest{})); err != nil {
 		t.Fatal(err)
 	}
 	if logic.unlinked != userID {

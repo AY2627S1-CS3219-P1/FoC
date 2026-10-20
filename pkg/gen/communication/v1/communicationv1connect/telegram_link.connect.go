@@ -39,16 +39,16 @@ const (
 	// TelegramLinkServiceGetTelegramLinkProcedure is the fully-qualified name of the
 	// TelegramLinkService's GetTelegramLink RPC.
 	TelegramLinkServiceGetTelegramLinkProcedure = "/communication.v1.TelegramLinkService/GetTelegramLink"
-	// TelegramLinkServiceDeleteTelegramLinkProcedure is the fully-qualified name of the
-	// TelegramLinkService's DeleteTelegramLink RPC.
-	TelegramLinkServiceDeleteTelegramLinkProcedure = "/communication.v1.TelegramLinkService/DeleteTelegramLink"
+	// TelegramLinkServiceUnlinkTelegramProcedure is the fully-qualified name of the
+	// TelegramLinkService's UnlinkTelegram RPC.
+	TelegramLinkServiceUnlinkTelegramProcedure = "/communication.v1.TelegramLinkService/UnlinkTelegram"
 )
 
 // TelegramLinkServiceClient is a client for the communication.v1.TelegramLinkService service.
 type TelegramLinkServiceClient interface {
 	CreateTelegramLink(context.Context, *connect.Request[v1.CreateTelegramLinkRequest]) (*connect.Response[v1.CreateTelegramLinkResponse], error)
 	GetTelegramLink(context.Context, *connect.Request[v1.GetTelegramLinkRequest]) (*connect.Response[v1.GetTelegramLinkResponse], error)
-	DeleteTelegramLink(context.Context, *connect.Request[v1.DeleteTelegramLinkRequest]) (*connect.Response[v1.DeleteTelegramLinkResponse], error)
+	UnlinkTelegram(context.Context, *connect.Request[v1.UnlinkTelegramRequest]) (*connect.Response[v1.UnlinkTelegramResponse], error)
 }
 
 // NewTelegramLinkServiceClient constructs a client for the communication.v1.TelegramLinkService
@@ -75,10 +75,10 @@ func NewTelegramLinkServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
-		deleteTelegramLink: connect.NewClient[v1.DeleteTelegramLinkRequest, v1.DeleteTelegramLinkResponse](
+		unlinkTelegram: connect.NewClient[v1.UnlinkTelegramRequest, v1.UnlinkTelegramResponse](
 			httpClient,
-			baseURL+TelegramLinkServiceDeleteTelegramLinkProcedure,
-			connect.WithSchema(telegramLinkServiceMethods.ByName("DeleteTelegramLink")),
+			baseURL+TelegramLinkServiceUnlinkTelegramProcedure,
+			connect.WithSchema(telegramLinkServiceMethods.ByName("UnlinkTelegram")),
 			connect.WithIdempotency(connect.IdempotencyIdempotent),
 			connect.WithClientOptions(opts...),
 		),
@@ -89,7 +89,7 @@ func NewTelegramLinkServiceClient(httpClient connect.HTTPClient, baseURL string,
 type telegramLinkServiceClient struct {
 	createTelegramLink *connect.Client[v1.CreateTelegramLinkRequest, v1.CreateTelegramLinkResponse]
 	getTelegramLink    *connect.Client[v1.GetTelegramLinkRequest, v1.GetTelegramLinkResponse]
-	deleteTelegramLink *connect.Client[v1.DeleteTelegramLinkRequest, v1.DeleteTelegramLinkResponse]
+	unlinkTelegram     *connect.Client[v1.UnlinkTelegramRequest, v1.UnlinkTelegramResponse]
 }
 
 // CreateTelegramLink calls communication.v1.TelegramLinkService.CreateTelegramLink.
@@ -102,9 +102,9 @@ func (c *telegramLinkServiceClient) GetTelegramLink(ctx context.Context, req *co
 	return c.getTelegramLink.CallUnary(ctx, req)
 }
 
-// DeleteTelegramLink calls communication.v1.TelegramLinkService.DeleteTelegramLink.
-func (c *telegramLinkServiceClient) DeleteTelegramLink(ctx context.Context, req *connect.Request[v1.DeleteTelegramLinkRequest]) (*connect.Response[v1.DeleteTelegramLinkResponse], error) {
-	return c.deleteTelegramLink.CallUnary(ctx, req)
+// UnlinkTelegram calls communication.v1.TelegramLinkService.UnlinkTelegram.
+func (c *telegramLinkServiceClient) UnlinkTelegram(ctx context.Context, req *connect.Request[v1.UnlinkTelegramRequest]) (*connect.Response[v1.UnlinkTelegramResponse], error) {
+	return c.unlinkTelegram.CallUnary(ctx, req)
 }
 
 // TelegramLinkServiceHandler is an implementation of the communication.v1.TelegramLinkService
@@ -112,7 +112,7 @@ func (c *telegramLinkServiceClient) DeleteTelegramLink(ctx context.Context, req 
 type TelegramLinkServiceHandler interface {
 	CreateTelegramLink(context.Context, *connect.Request[v1.CreateTelegramLinkRequest]) (*connect.Response[v1.CreateTelegramLinkResponse], error)
 	GetTelegramLink(context.Context, *connect.Request[v1.GetTelegramLinkRequest]) (*connect.Response[v1.GetTelegramLinkResponse], error)
-	DeleteTelegramLink(context.Context, *connect.Request[v1.DeleteTelegramLinkRequest]) (*connect.Response[v1.DeleteTelegramLinkResponse], error)
+	UnlinkTelegram(context.Context, *connect.Request[v1.UnlinkTelegramRequest]) (*connect.Response[v1.UnlinkTelegramResponse], error)
 }
 
 // NewTelegramLinkServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -135,10 +135,10 @@ func NewTelegramLinkServiceHandler(svc TelegramLinkServiceHandler, opts ...conne
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
-	telegramLinkServiceDeleteTelegramLinkHandler := connect.NewUnaryHandler(
-		TelegramLinkServiceDeleteTelegramLinkProcedure,
-		svc.DeleteTelegramLink,
-		connect.WithSchema(telegramLinkServiceMethods.ByName("DeleteTelegramLink")),
+	telegramLinkServiceUnlinkTelegramHandler := connect.NewUnaryHandler(
+		TelegramLinkServiceUnlinkTelegramProcedure,
+		svc.UnlinkTelegram,
+		connect.WithSchema(telegramLinkServiceMethods.ByName("UnlinkTelegram")),
 		connect.WithIdempotency(connect.IdempotencyIdempotent),
 		connect.WithHandlerOptions(opts...),
 	)
@@ -148,8 +148,8 @@ func NewTelegramLinkServiceHandler(svc TelegramLinkServiceHandler, opts ...conne
 			telegramLinkServiceCreateTelegramLinkHandler.ServeHTTP(w, r)
 		case TelegramLinkServiceGetTelegramLinkProcedure:
 			telegramLinkServiceGetTelegramLinkHandler.ServeHTTP(w, r)
-		case TelegramLinkServiceDeleteTelegramLinkProcedure:
-			telegramLinkServiceDeleteTelegramLinkHandler.ServeHTTP(w, r)
+		case TelegramLinkServiceUnlinkTelegramProcedure:
+			telegramLinkServiceUnlinkTelegramHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -167,6 +167,6 @@ func (UnimplementedTelegramLinkServiceHandler) GetTelegramLink(context.Context, 
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("communication.v1.TelegramLinkService.GetTelegramLink is not implemented"))
 }
 
-func (UnimplementedTelegramLinkServiceHandler) DeleteTelegramLink(context.Context, *connect.Request[v1.DeleteTelegramLinkRequest]) (*connect.Response[v1.DeleteTelegramLinkResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("communication.v1.TelegramLinkService.DeleteTelegramLink is not implemented"))
+func (UnimplementedTelegramLinkServiceHandler) UnlinkTelegram(context.Context, *connect.Request[v1.UnlinkTelegramRequest]) (*connect.Response[v1.UnlinkTelegramResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("communication.v1.TelegramLinkService.UnlinkTelegram is not implemented"))
 }

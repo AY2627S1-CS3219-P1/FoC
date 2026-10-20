@@ -29,6 +29,6 @@ export class ConnectTelegramLinkApi implements TelegramLinkApi {
 	}
 
 	async unlink(): Promise<void> {
-		await this.#client.deleteTelegramLink({});
+		await this.#client.unlinkTelegram({});
 	}
 }
