@@ -15,27 +15,20 @@ import (
 const applyAccountDelta = `-- name: ApplyAccountDelta :one
 UPDATE accounts
 SET balance = balance + $1,
-    reserved = reserved + $2,
-    revision = revision + 1,
-    updated_at = $3
-WHERE user_id = $4
+    reserved = reserved + $2
+WHERE user_id = $3
 RETURNING user_id, balance, reserved, revision, created_at, updated_at
 `
 
 type ApplyAccountDeltaParams struct {
 	BalanceDelta  int64
 	ReservedDelta int64
-	NowAt         time.Time
 	UserID        uuid.UUID
 }
 
+// The bump_revision trigger sets revision and updated_at.
 func (q *Queries) ApplyAccountDelta(ctx context.Context, arg ApplyAccountDeltaParams) (Account, error) {
-	row := q.db.QueryRow(ctx, applyAccountDelta,
-		arg.BalanceDelta,
-		arg.ReservedDelta,
-		arg.NowAt,
-		arg.UserID,
-	)
+	row := q.db.QueryRow(ctx, applyAccountDelta, arg.BalanceDelta, arg.ReservedDelta, arg.UserID)
 	var i Account
 	err := row.Scan(
 		&i.UserID,

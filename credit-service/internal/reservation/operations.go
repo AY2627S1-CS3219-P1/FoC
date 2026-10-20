@@ -47,7 +47,7 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 			OriginalAmount: amount, ReservedAmount: amount,
 			Revision: 1, CreatedAt: now, UpdatedAt: now,
 		}
-		if err := tx.InsertReservation(ctx, next); err != nil {
+		if next, err = tx.InsertReservation(ctx, next); err != nil {
 			return result{}, err
 		}
 		err = tx.Post(ctx, now, Entry{UserID: requesterID, Kind: account.Reserve, ReservedDelta: amount, OrderID: orderID})
@@ -108,7 +108,7 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		next.Status = Assigned
 		next.ReservedAmount = hold
 		next.AssignmentID = assignmentID
-		if next, err = update(ctx, tx, *r, next, now); err != nil {
+		if next, err = update(ctx, tx, *r, next); err != nil {
 			return result{}, err
 		}
 		err = tx.Post(ctx, now, Entry{
@@ -163,7 +163,7 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 		next.Status = Held
 		next.ReservedAmount = r.OriginalAmount
 		next.AssignmentID = ""
-		if next, err = update(ctx, tx, *r, next, now); err != nil {
+		if next, err = update(ctx, tx, *r, next); err != nil {
 			return result{}, err
 		}
 		err = tx.Post(ctx, now, Entry{
@@ -206,7 +206,8 @@ func release(ctx context.Context, tx Tx, orderID string, r *Reservation, reason 
 			Settlement: &Settlement{Outcome: OutcomeReleased, SettledAt: now, ReleaseReason: reason},
 			Revision:   1, CreatedAt: now, UpdatedAt: now,
 		}
-		return tombstone, true, tx.InsertReservation(ctx, tombstone)
+		stored, err := tx.InsertReservation(ctx, tombstone)
+		return stored, true, err
 	}
 	switch r.Status {
 	case Settled:
@@ -220,7 +221,7 @@ func release(ctx context.Context, tx Tx, orderID string, r *Reservation, reason 
 	next.Settlement = &Settlement{
 		Outcome: OutcomeReleased, ReturnedToRequester: r.ReservedAmount, SettledAt: now, ReleaseReason: reason,
 	}
-	next, err := update(ctx, tx, *r, next, now)
+	next, err := update(ctx, tx, *r, next)
 	if err != nil {
 		return Reservation{}, false, err
 	}

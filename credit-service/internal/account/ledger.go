@@ -30,7 +30,7 @@ func Post(ctx context.Context, q *creditdb.Queries, now time.Time, postings ...P
 			continue
 		}
 		if _, err := q.ApplyAccountDelta(ctx, creditdb.ApplyAccountDeltaParams{
-			UserID: p.UserID, BalanceDelta: p.BalanceDelta, ReservedDelta: p.ReservedDelta, NowAt: now,
+			UserID: p.UserID, BalanceDelta: p.BalanceDelta, ReservedDelta: p.ReservedDelta,
 		}); err != nil {
 			return fmt.Errorf("apply %s to account %s: %w", p.Kind, p.UserID, err)
 		}

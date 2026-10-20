@@ -114,22 +114,26 @@ func (t *memoryTx) save(r reservation.Reservation) error {
 	return nil
 }
 
-func (t *memoryTx) InsertReservation(_ context.Context, r reservation.Reservation) error {
+func (t *memoryTx) InsertReservation(_ context.Context, r reservation.Reservation) (reservation.Reservation, error) {
 	if _, ok := t.s.reservations[r.OrderID]; ok {
-		return errConstraint
+		return reservation.Reservation{}, errConstraint
 	}
-	return t.save(r)
+	return r, t.save(r)
 }
 
-func (t *memoryTx) UpdateReservation(_ context.Context, r reservation.Reservation, expected int64) error {
+// UpdateReservation assigns the revision and updated_at, as the bump_revision
+// trigger does.
+func (t *memoryTx) UpdateReservation(_ context.Context, r reservation.Reservation, expected int64) (reservation.Reservation, error) {
 	old, ok := t.s.reservations[r.OrderID]
 	if !ok || old.Revision != expected {
-		return reservation.ErrAborted
+		return reservation.Reservation{}, reservation.ErrAborted
 	}
 	if old.Status == reservation.Released || old.Status == reservation.Settled {
-		return errors.New("terminal reservation cannot change")
+		return reservation.Reservation{}, errors.New("terminal reservation cannot change")
 	}
-	return t.save(r)
+	r.Revision = old.Revision + 1
+	r.UpdatedAt = time.Now().UTC()
+	return r, t.save(r)
 }
 
 func (t *memoryTx) Assignment(_ context.Context, orderID, assignmentID string) (*reservation.Assignment, error) {

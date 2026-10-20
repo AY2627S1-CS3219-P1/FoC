@@ -90,7 +90,7 @@ func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, now time.
 	next.Status = Settled
 	next.ReservedAmount = 0
 	next.Settlement = settlement
-	if next, err = update(ctx, tx, r, next, now); err != nil {
+	if next, err = update(ctx, tx, r, next); err != nil {
 		return Reservation{}, err
 	}
 	err = tx.Post(ctx, now,

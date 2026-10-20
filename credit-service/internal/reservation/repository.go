@@ -22,10 +22,13 @@ type Tx interface {
 	SaveOperation(ctx context.Context, key OperationKey, op Operation) error
 	Reservation(ctx context.Context, orderID string) (*Reservation, error)
 	Revision(ctx context.Context, orderID string, revision int64) (Reservation, error)
-	InsertReservation(ctx context.Context, r Reservation) error
-	// UpdateReservation fails with ErrAborted unless the stored revision is
-	// expectedRevision.
-	UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) error
+	// InsertReservation and UpdateReservation return the reservation as
+	// stored, which is what a replay reads back.
+	InsertReservation(ctx context.Context, r Reservation) (Reservation, error)
+	// UpdateReservation stores r as the revision after expectedRevision. It
+	// ignores r.Revision and r.UpdatedAt, which the database assigns, and
+	// fails with ErrAborted unless the stored revision is expectedRevision.
+	UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) (Reservation, error)
 	Assignment(ctx context.Context, orderID, assignmentID string) (*Assignment, error)
 	InsertAssignment(ctx context.Context, a Assignment) error
 	RevertAssignment(ctx context.Context, orderID, assignmentID string, at time.Time) error

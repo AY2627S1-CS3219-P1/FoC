@@ -127,11 +127,9 @@ func withAdjustment(ctx context.Context, tx Tx, r *Reservation) error {
 	return nil
 }
 
-// update saves next as the revision after current.
-func update(ctx context.Context, tx Tx, current Reservation, next Reservation, now time.Time) (Reservation, error) {
-	next.Revision = current.Revision + 1
-	next.UpdatedAt = now
-	return next, tx.UpdateReservation(ctx, next, current.Revision)
+// update saves next as the revision after current and returns it as stored.
+func update(ctx context.Context, tx Tx, current Reservation, next Reservation) (Reservation, error) {
+	return tx.UpdateReservation(ctx, next, current.Revision)
 }
 
 func requestHash(payload any) (string, error) {

@@ -11,11 +11,10 @@ SELECT * FROM accounts WHERE user_id = $1;
 SELECT * FROM accounts WHERE user_id = $1 FOR UPDATE;
 
 -- name: ApplyAccountDelta :one
+-- The bump_revision trigger sets revision and updated_at.
 UPDATE accounts
 SET balance = balance + sqlc.arg(balance_delta),
-    reserved = reserved + sqlc.arg(reserved_delta),
-    revision = revision + 1,
-    updated_at = sqlc.arg(now_at)
+    reserved = reserved + sqlc.arg(reserved_delta)
 WHERE user_id = sqlc.arg(user_id)
 RETURNING *;
 

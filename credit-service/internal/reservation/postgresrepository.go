@@ -111,33 +111,36 @@ func (t *transaction) Revision(ctx context.Context, orderID string, revision int
 	return fromRow(row), nil
 }
 
-func (t *transaction) InsertReservation(ctx context.Context, r Reservation) error {
+func (t *transaction) InsertReservation(ctx context.Context, r Reservation) (Reservation, error) {
 	c := toColumns(r)
-	return wrap("insert reservation", t.q.InsertReservation(ctx, creditdb.InsertReservationParams{
+	row, err := t.q.InsertReservation(ctx, creditdb.InsertReservationParams{
 		OrderID: uuid.MustParse(r.OrderID), RequesterID: optionalID(r.RequesterID), Status: string(r.Status),
 		OriginalAmount: r.OriginalAmount, ReservedAmount: r.ReservedAmount, AssignmentID: c.assignmentID,
 		ReleaseReason: c.releaseReason, SettlementOutcome: c.outcome, PaidToCourier: c.paid, ReturnedToRequester: c.returned,
 		PickedUpAt: c.pickedUpAt, DeliveredAt: c.deliveredAt, DeliveryDuration: c.duration, SettledAt: c.settledAt,
 		Revision: r.Revision, NowAt: r.UpdatedAt,
-	}))
+	})
+	if err != nil {
+		return Reservation{}, wrap("insert reservation", err)
+	}
+	return fromRow(creditdb.ReservationRevision(row)), nil
 }
 
-func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) error {
+func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) (Reservation, error) {
 	c := toColumns(r)
-	n, err := t.q.UpdateReservation(ctx, creditdb.UpdateReservationParams{
+	row, err := t.q.UpdateReservation(ctx, creditdb.UpdateReservationParams{
 		OrderID: uuid.MustParse(r.OrderID), Status: string(r.Status), ReservedAmount: r.ReservedAmount,
 		AssignmentID: c.assignmentID, ReleaseReason: c.releaseReason, SettlementOutcome: c.outcome,
 		PaidToCourier: c.paid, ReturnedToRequester: c.returned, PickedUpAt: c.pickedUpAt, DeliveredAt: c.deliveredAt,
-		DeliveryDuration: c.duration, SettledAt: c.settledAt, Revision: r.Revision, NowAt: r.UpdatedAt,
-		ExpectedRevision: expectedRevision,
+		DeliveryDuration: c.duration, SettledAt: c.settledAt, ExpectedRevision: expectedRevision,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Reservation{}, fmt.Errorf("update reservation %s at revision %d: %w", r.OrderID, expectedRevision, ErrAborted)
+	}
 	if err != nil {
-		return wrap("update reservation", err)
+		return Reservation{}, wrap("update reservation", err)
 	}
-	if n != 1 {
-		return fmt.Errorf("update reservation %s at revision %d: %w", r.OrderID, expectedRevision, ErrAborted)
-	}
-	return nil
+	return fromRow(creditdb.ReservationRevision(row)), nil
 }
 
 func (t *transaction) Assignment(ctx context.Context, orderID, assignmentID string) (*Assignment, error) {

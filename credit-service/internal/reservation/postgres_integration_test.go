@@ -70,17 +70,20 @@ func TestPostgresReservations(t *testing.T) {
 	t.Run("replays return the snapshot each call produced", func(t *testing.T) {
 		order, req, cour := uuid.NewString(), uuid.NewString(), uuid.NewString()
 		offer := uuid.NewString()
-		must(t)(s.Reserve(ctx, order, req, 20))
-		must(t)(s.AdjustReservation(ctx, order, offer, cour, 40))
+		reserved := must(t)(s.Reserve(ctx, order, req, 20))
+		adjusted := must(t)(s.AdjustReservation(ctx, order, offer, cour, 40))
 		must(t)(s.RevertAdjustment(ctx, order, offer))
 		must(t)(s.ReleaseReservation(ctx, order, reservation.Failed))
 		r := must(t)(s.Reserve(ctx, order, req, 20))
-		if r.Status != reservation.Held || r.Revision != 1 {
-			t.Fatalf("reserve replay: %+v", r)
+		if r.Status != reservation.Held || r.Revision != 1 || !sameStamps(r, reserved) {
+			t.Fatalf("reserve replay: %+v, first %+v", r, reserved)
 		}
 		r = must(t)(s.AdjustReservation(ctx, order, offer, cour, 40))
 		if r.Status != reservation.Assigned || r.ReservedAmount != 40 || r.Adjustment == nil || r.Adjustment.CourierID != cour {
 			t.Fatalf("adjust replay: %+v", r)
+		}
+		if r.Revision != 2 || !sameStamps(r, adjusted) {
+			t.Fatalf("adjust replay: %+v, first %+v", r, adjusted)
 		}
 		r = must(t)(s.ReleaseReservation(ctx, order, reservation.Failed))
 		if r.Status != reservation.Released || r.Settlement.ReturnedToRequester != 20 {
@@ -175,6 +178,21 @@ func TestPostgresReservations(t *testing.T) {
 		}
 	})
 
+	t.Run("database assigns revisions on update", func(t *testing.T) {
+		order, req := uuid.NewString(), uuid.NewString()
+		must(t)(s.Reserve(ctx, order, req, 10))
+		if _, err := pool.Exec(ctx, `UPDATE reservations SET revision = 1 WHERE order_id = $1`, order); err != nil {
+			t.Fatal(err)
+		}
+		if r := must(t)(s.GetReservation(ctx, order)); r.Revision != 2 {
+			t.Fatalf("reservation revision: %d", r.Revision)
+		}
+		var revision int64
+		if err := pool.QueryRow(ctx, `SELECT revision FROM accounts WHERE user_id = $1`, req).Scan(&revision); err != nil || revision != 3 {
+			t.Fatalf("account revision after grant and reserve: %d %v", revision, err)
+		}
+	})
+
 	t.Run("terminal reservations are immutable in the database", func(t *testing.T) {
 		order := uuid.NewString()
 		must(t)(s.ReleaseReservation(ctx, order, reservation.Expired))
@@ -198,6 +216,11 @@ func TestPostgresReservations(t *testing.T) {
 			t.Fatalf("page: %+v", page)
 		}
 	})
+}
+
+// sameStamps reports whether a and b carry the same stored revision and times.
+func sameStamps(a, b reservation.Reservation) bool {
+	return a.Revision == b.Revision && a.CreatedAt.Equal(b.CreatedAt) && a.UpdatedAt.Equal(b.UpdatedAt)
 }
 
 func concurrently(n int, f func() error) []error {

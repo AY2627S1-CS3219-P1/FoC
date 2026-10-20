@@ -11,7 +11,7 @@ SELECT * FROM reservations WHERE order_id = $1 FOR UPDATE;
 -- name: GetReservationRevision :one
 SELECT * FROM reservation_revisions WHERE order_id = $1 AND revision = $2;
 
--- name: InsertReservation :exec
+-- name: InsertReservation :one
 INSERT INTO reservations (
     order_id, requester_id, status, original_amount, reserved_amount, assignment_id,
     release_reason, settlement_outcome, paid_to_courier, returned_to_requester,
@@ -22,9 +22,11 @@ INSERT INTO reservations (
     sqlc.narg(settlement_outcome), sqlc.narg(paid_to_courier), sqlc.narg(returned_to_requester),
     sqlc.narg(picked_up_at), sqlc.narg(delivered_at), sqlc.narg(delivery_duration),
     sqlc.narg(settled_at), sqlc.arg(revision), sqlc.arg(now_at), sqlc.arg(now_at)
-);
+)
+RETURNING *;
 
--- name: UpdateReservation :execrows
+-- name: UpdateReservation :one
+-- The bump_revision trigger sets revision and updated_at.
 UPDATE reservations
 SET status = sqlc.arg(status),
     reserved_amount = sqlc.arg(reserved_amount),
@@ -36,10 +38,9 @@ SET status = sqlc.arg(status),
     picked_up_at = sqlc.narg(picked_up_at),
     delivered_at = sqlc.narg(delivered_at),
     delivery_duration = sqlc.narg(delivery_duration),
-    settled_at = sqlc.narg(settled_at),
-    revision = sqlc.arg(revision),
-    updated_at = sqlc.arg(now_at)
-WHERE order_id = sqlc.arg(order_id) AND revision = sqlc.arg(expected_revision);
+    settled_at = sqlc.narg(settled_at)
+WHERE order_id = sqlc.arg(order_id) AND revision = sqlc.arg(expected_revision)
+RETURNING *;
 
 -- name: GetAssignment :one
 SELECT * FROM assignments WHERE order_id = $1 AND assignment_id = $2;

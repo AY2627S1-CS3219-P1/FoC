@@ -189,7 +189,7 @@ func (q *Queries) InsertOperation(ctx context.Context, arg InsertOperationParams
 	return err
 }
 
-const insertReservation = `-- name: InsertReservation :exec
+const insertReservation = `-- name: InsertReservation :one
 INSERT INTO reservations (
     order_id, requester_id, status, original_amount, reserved_amount, assignment_id,
     release_reason, settlement_outcome, paid_to_courier, returned_to_requester,
@@ -201,6 +201,7 @@ INSERT INTO reservations (
     $11, $12, $13,
     $14, $15, $16, $16
 )
+RETURNING order_id, requester_id, status, original_amount, reserved_amount, assignment_id, release_reason, settlement_outcome, paid_to_courier, returned_to_requester, picked_up_at, delivered_at, delivery_duration, settled_at, revision, created_at, updated_at
 `
 
 type InsertReservationParams struct {
@@ -222,8 +223,8 @@ type InsertReservationParams struct {
 	NowAt               time.Time
 }
 
-func (q *Queries) InsertReservation(ctx context.Context, arg InsertReservationParams) error {
-	_, err := q.db.Exec(ctx, insertReservation,
+func (q *Queries) InsertReservation(ctx context.Context, arg InsertReservationParams) (Reservation, error) {
+	row := q.db.QueryRow(ctx, insertReservation,
 		arg.OrderID,
 		arg.RequesterID,
 		arg.Status,
@@ -241,7 +242,27 @@ func (q *Queries) InsertReservation(ctx context.Context, arg InsertReservationPa
 		arg.Revision,
 		arg.NowAt,
 	)
-	return err
+	var i Reservation
+	err := row.Scan(
+		&i.OrderID,
+		&i.RequesterID,
+		&i.Status,
+		&i.OriginalAmount,
+		&i.ReservedAmount,
+		&i.AssignmentID,
+		&i.ReleaseReason,
+		&i.SettlementOutcome,
+		&i.PaidToCourier,
+		&i.ReturnedToRequester,
+		&i.PickedUpAt,
+		&i.DeliveredAt,
+		&i.DeliveryDuration,
+		&i.SettledAt,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const lockOrder = `-- name: LockOrder :exec
@@ -303,7 +324,7 @@ func (q *Queries) RevertAssignment(ctx context.Context, arg RevertAssignmentPara
 	return result.RowsAffected(), nil
 }
 
-const updateReservation = `-- name: UpdateReservation :execrows
+const updateReservation = `-- name: UpdateReservation :one
 UPDATE reservations
 SET status = $1,
     reserved_amount = $2,
@@ -315,10 +336,9 @@ SET status = $1,
     picked_up_at = $8,
     delivered_at = $9,
     delivery_duration = $10,
-    settled_at = $11,
-    revision = $12,
-    updated_at = $13
-WHERE order_id = $14 AND revision = $15
+    settled_at = $11
+WHERE order_id = $12 AND revision = $13
+RETURNING order_id, requester_id, status, original_amount, reserved_amount, assignment_id, release_reason, settlement_outcome, paid_to_courier, returned_to_requester, picked_up_at, delivered_at, delivery_duration, settled_at, revision, created_at, updated_at
 `
 
 type UpdateReservationParams struct {
@@ -333,14 +353,13 @@ type UpdateReservationParams struct {
 	DeliveredAt         *time.Time
 	DeliveryDuration    pgtype.Interval
 	SettledAt           *time.Time
-	Revision            int64
-	NowAt               time.Time
 	OrderID             uuid.UUID
 	ExpectedRevision    int64
 }
 
-func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateReservation,
+// The bump_revision trigger sets revision and updated_at.
+func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (Reservation, error) {
+	row := q.db.QueryRow(ctx, updateReservation,
 		arg.Status,
 		arg.ReservedAmount,
 		arg.AssignmentID,
@@ -352,13 +371,28 @@ func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationPa
 		arg.DeliveredAt,
 		arg.DeliveryDuration,
 		arg.SettledAt,
-		arg.Revision,
-		arg.NowAt,
 		arg.OrderID,
 		arg.ExpectedRevision,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var i Reservation
+	err := row.Scan(
+		&i.OrderID,
+		&i.RequesterID,
+		&i.Status,
+		&i.OriginalAmount,
+		&i.ReservedAmount,
+		&i.AssignmentID,
+		&i.ReleaseReason,
+		&i.SettlementOutcome,
+		&i.PaidToCourier,
+		&i.ReturnedToRequester,
+		&i.PickedUpAt,
+		&i.DeliveredAt,
+		&i.DeliveryDuration,
+		&i.SettledAt,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
