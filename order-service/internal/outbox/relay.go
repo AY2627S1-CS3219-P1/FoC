@@ -42,12 +42,15 @@ func New(repository Repository, publisher Publisher) *Relay {
 
 func (r *Relay) Drain(ctx context.Context, limit int) error {
 	var deferred error
+	// Freeze eligibility for this batch so a deferred fact cannot become due
+	// again while later publications are slow. Each claim still gets a fresh lease.
+	eligibleAt := r.now().UTC()
 	for range limit {
 		if err := ctx.Err(); err != nil {
 			return errors.Join(deferred, err)
 		}
 		now := r.now().UTC()
-		fact, err := r.repository.Claim(ctx, now, now.Add(30*time.Second))
+		fact, err := r.repository.Claim(ctx, eligibleAt, now.Add(30*time.Second))
 		if err != nil {
 			return errors.Join(deferred, err)
 		}

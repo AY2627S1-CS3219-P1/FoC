@@ -223,3 +223,69 @@ func TestRetryFailureStopsBatch(t *testing.T) {
 		t.Fatal("continued claiming after failure to defer")
 	}
 }
+
+// leaseOrderedFacts models ClaimOrderFact's oldest-first lease eligibility.
+type leaseOrderedFacts struct {
+	facts     []Fact
+	leases    map[string]time.Time
+	published map[string]bool
+}
+
+func (s *leaseOrderedFacts) Claim(_ context.Context, eligibleAt, until time.Time) (*Fact, error) {
+	for _, fact := range s.facts {
+		if !s.published[fact.ID] && !s.leases[fact.ID].After(eligibleAt) {
+			s.leases[fact.ID] = until
+			return &fact, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *leaseOrderedFacts) Published(_ context.Context, fact Fact, _ time.Time) error {
+	s.published[fact.ID] = true
+	return nil
+}
+
+func (s *leaseOrderedFacts) Retry(_ context.Context, fact Fact, until time.Time) error {
+	s.leases[fact.ID] = until
+	return nil
+}
+
+type slowFailingPublisher struct{ now *time.Time }
+
+func (p slowFailingPublisher) Publish(_ context.Context, _ string, key []byte, _ proto.Message) error {
+	if string(key) == "slow" {
+		*p.now = p.now.Add(5 * time.Second)
+		return errors.New("publication timed out")
+	}
+	return nil
+}
+
+func TestSlowFailureDoesNotReclaimDeferredFactInBatch(t *testing.T) {
+	now := time.Now().UTC()
+	store := &leaseOrderedFacts{leases: map[string]time.Time{}, published: map[string]bool{}}
+	for _, id := range []string{"invalid", "slow", "healthy"} {
+		payload, err := json.Marshal(app.FactsPayload{OrderID: id, Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: now})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fact := Fact{ID: id, OrderID: id, Revision: 1, Version: 1, Kind: string(app.StatusChanged), Payload: payload, ActorKind: "user"}
+		if id == "invalid" {
+			fact.Version = 0
+		}
+		store.facts = append(store.facts, fact)
+	}
+	relay := New(store, slowFailingPublisher{now: &now})
+	relay.now = func() time.Time { return now }
+	if err := relay.Drain(context.Background(), 3); err == nil {
+		t.Fatal("publication failures were lost")
+	}
+	if !store.published["healthy"] || store.published["invalid"] || store.published["slow"] {
+		t.Fatalf("unexpected publications: %v", store.published)
+	}
+	// Eligibility advances again for the next batch; retries are not suppressed forever.
+	fact, err := store.Claim(context.Background(), now, now.Add(30*time.Second))
+	if err != nil || fact == nil || fact.ID != "invalid" {
+		t.Fatalf("deferred fact did not become eligible: fact=%v err=%v", fact, err)
+	}
+}
