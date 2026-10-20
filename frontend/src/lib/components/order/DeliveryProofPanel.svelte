@@ -59,14 +59,16 @@
 			{#if canConfirm && !proof.photos.length && !proof.outageReason}<DeliveryProofForm orderId={order.id} {api} pending={proof.pending} onDelivered={refresh} />
 			{:else if canConfirm}<p role="status">The server accepted delivery. Refresh the order to see its current status.</p><Button variant="outlined" onclick={refresh}>Refresh accepted delivery</Button>{/if}
 			{#if proof.photos.length > 0}
-				<h2>Delivery proof</h2>
+				<header><h2>Delivery proof</h2><p>{proof.photos.length} saved photo{proof.photos.length === 1 ? '' : 's'}. Open a photo to view or download the original.</p></header>
 				<ul aria-label="Saved delivery proof photos">
 					{#each proof.photos as photo, index (photo.id)}
 						<li>
-							{#if ['image/jpeg', 'image/png', 'image/webp'].includes(photo.contentType)}
-								<img src={photo.url} alt={`Delivery proof photo ${index + 1}`} loading="lazy" referrerpolicy="no-referrer" />
-							{/if}
-							<a href={photo.url} target="_blank" rel="noreferrer">Open or download proof photo {index + 1}</a>
+							<a href={photo.url} target="_blank" rel="noreferrer">
+								{#if ['image/jpeg', 'image/png', 'image/webp'].includes(photo.contentType)}
+									<span class="photo-preview"><img src={photo.url} alt={`Delivery proof photo ${index + 1}`} loading="lazy" referrerpolicy="no-referrer" /></span>
+								{/if}
+								<span class="photo-link-text">Open or download proof photo {index + 1}</span>
+							</a>
 						</li>
 					{/each}
 				</ul>
@@ -78,9 +80,16 @@
 {/if}
 
 <style>
-	.proof-evidence { min-width: 0; display: grid; gap: 1rem; overflow-wrap: anywhere; }
-	.proof-evidence ul { display: grid; gap: 1rem; padding-inline-start: 1.25rem; }
-	.proof-evidence li { display: grid; gap: .5rem; min-width: 0; }
-	.proof-evidence img { max-width: 100%; max-height: 24rem; object-fit: contain; }
-	.proof-evidence :global(:focus-visible) { outline: 3px solid var(--m3-scheme-primary, #1a5b9b); outline-offset: 3px; }
+	.proof-evidence { min-width: 0; display: grid; gap: 1rem; overflow-wrap: anywhere; line-height: 1.5; }
+	.proof-evidence h2, .proof-evidence p { margin: 0; }
+	.proof-evidence h2 { font-size: 1.35rem; }
+	.proof-evidence header p { margin-top: .35rem; color: var(--m3c-on-surface-variant); font-size: .9rem; }
+	.proof-evidence ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; padding: 0; margin: 0; list-style: none; }
+	.proof-evidence li { display: grid; align-content: start; gap: .75rem; min-width: 0; padding: .75rem; border: 1px solid var(--m3c-outline-variant); border-radius: .75rem; }
+	.photo-preview { display: grid; place-items: center; aspect-ratio: 4 / 3; background: var(--m3c-surface-container); border-radius: .5rem; overflow: hidden; }
+	.proof-evidence img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+	.proof-evidence li > a { display: grid; gap: .75rem; }
+	.photo-link-text { line-height: 1.5; padding-block: .4rem; }
+	.proof-evidence > :global(button) { justify-self: start; height: auto; min-height: 2.75rem; white-space: normal; padding-block: .65rem; }
+	.proof-evidence :global(:focus-visible) { outline: 3px solid var(--m3c-primary, #1a5b9b); outline-offset: 3px; }
 </style>
