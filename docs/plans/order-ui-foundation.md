@@ -143,3 +143,26 @@ B1, B3 and B5 consume `Tx.Apply` without history SQL or a second history method.
 - B1 mounting is separate and remains blocked on a verified published exporter
   and disposition of open issues #161/#162. No peer lifecycle component was
   mounted, peer code merged, remote history rewritten or issue waived here.
+
+## Standalone creation-retention correction
+
+The user requested the child-only creation safety fix in this foundation before
+merge. The standalone branch now excludes `PermissionDenied` from definitive
+creation rejection: suspension is checked before retained creation lookup, so a
+later denial cannot resolve an earlier dispatch whose response was lost. The
+unit regression and optional `--suspension-retry` browser scenario are ported
+without acceptance/offers code or any B1 history changes.
+
+One standalone verification round passed: `npm run check` (zero errors/warnings),
+`npm test` (63 tests), `npm run build`, and
+`python3 frontend/tests/order-ui-e2e.py --url <isolated-local-server> --channel chrome --suspension-retry`.
+The browser observed three identical CreateOrder payloads/keys/image IDs across
+lost response, suspension denial, suspended reload and restored-user success,
+with one upload and removal of the retained record only after success. This is
+Connect/S3 fixture evidence, not live-service certification. Exact base/file hashes,
+commands, logs, screenshots and video are under ignored
+`.local/creation-retention-backport/` (`report.json`, `browser/report.json`).
+
+The independent native Opus review did not start because Devin rejected this
+workspace as untrusted. No trust setting was changed or bypassed. The earlier
+foundation review does not cover this correction; backport review remains pending.

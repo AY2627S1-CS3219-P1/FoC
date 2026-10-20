@@ -2,8 +2,8 @@ package order
 
 // Transition checks lifecycle and persisted relationships only. Operations must
 // separately enforce Credit, eligibility, proof and deadline prerequisites.
-// Repeats are deliberately limited to the two actions whose stored state proves
-// the same participant already succeeded. Upload retries need their own identity.
+// Repeats are deliberately limited to the actions whose stored state proves the
+// same participant already succeeded. Upload retries need their own identity.
 func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, err error) {
 	if !o.Status.IsValid() {
 		return "", false, ErrPrecondition
@@ -20,6 +20,11 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 
 	// Only persisted evidence of the same participant's success proves a repeat.
 	if action == Assign && o.Status == AwaitingPickup && courier {
+		return o.Status, true, nil
+	}
+	// Only the assigned courier can reach Delivering, and the courier can't change
+	// afterwards, so Delivering with the same courier proves their pickup.
+	if action == Pickup && o.Status == Delivering && courier {
 		return o.Status, true, nil
 	}
 	if action == ConfirmReceipt && o.Status == Completed && requester {

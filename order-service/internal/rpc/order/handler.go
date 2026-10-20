@@ -35,6 +35,7 @@ type Server struct {
 	creator     CreationOperations
 	images      ImageOperations
 	assignments AssignmentOperations
+	progress    ProgressOperations
 }
 
 func NewServer(operations Operations, creator CreationOperations, images ImageOperations, assignments ...AssignmentOperations) *Server {

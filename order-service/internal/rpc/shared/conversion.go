@@ -168,7 +168,7 @@ func OrderView(ctx context.Context, caller app.Caller, o app.Order, images ItemI
 	}
 	// Historical/admin-only views retain the Order even when later attachments
 	// are not authorized. Never mint URLs merely because the caller is an admin.
-	if images == nil || (!o.HasParticipant(caller.ID) && (caller.Suspended || o.Status != app.AwaitingCourier || !o.ExpiresAt.After(time.Now()))) {
+	if images == nil || !o.HasParticipant(caller.ID) {
 		return result, nil
 	}
 	views, err := images.ForOrder(ctx, caller, o)

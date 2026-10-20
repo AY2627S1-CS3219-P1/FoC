@@ -6,4 +6,5 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
   SELECT 'CREATE DATABASE "${USER_DB:-user_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${USER_DB:-user_dev}')\gexec
   SELECT 'CREATE DATABASE "${SUPPLIER_DB:-supplier_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${SUPPLIER_DB:-supplier_dev}')\gexec
   SELECT 'CREATE DATABASE "${ORDER_DB:-order_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${ORDER_DB:-order_dev}')\gexec
+  SELECT 'CREATE DATABASE "${COMMUNICATION_DB:-communication_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${COMMUNICATION_DB:-communication_dev}')\gexec
 EOSQL
