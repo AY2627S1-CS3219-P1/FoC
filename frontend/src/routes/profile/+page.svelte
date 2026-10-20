@@ -16,6 +16,7 @@
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
+	import PhoneField from '$lib/components/PhoneField.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -25,7 +26,6 @@
 		return {
 			displayName: value.displayName,
 			description: value.description,
-			telegramHandle: value.telegramHandle ?? '',
 			phoneNumber: value.phoneNumber ?? ''
 		};
 	}
@@ -44,8 +44,7 @@
 					const updated = await profileService.updateMyProfile({
 						displayName: validated.data.displayName,
 						description: validated.data.description,
-						telegramHandle: validated.data.telegramHandle || undefined,
-						phoneNumber: validated.data.phoneNumber || undefined
+						phoneNumber: validated.data.phoneNumber
 					});
 					profile = updated;
 					const saved = valuesFromProfile(updated);
@@ -132,7 +131,6 @@
 					<div class="account-facts">
 						<div><span>Display name</span><strong>{profile.displayName}</strong></div>
 						<div><span>Description</span><strong>{profile.description || '—'}</strong></div>
-						<div><span>Telegram</span><strong>{profile.telegramHandle || '—'}</strong></div>
 						<div><span>Phone</span><strong>{profile.phoneNumber || '—'}</strong></div>
 					</div>
 				{:else}
@@ -169,35 +167,12 @@
 								>{/if}
 						</div>
 						<div class="field">
-							<TextFieldOutlined
-								label="Telegram handle · optional, without @"
-								name="telegramHandle"
-								autocomplete="off"
-								bind:value={$form.telegramHandle}
-								maxlength={32}
-								error={!!$errors.telegramHandle}
-								aria-invalid={$errors.telegramHandle ? 'true' : undefined}
-								aria-describedby={$errors.telegramHandle
-									? 'profile-telegramHandle-error'
-									: undefined}
-							/>{#if $errors.telegramHandle}<small
-									class="field-error"
-									id="profile-telegramHandle-error">{$errors.telegramHandle[0]}</small
-								>{/if}
-						</div>
-						<div class="field">
-							<TextFieldOutlined
-								label="Phone number · optional"
-								name="phoneNumber"
-								autocomplete="tel"
+							<PhoneField
+								id="profile-phoneNumber"
+								required
 								bind:value={$form.phoneNumber}
-								maxlength={20}
-								error={!!$errors.phoneNumber}
-								aria-invalid={$errors.phoneNumber ? 'true' : undefined}
-								aria-describedby={$errors.phoneNumber ? 'profile-phoneNumber-error' : undefined}
-							/>{#if $errors.phoneNumber}<small class="field-error" id="profile-phoneNumber-error"
-									>{$errors.phoneNumber[0]}</small
-								>{/if}
+								error={$errors.phoneNumber?.[0] ?? ''}
+							/>
 						</div>
 						<div class="form-actions">
 							<Button
