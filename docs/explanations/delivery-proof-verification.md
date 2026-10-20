@@ -59,6 +59,33 @@ print("REVIEWED RUNTIME SOURCE MATCH:", len(p["runtime_source_sha256"]), "files"
 PY
 ```
 
+### Inspectable CLI evidence
+
+The metadata and substantive reviewer reports are published, not just their counts or hashes:
+
+- **Full review:** [40 individual generation records and 61 source bindings](delivery-proof-cli-full-records.json), plus the [complete final reviewer report](delivery-proof-cli-full-review.md) for `ed03fda` against B3 `dea9c7c`.
+- **Focused follow-up:** [10 individual generation records and 13 source bindings](delivery-proof-cli-followup-records.json), plus the [complete final reviewer report](delivery-proof-cli-followup-review.md). Its frozen candidate was subsequently matched byte-for-byte to `d5aa5ee`.
+
+Each generation preserves the original export's `step_id`, timestamp, `source` and `extra.generation_model`. Final reports retain the reviewer's findings, warnings, exclusions and verdict. Only private source links and private working-artifact references are normalized to public source links/bindings. Input prompts, intermediate messages, tool arguments/results, configuration, telemetry and personal session identifiers are excluded entirely. No new reviewer was launched.
+
+These are allowlisted projections of existing local CLI exports, not provider-signed attestations. The original export digests identify the intentionally private originals; reviewers do not need access to those originals to inspect the 50 published records and substantive final reports.
+
+Run the public verifier from a checkout containing the recorded Git commits:
+
+```sh
+python3 docs/explanations/verify-delivery-proof-review.py
+```
+
+Observed result:
+
+```text
+full: 40 actual Opus generation records; final review digest and 61 source bindings match
+focused_fixes: 10 actual Opus generation records; final review digest and 13 source bindings match
+PASS: 50 actual model records; 62 reviewed sources; 58 current runtime files unchanged
+```
+
+The verifier checks record/report digests, exact model fields, unique ordered generation steps, source bindings and current runtime hashes. Five additional requirement-sourced negative checks rejected a missing generation, a wrong model, an unrelated prompt field, an altered source binding and a private path in a report. Those checks use synthetic alterations, not private content. The verifier never invokes a model, performs network access or changes source. Its scope is published-record integrity and source binding, not independent provider authentication.
+
 Opus's final verdict is **ready on the declared B3+B2+B4 stack, with no blockers**. Both blockers are resolved: renewable grant metadata no longer invalidates immutable proof, and a killed native decoder keeps validation retryable. Public application admission, pending-courier reads, transient outage authority classification and stale contract notes were also corrected.
 
 One nonblocking follow-up, **N1**, remains: a decoder output-cap error can be reported as unavailable rather than a known output-cap rejection. It is code-traced in the review, not separately runtime-reproduced. Such input cannot pass first verification, reserve a receipt or cause false acceptance. No unverified fix was added after the second verification round.

@@ -1,0 +1,132 @@
+{
+  "format": "sanitized-native-cli-review-v1",
+  "scope": "focused_fixes",
+  "source_export_sha256": "a3b3dcda457b9d5950f15bd3f6513577e058ac8ddc49f5cdf7c41be85a2d3d6b",
+  "disclosure": {
+    "included": [
+      "per-generation step_id, timestamp, source and extra.generation_model",
+      "final reviewer report with private links normalized",
+      "reviewed source SHA-256 bindings"
+    ],
+    "omitted": [
+      "session identifiers",
+      "agent configuration",
+      "input prompts",
+      "intermediate messages",
+      "tool arguments and results",
+      "telemetry"
+    ],
+    "report_transformations": [
+      "private file links replaced with source-commit permalinks",
+      "private working-artifact references replaced with the public source binding or an omission label"
+    ],
+    "attestation": "Allowlisted projection of existing native CLI exports, not a provider-signed attestation. The original export digest identifies the private original, which is intentionally not published."
+  },
+  "generation_records": [
+    {
+      "step_id": 10,
+      "timestamp": "2026-10-20T16:11:09.616213+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 11,
+      "timestamp": "2026-10-20T16:11:18.334640+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 12,
+      "timestamp": "2026-10-20T16:11:22.260403+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 14,
+      "timestamp": "2026-10-20T16:11:38.404512+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 15,
+      "timestamp": "2026-10-20T16:12:07.723890+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 16,
+      "timestamp": "2026-10-20T16:12:18.710716+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 17,
+      "timestamp": "2026-10-20T16:12:25.005340+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 18,
+      "timestamp": "2026-10-20T16:12:37.591696+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 19,
+      "timestamp": "2026-10-20T16:12:43.786261+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    },
+    {
+      "step_id": 20,
+      "timestamp": "2026-10-20T16:13:13.491846+00:00",
+      "source": "agent",
+      "extra": {
+        "generation_model": "claude-opus-5-5-medium"
+      }
+    }
+  ],
+  "final_report_step_id": 20,
+  "final_report": {
+    "path": "delivery-proof-cli-followup-review.md",
+    "sha256": "c406651ac4404481e20d37f3b629dac83673a81f074bc26b9eb7c135c76dcea7"
+  },
+  "source_binding": {
+    "reviewed_as": "frozen uncommitted candidate; source hashes subsequently matched to the materialized commit",
+    "baseline_ref": "ed03fda8ed1fc9354da79372ab37f8c280791350",
+    "materialized_commit": "d5aa5ee4d9817a61d1704e42189aa50116d8fe32",
+    "source_sha256": {
+      "docs/adr/delivery-proof-decoding.md": "b993fb162265ccbc65cb8b12fbe6f02946086918578f5bd311cb99ba541768c4",
+      "docs/plans/delivery-proof.md": "27c4bf6c67bfebb76205da6d0f6b079170c34b323d0363bb2e9a77f343201c2b",
+      "frontend/src/lib/gen/order/v1/order_pb.ts": "e6c55635774fe749c00d715c3d3c9f8d7a6bce3c292a7a240b9a93e236f7e322",
+      "order-service/internal/order/postgresproofs.go": "04761e12cb17804b422859a7444b9b3d7fe20742a398d9568a73ea3fe3807f57",
+      "order-service/internal/order/proofreceiptgrant_integration_test.go": "4cab9903458140c1350c7421d2b3807d5890ca5264a6f52cce19438631715e23",
+      "order-service/internal/order/proofreceipts.go": "1f3a2c666f3a084cf8ede10eeef458ba56b41eecc27e3235de6166e5ff87c399",
+      "order-service/internal/order/proofreceipts_integration_test.go": "5f5cef19cbba5eb9779f92f230baa9fbdb9a7732f695d4884035d323d3ad31df",
+      "order-service/internal/order/proofs.go": "40fab334cda6ae68d667964db98a1460c52e7abe1ac7db8e028a7a440e4e80ab",
+      "order-service/internal/order/prooftypes.go": "57e07a5fd2615c4e50b537f2ac230d00405b2716dc12ecbf478b061418b34390",
+      "order-service/internal/proofimage/decoder.go": "2a1dad713ebfd097abff565b4847baf4a44a0a29c6d547e216227f848803d1d0",
+      "order-service/internal/proofimage/decoder_test.go": "449ea40d1262efca890c6254dd1352eb1273adc6ea43a3a89bfbb5a46ec3f95d",
+      "pkg/gen/order/v1/order.pb.go": "1cc24f9a16bc48ff4e214316d8127750870bd9d7eb4b5d9ce415bf78f0505fa8",
+      "proto/order/v1/order.proto": "0f5bd060d1779b012bf38ee06d4edce46d5c70ffa2e54eef66686b6cac4262db"
+    }
+  }
+}

@@ -8,7 +8,11 @@
         "claude-opus-5-5-medium": 40
       },
       "export_sha256": "18fda077adb4afb1128d85479296c349c35518d9e063ef8172875f7d086da21b",
-      "verdict": "changes_required"
+      "verdict": "changes_required",
+      "generation_records_path": "delivery-proof-cli-full-records.json",
+      "generation_records_sha256": "d83c4ab10cf932bc24455b843a7cc17365fde91078ef4d26b186475e6186b701",
+      "final_report_path": "delivery-proof-cli-full-review.md",
+      "final_report_sha256": "bc40a69357ff695ea5eda1130bd6e6befbce8b73843db5f498d18d9880f82e26"
     },
     {
       "scope": "focused_fixes",
@@ -16,7 +20,11 @@
         "claude-opus-5-5-medium": 10
       },
       "export_sha256": "a3b3dcda457b9d5950f15bd3f6513577e058ac8ddc49f5cdf7c41be85a2d3d6b",
-      "verdict": "ready_on_declared_stack"
+      "verdict": "ready_on_declared_stack",
+      "generation_records_path": "delivery-proof-cli-followup-records.json",
+      "generation_records_sha256": "b9d19ddc967e3da3a14b8f2a53e61cfc877bafd47dea0b9618d1e2cf69e42745",
+      "final_report_path": "delivery-proof-cli-followup-review.md",
+      "final_report_sha256": "c406651ac4404481e20d37f3b629dac83673a81f074bc26b9eb7c135c76dcea7"
     }
   ],
   "full_review_head": "ed03fda8ed1fc9354da79372ab37f8c280791350",
@@ -170,5 +178,6 @@
       "summary": "Service adapter imports the feature-owned API and error instead of service-domain colocation.",
       "verification": "Confirmed against CONVENTIONS.md and current import; automatic thread closure is not a relocation."
     }
-  ]
+  ],
+  "evidence_verifier": "verify-delivery-proof-review.py"
 }
