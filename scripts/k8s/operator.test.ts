@@ -176,6 +176,11 @@ describe("operator safety guards", () => {
 					K8S_IMAGE_TAG: "unit-test",
 				});
 				expect(result.exitCode).toBe(0);
+				if (overlay.endsWith("/local") && stage === "dependencies") {
+					const floci = result.output.split(/\n---\n/).find(document => document.includes("kind: Deployment") && document.includes("\n  name: floci\n"));
+					expect(floci).toContain("enableServiceLinks: false");
+				}
+
 				if (stage === "initialization" || stage === "applications") {
 					expect(result.output).toContain("image: registry.example/foc/user-service:unit-test");
 					expect(result.output).not.toContain("image: foc/");

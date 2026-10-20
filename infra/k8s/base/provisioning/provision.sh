@@ -2,7 +2,7 @@
 # Operator-only Job: create isolated service roles/databases without dropping data.
 set -eu
 export PGHOST=postgres PGPORT=5432 PGDATABASE=postgres PGUSER="$POSTGRES_USER" PGPASSWORD="$POSTGRES_PASSWORD"
-for service in user supplier order; do
+for service in user supplier order communication; do
   DB_USER=$(cat "/secrets/$service/DB_USER")
   DB_PASSWORD=$(cat "/secrets/$service/DB_PASSWORD")
   DB_NAME=$(cat "/secrets/$service/DB_NAME")

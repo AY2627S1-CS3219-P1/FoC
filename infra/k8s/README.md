@@ -76,3 +76,33 @@ operator-script tests without creating a cluster.
 For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the
 [Kubernetes operations runbook](../../docs/runbooks/kubernetes.md).
+
+## Current application coverage and platform support
+
+The stack includes User, Supplier, Order, Communication, frontend and the local
+Order image store. Communication starts with Telegram disabled unless a bot
+credential is configured. To configure it on first setup, set
+`K8S_TELEGRAM_BOT_TOKEN`; it is persisted in the private
+`.local/k8s/secrets/TELEGRAM_BOT_TOKEN` file. To change it later, edit that file
+and run a full deployment. An empty file disables Telegram. Never share a bot
+token with another running poller.
+
+Credit has contracts/schema but no backend. Its public route returns 503;
+Credit-dependent creation and settlement remain unavailable. Existing Order
+browse/read operations and image storage are deployed.
+
+Linux and macOS hosts on amd64 or arm64 are supported. Docker Desktop must be
+running on macOS. Clear any `DOCKER_DEFAULT_PLATFORM` override left over from
+the Compose Apple Silicon workaround before starting kind. Kubernetes uses a native multiarch PostGIS image; the
+Compose-specific Apple Silicon workaround does not apply to this deployment.
+Only Linux amd64 has been exercised in the local verification record; CI adds
+native Linux arm64 deployment and macOS tooling/operator jobs.
+
+`make k8s-typecheck` checks the operator with locked TypeScript/Bun types.
+`make k8s-test` includes that check. The tooling package is independent of the
+frontend's npm package and lockfile. Bun automatically reads root `.env`;
+explicitly exported values take precedence.
+
+With Go installed, `make k8s-storage-smoke` tests signed HTTPS uploads/downloads
+and rejection of unsigned/tampered requests. Its private operator forward is
+used only for object metadata and cleanup. No test object is retained on success.

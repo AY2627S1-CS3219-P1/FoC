@@ -262,6 +262,14 @@ export async function runAuthSmoke(env = process.env, log = console.log) {
 			'ListLocations did not return the expected paginated response');
 		log('[auth-smoke] PASS: protected profile and Supplier list via public RPC routes');
 
+		if (env.SMOKE_SHARED_GATEWAY === '1') {
+			stage = 'JWT-protected Order ListOpenOrders';
+			await rpc(userOrigin, '/order.v1.OrderService/ListOpenOrders', { page: 1, pageSize: 1 }, { token: accessToken });
+			stage = 'JWT-protected Communication GetTelegramLink';
+			await rpc(userOrigin, '/communication.v1.TelegramLinkService/GetTelegramLink', {}, { token: accessToken });
+			log('[auth-smoke] PASS: protected Order and Communication RPCs via the shared gateway');
+		}
+
 		stage = 'Refresh';
 		const previousCookie = jar.header();
 		const refreshed = await rpc(userOrigin, `${authPath}Refresh`, {}, { session: true });

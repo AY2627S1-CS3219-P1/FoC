@@ -41,7 +41,7 @@ export async function runPersistenceSmoke(): Promise<void> {
 	const kafka = async (args: string[], options: { capture?: boolean; allowFailure?: boolean; stdinFile?: string } = {}) =>
 		run("kubectl", [
 			...kubectlPrefix(),
-			"-n", "foc", "exec", "statefulset/kafka", "-c", "kafka", "--",
+			"-n", "foc", "exec", ...(options.stdinFile ? ["-i"] : []), "statefulset/kafka", "-c", "kafka", "--",
 			"env", heap, ...args,
 		], options);
 
@@ -61,15 +61,18 @@ export async function runPersistenceSmoke(): Promise<void> {
 		await rm(inputPath, { force: true });
 	}
 
+	const readRecord = () => kafka([
+		"/opt/kafka/bin/kafka-console-consumer.sh", "--bootstrap-server", "127.0.0.1:9092",
+		"--topic", topic, "--from-beginning", "--max-messages", "1", "--timeout-ms", "45000",
+	], { capture: true });
+	if ((await readRecord()).stdout.trim() !== record) die("FAIL: Kafka record missing before restart; dependencies were not restarted.");
+
 	await k(["-n", "foc", "rollout", "restart", "statefulset/postgres", "statefulset/kafka"]);
 	await k(["-n", "foc", "rollout", "status", "statefulset/postgres", "--timeout=" + K8S_TIMEOUT]);
 	await k(["-n", "foc", "rollout", "status", "statefulset/kafka", "--timeout=" + K8S_TIMEOUT]);
 	const after = (await k(postgresArgs, { capture: true })).stdout.trim();
 	if (after !== before) die("FAIL: PostgreSQL bootstrap state changed after pod replacement.");
-	const received = await kafka([
-		"/opt/kafka/bin/kafka-console-consumer.sh", "--bootstrap-server", "127.0.0.1:9092",
-		"--topic", topic, "--from-beginning", "--max-messages", "1", "--timeout-ms", "45000",
-	], { capture: true });
+	const received = await readRecord();
 	if (received.stdout.trim() !== record) die("FAIL: Kafka did not retain the acknowledged record.");
 	for (const app of K8S_APPS) {
 		await k(["-n", "foc", "rollout", "status", "deployment/" + app, "--timeout=" + K8S_TIMEOUT]);

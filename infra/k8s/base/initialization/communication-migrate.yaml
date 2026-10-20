@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: communication-migrate
+  labels:
+    foc.dev/stage: initialization
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: communication-migrate
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: communication-migrate
+      restartPolicy: Never
+      containers:
+        - name: communication-migrate
+          image: foc/communication-service:local
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: communication-db

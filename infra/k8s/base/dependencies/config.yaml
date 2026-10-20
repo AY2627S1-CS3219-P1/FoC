@@ -17,3 +17,8 @@ data:
   JWT_PRIVATE_KEY_FILE: /var/run/foc/auth/jwt-signing-private.pem
   BOOTSTRAP_SUPERADMIN_EMAIL: ""
   BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: Admin
+  PUBLIC_ORDER_SERVICE_URL: https://localhost:5173
+  PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
+  PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
+  SUPPLIER_SERVICE_BASE_URL: http://supplier-service-internal:8080
+  KAFKA_BROKERS: kafka:9092

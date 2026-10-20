@@ -48,7 +48,7 @@ bun_path="$tools_dir/bun"
 receipt="$tools_dir/bun.verified"
 if [[ -x $bun_path && -f $receipt ]]; then
     actual=$(hash_file "$bun_path")
-    if [[ $(< "$receipt") = "$version $platform $actual" ]] && [[ $($bun_path --version) = "$version" ]]; then
+    if [[ $(< "$receipt") = "$version $platform $actual" ]] && [[ $("$bun_path" --version) = "$version" ]]; then
         exit 0
     fi
 fi
@@ -63,7 +63,7 @@ actual=$(hash_file "$tmp_dir/bun.zip")
 [[ $actual = "$checksum" ]] || { printf 'ERROR: Bun archive checksum mismatch.\n' >&2; exit 1; }
 unzip -p "$tmp_dir/bun.zip" "bun-$platform/bun" > "$tmp_dir/bun"
 chmod 755 "$tmp_dir/bun"
-[[ $($tmp_dir/bun --version) = "$version" ]] || { printf 'ERROR: Bun version verification failed.\n' >&2; exit 1; }
+[[ $("$tmp_dir/bun" --version) = "$version" ]] || { printf 'ERROR: Bun version verification failed.\n' >&2; exit 1; }
 install -m 755 "$tmp_dir/bun" "$bun_path"
 actual=$(hash_file "$bun_path")
 printf '%s %s %s\n' "$version" "$platform" "$actual" > "$receipt"

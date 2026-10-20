@@ -48,7 +48,7 @@ function waitForLocalListener(port: number): Promise<boolean> {
 	});
 }
 
-async function startTestForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
+export async function startTestForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
 	const child = Bun.spawn([
 		kubectlBinary(), ...kubectlPrefix(),
 		"-n", forward.namespace,
@@ -79,7 +79,7 @@ async function startTestForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
 	fail("Port forward " + forward.localPort + " did not start");
 }
 
-async function stopForward(child: Bun.Subprocess): Promise<void> {
+export async function stopForward(child: Bun.Subprocess): Promise<void> {
 	if (child.exitCode === null) child.kill("SIGTERM");
 	await Promise.race([child.exited, Bun.sleep(3000)]);
 	if (child.exitCode === null) child.kill("SIGKILL");
@@ -245,11 +245,11 @@ export async function runSmoke(): Promise<void> {
 		const base = "https://localhost:" + httpsPort;
 		const frontend = await run("curl", ["--cacert", tlsCert, "-sS", "--max-time", "20", "-o", join(evidenceDir, "frontend.html"), "-w", "%{http_code}", base + "/"], { capture: true });
 		if (frontend.stdout.trim() !== "200") fail("Frontend HTTPS expected 200, got " + frontend.stdout.trim());
-		for (const namespace of ["user", "supplier", "order"]) {
+		for (const namespace of ["user", "supplier", "order", "communication"]) {
 			const response = await run("curl", [
 				"--cacert", tlsCert, "-sS", "--max-time", "20", "-o", join(evidenceDir, namespace + "-health.json"), "-w", "%{http_code}",
 				"-H", "Content-Type: application/json", "-H", "Connect-Protocol-Version: 1", "-d", "{}",
-				base + "/" + namespace + ".v1.HealthService/Check",
+				base + "/" + namespace + ".v1.HealthService/Check" + (namespace === "user" ? "?foc-query-canary=" + suffix : ""),
 			], { capture: true });
 			if (response.stdout.trim() !== "200") fail(namespace + " public health expected 200, got " + response.stdout.trim());
 		}
@@ -263,6 +263,13 @@ export async function runSmoke(): Promise<void> {
 		const publicBody = await Bun.file(join(evidenceDir, "public-key-response.txt")).text();
 		if (/<html/i.test(publicBody)) fail("Internal RPC returned frontend HTML");
 		pass("Trusted HTTPS frontend and public health; internal procedure absent publicly (expected=404 actual=404)");
+
+		await Bun.sleep(1000);
+		const gatewayLogs = (await k(["-n", "istio-ingress", "logs", "deployment/istio-ingressgateway", "-c", "istio-proxy", "--since=2m"], { capture: true })).stdout;
+		if (!gatewayLogs.includes("/user.v1.HealthService/Check") || gatewayLogs.includes("foc-query-canary=" + suffix)) {
+			fail("Gateway access logs must record paths without credential-bearing query strings");
+		}
+		pass("Gateway access logs exclude request query credentials");
 
 		if (process.env.K8S_BOOTSTRAP_SUPERADMIN_EMAIL) {
 			const mailPort = parsePort("K8S_SMOKE_MAILPIT_PORT", process.env.K8S_SMOKE_MAILPIT_PORT) ?? 19025;
@@ -278,6 +285,7 @@ export async function runSmoke(): Promise<void> {
 			await run(process.execPath, [join(import.meta.dir, "auth-smoke.mjs")], {
 				env: {
 					SMOKE_TLS_CA_FILE: tlsCert,
+					SMOKE_SHARED_GATEWAY: "1",
 					SMOKE_USER_ORIGIN: base,
 					SMOKE_ORIGIN: localOrigin(),
 					SMOKE_MAILPIT_URL: "http://127.0.0.1:" + mailPort,

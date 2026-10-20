@@ -20,8 +20,8 @@ export const K8S_IMAGE_PREFIX = process.env.K8S_IMAGE_PREFIX || "foc";
 export const K8S_ISTIO_VERSION = "1.31.2";
 export const K8S_NODE_IMAGE = process.env.K8S_NODE_IMAGE ||
 	"kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f";
-export const K8S_APPS = ["user-service", "supplier-service", "order-service", "frontend"] as const;
-export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "kafka-init"] as const;
+export const K8S_APPS = ["user-service", "supplier-service", "order-service", "communication-service", "frontend"] as const;
+export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "communication-migrate", "kafka-init"] as const;
 
 export class OperatorError extends Error {}
 
@@ -259,4 +259,25 @@ export async function assertPortAvailable(port: number): Promise<void> {
 
 export async function preflightForwards(forwards: ForwardSpec[]): Promise<void> {
 	for (const forward of forwards) await assertPortAvailable(forward.localPort);
+}
+
+// Check chart files: Bun.file(directory).exists() is false even for directories.
+export async function hasIstioCharts(toolsDirectory = K8S_TOOLS_DIR): Promise<boolean> {
+	const root = join(toolsDirectory, "istio-" + K8S_ISTIO_VERSION, "manifests/charts");
+	const charts = ["base", "istio-control/istio-discovery", "gateway"];
+	return (await Promise.all(charts.map(chart => Bun.file(join(root, chart, "Chart.yaml")).exists()))).every(Boolean);
+}
+
+// An API timeout can follow a partially successful apply. Reapply the exact same
+// manifest; never delete/recreate running Jobs to recover an ambiguous response.
+export async function applyManifest(path: string): Promise<void> {
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const result = await k(["apply", "-f", path], { capture: true, allowFailure: true });
+		if (result.stdout) process.stdout.write(result.stdout);
+		if (result.exitCode === 0) return;
+		const transient = /etcdserver: request timed out|context deadline exceeded|i\/o timeout|TLS handshake timeout|unexpected EOF|ServiceUnavailable|TooManyRequests/.test(result.stderr);
+		if (!transient || attempt === 2) die("kubectl apply failed: " + result.stderr.trim());
+		note("Transient Kubernetes API failure; retrying the same manifest (attempt " + (attempt + 2) + "/3).");
+		await Bun.sleep(1000 * 2 ** attempt);
+	}
 }

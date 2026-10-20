@@ -7,6 +7,7 @@ import {
 	K8S_TOOLS_DIR,
 	die,
 	note,
+	hasIstioCharts,
 	run,
 } from "./common";
 
@@ -97,8 +98,7 @@ async function installPinnedTools(temporaryDirectory: string): Promise<void> {
 		await installBinary("helm", "3.20.1", join(temporaryDirectory, hostOS + "-" + hostArch, "helm"));
 	}
 
-	const charts = join(K8S_TOOLS_DIR, "istio-" + K8S_ISTIO_VERSION, "manifests/charts/base");
-	if (!(await receiptValid("istioctl", K8S_ISTIO_VERSION)) || !(await Bun.file(charts).exists())) {
+	if (!(await receiptValid("istioctl", K8S_ISTIO_VERSION)) || !(await hasIstioCharts())) {
 		const istioOS = hostOS === "darwin" ? "osx" : hostOS;
 		const archiveName = "istio-" + K8S_ISTIO_VERSION + "-" + istioOS + "-" + hostArch + ".tar.gz";
 		const url = "https://github.com/istio/istio/releases/download/" + K8S_ISTIO_VERSION + "/" + archiveName;

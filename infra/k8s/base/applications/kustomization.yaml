@@ -7,3 +7,4 @@ resources:
   - order-service.yaml
   - frontend.yaml
   - gateway.yaml
+  - communication-service.yaml

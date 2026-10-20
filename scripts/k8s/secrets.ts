@@ -2,8 +2,8 @@ import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	K8S_STATE_DIR,
+	applyManifest,
 	die,
-	k,
 	kubectlPrefix,
 	localOrigin,
 	note,
@@ -41,7 +41,7 @@ async function applySecret(namespace: string, name: string, options: string[]): 
 	const path = join(secretDirectory, "." + name + ".yaml");
 	await writeFile(path, manifest.stdout, { mode: 0o600 });
 	try {
-		await k(["apply", "-f", path]);
+		await applyManifest(path);
 	} finally {
 		await rm(path, { force: true });
 	}
@@ -60,7 +60,7 @@ export async function generateLocalSecrets(): Promise<void> {
 	}
 
 	try {
-		for (const name of ["postgres-password", "user-password", "supplier-password", "order-password", "kafka-ui-password"]) {
+		for (const name of ["postgres-password", "user-password", "supplier-password", "order-password", "communication-password", "kafka-ui-password"]) {
 			const password = await run("openssl", ["rand", "-hex", "32"], { capture: true });
 			await persistValue(name, password.stdout.trim());
 		}
@@ -74,6 +74,7 @@ export async function generateLocalSecrets(): Promise<void> {
 		}
 		await persistValue("SMTP_USERNAME", "", true);
 		await persistValue("SMTP_PASSWORD", "", true);
+		await persistValue("TELEGRAM_BOT_TOKEN", process.env.K8S_TELEGRAM_BOT_TOKEN || "", true);
 
 		const privateKey = join(secretDirectory, "jwt-signing-private.pem");
 		if (!(await Bun.file(privateKey).exists())) {
@@ -90,10 +91,11 @@ export async function generateLocalSecrets(): Promise<void> {
 		if (!(await Bun.file(tlsKey).exists()) && !(await Bun.file(tlsCert).exists())) {
 			const temporaryKey = join(lockDirectory, "tls.key");
 			const temporaryCert = join(lockDirectory, "tls.crt");
+			const config = join(lockDirectory, "tls.cnf");
+			await writeFile(config, "[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nbasicConstraints=critical,CA:TRUE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n", { mode: 0o600 });
 			await run("openssl", [
 				"req", "-x509", "-newkey", "rsa:3072", "-sha256", "-nodes", "-days", "365",
-				"-subj", "/CN=localhost",
-				"-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+				"-config", config,
 				"-keyout", temporaryKey, "-out", temporaryCert,
 			], { capture: true });
 			await rename(temporaryKey, tlsKey);
@@ -109,7 +111,7 @@ export async function generateLocalSecrets(): Promise<void> {
 			die("Local TLS certificate and key do not match.");
 		}
 
-		for (const service of ["user", "supplier", "order"]) {
+		for (const service of ["user", "supplier", "order", "communication"]) {
 			await persistValue(service + "-db-user", service + "_app");
 			await persistValue(service + "-db-name", service + "_db");
 			const username = (await Bun.file(join(secretDirectory, service + "-db-user")).text()).trim();
@@ -123,7 +125,7 @@ export async function generateLocalSecrets(): Promise<void> {
 			"--from-file=POSTGRES_USER=" + join(secretDirectory, "postgres-user"),
 			"--from-file=POSTGRES_PASSWORD=" + join(secretDirectory, "postgres-password"),
 		]);
-		for (const service of ["user", "supplier", "order"]) {
+		for (const service of ["user", "supplier", "order", "communication"]) {
 			await applySecret("foc", service + "-db", [
 				"--from-file=DB_USER=" + join(secretDirectory, service + "-db-user"),
 				"--from-file=DB_NAME=" + join(secretDirectory, service + "-db-name"),
@@ -140,6 +142,8 @@ export async function generateLocalSecrets(): Promise<void> {
 			"--from-file=" + join(secretDirectory, "SMTP_USERNAME"),
 			"--from-file=" + join(secretDirectory, "SMTP_PASSWORD"),
 		]);
+		await applySecret("foc", "telegram", ["--from-file=" + join(secretDirectory, "TELEGRAM_BOT_TOKEN")]);
+		await applySecret("foc", "object-storage", ["--from-literal=AWS_ACCESS_KEY_ID=test", "--from-literal=AWS_SECRET_ACCESS_KEY=test"]);
 		await applySecret("foc", "kafka-ui-auth", [
 			"--from-file=SPRING_SECURITY_USER_NAME=" + join(secretDirectory, "kafka-ui-user"),
 			"--from-file=SPRING_SECURITY_USER_PASSWORD=" + join(secretDirectory, "kafka-ui-password"),

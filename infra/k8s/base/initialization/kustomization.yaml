@@ -6,3 +6,4 @@ resources:
   - supplier-migrate.yaml
   - order-migrate.yaml
   - kafka-init.yaml
+  - communication-migrate.yaml

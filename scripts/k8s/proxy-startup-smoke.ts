@@ -40,11 +40,11 @@ export async function runProxyStartupSmoke(): Promise<void> {
 			},
 			spec: {
 				restartPolicy: "Never",
-				activeDeadlineSeconds: 150,
+				activeDeadlineSeconds: 420,
 				containers: [{
 					name: "application",
 					image,
-					command: ["sleep", "120"],
+					command: ["sleep", "400"],
 					securityContext: {
 						runAsNonRoot: true,
 						runAsUser: 65532,
@@ -61,7 +61,13 @@ export async function runProxyStartupSmoke(): Promise<void> {
 		} finally {
 			await rm(path, { force: true });
 		}
-		const deadline = Date.now() + 130_000;
+		// A failed HTTP probe can consume timeoutSeconds, not just periodSeconds.
+		// Include pull/scheduling time; the production probe configuration stays intact.
+		const pod = JSON.parse((await k(["-n", namespace, "get", "pod", "blocked-app", "-o", "json"], { capture: true })).stdout);
+		const probe = pod.spec.initContainers.find((container: { name: string }) => container.name === "istio-proxy")?.startupProbe;
+		if (!probe) die("FAIL: injected proxy has no startup probe.");
+		const budgetSeconds = probe.failureThreshold * (probe.periodSeconds + (probe.timeoutSeconds || 1)) + 90;
+		const deadline = Date.now() + budgetSeconds * 1000;
 		while (Date.now() < deadline) {
 			const state = await k([
 				"-n", namespace, "get", "pod", "blocked-app", "-o",
@@ -75,7 +81,7 @@ export async function runProxyStartupSmoke(): Promise<void> {
 			}
 			await Bun.sleep(2000);
 		}
-		await k(["-n", namespace, "get", "pod", "blocked-app"], { allowFailure: true });
+		await k(["-n", namespace, "describe", "pod", "blocked-app"], { allowFailure: true });
 		die("FAIL: did not observe a bounded proxy startup failure; application has not started.");
 	} finally {
 		await k(["delete", "namespace", namespace, "--ignore-not-found", "--wait=false"], { capture: true, allowFailure: true });

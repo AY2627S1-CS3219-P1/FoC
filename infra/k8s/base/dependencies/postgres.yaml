@@ -35,7 +35,7 @@ spec:
         fsGroup: 999
       containers:
         - name: postgres
-          image: postgis/postgis:18-3.6@sha256:b4466ea2ba7e3af54fcbba996d45325720f4b3ecb4f43f99b2f41367dc196f23
+          image: nickblah/postgis:18.6-trixie-postgis-3.6.4@sha256:48edec2374758f62a5336ee0279aeca0107c1c63536f0a0872bee2a7b3126237
           args: ["postgres", "-c", "listen_addresses=127.0.0.1"]
           securityContext:
             runAsNonRoot: true

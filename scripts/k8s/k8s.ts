@@ -1,5 +1,5 @@
 import { connect } from "node:net";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	K8S_APPS,
@@ -18,6 +18,7 @@ import {
 	K8S_TOOLS_DIR,
 	ForwardSpec,
 	OperatorError,
+	applyManifest,
 	checkContext,
 	checkOverlay,
 	configuredForwards,
@@ -27,6 +28,8 @@ import {
 	isLocalOverlay,
 	k,
 	kubectlBinary,
+	kubectlPrefix,
+	hasIstioCharts,
 	localOrigin,
 	note,
 	prepareJob,
@@ -39,6 +42,7 @@ import {
 } from "./common";
 import { generateLocalSecrets } from "./secrets";
 import { installTools } from "./tools";
+import { runStorageSmoke } from "./storage-smoke";
 import { runSmoke } from "./smoke";
 import { runPersistenceSmoke } from "./persistence-smoke";
 import { runProxyStartupSmoke } from "./proxy-startup-smoke";
@@ -66,9 +70,9 @@ async function createLocalCluster(): Promise<void> {
 async function installMesh(): Promise<void> {
 	await requireCommands("helm");
 	const charts = join(K8S_TOOLS_DIR, "istio-" + K8S_ISTIO_VERSION, "manifests/charts");
-	if (!(await Bun.file(join(charts, "base")).exists())) die("Pinned Istio charts missing; run make k8s-tools.");
-	await k(["apply", "-f", join(K8S_ROOT, "infra/k8s/platform/namespaces.yaml")]);
-	await k(["apply", "-f", join(K8S_ROOT, "infra/k8s/platform/admission.yaml")]);
+	if (!(await hasIstioCharts())) die("Pinned Istio charts missing; run make k8s-tools.");
+	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/namespaces.yaml"));
+	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/admission.yaml"));
 	await h(["upgrade", "--install", "istio-base", join(charts, "base"), "-n", "istio-system", "--wait", "--timeout", K8S_TIMEOUT]);
 	await h([
 		"upgrade", "--install", "istiod", join(charts, "istio-control/istio-discovery"), "-n", "istio-system",
@@ -141,7 +145,7 @@ async function applyStage(stage: string): Promise<void> {
 	try {
 		const path = join(directory, "resources.yaml");
 		await writeFile(path, rendered, { mode: 0o600 });
-		await k(["apply", "-f", path]);
+		await applyManifest(path);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
@@ -156,6 +160,10 @@ async function patchLocalConfig(): Promise<void> {
 			ORIGIN: origin,
 			PUBLIC_USER_SERVICE_URL: origin,
 			PUBLIC_SUPPLIER_SERVICE_URL: origin,
+			PUBLIC_ORDER_SERVICE_URL: origin,
+			PUBLIC_COMMUNICATION_SERVICE_URL: origin,
+			PUBLIC_CREDIT_SERVICE_URL: origin,
+			ORDER_S3_PUBLIC_ENDPOINT: origin,
 		},
 	});
 	await k(["-n", "foc", "patch", "configmap", "foc-config", "--type=merge", "--patch", patch]);
@@ -189,7 +197,7 @@ async function deployAll(): Promise<void> {
 	if (isLocalOverlay()) {
 		await generateLocalSecrets();
 	} else {
-		for (const secret of ["postgres-admin", "user-db", "supplier-db", "order-db", "jwt-signing", "smtp", "kafka-ui-auth"]) {
+		for (const secret of ["postgres-admin", "user-db", "supplier-db", "order-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"]) {
 			await k(["-n", "foc", "get", "secret", secret], { capture: true });
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.");
@@ -202,19 +210,22 @@ async function deployAll(): Promise<void> {
 	await k(["-n", "foc", "rollout", "status", "deployment/kafka-ui", "--timeout=" + K8S_TIMEOUT]);
 	if (isLocalOverlay()) {
 		await k(["-n", "foc", "rollout", "status", "deployment/mailpit", "--timeout=" + K8S_TIMEOUT]);
+		await k(["-n", "foc", "rollout", "status", "deployment/floci", "--timeout=" + K8S_TIMEOUT]);
 	}
 	await prepareJob("db-provision");
 	await applyStage("provisioning");
 	await waitJob("db-provision");
+	if (isLocalOverlay()) await prepareJob("order-storage-init");
 	for (const job of K8S_JOBS) await prepareJob(job);
 	await applyStage("initialization");
 	for (const job of K8S_JOBS) await waitJob(job);
+	if (isLocalOverlay()) await waitJob("order-storage-init");
 	await applyStage("applications");
 	for (const app of K8S_APPS) {
 		await k(["-n", "foc", "rollout", "restart", "deployment/" + app]);
 		await k(["-n", "foc", "rollout", "status", "deployment/" + app, "--timeout=" + K8S_TIMEOUT]);
 	}
-	note("Bootstrap coverage: User, Supplier, Order, frontend, PostgreSQL, Kafka, Kafka UI; local overlay also Mailpit. Credit and the complete D3 business workflow are absent.");
+	note("Bootstrap coverage: User, Supplier, Order, Communication, frontend, PostgreSQL, Kafka, Kafka UI; local overlay also Mailpit and Floci. Credit and the complete D3 business workflow are absent.");
 }
 
 async function deployOne(service: string): Promise<void> {
@@ -247,7 +258,7 @@ function waitForLocalListener(port: number): Promise<boolean> {
 	});
 }
 
-async function startForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
+async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
 	const child = Bun.spawn([
 		kubectlBinary(),
 		...kubectlPrefix(),
@@ -256,6 +267,7 @@ async function startForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
 		"service/" + forward.service,
 		forward.localPort + ":" + forward.remotePort,
 	], { stdout: "inherit", stderr: "inherit", stdin: "ignore" });
+	children.push(child);
 	const exited = child.exited.then((code) => ({ code }));
 	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
@@ -268,7 +280,7 @@ async function startForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
 		}
 		if (result.ready) {
 			note(forward.name + ": " + forward.scheme + "://localhost:" + forward.localPort);
-			return child;
+			return;
 		}
 		await Bun.sleep(100);
 	}
@@ -298,24 +310,39 @@ async function superviseForwards(forwards: ForwardSpec[]): Promise<void> {
 	await preflightForwards(forwards);
 	const children: Bun.Subprocess[] = [];
 	let signal: NodeJS.Signals | undefined;
+	let signalReceived!: () => void;
+	const interrupted = new Promise<void>(resolve => { signalReceived = resolve; });
+	const onSignal = (received: NodeJS.Signals) => {
+		signal = received;
+		signalReceived();
+		for (const child of children) {
+			if (child.exitCode === null) child.kill("SIGTERM");
+		}
+	};
+	// Install handlers before spawning: Ctrl+C during startup must close children too.
+	process.once("SIGINT", onSignal);
+	process.once("SIGTERM", onSignal);
 	try {
-		for (const forward of forwards) children.push(await startForward(forward));
-		note("Kubernetes forwards are attached. Press Ctrl+C to stop the forwards; the cluster and its data will remain running.");
-		const outcome = await new Promise<{ type: "signal"; signal: NodeJS.Signals } | { type: "child"; code: number }>((resolvePromise) => {
-			const onSignal = (received: NodeJS.Signals) => resolvePromise({ type: "signal", signal: received });
-			process.once("SIGINT", onSignal);
-			process.once("SIGTERM", onSignal);
-			for (const child of children) {
-				child.exited.then((code) => resolvePromise({ type: "child", code }));
-			}
-		});
-		if (outcome.type === "signal") signal = outcome.signal;
-		else if (outcome.code !== 0) die("A kubectl port-forward exited unexpectedly with code " + outcome.code + ".");
-		else die("A kubectl port-forward exited unexpectedly.");
+		for (const forward of forwards) {
+			await startForward(forward, children);
+			if (signal) break;
+		}
+		if (!signal) {
+			note("Kubernetes forwards are attached. Press Ctrl+C to stop the forwards; the cluster and its data will remain running.");
+			const outcome = await Promise.race([
+				interrupted.then(() => ({ type: "signal" as const })),
+				...children.map(child => child.exited.then(code => ({ type: "child" as const, code }))),
+			]);
+			if (outcome.type === "child" && !signal) die("A kubectl port-forward exited unexpectedly with code " + outcome.code + ".");
+		}
+	} catch (error) {
+		if (!signal) throw error;
 	} finally {
 		await stopForwards(children);
+		process.removeListener("SIGINT", onSignal);
+		process.removeListener("SIGTERM", onSignal);
 	}
-	if (signal === "SIGINT") process.exitCode = 130;
+	if (signal) process.exitCode = signal === "SIGINT" ? 130 : 143;
 }
 
 async function showStatus(): Promise<void> {
@@ -407,6 +434,9 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 		case "smoke":
 			await runSmoke();
 			return;
+		case "storage-smoke":
+			await runStorageSmoke();
+			return;
 		case "persistence-smoke":
 			await runPersistenceSmoke();
 			return;
@@ -419,7 +449,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 			await deleteCluster();
 			return;
 		default:
-			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|smoke|persistence-smoke|proxy-startup-smoke|demo|delete-cluster|kafka-ui|mailpit");
+			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|smoke|storage-smoke|persistence-smoke|proxy-startup-smoke|demo|delete-cluster|kafka-ui|mailpit");
 			process.exitCode = 2;
 	}
 }

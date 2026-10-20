@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	communicationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1/communicationv1connect"
 	orderv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	supplierv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1"
@@ -61,6 +63,11 @@ func TestMeshGateway(t *testing.T) {
 			if err != nil || supplier.Msg.Status != "ok" {
 				t.Fatalf("Supplier health: %v, %v", supplier, err)
 			}
+			communication, err := communicationv1connect.NewHealthServiceClient(client, baseURL, options...).Check(ctx, connect.NewRequest(&communicationv1.CheckRequest{}))
+			if err != nil || communication.Msg.Status != "ok" {
+				t.Fatalf("Communication health: %v, %v", communication, err)
+			}
+
 			order, err := orderv1connect.NewHealthServiceClient(client, baseURL, options...).Check(ctx, connect.NewRequest(&orderv1.CheckRequest{}))
 			if err != nil || order.Msg.Status != "ok" {
 				t.Fatalf("Order health: %v, %v", order, err)

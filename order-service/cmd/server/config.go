@@ -80,7 +80,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 			continue
 		}
 		parsed, err := url.Parse(value)
-		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") || (parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+		meshInternal := c.Transport.Mode == server.Mesh && name != "ORDER_S3_PUBLIC_ENDPOINT"
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") || (parsed.Scheme != "https" && getenv("APP_ENV") != "local" && !meshInternal) {
 			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
 		}
 	}

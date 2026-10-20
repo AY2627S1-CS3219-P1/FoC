@@ -53,6 +53,21 @@ spec:
             host: order-service-external.foc.svc.cluster.local
             port:
               number: 8080
+    - match:
+        - uri:
+            prefix: /communication.
+      route:
+        - destination:
+            host: communication-service-external.foc.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /credit.
+      directResponse:
+        status: 503
+        body:
+          string: Credit service is not implemented.
     - route:
         - destination:
             host: frontend.foc.svc.cluster.local

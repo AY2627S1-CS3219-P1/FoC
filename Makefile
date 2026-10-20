@@ -57,43 +57,52 @@ endif
 
 k8s-bun:
 	@if [ "$(K8S_BUN)" = "$(K8S_CACHED_BUN)" ]; then bash scripts/k8s/bootstrap-bun.sh; fi
-	@test "$$($(K8S_BUN) --version)" = "$(K8S_BUN_VERSION)"
+	@test "$$("$(K8S_BUN)" --version)" = "$(K8S_BUN_VERSION)"
 
 k8s-tools: k8s-bun
-	$(K8S_BUN) run scripts/k8s/tools.ts
+	"$(K8S_BUN)" run scripts/k8s/tools.ts
 
-k8s-up: k8s-bun
-	$(K8S_BUN) run scripts/k8s/k8s.ts up
+k8s-up: k8s-typecheck
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts up
 
-k8s-deploy: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts deploy "$(service)"
+k8s-deploy: k8s-tools k8s-typecheck
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts deploy "$(service)"
 
 k8s-access: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts access
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts access
 
 k8s-status: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts status
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts status
 
 k8s-smoke: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts smoke
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts smoke
 
 k8s-demo: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts demo
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts demo
 
 k8s-delete-cluster: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts delete-cluster
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts delete-cluster
 
 k8s-kafka-ui: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts kafka-ui
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts kafka-ui
 
 k8s-mailpit: k8s-tools
-	$(K8S_BUN) run scripts/k8s/k8s.ts mailpit
+	"$(K8S_BUN)" run scripts/k8s/k8s.ts mailpit
 
 k8s-proxy-startup-smoke: k8s-tools
-	$(K8S_BUN) run scripts/k8s/proxy-startup-smoke.ts
+	"$(K8S_BUN)" run scripts/k8s/proxy-startup-smoke.ts
 
 k8s-persistence-smoke: k8s-tools
-	$(K8S_BUN) run scripts/k8s/persistence-smoke.ts
+	"$(K8S_BUN)" run scripts/k8s/persistence-smoke.ts
 
-k8s-test: k8s-bun
-	$(K8S_BUN) test scripts/k8s
+k8s-test: k8s-typecheck
+	"$(K8S_BUN)" test scripts/k8s
+
+.PHONY: k8s-typecheck
+k8s-typecheck: k8s-bun
+	"$(K8S_BUN)" install --frozen-lockfile
+	"$(K8S_BUN)" node_modules/typescript/bin/tsc -p tsconfig.k8s.json
+
+.PHONY: k8s-storage-smoke
+k8s-storage-smoke: k8s-tools
+	"$(K8S_BUN)" run scripts/k8s/storage-smoke.ts

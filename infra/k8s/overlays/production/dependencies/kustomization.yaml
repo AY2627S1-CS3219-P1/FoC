@@ -19,3 +19,12 @@ patches:
       - op: replace
         path: /data/PUBLIC_SUPPLIER_SERVICE_URL
         value: https://foc.example.invalid
+      - op: replace
+        path: /data/PUBLIC_ORDER_SERVICE_URL
+        value: https://foc.example.invalid
+      - op: replace
+        path: /data/PUBLIC_COMMUNICATION_SERVICE_URL
+        value: https://foc.example.invalid
+      - op: replace
+        path: /data/PUBLIC_CREDIT_SERVICE_URL
+        value: https://foc.example.invalid

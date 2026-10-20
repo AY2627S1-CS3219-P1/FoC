@@ -53,3 +53,40 @@ no user JWT.
 
 See the [runbook](../runbooks/kubernetes.md) and
 [verification record](../runbooks/kubernetes-verification.md).
+
+## Current-main deployment and developer portability
+
+The deployment includes Communication's optional Telegram linking API and
+Order's existing Kafka outbox workers and image storage. Credit has schema and
+contracts but no executable backend; creation/settlement remain unavailable.
+Browser RPC origins all use the TLS gateway. The reserved Credit route reports
+503 until its backend exists.
+
+Local object storage uses Floci 2.3.0 with S3 signature enforcement and a PVC.
+Its loopback listener is forwarded by Envoy. The gateway permits only object
+GET/HEAD/PUT/OPTIONS beneath `/order-images/`; bucket administration remains
+internal. Presigned URLs use the browser HTTPS origin with their original Host
+and path preserved. The existing Order initializer provisions the bucket in a
+completing local-only Job. Production must supply real S3 configuration and
+credentials through its environment-specific overlay.
+
+Kubernetes PostgreSQL and the provisioning Job use the multiarch
+`nickblah/postgis:18.6-trixie-postgis-3.6.4` image from
+[GUI/postgis-docker](https://github.com/GUI/postgis-docker), pinned to OCI index
+`sha256:48edec2374758f62a5336ee0279aeca0107c1c63536f0a0872bee2a7b3126237`.
+The upstream Dockerfile extends official PostgreSQL with packaged PostGIS.
+It preserves PostgreSQL 18.6, PostGIS 3.6.4, UID 999 and the existing data path,
+while adding native arm64 support. This dependency image is independent of
+Compose's image selection and persistence.
+
+Bun remains host tooling. A private root package locks TypeScript and Bun types;
+`make k8s-typecheck` enforces strict checks without emitting files. The compiler
+runs through Bun, so Node is needed only by the frontend runtime/build. Chart
+validation checks the three actual Chart.yaml files; a verified complete tool
+cache can be reused offline. TLS generation uses an OpenSSL configuration file
+for compatibility with macOS's system implementation.
+
+Envoy access logs use the
+[query-free path formatter](https://www.envoyproxy.io/docs/envoy/v1.36.0/configuration/observability/access_log/usage)
+`%PATH(NQ:PATH)%`. Login tokens and presigned S3 query credentials must not enter
+access logs. Requests keep their original path/query for signature validation.

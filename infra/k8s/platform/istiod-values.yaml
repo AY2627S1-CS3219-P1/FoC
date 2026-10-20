@@ -15,5 +15,8 @@ global:
 meshConfig:
   accessLogFile: /dev/stdout
   accessLogEncoding: JSON
+  # Presigned object URLs and login links contain credentials in their queries.
+  accessLogFormat: |
+    {"start_time":"%START_TIME%","method":"%REQ(:METHOD)%","path":"%PATH(NQ:PATH)%","protocol":"%PROTOCOL%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","duration":"%DURATION%","request_id":"%REQ(X-REQUEST-ID)%","upstream_cluster":"%UPSTREAM_CLUSTER%","upstream_host":"%UPSTREAM_HOST%","downstream_peer_uri_san":"%DOWNSTREAM_PEER_URI_SAN%"}
   defaultConfig:
     terminationDrainDuration: 5s

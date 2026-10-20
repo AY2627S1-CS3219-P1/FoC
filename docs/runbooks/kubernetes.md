@@ -10,8 +10,8 @@ business workflow. See [verification results](kubernetes-verification.md).
 Prerequisites: Docker, make, curl, unzip, OpenSSL, tar, and approximately 4
 available CPUs / 8 GiB RAM. Bun 1.4.3 is used and cached in `.tools/k8s` if not
 already installed globally; Node.js is not required. Tool and image downloads
-require internet access. The validated environment is Linux amd64; consult
-[landmines](../../LANDMINES/README.md) before using PostGIS on Apple Silicon.
+require internet access. The locally validated environment is Linux amd64. Kubernetes images include
+native arm64 variants; see the short setup guide for macOS prerequisites.
 
 ```sh
 # First deployment: choose the first administrator explicitly.
@@ -219,7 +219,7 @@ explicitly deletes only the managed local cluster and its PVC data. It retains
 credential files. Do not run it when you need the data.
 
 For older Compose volumes missing the Order database, use the existing
-[idempotent database initialization recovery](../../LANDMINES/compose-existing-databases.md);
+[idempotent database initialization recovery](../../LANDMINES/new-service-database.md);
 never use `docker compose down -v` as a workaround.
 
 ## Future deployments
@@ -227,7 +227,7 @@ never use `docker compose down -v` as a workaround.
 `infra/k8s/base` contains portable workloads/security; local and production
 overlays customize them. `overlays/production` is a template, not a
 production-ready environment. Supply a real hostname, registry/tag, gateway TLS
-Secret `foc-public-tls`, all application/database/UI Secrets, real SMTP, storage
+Secret `foc-public-tls` in namespace `istio-ingress`, all application/database/UI Secrets, real SMTP, storage
 capacity/class, backups, availability and resource settings. Do not generate
 local Mailpit credentials for production. Kafka and Kafka UI remain in the
 production template, private and meshed, with single-broker limitations explicit.
@@ -250,3 +250,60 @@ Restricted Pod Security must use an appropriately configured Istio CNI setup;
 the supplied, tested local profile uses Istio's standard initializer. Admission
 pins that initializer/proxy shape, so an Istio upgrade must update and retest
 the policy alongside the chart/version pin.
+
+## Current-main updates
+
+A full deployment now provisions and migrates Communication's own database,
+starts its optional Telegram API, and configures Order's Supplier discovery,
+Kafka outbox and local image storage. All deployed browser services use the
+same HTTPS origin, including `PUBLIC_ORDER_SERVICE_URL` and
+`PUBLIC_COMMUNICATION_SERVICE_URL`. Changing `K8S_HTTPS_PORT` requires a full
+`make k8s-up` so runtime origins and presigned URLs change together.
+
+Floci is local-only, uses native sidecars and a PVC, and enforces S3 signatures.
+`order-storage-init` completes before application rollout. Object paths under
+`/order-images/` are forwarded unchanged through HTTPS; bucket initialization
+and deletion stay private. `make k8s-storage-smoke` requires Go and checks real
+signed uploads/downloads, tampering/unsigned and bucket-root rejection, and cleanup. Its
+optional ports are `K8S_STORAGE_SMOKE_HTTPS_PORT` (19443) and
+`K8S_STORAGE_SMOKE_S3_PORT` (19466).
+
+The production overlay also requires Secret `communication-db` and Secret
+`telegram` (an empty `TELEGRAM_BOT_TOKEN` disables the bot). Configure real S3
+bucket/endpoints, AWS credentials and HTTPS object access in that overlay;
+the local emulator and its test credentials are not included there.
+
+For local Telegram configuration, first setup accepts
+`K8S_TELEGRAM_BOT_TOKEN`. Later deployments preserve the credential file;
+edit `.local/k8s/secrets/TELEGRAM_BOT_TOKEN` explicitly to rotate or clear it,
+then redeploy. This matches the other preserved local credentials.
+
+### Image sources
+
+| Component | Upstream source | Architectures |
+| -- | -- | -- |
+| PostgreSQL/PostGIS | [GUI/postgis-docker](https://github.com/GUI/postgis-docker), based on official PostgreSQL | amd64, arm64 |
+| Kafka / topic initialization | [Apache Kafka](https://hub.docker.com/r/apache/kafka) | amd64, arm64 |
+| Kafka UI | [Kafbat](https://github.com/kafbat/kafka-ui) | amd64, arm64 |
+| Mailpit | [Axllent](https://github.com/axllent/mailpit) | amd64, arm64 |
+| Local S3 | [Floci](https://github.com/floci-io/floci) | amd64, arm64 |
+| Istio control plane / proxies | [Istio](https://github.com/istio/istio) | amd64, arm64 |
+| Go runtime | [Google Distroless](https://github.com/GoogleContainerTools/distroless) | amd64, arm64 |
+| Frontend runtime | [Official Node image](https://github.com/nodejs/docker-node) | amd64, arm64 |
+
+Application runtime images contain no Bun/compiler. The frontend runs Node;
+Go services use their compiled binaries. Host tooling uses the independent root
+Bun lockfile and `make k8s-typecheck`. CI runs deployments on native amd64/arm64
+Linux runners and installer/operator checks on macOS. Actual execution results,
+including platform gaps, belong in the verification record.
+
+Access logs intentionally omit query strings using Envoy's query-free path
+formatter. This keeps presigned URL signatures and login-link tokens out of
+collected logs without changing requests. The mesh smoke checks this with an
+innocuous query canary.
+
+Manifest application retries transient API timeouts up to three times with the
+same desired resources. Permanent validation/authorization errors stop promptly.
+If retries are exhausted, inspect `make k8s-status` and wait for any running
+initialization Jobs before retrying. Running Jobs and persistent data are not
+deleted as a timeout recovery mechanism.
