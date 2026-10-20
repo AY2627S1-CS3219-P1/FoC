@@ -74,7 +74,7 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 		avg = float64(stats.SumRating) / float64(stats.ReviewCount)
 	}
 	if err := q.UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
-		Count:      int32(stats.ReviewCount),
+		Count:      stats.ReviewCount,
 		AvgRating:  avg,
 		RevieweeID: revieweeID,
 	}); err != nil {

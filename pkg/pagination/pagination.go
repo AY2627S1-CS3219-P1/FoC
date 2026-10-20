@@ -41,8 +41,8 @@ func New(page, pageSize int) (Pagination, error) {
 	if size > maxPageSize {
 		size = maxPageSize
 	}
-	// page comes from an int32 proto field, so the product fits in int64.
-	if int64(p-1)*int64(size) > offsetMaxInt32 {
+	// Check before multiplying: Go callers can pass pages larger than int32.
+	if p-1 > offsetMaxInt32/size {
 		return Pagination{}, ErrOffsetOverflow
 	}
 	return Pagination{page: p, pageSize: size}, nil

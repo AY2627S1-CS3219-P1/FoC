@@ -10,9 +10,8 @@ PRs affected: user-service review feature (R3 list endpoints)
    patterns. The shared value lives in the common pieces — defaults, bounds,
    offset math, total-page math, validation — while the *strategy* and *wire
    shape* belong at the endpoint.
-2. Supplier-service already uses offset pagination (`page`/`page_size` +
-   `PageInfo`) without a shared type. User-service's review list should follow
-   that shape but own its pagination as one shared, self-contained type.
+2. Review lists use offset pagination (`page`/`page_size` + `PageInfo`) with
+   shared types for normalization and response totals.
 3. `page` and `offset` are a bijection given `page_size`; `total_pages` is
    derivable from `total_items` and `page_size`. Carry one position field and
    the totals — nothing more on the wire.
@@ -54,11 +53,15 @@ controls). When an unbounded feed appears it should adopt the cursor pattern;
 the package is structured so a second pattern can be added without disturbing
 the offset one.
 
+Review lists and their totals are separate reads under `READ COMMITTED`.
+Concurrent submissions or removals can change the total between those reads;
+the response does not guarantee that rows and totals share one snapshot.
+
 ## Why
 
-1. One shared type removes the duplicated normalization/validation/offset math
-   that currently exists in each supplier subdomain, without dictating the
-   strategy, which depends on volume, growth and access pattern.
+1. One shared type provides reusable normalization/validation/offset math
+   without dictating the strategy, which depends on volume, growth and access
+   pattern.
 2. Encapsulating offset and validation in the model keeps endpoints free of
    pagination plumbing and makes the offset/overflow behaviour testable in one
    place.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,12 +224,45 @@ func TestListReviews(t *testing.T) {
 }
 
 func TestRemoveReview(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		reason string
+	}{
+		{"empty reason", ""},
+		{"spaces only", "   "},
+		{"Unicode whitespace only", "\t\n\u2003\u00a0"},
+		{"reason exceeds character limit", strings.Repeat("界", 100001)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			transactionStarted := false
+			svc := NewService(nil, func(_ context.Context, _ func(*reviewdb.Queries) error) error {
+				transactionStarted = true
+				return nil
+			})
+			err := svc.RemoveReview(context.Background(), uuid.New(), tc.reason, uuid.New())
+			assertExternal(t, err, http.StatusBadRequest)
+			if transactionStarted {
+				t.Fatal("invalid reason started a transaction")
+			}
+		})
+	}
+	t.Run("character limit accepts multibyte text", func(t *testing.T) {
+		fake := &fakeRepository{findReview: Review{ID: uuid.New()}}
+		svc := newTestService(fake)
+		reason := strings.Repeat("界", 100000)
+		if err := svc.RemoveReview(context.Background(), fake.findReview.ID, " "+reason+" ", uuid.New()); err != nil {
+			t.Fatal(err)
+		}
+		if fake.audited.Reason != reason {
+			t.Fatal("audit reason was not trimmed or preserved at the character limit")
+		}
+	})
 	t.Run("soft-deletes the review, audits it, and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order, id := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		createdBy := uuid.New()
 		fake := &fakeRepository{findReview: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order}}
 		svc := newTestService(fake)
-		if err := svc.RemoveReview(context.Background(), id, "abuse", createdBy); err != nil {
+		if err := svc.RemoveReview(context.Background(), id, " \tabuse\n ", createdBy); err != nil {
 			t.Fatalf("remove: %v", err)
 		}
 		if fake.softDeleted != id {

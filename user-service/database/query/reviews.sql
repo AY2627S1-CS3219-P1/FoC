@@ -84,7 +84,8 @@ SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
 WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
 
+-- Keep the input bigint so assigning to the integer column rejects overflow.
 -- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = @count, avg_rating = @avg_rating, updated_at = now()
+SET review_count = @count::bigint, avg_rating = @avg_rating, updated_at = now()
 WHERE id = @reviewee_id::UUID;

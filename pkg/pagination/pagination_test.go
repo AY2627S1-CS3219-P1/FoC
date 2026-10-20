@@ -2,6 +2,7 @@ package pagination
 
 import (
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -39,6 +40,7 @@ func TestNewRejectsOffsetBeyondDatabaseLimit(t *testing.T) {
 		{"page beyond the int4 offset range", 2_147_483_649, 1},
 		{"large page at the default size", 107_374_184, 20},
 		{"large page at the maximum size", 21_474_838, 100},
+		{"maximum Go int at the maximum size", math.MaxInt, 100},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := New(tc.page, tc.pageSize)

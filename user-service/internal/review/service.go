@@ -3,6 +3,8 @@ package review
 import (
 	"context"
 	"errors"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
@@ -99,6 +101,11 @@ func (s *Service) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, pag
 // RemoveReview soft-deletes the review, records the audit row and recomputes
 // the reviewee's stats atomically.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" || utf8.RuneCountInString(reason) > 100000 {
+		return errs.NewBadRequestError("removal reason must contain between 1 and 100000 characters")
+	}
+
 	removal, err := newRemoval(reason, createdBy)
 	if err != nil {
 		return err

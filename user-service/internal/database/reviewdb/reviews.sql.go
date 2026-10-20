@@ -367,16 +367,17 @@ func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
 
 const updateRevieweeStats = `-- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = $1, avg_rating = $2, updated_at = now()
+SET review_count = $1::bigint, avg_rating = $2, updated_at = now()
 WHERE id = $3::UUID
 `
 
 type UpdateRevieweeStatsParams struct {
-	Count      int32
+	Count      int64
 	AvgRating  float64
 	RevieweeID uuid.UUID
 }
 
+// Keep the input bigint so assigning to the integer column rejects overflow.
 func (q *Queries) UpdateRevieweeStats(ctx context.Context, arg UpdateRevieweeStatsParams) error {
 	_, err := q.db.ExecContext(ctx, updateRevieweeStats, arg.Count, arg.AvgRating, arg.RevieweeID)
 	return err

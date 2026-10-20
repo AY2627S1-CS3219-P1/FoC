@@ -4,14 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // buildReviewService wires the review repository against a real database. Reads
@@ -163,6 +166,153 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		if err := service.RemoveReview(ctx, firstReview, "abuse", admin); !errors.Is(err, errReviewNotFound) {
 			t.Fatalf("re-removing a removed review should be not found, got %v", err)
+		}
+	})
+
+	t.Run("average preserves fractional ratings", func(t *testing.T) {
+		reviewee := uuid.New()
+		insertUser(t, ctx, sqlDB, reviewee)
+		for _, rating := range []int{1, 2, 2} {
+			reviewer := uuid.New()
+			insertUser(t, ctx, sqlDB, reviewer)
+			if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: rating, Comment: "fractional average"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 3 || math.Abs(avg-5.0/3.0) > 1e-12 {
+			t.Fatalf("count=%d avg=%v, want 3 and 5/3", count, avg)
+		}
+	})
+
+	t.Run("statistics include reviews committed during a lock wait", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		reviewerA, reviewerB, reviewee := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewerA, reviewerB, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+
+		txA, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = txA.Rollback() }()
+		qA := reviewdb.New(txA)
+		if err := repo.InsertReview(ctx, qA, ReviewInput{
+			ID:         uuid.New(),
+			ReviewerID: reviewerA,
+			RevieweeID: reviewee,
+			OrderID:    uuid.New(),
+			Rating:     4,
+			Comment:    "first",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.RecalculateStats(ctx, qA, reviewee); err != nil {
+			t.Fatal(err)
+		}
+
+		txB, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			cancel()
+			_ = txB.Rollback()
+		}()
+		qB := reviewdb.New(txB)
+		if err := repo.InsertReview(ctx, qB, ReviewInput{
+			ID:         uuid.New(),
+			ReviewerID: reviewerB,
+			RevieweeID: reviewee,
+			OrderID:    uuid.New(),
+			Rating:     2,
+			Comment:    "second",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var pidA, pidB int
+		if err := txA.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pidA); err != nil {
+			t.Fatal(err)
+		}
+		if err := txB.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pidB); err != nil {
+			t.Fatal(err)
+		}
+
+		// Start B before A commits and observe the actual lock wait, ensuring
+		// B's first statement starts with a snapshot that excludes A's review.
+		recalculated := make(chan error, 1)
+		go func() { recalculated <- repo.RecalculateStats(ctx, qB, reviewee) }()
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			var blocked bool
+			if err := sqlDB.QueryRowContext(ctx,
+				"SELECT $1::integer = ANY(pg_blocking_pids($2::integer))", pidA, pidB).Scan(&blocked); err != nil {
+				t.Fatal(err)
+			}
+			if blocked {
+				break
+			}
+			select {
+			case err := <-recalculated:
+				t.Fatalf("recalculation finished without waiting for A: %v", err)
+			case <-ctx.Done():
+				t.Fatalf("recalculation did not wait for A: %v", ctx.Err())
+			case <-ticker.C:
+			}
+		}
+		if err := txA.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-recalculated:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if err := txB.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 2 || avg != 3 {
+			t.Fatalf("count=%d avg=%v, want 2 and 3", count, avg)
+		}
+	})
+
+	t.Run("review count overflow is rejected without wrapping", func(t *testing.T) {
+		reviewee := uuid.New()
+		insertUser(t, ctx, sqlDB, reviewee)
+		q := reviewdb.New(sqlDB)
+		if err := q.UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
+			RevieweeID: reviewee,
+			Count:      math.MaxInt32,
+			AvgRating:  1,
+		}); err != nil {
+			t.Fatalf("maximum count should fit: %v", err)
+		}
+
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		err = reviewdb.New(tx).UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
+			RevieweeID: reviewee,
+			Count:      int64(math.MaxInt32) + 1,
+			AvgRating:  2,
+		})
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "22003" {
+			t.Fatalf("want numeric value out of range, got %v", err)
+		}
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != math.MaxInt32 || avg != 1 {
+			t.Fatalf("failed update changed statistics: count=%d avg=%v", count, avg)
 		}
 	})
 
