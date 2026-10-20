@@ -68,61 +68,70 @@
 </script>
 
 <section aria-label="Delivery proof" class="proof-panel">
-	<Card variant="outlined">
+	<Card variant="outlined" style="padding: 0;">
 		<div class="proof-body">
-			<h2>Confirm delivery</h2>
-			<p>Select 1–5 proof photos. Each photo must be JPEG, PNG, WebP, HEIC or HEIF and at most 10,000,000 bytes.</p>
-			<p>Upload and check photos before submitting confirmation. Only the server-received confirmation reserves the original deadline, not photo selection or upload alone.</p>
+			<header>
+				<h2>Confirm delivery</h2>
+				<p>Upload and check your photos, then confirm delivery.</p>
+			</header>
+			<p class="deadline-note">Only the server-received confirmation reserves the original deadline, not photo selection or upload alone.</p>
 			{#if pending && view.locked}
 				<p>Saved submission: {pending.proofIds.length} previously uploaded photo(s). {pending.withoutProof ? 'An upload-outage exception was requested.' : ''}</p>
 			{/if}
-			<label for="delivery-proof-files">Proof photos</label>
-			<input
-				bind:this={fileInput}
-				id="delivery-proof-files"
-				type="file"
-				accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-				multiple
-				disabled={view.locked}
-				onchange={(event) => {
-					controller?.addFiles(Array.from(event.currentTarget.files ?? []));
-					event.currentTarget.value = '';
-				}}
-			/>
-			<ul aria-label="Selected proof photos">
-				{#each view.files as row (row.id)}
-					<li>
-						<strong>{row.file.name}</strong>
-						<span>{row.outcome}</span>
-						{#if row.message}<p>{row.message}</p>{/if}
-						<Button type="button" variant="text" disabled={view.locked} onclick={async () => {
-							await controller?.removeFile(row.id);
-							fileInput?.focus();
-						}}>Remove {row.file.name}</Button>
-					</li>
-				{/each}
-			</ul>
-			<Button type="button" variant="outlined" disabled={view.locked || view.files.length === 0} onclick={() => controller?.upload()}>
-				Upload or retry photos
-			</Button>
+			<div class="photo-selection">
+				<div class="selection-heading"><h3>Proof photos</h3><span>{pending && view.locked ? `${pending.proofIds.length} saved` : `${view.files.length} / 5 selected`}</span></div>
+				<p id="proof-file-help" class="file-help">Select 1–5 photos. JPEG, PNG, WebP, HEIC or HEIF. Up to 10 MB (10,000,000 bytes) each.</p>
+				<div class="file-picker">
+					<input
+						bind:this={fileInput}
+						id="delivery-proof-files"
+						aria-describedby="proof-file-help"
+						class="file-input"
+						type="file"
+						accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+						multiple
+						disabled={view.locked}
+						onchange={(event) => {
+							controller?.addFiles(Array.from(event.currentTarget.files ?? []));
+							event.currentTarget.value = '';
+						}}
+					/>
+					<label for="delivery-proof-files" class="choose-photos" class:disabled={view.locked}>Choose photos</label>
+				</div>
+				<ul aria-label="Selected proof photos">
+					{#each view.files as row (row.id)}
+						<li>
+							<div class="file-summary"><strong>{row.file.name}</strong><span class="file-outcome">{row.outcome}</span></div>
+							<div class="remove-action"><Button type="button" variant="text" aria-label={`Remove ${row.file.name}`} disabled={view.locked} onclick={async () => {
+								await controller?.removeFile(row.id);
+								fileInput?.focus();
+							}}>Remove</Button></div>
+							{#if row.message}<p class="file-message">{row.message}</p>{/if}
+						</li>
+					{/each}
+				</ul>
+				<Button type="button" variant="outlined" disabled={view.locked || view.files.length === 0} onclick={() => controller?.upload()}>
+					Upload or retry photos
+				</Button>
+			</div>
 			<form use:enhance>
 				<label class="unattended">
 					<input type="checkbox" name="unattended" bind:checked={$form.unattended} disabled={view.locked} />
 					The requester was unreachable. I left the item without a handover.
 				</label>
-				<Button type="submit" disabled={view.busy || view.outcome === 'Succeeded'}>
+				<div class="confirm-action"><Button type="submit" disabled={view.busy || view.outcome === 'Succeeded'}>
 					{view.locked && !view.busy ? 'Retry saved confirmation' : 'Confirm delivery'}
-				</Button>
+				</Button></div>
 			</form>
 			<details>
 				<summary>Photo uploads unavailable?</summary>
-				<p>The server must confirm a storage outage. A failed upload or lost connection alone does not permit delivery without proof. This does not extend the delivery deadline.</p>
+				<p>The server must confirm a storage outage. A failed upload or lost connection alone does not permit delivery without proof. This does not extend the delivery deadline. Requesting the exception also submits delivery confirmation without photos.</p>
 				<Button type="button" variant="text" disabled={view.locked} onclick={confirmOutage}>
-					Request outage exception and confirm without photos
+					Request outage exception
 				</Button>
 			</details>
 			<p bind:this={statusElement} tabindex="-1" role="status" aria-live="polite" class="status">
-				{view.outcome}: {view.message}
+				<strong>{view.outcome}</strong>{#if view.message}<span>{view.message}</span>{/if}
 			</p>
 			{#if refreshError}<p role="alert">{refreshError}</p>{/if}
 		</div>
@@ -131,15 +140,43 @@
 
 <style>
 	.proof-panel { min-width: 0; max-width: 100%; }
-	.proof-body { display: grid; gap: 1rem; padding: 1rem; min-width: 0; overflow-wrap: anywhere; }
-	.proof-body h2, .proof-body p { margin: 0; }
-	.proof-body input[type='file'] { width: 100%; min-width: 0; max-width: 100%; }
-	.proof-body ul { margin: 0; padding-inline-start: 1.25rem; }
-	.proof-body li { margin-bottom: 1rem; display: grid; gap: .5rem; }
-	.proof-body form { display: grid; gap: 1rem; min-width: 0; }
-	.unattended { display: flex; align-items: flex-start; gap: .5rem; }
-	.proof-body :global(button) { max-width: 100%; height: auto; min-height: 2.75rem; white-space: normal; }
-	.proof-body :global(:focus-visible), .status:focus { outline: 3px solid var(--m3-scheme-primary, #1a5b9b); outline-offset: 3px; }
-	.proof-body details { min-width: 0; }
-	.proof-body details p { margin-block: .75rem; }
+	.proof-body { display: grid; gap: 1.25rem; padding: 1.25rem; min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+	.proof-body h2, .proof-body h3, .proof-body p { margin: 0; }
+	.proof-body h2 { font-size: 1.35rem; line-height: 1.3; }
+	.proof-body h3 { font-size: 1rem; }
+	header { display: grid; gap: .4rem; }
+	header p, .file-help { color: var(--m3c-on-surface-variant); }
+	.deadline-note { border-inline-start: 3px solid var(--m3c-primary); padding-inline-start: .75rem; font-size: .9rem; }
+	.photo-selection { display: grid; gap: .75rem; min-width: 0; }
+	.selection-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .25rem .75rem; }
+	.selection-heading span, .file-help, .file-outcome { font-size: .875rem; }
+	.file-picker { position: relative; justify-self: start; }
+	.file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+	.choose-photos { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .5rem 1rem; border: 1px solid var(--m3c-outline); border-radius: 2rem; color: var(--m3c-primary); cursor: pointer; font-weight: 600; }
+	.choose-photos.disabled { opacity: .5; cursor: default; }
+	.file-input:focus-visible + .choose-photos { outline: 3px solid var(--m3c-primary); outline-offset: 3px; }
+	.proof-body ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+	.proof-body li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .25rem .5rem; padding: .75rem; border: 1px solid var(--m3c-outline-variant); border-radius: .75rem; }
+	.file-summary { display: grid; gap: .2rem; }
+	.file-outcome { color: var(--m3c-on-surface-variant); }
+	.file-message { grid-column: 1 / -1; font-size: .875rem; }
+	.proof-body form { display: grid; gap: 1rem; min-width: 0; border-top: 1px solid var(--m3c-outline-variant); padding-top: 1rem; }
+	.unattended { display: flex; align-items: flex-start; gap: .65rem; cursor: pointer; }
+	.unattended input { flex-shrink: 0; width: 1.125rem; height: 1.125rem; margin: .2rem 0 0; }
+	.photo-selection > :global(button), .confirm-action { justify-self: start; }
+	.proof-body :global(button) { max-width: 100%; height: auto; min-height: 2.75rem; white-space: normal; padding-block: .65rem; line-height: 1.4; }
+	.proof-body :global(:focus-visible), .status:focus { outline: 3px solid var(--m3c-primary, #1a5b9b); outline-offset: 3px; }
+	.proof-body details { min-width: 0; font-size: .9rem; }
+	.proof-body summary { cursor: pointer; padding-block: .5rem; }
+	.proof-body details p { margin-block: .5rem; }
+	.status { display: grid; gap: .25rem; padding: .75rem; border-radius: .5rem; background: var(--m3c-surface-container); font-size: .9rem; }
+	@media (max-width: 36rem) {
+		.proof-body { padding: 1rem; gap: 1rem; }
+		.proof-body li { padding: .5rem; align-items: center; }
+		.file-summary { display: contents; }
+		.file-summary strong { grid-column: 1 / -1; }
+		.file-outcome { grid-column: 1; grid-row: 2; }
+		.remove-action { grid-column: 2; grid-row: 2; }
+		.confirm-action, .confirm-action :global(button) { width: 100%; }
+	}
 </style>
