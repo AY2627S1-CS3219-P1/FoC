@@ -18,11 +18,13 @@ import (
 )
 
 func newRPCServices(pool *pgxpool.Pool, creator *order.Creator, images *order.ItemImages, assignments orderrpc.AssignmentOperations, cancellations orderrpc.CancellationOperations) router.RPCServices {
-	service := order.NewService(order.NewPostgresRepository(pool))
+	repository := order.NewPostgresRepository(pool)
+	service := order.NewService(repository)
+	progress := order.NewProgress(order.NewMutator(repository))
 
 	return router.RPCServices{
 		Health: &healthrpc.Server{DB: pool},
-		Order:  orderrpc.NewServerWithCancellation(service, creator, images, assignments, cancellations),
+		Order:  orderrpc.NewServerWithCancellation(service, creator, images, assignments, cancellations, progress),
 		Admin:  adminrpc.NewServer(service, images),
 	}
 }

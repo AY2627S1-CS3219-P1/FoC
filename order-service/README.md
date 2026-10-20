@@ -2,6 +2,9 @@
 
 Order implements authenticated reads, `CreateOrder`, `CreateItemImageUpload`,
 durable creation recovery and Kafka outbox publication on foundation #135.
+Assigned couriers can confirm pickup; requesters can confirm receipt. Both actions
+use local transactions and receipt emits the settlement outcome. Repeats by the
+same participant return the stored Order without another write.
 Reservation uses Credit RPCs; terminal settlement is driven by `order.outcome`.
 See the [design ADR](../docs/adr/order-credit-pubsub.md) and
 [Credit conformance](../docs/testing/order-credit-pubsub.md). Later lifecycle RPCs,
