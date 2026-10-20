@@ -16,6 +16,7 @@
 	let uploads = $state<Upload[]>([]);
 	let submission = $state<SubmittedCreation | null>(null);
 	let recoveryError = $state('');
+	let previousSubmissionReviewed = $state(false);
 	let feedback = $state('Not submitted.');
 	let outcome = $state<'not-submitted' | 'pending' | 'succeeded' | 'rejected' | 'failed'>('not-submitted');
 	let busy = $state(false);
@@ -109,6 +110,21 @@
 		} finally { busy = false; }
 	}
 
+	function startAfterReview() {
+		const caller = authService.user?.id;
+		if (!caller || busy || !previousSubmissionReviewed || !recoveryError) return;
+		try {
+			removeSubmission(sessionStorage, caller);
+			submission = null;
+			recoveryError = '';
+			previousSubmissionReviewed = false;
+			outcome = 'not-submitted';
+			feedback = 'Not submitted. You can start another order after reviewing the previous result.';
+		} catch {
+			recoveryError = 'Could not clear the previous submission. Keep checking My Orders before submitting again.';
+		}
+	}
+
 	async function upload(image: Upload) {
 		if (submission || busy) return;
 		image.state = 'uploading';
@@ -144,6 +160,7 @@
 
 	$effect(() => {
 		const caller = authService.user?.id;
+		previousSubmissionReviewed = false;
 		if (!initialized) return;
 		void loadBalance();
 		if (!caller) return;
@@ -168,7 +185,11 @@
 	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to create an order.</p>
 	{:else if suspended}<p class="notice">Your account is suspended. Creation is unavailable. You can still read <a href="/orders/mine">My Orders</a>.</p>
 	{:else}
-		{#if recoveryError}<p class="notice error" role="alert">{recoveryError} <a href="/orders/mine">Check My Orders</a>.</p>{/if}
+		{#if recoveryError}
+			<p class="notice error" role="alert">{recoveryError} <a href="/orders/mine" target="_blank" rel="noopener">Check My Orders</a>.</p>
+			<label><input type="checkbox" bind:checked={previousSubmissionReviewed} /> I checked My Orders and confirmed the previous request is resolved.</label>
+			<Button variant="text" disabled={busy || !previousSubmissionReviewed} onclick={startAfterReview}>Start another order</Button>
+		{/if}
 		<p class:failure={outcome === 'failed' || outcome === 'rejected'} class="notice" role="status" aria-live="polite">{feedback}</p>
 		{#if submission}
 			<Card variant="outlined"><div class="panel-body">
