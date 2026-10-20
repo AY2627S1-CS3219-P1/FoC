@@ -20,8 +20,8 @@ type Repository interface {
 	// retained so the removal audit can keep referencing it.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error
 	InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
-	// RecalculateStats locks the reviewee row, then calculates and updates the
-	// user's stats in a separate statement, all within q's transaction.
+	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
+	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
 
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)

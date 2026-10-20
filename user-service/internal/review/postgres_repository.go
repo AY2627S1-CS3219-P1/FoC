@@ -59,13 +59,25 @@ func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewd
 	}))
 }
 
-// Lock separately so the calculation and update use a fresh snapshot after any
-// lock wait; see LANDMINES/locked-row-relationship-snapshots.md.
+// The lock-then-read-then-write order matters; see the LockReviewee query for
+// why, and LANDMINES/locked-row-relationship-snapshots.md.
 func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error {
 	if err := q.LockReviewee(ctx, revieweeID); err != nil {
 		return fmt.Errorf("lock reviewee: %w", err)
 	}
-	if err := q.UpdateRevieweeStats(ctx, revieweeID); err != nil {
+	stats, err := q.RevieweeStatistics(ctx, revieweeID)
+	if err != nil {
+		return fmt.Errorf("read review statistics: %w", err)
+	}
+	avg := 0.0
+	if stats.ReviewCount > 0 {
+		avg = float64(stats.SumRating) / float64(stats.ReviewCount)
+	}
+	if err := q.UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
+		Count:      int32(stats.ReviewCount),
+		AvgRating:  avg,
+		RevieweeID: revieweeID,
+	}); err != nil {
 		return fmt.Errorf("update review statistics: %w", err)
 	}
 	return nil

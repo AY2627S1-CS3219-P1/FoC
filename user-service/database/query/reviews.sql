@@ -70,7 +70,7 @@ LIMIT @page_limit OFFSET @page_offset;
 SELECT COUNT(*)
 FROM review_removals;
 
--- Lock the reviewee row first, then calculate and update in a separate statement,
+-- Lock the reviewee row first, then read the aggregate in a separate statement,
 -- so a concurrent submit/remove about the same reviewee converges on the count
 -- and mean. A locking query must not also read the aggregate (see LANDMINES).
 -- FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
@@ -79,15 +79,12 @@ FROM review_removals;
 -- name: LockReviewee :exec
 SELECT id FROM users WHERE id = @reviewee_id::UUID FOR NO KEY UPDATE;
 
--- Run after LockReviewee so the aggregate's snapshot includes transactions
--- committed while waiting for the lock. Keep the lock and aggregate separate.
+-- name: RevieweeStatistics :one
+SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
+FROM reviews
+WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
+
 -- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = stats.review_count, avg_rating = stats.avg_rating, updated_at = now()
-FROM (
-    SELECT COUNT(*)::integer AS review_count,
-           COALESCE(SUM(rating)::double precision / NULLIF(COUNT(*), 0), 0::double precision) AS avg_rating
-    FROM reviews
-    WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL
-) AS stats
-WHERE users.id = @reviewee_id::UUID;
+SET review_count = @count, avg_rating = @avg_rating, updated_at = now()
+WHERE id = @reviewee_id::UUID;

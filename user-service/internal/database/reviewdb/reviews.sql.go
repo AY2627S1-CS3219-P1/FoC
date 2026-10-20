@@ -324,7 +324,7 @@ const lockReviewee = `-- name: LockReviewee :exec
 SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 `
 
-// Lock the reviewee row first, then calculate and update in a separate statement,
+// Lock the reviewee row first, then read the aggregate in a separate statement,
 // so a concurrent submit/remove about the same reviewee converges on the count
 // and mean. A locking query must not also read the aggregate (see LANDMINES).
 // FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
@@ -333,6 +333,24 @@ SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
 	return err
+}
+
+const revieweeStatistics = `-- name: RevieweeStatistics :one
+SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
+FROM reviews
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
+`
+
+type RevieweeStatisticsRow struct {
+	ReviewCount int64
+	SumRating   int64
+}
+
+func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) (RevieweeStatisticsRow, error) {
+	row := q.db.QueryRowContext(ctx, revieweeStatistics, revieweeID)
+	var i RevieweeStatisticsRow
+	err := row.Scan(&i.ReviewCount, &i.SumRating)
+	return i, err
 }
 
 const softDeleteReview = `-- name: SoftDeleteReview :exec
@@ -349,20 +367,18 @@ func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
 
 const updateRevieweeStats = `-- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = stats.review_count, avg_rating = stats.avg_rating, updated_at = now()
-FROM (
-    SELECT COUNT(*)::integer AS review_count,
-           COALESCE(SUM(rating)::double precision / NULLIF(COUNT(*), 0), 0::double precision) AS avg_rating
-    FROM reviews
-    WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
-) AS stats
-WHERE users.id = $1::UUID
+SET review_count = $1, avg_rating = $2, updated_at = now()
+WHERE id = $3::UUID
 `
 
-// Run after LockReviewee so the aggregate's snapshot includes transactions
-// committed while waiting for the lock. Keep the lock and aggregate separate.
-func (q *Queries) UpdateRevieweeStats(ctx context.Context, revieweeID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, updateRevieweeStats, revieweeID)
+type UpdateRevieweeStatsParams struct {
+	Count      int32
+	AvgRating  float64
+	RevieweeID uuid.UUID
+}
+
+func (q *Queries) UpdateRevieweeStats(ctx context.Context, arg UpdateRevieweeStatsParams) error {
+	_, err := q.db.ExecContext(ctx, updateRevieweeStats, arg.Count, arg.AvgRating, arg.RevieweeID)
 	return err
 }
 
