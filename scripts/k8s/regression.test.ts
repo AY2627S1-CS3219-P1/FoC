@@ -51,6 +51,7 @@ test.each(["ready", "starting"] as const)("Ctrl+C closes gateway children while 
 		await writeFile(kubectl, `#!${process.execPath}
 const args = process.argv.slice(2);
 if (args.includes("get-contexts")) console.log("kind-foc");
+if (args.includes("configmap")) console.log(JSON.stringify({data:Object.fromEntries(["ORIGIN","FRONTEND_BASE_URL","PUBLIC_USER_SERVICE_URL","PUBLIC_SUPPLIER_SERVICE_URL","PUBLIC_ORDER_SERVICE_URL","PUBLIC_COMMUNICATION_SERVICE_URL","PUBLIC_CREDIT_SERVICE_URL","ORDER_S3_PUBLIC_ENDPOINT"].map(key=>[key,"https://localhost:${port}"]))}));
 if (args.includes("port-forward")) {
  await Bun.write(${JSON.stringify(join(directory, "child.pid"))},String(process.pid));
  if (process.env.K8S_TEST_STARTING === "1") { console.log("forward waiting"); await Bun.sleep(30000); }
@@ -61,7 +62,7 @@ if (args.includes("port-forward")) {
 `);
 		await chmod(kubectl, 0o755);
 		child = Bun.spawn([process.execPath, "run", join(K8S_ROOT, "scripts/k8s/k8s.ts"), "access"], {
-			env: { ...process.env, K8S_CONTEXT: "", K8S_CLUSTER: "foc", K8S_TEST_STARTING: phase === "starting" ? "1" : "", K8S_TOOLS_DIR: directory, K8S_HTTPS_PORT: String(port), K8S_KAFKA_UI_PORT: "", K8S_MAILPIT_PORT: "" },
+			env: { ...process.env, K8S_CONTEXT: "", K8S_CLUSTER: "foc", K8S_OVERLAY: "infra/k8s/overlays/local", K8S_TEST_STARTING: phase === "starting" ? "1" : "", K8S_TOOLS_DIR: directory, K8S_HTTPS_PORT: String(port), K8S_KAFKA_UI_PORT: "", K8S_MAILPIT_PORT: "" },
 			stdout: "pipe", stderr: "pipe",
 		});
 		const stderr = phase === "starting" ? child.stdout : child.stderr;
@@ -90,16 +91,46 @@ if (args.includes("port-forward")) {
 	}
 }, 10_000);
 
-test("Bun loads root-style .env settings and exported values take precedence", async () => {
+test.each(["ORIGIN", "PUBLIC_ORDER_SERVICE_URL", "ORDER_S3_PUBLIC_ENDPOINT"])("gateway access rejects mismatched %s before forwarding", async (key) => {
+	const directory = await mkdtemp(join(tmpdir(), "foc-origin-"));
+	try {
+		const kubectl = join(directory, "kubectl");
+		await writeFile(kubectl, `#!${process.execPath}
+const args = process.argv.slice(2);
+if (args.includes("get-contexts")) console.log("kind-foc");
+if (args.includes("configmap")) {
+ const data=Object.fromEntries(["ORIGIN","FRONTEND_BASE_URL","PUBLIC_USER_SERVICE_URL","PUBLIC_SUPPLIER_SERVICE_URL","PUBLIC_ORDER_SERVICE_URL","PUBLIC_COMMUNICATION_SERVICE_URL","PUBLIC_CREDIT_SERVICE_URL","ORDER_S3_PUBLIC_ENDPOINT"].map(key=>[key,"https://localhost:19443"]));
+ data[${JSON.stringify(key)}]="https://localhost:5173";
+ console.log(JSON.stringify({data}));
+}
+if (args.includes("port-forward")) { console.error("unexpected forward started"); process.exit(7); }
+`);
+		await chmod(kubectl, 0o755);
+		const child = Bun.spawn([process.execPath, "run", join(K8S_ROOT, "scripts/k8s/k8s.ts"), "access"], {
+			env: { ...process.env, K8S_CONTEXT: "", K8S_CLUSTER: "foc", K8S_OVERLAY: "infra/k8s/overlays/local", K8S_TOOLS_DIR: directory, K8S_HTTPS_PORT: "19443", K8S_KAFKA_UI_PORT: "", K8S_MAILPIT_PORT: "" },
+			stdout: "pipe", stderr: "pipe",
+		});
+		const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+		expect(code).toBe(1);
+		expect(stderr).toContain("deployed browser origins");
+		expect(stderr).toContain("make k8s-up");
+		expect(stdout + stderr).not.toContain("unexpected forward started");
+	} finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test.each([undefined, "19543"])("Bun loads .env gateway settings with exported override %s", async (override) => {
 	const directory = await mkdtemp(join(tmpdir(), "foc-env-"));
 	try {
 		await writeFile(join(directory, ".env"), "K8S_HTTPS_PORT=19443\nK8S_MAILPIT_PORT=19025\n");
-		const env: Record<string, string | undefined> = { ...process.env, K8S_HTTPS_PORT: "19543" };
+		const env: Record<string, string | undefined> = { ...process.env };
+		if (override) env.K8S_HTTPS_PORT = override;
+		else delete env.K8S_HTTPS_PORT;
 		delete env.K8S_MAILPIT_PORT;
 		const child = Bun.spawn([process.execPath, "-e", `const {configuredForwards,localOrigin} = await import(${JSON.stringify(join(K8S_ROOT, "scripts/k8s/common.ts"))}); console.log(JSON.stringify({origin:localOrigin(),ports:configuredForwards().map(f=>f.localPort)}));`], { cwd: directory, env, stdout: "pipe", stderr: "pipe" });
 		const output = JSON.parse(await new Response(child.stdout).text());
 		expect(await child.exited).toBe(0);
-		expect(output.origin).toBe("https://localhost:19543");
+		expect(output.origin).toBe("https://localhost:" + (override ?? "19443"));
+		expect(output.ports).toContain(Number(override ?? "19443"));
 		expect(output.ports).toContain(19025);
 	} finally { await rm(directory, { recursive: true, force: true }); }
 });

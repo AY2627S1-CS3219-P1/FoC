@@ -301,12 +301,25 @@ async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
 	}
 }
 
+async function checkGatewayOrigin(forwards: ForwardSpec[]): Promise<void> {
+	if (K8S_EXISTING || !isLocalOverlay()) return;
+	const gateway = forwards.find(forward => forward.name === "HTTPS gateway");
+	if (!gateway) return;
+	const expected = "https://localhost:" + gateway.localPort;
+	const config = JSON.parse((await k(["-n", "foc", "get", "configmap", "foc-config", "-o", "json"], { capture: true })).stdout);
+	const keys = ["ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "ORDER_S3_PUBLIC_ENDPOINT"];
+	if (keys.some(key => config.data?.[key] !== expected)) {
+		die("Gateway forward " + expected + " does not match deployed browser origins. Rerun K8S_HTTPS_PORT=" + gateway.localPort + " make k8s-up (or a full make k8s-deploy) to update application origins before forwarding.");
+	}
+}
+
 async function superviseForwards(forwards: ForwardSpec[]): Promise<void> {
 	if (forwards.length === 0) {
 		note("No Kubernetes port-forwards configured; deployment is ready.");
 		return;
 	}
 	await checkContext();
+	await checkGatewayOrigin(forwards);
 	await preflightForwards(forwards);
 	const children: Bun.Subprocess[] = [];
 	let signal: NodeJS.Signals | undefined;

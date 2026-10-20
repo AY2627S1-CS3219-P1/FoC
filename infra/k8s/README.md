@@ -47,7 +47,8 @@ When at least one forward is enabled, `make k8s-up` stays in the terminal while
 the forwards run. Press Ctrl+C to stop the forwards; the Kubernetes cluster and
 its data keep running. If every value is blank, deployment completes and the
 command returns to the prompt. Running `make k8s-up` again attaches configured
-forwards to the existing cluster. Do not run Compose and Kubernetes together.
+forwards to the existing cluster. Use distinct host ports to run Compose and
+Kubernetes together.
 
 To remove the local cluster and its PostgreSQL/Kafka data, explicitly run:
 
@@ -69,7 +70,10 @@ make k8s-kafka-ui                       # attach only the Kafka UI forward
 make k8s-mailpit                        # attach only the Mailpit forward
 ```
 
-`make k8s-access` similarly attaches only the HTTPS gateway forward. These
+`make k8s-access` similarly attaches only the HTTPS gateway forward. For the
+managed local cluster it rejects ports that differ from deployed browser origins;
+after changing `K8S_HTTPS_PORT`, run a full `make k8s-up` or `make k8s-deploy`
+to update application configuration first. These
 access commands stay attached until Ctrl+C. `make k8s-test` runs the local
 operator-script tests without creating a cluster.
 

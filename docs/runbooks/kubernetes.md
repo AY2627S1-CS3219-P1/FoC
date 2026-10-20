@@ -23,8 +23,8 @@ K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-smoke
 
 Copy `.env.example` to `.env` first. `K8S_HTTPS_PORT`, `K8S_KAFKA_UI_PORT`, and
 `K8S_MAILPIT_PORT` configure local forwards; blank disables one. Defaults match
-Compose's browser/Mailpit ports and Kafka UI's local port. Do not run Compose
-and Kubernetes simultaneously. The developer-facing
+Compose's browser/Mailpit ports and Kafka UI's local port. Choose distinct host
+ports to run Compose and Kubernetes simultaneously. The developer-facing
 [Kubernetes setup](../../infra/k8s/README.md) has the short version.
 
 `k8s-up` installs checksum-verified tools into `.tools/k8s`, creates/reuses
@@ -258,7 +258,9 @@ starts its optional Telegram API, and configures Order's Supplier discovery,
 Kafka outbox and local image storage. All deployed browser services use the
 same HTTPS origin, including `PUBLIC_ORDER_SERVICE_URL` and
 `PUBLIC_COMMUNICATION_SERVICE_URL`. Changing `K8S_HTTPS_PORT` requires a full
-`make k8s-up` so runtime origins and presigned URLs change together.
+`make k8s-up` or full `make k8s-deploy` so runtime origins and presigned URLs
+change together. `make k8s-access` rejects mismatched origins in the managed
+local cluster before opening a forward.
 
 Floci is local-only, uses native sidecars and a PVC, and enforces S3 signatures.
 `order-storage-init` completes before application rollout. Object paths under
