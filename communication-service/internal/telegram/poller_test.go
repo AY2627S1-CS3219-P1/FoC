@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func (f *fakeSource) seenOffsets() []int64 {
 
 func quietLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-func TestPollerAcknowledgesUpdatesEvenWhenHandlingFails(t *testing.T) {
+func TestPollerRetriesFailedUpdateBeforeAcknowledgingBatch(t *testing.T) {
 	source := &fakeSource{results: []func() ([]Update, error){
 		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
 		func() ([]Update, error) { return nil, errors.New("temporary network error") },
@@ -61,17 +62,21 @@ func TestPollerAcknowledgesUpdatesEvenWhenHandlingFails(t *testing.T) {
 			if u.UpdateID == 12 {
 				cancel()
 			}
-			return errors.New("handler failed")
+			if len(handled) == 1 {
+				return errors.New("handler failed")
+			}
+			return nil
 		},
 	}
 
 	if err := poller.Run(ctx); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if len(handled) != 3 {
+	if !reflect.DeepEqual(handled, []int64{10, 10, 11, 12}) {
 		t.Fatalf("handled = %v", handled)
 	}
-	// Failed handlers still advance the offset; a failed poll retries it.
+	// Retry failed handling before processing later updates or acknowledging
+	// the batch. Failed polls retain the last successful offset.
 	want := []int64{0, 12, 12, 13}
 	got := source.seenOffsets()
 	for i, w := range want {
@@ -123,5 +128,46 @@ func TestPollerDefaultsToLongPolling(t *testing.T) {
 	defer source.mu.Unlock()
 	if len(source.timeouts) == 0 || source.timeouts[0] != DefaultPollTimeout {
 		t.Fatalf("timeouts = %v, want %v", source.timeouts, DefaultPollTimeout)
+	}
+}
+
+func TestPollerCancelsDuringFailedUpdateBackoff(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
+	}}
+	var handled []int64
+	poller := &Poller{
+		Source:  source,
+		Log:     quietLog(),
+		Backoff: time.Hour,
+		Handle: func(_ context.Context, update Update) error {
+			handled = append(handled, update.UpdateID)
+			cancel()
+			return errors.New("database unavailable")
+		},
+	}
+	if err := poller.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(handled, []int64{10}) || !reflect.DeepEqual(source.seenOffsets(), []int64{0}) {
+		t.Fatalf("handled=%v offsets=%v", handled, source.seenOffsets())
+	}
+}
+
+func TestPollerStopsOnRejectedTokenFromHandler(t *testing.T) {
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}}, nil },
+	}}
+	poller := &Poller{
+		Source: source,
+		Log:    quietLog(),
+		Handle: func(context.Context, Update) error { return ErrUnauthorized },
+	}
+	if err := poller.Run(t.Context()); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected unauthorized, got %v", err)
+	}
+	if !reflect.DeepEqual(source.seenOffsets(), []int64{0}) {
+		t.Fatalf("offsets=%v", source.seenOffsets())
 	}
 }

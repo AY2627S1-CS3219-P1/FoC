@@ -12,8 +12,9 @@ type UpdateSource interface {
 	GetUpdates(ctx context.Context, offset int64, timeout time.Duration) ([]Update, error)
 }
 
-// Handler processes one update. Errors are logged and the update is still
-// acknowledged, so one bad message can't stall the bot.
+// Handler processes one update. A returned error retries that update before
+// acknowledging it or processing later updates. Ignore unsupported/invalid
+// messages by returning nil; reply delivery should not replay committed changes.
 type Handler func(ctx context.Context, update Update) error
 
 // DefaultPollTimeout is how long each getUpdates call waits for updates.
@@ -27,7 +28,7 @@ type Poller struct {
 	Log    *slog.Logger
 	// Timeout is the long-poll wait. Zero means DefaultPollTimeout.
 	Timeout time.Duration
-	// Backoff is the wait after a failed poll. Zero means one second.
+	// Backoff is the wait after a failed poll or handler. Zero means one second.
 	Backoff time.Duration
 }
 
@@ -61,8 +62,23 @@ func (p *Poller) Run(ctx context.Context) error {
 			continue
 		}
 		for _, update := range updates {
-			if err := p.Handle(ctx, update); err != nil {
-				p.Log.Error("telegram update failed", "update_id", update.UpdateID, "err", err)
+			for {
+				if ctx.Err() != nil {
+					return nil
+				}
+				err := p.Handle(ctx, update)
+				if err == nil {
+					break
+				}
+				if errors.Is(err, ErrUnauthorized) {
+					return err
+				}
+				p.Log.Error("telegram update failed; retrying", "update_id", update.UpdateID, "err", err)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoff):
+				}
 			}
 			offset = update.UpdateID + 1
 		}
