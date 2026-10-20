@@ -96,9 +96,12 @@ export const ListMyLedgerEntriesResponseSchema: GenMessage<ListMyLedgerEntriesRe
   messageDesc(file_credit_v1_account, 3);
 
 /**
- * The caller's own credits. Read-only; the caller is identified by their User
- * Service JWT. The first call creates the caller's account with the starting
- * credits.
+ * The caller's own credits, identified by their User Service JWT. Reads have no
+ * side effects and never create an account. Credit opens the account with the
+ * starting credits when it consumes the user's users.create event, once per
+ * user ID, so a redelivered event grants nothing more. Until then, both RPCs
+ * fail with not_found and a google.rpc.ErrorInfo with domain "credit.v1" and
+ * reason ACCOUNT_NOT_FOUND.
  *
  * @generated from service credit.v1.CreditAccountService
  */

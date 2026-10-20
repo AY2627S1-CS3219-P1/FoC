@@ -247,7 +247,8 @@ type LedgerEntryKind int32
 
 const (
 	LedgerEntryKind_LEDGER_ENTRY_KIND_UNSPECIFIED LedgerEntryKind = 0
-	// Starting credits (100), granted once when the account is created.
+	// Starting credits (100), granted once when Credit consumes the user's
+	// users.create event.
 	LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT   LedgerEntryKind = 1
 	LedgerEntryKind_LEDGER_ENTRY_KIND_RESERVE LedgerEntryKind = 2
 	// An accepted offer changed the hold.
@@ -591,7 +592,8 @@ func (x *Settlement) GetReleaseReason() ReleaseReason {
 	return ReleaseReason_RELEASE_REASON_UNSPECIFIED
 }
 
-// Created the first time Credit sees a user, with the starting credits.
+// Opened with the starting credits when Credit consumes the user's
+// users.create event.
 type Account struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`

@@ -18,8 +18,8 @@ export const file_credit_v1_reservation: GenFile = /*@__PURE__*/
 /**
  * Holds amount from the requester's available credits when a request is
  * created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
- * with RESERVATION_RELEASED if the request was already released. A requester
- * without an account first receives the starting credits.
+ * with RESERVATION_RELEASED if the request was already released. Fails with
+ * ACCOUNT_NOT_FOUND if Credit has not yet opened the requester's account.
  *
  * @generated from message credit.v1.ReserveRequest
  */
@@ -261,6 +261,7 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
  * Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
  * reasons:
  * - INSUFFICIENT_CREDITS (failed_precondition)
+ * - ACCOUNT_NOT_FOUND (failed_precondition)
  * - IDEMPOTENCY_CONFLICT (already_exists)
  * - RESERVATION_NOT_FOUND (not_found)
  * - RESERVATION_RELEASED (failed_precondition)

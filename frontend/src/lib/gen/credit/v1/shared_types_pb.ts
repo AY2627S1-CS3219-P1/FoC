@@ -173,7 +173,8 @@ export const SettlementSchema: GenMessage<Settlement> = /*@__PURE__*/
   messageDesc(file_credit_v1_shared_types, 2);
 
 /**
- * Created the first time Credit sees a user, with the starting credits.
+ * Opened with the starting credits when Credit consumes the user's
+ * users.create event.
  *
  * @generated from message credit.v1.Account
  */
@@ -465,7 +466,8 @@ export enum LedgerEntryKind {
   UNSPECIFIED = 0,
 
   /**
-   * Starting credits (100), granted once when the account is created.
+   * Starting credits (100), granted once when Credit consumes the user's
+   * users.create event.
    *
    * @generated from enum value: LEDGER_ENTRY_KIND_GRANT = 1;
    */
