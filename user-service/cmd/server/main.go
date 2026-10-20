@@ -118,11 +118,11 @@ func main() {
 	// #29 owns the authenticated User-to-Order transport. Effects deliberately
 	// remains nil until that approved dependency is supplied; never install a
 	// plaintext fallback or reuse a human/Credit credential for recovery.
-	pendingRoles, err := persistence.Admin.PendingRoleDispatches(ctx, 1)
+	pendingRoles, err := persistence.Admin.HasUnfinishedRoleDispatches(ctx)
 	if err != nil {
 		fatal("load role dispatches", err)
 	}
-	if len(pendingRoles) > 0 && roleLogic.Effects == nil {
+	if pendingRoles && roleLogic.Effects == nil {
 		fatal("role recovery unavailable", service.ErrRoleEffectsUnconfigured)
 	}
 	if roleLogic.Effects != nil {

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -14,6 +16,7 @@ import (
 )
 
 var ErrRoleEffectsUnconfigured = errs.NewFailedPreconditionError("authenticated Order role effects are not configured")
+var ErrRoleEffectsRejected = errs.NewFailedPreconditionError("Order rejected the role decision; reconciliation is required")
 var ErrRoleEffectsUnavailable = errs.NewUnavailableError("role decision outcome is uncertain; retry the same decision")
 
 // RoleEffects is supplied only with an authenticated User-to-Order transport.
@@ -28,6 +31,7 @@ type RoleDispatchStore interface {
 	GetRoleDispatch(context.Context, uuid.UUID) (models.RoleDispatch, error)
 	PrepareRoleDispatch(context.Context, *models.RoleDispatch) error
 	CompleteRoleDispatch(context.Context, uuid.UUID, time.Time) error
+	RejectRoleDispatch(context.Context, uuid.UUID, time.Time) error
 	PendingRoleDispatches(context.Context, int) ([]models.RoleDispatch, error)
 }
 
@@ -35,15 +39,41 @@ func (s *RoleService) applyRoleDispatch(ctx context.Context, d models.RoleDispat
 	if s.Effects == nil {
 		return models.User{}, ErrRoleEffectsUnconfigured
 	}
+	if d.RejectedAt != nil {
+		return models.User{}, ErrRoleEffectsRejected
+	}
+	// A recovery scan may predate deletion. Do not send a saved role change
+	// for a target that no longer exists, especially a saved reinstatement.
+	if _, err := s.Users.GetByID(ctx, d.UserID); errors.Is(err, store.ErrNotFound) {
+		return models.User{}, ErrUserNotFound
+	} else if err != nil {
+		return models.User{}, err
+	}
 	call, cancel := context.WithTimeout(ctx, 5*time.Second)
 	err := s.Effects.ApplyRoleDecision(call, d)
 	cancel()
 	if err != nil {
-		return models.User{}, ErrRoleEffectsUnavailable
+		if errors.Is(err, ErrRoleEffectsUnconfigured) {
+			return models.User{}, ErrRoleEffectsUnconfigured
+		}
+		switch connect.CodeOf(err) {
+		case connect.CodeInvalidArgument, connect.CodeFailedPrecondition, connect.CodeAborted, connect.CodeAlreadyExists:
+			// A definite rejection cannot be retried into a different immutable
+			// decision. Retain it for reconciliation without blocking the worker.
+			if saveErr := s.Dispatches.RejectRoleDispatch(ctx, d.ID, time.Now().UTC()); saveErr != nil {
+				return models.User{}, fmt.Errorf("record rejected role decision: %w", saveErr)
+			}
+			return models.User{}, ErrRoleEffectsRejected
+		default:
+			return models.User{}, ErrRoleEffectsUnavailable
+		}
 	}
 	var changed models.User
 	err = s.WithTransaction(ctx, func(tx RoleStore) error {
 		target, err := tx.Users.GetByIDForUpdate(ctx, d.UserID)
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrUserNotFound
+		}
 		if err != nil {
 			return err
 		}
@@ -57,6 +87,9 @@ func (s *RoleService) applyRoleDispatch(ctx context.Context, d models.RoleDispat
 		if stored.AppliedAt != nil {
 			changed = *target
 			return nil
+		}
+		if stored.RejectedAt != nil {
+			return ErrRoleEffectsRejected
 		}
 		if stored.UserID != d.UserID || stored.Revision != d.Revision || target.Role != d.FromRole {
 			return ErrConcurrentRoleEdit
@@ -107,7 +140,7 @@ func (s *RoleService) RecoverRoleDispatchesOnce(ctx context.Context) error {
 		_, err := s.applyRoleDispatch(call, d)
 		cancel()
 		if err != nil && ctx.Err() == nil {
-			slog.WarnContext(ctx, "Role decision dispatch remains unfinished", "decision_id", d.ID)
+			slog.WarnContext(ctx, "Role decision dispatch remains unfinished", "decision_id", d.ID, "error", err)
 		}
 	}
 	return nil

@@ -213,7 +213,7 @@ func (f *accountFixture) CompleteRoleDispatch(_ context.Context, id uuid.UUID, n
 func (f *accountFixture) PendingRoleDispatches(context.Context, int) ([]models.RoleDispatch, error) {
 	var rows []models.RoleDispatch
 	for _, d := range f.dispatches {
-		if d.AppliedAt == nil {
+		if d.AppliedAt == nil && d.RejectedAt == nil {
 			rows = append(rows, d)
 		}
 	}
@@ -235,4 +235,11 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 	if len(f.changes) != 0 || f.users[targetID].Role != models.RoleUser {
 		t.Fatal("conflict mutated role or audit")
 	}
+}
+
+func (f *accountFixture) RejectRoleDispatch(_ context.Context, id uuid.UUID, now time.Time) error {
+	d := f.dispatches[id]
+	d.RejectedAt = &now
+	f.dispatches[id] = d
+	return nil
 }

@@ -13,4 +13,5 @@ type RoleDispatch struct {
 	Reason              string
 	CreatedAt           time.Time
 	AppliedAt           *time.Time
+	RejectedAt          *time.Time
 }
