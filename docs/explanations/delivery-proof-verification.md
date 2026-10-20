@@ -41,7 +41,7 @@ Observed: four medium-hard scenarios passed at 360/768/1440px with zero page err
 - [Recovered pending confirmation with keyboard focus](delivery-proof-pending-mobile.png)
 - [Mobile evidence gallery](delivery-proof-gallery-mobile.png)
 - [Desktop evidence gallery](delivery-proof-gallery-desktop.png)
-- [Retry/reload interaction recording](delivery-proof-retry-reload.webm)
+- [Retry/reload interaction recording](delivery-proof-retry-reload.mp4) ([original WebM](delivery-proof-retry-reload.webm))
 
 ## Final checks and review
 
