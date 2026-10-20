@@ -88,9 +88,11 @@ func (x *ReserveRequest) GetAmount() int64 {
 
 // Applies an accepted offer to a Held reservation and records the courier.
 // Accepting at the original reward is also an offer, so Order supplies an
-// offer_id for every acceptance. The hold becomes offer_amount; if the
-// increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
-// returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
+// offer_id for every acceptance. The hold becomes max(original_amount,
+// offer_amount), so a lower offer never frees credits that a revert would need
+// back. If the increase exceeds available, nothing changes and
+// INSUFFICIENT_CREDITS is returned. Revert any other applied offer first
+// (ADJUSTMENT_PENDING).
 type AdjustReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`

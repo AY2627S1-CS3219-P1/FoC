@@ -138,12 +138,13 @@ const (
 	SettlementOutcome_SETTLEMENT_OUTCOME_UNSPECIFIED SettlementOutcome = 0
 	SettlementOutcome_SETTLEMENT_OUTCOME_RELEASED    SettlementOutcome = 1
 	// Credit applies the lateness rule. With elapsed = delivered_at -
-	// picked_up_at, T = the allowed delivery duration and R = the hold:
+	// picked_up_at, T = the allowed delivery duration and R = the
+	// accepted offer_amount:
 	// - elapsed <= T pays R;
 	// - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
 	// - elapsed >= 2T pays 0.
 	SettlementOutcome_SETTLEMENT_OUTCOME_COMPLETED SettlementOutcome = 2
-	// Pays the courier the whole hold.
+	// Pays the courier the accepted offer_amount.
 	SettlementOutcome_SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP SettlementOutcome = 3
 )
 

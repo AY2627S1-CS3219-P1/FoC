@@ -61,12 +61,13 @@ enum SettlementOutcome {
   SETTLEMENT_OUTCOME_UNSPECIFIED = 0;
   SETTLEMENT_OUTCOME_RELEASED = 1;
   // Credit applies the lateness rule. With elapsed = delivered_at -
-  // picked_up_at, T = the allowed delivery duration and R = the hold:
+  // picked_up_at, T = the allowed delivery duration and R = the
+  // accepted offer_amount:
   // - elapsed <= T pays R;
   // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
   // - elapsed >= 2T pays 0.
   SETTLEMENT_OUTCOME_COMPLETED = 2;
-  // Pays the courier the whole hold.
+  // Pays the courier the accepted offer_amount.
   SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP = 3;
 }
 
