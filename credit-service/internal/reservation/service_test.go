@@ -200,6 +200,141 @@ func TestReleaseReturnsTheWholeHold(t *testing.T) {
 	repo.checkLedger(t)
 }
 
+func completed(picked, delivered time.Time, allowed time.Duration) reservation.OrderOutcome {
+	return reservation.OrderOutcome{
+		OrderID: orderID, Type: reservation.OrderCompleted, RequesterID: requester, CourierID: courier,
+		PickedUpAt: picked, DeliveredAt: delivered, DeliveryDuration: allowed,
+	}
+}
+
+func assigned(t *testing.T, original, offer int64) (*reservation.Service, *memoryRepository) {
+	t.Helper()
+	s, repo := newService()
+	must(t)(s.Reserve(context.Background(), orderID, requester, original))
+	must(t)(s.AdjustReservation(context.Background(), orderID, offerID, courier, offer))
+	return s, repo
+}
+
+func TestCompletedOrderPaysTheLatenessAdjustedReward(t *testing.T) {
+	tests := []struct {
+		name            string
+		original, offer int64
+		elapsed         time.Duration
+		paid, refunded  int64
+	}{
+		{"on time", 40, 40, 30 * time.Minute, 40, 0},
+		{"late", 40, 40, 90 * time.Minute, 20, 20},
+		{"twice the duration", 40, 40, 2 * time.Hour, 0, 40},
+		{"lower offer refunds the extra hold", 50, 30, time.Hour, 30, 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, repo := assigned(t, tt.original, tt.offer)
+			r, applied, err := s.ApplyOutcome(ctx, completed(now, now.Add(tt.elapsed), time.Hour))
+			if err != nil || !applied {
+				t.Fatalf("apply: %v %v", applied, err)
+			}
+			if r.Status != reservation.Settled || r.Settlement.PaidToCourier != tt.paid || r.Settlement.ReturnedToRequester != tt.refunded ||
+				r.Settlement.Completion == nil {
+				t.Fatalf("settlement: %+v", r.Settlement)
+			}
+			if a := repo.balance(requester); a.Balance != 100-tt.paid || a.Reserved != 0 {
+				t.Fatalf("requester: %+v", a)
+			}
+			if a := repo.balance(courier); a.Balance != 100+tt.paid {
+				t.Fatalf("courier: %+v", a)
+			}
+			repo.checkLedger(t)
+		})
+	}
+}
+
+func TestOutcomesSettleAtMostOnce(t *testing.T) {
+	ctx := context.Background()
+	s, repo := assigned(t, 40, 40)
+	cancelled := reservation.OrderOutcome{OrderID: orderID, Type: reservation.OrderCancelledAfterPickup, RequesterID: requester, CourierID: courier}
+	r, applied, err := s.ApplyOutcome(ctx, cancelled)
+	if err != nil || !applied || r.Settlement.PaidToCourier != 40 {
+		t.Fatalf("apply: %+v %v %v", r, applied, err)
+	}
+	if _, applied, err = s.ApplyOutcome(ctx, cancelled); err != nil || applied {
+		t.Fatalf("duplicate: %v %v", applied, err)
+	}
+	_, _, err = s.ApplyOutcome(ctx, completed(now, now, time.Hour))
+	expect(t, err, reservation.ErrOutcomeMismatch)
+	_, _, err = s.ApplyOutcome(ctx, reservation.OrderOutcome{OrderID: orderID, Type: reservation.OrderFailed, RequesterID: requester})
+	expect(t, err, reservation.ErrOutcomeMismatch)
+	_, err = s.ReleaseReservation(ctx, orderID, reservation.Failed)
+	expect(t, err, reservation.ErrReservationSettled)
+	_, err = s.RevertAdjustment(ctx, orderID, offerID)
+	expect(t, err, reservation.ErrReservationSettled)
+	if a := repo.balance(courier); a.Balance != 140 {
+		t.Fatalf("courier paid twice: %+v", a)
+	}
+	repo.checkLedger(t)
+}
+
+func TestReleaseOutcomesReturnTheHold(t *testing.T) {
+	for _, outcome := range []reservation.OutcomeType{reservation.OrderCancelledBeforePickup, reservation.OrderExpired, reservation.OrderFailed} {
+		t.Run(string(outcome), func(t *testing.T) {
+			ctx := context.Background()
+			s, repo := assigned(t, 40, 60)
+			event := reservation.OrderOutcome{OrderID: orderID, Type: outcome, RequesterID: requester}
+			r, applied, err := s.ApplyOutcome(ctx, event)
+			if err != nil || !applied || r.Status != reservation.Released || r.Settlement.ReturnedToRequester != 60 {
+				t.Fatalf("apply: %+v %v %v", r, applied, err)
+			}
+			if _, applied, err = s.ApplyOutcome(ctx, event); err != nil || applied {
+				t.Fatalf("duplicate: %v %v", applied, err)
+			}
+			if a := repo.balance(requester); a.Balance != 100 || a.Reserved != 0 {
+				t.Fatalf("requester: %+v", a)
+			}
+			repo.checkLedger(t)
+		})
+	}
+}
+
+func TestMismatchedOutcomesChangeNothing(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newService()
+	must(t)(s.Reserve(ctx, orderID, requester, 40))
+	_, _, err := s.ApplyOutcome(ctx, completed(now, now, time.Hour))
+	expect(t, err, reservation.ErrReservationNotAssigned)
+	must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 40))
+	wrongCourier := completed(now, now, time.Hour)
+	wrongCourier.CourierID = otherPerson
+	_, _, err = s.ApplyOutcome(ctx, wrongCourier)
+	expect(t, err, reservation.ErrOutcomeMismatch)
+	wrongRequester := completed(now, now, time.Hour)
+	wrongRequester.RequesterID = otherPerson
+	_, _, err = s.ApplyOutcome(ctx, wrongRequester)
+	expect(t, err, reservation.ErrOutcomeMismatch)
+	_, _, err = s.ApplyOutcome(ctx, completed(now, now.Add(-time.Second), time.Hour))
+	expect(t, err, reservation.ErrInvalidArgument)
+	missing := completed(now, now, time.Hour)
+	missing.OrderID = otherOrder
+	_, _, err = s.ApplyOutcome(ctx, missing)
+	expect(t, err, reservation.ErrReservationNotFound)
+	if r := must(t)(s.GetReservation(ctx, orderID)); r.Status != reservation.Assigned {
+		t.Fatalf("reservation changed: %+v", r)
+	}
+	repo.checkLedger(t)
+}
+
+func TestReleaseOutcomeForAnUnknownOrderLeavesATombstone(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newService()
+	r, applied, err := s.ApplyOutcome(ctx, reservation.OrderOutcome{OrderID: orderID, Type: reservation.OrderExpired, RequesterID: requester})
+	if err != nil || !applied || r.RequesterID != "" {
+		t.Fatalf("apply: %+v %v %v", r, applied, err)
+	}
+	_, err = s.Reserve(ctx, orderID, requester, 10)
+	expect(t, err, reservation.ErrReservationReleased)
+	repo.checkLedger(t)
+}
+
 func TestInvalidInputIsRejected(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newService()
@@ -208,6 +343,8 @@ func TestInvalidInputIsRejected(t *testing.T) {
 	_, err = s.Reserve(ctx, orderID, requester, 0)
 	expect(t, err, reservation.ErrInvalidArgument)
 	_, err = s.ReleaseReservation(ctx, orderID, "LOST")
+	expect(t, err, reservation.ErrInvalidArgument)
+	_, _, err = s.ApplyOutcome(ctx, reservation.OrderOutcome{OrderID: orderID, Type: "REJECTED", RequesterID: requester})
 	expect(t, err, reservation.ErrInvalidArgument)
 	_, err = s.GetReservation(ctx, orderID)
 	expect(t, err, reservation.ErrReservationNotFound)
