@@ -15,7 +15,7 @@ service TelegramLinkService {
 
   rpc GetTelegramLink(GetTelegramLinkRequest) returns (GetTelegramLinkResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 
-  rpc DeleteTelegramLink(DeleteTelegramLinkRequest) returns (DeleteTelegramLinkResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc UnlinkTelegram(UnlinkTelegramRequest) returns (UnlinkTelegramResponse) { option idempotency_level = IDEMPOTENT; }
 }
 
 // Returns a one-time link that opens the bot in Telegram. Pressing Start
@@ -43,6 +43,6 @@ message GetTelegramLinkResponse {
 }
 
 // Stops all Telegram messages to the caller. Succeeds when nothing is linked.
-message DeleteTelegramLinkRequest {}
+message UnlinkTelegramRequest {}
 
-message DeleteTelegramLinkResponse {}
+message UnlinkTelegramResponse {}

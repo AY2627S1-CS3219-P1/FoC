@@ -40,6 +40,10 @@ const (
 	// User Service may still be starting; its public keys are fetched at startup.
 	authStartupTimeout = time.Minute
 	authRetryInterval  = 2 * time.Second
+	// Telegram may be briefly unreachable at startup; only a rejected token is
+	// final.
+	botRetryDelay = 2 * time.Second
+	botMaxDelay   = time.Minute
 	// Notification sends are short; keep them from hanging the consumer.
 	sendTimeout = 10 * time.Second
 	// A stopped notification consumer restarts after a delay that doubles up to
@@ -119,9 +123,9 @@ func main() {
 	var botUsername atomic.Pointer[string]
 	chats := &chat.PostgresStore{Pool: pool}
 	go chat.RunCleanup(ctx, chats, log, time.Now)
-	if startBot(ctx, cfg, log, links, chats, &botUsername) {
+	startBot(ctx, cfg, log, links, chats, &botUsername, func() {
 		startNotifications(ctx, cfg, log, links, chats, pool)
-	}
+	})
 	currentBot := func() string {
 		if name := botUsername.Load(); name != nil {
 			return *name
@@ -154,38 +158,43 @@ func main() {
 	}
 }
 
-// startBot verifies the token and starts polling in the background, and
-// reports whether it started. botUsername holds the bot's username while it
-// is polling.
-func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore, botUsername *atomic.Pointer[string]) bool {
+// startBot checks the token and starts polling in the background. A rejected
+// token disables Telegram; other failures are retried, so a network problem at
+// startup doesn't disable Telegram until a restart. ready runs once the bot is
+// confirmed. botUsername holds the bot's username while it is polling.
+func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore,
+	botUsername *atomic.Pointer[string], ready func(),
+) {
 	if cfg.telegramToken == "" {
 		log.Warn("TELEGRAM_BOT_TOKEN is not set; Telegram is disabled")
-		return false
+		return
 	}
 	client := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: pollTimeout + 10*time.Second})
-	me, err := client.GetMe(ctx)
-	if err != nil {
-		log.Error("Telegram is disabled: bot check failed", "err", err)
-		return false
-	}
-	log.Info("telegram bot ready", "username", me.Username)
-
-	sender := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout})
-	relay := &chat.Relay{Sender: sender, Links: links, Store: chats, Log: log, Now: time.Now}
-	poller := &telegram.Poller{
-		Source:  client,
-		Handle:  (&bot.Handler{Sender: sender, Linker: links, Chat: relay, Log: log}).Handle,
-		Log:     log,
-		Timeout: pollTimeout,
-	}
-	botUsername.Store(&me.Username)
 	go func() {
+		me, err := waitForBot(ctx, client, log, botRetryDelay)
+		if err != nil {
+			if ctx.Err() == nil {
+				log.Error("Telegram is disabled: bot check failed", "err", err)
+			}
+			return
+		}
+		log.Info("telegram bot ready", "username", me.Username)
+
+		sender := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout})
+		relay := &chat.Relay{Sender: sender, Links: links, Store: chats, Log: log, Now: time.Now}
+		poller := &telegram.Poller{
+			Source:  client,
+			Handle:  (&bot.Handler{Sender: sender, Linker: links, Chat: relay, Log: log}).Handle,
+			Log:     log,
+			Timeout: pollTimeout,
+		}
+		botUsername.Store(&me.Username)
 		defer botUsername.Store(nil)
+		ready()
 		if err := poller.Run(ctx); err != nil {
 			log.Error("telegram polling stopped", "err", err)
 		}
 	}()
-	return true
 }
 
 // startNotifications consumes order status changes in the background when
@@ -249,6 +258,29 @@ func runNotifications(ctx context.Context, brokers []string, group string, log *
 		case <-time.After(delay):
 		}
 		delay = min(delay*2, consumerMaxDelay)
+	}
+}
+
+// botChecker is the part of the Bot API waitForBot needs.
+type botChecker interface {
+	GetMe(ctx context.Context) (telegram.User, error)
+}
+
+// waitForBot calls getMe until it succeeds, Telegram rejects the token, or ctx
+// ends. The delay between attempts doubles up to botMaxDelay.
+func waitForBot(ctx context.Context, client botChecker, log *slog.Logger, delay time.Duration) (telegram.User, error) {
+	for {
+		me, err := client.GetMe(ctx)
+		if err == nil || errors.Is(err, telegram.ErrUnauthorized) {
+			return me, err
+		}
+		log.Warn("Telegram bot check failed; retrying", "err", err, "delay", delay.String())
+		select {
+		case <-ctx.Done():
+			return telegram.User{}, ctx.Err()
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, botMaxDelay)
 	}
 }
 

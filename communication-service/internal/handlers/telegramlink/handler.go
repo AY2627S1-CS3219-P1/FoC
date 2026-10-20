@@ -83,11 +83,11 @@ func (h *Handler) GetTelegramLink(
 	return connect.NewResponse(resp), nil
 }
 
-// DeleteTelegramLink unlinks the caller. It succeeds when nothing is linked.
-func (h *Handler) DeleteTelegramLink(
+// UnlinkTelegram unlinks the caller. It succeeds when nothing is linked.
+func (h *Handler) UnlinkTelegram(
 	ctx context.Context,
-	_ *connect.Request[communicationv1.DeleteTelegramLinkRequest],
-) (*connect.Response[communicationv1.DeleteTelegramLinkResponse], error) {
+	_ *connect.Request[communicationv1.UnlinkTelegramRequest],
+) (*connect.Response[communicationv1.UnlinkTelegramResponse], error) {
 	userID, err := callerID(ctx)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (h *Handler) DeleteTelegramLink(
 	if err := h.Logic.Unlink(ctx, userID); err != nil {
 		return nil, internal(ctx, err)
 	}
-	return connect.NewResponse(&communicationv1.DeleteTelegramLinkResponse{}), nil
+	return connect.NewResponse(&communicationv1.UnlinkTelegramResponse{}), nil
 }
 
 func callerID(ctx context.Context) (uuid.UUID, error) {
