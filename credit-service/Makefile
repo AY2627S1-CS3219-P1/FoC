@@ -1,5 +1,7 @@
 -include .env
 
+CREDIT_DB ?= credit_dev
+
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
 
@@ -10,7 +12,7 @@ goose-create:
 	@cd database/schema && goose create $(name) sql
 
 dropDB:
-	@dropdb credit_dev
+	@dropdb --if-exists $(CREDIT_DB)
 
 createDB:
-	@createdb credit_dev
+	@createdb $(CREDIT_DB)
