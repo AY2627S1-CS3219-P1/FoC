@@ -2,8 +2,8 @@
 SELECT * FROM order_cancellations WHERE id = $1;
 
 -- name: InsertCancellation :exec
-INSERT INTO order_cancellations (id,order_id,caller_id,reason,status,assignment_id,courier_id,assigned_at,original_amount,generation,attempts,lease_until,next_attempt_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15);
+INSERT INTO order_cancellations (id,order_id,caller_id,reason,status,assignment_id,courier_id,assigned_at,original_amount,generation,attempts,lease_until,next_attempt_at,created_at,updated_at,suspension_decision_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16);
 
 -- name: UpdateCancellation :execrows
 UPDATE order_cancellations SET status=sqlc.arg(status), generation=sqlc.arg(generation), attempts=sqlc.arg(attempts), lease_until=sqlc.arg(lease_until), next_attempt_at=sqlc.arg(next_attempt_at), updated_at=sqlc.arg(updated_at)

@@ -29,7 +29,8 @@ func TestPostgresCancellationMigrationWithData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Down(f.ctx); err != nil {
+	// Exercise cancellation's migration even when newer features add migrations.
+	if _, err := provider.DownTo(f.ctx, 5); err != nil {
 		t.Fatal(err)
 	}
 	var status string

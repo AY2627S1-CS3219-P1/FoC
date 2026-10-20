@@ -19,6 +19,7 @@ const (
 // Cancellation retains immutable assignment identity independently of later assignments.
 type Cancellation struct {
 	ID, OrderID, CallerID, Reason                   string
+	SuspensionDecisionID                            string
 	Status                                          CancellationStatus
 	AssignmentID, CourierID                         string
 	AssignedAt                                      *time.Time

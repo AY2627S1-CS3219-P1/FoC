@@ -15,6 +15,9 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 	if action == Pickup && o.PendingCancellationID != nil {
 		return "", false, ErrPrecondition
 	}
+	if action == RemoveSuspendedCourier && (o.PendingCancellationID == nil || o.PickedUpAt != nil) {
+		return "", false, ErrPrecondition
+	}
 
 	requester := actor.Kind == User && o.IsRequestedBy(actor.ID)
 	courier := actor.Kind == User && o.IsAssignedTo(actor.ID)
@@ -42,18 +45,19 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 	// Resolve an authorized action to its next state.
 	if isActionAllowed(o.Status, action, actor.Kind, requester, courier) {
 		destinations := map[Action]Status{
-			ConfirmReservation: AwaitingCourier,
-			RefuseReservation:  Rejected,
-			Assign:             AwaitingPickup,
-			AcceptCounteroffer: AwaitingPickup,
-			Cancel:             Cancelled,
-			Expire:             Expired,
-			Pickup:             Delivering,
-			Withdraw:           AwaitingCourier,
-			Unassign:           AwaitingCourier,
-			Deliver:            Delivered,
-			Timeout:            Failed,
-			ConfirmReceipt:     Completed,
+			ConfirmReservation:     AwaitingCourier,
+			RefuseReservation:      Rejected,
+			Assign:                 AwaitingPickup,
+			AcceptCounteroffer:     AwaitingPickup,
+			Cancel:                 Cancelled,
+			Expire:                 Expired,
+			Pickup:                 Delivering,
+			Withdraw:               AwaitingCourier,
+			Unassign:               AwaitingCourier,
+			RemoveSuspendedCourier: AwaitingCourier,
+			Deliver:                Delivered,
+			Timeout:                Failed,
+			ConfirmReceipt:         Completed,
 		}
 		if action == Cancel && courier {
 			return Failed, false, nil
@@ -83,7 +87,7 @@ func isActionAllowed(s Status, a Action, k ActorKind, requester, courier bool) b
 	case AwaitingCourier:
 		return (a == Assign && k == User && !requester) || (a == AcceptCounteroffer && requester) || (a == Cancel && (requester || k == Admin)) || (a == Expire && k == System)
 	case AwaitingPickup:
-		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) || (a == Unassign && k == Admin)
+		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) || (a == Unassign && k == Admin) || (a == RemoveSuspendedCourier && k == System)
 	case Delivering:
 		return (a == Deliver && courier) || (a == Cancel && (requester || courier)) || (a == Timeout && k == System)
 	case Delivered:

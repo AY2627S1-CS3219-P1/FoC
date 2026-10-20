@@ -95,21 +95,22 @@ type OrderAudit struct {
 }
 
 type OrderCancellation struct {
-	ID             uuid.UUID
-	OrderID        uuid.UUID
-	CallerID       uuid.UUID
-	Reason         string
-	Status         string
-	AssignmentID   *uuid.UUID
-	CourierID      *uuid.UUID
-	AssignedAt     *time.Time
-	OriginalAmount int64
-	Generation     int64
-	Attempts       int32
-	LeaseUntil     time.Time
-	NextAttemptAt  time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   uuid.UUID
+	OrderID              uuid.UUID
+	CallerID             uuid.UUID
+	Reason               string
+	Status               string
+	AssignmentID         *uuid.UUID
+	CourierID            *uuid.UUID
+	AssignedAt           *time.Time
+	OriginalAmount       int64
+	Generation           int64
+	Attempts             int32
+	LeaseUntil           time.Time
+	NextAttemptAt        time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	SuspensionDecisionID *uuid.UUID
 }
 
 type OrderCreationWorkflow struct {

@@ -1,111 +1,116 @@
 # ADR: Immediate suspension and integration boundaries
 
 Date: 20 Oct 2026
-Status: authorization groundwork implemented; Order integration blocked
-Base: main `f0afe820041c339b89e3107b1a090319dcf8aa37`
+Status: partial implementation; dispatch, authoritative ordering and exact-model review blocked
+Dependency: B3 PR #179, pinned `dea9c7c78130853793e8e5a8774f607cace02256`.
+Branch: `andrew/feat/immediate-suspension-b3` in `/workspace/FoC-suspension`.
+The original auth groundwork `f1b8957` and branch remain preserved; cherry-pick
+`abb3cb1` applies it to the pinned B3 source without overwriting B3 changes.
 
 ## Approved behavior
 
 An explicit administrator decision with a nonblank reason suspends immediately.
-Warnings never suspend automatically. Block new requests, acceptance and pickup,
+Warnings never automatically suspend. Block new requests, acceptance and pickup,
 including requests made with a token issued before suspension. Do not defer
 suspension until delivery ends.
 
-Before pickup, remove the suspended courier through durable recovery: restore
-the original reward reservation before reopening, retain the original expiry,
-and fence pickup and new acceptance throughout recovery. After pickup, retain
-delivery completion/proof and cancellation with final location. Normal delivery
-timeout still applies. Existing requester orders and receipt confirmation remain
-available. Pickup and suspension must serialize so whichever takes effect first
-determines the outcome.
+Before pickup, automatically remove the suspended courier through durable
+recovery: restore the original reservation and reward before reopening, retain
+original expiry, and fence pickup/new acceptance during recovery. Target the
+courier's specific assignment. Delayed or repeated instructions must neither
+remove a replacement courier nor repeat financial changes. A later assignment
+of the same courier is also distinct from the original target.
 
-Automatic removal targets the suspended courier's specific assignment. A delayed
-or repeated instruction must neither remove a replacement courier nor repeat
-credit changes. Reuse existing assignment identity and credit-recovery work;
-an order ID or courier ID alone is not an assignment identity.
+After pickup, preserve delivery completion/proof and cancellation with final
+location. Existing requester orders and receipt confirmation continue. Normal
+B4 delivery timeout remains applicable. Whichever of pickup and suspension takes
+effect first determines custody handling.
 
-## Implemented independent boundary
+## Implemented boundaries
 
-Reuse User Service's audited `ChangeUserRole` operation and its existing
-`ProfileService.GetMyProfile` RPC. Shared `httpauth.Authenticator.Authenticate`
-first verifies JWT identity, then resolves the current persisted role on every
-protected request. Forward only the verified bearer token to the configured User
-Service, never cookies. Keep identity/session/timestamps from the verified token;
-derive both role and admin authority from the fresh profile. No role cache or
-fallback to token privileges is permitted. Unknown roles, missing/mismatched
-profiles, lookup errors and redirects cannot reach the protected handler.
-Unauthenticated/missing accounts return 401; unavailable or invalid role
-observations return 503. Lookup is bounded by the request context and five seconds.
+Shared `httpauth.Authenticator` verifies JWT identity and resolves the current
+persisted role through the existing `ProfileService.GetMyProfile` RPC on every
+protected request. Only the verified bearer token is forwarded; cookies are not.
+Identity/session/timestamps remain from the JWT, while role and admin authority
+come from the profile. No role cache or fallback to token privileges is allowed.
+Bad/missing account identity returns 401; unavailable, malformed, mismatched or
+redirected profile observations fail closed with 503. Lookup is bounded by the
+request context and five seconds. This adds a User Service round trip and
+availability dependency for protected Supplier/Order requests, including reads.
 
-Suspension continues to authenticate. Domain methods retain participant access
-and decide which mutations are allowed; a blanket suspension denial would break
-completion, receipt and history. User Service keeps its local verifier and fresh
-database authorization, so this lookup does not recursively call itself.
+Suspended users remain authenticated for history, participant actions and receipt.
+User Service retains its local verifier and database authorization, avoiding a
+recursive profile lookup. Existing authenticated bearer forwarding from B1 is
+preserved. An initial pickup with a suspended caller is rejected in `Progress`;
+a recorded pickup repeat and suspended requester receipt remain available.
 
-Supplier and Order already mount this authenticator. This adds one User Service
-round trip per protected request and makes its availability a request-time
-dependency even when the public key cache is warm. No new service, credentials,
-permissions, protobuf contracts, schema, timer, frontend or service refactor is
-introduced. Existing refresh/login behavior is retained.
+`Canceller.RemoveSuspendedAssignment` is an internal admission method for an
+**authenticated suspension dispatcher that still needs to be integrated**. It is
+not a mounted endpoint and is not a general manual admin-removal API. Its input
+identifies the persisted admin decision, Order, courier and immutable successful
+assignment. It locks the Order parent before fresh relationships and assignment
+reads. Wrong/later assignments and already-picked-up orders are unchanged;
+missing assignment identity fails closed. Duplicate instructions join existing
+recovery without another audit, event or Credit call.
 
-This closes stale-role authorization for requests whose role lookup observes the
-committed suspension. It does **not** linearize a subsequent Order mutation with
-a concurrent suspension, revoke sessions, automatically unassign couriers, or
-cancel already admitted assignment work. Do not present this groundwork as the
-complete immediate-suspension feature.
+Automatic removal uses B3's existing cancellation table, pending pickup fence,
+startup scan, leases, generations, retry backoff, reservation verification and
+central history writer. Migration 20261020140000 adds the immutable suspension decision ID
+and assignment constraint/index; sqlc 1.30.0 regenerated the bindings.
+Its timestamp version avoids claiming B4's next sequential migration number. No second
+recovery worker or financial implementation is introduced. Automatic admission
+and completion use explicit system actions, preserving accurate audit attribution.
 
-## Verified dependencies and stopped work
+B3 recovery calls Revert outside the Order transaction with the original immutable
+assignment identity, requires acknowledgement, and reads a matching Held reservation
+at the original amount. Only then does it re-lock and verify pending identity,
+generation, custody, courier and assignment time before clearing the assignment
+and restoring reward/reservation. Expiry remains unchanged. A downgrade refuses
+to discard a pending suspension's identity. Existing participant cancellations
+retain their behavior. The cancellation migration regression now explicitly
+rolls back through migration 6 instead of assuming it is the newest migration.
 
-Read-only fetch on 20 Oct confirmed these exact reachable PR heads; none is an
-integrated implementation base in this checkout:
+## Remaining product integration
 
-| Dependency | Head | Relevant boundary |
-| -- | -- | -- |
-| [#159](https://github.com/AY2627S1-CS3219-P1/FoC/pull/159) | `de1968e0f20174bf1f20fcb89986b0fbfd66d5ee` | Creation/assignment recovery, original reservation and stable attempt identity; F0 remains external. |
-| [#171](https://github.com/AY2627S1-CS3219-P1/FoC/pull/171) | `59dd1b9bb9124b84797d1225e2fee8f1f9065bf2` | Durable withdrawal/reopening with pending fence, reversal acknowledgement and current Held reservation verification. |
-| [#148](https://github.com/AY2627S1-CS3219-P1/FoC/pull/148) | `593e6521ba2208f43c4cdfd67bc21da89a521079` | Pickup/receipt progress; separate from withdrawal head. |
-| [#177](https://github.com/AY2627S1-CS3219-P1/FoC/pull/177) | `e867613d41f0860d056331c6820fe4d452c53dc5` | Partial proof work with unresolved findings; not an approved completed base. |
+The pinned source supplies B3 cancellation, withdrawal, pickup/receipt adapters,
+disposition and frontend. The original missing-B3-source blocker is resolved.
+The remaining gap is the **User admin decision-to-Order dispatch and common
+ordering boundary**. User role changes commit in User Service's database; Order
+pickup commits under a different database lock. No role-change dispatcher,
+suspension event consumer or authenticated coordination contract connecting those
+operations exists in this source. `GetMyProfile` only resolves the caller, and
+its result can become stale before an Order mutation commits.
 
-The supplied B3 cancellation/pickup/receipt/frontend and B4 expiry work is local
-and unavailable here. Main has read RPCs and aggregate foundations, with mutation
-RPCs still unimplemented. Do not reconstruct those features or cherry-pick the
-heads into a speculative integration branch.
+The internal removal command serializes against pickup once admitted to Order;
+it does not itself make User Service's earlier role commit atomic with that
+admission. The current role lookup and pickup guard cannot establish the required
+end-to-end first-effect ordering, cannot automatically enumerate/remove existing
+assignments, and cannot fence already-admitted assignment work or a requester's
+acceptance of another courier's old offer. Do not present this partial work as
+complete immediate suspension or mount the command without authenticating its
+persisted admin decision and resolving durable dispatch/ordering failures.
 
-Once an integrated base exists, implement the suspension-specific coordination
-inside the existing User/Order ownership boundaries. The Order parent row must
-be locked before fresh relationship reads. Pickup and suspension need a common
-durable ordering boundary; a preflight role lookup alone is insufficient. Reuse
-the withdrawal recovery contract, including the successful assignment attempt's
-immutable Credit identity, generation fencing and reservation verification.
-Persist recovery intent before remote work, call Credit outside the Order lock,
-and re-lock/revalidate before reopening. Check pending acceptance too, including
-a requester's acceptance of an offer made by a suspended courier. A request-time
-lookup only checks the caller and cannot perform that check for another account.
-Retain the targeted assignment identity throughout recovery and compare it again
-under the parent lock before applying removal. Repeated instructions must join or
-recognize the original operation and reuse its financial identities. Required
-integration evidence includes suspend A, replace with B, then deliver delayed and
-duplicate A-removal instructions: B remains assigned and no additional credit
-change occurs. A later assignment of A must also be distinct from A's old one.
+A request for the existing approved integration/source was raised while independent
+work continued. No ad hoc cross-service database join, remote call under an Order
+transaction, bearer credential persistence, new credential/permission or generic
+suspension service was introduced to hide this gap.
 
-Keep B3's pickup/receipt adapters and final-location cancellation ownership, B2's
-proof implementation, and B4's timers. B4's approved durable-receipt deadline
-policy differs from B2's processing-time behavior; no deadline wiring belongs in
-this change. Preserve expiry through reopening and test restart/retry and both
-pickup/suspension orderings when the shared boundary is available.
+## Ownership and completion gates
 
-B5 has no standalone code scope. General manual administrator cancellation or
-removal actions and supporting administrator UI are excluded. Automatic courier
-removal stays in suspension, history/privacy stays with F0, financial recovery
-with B1, and cancellation/withdrawal with B3. This patch adds no general admin UI.
+B5 has no standalone code scope. General manual administrator cancellation/removal
+and supporting admin UI are excluded. Automatic removal stays in suspension,
+history/privacy with F0, financial recovery with B1, and cancellation/withdrawal
+with B3. No frontend or timer code is changed here. B2 proof and B4 deadlines
+remain their owners' work; B4's approved durable-receipt policy must not be replaced
+with B2's processing-time behavior. B2 proof is not integrated into PR #179, so
+live post-pickup proof behavior is not certified here.
 
-#159 adds `auth.WithUserBearer` immediately after the caller context is built in
-the same authenticator. Preserve that forwarding when integrating this patch;
-the current base does not contain that helper. No generated file is edited here.
+Andrew's required review is **Devin CLI with Opus**, with an authorized fallback
+to an additional Devin Opus review pointing at the public PR. No `pi`, `devin` or
+`devin-cli` executable or callable Devin connector is available in this environment.
+The reviewer-model landmine requires actual provider/model provenance; another
+model must not be substituted. No review was launched and no PR was marked ready.
+No new credentials, spending, push, publication, merge or deployment occurred.
 
-GitHub issue searches for B4/B5 discussion were denied (`Forbidden` from
-`https://api.github.com/graphql`). Those reads were not retried. The supplied
-approved requirements and fetched branch documents are the available evidence;
-the missing discussions have not been represented as reviewed.
-
-See [verification evidence](../testing/immediate-suspension.md).
+See [verification evidence](../testing/immediate-suspension.md) for passed checks,
+unrun integration cases and exact denied download targets.

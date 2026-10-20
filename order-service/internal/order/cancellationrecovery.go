@@ -75,7 +75,11 @@ func (s *Canceller) ProcessCancellation(ctx context.Context, operationID string)
 			after.RewardCredits, after.ReservedCredits = w.OriginalAmount, w.OriginalAmount
 			after.Revision++
 			after.UpdatedAt = now
-			c, err := NewChange(&o, after, Actor{Kind: User, ID: w.CallerID}, Withdraw, nil, s.newID)
+			actor, action := Actor{Kind: User, ID: w.CallerID}, Withdraw
+			if w.SuspensionDecisionID != "" {
+				actor, action = Actor{Kind: System}, RemoveSuspendedCourier
+			}
+			c, err := NewChange(&o, after, actor, action, nil, s.newID)
 			if err != nil {
 				return nil, err
 			}
