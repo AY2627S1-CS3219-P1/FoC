@@ -1,5 +1,10 @@
 -include .env
 
+SQLC_PATH=./database
+
+sqlc:
+	@cd $(SQLC_PATH) && sqlc generate
+
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
 
