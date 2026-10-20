@@ -43,8 +43,8 @@ export class ConnectAuthApi implements AuthApi {
 		return toSession(response.accessToken, response.user);
 	}
 
-	async register(token: string, displayName: string): Promise<AuthSession> {
-		const response = await this.#client.register({ token, displayName });
+	async register(token: string, displayName: string, phoneNumber: string): Promise<AuthSession> {
+		const response = await this.#client.register({ token, displayName, phoneNumber });
 		return toSession(response.accessToken, response.user);
 	}
 

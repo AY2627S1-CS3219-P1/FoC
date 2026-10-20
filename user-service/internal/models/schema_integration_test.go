@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,16 +117,8 @@ func TestSchema(t *testing.T) {
 	})
 
 	t.Run("users: profile checks", func(t *testing.T) {
-		short := "abc"
-		valid := "alice_01"
-		if err := db.Model(alice).Update("telegram_handle", short).Error; err == nil {
-			t.Fatal("expected short telegram handle to fail")
-		}
-		if err := db.Model(alice).Update("telegram_handle", "@"+valid).Error; err == nil {
-			t.Fatal("expected telegram handle with @ to fail")
-		}
-		if err := db.Model(alice).Update("telegram_handle", valid).Error; err != nil {
-			t.Fatal(err)
+		if err := db.Model(alice).Update("phone_number", strings.Repeat("1", 21)).Error; err == nil {
+			t.Fatal("expected phone number over 20 characters to fail")
 		}
 		if err := db.Model(alice).Update("display_name", "   ").Error; err == nil {
 			t.Fatal("expected blank display name to fail")

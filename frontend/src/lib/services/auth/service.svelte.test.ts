@@ -26,7 +26,7 @@ function createAuthApi() {
 	return {
 		requestLink: vi.fn(async (_email: string) => undefined),
 		login: vi.fn(async (_token: string) => createSession()),
-		register: vi.fn(async (_token: string, _displayName: string) => createSession()),
+		register: vi.fn(async (_token: string, _displayName: string, _phoneNumber: string) => createSession()),
 		refresh: vi.fn(async () => createSession()),
 		logout: vi.fn(async () => undefined)
 	} satisfies AuthApi;
@@ -117,9 +117,9 @@ describe('AuthService', () => {
 		api.register.mockResolvedValueOnce(session);
 		const service = new AuthService(api);
 
-		await service.register('magic-link-token', 'New User');
+		await service.register('magic-link-token', 'New User', '+6591234567');
 
-		expect(api.register).toHaveBeenCalledWith('magic-link-token', 'New User');
+		expect(api.register).toHaveBeenCalledWith('magic-link-token', 'New User', '+6591234567');
 		expect(service.accessToken).toBe('registration-token');
 		expect(service.user).toEqual(session.user);
 	});
@@ -148,7 +148,7 @@ describe('AuthService', () => {
 		const error = new Error('registration failed');
 		api.register.mockRejectedValueOnce(error);
 
-		await expect(service.register('invalid-token', 'New User')).rejects.toBe(error);
+		await expect(service.register('invalid-token', 'New User', '+6591234567')).rejects.toBe(error);
 
 		expect(service.accessToken).toBe('existing-token');
 		expect(service.user).toEqual(existingSession.user);
