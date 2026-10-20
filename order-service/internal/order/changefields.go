@@ -43,7 +43,7 @@ func validateFields(before, after Order, action Action) error {
 		expected.AssignedAt = nil
 	case BeginWithdrawal, BeginSuspensionRemoval:
 		expected.PendingCancellationID = after.PendingCancellationID
-	case ProposeOffer, BeginAssignment, ResolveAssignment:
+	case ProposeOffer, BeginAssignment, ResolveAssignment, FenceSuspendedAcceptance:
 		// These actions change offers/workflow only, not Order observations.
 	case RecordItemLocation:
 		expected.ItemLocation = after.ItemLocation

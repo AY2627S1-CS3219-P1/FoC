@@ -90,6 +90,10 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		// Metadata actions are explicit, not same-status lifecycle repeats.
 		// AssignmentTx additionally checks offers and immutable attempt ownership.
 		switch action {
+		case FenceSuspendedAcceptance:
+			if actor.Kind != System || before.Status != AwaitingCourier {
+				return Change{}, ErrPrecondition
+			}
 		case BeginSuspensionRemoval:
 			if actor.Kind != System || before.Status != AwaitingPickup || before.CourierID == nil || before.PickedUpAt != nil || before.PendingCancellationID != nil || after.PendingCancellationID == nil {
 				return Change{}, ErrPrecondition

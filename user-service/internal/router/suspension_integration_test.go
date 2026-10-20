@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -30,6 +31,24 @@ import (
 type suspensionAuth struct {
 	stubLogic
 	codec *jwt.ES256Codec
+}
+
+// Test-only acknowledgment seam. Production has no such fallback; #29 must
+// supply authenticated User-to-Order transport before suspension is admitted.
+type suspensionEffects struct {
+	mu   sync.Mutex
+	fail bool
+	ids  []uuid.UUID
+}
+
+func (e *suspensionEffects) ApplyRoleDecision(_ context.Context, d models.RoleDispatch) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ids = append(e.ids, d.ID)
+	if e.fail {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 
 func (s *suspensionAuth) PublicKeys() (jwt.JWKSet, error) { return s.codec.PublicKeys(), nil }
@@ -73,9 +92,10 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := &service.RoleService{Users: persistence.Users, WithTransaction: func(ctx context.Context, fn func(service.RoleStore) error) error {
+	effects := &suspensionEffects{}
+	roles := &service.RoleService{Users: persistence.Users, Dispatches: persistence.Admin, Effects: effects, WithTransaction: func(ctx context.Context, fn func(service.RoleStore) error) error {
 		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return fn(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
+			return fn(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Dispatches: tx.Admin})
 		})
 	}}
 	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: &suspensionAuth{codec: codec}, AllowedOrigin: frontendOrigin}, router.ProtectedRoutes{
@@ -113,6 +133,14 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 		return err
 	}
 	assertRole("user")
+	roles.Effects = nil
+	if err := change(userv1.UserRole_USER_ROLE_SUSPENDED_USER, "transport unavailable"); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("production default did not fail closed: %v", err)
+	}
+	if pending, err := persistence.Admin.PendingRoleDispatch(ctx, user.ID); err != nil || pending != nil {
+		t.Fatalf("unconfigured transport admitted intent: %+v %v", pending, err)
+	}
+	roles.Effects = effects
 	for range 3 {
 		if _, err := persistence.Admin.CreateWarning(ctx, &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "warning only"}); err != nil {
 			t.Fatal(err)
@@ -135,4 +163,35 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRole("user")
+	effects.mu.Lock()
+	effects.fail = true
+	effects.mu.Unlock()
+	if err := change(userv1.UserRole_USER_ROLE_SUSPENDED_USER, "lost Order acknowledgment"); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("uncertain dispatch: %v", err)
+	}
+	assertRole("user")
+	pending, err := persistence.Admin.PendingRoleDispatch(ctx, user.ID)
+	if err != nil || pending == nil || pending.Reason != "lost Order acknowledgment" {
+		t.Fatalf("durable handoff: %+v %v", pending, err)
+	}
+	before, err := persistence.Admin.RoleChanges(ctx, user.ID)
+	if err != nil || len(before) != 2 {
+		t.Fatalf("premature role finalization: %+v %v", before, err)
+	}
+	effects.mu.Lock()
+	effects.fail = false
+	effects.mu.Unlock()
+	restarted := *roles
+	if err := restarted.RecoverRoleDispatchesOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertRole("suspended_user")
+	if err := restarted.RecoverRoleDispatchesOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	effects.mu.Lock()
+	defer effects.mu.Unlock()
+	if len(effects.ids) != 4 || effects.ids[2] != pending.ID || effects.ids[3] != pending.ID {
+		t.Fatalf("recovery changed/repeated operation identity: %v", effects.ids)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -16,6 +17,7 @@ type accountFixture struct {
 	changes      []models.RoleChange
 	writeErr     error
 	profileError error
+	dispatches   map[uuid.UUID]models.RoleDispatch
 }
 
 func (f *accountFixture) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
@@ -156,8 +158,8 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			if tc.self {
 				f.users[actorID] = models.User{ID: actorID, Email: "actor@example.com", Role: tc.actor}
 			}
-			s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-				return fn(RoleStore{Users: f, Admin: f})
+			s := &RoleService{Users: f, Dispatches: f, Effects: roleEffectsFunc(func(context.Context, models.RoleDispatch) error { return nil }), WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+				return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
 			}}
 			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason)
 			if !errors.Is(err, tc.wantErr) {
@@ -172,6 +174,50 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (f *accountFixture) PendingRoleDispatch(_ context.Context, userID uuid.UUID) (*models.RoleDispatch, error) {
+	for _, d := range f.dispatches {
+		if d.UserID == userID && d.AppliedAt == nil {
+			return &d, nil
+		}
+	}
+	return nil, nil
+}
+func (f *accountFixture) GetRoleDispatch(_ context.Context, id uuid.UUID) (models.RoleDispatch, error) {
+	d, ok := f.dispatches[id]
+	if !ok {
+		return d, store.ErrNotFound
+	}
+	return d, nil
+}
+func (f *accountFixture) PrepareRoleDispatch(_ context.Context, d *models.RoleDispatch) error {
+	if f.dispatches == nil {
+		f.dispatches = map[uuid.UUID]models.RoleDispatch{}
+	}
+	d.Revision = 1
+	for _, old := range f.dispatches {
+		if old.UserID == d.UserID && old.Revision >= d.Revision {
+			d.Revision = old.Revision + 1
+		}
+	}
+	f.dispatches[d.ID] = *d
+	return nil
+}
+func (f *accountFixture) CompleteRoleDispatch(_ context.Context, id uuid.UUID, now time.Time) error {
+	d := f.dispatches[id]
+	d.AppliedAt = &now
+	f.dispatches[id] = d
+	return nil
+}
+func (f *accountFixture) PendingRoleDispatches(context.Context, int) ([]models.RoleDispatch, error) {
+	var rows []models.RoleDispatch
+	for _, d := range f.dispatches {
+		if d.AppliedAt == nil {
+			rows = append(rows, d)
+		}
+	}
+	return rows, nil
 }
 
 func TestRoleChangeConflictDoesNotAudit(t *testing.T) {

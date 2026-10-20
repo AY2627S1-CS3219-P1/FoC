@@ -8,6 +8,22 @@ import "order/v1/shared_types.proto";
 // Service-to-service reads. Not exposed to the frontend.
 service OrderInternalService {
   rpc GetOrderParticipants(GetOrderParticipantsRequest) returns (GetOrderParticipantsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  // User Service's authenticated durable role-decision handoff. This method is
+  // never mounted on the public router or authenticated with an admin user JWT.
+  rpc ApplyAccountSuspension(ApplyAccountSuspensionRequest) returns (ApplyAccountSuspensionResponse) { option idempotency_level = IDEMPOTENT; }
+}
+
+message ApplyAccountSuspensionRequest {
+  string decision_id = 1 [(buf.validate.field).string.uuid = true];
+  string user_id = 2 [(buf.validate.field).string.uuid = true];
+  string admin_id = 3 [(buf.validate.field).string.uuid = true];
+  int64 revision = 4 [(buf.validate.field).int64.gt = 0];
+  bool suspended = 5;
+  string reason = 6 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
+}
+
+message ApplyAccountSuspensionResponse {
+  string decision_id = 1;
 }
 
 // Used by Communication to relay chat only between an order's participants.

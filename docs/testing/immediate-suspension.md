@@ -1,57 +1,89 @@
 # Immediate suspension: verification and remaining gates
 
-Current source is based on PR #179 at
-`dea9c7c78130853793e8e5a8774f607cace02256`.
-See the [implementation boundaries](../adr/immediate-suspension.md).
-This is partial implementation, not a completed or reviewed suspension feature.
+Base: B3 PR #179 at `dea9c7c78130853793e8e5a8774f607cace02256`.
+See [architecture, fail-closed production state and ownership](../adr/immediate-suspension.md).
+Authenticated production dispatch is deferred to existing
+[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29).
 
-## Passed on the pinned B3 source
+## Passed checks
 
-With Go 1.27.0 and writable caches:
+Go 1.27.0 with writable caches was used:
 
 ```sh
 export PATH=/tmp/go/bin:$PATH
 export GOCACHE=/tmp/foc-go-build GOMODCACHE=/tmp/foc-go-mod
 ```
 
-- In `pkg`: `GOWORK=off GOPROXY=off go test -mod=readonly -race ./auth/httpauth`.
-  Same-token role changes, stale admin authority, malformed profile/error handling,
-  identity preservation, bearer-only forwarding and redirect rejection passed.
-- In `order-service`: `GOWORK=off GOPROXY=off go test -mod=readonly -race
-  ./internal/order ./internal/rpc/order -count=1`, with
-  `SUSPENSION_TEST_DATABASE_URL` pointing to disposable PostgreSQL 18.
-  Both domain and mounted RPC suites passed. The dedicated PostgreSQL test ran
-  and passed; it was not skipped. Full integration-tag tests are separate below.
-- In `order-service`: `GOWORK=off GOPROXY=off go vet ./internal/order ./internal/rpc/order`.
-- In `user-service`: `GOWORK=off GOPROXY=off go test -mod=readonly -p 1 -race
-  ./internal/router -run TestAdminSuspensionReachesExistingSession -count=1`,
-  with `TEST_DATABASE_URL` pointing to a separate disposable User database.
-  The mounted admin/profile test passed again on PR #179's source. User and Order
-  require separate databases because their goose migration ledgers are unrelated.
-- `make sqlc` using sqlc 1.30.0 generated migration/query bindings. Generated
-  sources were not hand-edited. Changed handwritten Go files were gofmt formatted;
-  `git diff --check` passed. Pinned repository lint remains unverified.
+- `user-service`: `GOWORK=off GOPROXY=off go test -mod=readonly -p 1 -race ./...`,
+  with `TEST_DATABASE_URL` set to a dedicated disposable PostgreSQL 18 User DB.
+  Schema up/down/up, stores, logic and mounted admin/profile tests passed.
+- `order-service`: `GOWORK=off GOPROXY=off go test -mod=readonly -race
+  ./internal/order ./internal/rpc/order ./internal/rpc/orderinternal -count=1`,
+  with `SUSPENSION_TEST_DATABASE_URL` set to a separate disposable PostgreSQL 18
+  Order DB. Both focused database tests ran and passed; they were not skipped.
+- `pkg`: auth HTTP middleware race suite passed on the pinned source.
+- User `go vet ./...` and Order `go vet` for domain, routers and both affected RPC
+  packages passed with `GOWORK=off GOPROXY=off` and the writable caches.
+- `make sqlc` with sqlc 1.30.0 regenerated the query/schema bindings.
+- Repository `make buf-lint buf-generate BUF=/tmp/foc-buf` passed with Buf 1.73.0
+  and a writable Buf cache. Go, Connect, TypeScript and Kafka output was generated;
+  no generated source was hand-edited.
+- `buf breaking` against pinned PR #179 passed using the local Git base.
+- Frontend `npm run check` passed with zero errors and zero warnings after the
+  generated contract update. No frontend business behavior was changed.
+- Changed handwritten Go files were gofmt formatted; `git diff --check` passed.
 
-`TestSuspensionRemovalDatabase` uses the production PostgreSQL repository,
-aggregate, assignment admission and cancellation recovery with scripted Credit.
-It applies all migrations, assigns a raised reward, admits the exact suspension
-target, proves repeat admission does not call Credit, and proves pickup is fenced.
-It checks uncertain reversal remains pending, restart recovery restores the
-original reward/reservation and expiry, delayed removal preserves replacement B
-and a later assignment of A without another reversal, and pickup-first preserves
-custody. Migration 20261020140000 refuses downgrade while removal is pending and supports
-down/up after recovery. This focused test has no Testcontainers dependency and
-requires an explicitly supplied disposable database URL; no module dependency
-was replaced or changed to run it. The first attempt ran before PostgreSQL was
-ready and failed to connect; after readiness, the final run passed.
+User and Order need separate databases: their goose migration ledgers are
+independent. Initial tool cache-path/readiness mistakes were corrected locally;
+these are not passing claims for unavailable broader suites below.
 
-The in-memory requirement test independently checks pending/restart/replay and
-replacement behavior through the domain API. Suspended initial pickup is denied;
-recorded pickup repeats and suspended requester receipt remain available.
+## Requirement evidence
 
-## Checks blocked or not run
+`TestSuspensionRemovalDatabase` uses production migrations, repository, aggregate,
+assignment operations and B3 recovery with scripted Credit. It proves raised-reward
+assignment removal, pickup fencing, pending state after uncertain reversal,
+restart recovery, restoration of original reservation/reward and original expiry,
+delayed/duplicate A-removal preserving B and a later A assignment without another
+Credit call, pickup-first custody preservation, and migration rollback guards.
 
-The broader integration command was attempted:
+`TestAccountSuspensionFenceDatabase` proves authoritative decision installation,
+automatic discovery/capture of the current assignment, fail-closed rollback when
+Credit recovery is unavailable, stale-profile create/offer/accept denial, denial
+when a requester accepts a suspended courier's old offer, duplicate decisions
+without Credit dispatch, reinstatement versioning and old-decision replay safety.
+It pauses an actual scripted Adjust after the remote boundary, applies suspension,
+then releases the late reply: the old worker cannot assign; existing B1 recovery
+compensates the immutable attempt once. A suspension after pickup preserves the
+Delivering order and its courier.
+
+The focused PostgreSQL tests use an explicit disposable database without importing
+Testcontainers; no module dependency was replaced to run them. The broader
+integration-tag concurrency test remains separately blocked, so these tests are
+not described as a pass for that suite.
+
+User's mounted admin/profile test proves warnings do not suspend, blank reason is
+rejected, reason/actor are audited, same-token role changes are observed, a lost
+Order acknowledgment retains durable intent without prematurely finalizing User's
+role, restart recovery reuses the same identity, and completed decisions do not
+redispatch. Order effects in this User-module test are a test-only acknowledgment
+seam; this does not certify a real cross-service authenticated transport.
+
+Unit tests prove the source role is finalized only after Order effects, changed
+pending intent is refused, missing configured effects admits neither role nor
+outbox changes, reinstatement increments the revision, and client acknowledgment
+must match the original decision ID. The client does not forward an expired admin
+bearer or persist credentials.
+
+Mounted generated internal RPC tests inject a temporary workload identity only
+in `_test.go`. Missing/admin/Order/Credit identities are denied; the intended
+fixture identity can retry without a human token. Missing authentication OR
+missing authorization yields 503 and no operation. The production public router
+returns 404 for the internal mutation. These are authentication-abstraction tests,
+not Istio deployment proof. Production supplies no test identity or fallback.
+
+## Denied downloads and unrun checks
+
+The broader integration-tag command stopped before tests ran:
 
 ```sh
 cd order-service
@@ -59,40 +91,35 @@ GOWORK=off go test -mod=readonly -race -tags=integration ./internal/order \
   -run 'Suspension|PickupAndSuspension' -count=1 -timeout=6m
 ```
 
-It stopped during setup, before tests ran, because the dependency already pinned
-by PR #179, `github.com/klauspost/compress@v1.19.2`, returned `Forbidden` from the
-Go proxy redirect on `storage.googleapis.com` (object prefix
-`7c2def5c0e5e157b-github.com:klauspost:compress-v1.19.2.zip`). This new-version
-request was distinct from the earlier main-base denial below. It was not retried
-through another route; no dependency version was changed. The concurrent
-pickup/removal integration test and the updated cancellation-migration regression
-are authored but have not run. Dedicated PostgreSQL evidence above does not make
-this blocked suite pass.
+PR #179's pinned `github.com/klauspost/compress@v1.19.2` download returned
+`Forbidden` from the Go proxy redirect at `storage.googleapis.com`, object prefix
+`7c2def5c0e5e157b-github.com:klauspost:compress-v1.19.2.zip`. No retry through another
+route or dependency-version change was attempted. The integration-tag concurrent
+pickup/removal test and adjusted migration-6 regression are authored but unrun.
 
-Earlier, on the preserved main-based auth commit `f1b8957`:
+Earlier main-base checks at preserved `f1b8957` passed standard Supplier/Order
+suites, full User database tests, auth race tests and Supplier auth/admin/discovery
+race tests. These are historical evidence, not full reruns on this final source.
+Earlier full `pkg` downloads of `github.com/klauspost/compress@v1.15.9` and
+`github.com/pierrec/lz4/v4@v4.1.15` returned Forbidden from the same download host.
+Pinned golangci-lint 2.14.0 installation for `make fmt` was blocked by
+`github.com/MirrexOne/unqueryvet@v1.5.4` returning Forbidden there. Those downloads
+were not retried; pinned repository formatting/lint is not certified by gofmt/vet.
 
-- Auth race tests, full User tests against disposable PostgreSQL, standard
-  Supplier/Order suites, and Supplier auth/admin/discovery race tests passed.
-  These are historical evidence on that base, not a full rerun on PR #179.
-- Full `pkg` suite was blocked by denied downloads of
-  `github.com/klauspost/compress@v1.15.9` and
-  `github.com/pierrec/lz4/v4@v4.1.15` from `storage.googleapis.com`.
-- `make fmt` could not install pinned golangci-lint 2.14.0 because
-  `github.com/MirrexOne/unqueryvet@v1.5.4` returned `Forbidden` from the same host.
-  Pinned format/lint checks were not certified and those downloads were not retried.
-- B4/B5 GitHub issue searches returned `Forbidden` from
-  `https://api.github.com/graphql`; supplied decisions and fetched source were
-  used, without representing those discussions as reviewed.
+B4/B5 issue searches and later `gh pr view 179` metadata lookup returned Forbidden
+from `https://api.github.com/graphql`. No alternative API was used to bypass them.
 
-## Remaining completion gates
+## Unmet production and review gates
 
-No authorized admin-decision dispatcher or common User/Order ordering boundary
-has been wired. Consequently there is no end-to-end proof of immediate automatic
-removal, a suspension committing between preflight and pickup, or already-admitted
-assignment fencing. The internal removal method must not be exposed as a general
-manual admin operation. B2 proof, B4 deadlines, live Credit idempotency/settlement,
-Kafka, browser and deployed suspension behavior remain uncertified.
+Service-auth work is deferred to #29. #167's broad namespace policy is not proof
+of User-only authorization. Production deliberately refuses suspension/reinstatement
+admission and does not mount the internal endpoint until the approved transport
+and trusted-caller boundary are supplied. No credentials, live access or policies
+were created/changed. No live deployment, mesh enforcement, real Credit fencing
+or settlement, Kafka delivery, B2 proof storage, B4 deadlines or browser flow is
+certified. Existing requester receipt and participant cancellation rules are
+preserved; this is not proof of absent B2/B4 implementations.
 
 The required Devin CLI Opus review has not run: no supported executable/connector
-is available. No substitute model was launched. Findings cannot be claimed
-addressed without that review; no ready PR, push, merge or deployment occurred.
+is available. No substitute model was launched; no ready-PR/review completion is
+claimed. Publication status and any exact denied operation are reported separately.

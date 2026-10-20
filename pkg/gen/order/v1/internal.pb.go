@@ -22,6 +22,134 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ApplyAccountSuspensionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DecisionId    string                 `protobuf:"bytes,1,opt,name=decision_id,json=decisionId,proto3" json:"decision_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AdminId       string                 `protobuf:"bytes,3,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	Revision      int64                  `protobuf:"varint,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	Suspended     bool                   `protobuf:"varint,5,opt,name=suspended,proto3" json:"suspended,omitempty"`
+	Reason        string                 `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyAccountSuspensionRequest) Reset() {
+	*x = ApplyAccountSuspensionRequest{}
+	mi := &file_order_v1_internal_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyAccountSuspensionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyAccountSuspensionRequest) ProtoMessage() {}
+
+func (x *ApplyAccountSuspensionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_internal_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyAccountSuspensionRequest.ProtoReflect.Descriptor instead.
+func (*ApplyAccountSuspensionRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ApplyAccountSuspensionRequest) GetDecisionId() string {
+	if x != nil {
+		return x.DecisionId
+	}
+	return ""
+}
+
+func (x *ApplyAccountSuspensionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ApplyAccountSuspensionRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+func (x *ApplyAccountSuspensionRequest) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *ApplyAccountSuspensionRequest) GetSuspended() bool {
+	if x != nil {
+		return x.Suspended
+	}
+	return false
+}
+
+func (x *ApplyAccountSuspensionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type ApplyAccountSuspensionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DecisionId    string                 `protobuf:"bytes,1,opt,name=decision_id,json=decisionId,proto3" json:"decision_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyAccountSuspensionResponse) Reset() {
+	*x = ApplyAccountSuspensionResponse{}
+	mi := &file_order_v1_internal_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyAccountSuspensionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyAccountSuspensionResponse) ProtoMessage() {}
+
+func (x *ApplyAccountSuspensionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_internal_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyAccountSuspensionResponse.ProtoReflect.Descriptor instead.
+func (*ApplyAccountSuspensionResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ApplyAccountSuspensionResponse) GetDecisionId() string {
+	if x != nil {
+		return x.DecisionId
+	}
+	return ""
+}
+
 // Used by Communication to relay chat only between an order's participants.
 type GetOrderParticipantsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -32,7 +160,7 @@ type GetOrderParticipantsRequest struct {
 
 func (x *GetOrderParticipantsRequest) Reset() {
 	*x = GetOrderParticipantsRequest{}
-	mi := &file_order_v1_internal_proto_msgTypes[0]
+	mi := &file_order_v1_internal_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +172,7 @@ func (x *GetOrderParticipantsRequest) String() string {
 func (*GetOrderParticipantsRequest) ProtoMessage() {}
 
 func (x *GetOrderParticipantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_internal_proto_msgTypes[0]
+	mi := &file_order_v1_internal_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +185,7 @@ func (x *GetOrderParticipantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderParticipantsRequest.ProtoReflect.Descriptor instead.
 func (*GetOrderParticipantsRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_internal_proto_rawDescGZIP(), []int{0}
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetOrderParticipantsRequest) GetOrderId() string {
@@ -80,7 +208,7 @@ type GetOrderParticipantsResponse struct {
 
 func (x *GetOrderParticipantsResponse) Reset() {
 	*x = GetOrderParticipantsResponse{}
-	mi := &file_order_v1_internal_proto_msgTypes[1]
+	mi := &file_order_v1_internal_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -92,7 +220,7 @@ func (x *GetOrderParticipantsResponse) String() string {
 func (*GetOrderParticipantsResponse) ProtoMessage() {}
 
 func (x *GetOrderParticipantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_internal_proto_msgTypes[1]
+	mi := &file_order_v1_internal_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -105,7 +233,7 @@ func (x *GetOrderParticipantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderParticipantsResponse.ProtoReflect.Descriptor instead.
 func (*GetOrderParticipantsResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_internal_proto_rawDescGZIP(), []int{1}
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetOrderParticipantsResponse) GetOrderId() string {
@@ -140,7 +268,19 @@ var File_order_v1_internal_proto protoreflect.FileDescriptor
 
 const file_order_v1_internal_proto_rawDesc = "" +
 	"\n" +
-	"\x17order/v1/internal.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1border/v1/shared_types.proto\"B\n" +
+	"\x17order/v1/internal.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1border/v1/shared_types.proto\"\xf9\x01\n" +
+	"\x1dApplyAccountSuspensionRequest\x12)\n" +
+	"\vdecision_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
+	"decisionId\x12!\n" +
+	"\auser_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x12#\n" +
+	"\badmin_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aadminId\x12#\n" +
+	"\brevision\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\brevision\x12\x1c\n" +
+	"\tsuspended\x18\x05 \x01(\bR\tsuspended\x12\"\n" +
+	"\x06reason\x18\x06 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fR\x06reason\"A\n" +
+	"\x1eApplyAccountSuspensionResponse\x12\x1f\n" +
+	"\vdecision_id\x18\x01 \x01(\tR\n" +
+	"decisionId\"B\n" +
 	"\x1bGetOrderParticipantsRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xbe\x01\n" +
 	"\x1cGetOrderParticipantsResponse\x12\x19\n" +
@@ -149,9 +289,10 @@ const file_order_v1_internal_proto_rawDesc = "" +
 	"\n" +
 	"courier_id\x18\x03 \x01(\tH\x00R\tcourierId\x88\x01\x01\x12-\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x15.order.v1.OrderStatusR\x06statusB\r\n" +
-	"\v_courier_id2\x82\x01\n" +
+	"\v_courier_id2\xf4\x01\n" +
 	"\x14OrderInternalService\x12j\n" +
-	"\x14GetOrderParticipants\x12%.order.v1.GetOrderParticipantsRequest\x1a&.order.v1.GetOrderParticipantsResponse\"\x03\x90\x02\x01B\x9a\x01\n" +
+	"\x14GetOrderParticipants\x12%.order.v1.GetOrderParticipantsRequest\x1a&.order.v1.GetOrderParticipantsResponse\"\x03\x90\x02\x01\x12p\n" +
+	"\x16ApplyAccountSuspension\x12'.order.v1.ApplyAccountSuspensionRequest\x1a(.order.v1.ApplyAccountSuspensionResponse\"\x03\x90\x02\x02B\x9a\x01\n" +
 	"\fcom.order.v1B\rInternalProtoP\x01Z:github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
 
 var (
@@ -166,18 +307,22 @@ func file_order_v1_internal_proto_rawDescGZIP() []byte {
 	return file_order_v1_internal_proto_rawDescData
 }
 
-var file_order_v1_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_order_v1_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_order_v1_internal_proto_goTypes = []any{
-	(*GetOrderParticipantsRequest)(nil),  // 0: order.v1.GetOrderParticipantsRequest
-	(*GetOrderParticipantsResponse)(nil), // 1: order.v1.GetOrderParticipantsResponse
-	(OrderStatus)(0),                     // 2: order.v1.OrderStatus
+	(*ApplyAccountSuspensionRequest)(nil),  // 0: order.v1.ApplyAccountSuspensionRequest
+	(*ApplyAccountSuspensionResponse)(nil), // 1: order.v1.ApplyAccountSuspensionResponse
+	(*GetOrderParticipantsRequest)(nil),    // 2: order.v1.GetOrderParticipantsRequest
+	(*GetOrderParticipantsResponse)(nil),   // 3: order.v1.GetOrderParticipantsResponse
+	(OrderStatus)(0),                       // 4: order.v1.OrderStatus
 }
 var file_order_v1_internal_proto_depIdxs = []int32{
-	2, // 0: order.v1.GetOrderParticipantsResponse.status:type_name -> order.v1.OrderStatus
-	0, // 1: order.v1.OrderInternalService.GetOrderParticipants:input_type -> order.v1.GetOrderParticipantsRequest
-	1, // 2: order.v1.OrderInternalService.GetOrderParticipants:output_type -> order.v1.GetOrderParticipantsResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
+	4, // 0: order.v1.GetOrderParticipantsResponse.status:type_name -> order.v1.OrderStatus
+	2, // 1: order.v1.OrderInternalService.GetOrderParticipants:input_type -> order.v1.GetOrderParticipantsRequest
+	0, // 2: order.v1.OrderInternalService.ApplyAccountSuspension:input_type -> order.v1.ApplyAccountSuspensionRequest
+	3, // 3: order.v1.OrderInternalService.GetOrderParticipants:output_type -> order.v1.GetOrderParticipantsResponse
+	1, // 4: order.v1.OrderInternalService.ApplyAccountSuspension:output_type -> order.v1.ApplyAccountSuspensionResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -189,14 +334,14 @@ func file_order_v1_internal_proto_init() {
 		return
 	}
 	file_order_v1_shared_types_proto_init()
-	file_order_v1_internal_proto_msgTypes[1].OneofWrappers = []any{}
+	file_order_v1_internal_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_internal_proto_rawDesc), len(file_order_v1_internal_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -47,6 +47,15 @@ type Order struct {
 	PendingCancellationID *uuid.UUID
 }
 
+type OrderAccountSuspension struct {
+	UserID             uuid.UUID
+	DecisionID         uuid.UUID
+	SuspensionRevision int64
+	Suspended          bool
+	AdminID            uuid.UUID
+	Reason             string
+}
+
 type OrderAssignmentAttempt struct {
 	ID             uuid.UUID
 	Sequence       int64
