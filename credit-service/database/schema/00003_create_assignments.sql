@@ -14,7 +14,7 @@ CREATE TABLE assignments (
     status          TEXT        NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reverted_at     TIMESTAMPTZ,
-    PRIMARY KEY (order_id, assignment_id),
+    PRIMARY KEY (order_id, assignment_id),  
     CONSTRAINT assignments_status_check CHECK (status IN ('APPLIED', 'REVERTED')),
     CONSTRAINT assignments_reverted_check CHECK ((status = 'REVERTED') = (reverted_at IS NOT NULL)),
     CONSTRAINT assignments_applied_check CHECK (
