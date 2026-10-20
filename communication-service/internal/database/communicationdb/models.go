@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type OrderNotificationsSent struct {
+	EventID uuid.UUID
+	UserID  uuid.UUID
+	SentAt  time.Time
+}
+
 type TelegramLink struct {
 	UserID           uuid.UUID
 	ChatID           int64
