@@ -19,7 +19,7 @@ Each cell links **before / after** for the same state and viewport. Selection af
 
 Full-page context: [mobile gallery](after/gallery-full-360.png), [desktop gallery](after/gallery-full-1440.png).
 
-[Interaction recording](retry-reload.mp4) shows selection, failed upload, retained files, removal retry, outage rejection, lost confirmation, reload and keyboard retry. The recording holds the browser at 360x1000 and slows browser actions for inspection. Native-resolution screenshots show the wider layouts.
+[Interaction recording](retry-reload.mp4) shows selection, failed upload, retained files, removal retry, outage rejection, lost confirmation, reload and keyboard retry. The recording holds the browser at 360x1000 and slows browser actions for inspection. The MP4 removes unused gray recorder padding below the captured app frames; Chrome scales those frames, so use the native-resolution screenshots to judge text sizing. Native-resolution screenshots show the wider layouts.
 
 ## Repeat the browser check
 
