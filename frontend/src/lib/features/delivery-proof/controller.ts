@@ -18,8 +18,8 @@ export type ProofGrant = {
 	uploadHeaders: Record<string, string>;
 };
 
-// Owned by this feature. The shared Order service owner supplies the adapter
-// after the RPC and exporter commit handoff. No inferred shared-service imports.
+// Feature-owned application interface. The shared service adapter forwards
+// abort signals and distinguishes authoritative rejection from unknown results.
 export interface DeliveryProofAPI {
 	createUpload(input: {
 		orderId: string;
@@ -43,6 +43,7 @@ export type ProofSnapshot = {
 	outcome: ProofOutcome;
 	message: string;
 	locked: boolean;
+	busy: boolean;
 };
 
 const types = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
@@ -77,8 +78,16 @@ export class DeliveryProofController {
 		private orderId: string,
 		private api: DeliveryProofAPI,
 		private changed: (snapshot: ProofSnapshot) => void,
-		private put: PutPhoto = putPhoto
-	) {}
+		private put: PutPhoto = putPhoto,
+		pending?: Parameters<DeliveryProofAPI['confirmDelivery']>[0]
+	) {
+		if (pending) {
+			this.submitted = { ...pending, proofIds: [...pending.proofIds] };
+			this.unattended = pending.unattended;
+			this.outcome = 'Pending';
+			this.message = 'The server received this confirmation. Validation is pending. Retry only the saved submission; its photos and choices cannot change.';
+		}
+	}
 
 	snapshot(): ProofSnapshot {
 		return {
@@ -86,6 +95,7 @@ export class DeliveryProofController {
 			unattended: this.unattended,
 			outcome: this.outcome,
 			message: this.message,
+			busy: this.busy,
 			locked: this.busy || !!this.submitted || this.outcome === 'Succeeded'
 		};
 	}
