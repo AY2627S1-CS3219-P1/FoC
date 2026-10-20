@@ -1,3 +1,5 @@
+import { ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from '$lib/services/delivery-proof/api';
+
 export type ProofOutcome = 'Not Submitted' | 'Pending' | 'Succeeded' | 'Rejected' | 'Failed';
 export type ProofFile = {
 	id: string;
@@ -8,35 +10,6 @@ export type ProofFile = {
 	outcome: ProofOutcome;
 	message: string;
 };
-// The adapter marks only authoritative server rejections as Rejected.
-// Transport failures and ambiguous responses remain Failed/unknown.
-export class ProofRejectedError extends Error {}
-
-export type ProofGrant = {
-	proofId: string;
-	uploadUrl: string;
-	uploadHeaders: Record<string, string>;
-};
-
-// Feature-owned application interface. The shared service adapter forwards
-// abort signals and distinguishes authoritative rejection from unknown results.
-export interface DeliveryProofAPI {
-	createUpload(input: {
-		orderId: string;
-		uploadId: string;
-		contentType: string;
-		sizeBytes: number;
-	}, signal: AbortSignal): Promise<ProofGrant>;
-	abandonUpload(orderId: string, uploadId: string, signal: AbortSignal): Promise<void>;
-	verifyUpload(orderId: string, proofId: string, signal: AbortSignal): Promise<void>;
-	confirmDelivery(input: {
-		orderId: string;
-		proofIds: string[];
-		unattended: boolean;
-		withoutProof: boolean;
-	}, signal: AbortSignal): Promise<void>;
-}
-
 export type ProofSnapshot = {
 	files: ProofFile[];
 	unattended: boolean;

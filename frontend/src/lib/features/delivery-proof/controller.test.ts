@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliveryProofController, ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from './controller';
+import { DeliveryProofController } from './controller';
+import { ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from '$lib/services/delivery-proof/api';
 
 // Expected behavior comes from approved Q1/Q4/Q5/Q8/Q11 and NFR-13.
 function scenario() {

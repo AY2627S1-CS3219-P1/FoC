@@ -1,6 +1,6 @@
 import { createClient, Code, ConnectError, type Transport } from '@connectrpc/connect';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
-import { ProofRejectedError, type DeliveryProofAPI } from '$lib/features/delivery-proof/controller';
+import { ProofRejectedError, type DeliveryProofAPI } from './api';
 
 export type SavedProofSubmission = Parameters<DeliveryProofAPI['confirmDelivery']>[0];
 export type DeliveryProofRead = {

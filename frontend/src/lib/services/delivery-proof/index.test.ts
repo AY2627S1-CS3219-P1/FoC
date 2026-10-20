@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
 import { OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
-import { ProofRejectedError } from '$lib/features/delivery-proof/controller';
+import { ProofRejectedError } from './api';
 import { createDeliveryProofService } from './index';
 
 const orderId = '11111111-1111-4111-8111-111111111111';

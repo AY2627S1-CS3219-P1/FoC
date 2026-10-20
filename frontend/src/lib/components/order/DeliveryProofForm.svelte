@@ -6,9 +6,10 @@
 	import { z } from 'zod';
 	import {
 		DeliveryProofController,
-		type DeliveryProofAPI,
 		type ProofSnapshot
 	} from '$lib/features/delivery-proof/controller';
+
+	import type { DeliveryProofAPI } from '$lib/services/delivery-proof/api';
 
 	// Mounted by authenticated caller/order, only for the assigned courier
 	// while Delivering. Durable pending input survives navigation and reload.
