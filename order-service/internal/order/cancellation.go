@@ -61,14 +61,34 @@ func (s *Canceller) mutate(ctx context.Context, id string, requestKey *Idempoten
 	})
 }
 
-func cancellationHash(id, reason string) string {
+func cancellationHash(id, reason string, revision ...int64) string {
 	data, _ := json.Marshal([]string{id, reason})
+	if len(revision) > 0 {
+		data, _ = json.Marshal(struct {
+			ID       string
+			Reason   string
+			Revision int64
+		}{id, reason, revision[0]})
+	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
 // Cancel admits intent before any Credit call. Suspension does not remove participant rights.
 func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, key string) (CancellationResult, error) {
+	return s.cancel(ctx, caller, orderID, reason, key, nil)
+}
+
+// CancelConfirmed binds new intent to the revision confirmed by the participant.
+// Retained matching operations replay before checking the current revision.
+func (s *Canceller) CancelConfirmed(ctx context.Context, caller Caller, orderID, reason, key string, revision int64) (CancellationResult, error) {
+	if revision <= 0 {
+		return CancellationResult{}, ErrInvalid
+	}
+	return s.cancel(ctx, caller, orderID, reason, key, []int64{revision})
+}
+
+func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, key string, revision []int64) (CancellationResult, error) {
 	cid, err := parseID(caller.ID)
 	if err != nil {
 		return CancellationResult{}, ErrForbidden
@@ -92,7 +112,7 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		key = kid.String()
 		scope = &IdempotencyScope{CallerID: caller.ID, Method: CancelOrderMethod}
 	}
-	hash := cancellationHash(orderID, reason)
+	hash := cancellationHash(orderID, reason, revision...)
 	var requestKey *IdempotencyKey
 	if scope != nil {
 		requestKey = &IdempotencyKey{Scope: *scope, Key: key, RequestHash: hash}
@@ -128,6 +148,9 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		// Authorize new intent against the locked aggregate, then join pending work.
 		if !o.HasParticipant(caller.ID) {
 			return nil, ErrForbidden
+		}
+		if len(revision) > 0 && o.Revision != revision[0] {
+			return nil, ErrConflict
 		}
 		now := s.now().UTC()
 		if o.PendingCancellationID != nil && o.IsAssignedTo(caller.ID) {
@@ -166,6 +189,11 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		after.Revision++
 		after.UpdatedAt = now
 		if action == Withdraw {
+			if s.credit == nil {
+				// This is a definitive pre-admission refusal, not an uncertain
+				// dependency reply after a durable withdrawal has started.
+				return nil, ErrPrecondition
+			}
 			operation.Status, operation.CourierID, operation.AssignedAt = CancellationPending, caller.ID, clonePointer(o.AssignedAt)
 			assignment, err := tx.CurrentSuccessfulAssignment(ctx, o.ID)
 			if err != nil {
@@ -215,7 +243,7 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		if err := retain(); err != nil {
 			return nil, err
 		}
-		details, _ := json.Marshal(map[string]string{"operation_id": operation.ID, "reason": reason})
+		details, _ := json.Marshal(map[string]any{"operation_id": operation.ID, "reason": reason, "courier_holds_item": o.PickedUpAt != nil})
 		change, err := NewChange(&o, after, Actor{Kind: User, ID: caller.ID}, action, details, s.newID)
 		if err != nil {
 			return nil, err

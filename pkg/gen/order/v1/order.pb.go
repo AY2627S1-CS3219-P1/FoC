@@ -894,8 +894,10 @@ type CancelOrderRequest struct {
 	IdempotencyKey *string                `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Reason         *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Revision whose cancellation consequences the participant confirmed.
+	ExpectedRevision int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CancelOrderRequest) Reset() {
@@ -947,6 +949,13 @@ func (x *CancelOrderRequest) GetReason() string {
 		return *x.Reason
 	}
 	return ""
+}
+
+func (x *CancelOrderRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
 }
 
 // Courier only, after a cancellation following pickup.
@@ -1832,12 +1841,13 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"unattended\x18\x03 \x01(\bR\n" +
 	"unattended\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb5\x02\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xeb\x02\n" +
 	"\x12CancelOrderRequest\x126\n" +
 	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x0eidempotencyKey\x88\x01\x01\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
-	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x01R\x06reason\x88\x01\x01B\x12\n" +
+	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x01R\x06reason\x88\x01\x01\x124\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevisionB\x12\n" +
 	"\x10_idempotency_keyB\t\n" +
 	"\a_reason\"\xa2\x02\n" +
 	"\x19RecordItemLocationRequest\x12#\n" +

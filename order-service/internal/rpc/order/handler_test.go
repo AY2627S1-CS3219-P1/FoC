@@ -241,7 +241,7 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
+func TestUnconfiguredParticipantRPCsFailClosedAndUploadRemainsUnimplemented(t *testing.T) {
 	c := mount(t, &fakeOperations{}, "admin")
 	ctx := context.Background()
 	calls := []struct {
@@ -285,7 +285,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"cancel", func() error {
-			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID}))
+			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, ExpectedRevision: 1}))
 			return e
 		}},
 		{"location", func() error {
@@ -304,7 +304,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" {
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" || call.name == "pickup" || call.name == "receipt" || call.name == "location" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {

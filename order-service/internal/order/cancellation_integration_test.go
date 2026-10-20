@@ -67,7 +67,7 @@ func TestPostgresCancellationParticipantsAndStates(t *testing.T) {
 					now := func() time.Time { return o.UpdatedAt.Add(time.Second) }
 					beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
 					result, err := NewCanceller(f.repo, nil, AssignmentOptions{Now: now}).Cancel(f.ctx, caller, o.ID, "  change of plans  ", uuid.NewString())
-					allowed := role == "requester" && (status == AwaitingCourier || status == AwaitingPickup || status == Delivering) || role == "courier" && (status == AwaitingPickup || status == Delivering)
+					allowed := role == "requester" && (status == AwaitingCourier || status == AwaitingPickup || status == Delivering) || role == "courier" && status == Delivering
 					if !allowed {
 						if err == nil {
 							t.Fatalf("unexpected cancellation: %+v", result)

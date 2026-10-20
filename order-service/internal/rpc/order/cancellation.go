@@ -10,7 +10,7 @@ import (
 )
 
 type CancellationOperations interface {
-	Cancel(context.Context, app.Caller, string, string, string) (app.CancellationResult, error)
+	CancelConfirmed(context.Context, app.Caller, string, string, string, int64) (app.CancellationResult, error)
 }
 
 func NewServerWithCancellation(operations Operations, creator CreationOperations, images ImageOperations, assignments AssignmentOperations, cancellations CancellationOperations) *Server {
@@ -31,7 +31,7 @@ func (s *Server) CancelOrder(ctx context.Context, req *connect.Request[pb.Cancel
 	if req.Msg.IdempotencyKey != nil && req.Msg.GetIdempotencyKey() == "" {
 		return nil, shared.ConnectError(ctx, app.ErrInvalid)
 	}
-	result, err := s.cancellations.Cancel(ctx, caller, req.Msg.Id, req.Msg.GetReason(), req.Msg.GetIdempotencyKey())
+	result, err := s.cancellations.CancelConfirmed(ctx, caller, req.Msg.Id, req.Msg.GetReason(), req.Msg.GetIdempotencyKey(), req.Msg.GetExpectedRevision())
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
