@@ -28,8 +28,14 @@ func (s *PostgresStore) queries() *db.Queries { return db.New(s.Pool) }
 // SaveOrder implements OrderStore.
 func (s *PostgresStore) SaveOrder(ctx context.Context, o Order, now time.Time) error {
 	if err := s.queries().SaveOrderParticipants(ctx, db.SaveOrderParticipantsParams{
-		OrderID: o.ID, RequesterID: o.RequesterID, CourierID: nullID(o.CourierID), Status: o.Status,
-		Revision: o.Revision, PickupLocationName: o.PickupName, EndedAt: nullTime(o.EndedAt), UpdatedAt: now,
+		OrderID:            o.ID,
+		RequesterID:        o.RequesterID,
+		CourierID:          nullID(o.CourierID),
+		Status:             o.Status,
+		Revision:           o.Revision,
+		PickupLocationName: o.PickupName,
+		EndedAt:            nullTime(o.EndedAt),
+		UpdatedAt:          now,
 	}); err != nil {
 		return fmt.Errorf("save order participants: %w", err)
 	}
@@ -77,7 +83,10 @@ func (s *PostgresStore) ReplyTarget(ctx context.Context, chatID, messageID int64
 // SaveReplyTarget implements Store.
 func (s *PostgresStore) SaveReplyTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error {
 	if err := s.queries().SaveReplyTarget(ctx, db.SaveReplyTargetParams{
-		ChatID: chatID, MessageID: messageID, OrderID: orderID, CreatedAt: at,
+		ChatID:    chatID,
+		MessageID: messageID,
+		OrderID:   orderID,
+		CreatedAt: at,
 	}); err != nil {
 		return fmt.Errorf("save reply target: %w", err)
 	}
@@ -98,7 +107,11 @@ func (s *PostgresStore) Selection(ctx context.Context, userID uuid.UUID) (uuid.U
 
 // Select implements Store.
 func (s *PostgresStore) Select(ctx context.Context, userID, orderID uuid.UUID, at time.Time) error {
-	if err := s.queries().SaveSelection(ctx, db.SaveSelectionParams{UserID: userID, OrderID: orderID, SelectedAt: at}); err != nil {
+	if err := s.queries().SaveSelection(ctx, db.SaveSelectionParams{
+		UserID:     userID,
+		OrderID:    orderID,
+		SelectedAt: at,
+	}); err != nil {
 		return fmt.Errorf("save selection: %w", err)
 	}
 	return nil
@@ -107,7 +120,12 @@ func (s *PostgresStore) Select(ctx context.Context, userID, orderID uuid.UUID, a
 // SaveMessage implements Store.
 func (s *PostgresStore) SaveMessage(ctx context.Context, m Message) error {
 	if err := s.queries().SaveChatMessage(ctx, db.SaveChatMessageParams{
-		ID: m.ID, OrderID: m.OrderID, SenderID: m.SenderID, RecipientID: m.RecipientID, Body: m.Body, SentAt: m.SentAt,
+		ID:          m.ID,
+		OrderID:     m.OrderID,
+		SenderID:    m.SenderID,
+		RecipientID: m.RecipientID,
+		Body:        m.Body,
+		SentAt:      m.SentAt,
 	}); err != nil {
 		return fmt.Errorf("save chat message: %w", err)
 	}
@@ -144,7 +162,13 @@ func (s *PostgresStore) DeleteExpired(ctx context.Context, cutoff, closedBefore 
 }
 
 func fromRow(row db.ListUserOrdersRow) Order {
-	o := Order{ID: row.OrderID, RequesterID: row.RequesterID, Status: row.Status, Revision: row.Revision, PickupName: row.PickupLocationName}
+	o := Order{
+		ID:          row.OrderID,
+		RequesterID: row.RequesterID,
+		Status:      row.Status,
+		Revision:    row.Revision,
+		PickupName:  row.PickupLocationName,
+	}
 	if row.CourierID != nil {
 		o.CourierID = *row.CourierID
 	}
