@@ -4,70 +4,110 @@ Date: 20 Oct 2026
 Status: accepted implementation policy
 Dependencies: acceptance/offers #159, creation/recovery, and
 [durable assignment history](order-read-privacy-and-assignment-history.md).
-The source PRD PDF remains unavailable; checked-in requirements and accepted
-contracts are the baseline.
 
-Participant cancellation lives in `internal/order`, sharing the aggregate mutation
-boundary, audit, outbox relay and central assignment-history writer. Authorization
-uses persisted requester/current courier relationships. Suspension retains these
-rights; an admin role alone does not grant them. Delivered, Pending Reservation
-and terminal Orders reject new cancellations. Keyed historical retries are resolved
-before current lifecycle eligibility and return their recorded operation status
-with the caller-authorized current Order, including history redaction.
+The source PRD PDF is unavailable, so we use the checked-in requirements and
+accepted contracts as the baseline.
 
-`CancelOrderRequest.idempotency_key` is optional. A UUID scopes to caller and RPC
-method in shared idempotency storage, with a canonical order/reason hash. Trim
-reason whitespace and limit it to 500 Unicode characters. Keep mappings for the
-Order's lifetime, including SUCCEEDED and SUPERSEDED results. Changed payloads
-return already_exists. Equivalent requests join a pending withdrawal and may bind
-additional keys to it. A different reason on a new request during withdrawal
-returns aborted rather than overwriting the durable intent.
+## Who can cancel
 
-Keyless calls retain current-state semantics. A keyless call after terminal
-cancellation fails eligibility; after withdrawal it has no participant rights
-unless a later assignment exists. A delayed keyless call cannot distinguish a
-new intentional cancellation of that later assignment. Clients must not
-automatically retry keyless calls after uncertainty. A new acceptance UUID permits
-intentional reacceptance; old acceptance/cancellation identities never operate on
-a later assignment. Historical offers remain historical and expiry is unchanged.
+We keep cancellation in `internal/order` so it uses the existing aggregate
+mutation boundary, audit, outbox relay and central assignment-history writer.
+The stored requester and current courier relationships determine who can cancel.
+Suspended participants keep that right. Being an admin alone does not grant it.
+Pending Reservation, Delivered and terminal Orders reject new cancellations.
 
-Before-pickup courier withdrawal first persists a PENDING operation and the
-Order's pending reference, with audit only. The successful assignment attempt's
-immutable identity (Credit offer_id), original amount, courier and assignment time
-are captured under the Order lock. Missing identity leaves durable pending work;
-never invent a reversal identity from an offer or accept a Held read as proof of
-acknowledged reversal. The Order remains Awaiting Pickup, exposes
-`cancellation_pending`, and blocks pickup at the shared transition boundary.
+## Retrying a cancellation
 
-Recovery runs immediately at startup and every second, with bounded calls,
-backoff, batches and lease/generation fencing shared with assignment patterns.
-Call RevertAdjustment outside transactions, require acknowledgement, then read a
-matching Held reservation at the original amount with no assignment. Released,
-wrong-amount, missing and uncertain observations remain pending. Re-lock the
-Order and verify operation, generation, lease, current courier, assignment time,
-and status before applying. Restore the original reward/reservation, clear the
-current assignment/pending reference, close history through the central writer,
-and emit one status fact. No public offer is reactivated.
+`CancelOrderRequest.idempotency_key` is an optional UUID. We store it in the
+shared idempotency storage, scoped to the caller and RPC method, alongside a
+canonical hash of the order and reason. We trim whitespace from the reason and
+limit it to 500 Unicode characters.
 
-Requester cancellation supersedes pending withdrawal, clears its pending
-reference and closes immediately. Any unfinished acceptance is moved to durable
-compensation with an advanced generation in that same transaction. Late workers
-cannot assign or reopen a terminal Order. Terminal cancellation preserves current
-participants, pickup timestamps, reservation observations and other snapshots.
-Requester cancellation yields Cancelled; courier cancellation in Delivering yields
-Failed. All terminal paths emit exactly one status and outcome; the latter courier
-path also emits a warning request. Settlement remains exclusively event-driven;
-cancellation never calls ReleaseReservation or SettleReservation. Item-location
-recording, frontend controls, admin operations and deadline workers are separate.
+A retry with the same key returns the original operation's recorded status. We
+look up that operation before checking whether the caller could cancel the Order
+in its current state. The response also includes the current Order, with only the
+information the caller is allowed to see.
 
-Migration 00006 is additive and reversible. Cancellation records, aggregate,
-assignment compensation, history, audit, keys and facts commit atomically. Workflow
-lease changes without aggregate changes carry no new lifecycle audit/event.
-Outstanding cancellations require configured Credit workload credentials at startup
-but Credit reachability is not a startup dependency.
+For example, courier A withdraws, courier B accepts, and A retries the withdrawal
+with the original key. A receives the result of their earlier withdrawal and the
+current Order showing B's assignment. The Order follows the usual redaction rules
+for former couriers. The retry cannot cancel B's assignment.
 
-Verification uses disposable PostgreSQL, mounted generated Connect clients,
-scripted Credit and the existing Kafka publication harness. Passing those checks
-does not certify real Credit adjustment/reversal/settlement, permanent remote
-idempotency fencing or workload authorization. Deployment verification against the
-real Credit service and its outcome consumer remains an external dependency.
+We retain key mappings for the Order's lifetime, including SUCCEEDED and
+SUPERSEDED results. Reusing a key with a different order or reason returns
+already_exists. Equivalent requests join an existing pending withdrawal and can
+attach additional keys to it. A new request with a different reason during that
+withdrawal returns aborted; the stored request stays unchanged.
+
+Calls without a key act on the Order's current state. After terminal cancellation,
+a new keyless call fails the eligibility check. After withdrawal, the former
+courier has no cancellation rights unless they are assigned again. If they do
+accept again, the server cannot tell whether a delayed keyless call is an old
+retry or an intentional cancellation of the new assignment. Clients must not
+automatically retry keyless calls when the earlier result is uncertain.
+
+A withdrawn courier can accept again using a fresh acceptance UUID. Replaying an
+old acceptance or cancellation cannot change a later assignment. Historical offers
+stay unchanged, and withdrawal does not extend the Order's expiry.
+
+## Withdrawing before pickup
+
+We first save a PENDING cancellation and its reference on the Order. This step
+writes an audit entry without emitting an event. While holding the Order lock,
+we capture the successful assignment attempt's immutable identity (Credit
+offer_id), original amount, courier and assignment time.
+
+If that identity is missing, the cancellation stays pending. We must not invent
+a reversal identity from an offer. A Held reservation read is also insufficient
+on its own: Credit must acknowledge the reversal. Until recovery confirms it,
+the Order stays Awaiting Pickup and reads expose `cancellation_pending`. The
+shared transition rules block pickup during this period.
+
+Recovery runs at startup and every second. It reuses the assignment workflow's
+bounded calls, retry backoff, batches, leases and generation checks. Each attempt
+calls RevertAdjustment outside the database transaction. After Credit acknowledges
+the reversal, we read the reservation and require a matching Held reservation at
+the original amount with no assignment. A Released reservation, wrong amount,
+missing result or uncertain response leaves the cancellation pending.
+
+Before applying the result, the worker locks the Order again and checks the
+operation, generation, lease, current courier, assignment time and status. It then
+restores the original reward and reserved amount, clears the current courier,
+assignment time and pending reference, and returns the Order to Awaiting Courier.
+The central writer closes the assignment-history entry, and the change emits one
+status fact. Recovery does not reactivate any public offers.
+
+## Closing an Order
+
+Requester cancellation marks any pending withdrawal SUPERSEDED,
+clears its pending reference and closes the Order immediately. In the same
+transaction, we record any unfinished acceptance as work that needs compensation
+and advance its generation. These checks prevent a late worker response from
+assigning a courier or reopening the terminal Order.
+
+Terminal cancellation keeps the current participants, pickup timestamps,
+reservation observations and other snapshots. Requester cancellation produces
+Cancelled; courier cancellation during Delivering produces Failed. Each terminal
+cancellation emits exactly one status fact and one outcome. Courier cancellation
+after pickup also emits a warning request.
+
+Credit settles terminal Orders through events. Cancellation never calls
+ReleaseReservation or SettleReservation. Item-location recording, frontend
+controls, admin operations and deadline workers remain separate features.
+
+## Storage and verification
+
+Migration 00006 is additive and reversible. Cancellation records and the aggregate
+commit in the same transaction as assignment compensation, history, audit, keys
+and outbox facts. Updating a workflow lease without changing the aggregate does
+not create another lifecycle audit entry or event.
+
+If cancellations are still pending at startup, Credit workload credentials must
+be configured. Credit does not have to be reachable for the service to start.
+
+We verify this with disposable PostgreSQL, generated Connect clients against
+mounted handlers, scripted Credit responses and the existing Kafka publication
+harness. Those tests do not verify the real Credit service's adjustment, reversal
+or settlement behavior, its permanent idempotency guarantees, or workload
+authorization. Verification against Credit and its outcome consumer remains an
+external deployment dependency.

@@ -131,6 +131,7 @@ SDK clients, credentials, buckets, signing, image persistence and upload workflo
 are deferred. A configurable fake exists only in tests and is never wired into the
 server or injected as an unused Order dependency.
 
-Participant cancellation and durable withdrawal now follow
-[the cancellation ADR](order-participant-cancellation.md), including optional
-lifetime retry keys, pending withdrawal, pickup fencing and Credit reversal recovery.
+For participant cancellation and durable withdrawal, see
+[the cancellation ADR](order-participant-cancellation.md). It explains how we retain
+optional retry keys for the Order's lifetime, keep withdrawals pending while Credit
+reversal is uncertain, block pickup and recover unfinished work.
