@@ -79,3 +79,12 @@ this slice. Real Credit settlement, five-minute financial reconciliation, admin
 alerts, minimum courier rating, proof upload, later lifecycle operations and the
 browser flow remain explicit dependencies. NFR-20 is partial until the actual
 Credit consumer is verified.
+
+## Browser logout and unresolved submissions
+
+Logout clears submitted locations, instructions, description and image references
+from tab storage. It retains caller-scoped retry metadata and a redaction marker
+for unresolved submissions. Signing back in must not silently create a new retry
+identity: recovery blocks creation and directs the caller to My Orders. The
+redacted payload cannot be replayed; confirmed outcomes still clear their saved
+record normally. Corrupt or expired records also fail closed.

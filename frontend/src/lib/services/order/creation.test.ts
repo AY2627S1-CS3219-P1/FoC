@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { creationSchema, putImage, recoverSubmission, saveSubmission, clearSubmittedOrders, submissionStoragePrefix, validateImage, type SubmittedCreation } from './creation.ts';
+import { creationSchema, putImage, recoverSubmission, saveSubmission, clearSubmittedOrders, removeSubmission, submissionStoragePrefix, validateImage, type SubmittedCreation } from './creation.ts';
 
 const callerId = '11111111-1111-4111-8111-111111111111';
 const key = '22222222-2222-4222-8222-222222222222';
@@ -39,6 +39,14 @@ describe('submitted creation recovery', () => {
 		expect(recoverSubmission(tab, pickup, submittedAt)).toEqual({ state: 'none' });
 	});
 
+	it('redacts corrupt logout records without permitting a fresh submission', () => {
+		const tab = storage();
+		tab.setItem(submissionStoragePrefix + callerId, '{sensitive-unreadable');
+		clearSubmittedOrders(tab);
+		expect(tab.getItem(submissionStoragePrefix + callerId)).toBe(JSON.stringify({ redacted: true }));
+		expect(recoverSubmission(tab, callerId, submittedAt).state).toBe('blocked');
+	});
+
 	it('blocks corrupt and expired identities instead of silently starting another Order', () => {
 		const tab = storage();
 		saveSubmission(tab, submission());
@@ -47,13 +55,22 @@ describe('submitted creation recovery', () => {
 		expect(recoverSubmission(tab, callerId, submittedAt).state).toBe('blocked');
 	});
 
-	it('clears submission data on logout without deleting unrelated tab data', () => {
+	it('redacts logout payload but retains a caller-scoped unresolved identity', () => {
 		const tab = storage();
 		saveSubmission(tab, submission());
 		tab.setItem('unrelated', 'keep');
 		clearSubmittedOrders(tab);
-		expect(recoverSubmission(tab, callerId, submittedAt)).toEqual({ state: 'none' });
+		expect(recoverSubmission(tab, callerId, submittedAt).state).toBe('blocked');
+		const marker = JSON.parse(tab.getItem(submissionStoragePrefix + callerId)!);
+		expect(marker).toMatchObject({ callerId, key, submittedAt, redacted: true });
+		expect(marker.input).toBeUndefined();
+		expect(tab.getItem(submissionStoragePrefix + callerId)).not.toContain('Room 02-15');
+		expect(recoverSubmission(tab, pickup, submittedAt)).toEqual({ state: 'none' });
+		clearSubmittedOrders(tab);
+		expect(JSON.parse(tab.getItem(submissionStoragePrefix + callerId)!)).toEqual(marker);
 		expect(tab.getItem('unrelated')).toBe('keep');
+		removeSubmission(tab, callerId);
+		expect(recoverSubmission(tab, callerId, submittedAt)).toEqual({ state: 'none' });
 	});
 });
 
