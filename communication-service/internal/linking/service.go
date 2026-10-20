@@ -51,6 +51,7 @@ type Store interface {
 	GetLink(ctx context.Context, userID uuid.UUID) (Link, error)
 	// GetLinkByChat returns ErrNotLinked when no user has the chat.
 	GetLinkByChat(ctx context.Context, chatID int64) (Link, error)
+	// DeleteLink also deletes the user's unused codes.
 	DeleteLink(ctx context.Context, userID uuid.UUID) error
 	DeleteLinkByChat(ctx context.Context, chatID int64) error
 }

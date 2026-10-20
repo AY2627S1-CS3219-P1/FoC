@@ -207,8 +207,11 @@ services:
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Empty means the public Bot API; set it to point at a fake server.
+      TELEGRAM_API_URL: ${TELEGRAM_API_URL:-}
       # Order notifications also need a working bot token.
       KAFKA_BROKERS: kafka:9092
     volumes:

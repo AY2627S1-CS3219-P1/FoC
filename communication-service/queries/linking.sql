@@ -32,6 +32,9 @@ SELECT user_id, chat_id, telegram_username, linked_at FROM telegram_links WHERE 
 -- name: DeleteLink :exec
 DELETE FROM telegram_links WHERE user_id = sqlc.arg(user_id);
 
+-- name: DeleteUnusedCodes :exec
+DELETE FROM telegram_link_codes WHERE user_id = sqlc.arg(user_id) AND used_at IS NULL;
+
 -- name: DeleteLinkByChat :exec
 DELETE FROM telegram_links WHERE chat_id = sqlc.arg(chat_id);
 

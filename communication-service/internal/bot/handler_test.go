@@ -111,12 +111,14 @@ func TestStartWithBadCodeExplainsExpiry(t *testing.T) {
 	}
 }
 
-func TestStartReportsStorageFailure(t *testing.T) {
+// The poller acknowledges the update either way, so the user is asked to retry;
+// the code stays unused because redemption rolled back.
+func TestStartAsksToRetryAfterStorageFailure(t *testing.T) {
 	h, sender := newHandler(&fakeLinker{redeemErr: errors.New("database down")})
-	if err := h.Handle(context.Background(), message("private", "/start code")); err == nil {
-		t.Fatal("expected an error")
+	if err := h.Handle(context.Background(), message("private", "/start code")); err != nil {
+		t.Fatal(err)
 	}
-	if len(sender.sent) != 0 {
+	if len(sender.sent) != 1 || sender.sent[0] != retryReply {
 		t.Fatalf("sent = %v", sender.sent)
 	}
 }

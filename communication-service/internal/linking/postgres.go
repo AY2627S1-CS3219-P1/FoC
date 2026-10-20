@@ -25,7 +25,10 @@ func (s *PostgresStore) queries() *db.Queries { return db.New(s.Pool) }
 // makes concurrent calls for one user leave a single unused code.
 func (s *PostgresStore) ReplaceCode(ctx context.Context, userID uuid.UUID, codeHash []byte, expiresAt, now time.Time) error {
 	if err := s.queries().ReplaceCode(ctx, db.ReplaceCodeParams{
-		CodeHash: codeHash, UserID: userID, ExpiresAt: expiresAt, CreatedAt: now,
+		CodeHash:  codeHash,
+		UserID:    userID,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
 	}); err != nil {
 		return fmt.Errorf("save code: %w", err)
 	}
@@ -54,7 +57,10 @@ func (s *PostgresStore) RedeemCode(ctx context.Context, codeHash []byte, chat Ch
 		}
 		link = Link{UserID: userID, ChatID: chat.ID, Username: chat.Username, LinkedAt: now}
 		if err := q.SaveLink(ctx, db.SaveLinkParams{
-			UserID: link.UserID, ChatID: link.ChatID, TelegramUsername: optional(link.Username), LinkedAt: link.LinkedAt,
+			UserID:           link.UserID,
+			ChatID:           link.ChatID,
+			TelegramUsername: optional(link.Username),
+			LinkedAt:         link.LinkedAt,
 		}); err != nil {
 			return fmt.Errorf("save link: %w", err)
 		}
@@ -90,12 +96,19 @@ func (s *PostgresStore) GetLinkByChat(ctx context.Context, chatID int64) (Link, 
 	return fromRow(row), nil
 }
 
-// DeleteLink implements Store.
+// DeleteLink implements Store. It also deletes the user's unused codes, so an
+// earlier link can't reconnect the account after they disconnect.
 func (s *PostgresStore) DeleteLink(ctx context.Context, userID uuid.UUID) error {
-	if err := s.queries().DeleteLink(ctx, userID); err != nil {
-		return fmt.Errorf("delete link: %w", err)
-	}
-	return nil
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		if err := q.DeleteUnusedCodes(ctx, userID); err != nil {
+			return fmt.Errorf("delete unused codes: %w", err)
+		}
+		if err := q.DeleteLink(ctx, userID); err != nil {
+			return fmt.Errorf("delete link: %w", err)
+		}
+		return nil
+	})
 }
 
 // DeleteLinkByChat implements Store.
