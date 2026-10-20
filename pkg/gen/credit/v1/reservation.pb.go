@@ -216,10 +216,11 @@ func (x *RevertAdjustmentRequest) GetOfferId() string {
 	return ""
 }
 
-// Returns the whole hold to the requester when an order is cancelled before
-// pickup, expires or fails. An unknown request is recorded as released, so a
-// later Reserve for it fails with RESERVATION_RELEASED. Fails with
-// RESERVATION_SETTLED on a Settled reservation.
+// Returns the whole hold to the requester only as compensation for creation
+// that never opened. Opened orders settle exclusively through Kafka
+// order.outcome events, including cancellation, expiry and failure. An unknown
+// request is recorded as released, so a later Reserve for it fails with
+// RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled reservation.
 type ReleaseReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
