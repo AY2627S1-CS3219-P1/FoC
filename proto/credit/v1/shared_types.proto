@@ -95,7 +95,7 @@ message Account {
 
 enum LedgerEntryKind {
   LEDGER_ENTRY_KIND_UNSPECIFIED = 0;
-  // Starting credits (default 1000), granted once when the account is created.
+  // Starting credits (100), granted once when the account is created.
   LEDGER_ENTRY_KIND_GRANT = 1;
   LEDGER_ENTRY_KIND_RESERVE = 2;
   // An accepted offer changed the hold.

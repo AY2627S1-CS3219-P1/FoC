@@ -24,9 +24,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Holds amount from the requester's available credits when an order is
+// Holds amount from the requester's available credits when a request is
 // created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
-// with RESERVATION_RELEASED if the order was already released. A requester
+// with RESERVATION_RELEASED if the request was already released. A requester
 // without an account first receives the starting credits.
 type ReserveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -218,7 +218,7 @@ func (x *RevertAdjustmentRequest) GetOfferId() string {
 	return ""
 }
 
-// Returns the whole hold to the requester when an order is cancelled before
+// Returns the whole hold to the requester when a request is cancelled before
 // pickup, expires or fails. An unknown request is recorded as released, so a
 // later Reserve for it fails with RESERVATION_RELEASED. Fails with
 // RESERVATION_SETTLED on a Settled reservation.
@@ -274,7 +274,7 @@ func (x *ReleaseReservationRequest) GetReason() ReleaseReason {
 	return ReleaseReason_RELEASE_REASON_UNSPECIFIED
 }
 
-// Pays the courier when an order completes or the requester cancels after
+// Pays the courier when a request completes or the requester cancels after
 // pickup. The reservation must be Assigned. The courier receives the payable
 // amount and the rest of the hold returns to the requester.
 type SettleReservationRequest struct {
