@@ -1,114 +1,65 @@
 # Delivery proof verification
 
-The proof path is mounted on the delivered B3 dependency. OrderTimers owns downstream lifecycle startup/expiry/timeout in PR #183. This record distinguishes actual backend infrastructure from explicit external test seams. No PR was merged or deployed.
+These results were observed on application source `d5aa5ee`. Subsequent changes are documentation/artifacts only. No builds or runtime tests were repeated for this cleanup. The mounted proof path targets B3 #179; lifecycle timer startup/enforcement is downstream in #183.
 
-## Real backend path
+## Observed automated checks
 
-Run from `order-service/` with Docker available and ImageMagick/libheif installed:
+From the repository root:
+
+```sh
+make fmt-check && make lint
+(cd order-service && GOWORK=off go test -mod=readonly -race ./...)
+(cd frontend && npm run check && npm test && npm run build)
+```
+
+Observed: zero lint issues, 320 race-enabled Go test passes, 112 frontend tests across 16 files, zero Svelte errors/warnings and a successful production build. Dependency browser-externalization and adapter-auto deployment notices remain; this is not a zero-build-warning claim.
+
+With Docker and ImageMagick/libheif available, run from `order-service/`:
 
 ```sh
 env -u TEST_DATABASE_URL GOWORK=off go test -mod=readonly -race -tags=integration ./internal/order -run '^Test(PostgresProofReceipts|ProofGrantRefreshPreservesPendingReceipt)$' -count=1 -timeout=5m -v
 env -u TEST_DATABASE_URL GOWORK=off go test -mod=readonly -race -tags=integration ./internal/rpc/order -run '^TestProofsThroughConnectPostgresAndS3$' -count=1 -timeout=6m -v
 ```
 
-The first command passed 14 PostgreSQL18 leaf scenarios: 13 receipt cases and the separate grant-refresh race regression. The race was first reproduced against `ed03fda` before the fix, when the same valid on-time receipt was incorrectly rejected. The second passed both mounted generated-Connect scenarios with PostgreSQL18, signed/auth-enforced Floci and all five real image codecs. It uploads an actual image, rejects an immutable overwrite with HTTP412, verifies it, loses subsequent storage inspection, commits a pending receipt before the deadline, recovers after the deadline using a fresh controller, loses an accepted acknowledgment, replays after requester completion, checks participant-only downloads and observes one delivery audit and settlement outcome with the original receipt time. Disguised JPEG bytes and an uncertified outage never deliver.
+Observed: 14 PostgreSQL18 leaf scenarios and two mounted generated-Connect/PostgreSQL/S3/codec scenarios passed. Coverage includes immutable PUT412, cross-replica grant stability, proof verification, on-time pending admission during unavailable inspection, recovery after the deadline, cancellation winning, lost acceptance acknowledgment, identical replay after requester completion, private downloads and one delivery audit/settlement outcome at the original receipt time. Grant rotation during validation no longer invalidates immutable evidence. Invalid image bytes and an uncertified outage do not deliver.
 
-Identity middleware and Credit are scripted external seams. These tests do not claim real login, a live Credit settlement consumer, Kafka/Telegram delivery or production infrastructure. The image requirement is actual decoding, not proof that a photograph depicts a delivery.
+Identity middleware and Credit are scripted external seams. These tests do not establish live login, a live Credit settlement consumer, Kafka/Telegram consumption or production infrastructure. Decoding establishes image validity, not that the photo depicts a delivery.
 
-## Mounted browser path
+## Browser fixtures and app artifacts
 
-The real Svelte route, form/controller and generated Connect adapter run against explicit synthetic API/storage fixtures. The recorded flow uses no real credentials or personal photos.
+The existing Svelte route/form and Connect adapter were exercised against explicit synthetic API/storage/auth fixtures without credentials or personal photos. Four scenarios passed at 360/768/1440px with zero page errors: retained failed files, same-identity retry, uncertain removal acknowledgment, denied outage bypass, immutable pending restoration after reload, keyboard retry and participant-only evidence reads.
 
-Start the frontend in one terminal:
-
-```sh
-cd frontend
-npm ci
-npm run dev -- --host 127.0.0.1 --port 5194 --strictPort
-```
-
-From the repository root in a second terminal, with Python Playwright and its Chromium installed:
+To repeat, start `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort` from `frontend/` after `npm ci`. From the repository root, with Python Playwright and Chromium installed:
 
 ```sh
 python3 frontend/tests/delivery-proof-ui-e2e.py --url http://127.0.0.1:5194 --out .local/order-proof-browser
 ```
 
-For an installed Chrome rather than Playwright's downloaded Chromium, add `--browser-channel chrome`. The browser is isolated and headless. Stop only the frontend process started for this check after the script finishes; its output media stay in the chosen directory.
+Use `--browser-channel chrome` for installed Chrome instead. Stop only the frontend started for this check; retain its artifacts. These are repeat instructions, not commands rerun during cleanup.
 
-Observed: four medium-hard scenarios passed at 360/768/1440px with zero page errors. Failed upload/verification retained all three files, rejected premature confirmation and retried the same upload identity without uploading successful files again. An uncertain removal retained the file until retirement was acknowledged. A server-denied outage did not bypass proof. Lost confirmation followed by page reload restored the server's immutable three-photo unattended submission; keyboard retry sent identical input. The requester saw the evidence gallery, while a nonparticipant admin saw neither proof nor confirmation controls.
+- [Retained failed photos, mobile](delivery-proof-retained-mobile.png)
+- [Restored pending confirmation, mobile](delivery-proof-pending-mobile.png)
+- [Private gallery, mobile](delivery-proof-gallery-mobile.png)
+- [Private gallery, desktop](delivery-proof-gallery-desktop.png)
+- [Retry/removal/reload recording](delivery-proof-retry-reload.mp4) ([original WebM](delivery-proof-retry-reload.webm))
 
-- [Retained failed-photo state](delivery-proof-retained-mobile.png)
-- [Recovered pending confirmation with keyboard focus](delivery-proof-pending-mobile.png)
-- [Mobile evidence gallery](delivery-proof-gallery-mobile.png)
-- [Desktop evidence gallery](delivery-proof-gallery-desktop.png)
-- [Retry/reload interaction recording](delivery-proof-retry-reload.mp4) ([original WebM](delivery-proof-retry-reload.webm))
-
-## Final checks and review
-
-Root `make fmt-check && make lint` reported zero issues. All Order packages passed 320 race-enabled test cases. Frontend `npm run check && npm test && npm run build` reported zero Svelte errors/warnings, 112 tests across 16 files and a successful build. Existing dependency/build-adapter warnings are not reported as zero build warnings.
-
-Native Devin CLI full review covered `ed03fda` against delivered B3 `dea9c7c`, followed by a focused review of the fixes committed through `d5aa5ee`. Exported runtime generation metadata independently shows 40 full-review and 10 follow-up generations, all `claude-opus-5-5-medium`. All 62 source SHA-256 values from the two pinned review manifests match the committed `d5aa5ee` tree. [Sanitized model/source provenance](delivery-proof-review-provenance.json) records those values without personal session identifiers or credentials. Later changes to this report and the plan are readiness/evidence documentation only. All 58 runtime/contract/deployment file hashes still match. From the repository root, verify the same source without depending on a branch name:
-
-```sh
-python3 - <<'PY'
-import hashlib, json, pathlib
-p = json.loads(pathlib.Path("docs/explanations/delivery-proof-review-provenance.json").read_text())
-for name, expected in p["runtime_source_sha256"].items():
-    assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() == expected, name
-print("REVIEWED RUNTIME SOURCE MATCH:", len(p["runtime_source_sha256"]), "files")
-PY
-```
-
-### Inspectable CLI evidence
-
-The metadata and substantive reviewer reports are published, not just their counts or hashes:
-
-- **Full review:** [40 individual generation records and 61 source bindings](delivery-proof-cli-full-records.json), plus the [complete final reviewer report](delivery-proof-cli-full-review.md) for `ed03fda` against B3 `dea9c7c`.
-- **Focused follow-up:** [10 individual generation records and 13 source bindings](delivery-proof-cli-followup-records.json), plus the [complete final reviewer report](delivery-proof-cli-followup-review.md). Its frozen candidate was subsequently matched byte-for-byte to `d5aa5ee`.
-
-Each generation preserves the original export's `step_id`, timestamp, `source` and `extra.generation_model`. Final reports retain the reviewer's findings, warnings, exclusions and verdict. Only private source links and private working-artifact references are normalized to public source links/bindings. Input prompts, intermediate messages, tool arguments/results, configuration, telemetry and personal session identifiers are excluded entirely. No new reviewer was launched.
-
-These are allowlisted projections of existing local CLI exports, not provider-signed attestations. The original export digests identify the intentionally private originals; reviewers do not need access to those originals to inspect the 50 published records and substantive final reports.
-
-Run the public verifier from a checkout containing the recorded Git commits:
-
-```sh
-python3 docs/explanations/verify-delivery-proof-review.py
-```
-
-Observed result:
-
-```text
-full: 40 actual Opus generation records; final review digest and 61 source bindings match
-focused_fixes: 10 actual Opus generation records; final review digest and 13 source bindings match
-PASS: 50 actual model records; 62 reviewed sources; 58 current runtime files unchanged
-```
-
-The verifier checks record/report digests, exact model fields, unique ordered generation steps, source bindings and current runtime hashes. Five additional requirement-sourced negative checks rejected a missing generation, a wrong model, an unrelated prompt field, an altered source binding and a private path in a report. Those checks use synthetic alterations, not private content. The verifier never invokes a model, performs network access or changes source. Its scope is published-record integrity and source binding, not independent provider authentication.
-
-Opus's final verdict is **ready on the declared B3+B2+B4 stack, with no blockers**. Both blockers are resolved: renewable grant metadata no longer invalidates immutable proof, and a killed native decoder keeps validation retryable. Public application admission, pending-courier reads, transient outage authority classification and stale contract notes were also corrected.
-
-One nonblocking follow-up, **N1**, remains: a decoder output-cap error can be reported as unavailable rather than a known output-cap rejection. It is code-traced in the review, not separately runtime-reproduced. Such input cannot pass first verification, reserve a receipt or cause false acceptance. No unverified fix was added after the second verification round.
-
-A second nonblocking standards caveat, **N2**, remains: the service adapter imports `DeliveryProofAPI` and `ProofRejectedError` from the feature controller instead of colocating them under the service domain as the frontend convention requires. The error import is a real module dependency, not just an erased type import. An automatic review marked its comment resolved without a corresponding relocation; that closure is not claimed as a code fix. Relocation was not added after the final verification round. It does not change the passing proof flow, but remains explicit follow-up work.
-
-Operational warnings remain explicit: custom-store endpoint identity must stay stable or be deliberately migrated, cleanup revisits retired keys at bounded throughput and a persistent candidate error can delay a batch, proof reads briefly take the parent lock, probe replicas can churn certification generations, runtime package versions are not digest-pinned, and recovery replicas may redundantly inspect the same pending receipt. A normally exiting decoder allocation failure can still appear as a precondition failure; the externally killed process path is covered. These are disclosed constraints, not claims of production HA, queue-scale or peak-RSS validation.
+Mobile fixture inspection shows dense paragraphs, a truncated native file label, tall verbose status cards, a wrapped retry button and tiny synthetic gallery thumbnails. These views do not establish real-photo quality. No mobile UI was changed in this cleanup.
 
 ## Deployed codec boundary
 
-From the repository root:
+Previously built and exercised from the repository root:
 
 ```sh
 docker build -f order-service/Dockerfile -t foc-order-proof-local:verification .
 docker run --rm --memory=3g --cpus=2 --pids-limit=128 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --entrypoint /proof-image-check foc-order-proof-local:verification
 ```
 
-Both the build and restricted nonroot runtime printed:
+The build and restricted nonroot runtime both printed `PROOF DECODER PASS: JPEG PNG WebP HEIC HEIF actual pixels`. The policy restricts coders, delegates, spill and inherited credentials. The container limit is a hard process-group bound, not measured peak RSS. Large-phone regressions separately cover 20MP and the exact 24MP boundary.
 
-```text
-PROOF DECODER PASS: JPEG PNG WebP HEIC HEIF actual pixels
-```
+## Remaining findings and operational limits
 
-The runtime policy disables unapproved coders, external delegates, pixel-cache disk spill and inherited workload credentials. The 3GiB container limit is a hard process-group bound, not a measured peak RSS claim. Large-phone image regressions separately exercise 20MP and the exact 24MP boundary.
-
-Report/appeal closure-dependent retention and revocation-safe nonparticipant case-admin authorization remain the approved deferred dependencies. Admin role alone never grants proof access. These deferrals are not hidden behind the passing checks.
+- **N1:** Decoder output-cap failures can appear as retryable unavailability rather than a known rejection. This is code-traced, not separately reproduced at runtime. Such input cannot pass first verification, reserve a receipt or cause false acceptance.
+- **N2:** The service adapter imports `DeliveryProofAPI` and `ProofRejectedError` from the feature controller instead of colocating them in the service domain as the frontend convention requires. This placement is not fixed.
+- A normally exiting decoder allocation failure can still appear as a precondition rejection; external-kill and timeout handling are retryable.
+- Custom-store endpoint identity must stay stable or be deliberately migrated. Cleanup has bounded revisit throughput and a persistent candidate error can delay a batch. Proof reads briefly lock the parent. Probe/recovery replicas may duplicate work or churn certification generations. Runtime dependencies are not digest-pinned; production HA, queue scale and peak RSS are not verified.
+- Report/appeal closure-dependent retention and revocation-safe nonparticipant case-admin access remain deferred. Admin role alone grants no proof access.
