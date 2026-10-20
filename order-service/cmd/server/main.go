@@ -108,6 +108,7 @@ func run(ctx context.Context) error {
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	proofs.start(workerCtx, &workers)
+	startLifecycleTimers(workerCtx, &workers, repository)
 	if recoverCreations {
 		workers.Go(func() { creator.RecoverCreations(workerCtx) })
 	}

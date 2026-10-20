@@ -16,12 +16,13 @@ import (
 
 // Sources: R1.2.4/R1.6.11, atomic audit/outcome requirements, and the approved
 // bounded scanning, restart/retry, original-deadline and closure-time behavior.
-// This exercises real PostgreSQL persistence, not B1's remote Credit saga or B2's
-// pending-delivery protocol. Neither is present on this branch's base.
+// This suite checks real PostgreSQL expiry, audit and outcomes, not remote
+// Credit settlement. Delivery-confirmation races are checked in the delivery
+// timer suite.
 func TestPostgresExpiryTimers(t *testing.T) {
 	f := setup(t)
 	now := time.Now().UTC().Add(time.Hour).Truncate(time.Microsecond)
-	options := ExpiryTimerOptions{Now: func() time.Time { return now }}
+	options := ExpiryTimerOptions{TestNow: func() time.Time { return now }}
 	seed := func(t *testing.T, deadline time.Time) Order {
 		t.Helper()
 		o := f.create(t)
@@ -34,6 +35,44 @@ func TestPostgresExpiryTimers(t *testing.T) {
 		return o
 	}
 
+	t.Run("locked database clock prevents early expiry with fast discovery", func(t *testing.T) {
+		f.reset(t)
+		var serverNow time.Time
+		if err := f.pool.QueryRow(f.ctx, "SELECT clock_timestamp()::timestamptz").Scan(&serverNow); err != nil {
+			t.Fatal(err)
+		}
+		o := seed(t, serverNow.Add(time.Hour))
+		s := NewExpiryTimers(f.repo, ExpiryTimerOptions{})
+		// Only candidate discovery is fast. Production decision time stays on the
+		// transaction's database clock, with no TestNow override.
+		s.lifecycleTimerScanner.now = func() time.Time { return serverNow.Add(365 * 24 * time.Hour) }
+		if err := s.ScanOnce(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		got, err := f.repo.Get(f.ctx, o.ID)
+		if err != nil || got.Status != AwaitingCourier {
+			t.Fatalf("fast discovery prematurely expired request: %+v %v", got, err)
+		}
+		original := serverNow.Add(-20 * time.Minute)
+		if _, err := f.pool.Exec(f.ctx, "UPDATE orders SET expires_at=$2 WHERE id=$1", o.ID, original); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ScanOnce(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		got, err = f.repo.Get(f.ctx, o.ID)
+		if err != nil || got.Status != Expired || got.ClosedAt == nil || got.ClosedAt.Before(serverNow) || !got.ExpiresAt.Equal(original) {
+			t.Fatalf("locked DB-clock expiry failed: %+v %v", got, err)
+		}
+		var after time.Time
+		if err := f.pool.QueryRow(f.ctx, "SELECT clock_timestamp()::timestamptz").Scan(&after); err != nil {
+			t.Fatal(err)
+		}
+		if got.ClosedAt.After(after) {
+			t.Fatal("closure used the fast discovery clock")
+		}
+		t.Log("discovery one year fast cannot expire a future request; due request closes on actual locked DB time and preserves original expiry")
+	})
 	t.Run("fifty workers commit one expiry outcome", func(t *testing.T) {
 		f.reset(t)
 		deadline := now.Add(-20 * time.Minute)

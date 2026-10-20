@@ -8,6 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
+func (r *PostgresRepository) WithinExpiryTimers(ctx context.Context, fn func(ExpiryTimerTx) error) error {
+	return r.WithinProofs(ctx, func(tx ProofTx) error { return fn(tx) })
+}
+
 func (r *PostgresRepository) DueExpiryTimers(ctx context.Context, now time.Time, after string, limit int32) ([]string, error) {
 	cursor, err := uuid.Parse(after)
 	if err != nil || limit < 1 || limit > expiryTimerBatchSize {

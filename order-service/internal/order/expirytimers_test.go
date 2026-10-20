@@ -28,7 +28,7 @@ func TestExpiryTimerDeadlineAndFacts(t *testing.T) {
 				{ID: uuid.NewString(), OrderID: before.ID, Status: OfferAccepting},
 				{ID: uuid.NewString(), OrderID: before.ID, Status: OfferAccepted},
 			}
-			s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+			s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 			if err := s.Expire(t.Context(), before.ID); err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +74,7 @@ func TestExpiryTimerLeavesIneligibleOrdersUnchanged(t *testing.T) {
 				o.ExpiresAt = now.Add(time.Microsecond)
 			}
 			r := newExpiryTimerFake(o)
-			s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+			s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 			if err := s.Expire(t.Context(), o.ID); err != nil {
 				t.Fatal(err)
 			}
@@ -99,7 +99,7 @@ func TestExpiryTimerRechecksStateAndClockAfterLock(t *testing.T) {
 					r.orders[id] = assigned
 				}
 			}
-			s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+			s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 			if err := s.Expire(t.Context(), o.ID); err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +120,7 @@ func TestExpiryTimerRollbackAndRestart(t *testing.T) {
 	r := newExpiryTimerFake(o)
 	failure := errors.New("database unavailable")
 	r.failID, r.failure = o.ID, failure
-	s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+	s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 	if err := s.Expire(t.Context(), o.ID); !errors.Is(err, failure) {
 		t.Fatalf("failure lost: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestExpiryTimerRollbackAndRestart(t *testing.T) {
 	}
 
 	r.failID = ""
-	restarted := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+	restarted := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 	if err := restarted.ScanOnce(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestExpiryTimerFailedCandidateDoesNotStarveNextPage(t *testing.T) {
 	}
 	first, last := expiryTestOrder(1, now).ID, expiryTestOrder(expiryTimerBatchSize+1, now).ID
 	r.failID, r.failure = first, errors.New("broken order")
-	s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+	s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 	if err := s.ScanOnce(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestExpiryTimerRunsAtStartupAndStopsOnCancellation(t *testing.T) {
 	o := expiryTestOrder(1, now)
 	r := newExpiryTimerFake(o)
 	r.applied = make(chan struct{}, 1)
-	s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+	s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan struct{})
@@ -213,7 +213,7 @@ func TestExpiryTimerRetryDoesNotDelayHealthyCandidates(t *testing.T) {
 			attempts++
 		}
 	}
-	s := NewExpiryTimers(r, ExpiryTimerOptions{Now: func() time.Time { return now }})
+	s := NewExpiryTimers(r, ExpiryTimerOptions{TestNow: func() time.Time { return now }})
 	if err := s.ScanOnce(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -284,18 +284,22 @@ func TestExpiryTimerRunRecoversTransientFailure(t *testing.T) {
 
 type blockedExpiryRepository struct {
 	ExpiryTimerRepository
-	started chan struct{}
+	started     chan struct{}
+	startedOnce sync.Once
 }
 
-func (r *blockedExpiryRepository) Within(ctx context.Context, _ func(Tx) error) error {
-	close(r.started)
+func (r *blockedExpiryRepository) WithinExpiryTimers(ctx context.Context, _ func(ExpiryTimerTx) error) error {
+	r.startedOnce.Do(func() { close(r.started) })
 	<-ctx.Done()
 	return ctx.Err()
 }
 
 func TestExpiryTimerCancellationInterruptsBlockedAttempt(t *testing.T) {
 	now := time.Now().UTC()
-	r := &blockedExpiryRepository{ExpiryTimerRepository: newExpiryTimerFake(expiryTestOrder(1, now.Add(-time.Hour))), started: make(chan struct{})}
+	r := &blockedExpiryRepository{
+		ExpiryTimerRepository: newExpiryTimerFake(expiryTestOrder(1, now.Add(-time.Hour))),
+		started:               make(chan struct{}),
+	}
 	s := NewExpiryTimers(r, ExpiryTimerOptions{})
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -424,4 +428,15 @@ func (tx *expiryTimerFakeTx) Apply(_ context.Context, c Change) error {
 	}
 	tx.change = &c
 	return nil
+}
+
+func (tx *expiryTimerFakeTx) ProofServerTime(context.Context) (time.Time, error) {
+	if tx.locked == nil {
+		return time.Time{}, ErrPrecondition
+	}
+	return time.Now().UTC(), nil
+}
+
+func (r *expiryTimerFake) WithinExpiryTimers(ctx context.Context, fn func(ExpiryTimerTx) error) error {
+	return r.Within(ctx, func(tx Tx) error { return fn(tx.(*expiryTimerFakeTx)) })
 }
