@@ -4,10 +4,13 @@
 	import { page } from '$app/state';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { Button, Card, TextFieldOutlined } from 'm3-svelte';
+	import { isValidPhoneNumber } from 'libphonenumber-js';
+	import PhoneField from '$lib/components/PhoneField.svelte';
 	import { authService } from '$lib/services';
 
 	let token = $state<string | null>(page.url.searchParams.get('token'));
 	let displayName = $state('');
+	let phoneNumber = $state('');
 	let submitting = $state(false);
 	let error = $state('');
 
@@ -24,14 +27,19 @@
 		event.preventDefault();
 		if (!token || submitting) return;
 		const name = displayName.trim();
-		if (Array.from(name).length === 0 || Array.from(name).length > 50) {
-			error = 'Enter a display name of up to 50 characters.';
+		if (Array.from(name).length === 0 || Array.from(name).length > 100) {
+			error = 'Enter a display name of up to 100 characters.';
+			return;
+		}
+		const phone = phoneNumber.trim();
+		if (!phone || !isValidPhoneNumber(phone, 'SG')) {
+			error = 'Enter a valid phone number.';
 			return;
 		}
 		submitting = true;
 		error = '';
 		try {
-			await authService.register(token, name);
+			await authService.register(token, name, phone);
 			await goto('/welcome/telegram', { replaceState: true });
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) {
@@ -55,7 +63,7 @@
 			<div class="auth-body">
 				<h1>Create your profile</h1>
 				{#if token}
-					<p>Choose the name other people on campus will see.</p>
+					<p>Choose the name other people on campus will see, and add a phone number as your backup contact.</p>
 					{#if error}
 						<p class="notice error" role="alert">{error}</p>
 					{/if}
@@ -65,11 +73,12 @@
 							type="text"
 							name="displayName"
 							autocomplete="name"
-				maxlength={50}
+				maxlength={100}
 							required
 							bind:value={displayName}
 							disabled={submitting}
 						/>
+						<PhoneField required disabled={submitting} bind:value={phoneNumber} />
 						<div class="form-actions">
 							<Button type="submit" disabled={submitting}>
 								{submitting ? 'Creating profile…' : 'Complete sign-up'}
