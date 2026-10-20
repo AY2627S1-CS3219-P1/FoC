@@ -102,8 +102,8 @@ message CreateItemImageUploadRequest {
   }];
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -113,7 +113,10 @@ message GetOrderRequest {
 message ListOpenOrdersRequest {
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
-  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true];
+  // Legacy exact filter is rejected: membership would disclose a hidden Location.
+  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true, deprecated = true];
+  // Filter by the destination snapshot building/area, never an exact Location ID.
+  string delivery_building_name = 5 [(buf.validate.field).string.max_len = 200];
   // One-based; zero means 1.
   int32 page = 3 [(buf.validate.field).int32.gte = 0];
   // Zero means 20; maximum 100.
@@ -123,7 +126,7 @@ message ListOpenOrdersRequest {
   }];
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 message ListMyOrdersRequest {
   ParticipantRole role = 1 [(buf.validate.field).enum.defined_only = true];
   OrderStatus status = 2 [(buf.validate.field).enum.defined_only = true];

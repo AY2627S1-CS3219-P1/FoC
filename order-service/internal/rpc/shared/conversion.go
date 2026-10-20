@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"time"
 
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
@@ -85,21 +86,22 @@ func Order(o app.Order) *pb.Order {
 			Location:     location(o.Delivery),
 			Instructions: o.DeliveryInstructions,
 		},
-		ItemDescription:    o.ItemDescription,
-		RewardCredits:      o.RewardCredits,
-		DeliveryDuration:   durationpb.New(o.DeliveryDuration),
-		ExpiresAt:          timestamppb.New(o.ExpiresAt),
-		AssignedAt:         timestamp(o.AssignedAt),
-		PickedUpAt:         timestamp(o.PickedUpAt),
-		DeliveredAt:        timestamp(o.DeliveredAt),
-		CompletedAt:        timestamp(o.CompletedAt),
-		ClosedAt:           timestamp(o.ClosedAt),
-		CloseReason:        o.CloseReason,
-		UnattendedDelivery: o.UnattendedDelivery,
-		ItemLocation:       o.ItemLocation,
-		Revision:           o.Revision,
-		CreatedAt:          timestamppb.New(o.CreatedAt),
-		UpdatedAt:          timestamppb.New(o.UpdatedAt),
+		ItemDescription:      o.ItemDescription,
+		RewardCredits:        o.RewardCredits,
+		DeliveryDuration:     durationpb.New(o.DeliveryDuration),
+		ExpiresAt:            timestamppb.New(o.ExpiresAt),
+		AssignedAt:           timestamp(o.AssignedAt),
+		PickedUpAt:           timestamp(o.PickedUpAt),
+		DeliveredAt:          timestamp(o.DeliveredAt),
+		CompletedAt:          timestamp(o.CompletedAt),
+		ClosedAt:             timestamp(o.ClosedAt),
+		CloseReason:          o.CloseReason,
+		UnattendedDelivery:   o.UnattendedDelivery,
+		ItemLocation:         o.ItemLocation,
+		Revision:             o.Revision,
+		CreatedAt:            timestamppb.New(o.CreatedAt),
+		UpdatedAt:            timestamppb.New(o.UpdatedAt),
+		DeliveryBuildingName: o.Delivery.BuildingName,
 	}
 }
 
@@ -155,8 +157,18 @@ type ItemImageViews interface {
 }
 
 func OrderView(ctx context.Context, caller app.Caller, o app.Order, images ItemImageViews) (*pb.Order, error) {
-	result := Order(o)
-	if images == nil {
+	callerID := caller.ID
+	if id, err := uuid.Parse(callerID); err == nil {
+		callerID = id.String()
+	}
+	caller.ID = callerID
+	result := Order(app.ProjectForCaller(caller, o))
+	if !o.HasParticipant(caller.ID) {
+		result.Delivery = nil
+	}
+	// Historical/admin-only views retain the Order even when later attachments
+	// are not authorized. Never mint URLs merely because the caller is an admin.
+	if images == nil || !o.HasParticipant(caller.ID) {
 		return result, nil
 	}
 	views, err := images.ForOrder(ctx, caller, o)

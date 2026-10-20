@@ -190,6 +190,11 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 		return persistenceError(err)
 	}
 
+	// Assignment history shares this transaction, including its rollback poison.
+	if err = t.applyAssignmentHistory(ctx, before, c); err != nil {
+		return err
+	}
+
 	// Offer writes check their expected status within the same transaction.
 	for _, change := range c.Offers {
 		f := change.Offer

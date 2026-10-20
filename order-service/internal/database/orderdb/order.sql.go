@@ -17,21 +17,21 @@ SELECT count(*) FROM orders WHERE
  (NOT $1::boolean OR (status = 'awaiting_courier' AND requester_id <> $2::uuid AND expires_at > $3::timestamptz))
  AND ($4::text = '' OR
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
-    ($5::text IN ('','courier') AND courier_id = NULLIF($4::text,'')::uuid)))
+    ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
  AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'location_id' = $8::text)
+ AND ($8::text = '' OR delivery->>'building_name' = $8::text)
 `
 
 type CountOrdersParams struct {
-	OpenOnly     bool
-	CallerID     uuid.UUID
-	NowAt        time.Time
-	UserID       string
-	Role         string
-	StatusFilter string
-	PickupID     string
-	DeliveryID   string
+	OpenOnly             bool
+	CallerID             uuid.UUID
+	NowAt                time.Time
+	UserID               string
+	Role                 string
+	StatusFilter         string
+	PickupID             string
+	DeliveryBuildingName string
 }
 
 func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error) {
@@ -43,7 +43,7 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 		arg.Role,
 		arg.StatusFilter,
 		arg.PickupID,
-		arg.DeliveryID,
+		arg.DeliveryBuildingName,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -236,23 +236,23 @@ SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instruct
  (NOT $1::boolean OR (status = 'awaiting_courier' AND requester_id <> $2::uuid AND expires_at > $3::timestamptz))
  AND ($4::text = '' OR
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
-    ($5::text IN ('','courier') AND courier_id = NULLIF($4::text,'')::uuid)))
+    ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
  AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'location_id' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
+ AND ($8::text = '' OR delivery->>'building_name' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
 `
 
 type ListOrdersParams struct {
-	OpenOnly     bool
-	CallerID     uuid.UUID
-	NowAt        time.Time
-	UserID       string
-	Role         string
-	StatusFilter string
-	PickupID     string
-	DeliveryID   string
-	PageOffset   int64
-	PageSize     int32
+	OpenOnly             bool
+	CallerID             uuid.UUID
+	NowAt                time.Time
+	UserID               string
+	Role                 string
+	StatusFilter         string
+	PickupID             string
+	DeliveryBuildingName string
+	PageOffset           int64
+	PageSize             int32
 }
 
 func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
@@ -264,7 +264,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		arg.Role,
 		arg.StatusFilter,
 		arg.PickupID,
-		arg.DeliveryID,
+		arg.DeliveryBuildingName,
 		arg.PageOffset,
 		arg.PageSize,
 	)
