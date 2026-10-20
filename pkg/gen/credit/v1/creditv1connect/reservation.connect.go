@@ -45,9 +45,6 @@ const (
 	// CreditReservationServiceReleaseReservationProcedure is the fully-qualified name of the
 	// CreditReservationService's ReleaseReservation RPC.
 	CreditReservationServiceReleaseReservationProcedure = "/credit.v1.CreditReservationService/ReleaseReservation"
-	// CreditReservationServiceSettleReservationProcedure is the fully-qualified name of the
-	// CreditReservationService's SettleReservation RPC.
-	CreditReservationServiceSettleReservationProcedure = "/credit.v1.CreditReservationService/SettleReservation"
 	// CreditReservationServiceGetReservationProcedure is the fully-qualified name of the
 	// CreditReservationService's GetReservation RPC.
 	CreditReservationServiceGetReservationProcedure = "/credit.v1.CreditReservationService/GetReservation"
@@ -59,7 +56,6 @@ type CreditReservationServiceClient interface {
 	AdjustReservation(context.Context, *connect.Request[v1.AdjustReservationRequest]) (*connect.Response[v1.AdjustReservationResponse], error)
 	RevertAdjustment(context.Context, *connect.Request[v1.RevertAdjustmentRequest]) (*connect.Response[v1.RevertAdjustmentResponse], error)
 	ReleaseReservation(context.Context, *connect.Request[v1.ReleaseReservationRequest]) (*connect.Response[v1.ReleaseReservationResponse], error)
-	SettleReservation(context.Context, *connect.Request[v1.SettleReservationRequest]) (*connect.Response[v1.SettleReservationResponse], error)
 	GetReservation(context.Context, *connect.Request[v1.GetReservationRequest]) (*connect.Response[v1.GetReservationResponse], error)
 }
 
@@ -102,13 +98,6 @@ func NewCreditReservationServiceClient(httpClient connect.HTTPClient, baseURL st
 			connect.WithIdempotency(connect.IdempotencyIdempotent),
 			connect.WithClientOptions(opts...),
 		),
-		settleReservation: connect.NewClient[v1.SettleReservationRequest, v1.SettleReservationResponse](
-			httpClient,
-			baseURL+CreditReservationServiceSettleReservationProcedure,
-			connect.WithSchema(creditReservationServiceMethods.ByName("SettleReservation")),
-			connect.WithIdempotency(connect.IdempotencyIdempotent),
-			connect.WithClientOptions(opts...),
-		),
 		getReservation: connect.NewClient[v1.GetReservationRequest, v1.GetReservationResponse](
 			httpClient,
 			baseURL+CreditReservationServiceGetReservationProcedure,
@@ -125,7 +114,6 @@ type creditReservationServiceClient struct {
 	adjustReservation  *connect.Client[v1.AdjustReservationRequest, v1.AdjustReservationResponse]
 	revertAdjustment   *connect.Client[v1.RevertAdjustmentRequest, v1.RevertAdjustmentResponse]
 	releaseReservation *connect.Client[v1.ReleaseReservationRequest, v1.ReleaseReservationResponse]
-	settleReservation  *connect.Client[v1.SettleReservationRequest, v1.SettleReservationResponse]
 	getReservation     *connect.Client[v1.GetReservationRequest, v1.GetReservationResponse]
 }
 
@@ -149,11 +137,6 @@ func (c *creditReservationServiceClient) ReleaseReservation(ctx context.Context,
 	return c.releaseReservation.CallUnary(ctx, req)
 }
 
-// SettleReservation calls credit.v1.CreditReservationService.SettleReservation.
-func (c *creditReservationServiceClient) SettleReservation(ctx context.Context, req *connect.Request[v1.SettleReservationRequest]) (*connect.Response[v1.SettleReservationResponse], error) {
-	return c.settleReservation.CallUnary(ctx, req)
-}
-
 // GetReservation calls credit.v1.CreditReservationService.GetReservation.
 func (c *creditReservationServiceClient) GetReservation(ctx context.Context, req *connect.Request[v1.GetReservationRequest]) (*connect.Response[v1.GetReservationResponse], error) {
 	return c.getReservation.CallUnary(ctx, req)
@@ -166,7 +149,6 @@ type CreditReservationServiceHandler interface {
 	AdjustReservation(context.Context, *connect.Request[v1.AdjustReservationRequest]) (*connect.Response[v1.AdjustReservationResponse], error)
 	RevertAdjustment(context.Context, *connect.Request[v1.RevertAdjustmentRequest]) (*connect.Response[v1.RevertAdjustmentResponse], error)
 	ReleaseReservation(context.Context, *connect.Request[v1.ReleaseReservationRequest]) (*connect.Response[v1.ReleaseReservationResponse], error)
-	SettleReservation(context.Context, *connect.Request[v1.SettleReservationRequest]) (*connect.Response[v1.SettleReservationResponse], error)
 	GetReservation(context.Context, *connect.Request[v1.GetReservationRequest]) (*connect.Response[v1.GetReservationResponse], error)
 }
 
@@ -205,13 +187,6 @@ func NewCreditReservationServiceHandler(svc CreditReservationServiceHandler, opt
 		connect.WithIdempotency(connect.IdempotencyIdempotent),
 		connect.WithHandlerOptions(opts...),
 	)
-	creditReservationServiceSettleReservationHandler := connect.NewUnaryHandler(
-		CreditReservationServiceSettleReservationProcedure,
-		svc.SettleReservation,
-		connect.WithSchema(creditReservationServiceMethods.ByName("SettleReservation")),
-		connect.WithIdempotency(connect.IdempotencyIdempotent),
-		connect.WithHandlerOptions(opts...),
-	)
 	creditReservationServiceGetReservationHandler := connect.NewUnaryHandler(
 		CreditReservationServiceGetReservationProcedure,
 		svc.GetReservation,
@@ -229,8 +204,6 @@ func NewCreditReservationServiceHandler(svc CreditReservationServiceHandler, opt
 			creditReservationServiceRevertAdjustmentHandler.ServeHTTP(w, r)
 		case CreditReservationServiceReleaseReservationProcedure:
 			creditReservationServiceReleaseReservationHandler.ServeHTTP(w, r)
-		case CreditReservationServiceSettleReservationProcedure:
-			creditReservationServiceSettleReservationHandler.ServeHTTP(w, r)
 		case CreditReservationServiceGetReservationProcedure:
 			creditReservationServiceGetReservationHandler.ServeHTTP(w, r)
 		default:
@@ -256,10 +229,6 @@ func (UnimplementedCreditReservationServiceHandler) RevertAdjustment(context.Con
 
 func (UnimplementedCreditReservationServiceHandler) ReleaseReservation(context.Context, *connect.Request[v1.ReleaseReservationRequest]) (*connect.Response[v1.ReleaseReservationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("credit.v1.CreditReservationService.ReleaseReservation is not implemented"))
-}
-
-func (UnimplementedCreditReservationServiceHandler) SettleReservation(context.Context, *connect.Request[v1.SettleReservationRequest]) (*connect.Response[v1.SettleReservationResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("credit.v1.CreditReservationService.SettleReservation is not implemented"))
 }
 
 func (UnimplementedCreditReservationServiceHandler) GetReservation(context.Context, *connect.Request[v1.GetReservationRequest]) (*connect.Response[v1.GetReservationResponse], error) {

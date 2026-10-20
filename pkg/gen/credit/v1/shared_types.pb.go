@@ -33,8 +33,8 @@ const (
 	ReservationStatus_RESERVATION_STATUS_ASSIGNED ReservationStatus = 2
 	// The whole reserved amount returned to the requester.
 	ReservationStatus_RESERVATION_STATUS_RELEASED ReservationStatus = 3
-	// The payable reward went to the courier and any remainder returned to the
-	// requester.
+	// From Order's order.outcome event: the payable reward went to the courier
+	// and any remainder returned to the requester.
 	ReservationStatus_RESERVATION_STATUS_SETTLED ReservationStatus = 4
 )
 
@@ -135,9 +135,15 @@ func (AdjustmentStatus) EnumDescriptor() ([]byte, []int) {
 type SettlementOutcome int32
 
 const (
-	SettlementOutcome_SETTLEMENT_OUTCOME_UNSPECIFIED            SettlementOutcome = 0
-	SettlementOutcome_SETTLEMENT_OUTCOME_RELEASED               SettlementOutcome = 1
-	SettlementOutcome_SETTLEMENT_OUTCOME_COMPLETED              SettlementOutcome = 2
+	SettlementOutcome_SETTLEMENT_OUTCOME_UNSPECIFIED SettlementOutcome = 0
+	SettlementOutcome_SETTLEMENT_OUTCOME_RELEASED    SettlementOutcome = 1
+	// Credit applies the lateness rule. With elapsed = delivered_at -
+	// picked_up_at, T = the allowed delivery duration and R = the hold:
+	// - elapsed <= T pays R;
+	// - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+	// - elapsed >= 2T pays 0.
+	SettlementOutcome_SETTLEMENT_OUTCOME_COMPLETED SettlementOutcome = 2
+	// Pays the courier the whole hold.
 	SettlementOutcome_SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP SettlementOutcome = 3
 )
 

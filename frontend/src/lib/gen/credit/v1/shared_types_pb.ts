@@ -343,8 +343,8 @@ export enum ReservationStatus {
   RELEASED = 3,
 
   /**
-   * The payable reward went to the courier and any remainder returned to the
-   * requester.
+   * From Order's order.outcome event: the payable reward went to the courier
+   * and any remainder returned to the requester.
    *
    * @generated from enum value: RESERVATION_STATUS_SETTLED = 4;
    */
@@ -398,11 +398,19 @@ export enum SettlementOutcome {
   RELEASED = 1,
 
   /**
+   * Credit applies the lateness rule. With elapsed = delivered_at -
+   * picked_up_at, T = the allowed delivery duration and R = the hold:
+   * - elapsed <= T pays R;
+   * - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+   * - elapsed >= 2T pays 0.
+   *
    * @generated from enum value: SETTLEMENT_OUTCOME_COMPLETED = 2;
    */
   COMPLETED = 2,
 
   /**
+   * Pays the courier the whole hold.
+   *
    * @generated from enum value: SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP = 3;
    */
   CANCELLED_AFTER_PICKUP = 3,

@@ -4,8 +4,6 @@ package credit.v1;
 
 import "buf/validate/validate.proto";
 import "credit/v1/shared_types.proto";
-import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
 
 // Order's credit reservations: one per delivery request, keyed by request_id
 // (the Order Service request ID). Called by Order Service only, with its
@@ -13,9 +11,12 @@ import "google/protobuf/timestamp.proto";
 //
 // Every mutation is idempotent by its key: request_id, or offer_id for
 // adjustments and reverts. Keys never expire. Repeating a call with the same
-// data returns the stored result; different data is already_exists. Settled
-// and Released reservations never change again, so no call pays or returns
-// credits twice. Reports and appeals have no path into this API.
+// data returns the stored result; different data is already_exists.
+//
+// Order never settles by RPC. Credit pays the courier and refunds the rest when
+// it consumes Order's order.outcome event (#136). Settled and Released
+// reservations never change again, so credits are paid or returned at most
+// once. Reports and appeals have no path into this API.
 //
 // Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
 // reasons:
@@ -24,7 +25,6 @@ import "google/protobuf/timestamp.proto";
 // - RESERVATION_NOT_FOUND (not_found)
 // - RESERVATION_RELEASED (failed_precondition)
 // - RESERVATION_SETTLED (failed_precondition)
-// - RESERVATION_NOT_ASSIGNED (failed_precondition)
 // - ADJUSTMENT_PENDING (failed_precondition)
 // - ADJUSTMENT_REVERTED (failed_precondition)
 // Branch on the reason, not the message. After a timeout, repeat the call with
@@ -34,7 +34,6 @@ service CreditReservationService {
   rpc AdjustReservation(AdjustReservationRequest) returns (AdjustReservationResponse) { option idempotency_level = IDEMPOTENT; }
   rpc RevertAdjustment(RevertAdjustmentRequest) returns (RevertAdjustmentResponse) { option idempotency_level = IDEMPOTENT; }
   rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse) { option idempotency_level = IDEMPOTENT; }
-  rpc SettleReservation(SettleReservationRequest) returns (SettleReservationResponse) { option idempotency_level = IDEMPOTENT; }
   rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
@@ -82,41 +81,6 @@ message ReleaseReservationRequest {
   }];
 }
 
-// Pays the courier when a request completes or the requester cancels after
-// pickup. The reservation must be Assigned. The courier receives the payable
-// amount and the rest of the hold returns to the requester.
-message SettleReservationRequest {
-  string request_id = 1 [(buf.validate.field).string.uuid = true];
-  oneof outcome {
-    option (buf.validate.oneof).required = true;
-    Completed completed = 2;
-    CancelledAfterPickup cancelled_after_pickup = 3;
-  }
-
-  // Credit applies the lateness rule. With elapsed = delivered_at -
-  // picked_up_at, T = delivery_duration and R = the hold:
-  // - elapsed <= T pays R;
-  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
-  // - elapsed >= 2T pays 0.
-  message Completed {
-    option (buf.validate.message).cel = {
-      id: "completed.delivered_after_pickup"
-      message: "delivered_at must not be before picked_up_at"
-      expression: "this.delivered_at >= this.picked_up_at"
-    };
-    google.protobuf.Timestamp picked_up_at = 1 [(buf.validate.field).required = true];
-    // Allowed time from pickup to delivery.
-    google.protobuf.Duration delivery_duration = 2 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).duration.gt = {}
-    ];
-    google.protobuf.Timestamp delivered_at = 3 [(buf.validate.field).required = true];
-  }
-
-  // Pays the courier the whole hold.
-  message CancelledAfterPickup {}
-}
-
 // Includes tombstones. Fails with RESERVATION_NOT_FOUND for unknown requests.
 message GetReservationRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
@@ -132,9 +96,6 @@ message RevertAdjustmentResponse {
   Reservation reservation = 1;
 }
 message ReleaseReservationResponse {
-  Reservation reservation = 1;
-}
-message SettleReservationResponse {
   Reservation reservation = 1;
 }
 message GetReservationResponse {
