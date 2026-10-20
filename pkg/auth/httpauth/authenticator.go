@@ -131,6 +131,7 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 		ctx := auth.WithCaller(r.Context(), callerFromClaims(claims))
+		ctx = auth.WithUserBearer(ctx, "Bearer "+parts[1])
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
