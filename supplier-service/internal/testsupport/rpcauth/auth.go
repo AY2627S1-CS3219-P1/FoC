@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,8 @@ const testKeyID = "test-key"
 // matching public key, so tests exercise the real Authenticator.
 // TODO: replace with a User Service test helper if one is exported.
 type Auth struct {
+	mu            sync.Mutex
+	profiles      map[string]*userv1.Profile
 	key           *ecdsa.PrivateKey
 	now           func() time.Time
 	Authenticator *httpauth.Authenticator
@@ -37,8 +40,10 @@ func New(t *testing.T) *Auth {
 	}
 
 	path, handler := userv1connect.NewPublicKeyServiceHandler(publicKeyService{key: &key.PublicKey})
+	a := &Auth{key: key, now: time.Now, profiles: make(map[string]*userv1.Profile)}
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
+	mux.Handle(userv1connect.NewProfileServiceHandler(&profileService{auth: a}))
 	userService := httptest.NewServer(mux)
 	t.Cleanup(userService.Close)
 
@@ -48,7 +53,8 @@ func New(t *testing.T) *Auth {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Auth{key: key, now: time.Now, Authenticator: authenticator}
+	a.Authenticator = authenticator
+	return a
 }
 
 // Token returns a signed access token for role.
@@ -72,7 +78,31 @@ func (a *Auth) Token(t *testing.T, role string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	profileRole := map[string]userv1.UserRole{
+		"user":           userv1.UserRole_USER_ROLE_USER,
+		"admin":          userv1.UserRole_USER_ROLE_ADMIN,
+		"super_admin":    userv1.UserRole_USER_ROLE_SUPER_ADMIN,
+		"suspended_user": userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+	}[role]
+	a.mu.Lock()
+	a.profiles["Bearer "+signed] = &userv1.Profile{Id: "user-1", Role: profileRole}
+	a.mu.Unlock()
 	return signed
+}
+
+type profileService struct {
+	userv1connect.UnimplementedProfileServiceHandler
+	auth *Auth
+}
+
+func (s *profileService) GetMyProfile(_ context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
+	s.auth.mu.Lock()
+	profile := s.auth.profiles[req.Header().Get("Authorization")]
+	s.auth.mu.Unlock()
+	if profile == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, nil)
+	}
+	return connect.NewResponse(&userv1.GetMyProfileResponse{Profile: profile}), nil
 }
 
 // Bearer signs an access token for each request from a client.

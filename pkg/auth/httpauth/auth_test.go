@@ -44,6 +44,13 @@ func TestAccessMiddleware(t *testing.T) {
 	}})
 	mux := http.NewServeMux()
 	mux.Handle(path, keyHandler)
+	profilePath, profileHandler := userv1connect.NewProfileServiceHandler(profileServiceFunc(func(_ context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
+		if req.Header().Get("Authorization") != "Bearer "+access {
+			t.Error("profile lookup did not forward the verified access token")
+		}
+		return connect.NewResponse(&userv1.GetMyProfileResponse{Profile: &userv1.Profile{Id: "u1", Role: userv1.UserRole_USER_ROLE_USER}}), nil
+	}))
+	mux.Handle(profilePath, profileHandler)
 	userService := httptest.NewServer(mux)
 	defer userService.Close()
 	t.Setenv("APP_ENV", "local")

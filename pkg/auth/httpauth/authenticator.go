@@ -53,11 +53,12 @@ type keyCache struct {
 
 // Authenticator owns the public-key cache for one service instance.
 type Authenticator struct {
-	config    AuthConfig
-	keyClient userv1connect.PublicKeyServiceClient
-	cache     atomic.Pointer[keyCache]
-	refreshMu sync.Mutex
-	lastMiss  time.Time
+	config        AuthConfig
+	keyClient     userv1connect.PublicKeyServiceClient
+	profileClient userv1connect.ProfileServiceClient
+	cache         atomic.Pointer[keyCache]
+	refreshMu     sync.Mutex
+	lastMiss      time.Time
 }
 
 // NewAuthenticator fetches the initial key set before protected routes are served.
@@ -81,6 +82,8 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	}
 	a := &Authenticator{config: config}
 	a.keyClient = userv1connect.NewPublicKeyServiceClient(&clientCopy, config.UserServiceURL,
+		connect.WithReadMaxBytes(maxJWKSSize))
+	a.profileClient = userv1connect.NewProfileServiceClient(&clientCopy, config.UserServiceURL,
 		connect.WithReadMaxBytes(maxJWKSSize))
 	cache, err := a.fetch(ctx)
 	if err != nil {
@@ -125,6 +128,16 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			}
 			return
 		}
+		role, err := a.currentRole(r.Context(), parts[1], claims.Subject)
+		if err != nil {
+			if errors.Is(err, errInvalidAccessToken) {
+				api.WriteError(unauthorizedError{}, w, r.Context())
+			} else {
+				api.WriteError(roleUnavailableError{}, w, r.Context())
+			}
+			return
+		}
+		claims.Role = role
 		ctx := auth.WithCaller(r.Context(), callerFromClaims(claims))
 		ctx = auth.WithUserBearer(ctx, "Bearer "+parts[1])
 		next.ServeHTTP(w, r.WithContext(ctx))
