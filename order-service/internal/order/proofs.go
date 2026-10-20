@@ -137,6 +137,34 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 	return upload, grant, nil
 }
 
+// AbandonUpload retires a client upload identity, even if an earlier admission
+// response was lost. The durable fence prevents late admissions and attachment.
+// It does not delete bytes or revoke an outstanding immutable PUT grant.
+func (s *Proofs) AbandonUpload(ctx context.Context, caller Caller, orderID, uploadID string) error {
+	var err error
+	caller, orderID, err = proofCaller(caller, orderID)
+	if err != nil {
+		return err
+	}
+	id, err := parseID(uploadID)
+	if err != nil {
+		return ErrInvalid
+	}
+	return s.locked(ctx, orderID, func(o Order, tx ProofTx) (*Change, error) {
+		if !o.IsAssignedTo(caller.ID) {
+			return nil, ErrNotFound
+		}
+		row, err := tx.FindProofUpload(ctx, orderID, caller.ID, id.String())
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+		if err == nil && row.State == ProofAccepted {
+			return nil, ErrPrecondition
+		}
+		return nil, tx.AbandonProofUpload(ctx, orderID, caller.ID, id.String(), s.timestamp())
+	})
+}
+
 // VerifyUpload resolves a successful, failed or lost PUT response. A 412 from
 // an immutable PUT is not itself failure: inspect and decode the existing object.
 // This does not confirm delivery or change its deadline.

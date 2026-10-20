@@ -9,7 +9,8 @@ import (
 )
 
 // MaxStagedProofs is an operational resource limit, separate from the five
-// accepted delivery photos. Existing upload identities remain retryable.
+// accepted delivery photos. Only uploading identities consume active slots.
+// Retired identities remain fenced and cleanup-eligible; they are not revived.
 const MaxStagedProofs = 20
 
 type ProofState string
@@ -75,6 +76,11 @@ type ProofTx interface {
 	CountStagedProofs(context.Context, string, string) (int64, error)
 	GetProofUpload(context.Context, string) (ProofUpload, error)
 	SaveProofUpload(context.Context, ProofUpload) error
+	// Atomically fence this scoped identity, including when no upload row exists
+	// yet. Exclude it from CountStagedProofs, never retire an accepted proof, and
+	// retain the identity fence while the order can admit uploads. Delete bytes
+	// only after outstanding grants expire; abandoned grants are not revoked.
+	AbandonProofUpload(context.Context, string, string, string, time.Time) error
 	GetProofConfirmation(context.Context, string) (ProofConfirmation, error)
 	SaveProofConfirmation(context.Context, ProofConfirmation, []ProofUpload) error
 	// This is a LOCAL authoritative read under the order lock, not a remote probe.

@@ -7,6 +7,7 @@ function scenario() {
 		createUpload: vi.fn(async ({ uploadId }) => ({
 			proofId: uploadId, uploadUrl: 'https://storage.invalid/upload', uploadHeaders: {}
 		})),
+		abandonUpload: vi.fn(async () => {}),
 		verifyUpload: vi.fn(async () => {}),
 		confirmDelivery: vi.fn(async () => {})
 	};
@@ -55,7 +56,7 @@ describe('delivery proof upload and confirmation', () => {
 		await controller.upload();
 		await controller.confirm();
 		expect(api.confirmDelivery).not.toHaveBeenCalled();
-		controller.removeFile(controller.snapshot().files[1].id);
+		await controller.removeFile(controller.snapshot().files[1].id);
 		await controller.confirm();
 		expect(vi.mocked(api.confirmDelivery).mock.calls[0][0].proofIds).toHaveLength(1);
 	});
@@ -70,7 +71,7 @@ describe('delivery proof upload and confirmation', () => {
 		expect(controller.snapshot().outcome).toBe('Failed');
 		expect(controller.snapshot().locked).toBe(true);
 		controller.setUnattended(false);
-		controller.removeFile(controller.snapshot().files[0].id);
+		await controller.removeFile(controller.snapshot().files[0].id);
 		controller.addFiles([photo('different.png')]);
 		// Changing which UI button is clicked cannot change an unknown submission.
 		await controller.confirm(true);
@@ -138,7 +139,8 @@ describe('bounded delivery proof work', () => {
 	it('cancels a stalled upload on unmount and does not start the next selected file', async () => {
 		const api: DeliveryProofAPI = {
 			createUpload: vi.fn(async ({ uploadId }) => ({ proofId: uploadId, uploadUrl: 'https://storage.invalid/upload', uploadHeaders: {} })),
-			verifyUpload: vi.fn(async () => {}),
+			abandonUpload: vi.fn(async () => {}),
+		verifyUpload: vi.fn(async () => {}),
 			confirmDelivery: vi.fn(async () => {})
 		};
 		let started!: () => void;
@@ -170,4 +172,41 @@ describe('bounded delivery proof work', () => {
 		expect(api.verifyUpload).toHaveBeenCalledOnce();
 		expect(controller.snapshot().files[0].outcome).toBe('Succeeded');
 	}, 20_000);
+});
+
+// Selected-photo removal is explicit and must release the server admission slot.
+describe('acknowledged proof removal', () => {
+ it('retires more than twenty selected uploads before accepting a replacement', async () => {
+  const {api, controller} = scenario();
+  for (let index=0;index<21;index++) {
+   controller.addFiles([photo(`${index}.png`)]);
+   await controller.upload();
+   const id=controller.snapshot().files[0].id;
+   await controller.removeFile(id);
+   expect(api.abandonUpload).toHaveBeenLastCalledWith('order',id,expect.any(AbortSignal));
+   expect(controller.snapshot().files).toHaveLength(0);
+  }
+  controller.addFiles([photo('replacement.png')]);
+  await controller.upload();
+  await controller.confirm();
+  expect(api.abandonUpload).toHaveBeenCalledTimes(21);
+  expect(controller.snapshot().outcome).toBe('Succeeded');
+ });
+ it('keeps unknown removals and their upload identity until the same removal succeeds', async () => {
+  const {api,controller}=scenario();
+  controller.addFiles([photo()]);
+  vi.mocked(api.createUpload).mockRejectedValueOnce(new Error('lost grant response'));
+  await controller.upload();
+  const id=controller.snapshot().files[0].id;
+  vi.mocked(api.abandonUpload).mockRejectedValueOnce(new Error('lost removal response'));
+  await controller.removeFile(id);
+  expect(controller.snapshot().files[0].id).toBe(id);
+  await controller.upload();
+  expect(api.createUpload).toHaveBeenCalledOnce();
+  await controller.confirm();
+  expect(api.confirmDelivery).not.toHaveBeenCalled();
+  await controller.removeFile(id);
+  expect(vi.mocked(api.abandonUpload).mock.calls[1].slice(0,2)).toEqual(['order',id]);
+  expect(controller.snapshot().files).toHaveLength(0);
+ });
 });

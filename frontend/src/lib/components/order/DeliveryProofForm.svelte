@@ -89,8 +89,8 @@
 						<strong>{row.file.name}</strong>
 						<span>{row.outcome}</span>
 						{#if row.message}<p>{row.message}</p>{/if}
-						<Button type="button" variant="text" disabled={view.locked} onclick={() => {
-							controller?.removeFile(row.id);
+						<Button type="button" variant="text" disabled={view.locked} onclick={async () => {
+							await controller?.removeFile(row.id);
 							fileInput?.focus();
 						}}>Remove {row.file.name}</Button>
 					</li>

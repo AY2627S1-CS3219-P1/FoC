@@ -196,6 +196,7 @@ func (d *proofDependencies) ConfirmProofOutage(context.Context) (ProofOutage, er
 	d.outside()
 	return d.outage, d.outageErr
 }
+
 func proofScenario() (*Proofs, *proofMemory, *proofDependencies, *time.Time) {
 	now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
 	picked := now.Add(-10 * time.Minute)
@@ -535,4 +536,18 @@ func TestProofVerifyResolvesLostUploadResponseWithoutDelivery(t *testing.T) {
 	if err := s.VerifyUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.ID); !errors.Is(err, ErrPrecondition) {
 		t.Fatal(err)
 	}
+}
+
+func (r *proofMemory) AbandonProofUpload(ctx context.Context, orderID, courierID, uploadID string, at time.Time) error {
+	row, err := r.FindProofUpload(ctx, orderID, courierID, uploadID)
+	if errors.Is(err, ErrNotFound) {
+		row = ProofUpload{ID: uploadID, OrderID: orderID, CourierID: courierID, UploadID: uploadID, CreatedAt: at}
+	} else if err != nil {
+		return err
+	}
+	if row.State == ProofAccepted {
+		return ErrPrecondition
+	}
+	row.State = ProofDeleting
+	return r.SaveProofUpload(ctx, row)
 }

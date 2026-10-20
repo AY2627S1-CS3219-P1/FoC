@@ -3,6 +3,8 @@ export type ProofFile = {
 	id: string;
 	file: File;
 	proofId?: string;
+	uploadRequested?: boolean;
+	removalRequested?: boolean;
 	outcome: ProofOutcome;
 	message: string;
 };
@@ -25,6 +27,7 @@ export interface DeliveryProofAPI {
 		contentType: string;
 		sizeBytes: number;
 	}, signal: AbortSignal): Promise<ProofGrant>;
+	abandonUpload(orderId: string, uploadId: string, signal: AbortSignal): Promise<void>;
 	verifyUpload(orderId: string, proofId: string, signal: AbortSignal): Promise<void>;
 	confirmDelivery(input: {
 		orderId: string;
@@ -124,11 +127,36 @@ export class DeliveryProofController {
 		this.publish();
 	}
 
-	removeFile(id: string): void {
-		if (this.busy || this.submitted || this.outcome === 'Succeeded') return;
-		this.files = this.files.filter((file) => file.id !== id);
-		this.message = '';
+	async removeFile(id: string): Promise<void> {
+		if (this.busy || this.submitted || this.outcome === 'Succeeded' || this.disposed) return;
+		const row = this.files.find((file) => file.id === id);
+		if (!row) return;
+		if (!row.uploadRequested) {
+			this.files = this.files.filter((file) => file.id !== id);
+			this.message = '';
+			this.publish();
+			return;
+		}
+		this.busy = true;
+		this.outcome = 'Pending';
+		row.removalRequested = true;
+		row.outcome = 'Pending';
+		row.message = 'Retiring this upload before removing the photo…';
 		this.publish();
+		try {
+			await this.bounded((signal) => this.api.abandonUpload(this.orderId, row.id, signal));
+			this.files = this.files.filter((file) => file.id !== id);
+			this.outcome = 'Not Submitted';
+			this.message = 'Photo removed. Its upload slot is available for a replacement.';
+		} catch {
+			row.outcome = 'Failed';
+			row.message = 'Removal could not be confirmed. The photo and upload ID are retained. Try Remove again.';
+			this.outcome = 'Failed';
+			this.message = row.message;
+		} finally {
+			this.busy = false;
+			this.publish();
+		}
 	}
 
 	setUnattended(value: boolean): void {
@@ -146,11 +174,12 @@ export class DeliveryProofController {
 		try {
 			for (const row of this.files) {
 				if (this.disposed) break;
-				if (row.outcome === 'Succeeded' || !types.has(row.file.type) || row.file.size < 1 || row.file.size > maxBytes) continue;
+				if (row.removalRequested || row.outcome === 'Succeeded' || !types.has(row.file.type) || row.file.size < 1 || row.file.size > maxBytes) continue;
 				row.outcome = 'Pending';
 				row.message = 'Uploading photo…';
 				this.publish();
 				try {
+					row.uploadRequested = true;
 					const grant = await this.bounded((signal) => this.api.createUpload({
 						orderId: this.orderId,
 						uploadId: row.id,
