@@ -19,7 +19,7 @@ func TestPostgresReservations(t *testing.T) {
 	pool := postgres.Setup(t)
 	clock := func() time.Time { return time.Now().UTC() }
 	s := reservation.NewService(reservation.NewPostgresRepository(pool), clock)
-	accounts := account.NewService(account.NewPostgresStore(pool, clock))
+	accounts := account.NewService(account.NewPostgresStore(pool))
 	ctx := context.Background()
 	t.Cleanup(func() { postgres.CheckLedger(t, pool) })
 
@@ -161,10 +161,10 @@ func TestPostgresReservations(t *testing.T) {
 		}
 	})
 
-	t.Run("concurrent first opens grant once", func(t *testing.T) {
+	t.Run("concurrent first reserves grant once", func(t *testing.T) {
 		user := uuid.NewString()
 		errs := concurrently(10, func() error {
-			_, err := accounts.GetAccount(ctx, user)
+			_, err := s.Reserve(ctx, uuid.NewString(), user, 10)
 			return err
 		})
 		for _, err := range errs {
@@ -172,9 +172,30 @@ func TestPostgresReservations(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		page, err := accounts.ListLedgerEntries(ctx, user, account.Page{})
-		if err != nil || page.PageInfo.TotalItems != 1 || page.Entries[0].Kind != account.Grant {
-			t.Fatalf("ledger: %+v %v", page, err)
+
+		var grants int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM ledger_entries WHERE user_id = $1 AND kind = 'GRANT'`, user).
+			Scan(&grants); err != nil || grants != 1 {
+			t.Fatalf("grants: %d %v", grants, err)
+		}
+		if a := balance(t, user); a.Balance != 100 || a.Reserved != 100 {
+			t.Fatalf("account: %+v", a)
+		}
+	})
+
+	t.Run("reads never open an account", func(t *testing.T) {
+		user := uuid.NewString()
+		if _, err := accounts.GetAccount(ctx, user); !errors.Is(err, account.ErrAccountNotFound) {
+			t.Fatalf("get: %v", err)
+		}
+		if _, err := accounts.ListLedgerEntries(ctx, user, account.Page{}); !errors.Is(err, account.ErrAccountNotFound) {
+			t.Fatalf("list: %v", err)
+		}
+
+		var exists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accounts WHERE user_id = $1)`, user).
+			Scan(&exists); err != nil || exists {
+			t.Fatalf("account opened by a read: %v %v", exists, err)
 		}
 	})
 

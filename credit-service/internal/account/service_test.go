@@ -11,18 +11,23 @@ import (
 const userID = "22222222-2222-4222-8222-222222222222"
 
 type fakeStore struct {
-	opened        []string
+	missing       bool
+	reads         []string
 	total         int64
 	limit, offset int64
+	listed        bool
 }
 
 func (f *fakeStore) Account(_ context.Context, id string) (account.Account, error) {
-	f.opened = append(f.opened, id)
+	f.reads = append(f.reads, id)
+	if f.missing {
+		return account.Account{}, account.ErrAccountNotFound
+	}
 	return account.Account{UserID: id, Balance: 100, Reserved: 30}, nil
 }
 
 func (f *fakeStore) LedgerEntries(_ context.Context, _ string, limit, offset int64) ([]account.LedgerEntry, int64, error) {
-	f.limit, f.offset = limit, offset
+	f.limit, f.offset, f.listed = limit, offset, true
 	return []account.LedgerEntry{{Kind: account.Grant, BalanceDelta: 100}}, f.total, nil
 }
 
@@ -34,6 +39,21 @@ func TestGetAccountReportsAvailableCredits(t *testing.T) {
 	}
 	if _, err := account.NewService(store).GetAccount(context.Background(), "nope"); !errors.Is(err, account.ErrInvalidArgument) {
 		t.Fatalf("invalid id: %v", err)
+	}
+}
+
+func TestReadsReportAMissingAccount(t *testing.T) {
+	store := &fakeStore{missing: true}
+	s := account.NewService(store)
+
+	if _, err := s.GetAccount(context.Background(), userID); !errors.Is(err, account.ErrAccountNotFound) {
+		t.Fatalf("get: %v", err)
+	}
+	if _, err := s.ListLedgerEntries(context.Background(), userID, account.Page{}); !errors.Is(err, account.ErrAccountNotFound) {
+		t.Fatalf("list: %v", err)
+	}
+	if store.listed {
+		t.Fatal("listed entries for a missing account")
 	}
 }
 
@@ -56,8 +76,8 @@ func TestListLedgerEntriesPages(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.PageInfo != tt.info || store.limit != tt.limit || store.offset != tt.offset || len(store.opened) != 1 {
-				t.Fatalf("page %+v limit %d offset %d opened %v", got.PageInfo, store.limit, store.offset, store.opened)
+			if got.PageInfo != tt.info || store.limit != tt.limit || store.offset != tt.offset || len(store.reads) != 1 {
+				t.Fatalf("page %+v limit %d offset %d reads %v", got.PageInfo, store.limit, store.offset, store.reads)
 			}
 		})
 	}

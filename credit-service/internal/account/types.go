@@ -1,5 +1,6 @@
-// Package account reads users' credit accounts and ledgers, and opens an
-// account with the starting credits the first time Credit sees a user.
+// Package account reads users' credit accounts and ledgers. Commands open an
+// account with the starting credits the first time they see a user; reads
+// never open one.
 package account
 
 import (
@@ -15,7 +16,12 @@ const (
 	MaxPageSize     int32 = 100
 )
 
-var ErrInvalidArgument = errors.New("invalid argument")
+var (
+	ErrInvalidArgument = errors.New("invalid argument")
+	// The user has no account yet: Credit has not consumed their users.create
+	// event and they have not reserved or been paid.
+	ErrAccountNotFound = errors.New("account not found")
+)
 
 type Account struct {
 	UserID   string

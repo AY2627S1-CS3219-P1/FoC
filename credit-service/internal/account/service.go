@@ -7,7 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Store opens missing accounts with the starting credits.
+// Store reads accounts without side effects. Account returns
+// ErrAccountNotFound for a user Credit has not opened an account for.
 type Store interface {
 	Account(ctx context.Context, userID string) (Account, error)
 	LedgerEntries(ctx context.Context, userID string, limit, offset int64) ([]LedgerEntry, int64, error)
@@ -17,7 +18,7 @@ type Service struct{ store Store }
 
 func NewService(store Store) *Service { return &Service{store: store} }
 
-// GetAccount opens the account on the user's first call.
+// GetAccount returns the user's account, or ErrAccountNotFound.
 func (s *Service) GetAccount(ctx context.Context, userID string) (Account, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -26,7 +27,8 @@ func (s *Service) GetAccount(ctx context.Context, userID string) (Account, error
 	return s.store.Account(ctx, id.String())
 }
 
-// ListLedgerEntries returns the user's entries, newest first.
+// ListLedgerEntries returns the user's entries, newest first, or
+// ErrAccountNotFound.
 func (s *Service) ListLedgerEntries(ctx context.Context, userID string, p Page) (LedgerPage, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
