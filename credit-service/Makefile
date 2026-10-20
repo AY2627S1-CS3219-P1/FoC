@@ -8,6 +8,9 @@ sqlc:
 test:
 	@go test ./...
 
+test-integration:
+	@go test -p 1 -tags=integration ./internal/... -count=1 -timeout=10m
+
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
 
