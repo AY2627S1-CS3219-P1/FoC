@@ -173,14 +173,15 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 
 ## Database
 
-Supplier and Order Services use sqlc:
+Supplier, Order and Credit Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
   Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
   hand-edit generated files. Order generates one aggregate package,
-  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`.
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
+  generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 ## Frontend services

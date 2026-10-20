@@ -9,8 +9,9 @@
 -- INSUFFICIENT_CREDITS from RESERVE or ADJUST. Other refusals are recomputed
 -- from current state and leave no row.
 --
--- Settlement has no row here: it comes only from the order.outcome consumer,
--- which deduplicates by event ID (#136).
+-- Settlement has no row here: it comes only from the order.outcome consumer
+-- (#136). A settled or released reservation never changes, so a repeated
+-- outcome changes nothing; see docs/adr/credit-reservation-holds.md.
 CREATE TABLE reservation_operations (
     operation        TEXT        NOT NULL,
     order_id         UUID        NOT NULL,
