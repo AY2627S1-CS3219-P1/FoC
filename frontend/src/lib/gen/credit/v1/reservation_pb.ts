@@ -50,11 +50,11 @@ export const ReserveRequestSchema: GenMessage<ReserveRequest> = /*@__PURE__*/
 /**
  * Applies an accepted offer to a Held reservation and records the courier.
  * Accepting at the original reward is also an offer, so Order supplies an
- * offer_id for every acceptance. The hold becomes max(original_amount,
- * offer_amount), so a lower offer never frees credits that a revert would need
- * back. If the increase exceeds available, nothing changes and
- * INSUFFICIENT_CREDITS is returned. Revert any other applied offer first
- * (ADJUSTMENT_PENDING).
+ * offer_id for every acceptance. offer_amount must be at least
+ * original_amount (invalid_argument otherwise), so a revert never needs back
+ * credits the requester has spent. The hold becomes offer_amount; if the
+ * increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
+ * returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
  *
  * @generated from message credit.v1.AdjustReservationRequest
  */
