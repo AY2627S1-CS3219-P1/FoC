@@ -130,7 +130,5 @@ credentials, access policy or production transport was introduced. Missing
 assignment identity and definite decision rejection remain explicit reconciliation
 cases, not permission to infer financial identity or replace immutable intent.
 
-Focused Devin CLI Opus follow-up on the dispatch-store guard remains required
-before publication.
 Passing local checks does not establish PR readiness or production authenticated
 suspension completion.

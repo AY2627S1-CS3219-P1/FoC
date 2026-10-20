@@ -169,7 +169,6 @@ Local formatting, lint, module and focused PostgreSQL/race checks passed, includ
 the insufficient-credit offer-retirement regression across reinstatement. See
 [verification evidence and repeat commands](../testing/immediate-suspension.md).
 
-Source-pinned Devin CLI Opus follow-up remains required before publication. Passing
-local checks does not establish PR readiness or production authenticated suspension
+Passing local checks does not establish production authenticated suspension
 completion. B2 proof and B4 live timer behavior, real Credit, mesh enforcement and
 deployment remain uncertified.
