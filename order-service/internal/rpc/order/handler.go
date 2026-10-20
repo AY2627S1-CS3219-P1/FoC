@@ -32,6 +32,7 @@ type ImageOperations interface {
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
 	operations Operations
+	progress   ProgressOperations
 	creator    CreationOperations
 	images     ImageOperations
 }

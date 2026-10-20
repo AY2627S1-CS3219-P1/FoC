@@ -25,12 +25,22 @@ func (s *Service) GetOrder(ctx context.Context, c Caller, id string) (Order, err
 		return o, nil
 	}
 
-	if c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now()) {
+	if !visibleTo(o, c, time.Now()) {
 		return Order{}, ErrNotFound
 	}
 
 	o.DeliveryInstructions = nil
 	return o, nil
+}
+
+// visibleTo reports whether the caller may see the order: admins and
+// participants always, other active users only while it is open for couriers.
+func visibleTo(o Order, c Caller, now time.Time) bool {
+	if c.Admin || o.HasParticipant(c.ID) {
+		return true
+	}
+
+	return !c.Suspended && o.Status == AwaitingCourier && o.ExpiresAt.After(now)
 }
 
 // Order listings select the visible scope before shared validation and redaction.
