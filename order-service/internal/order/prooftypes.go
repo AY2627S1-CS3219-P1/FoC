@@ -27,6 +27,8 @@ type ProofUpload struct {
 	State                            ProofState
 	ID, OrderID, CourierID, UploadID string
 	Key, ContentType                 string
+	SigningEpoch                     string
+	VerifiedAt                       *time.Time
 	SizeBytes                        int64
 	Generation                       int64
 	GrantedAt, ExpiresAt, CreatedAt  time.Time
@@ -72,6 +74,9 @@ type DeliveryProofView struct {
 // changed proof metadata and rows already fenced for cleanup.
 type ProofTx interface {
 	Tx
+	// Call only after locking the parent; receipt eligibility and timeout share this lock.
+	HasPendingDelivery(context.Context, string) (bool, error)
+	ProofServerTime(context.Context) (time.Time, error)
 	FindProofUpload(context.Context, string, string, string) (ProofUpload, error)
 	CountStagedProofs(context.Context, string, string) (int64, error)
 	GetProofUpload(context.Context, string) (ProofUpload, error)

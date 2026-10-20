@@ -203,11 +203,25 @@ func (s *Proofs) VerifyUpload(ctx context.Context, caller Caller, orderID, proof
 		if err := canUploadProof(o, caller, s.timestamp()); err != nil {
 			return nil, err
 		}
-		return nil, s.recheckProofs(ctx, tx, o, caller, []ProofUpload{upload})
+		if err := s.recheckProofs(ctx, tx, o, caller, []ProofUpload{upload}); err != nil {
+			return nil, err
+		}
+		if verified, ok := tx.(interface {
+			MarkProofVerified(context.Context, string) error
+		}); ok {
+			return nil, verified.MarkProofVerified(ctx, upload.ID)
+		}
+		return nil, nil
 	})
 }
 
+// ConfirmDelivery is the immediate application operation. The production RPC
+// uses ProofReceipts to admit a durable receipt before invoking this finalizer.
 func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmDeliveryInput) (Order, error) {
+	return s.confirmReceipt(ctx, caller, in, nil)
+}
+
+func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDeliveryInput, receipt *DeliveryReceipt) (Order, error) {
 	var err error
 	caller, in.OrderID, err = proofCaller(caller, in.OrderID)
 	if err != nil {
@@ -223,7 +237,11 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 	var repeat bool
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
 		var err error
-		repeat, err = s.confirmationState(ctx, tx, o, caller, in, s.timestamp())
+		at, err := s.receiptTime(ctx, tx, caller, in, receipt)
+		if err != nil {
+			return nil, err
+		}
+		repeat, err = s.confirmationState(ctx, tx, o, caller, in, at)
 		if err != nil {
 			return nil, err
 		}
@@ -252,14 +270,22 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 
 	var outage ProofOutage
 	if in.WithoutProof {
-		if s.outages == nil {
-			return Order{}, ErrPrecondition
+		if receipt != nil && receipt.Outage != nil {
+			outage = *receipt.Outage
+		} else {
+			if s.outages == nil {
+				return Order{}, ErrPrecondition
+			}
+			outage, err = s.outages.ConfirmProofOutage(ctx)
 		}
-		outage, err = s.outages.ConfirmProofOutage(ctx)
 		if err != nil {
 			return Order{}, ErrUnavailable
 		}
-		if !s.isCurrentProofOutage(outage, s.timestamp()) {
+		at := s.timestamp()
+		if receipt != nil {
+			at = receipt.ReceivedAt
+		}
+		if !s.isCurrentProofOutage(outage, at) {
 			return Order{}, ErrPrecondition
 		}
 	} else {
@@ -271,7 +297,17 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 	}
 
 	err = s.locked(ctx, in.OrderID, func(o Order, tx ProofTx) (*Change, error) {
-		now := s.timestamp()
+		now, err := s.receiptTime(ctx, tx, caller, in, receipt)
+		if err != nil {
+			return nil, err
+		}
+		processedAt := s.timestamp()
+		if receipt != nil {
+			processedAt, err = tx.(ReceiptTx).ProofServerTime(ctx)
+			if err != nil {
+				return nil, err
+			}
+		}
 		repeat, err := s.confirmationState(ctx, tx, o, caller, in, now)
 		if err != nil {
 			return nil, err
@@ -280,7 +316,7 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 			result = o
 			return nil, nil
 		}
-		if in.WithoutProof {
+		if in.WithoutProof && receipt == nil {
 			if !s.isCurrentProofOutage(outage, now) {
 				return nil, ErrPrecondition
 			}
@@ -305,7 +341,7 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 		after.DeliveredAt = &now
 		after.UnattendedDelivery = in.Unattended
 		after.Revision++
-		after.UpdatedAt = now
+		after.UpdatedAt = processedAt
 		confirmation := ProofConfirmation{
 			OrderID: o.ID, CourierID: caller.ID, ProofIDs: slices.Clone(in.ProofIDs),
 			Unattended: in.Unattended, OutageReason: outage.Reason, ConfirmedAt: now,
@@ -331,6 +367,26 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 		return Order{}, err
 	}
 	return result, nil
+}
+
+// receiptTime never accepts a client clock. Re-read the immutable durable
+// record under the parent lock before using its earlier effective timestamp.
+func (s *Proofs) receiptTime(ctx context.Context, tx ProofTx, c Caller, in ConfirmDeliveryInput, expected *DeliveryReceipt) (time.Time, error) {
+	if expected == nil {
+		return s.timestamp(), nil
+	}
+	receipts, ok := tx.(ReceiptTx)
+	if !ok {
+		return time.Time{}, ErrUnavailable
+	}
+	stored, err := receipts.GetDeliveryReceipt(ctx, expected.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if (stored.State != "pending" && stored.State != "accepted") || !stored.matches(c, in) || !stored.ReceivedAt.Equal(expected.ReceivedAt) {
+		return time.Time{}, ErrPrecondition
+	}
+	return stored.ReceivedAt, nil
 }
 
 // confirmationState recognizes only a durable, matching accepted input, before
@@ -516,7 +572,7 @@ func proofUploadMatches(stored, expected ProofUpload) bool {
 		stored.OrderID == expected.OrderID && stored.CourierID == expected.CourierID &&
 		stored.UploadID == expected.UploadID && stored.Key == expected.Key &&
 		stored.ContentType == expected.ContentType && stored.SizeBytes == expected.SizeBytes &&
-		stored.Generation == expected.Generation && stored.GrantedAt.Equal(expected.GrantedAt) &&
+		stored.Generation == expected.Generation && stored.SigningEpoch == expected.SigningEpoch && stored.GrantedAt.Equal(expected.GrantedAt) &&
 		stored.ExpiresAt.Equal(expected.ExpiresAt) && stored.CreatedAt.Equal(expected.CreatedAt)
 }
 

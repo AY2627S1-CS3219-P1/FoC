@@ -577,3 +577,9 @@ func (r *proofMemory) AbandonProofUpload(ctx context.Context, orderID, courierID
 	r.retired[identity] = at
 	return nil
 }
+
+func (r *proofMemory) HasPendingDelivery(context.Context, string) (bool, error) { return false, nil }
+
+func (r *proofMemory) ProofServerTime(context.Context) (time.Time, error) {
+	return time.Now().UTC().Truncate(time.Microsecond), nil
+}
