@@ -121,7 +121,18 @@ Second/final verification passed root formatting/lint with zero issues, all
 Order Service tests with the race detector, and all five PostgreSQL scenarios:
 50 expiry contenders, 52-order failure/restart progress, withdrawal/unassignment
 with original expiry, cancellation contention, and the real assignment lock wait.
-No application edits followed that pass. Native local exact-model review is
-pending; no successful model-specific review is claimed yet. Both permitted
-verification rounds are spent. Full-feature integration remains blocked by the
-handoffs above.
+No application edits followed that pass. Independent native Opus 5.5 review
+found no confirmed bugs and accepted retaining this isolated slice as a declared
+partial implementation. Actual `generation_model = claude-opus-5-5-medium` was
+verified in its native export, together with read/grep/find-only tools and
+unchanged hashes for all six application/query/test files. This is not full
+feature or integration approval. Private native exports are not shared artifacts.
+
+Remaining review warnings: discovery uses instance clocks and assumes reasonable
+clock synchronization; its current query has no purpose-built index or scale
+benchmark; UUID paging bounds work per page but can delay discovery through a
+large backlog. Discovery-failure backoff/timeout lack dedicated execution tests,
+and the blocked-attempt fake has a small duplicate-channel-close flake risk if
+cancellation is delayed beyond the attempt timeout. No fixes or tests were added
+after the final pass. Full-feature integration remains blocked by the handoffs
+above.
