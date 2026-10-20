@@ -15,10 +15,14 @@ import "credit/v1/shared_types.proto";
 // operations with event settlement. request_id is the permanent Order UUID.
 //
 // Every mutation is idempotent by its key: request_id, or offer_id for
-// adjustments and reverts. Keys never expire. Repeating a call with the same
-// data returns the stored result; different data is already_exists. Settled
-// and Released reservations never change again, so no call pays or returns
-// credits twice. Reports and appeals have no path into this API.
+// adjustments and reverts. Keys never expire. Different data for a retained
+// key is already_exists. Same-data retries return the stored result unless a
+// later state transition prevents that operation: Reserve after release returns
+// RESERVATION_RELEASED, and AdjustReservation for a reverted offer returns
+// ADJUSTMENT_REVERTED, rather than replaying the earlier success. Retrying never
+// reapplies the credit mutation. Settled and Released reservations never change
+// again, so no call pays or returns credits twice. Reports and appeals have no
+// path into this API.
 //
 // Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
 // reasons:
