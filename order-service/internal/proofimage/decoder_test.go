@@ -68,3 +68,38 @@ func TestProofDecoderMissingRuntimeIsNotAnUploadOutage(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The supported byte contract includes ordinary compressed phone photographs;
+// cache limits must not make the documented 24MP validation budget unusable.
+func TestProofDecoderAcceptsOrdinaryHighResolutionPhotos(t *testing.T) {
+	binary, err := exec.LookPath("magick")
+	if err != nil {
+		t.Skip("ImageMagick is required")
+	}
+	for _, dimensions := range []string{"5472x3648", "6000x4000"} {
+		t.Run(dimensions, func(t *testing.T) {
+			body, err := exec.CommandContext(t.Context(), binary, "-size", dimensions, "xc:white", "jpeg:-").Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(body) > 10000000 {
+				t.Fatal("fixture exceeds byte contract")
+			}
+			if err := NewDecoder(binary).Validate(t.Context(), "image/jpeg", body); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// A server execution deadline is an unknown validation result, not evidence
+// that the submitted photograph is invalid.
+func TestProofDecoderExecutionTimeoutIsRetryable(t *testing.T) {
+	binary := t.TempDir() + "/slow-decoder"
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec sleep 7\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewDecoder(binary).Validate(t.Context(), "image/jpeg", []byte("body")); !errors.Is(err, app.ErrUnavailable) {
+		t.Fatalf("timeout classified as invalid media: %v", err)
+	}
+}

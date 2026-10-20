@@ -62,11 +62,12 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 	}
 	// Force the chosen decoder, disable spill-to-disk, bound dimensions and
 	// memory, and transform pixels to force full decoding rather than identify
-	// just the header. The result is three bytes per frame, capped below.
+	// just the header. Native area admission is strict (<), so 24,000,001
+	// admits the exact 24MP boundary. The result is three bytes per frame.
 	cmd := exec.CommandContext(bounded, path,
-		"-regard-warnings", "-limit", "memory", "128MiB", "-limit", "map", "0",
+		"-regard-warnings", "-limit", "memory", "1GiB", "-limit", "map", "0",
 		"-limit", "disk", "0", "-limit", "width", "8192", "-limit", "height", "8192",
-		"-limit", "area", "24MP", "-limit", "thread", "1", "-limit", "time", "5",
+		"-limit", "area", "24000001", "-limit", "thread", "1", "-limit", "time", "5",
 		coder+":-", "-resize", "1x1!", "-depth", "8", "rgb:-")
 	cmd.Stdin = bytes.NewReader(body)
 	output := &boundedOutput{remaining: 1536}
@@ -75,6 +76,9 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if bounded.Err() != nil {
+			return app.ErrUnavailable
 		}
 		return app.ErrPrecondition
 	}
