@@ -16,9 +16,9 @@ export const file_credit_v1_reservation: GenFile = /*@__PURE__*/
   fileDesc("ChtjcmVkaXQvdjEvcmVzZXJ2YXRpb24ucHJvdG8SCWNyZWRpdC52MSJnCg5SZXNlcnZlUmVxdWVzdBIcCgpyZXF1ZXN0X2lkGAEgASgJQgi6SAVyA7ABARIeCgxyZXF1ZXN0ZXJfaWQYAiABKAlCCLpIBXIDsAEBEhcKBmFtb3VudBgDIAEoA0IHukgEIgIgACKRAQoYQWRqdXN0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBEhoKCG9mZmVyX2lkGAIgASgJQgi6SAVyA7ABARIcCgpjb3VyaWVyX2lkGAMgASgJQgi6SAVyA7ABARIdCgxvZmZlcl9hbW91bnQYBCABKANCB7pIBCICIAAiUwoXUmV2ZXJ0QWRqdXN0bWVudFJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESGgoIb2ZmZXJfaWQYAiABKAlCCLpIBXIDsAEBIm8KGVJlbGVhc2VSZXNlcnZhdGlvblJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESNAoGcmVhc29uGAIgASgOMhguY3JlZGl0LnYxLlJlbGVhc2VSZWFzb25CCrpIB4IBBBABIAAiNQoVR2V0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBIj4KD1Jlc2VydmVSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJIChlBZGp1c3RSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uIkcKGFJldmVydEFkanVzdG1lbnRSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJJChpSZWxlYXNlUmVzZXJ2YXRpb25SZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJFChZHZXRSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uMuwDChhDcmVkaXRSZXNlcnZhdGlvblNlcnZpY2USRQoHUmVzZXJ2ZRIZLmNyZWRpdC52MS5SZXNlcnZlUmVxdWVzdBoaLmNyZWRpdC52MS5SZXNlcnZlUmVzcG9uc2UiA5ACAhJjChFBZGp1c3RSZXNlcnZhdGlvbhIjLmNyZWRpdC52MS5BZGp1c3RSZXNlcnZhdGlvblJlcXVlc3QaJC5jcmVkaXQudjEuQWRqdXN0UmVzZXJ2YXRpb25SZXNwb25zZSIDkAICEmAKEFJldmVydEFkanVzdG1lbnQSIi5jcmVkaXQudjEuUmV2ZXJ0QWRqdXN0bWVudFJlcXVlc3QaIy5jcmVkaXQudjEuUmV2ZXJ0QWRqdXN0bWVudFJlc3BvbnNlIgOQAgISZgoSUmVsZWFzZVJlc2VydmF0aW9uEiQuY3JlZGl0LnYxLlJlbGVhc2VSZXNlcnZhdGlvblJlcXVlc3QaJS5jcmVkaXQudjEuUmVsZWFzZVJlc2VydmF0aW9uUmVzcG9uc2UiA5ACAhJaCg5HZXRSZXNlcnZhdGlvbhIgLmNyZWRpdC52MS5HZXRSZXNlcnZhdGlvblJlcXVlc3QaIS5jcmVkaXQudjEuR2V0UmVzZXJ2YXRpb25SZXNwb25zZSIDkAIBQqQBCg1jb20uY3JlZGl0LnYxQhBSZXNlcnZhdGlvblByb3RvUAFaPGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL2NyZWRpdC92MTtjcmVkaXR2MaICA0NYWKoCCUNyZWRpdC5WMcoCCUNyZWRpdFxWMeICFUNyZWRpdFxWMVxHUEJNZXRhZGF0YeoCCkNyZWRpdDo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_credit_v1_shared_types]);
 
 /**
- * Holds amount from the requester's available credits when a request is
+ * Holds amount from the requester's available credits when an order is
  * created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
- * with RESERVATION_RELEASED if the request was already released. A requester
+ * with RESERVATION_RELEASED if the order was already released. A requester
  * without an account first receives the starting credits.
  *
  * @generated from message credit.v1.ReserveRequest
@@ -116,10 +116,11 @@ export const RevertAdjustmentRequestSchema: GenMessage<RevertAdjustmentRequest> 
   messageDesc(file_credit_v1_reservation, 2);
 
 /**
- * Returns the whole hold to the requester when a request is cancelled before
- * pickup, expires or fails. An unknown request is recorded as released, so a
- * later Reserve for it fails with RESERVATION_RELEASED. Fails with
- * RESERVATION_SETTLED on a Settled reservation.
+ * Returns the whole hold to the requester, only as compensation for a creation
+ * that never opened. Opened orders settle through order.outcome instead. An
+ * unknown request is recorded as released, so a later Reserve for it fails
+ * with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+ * reservation.
  *
  * @generated from message credit.v1.ReleaseReservationRequest
  */
@@ -247,18 +248,23 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
   messageDesc(file_credit_v1_reservation, 9);
 
 /**
- * Order's credit reservations: one per delivery request, keyed by request_id
- * (the Order Service request ID). Called by Order Service only, with its
- * service token.
- *
- * Every mutation is idempotent by its key: request_id, or offer_id for
- * adjustments and reverts. Keys never expire. Repeating a call with the same
- * data returns the stored result; different data is already_exists.
+ * Order's credit reservations: one per order, keyed by request_id (the Order
+ * Service order ID). Called by Order Service only, with its service token.
  *
  * Order never settles by RPC. Credit pays the courier and refunds the rest when
- * it consumes Order's order.outcome event (#136). Settled and Released
- * reservations never change again, so credits are paid or returned at most
- * once. Reports and appeals have no path into this API.
+ * it consumes Order's order.outcome event (#136), including for cancelled,
+ * expired and failed orders. ReleaseReservation only compensates a creation
+ * that never opened, and RevertAdjustment compensates assignment attempts.
+ * Credit serializes these calls with event settlement.
+ *
+ * Every mutation is idempotent by its key: request_id, or offer_id for
+ * adjustments and reverts. Keys never expire. Different data for a key is
+ * already_exists. Repeating a call with the same data returns the stored
+ * result, unless a later transition prevents the operation: Reserve after a
+ * release returns RESERVATION_RELEASED, and AdjustReservation for a reverted
+ * offer returns ADJUSTMENT_REVERTED. A retry never reapplies a credit change.
+ * Settled and Released reservations never change again, so credits are paid or
+ * returned at most once. Reports and appeals have no path into this API.
  *
  * Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
  * reasons:

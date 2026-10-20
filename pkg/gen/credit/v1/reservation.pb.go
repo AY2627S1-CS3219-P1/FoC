@@ -22,9 +22,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Holds amount from the requester's available credits when a request is
+// Holds amount from the requester's available credits when an order is
 // created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
-// with RESERVATION_RELEASED if the request was already released. A requester
+// with RESERVATION_RELEASED if the order was already released. A requester
 // without an account first receives the starting credits.
 type ReserveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -218,10 +218,11 @@ func (x *RevertAdjustmentRequest) GetOfferId() string {
 	return ""
 }
 
-// Returns the whole hold to the requester when a request is cancelled before
-// pickup, expires or fails. An unknown request is recorded as released, so a
-// later Reserve for it fails with RESERVATION_RELEASED. Fails with
-// RESERVATION_SETTLED on a Settled reservation.
+// Returns the whole hold to the requester, only as compensation for a creation
+// that never opened. Opened orders settle through order.outcome instead. An
+// unknown request is recorded as released, so a later Reserve for it fails
+// with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+// reservation.
 type ReleaseReservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`

@@ -10,7 +10,7 @@ import "google/protobuf/timestamp.proto";
 // Terminal statuses are immutable.
 enum ReservationStatus {
   RESERVATION_STATUS_UNSPECIFIED = 0;
-  // Reserved at the request's original reward. No offer is applied.
+  // Reserved at the order's original reward. No offer is applied.
   RESERVATION_STATUS_HELD = 1;
   // An accepted offer is applied and the courier is known.
   RESERVATION_STATUS_ASSIGNED = 2;
@@ -21,7 +21,7 @@ enum ReservationStatus {
   RESERVATION_STATUS_SETTLED = 4;
 }
 
-// One reservation per delivery request, keyed by the Order Service request ID.
+// One reservation per order, keyed by the Order Service order ID.
 message Reservation {
   string request_id = 1;
   // Empty for a tombstone created by releasing an unknown request.

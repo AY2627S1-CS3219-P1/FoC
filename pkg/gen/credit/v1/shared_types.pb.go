@@ -27,7 +27,7 @@ type ReservationStatus int32
 
 const (
 	ReservationStatus_RESERVATION_STATUS_UNSPECIFIED ReservationStatus = 0
-	// Reserved at the request's original reward. No offer is applied.
+	// Reserved at the order's original reward. No offer is applied.
 	ReservationStatus_RESERVATION_STATUS_HELD ReservationStatus = 1
 	// An accepted offer is applied and the courier is known.
 	ReservationStatus_RESERVATION_STATUS_ASSIGNED ReservationStatus = 2
@@ -313,7 +313,7 @@ func (LedgerEntryKind) EnumDescriptor() ([]byte, []int) {
 	return file_credit_v1_shared_types_proto_rawDescGZIP(), []int{4}
 }
 
-// One reservation per delivery request, keyed by the Order Service request ID.
+// One reservation per order, keyed by the Order Service order ID.
 type Reservation struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`

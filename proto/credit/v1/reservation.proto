@@ -5,18 +5,23 @@ package credit.v1;
 import "buf/validate/validate.proto";
 import "credit/v1/shared_types.proto";
 
-// Order's credit reservations: one per delivery request, keyed by request_id
-// (the Order Service request ID). Called by Order Service only, with its
-// service token.
-//
-// Every mutation is idempotent by its key: request_id, or offer_id for
-// adjustments and reverts. Keys never expire. Repeating a call with the same
-// data returns the stored result; different data is already_exists.
+// Order's credit reservations: one per order, keyed by request_id (the Order
+// Service order ID). Called by Order Service only, with its service token.
 //
 // Order never settles by RPC. Credit pays the courier and refunds the rest when
-// it consumes Order's order.outcome event (#136). Settled and Released
-// reservations never change again, so credits are paid or returned at most
-// once. Reports and appeals have no path into this API.
+// it consumes Order's order.outcome event (#136), including for cancelled,
+// expired and failed orders. ReleaseReservation only compensates a creation
+// that never opened, and RevertAdjustment compensates assignment attempts.
+// Credit serializes these calls with event settlement.
+//
+// Every mutation is idempotent by its key: request_id, or offer_id for
+// adjustments and reverts. Keys never expire. Different data for a key is
+// already_exists. Repeating a call with the same data returns the stored
+// result, unless a later transition prevents the operation: Reserve after a
+// release returns RESERVATION_RELEASED, and AdjustReservation for a reverted
+// offer returns ADJUSTMENT_REVERTED. A retry never reapplies a credit change.
+// Settled and Released reservations never change again, so credits are paid or
+// returned at most once. Reports and appeals have no path into this API.
 //
 // Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
 // reasons:
@@ -37,9 +42,9 @@ service CreditReservationService {
   rpc GetReservation(GetReservationRequest) returns (GetReservationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
-// Holds amount from the requester's available credits when a request is
+// Holds amount from the requester's available credits when an order is
 // created. Fails with INSUFFICIENT_CREDITS if amount exceeds available, and
-// with RESERVATION_RELEASED if the request was already released. A requester
+// with RESERVATION_RELEASED if the order was already released. A requester
 // without an account first receives the starting credits.
 message ReserveRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
@@ -71,10 +76,11 @@ message RevertAdjustmentRequest {
   string offer_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
-// Returns the whole hold to the requester when a request is cancelled before
-// pickup, expires or fails. An unknown request is recorded as released, so a
-// later Reserve for it fails with RESERVATION_RELEASED. Fails with
-// RESERVATION_SETTLED on a Settled reservation.
+// Returns the whole hold to the requester, only as compensation for a creation
+// that never opened. Opened orders settle through order.outcome instead. An
+// unknown request is recorded as released, so a later Reserve for it fails
+// with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+// reservation.
 message ReleaseReservationRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
   ReleaseReason reason = 2 [(buf.validate.field).enum = {
