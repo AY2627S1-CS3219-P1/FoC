@@ -119,3 +119,39 @@ D3 business workflow are not verified or completed by these infrastructure
 changes. External Telegram polling was not tested. The production overlay is a
 template requiring real hostname, registry, TLS/SMTP/AWS credentials, storage
 and operational settings; it was rendered, not deployed to a production cluster.
+
+## Devin review follow-up
+
+Reviewed the GitHub-visible findings through review `5593087975` against
+`a22bccd`; follow-up source revision is `c4c0b4e`.
+
+- The `.env` finding is not reproducible with the pinned Bun runtime. Extended
+  subprocess regressions verify the gateway port is loaded from `.env` both
+  with and without an explicit exported override.
+- The original custom-port bootstrap issue was already fixed, but access alone
+  could still attach a different port from the deployed origins. Reproduced
+  that remaining path and added a pre-forward guard covering every local
+  browser origin and the public S3 endpoint. Unit fixtures and the retained
+  cluster confirm that a mismatched port fails with a full-redeploy instruction.
+- Reproduced Telegram handler failures being acknowledged and later updates
+  being processed despite the failure. Polling now retries state changes before
+  acknowledgement, with cancellation-aware backoff. Bot replies are best effort
+  so a failed send cannot replay an already committed one-time redemption or
+  block later unlink events. Token rejection still stops polling.
+- Reproduced logout deleting an unresolved Order identity. Logout now removes
+  sensitive submitted fields while retaining caller-scoped retry metadata and
+  a redaction marker. Recovery blocks a fresh submission until the caller
+  explicitly confirms checking My Orders and resolving the previous request.
+  That confirmation clears the marker without automatically submitting anything.
+- The exact-pickup finding does not match the current accepted browsing
+  contract: `pickup_location_id` is an exact filter, while destination locations
+  and instructions are restricted. Added a regression assertion and clarified
+  the ADR; runtime pickup visibility was not changed.
+
+Follow-up checks passed: `make k8s-test` (strict type check and 26 tests),
+`make fmt`, `make lint` (all five modules), the full Communication Go suite,
+Telegram poller/bot race tests, Order aggregate tests, and frontend type check,
+72 tests and production build. Regression cases failed before their fixes.
+External Telegram and interactive browser execution were not exercised for
+this follow-up; the original full mesh/bootstrap evidence above remains scoped
+to its recorded implementation revision.
