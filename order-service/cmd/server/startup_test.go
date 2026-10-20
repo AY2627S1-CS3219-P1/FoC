@@ -66,6 +66,7 @@ func TestConfiguration(t *testing.T) {
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
 		{"unsafe production auth", "APP_ENV", "production"},
 		{"invalid port", "PORT", "-1"},
+		{"invalid mode", "RPC_MODE", "typo"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,5 +121,36 @@ func TestCreationConfiguration(t *testing.T) {
 				t.Fatalf("valid=%v err=%v", tc.valid, err)
 			}
 		})
+	}
+}
+
+func TestMeshAllowsHTTPUserOriginOutsideLocalMode(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":          "postgresql://localhost/order_dev",
+		"USER_SERVICE_BASE_URL": "http://user-service:8081",
+		"APP_ENV":               "production", "RPC_MODE": "mesh", "RUN_MIGRATIONS": "false",
+	}
+	cfg, err := loadConfig(func(key string) string { return values[key] })
+	if err != nil || cfg.RunMigrations {
+		t.Fatalf("mesh config: %v", err)
+	}
+}
+
+func TestMeshInternalOriginsAndPublicStorageTLS(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":              "postgresql://localhost/order_test",
+		"USER_SERVICE_BASE_URL":     "http://user-service-internal:8080",
+		"SUPPLIER_SERVICE_BASE_URL": "http://supplier-service-internal:8080",
+		"ORDER_S3_ENDPOINT":         "http://floci:4566",
+		"ORDER_S3_PUBLIC_ENDPOINT":  "https://localhost:5173",
+		"ORDER_S3_BUCKET":           "order-images",
+		"APP_ENV":                   "production", "RPC_MODE": "mesh",
+	}
+	if _, err := loadConfig(func(key string) string { return values[key] }); err != nil {
+		t.Fatal(err)
+	}
+	values["ORDER_S3_PUBLIC_ENDPOINT"] = "http://localhost:5173"
+	if _, err := loadConfig(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("mesh allowed an unencrypted browser storage origin")
 	}
 }

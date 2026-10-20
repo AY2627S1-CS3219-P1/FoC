@@ -14,8 +14,10 @@ backend rather than relying on frontend hiding (NFR-06.2).
 Authenticated, non-suspended couriers may browse eligible Awaiting Courier
 Orders. Browsing exposes an explicit approximate destination building/area, not
 the exact destination Location ID, Location name, floor or delivery instructions.
-Destination filtering uses the same coarse granularity so filter membership and
-counts cannot reveal a hidden exact destination. Missing area data must not fall
+Pickup snapshots remain visible to browsing couriers, consistent with the
+contract's exact `pickup_location_id` filter. The restricted location is the
+delivery destination. Destination filtering uses the same coarse granularity so
+filter membership and counts cannot reveal a hidden exact destination. Missing area data must not fall
 back to an exact Location name. Stored pickup and delivery snapshots remain intact.
 
 The requester and current assigned courier retain exact delivery access. A former

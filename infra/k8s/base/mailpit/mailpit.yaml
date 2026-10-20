@@ -1,0 +1,74 @@
+# Local/development only: not referenced by the production base.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+spec:
+  selector:
+    app: mailpit
+  ports:
+    - {name: tcp-smtp, port: 1025, targetPort: 1025}
+    - {name: http-ui, port: 8025, targetPort: 8025}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  labels:
+    foc.dev/stage: dependencies
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: mailpit
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.31@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: MP_SMTP_BIND_ADDR, value: "127.0.0.1:1025"}
+            - {name: MP_UI_BIND_ADDR, value: "127.0.0.1:8025"}
+          ports:
+            - containerPort: 1025
+            - containerPort: 8025
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: mailpit
+spec:
+  workloadSelector:
+    labels:
+      app: mailpit
+  ingress:
+    - port:
+        number: 1025
+        name: tcp-smtp
+        protocol: TCP
+      defaultEndpoint: 127.0.0.1:1025
+    - port:
+        number: 8025
+        name: http-ui
+        protocol: HTTP
+      defaultEndpoint: 127.0.0.1:8025
+  egress:
+    - hosts: ["./*", "istio-system/*"]

@@ -23,12 +23,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1/communicationv1connect"
+	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/rs/cors"
 )
 
 const (
-	readHeaderTimeout = 5 * time.Second
-	shutdownTimeout   = 10 * time.Second
+	shutdownTimeout = 10 * time.Second
 	// Long-poll wait per getUpdates call; the HTTP timeout must exceed it.
 	pollTimeout = telegram.DefaultPollTimeout
 	// User Service may still be starting; its public keys are fetched at startup.
@@ -41,6 +42,7 @@ const (
 )
 
 type config struct {
+	transport     transport.Config
 	port          string
 	databaseURL   string
 	runMigrations bool
@@ -49,8 +51,13 @@ type config struct {
 }
 
 func loadConfig() (config, error) {
+	serverConfig, err := transport.LoadConfig(os.Getenv)
+	if err != nil {
+		return config{}, err
+	}
 	cfg := config{
-		port:          os.Getenv("PORT"),
+		transport:     serverConfig,
+		port:          serverConfig.Port,
 		databaseURL:   os.Getenv("DATABASE_URL"),
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
@@ -72,13 +79,18 @@ func main() {
 		log.Error(msg, "err", err)
 		os.Exit(1)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if handled, err := transport.ExecuteCommand(ctx, os.Args[1:], os.Getenv, communicationv1connect.HealthServiceCheckProcedure, database.MigrateURL); handled {
+		if err != nil {
+			fatal("command failed", err)
+		}
+		return
+	}
 	cfg, err := loadConfig()
 	if err != nil {
 		fatal("invalid config", err)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	pool, err := database.Open(ctx, cfg.databaseURL)
 	if err != nil {
@@ -111,27 +123,11 @@ func main() {
 	}
 
 	handler := router.New(router.Services{
-		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
+		Health:       &health.Handler{DB: pool, TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 	}, authenticator.Authenticate)
-	srv := &http.Server{
-		Addr:              ":" + cfg.port,
-		Handler:           corsConfig().Handler(handler),
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
-	go func() {
-		log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("serve", "err", err)
-			stop()
-		}
-	}()
-
-	<-ctx.Done()
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+	if err := transport.Run(ctx, shutdownTimeout, cfg.transport.Servers(corsConfig().Handler(handler), nil)...); err != nil {
+		fatal("serve", err)
 	}
 }
 

@@ -1,0 +1,40 @@
+# Validation runs AFTER Istio mutation. Injection failures must not admit a
+# plaintext workload. Restrict namespace/policy mutation through operator RBAC.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: foc-require-mesh
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        foc.dev/mesh: required
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  validations:
+    - expression: "!has(object.metadata.labels) || !('sidecar.istio.io/inject' in object.metadata.labels) || object.metadata.labels['sidecar.istio.io/inject'] == 'true'"
+      message: "FoC pods cannot disable injection using a label."
+    - expression: "!has(object.spec.hostNetwork) || !object.spec.hostNetwork"
+      message: "FoC workloads must not use host networking."
+    - expression: "has(object.spec.initContainers) && object.spec.initContainers.exists(c, c.name == 'istio-proxy' && has(c.restartPolicy) && c.restartPolicy == 'Always' && has(c.startupProbe) && has(c.startupProbe.httpGet) && c.startupProbe.httpGet.port == 15021 && c.startupProbe.httpGet.path == '/healthz/ready' && c.startupProbe.periodSeconds == 1 && c.startupProbe.failureThreshold <= 60)"
+      message: "A native Istio proxy with a bounded readiness startup probe is mandatory."
+    - expression: "has(object.spec.initContainers) && size(object.spec.initContainers) == 2 && object.spec.initContainers.all(c, c.image == 'docker.io/istio/proxyv2:1.31.2' && (!has(c.command) || size(c.command) == 0)) && object.spec.initContainers.exists(c, c.name == 'istio-init' && c.args == ['istio-iptables', '-p', '15001', '-z', '15006', '-u', '1337', '-m', 'REDIRECT', '-i', '*', '-x', '', '-b', '*', '-d', '15090,15021,15020', '--log_output_level=default:info']) && object.spec.initContainers.exists(c, c.name == 'istio-proxy' && size(c.args) >= 2 && c.args[0] == 'proxy' && c.args[1] == 'sidecar' && c.securityContext.runAsUser == 1337 && c.securityContext.allowPrivilegeEscalation == false)"
+      message: "Only the pinned Istio proxy and its standard full-capture initializer may run as init containers."
+    - expression: "!has(object.metadata.annotations) || object.metadata.annotations.all(k, !k.startsWith('traffic.sidecar.istio.io/') && !(k in ['sidecar.istio.io/inject', 'sidecar.istio.io/interceptionMode', 'sidecar.istio.io/userVolume', 'sidecar.istio.io/userVolumeMount', 'inject.istio.io/templates', 'proxy.istio.io/config']))"
+      message: "FoC pods cannot override injection, traffic capture or proxy configuration."
+    - expression: "object.spec.containers.all(c, has(c.securityContext) && c.securityContext.runAsNonRoot == true && c.securityContext.allowPrivilegeEscalation == false && (!has(c.securityContext.privileged) || !c.securityContext.privileged) && has(c.securityContext.runAsUser) && c.securityContext.runAsUser != 1337 && has(c.securityContext.capabilities) && c.securityContext.capabilities.drop.exists(x, x == 'ALL') && (!has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0) && (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0)))"
+      message: "Application containers must be non-root, must not impersonate the proxy UID, and cannot bypass capture with privileges."
+    - expression: "!has(object.metadata.labels) || !('foc.dev/rpc' in object.metadata.labels) || object.spec.containers.exists(c, has(c.env) && c.env.exists(e, e.name == 'RPC_MODE' && e.value == 'mesh'))"
+      message: "RPC workloads must explicitly use RPC_MODE=mesh."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: foc-require-mesh
+spec:
+  policyName: foc-require-mesh
+  validationActions: [Deny]

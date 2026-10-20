@@ -10,12 +10,14 @@ FATAL: database "communication_dev" does not exist
 
 **Cause:** Postgres runs `/docker-entrypoint-initdb.d` scripts only when it initializes an empty data directory. An existing `pgdata` volume never reruns `init-dbs.sh`, so databases added to it later are not created.
 
-**Current workaround:** create the database once in the running Postgres container:
+**Current workaround:** run the existing idempotent initialization script to create missing service databases, then restart only the affected service:
 
 ```sh
-docker compose exec postgres psql -U foc -c 'CREATE DATABASE communication_dev'
+docker compose exec -T postgres /bin/bash /docker-entrypoint-initdb.d/init-dbs.sh
+docker compose restart communication-service
 ```
 
-Use your `POSTGRES_USER` if it isn't `foc`. Resetting with `docker compose down -v` also works, but it deletes every service's local data.
+The script uses the container configuration and leaves existing databases intact.
+Do not reset the volume with `docker compose down -v`: it deletes every service's local data. This also applies to older volumes lacking `order_dev` or `credit_dev`.
 
 **Remove this entry when:** service databases are created on startup instead of by the init script, or no new service databases are expected.

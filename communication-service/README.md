@@ -78,3 +78,15 @@ docker run -d --rm --name communication-test-db -p 55432:5432 -e POSTGRES_PASSWO
 TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' go test ./internal/linking/
 docker rm -f communication-test-db
 ```
+
+## Telegram processing failures
+
+The poller retries a failed linking/unlinking operation with backoff before
+advancing its acknowledgement offset or handling later updates. Cancellation
+interrupts the wait, and a rejected bot token stops polling. Unsupported messages
+are ignored. Bot replies are best effort after the operation completes, so a
+failed reply cannot replay a one-time code or block a later unlink event.
+
+Acknowledgements follow [Telegram's getUpdates offset semantics](https://core.telegram.org/bots/api#getupdates).
+The offset is in memory; restart can replay an unacknowledged batch, so this is
+not an exactly-once processing guarantee.

@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/MicahParks/jwkset"
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -62,13 +63,17 @@ type Authenticator struct {
 
 // NewAuthenticator fetches the initial key set before protected routes are served.
 func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, error) {
+	mode, err := server.ParseMode(os.Getenv("RPC_MODE"))
+	if err != nil {
+		return nil, err
+	}
 	parsed, err := url.Parse(config.UserServiceURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") ||
-		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") ||
 		config.Issuer == "" || config.Audience == "" {
 		return nil, errors.New("invalid authenticator configuration")
 	}
-	if parsed.Scheme == "http" && os.Getenv("APP_ENV") != "local" {
+	if parsed.Scheme == "http" && os.Getenv("APP_ENV") != "local" && mode != server.Mesh {
 		return nil, errors.New("user service URL must use HTTPS outside local mode")
 	}
 	client := config.Client

@@ -1,0 +1,73 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+spec: {}
+---
+# Authentication first: authenticated workloads in this app namespace may
+# communicate. Fine-grained per-service permissions are deliberately deferred.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: authenticated-app-workloads
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: [foc]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-public-rpc
+spec:
+  selector:
+    matchLabels:
+      foc.dev/rpc: "true"
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
+      to:
+        - operation:
+            ports: ["8080"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-never-internal
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
+      to:
+        - operation:
+            ports: ["8081"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-frontend
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
+      to:
+        - operation:
+            ports: ["3000"]

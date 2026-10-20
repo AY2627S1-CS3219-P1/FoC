@@ -1,0 +1,9 @@
+# Template only: replace the example hostname, registry, SMTP/TLS secrets,
+# storage and availability settings before deploying to a real environment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - dependencies
+  - provisioning
+  - initialization
+  - applications

@@ -1,0 +1,75 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: foc
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: foc-local-tls
+      # Istio's Gateway schema rejects the single-label host "localhost".
+      # The local TLS certificate's SAN is localhost. Production sets a real
+      # FQDN in both Gateway and VirtualService via its overlay.
+      hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: foc
+spec:
+  # Istio expands a short VirtualService host to a cluster DNS service name,
+  # so "localhost" would become localhost.foc.svc.cluster.local, never matching
+  # browser requests. This local wildcard is attached only to our TLS gateway.
+  hosts: ["*"]
+  gateways: [foc]
+  http:
+    - match:
+        - uri:
+            prefix: /user.
+      route:
+        - destination:
+            host: user-service-external.foc.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /supplier.
+      route:
+        - destination:
+            host: supplier-service-external.foc.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /order.
+      route:
+        - destination:
+            host: order-service-external.foc.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /communication.
+      route:
+        - destination:
+            host: communication-service-external.foc.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /credit.
+      directResponse:
+        status: 503
+        body:
+          string: Credit service is not implemented.
+    - route:
+        - destination:
+            host: frontend.foc.svc.cluster.local
+            port:
+              number: 3000

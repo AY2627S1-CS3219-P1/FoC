@@ -24,6 +24,8 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -37,12 +39,8 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
-	SHUTDOWN_TIMEOUT_SEC    = 10
-)
-
 type config struct {
+	transport       transport.Config
 	port            string
 	databaseURL     string
 	dbMaxOpen       int
@@ -63,14 +61,22 @@ func main() {
 		log.Error(msg, "err", err)
 		os.Exit(1)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		fatal("load environment", err)
+	}
+	if handled, err := transport.ExecuteCommand(ctx, os.Args[1:], os.Getenv, userv1connect.HealthServiceCheckProcedure, database.MigrateURL); handled {
+		if err != nil {
+			fatal("command failed", err)
+		}
+		return
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
 		fatal("invalid config", err)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -83,7 +89,7 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	if cfg.runMigrations {
-		if err := database.Migrate(db); err != nil {
+		if err := database.MigrateContext(ctx, db); err != nil {
 			fatal("migrate", err)
 		}
 		log.Info("migrations applied")
@@ -120,44 +126,24 @@ func main() {
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
-
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
-
-	select {
-	case err := <-errCh:
-		if err != nil {
-			fatal("serve", err)
-		}
-	case <-ctx.Done():
+	var public, internal http.Handler
+	if cfg.transport.Mode == transport.Mesh {
+		public, internal = router.SetupMesh(&health.Handler{DB: sqlDB}, auth, protected)
+	} else {
+		public = router.Setup(&health.Handler{DB: sqlDB}, auth, protected)
 	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
-	defer cancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	public = cors.Handler(public)
+	if internal != nil {
+		internal = cors.Handler(internal)
+	}
+	if err := transport.Run(ctx, transport.ShutdownTimeout, cfg.transport.Servers(public, internal)...); err != nil {
+		fatal("serve", err)
 	}
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
-	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-	return &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
-		Protocols:         protocols,
-	}
+	return transport.New(addr, handler)
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -168,8 +154,13 @@ func loadConfig() (config, error) {
 	}
 
 	var errs []error
+	transportConfig, err := transport.LoadConfig(os.Getenv)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	cfg := config{
-		port:            envString("PORT", "8080"),
+		transport:       transportConfig,
+		port:            transportConfig.Port,
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
