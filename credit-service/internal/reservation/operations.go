@@ -17,11 +17,13 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 	if amount <= 0 {
 		return Reservation{}, ErrInvalidArgument
 	}
+
 	key := OperationKey{Kind: OpReserve, OrderID: orderID}
 	payload := struct {
 		RequesterID string
 		Amount      int64
 	}{requesterID, amount}
+
 	return s.mutate(ctx, key, payload, func(tx Tx, now time.Time) (result, error) {
 		r, err := tx.Reservation(ctx, orderID)
 		if err != nil {
@@ -35,6 +37,7 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 			}
 			return result{}, ErrIdempotencyConflict
 		}
+
 		accounts, err := tx.LockAccounts(ctx, now, requesterID)
 		if err != nil {
 			return result{}, err
@@ -42,15 +45,27 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 		if amount > accounts[requesterID].Available() {
 			return result{insufficient: true}, nil
 		}
+
 		next := Reservation{
-			OrderID: orderID, RequesterID: requesterID, Status: Held,
-			OriginalAmount: amount, ReservedAmount: amount,
-			Revision: 1, CreatedAt: now, UpdatedAt: now,
+			OrderID:        orderID,
+			RequesterID:    requesterID,
+			Status:         Held,
+			OriginalAmount: amount,
+			ReservedAmount: amount,
+			Revision:       1,
+			CreatedAt:      now,
+			UpdatedAt:      now,
 		}
 		if next, err = tx.InsertReservation(ctx, next); err != nil {
 			return result{}, err
 		}
-		err = tx.Post(ctx, now, Entry{UserID: requesterID, Kind: account.Reserve, ReservedDelta: amount, OrderID: orderID})
+
+		err = tx.Post(ctx, now, Entry{
+			UserID:        requesterID,
+			Kind:          account.Reserve,
+			ReservedDelta: amount,
+			OrderID:       orderID,
+		})
 		return result{reservation: next}, err
 	})
 }
@@ -66,12 +81,15 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 	if offerAmount <= 0 {
 		return Reservation{}, ErrInvalidArgument
 	}
+
 	key := OperationKey{Kind: OpAdjust, OrderID: orderID, AssignmentID: assignmentID}
 	payload := struct {
 		CourierID   string
 		OfferAmount int64
 	}{courierID, offerAmount}
+
 	return s.mutate(ctx, key, payload, func(tx Tx, now time.Time) (result, error) {
+		// Validate the reservation and the offer.
 		r, err := tx.Reservation(ctx, orderID)
 		if err != nil {
 			return result{}, err
@@ -79,6 +97,7 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		if err := requireOpen(r); err != nil {
 			return result{}, err
 		}
+
 		a, err := tx.Assignment(ctx, orderID, assignmentID)
 		if err != nil {
 			return result{}, err
@@ -89,6 +108,8 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		if a != nil || r.Status == Assigned {
 			return result{}, ErrAdjustmentPending
 		}
+
+		// Check that the requester can cover any increase in the hold.
 		hold := max(r.OriginalAmount, offerAmount)
 		delta := hold - r.ReservedAmount
 		accounts, err := tx.LockAccounts(ctx, now, r.RequesterID)
@@ -98,12 +119,19 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		if delta > accounts[r.RequesterID].Available() {
 			return result{insufficient: true}, nil
 		}
+
+		// Apply the offer.
 		if err := tx.InsertAssignment(ctx, Assignment{
-			OrderID: orderID, AssignmentID: assignmentID, CourierID: courierID,
-			OfferAmount: offerAmount, Status: Applied, CreatedAt: now,
+			OrderID:      orderID,
+			AssignmentID: assignmentID,
+			CourierID:    courierID,
+			OfferAmount:  offerAmount,
+			Status:       Applied,
+			CreatedAt:    now,
 		}); err != nil {
 			return result{}, err
 		}
+
 		next := *r
 		next.Status = Assigned
 		next.ReservedAmount = hold
@@ -111,9 +139,13 @@ func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, 
 		if next, err = update(ctx, tx, *r, next); err != nil {
 			return result{}, err
 		}
+
 		err = tx.Post(ctx, now, Entry{
-			UserID: r.RequesterID, Kind: account.Adjust, ReservedDelta: delta,
-			OrderID: orderID, AssignmentID: assignmentID,
+			UserID:        r.RequesterID,
+			Kind:          account.Adjust,
+			ReservedDelta: delta,
+			OrderID:       orderID,
+			AssignmentID:  assignmentID,
 		})
 		return result{reservation: next}, err
 	})
@@ -127,7 +159,9 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 	if err := canonicalIDs(&orderID, &assignmentID); err != nil {
 		return Reservation{}, err
 	}
+
 	key := OperationKey{Kind: OpRevert, OrderID: orderID, AssignmentID: assignmentID}
+
 	return s.mutate(ctx, key, struct{}{}, func(tx Tx, now time.Time) (result, error) {
 		r, err := tx.Reservation(ctx, orderID)
 		if err != nil {
@@ -139,6 +173,7 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 		if r.Status == Settled {
 			return result{}, ErrReservationSettled
 		}
+
 		a, err := tx.Assignment(ctx, orderID, assignmentID)
 		if err != nil {
 			return result{}, err
@@ -146,12 +181,17 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 		switch {
 		case a == nil:
 			err = tx.InsertAssignment(ctx, Assignment{
-				OrderID: orderID, AssignmentID: assignmentID, Status: Reverted, CreatedAt: now, RevertedAt: &now,
+				OrderID:      orderID,
+				AssignmentID: assignmentID,
+				Status:       Reverted,
+				CreatedAt:    now,
+				RevertedAt:   &now,
 			})
 			return result{reservation: *r}, err
 		case a.Status == Reverted:
 			return result{reservation: *r}, nil
 		}
+
 		if err := tx.RevertAssignment(ctx, orderID, assignmentID, now); err != nil {
 			return result{}, err
 		}
@@ -159,6 +199,7 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 			// Released after the offer was applied: the hold is already back.
 			return result{reservation: *r}, nil
 		}
+
 		next := *r
 		next.Status = Held
 		next.ReservedAmount = r.OriginalAmount
@@ -166,9 +207,13 @@ func (s *Service) RevertAdjustment(ctx context.Context, orderID, assignmentID st
 		if next, err = update(ctx, tx, *r, next); err != nil {
 			return result{}, err
 		}
+
 		err = tx.Post(ctx, now, Entry{
-			UserID: r.RequesterID, Kind: account.Revert, ReservedDelta: r.OriginalAmount - r.ReservedAmount,
-			OrderID: orderID, AssignmentID: assignmentID,
+			UserID:        r.RequesterID,
+			Kind:          account.Revert,
+			ReservedDelta: r.OriginalAmount - r.ReservedAmount,
+			OrderID:       orderID,
+			AssignmentID:  assignmentID,
 		})
 		return result{reservation: next}, err
 	})
@@ -185,13 +230,16 @@ func (s *Service) ReleaseReservation(ctx context.Context, orderID string, reason
 	if !reason.valid() {
 		return Reservation{}, ErrInvalidArgument
 	}
+
 	key := OperationKey{Kind: OpRelease, OrderID: orderID}
 	payload := struct{ Reason ReleaseReason }{reason}
+
 	return s.mutate(ctx, key, payload, func(tx Tx, now time.Time) (result, error) {
 		r, err := tx.Reservation(ctx, orderID)
 		if err != nil {
 			return result{}, err
 		}
+
 		next, _, err := release(ctx, tx, orderID, r, reason, now)
 		return result{reservation: next}, err
 	})
@@ -202,30 +250,48 @@ func (s *Service) ReleaseReservation(ctx context.Context, orderID string, reason
 func release(ctx context.Context, tx Tx, orderID string, r *Reservation, reason ReleaseReason, now time.Time) (Reservation, bool, error) {
 	if r == nil {
 		tombstone := Reservation{
-			OrderID: orderID, Status: Released,
-			Settlement: &Settlement{Outcome: OutcomeReleased, SettledAt: now, ReleaseReason: reason},
-			Revision:   1, CreatedAt: now, UpdatedAt: now,
+			OrderID: orderID,
+			Status:  Released,
+			Settlement: &Settlement{
+				Outcome:       OutcomeReleased,
+				SettledAt:     now,
+				ReleaseReason: reason,
+			},
+			Revision:  1,
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
 		stored, err := tx.InsertReservation(ctx, tombstone)
 		return stored, true, err
 	}
+
 	switch r.Status {
 	case Settled:
 		return Reservation{}, false, ErrReservationSettled
 	case Released:
 		return *r, false, nil
 	}
+
 	next := *r
 	next.Status = Released
 	next.ReservedAmount = 0
 	next.Settlement = &Settlement{
-		Outcome: OutcomeReleased, ReturnedToRequester: r.ReservedAmount, SettledAt: now, ReleaseReason: reason,
+		Outcome:             OutcomeReleased,
+		ReturnedToRequester: r.ReservedAmount,
+		SettledAt:           now,
+		ReleaseReason:       reason,
 	}
 	next, err := update(ctx, tx, *r, next)
 	if err != nil {
 		return Reservation{}, false, err
 	}
-	err = tx.Post(ctx, now, Entry{UserID: r.RequesterID, Kind: account.Release, ReservedDelta: -r.ReservedAmount, OrderID: orderID})
+
+	err = tx.Post(ctx, now, Entry{
+		UserID:        r.RequesterID,
+		Kind:          account.Release,
+		ReservedDelta: -r.ReservedAmount,
+		OrderID:       orderID,
+	})
 	return next, true, err
 }
 

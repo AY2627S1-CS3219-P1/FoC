@@ -29,22 +29,33 @@ func Post(ctx context.Context, q *creditdb.Queries, now time.Time, postings ...P
 		if p.BalanceDelta == 0 && p.ReservedDelta == 0 {
 			continue
 		}
+
 		if _, err := q.ApplyAccountDelta(ctx, creditdb.ApplyAccountDeltaParams{
-			UserID: p.UserID, BalanceDelta: p.BalanceDelta, ReservedDelta: p.ReservedDelta,
+			UserID:        p.UserID,
+			BalanceDelta:  p.BalanceDelta,
+			ReservedDelta: p.ReservedDelta,
 		}); err != nil {
 			return fmt.Errorf("apply %s to account %s: %w", p.Kind, p.UserID, err)
 		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return fmt.Errorf("ledger entry id: %w", err)
 		}
 		if err := q.InsertLedgerEntry(ctx, creditdb.InsertLedgerEntryParams{
-			ID: id, UserID: p.UserID, Kind: string(p.Kind), BalanceDelta: p.BalanceDelta, ReservedDelta: p.ReservedDelta,
-			OrderID: p.OrderID, AssignmentID: p.AssignmentID, NowAt: now,
+			ID:            id,
+			UserID:        p.UserID,
+			Kind:          string(p.Kind),
+			BalanceDelta:  p.BalanceDelta,
+			ReservedDelta: p.ReservedDelta,
+			OrderID:       p.OrderID,
+			AssignmentID:  p.AssignmentID,
+			NowAt:         now,
 		}); err != nil {
 			return fmt.Errorf("append %s ledger entry for %s: %w", p.Kind, p.UserID, err)
 		}
 	}
+
 	return nil
 }
 
@@ -56,11 +67,13 @@ func Open(ctx context.Context, q *creditdb.Queries, now time.Time, userID uuid.U
 	if err != nil {
 		return creditdb.Account{}, fmt.Errorf("open account %s: %w", userID, err)
 	}
+
 	if created == 1 {
 		if err := Post(ctx, q, now, Posting{UserID: userID, Kind: Grant, BalanceDelta: StartingCredits}); err != nil {
 			return creditdb.Account{}, err
 		}
 	}
+
 	a, err := q.LockAccount(ctx, userID)
 	if err != nil {
 		return creditdb.Account{}, fmt.Errorf("lock account %s: %w", userID, err)

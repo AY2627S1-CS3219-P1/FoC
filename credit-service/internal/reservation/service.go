@@ -57,6 +57,7 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 	if err != nil {
 		return Reservation{}, err
 	}
+
 	var out result
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		if err := tx.LockOrder(ctx, key.OrderID); err != nil {
@@ -66,6 +67,8 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 		if err != nil {
 			return err
 		}
+
+		// Replay the first outcome of a repeated call.
 		if op != nil {
 			if op.RequestHash != hash {
 				return ErrIdempotencyConflict
@@ -81,11 +84,19 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 			out = result{reservation: r}
 			return withAdjustment(ctx, tx, &out.reservation)
 		}
+
+		// First call: apply the mutation and record its outcome.
 		now := s.clock().UTC()
 		if out, err = apply(tx, now); err != nil {
 			return err
 		}
-		record := Operation{RequestHash: hash, Insufficient: out.insufficient, Revision: out.reservation.Revision, CreatedAt: now}
+
+		record := Operation{
+			RequestHash:  hash,
+			Insufficient: out.insufficient,
+			Revision:     out.reservation.Revision,
+			CreatedAt:    now,
+		}
 		if err := tx.SaveOperation(ctx, key, record); err != nil {
 			return err
 		}
@@ -94,6 +105,7 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 		}
 		return withAdjustment(ctx, tx, &out.reservation)
 	})
+
 	if err != nil {
 		return Reservation{}, err
 	}

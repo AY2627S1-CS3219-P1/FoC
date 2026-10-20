@@ -33,6 +33,7 @@ func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error
 		return mapError("begin reservation transaction", err)
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
+
 	if err := f(&transaction{q: creditdb.New(tx)}); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -40,6 +41,7 @@ func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error
 		}
 		return err
 	}
+
 	return mapError("commit reservation transaction", tx.Commit(ctx))
 }
 
@@ -47,6 +49,7 @@ func mapError(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
+
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && (pgErr.Code == "40P01" || pgErr.Code == "40001") {
 		return fmt.Errorf("%s: %w: %w", operation, ErrAborted, err)
@@ -56,13 +59,17 @@ func mapError(operation string, err error) error {
 
 type transaction struct{ q *creditdb.Queries }
 
+// Orders and operations
+
 func (t *transaction) LockOrder(ctx context.Context, orderID string) error {
 	return wrap("lock order", t.q.LockOrder(ctx, uuid.MustParse(orderID)))
 }
 
 func (t *transaction) Operation(ctx context.Context, key OperationKey) (*Operation, error) {
 	row, err := t.q.GetOperation(ctx, creditdb.GetOperationParams{
-		Operation: string(key.Kind), OrderID: uuid.MustParse(key.OrderID), AssignmentID: optionalID(key.AssignmentID),
+		Operation:    string(key.Kind),
+		OrderID:      uuid.MustParse(key.OrderID),
+		AssignmentID: optionalID(key.AssignmentID),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -70,6 +77,7 @@ func (t *transaction) Operation(ctx context.Context, key OperationKey) (*Operati
 	if err != nil {
 		return nil, wrap("get operation", err)
 	}
+
 	op := Operation{RequestHash: row.RequestHash, CreatedAt: row.CreatedAt.UTC()}
 	if row.Revision != nil {
 		op.Revision = *row.Revision
@@ -80,16 +88,22 @@ func (t *transaction) Operation(ctx context.Context, key OperationKey) (*Operati
 
 func (t *transaction) SaveOperation(ctx context.Context, key OperationKey, op Operation) error {
 	params := creditdb.InsertOperationParams{
-		Operation: string(key.Kind), OrderID: uuid.MustParse(key.OrderID), AssignmentID: optionalID(key.AssignmentID),
-		RequestHash: op.RequestHash, NowAt: op.CreatedAt,
+		Operation:    string(key.Kind),
+		OrderID:      uuid.MustParse(key.OrderID),
+		AssignmentID: optionalID(key.AssignmentID),
+		RequestHash:  op.RequestHash,
+		NowAt:        op.CreatedAt,
 	}
 	if op.Insufficient {
 		params.RejectionReason = ptr(insufficientCredits)
 	} else {
 		params.Revision = &op.Revision
 	}
+
 	return wrap("save operation", t.q.InsertOperation(ctx, params))
 }
+
+// Reservations
 
 func (t *transaction) Reservation(ctx context.Context, orderID string) (*Reservation, error) {
 	row, err := t.q.LockReservation(ctx, uuid.MustParse(orderID))
@@ -99,12 +113,16 @@ func (t *transaction) Reservation(ctx context.Context, orderID string) (*Reserva
 	if err != nil {
 		return nil, wrap("lock reservation", err)
 	}
+
 	r := fromRow(creditdb.ReservationRevision(row))
 	return &r, nil
 }
 
 func (t *transaction) Revision(ctx context.Context, orderID string, revision int64) (Reservation, error) {
-	row, err := t.q.GetReservationRevision(ctx, creditdb.GetReservationRevisionParams{OrderID: uuid.MustParse(orderID), Revision: revision})
+	row, err := t.q.GetReservationRevision(ctx, creditdb.GetReservationRevisionParams{
+		OrderID:  uuid.MustParse(orderID),
+		Revision: revision,
+	})
 	if err != nil {
 		return Reservation{}, wrap("get reservation revision", err)
 	}
@@ -114,11 +132,22 @@ func (t *transaction) Revision(ctx context.Context, orderID string, revision int
 func (t *transaction) InsertReservation(ctx context.Context, r Reservation) (Reservation, error) {
 	c := toColumns(r)
 	row, err := t.q.InsertReservation(ctx, creditdb.InsertReservationParams{
-		OrderID: uuid.MustParse(r.OrderID), RequesterID: optionalID(r.RequesterID), Status: string(r.Status),
-		OriginalAmount: r.OriginalAmount, ReservedAmount: r.ReservedAmount, AssignmentID: c.assignmentID,
-		ReleaseReason: c.releaseReason, SettlementOutcome: c.outcome, PaidToCourier: c.paid, ReturnedToRequester: c.returned,
-		PickedUpAt: c.pickedUpAt, DeliveredAt: c.deliveredAt, DeliveryDuration: c.duration, SettledAt: c.settledAt,
-		Revision: r.Revision, NowAt: r.UpdatedAt,
+		OrderID:             uuid.MustParse(r.OrderID),
+		RequesterID:         optionalID(r.RequesterID),
+		Status:              string(r.Status),
+		OriginalAmount:      r.OriginalAmount,
+		ReservedAmount:      r.ReservedAmount,
+		AssignmentID:        c.assignmentID,
+		ReleaseReason:       c.releaseReason,
+		SettlementOutcome:   c.outcome,
+		PaidToCourier:       c.paid,
+		ReturnedToRequester: c.returned,
+		PickedUpAt:          c.pickedUpAt,
+		DeliveredAt:         c.deliveredAt,
+		DeliveryDuration:    c.duration,
+		SettledAt:           c.settledAt,
+		Revision:            r.Revision,
+		NowAt:               r.UpdatedAt,
 	})
 	if err != nil {
 		return Reservation{}, wrap("insert reservation", err)
@@ -129,10 +158,19 @@ func (t *transaction) InsertReservation(ctx context.Context, r Reservation) (Res
 func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) (Reservation, error) {
 	c := toColumns(r)
 	row, err := t.q.UpdateReservation(ctx, creditdb.UpdateReservationParams{
-		OrderID: uuid.MustParse(r.OrderID), Status: string(r.Status), ReservedAmount: r.ReservedAmount,
-		AssignmentID: c.assignmentID, ReleaseReason: c.releaseReason, SettlementOutcome: c.outcome,
-		PaidToCourier: c.paid, ReturnedToRequester: c.returned, PickedUpAt: c.pickedUpAt, DeliveredAt: c.deliveredAt,
-		DeliveryDuration: c.duration, SettledAt: c.settledAt, ExpectedRevision: expectedRevision,
+		OrderID:             uuid.MustParse(r.OrderID),
+		Status:              string(r.Status),
+		ReservedAmount:      r.ReservedAmount,
+		AssignmentID:        c.assignmentID,
+		ReleaseReason:       c.releaseReason,
+		SettlementOutcome:   c.outcome,
+		PaidToCourier:       c.paid,
+		ReturnedToRequester: c.returned,
+		PickedUpAt:          c.pickedUpAt,
+		DeliveredAt:         c.deliveredAt,
+		DeliveryDuration:    c.duration,
+		SettledAt:           c.settledAt,
+		ExpectedRevision:    expectedRevision,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Reservation{}, fmt.Errorf("update reservation %s at revision %d: %w", r.OrderID, expectedRevision, ErrAborted)
@@ -143,17 +181,27 @@ func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expe
 	return fromRow(creditdb.ReservationRevision(row)), nil
 }
 
+// Assignments
+
 func (t *transaction) Assignment(ctx context.Context, orderID, assignmentID string) (*Assignment, error) {
-	row, err := t.q.GetAssignment(ctx, creditdb.GetAssignmentParams{OrderID: uuid.MustParse(orderID), AssignmentID: uuid.MustParse(assignmentID)})
+	row, err := t.q.GetAssignment(ctx, creditdb.GetAssignmentParams{
+		OrderID:      uuid.MustParse(orderID),
+		AssignmentID: uuid.MustParse(assignmentID),
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, wrap("get assignment", err)
 	}
+
 	a := Assignment{
-		OrderID: row.OrderID.String(), AssignmentID: row.AssignmentID.String(), CourierID: idString(row.CourierID),
-		Status: AdjustmentStatus(row.Status), CreatedAt: row.CreatedAt.UTC(), RevertedAt: utc(row.RevertedAt),
+		OrderID:      row.OrderID.String(),
+		AssignmentID: row.AssignmentID.String(),
+		CourierID:    idString(row.CourierID),
+		Status:       AdjustmentStatus(row.Status),
+		CreatedAt:    row.CreatedAt.UTC(),
+		RevertedAt:   utc(row.RevertedAt),
 	}
 	if row.OfferAmount != nil {
 		a.OfferAmount = *row.OfferAmount
@@ -163,18 +211,25 @@ func (t *transaction) Assignment(ctx context.Context, orderID, assignmentID stri
 
 func (t *transaction) InsertAssignment(ctx context.Context, a Assignment) error {
 	params := creditdb.InsertAssignmentParams{
-		OrderID: uuid.MustParse(a.OrderID), AssignmentID: uuid.MustParse(a.AssignmentID), CourierID: optionalID(a.CourierID),
-		Status: string(a.Status), NowAt: a.CreatedAt, RevertedAt: a.RevertedAt,
+		OrderID:      uuid.MustParse(a.OrderID),
+		AssignmentID: uuid.MustParse(a.AssignmentID),
+		CourierID:    optionalID(a.CourierID),
+		Status:       string(a.Status),
+		NowAt:        a.CreatedAt,
+		RevertedAt:   a.RevertedAt,
 	}
 	if a.CourierID != "" {
 		params.OfferAmount = &a.OfferAmount
 	}
+
 	return wrap("insert assignment", t.q.InsertAssignment(ctx, params))
 }
 
 func (t *transaction) RevertAssignment(ctx context.Context, orderID, assignmentID string, at time.Time) error {
 	n, err := t.q.RevertAssignment(ctx, creditdb.RevertAssignmentParams{
-		OrderID: uuid.MustParse(orderID), AssignmentID: uuid.MustParse(assignmentID), NowAt: at,
+		OrderID:      uuid.MustParse(orderID),
+		AssignmentID: uuid.MustParse(assignmentID),
+		NowAt:        at,
 	})
 	if err != nil {
 		return wrap("revert assignment", err)
@@ -185,10 +240,13 @@ func (t *transaction) RevertAssignment(ctx context.Context, orderID, assignmentI
 	return nil
 }
 
+// Accounts
+
 func (t *transaction) LockAccounts(ctx context.Context, at time.Time, userIDs ...string) (map[string]account.Account, error) {
 	ids := slices.Clone(userIDs)
 	slices.Sort(ids)
 	ids = slices.Compact(ids)
+
 	out := make(map[string]account.Account, len(ids))
 	for _, id := range ids {
 		a, err := account.Open(ctx, t.q, at, uuid.MustParse(id))
@@ -204,12 +262,19 @@ func (t *transaction) Post(ctx context.Context, at time.Time, entries ...Entry) 
 	postings := make([]account.Posting, len(entries))
 	for i, e := range entries {
 		postings[i] = account.Posting{
-			UserID: uuid.MustParse(e.UserID), Kind: e.Kind, BalanceDelta: e.BalanceDelta, ReservedDelta: e.ReservedDelta,
-			OrderID: optionalID(e.OrderID), AssignmentID: optionalID(e.AssignmentID),
+			UserID:        uuid.MustParse(e.UserID),
+			Kind:          e.Kind,
+			BalanceDelta:  e.BalanceDelta,
+			ReservedDelta: e.ReservedDelta,
+			OrderID:       optionalID(e.OrderID),
+			AssignmentID:  optionalID(e.AssignmentID),
 		}
 	}
+
 	return account.Post(ctx, t.q, at, postings...)
 }
+
+// Row conversion
 
 type columns struct {
 	assignmentID                       *uuid.UUID
@@ -225,6 +290,7 @@ func toColumns(r Reservation) columns {
 	if s == nil {
 		return c
 	}
+
 	c.outcome = ptr(string(s.Outcome))
 	c.paid, c.returned, c.settledAt = &s.PaidToCourier, &s.ReturnedToRequester, &s.SettledAt
 	if s.ReleaseReason != "" {
@@ -240,13 +306,20 @@ func toColumns(r Reservation) columns {
 // fromRow reads a reservation or one of its revisions; both share columns.
 func fromRow(row creditdb.ReservationRevision) Reservation {
 	r := Reservation{
-		OrderID: row.OrderID.String(), RequesterID: idString(row.RequesterID), Status: Status(row.Status),
-		OriginalAmount: row.OriginalAmount, ReservedAmount: row.ReservedAmount, AssignmentID: idString(row.AssignmentID),
-		Revision: row.Revision, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
+		OrderID:        row.OrderID.String(),
+		RequesterID:    idString(row.RequesterID),
+		Status:         Status(row.Status),
+		OriginalAmount: row.OriginalAmount,
+		ReservedAmount: row.ReservedAmount,
+		AssignmentID:   idString(row.AssignmentID),
+		Revision:       row.Revision,
+		CreatedAt:      row.CreatedAt.UTC(),
+		UpdatedAt:      row.UpdatedAt.UTC(),
 	}
 	if row.SettlementOutcome == nil {
 		return r
 	}
+
 	s := &Settlement{Outcome: SettlementOutcome(*row.SettlementOutcome)}
 	if row.SettledAt != nil {
 		s.SettledAt = row.SettledAt.UTC()

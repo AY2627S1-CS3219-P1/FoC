@@ -17,6 +17,7 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 	if err := o.validate(); err != nil {
 		return Reservation{}, false, err
 	}
+
 	err = s.repo.Within(ctx, func(tx Tx) error {
 		if err := tx.LockOrder(ctx, o.OrderID); err != nil {
 			return err
@@ -28,7 +29,10 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 		if r != nil && r.RequesterID != "" && r.RequesterID != o.RequesterID {
 			return ErrOutcomeMismatch
 		}
+
 		now := s.clock().UTC()
+
+		// Release outcomes return the hold, or leave a tombstone.
 		if reason, ok := o.releaseReason(); ok {
 			if r != nil && r.Status == Settled {
 				return ErrOutcomeMismatch
@@ -36,6 +40,8 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 			out, applied, err = release(ctx, tx, o.OrderID, r, reason, now)
 			return err
 		}
+
+		// Payout outcomes settle an Assigned reservation.
 		if r == nil {
 			return ErrReservationNotFound
 		}
@@ -51,10 +57,12 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 		case Held:
 			return ErrReservationNotAssigned
 		}
+
 		out, err = settle(ctx, tx, *r, o, now)
 		applied = err == nil
 		return err
 	})
+
 	if err != nil {
 		return Reservation{}, false, err
 	}
@@ -75,17 +83,26 @@ func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, now time.
 	if a.CourierID != o.CourierID {
 		return Reservation{}, ErrOutcomeMismatch
 	}
+
+	// Compute the payout from the accepted offer.
 	settlement := &Settlement{Outcome: o.settlementOutcome(), SettledAt: now}
 	payable := a.OfferAmount
 	if o.Type == OrderCompleted {
-		settlement.Completion = &Completion{PickedUpAt: o.PickedUpAt, DeliveredAt: o.DeliveredAt, DeliveryDuration: o.DeliveryDuration}
+		settlement.Completion = &Completion{
+			PickedUpAt:       o.PickedUpAt,
+			DeliveredAt:      o.DeliveredAt,
+			DeliveryDuration: o.DeliveryDuration,
+		}
 		payable = Payable(a.OfferAmount, o.DeliveredAt.Sub(o.PickedUpAt), o.DeliveryDuration)
 	}
 	settlement.PaidToCourier = payable
 	settlement.ReturnedToRequester = r.ReservedAmount - payable
+
+	// Store the settlement and move the credits.
 	if _, err := tx.LockAccounts(ctx, now, r.RequesterID, a.CourierID); err != nil {
 		return Reservation{}, err
 	}
+
 	next := r
 	next.Status = Settled
 	next.ReservedAmount = 0
@@ -93,10 +110,27 @@ func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, now time.
 	if next, err = update(ctx, tx, r, next); err != nil {
 		return Reservation{}, err
 	}
+
 	err = tx.Post(ctx, now,
-		Entry{UserID: r.RequesterID, Kind: account.Payout, BalanceDelta: -payable, ReservedDelta: -payable, OrderID: r.OrderID},
-		Entry{UserID: r.RequesterID, Kind: account.Refund, ReservedDelta: -settlement.ReturnedToRequester, OrderID: r.OrderID},
-		Entry{UserID: a.CourierID, Kind: account.Payout, BalanceDelta: payable, OrderID: r.OrderID},
+		Entry{
+			UserID:        r.RequesterID,
+			Kind:          account.Payout,
+			BalanceDelta:  -payable,
+			ReservedDelta: -payable,
+			OrderID:       r.OrderID,
+		},
+		Entry{
+			UserID:        r.RequesterID,
+			Kind:          account.Refund,
+			ReservedDelta: -settlement.ReturnedToRequester,
+			OrderID:       r.OrderID,
+		},
+		Entry{
+			UserID:       a.CourierID,
+			Kind:         account.Payout,
+			BalanceDelta: payable,
+			OrderID:      r.OrderID,
+		},
 	)
 	return next, err
 }
