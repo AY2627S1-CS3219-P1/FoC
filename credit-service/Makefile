@@ -5,6 +5,9 @@ SQLC_PATH=./database
 sqlc:
 	@cd $(SQLC_PATH) && sqlc generate
 
+test:
+	@go test ./...
+
 migrate-up:
 	@cd database/schema && goose postgres "$(DATABASE_URL)" up
 
