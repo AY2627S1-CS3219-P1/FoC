@@ -7,10 +7,10 @@ declare messages and enums without RPC services.
 
 | Topic | Value message | Key |
 | --- | --- | --- |
-| `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
 | `order.status_changed` | `order.events.v1.OrderStatusChanged` | Order UUID as UTF-8 text |
 | `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
+| `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
@@ -55,3 +55,10 @@ The Compose init job waits for the broker health check and uses
 creates missing topics but does not change existing topic settings or delete
 topics removed from the manifest. Replication factor 1 is for the local
 single-broker setup; shared environments need their own settings.
+
+Order publishes immutable facts from its transactional outbox. Credit consumes
+`order.outcome` as the sole terminal settlement trigger. Communication consumes
+status changes; User owns courier warnings. Consumers deduplicate stable event
+IDs and must not assume ordering across topics. Credit also enforces settlement
+at most once per Order. See [the design ADR](../docs/adr/order-credit-pubsub.md)
+and [Credit conformance](../docs/testing/order-credit-pubsub.md).

@@ -280,7 +280,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"image upload", func() error {
-			_, e := c.order.CreateItemImageUpload(ctx, connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png"}))
+			_, e := c.order.CreateItemImageUpload(ctx, connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: 42}))
 			return e
 		}},
 		{"accept", func() error {
