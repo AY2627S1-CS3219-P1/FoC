@@ -166,6 +166,9 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		after.Revision++
 		after.UpdatedAt = now
 		if action == Withdraw {
+			if s.credit == nil {
+				return nil, ErrUnavailable
+			}
 			operation.Status, operation.CourierID, operation.AssignedAt = CancellationPending, caller.ID, clonePointer(o.AssignedAt)
 			assignment, err := tx.CurrentSuccessfulAssignment(ctx, o.ID)
 			if err != nil {
