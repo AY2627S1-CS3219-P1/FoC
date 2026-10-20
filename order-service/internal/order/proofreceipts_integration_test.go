@@ -225,6 +225,29 @@ func TestPostgresProofReceipts(t *testing.T) {
 		}
 	})
 
+	t.Run("public application entry admits a durable receipt", func(t *testing.T) {
+		proofs, _, _, o, courier, row := prepare(t)
+		result, err := proofs.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}})
+		if err != nil || result.Status != Delivered {
+			t.Fatalf("public confirmation did not use receipt admission: %+v %v", result, err)
+		}
+		var count int
+		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1 AND state='accepted'", o.ID).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("durable receipt count %d: %v", count, err)
+		}
+	})
+	t.Run("unknown outage authority is unavailable rather than an invalid submission", func(t *testing.T) {
+		proofs, service, _, o, courier, _ := prepare(t)
+		proofs.outages = unavailableProofAuthority{}
+		if _, err := service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, WithoutProof: true}); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("unknown authority classified as rejection: %v", err)
+		}
+		var count int
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("uncertified receipt admitted: %d %v", count, err)
+		}
+	})
+
 	t.Run("reverification cannot move preexistence past the receipt", func(t *testing.T) {
 		proofs, service, d, o, courier, row := prepare(t)
 		d.unavailable = true
@@ -346,6 +369,11 @@ func TestPostgresProofReceipts(t *testing.T) {
 		if err != nil || len(view.Proofs) != 0 || view.OutageReason == "" {
 			t.Fatalf("server outage not recorded: %+v %v", view, err)
 		}
+		proofs.outages = unavailableProofAuthority{}
+		if _, err = service.ConfirmDelivery(f.ctx, courier, input); err != nil {
+			t.Fatalf("accepted replay depended on current authority: %v", err)
+		}
+
 	})
 
 }
@@ -370,4 +398,10 @@ func (r *proofAfterCommitRepository) WithinProofs(ctx context.Context, fn func(P
 		after()
 	}
 	return err
+}
+
+type unavailableProofAuthority struct{}
+
+func (unavailableProofAuthority) ConfirmProofOutage(context.Context) (ProofOutage, error) {
+	return ProofOutage{}, ErrUnavailable
 }

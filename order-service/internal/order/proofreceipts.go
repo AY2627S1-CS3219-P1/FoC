@@ -71,10 +71,13 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 	// A zero-photo exception must already have authoritative evidence when
 	// admitted. Merely experiencing a failed photo request is not an outage.
 	var outage *ProofOutage
+	var outageErr error
 	if in.WithoutProof && s.proofs.outages != nil {
 		value, e := s.proofs.outages.ConfirmProofOutage(ctx)
 		if e == nil {
 			outage = &value
+		} else {
+			outageErr = e
 		}
 	}
 	var receipt DeliveryReceipt
@@ -127,6 +130,9 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 			}
 		}
 		if in.WithoutProof {
+			if outageErr != nil && !errors.Is(outageErr, ErrPrecondition) {
+				return nil, ErrUnavailable
+			}
 			if outage == nil || !s.proofs.isCurrentProofOutage(*outage, now) {
 				return nil, ErrPrecondition
 			}
