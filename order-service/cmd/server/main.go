@@ -90,6 +90,10 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize assignment: %w", err)
 	}
+	canceller, recoverCancellations, err := newCanceller(startupCtx, repository, config)
+	if err != nil {
+		return fmt.Errorf("initialize cancellation: %w", err)
+	}
 	var publisher *kafka.Publisher
 	if config.KafkaBrokers != "" {
 		publisher, err = kafka.NewPublisher(kafka.PublisherConfig{Brokers: strings.Split(config.KafkaBrokers, ",")})
@@ -105,6 +109,9 @@ func run(ctx context.Context) error {
 	}
 	if recoverAssignments {
 		workers.Go(func() { assigner.RecoverAssignments(workerCtx) })
+	}
+	if recoverCancellations {
+		workers.Go(func() { canceller.RecoverCancellations(workerCtx) })
 	}
 	if publisher != nil {
 		relay := outbox.New(outbox.NewPostgres(pool), publisher)
@@ -126,7 +133,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool, creator, itemImages, assigner)
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)

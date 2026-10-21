@@ -12,6 +12,10 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 		return "", false, ErrForbidden
 	}
 
+	if action == Pickup && o.PendingCancellationID != nil {
+		return "", false, ErrPrecondition
+	}
+
 	requester := actor.Kind == User && o.IsRequestedBy(actor.ID)
 	courier := actor.Kind == User && o.IsAssignedTo(actor.ID)
 	if action == Assign && actor.Kind == User && o.IsRequestedBy(actor.ID) {

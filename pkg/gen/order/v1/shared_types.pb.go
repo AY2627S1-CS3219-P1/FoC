@@ -269,6 +269,59 @@ func (AssignmentAttemptStatus) EnumDescriptor() ([]byte, []int) {
 	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{3}
 }
 
+// Historical operation outcome; the response Order always reflects current access.
+type CancellationStatus int32
+
+const (
+	CancellationStatus_CANCELLATION_STATUS_UNSPECIFIED CancellationStatus = 0
+	CancellationStatus_CANCELLATION_STATUS_PENDING     CancellationStatus = 1
+	CancellationStatus_CANCELLATION_STATUS_SUCCEEDED   CancellationStatus = 2
+	CancellationStatus_CANCELLATION_STATUS_SUPERSEDED  CancellationStatus = 3
+)
+
+// Enum value maps for CancellationStatus.
+var (
+	CancellationStatus_name = map[int32]string{
+		0: "CANCELLATION_STATUS_UNSPECIFIED",
+		1: "CANCELLATION_STATUS_PENDING",
+		2: "CANCELLATION_STATUS_SUCCEEDED",
+		3: "CANCELLATION_STATUS_SUPERSEDED",
+	}
+	CancellationStatus_value = map[string]int32{
+		"CANCELLATION_STATUS_UNSPECIFIED": 0,
+		"CANCELLATION_STATUS_PENDING":     1,
+		"CANCELLATION_STATUS_SUCCEEDED":   2,
+		"CANCELLATION_STATUS_SUPERSEDED":  3,
+	}
+)
+
+func (x CancellationStatus) Enum() *CancellationStatus {
+	p := new(CancellationStatus)
+	*p = x
+	return p
+}
+
+func (x CancellationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CancellationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_order_v1_shared_types_proto_enumTypes[4].Descriptor()
+}
+
+func (CancellationStatus) Type() protoreflect.EnumType {
+	return &file_order_v1_shared_types_proto_enumTypes[4]
+}
+
+func (x CancellationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CancellationStatus.Descriptor instead.
+func (CancellationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{4}
+}
+
 type Order struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -303,8 +356,10 @@ type Order struct {
 	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,22,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// Approximate destination, available without exact delivery access.
 	DeliveryBuildingName string `protobuf:"bytes,23,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
+	CancellationPending bool `protobuf:"varint,24,opt,name=cancellation_pending,json=cancellationPending,proto3" json:"cancellation_pending,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Order) Reset() {
@@ -496,6 +551,13 @@ func (x *Order) GetDeliveryBuildingName() string {
 		return x.DeliveryBuildingName
 	}
 	return ""
+}
+
+func (x *Order) GetCancellationPending() bool {
+	if x != nil {
+		return x.CancellationPending
+	}
+	return false
 }
 
 // A Supplier Location copied when the order is created, so later Location
@@ -902,11 +964,63 @@ func (x *AssignmentAttemptResult) GetRejection() string {
 	return ""
 }
 
+type CancellationResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Status        CancellationStatus     `protobuf:"varint,2,opt,name=status,proto3,enum=order.v1.CancellationStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancellationResult) Reset() {
+	*x = CancellationResult{}
+	mi := &file_order_v1_shared_types_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancellationResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancellationResult) ProtoMessage() {}
+
+func (x *CancellationResult) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_shared_types_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancellationResult.ProtoReflect.Descriptor instead.
+func (*CancellationResult) Descriptor() ([]byte, []int) {
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CancellationResult) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *CancellationResult) GetStatus() CancellationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return CancellationStatus_CANCELLATION_STATUS_UNSPECIFIED
+}
+
 var File_order_v1_shared_types_proto protoreflect.FileDescriptor
 
 const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb2\t\n" +
+	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\t\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12\"\n" +
@@ -938,7 +1052,8 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"created_at\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
-	"\x16delivery_building_name\x18\x17 \x01(\tR\x14deliveryBuildingNameB\r\n" +
+	"\x16delivery_building_name\x18\x17 \x01(\tR\x14deliveryBuildingName\x121\n" +
+	"\x14cancellation_pending\x18\x18 \x01(\bR\x13cancellationPendingB\r\n" +
 	"\v_courier_idB\x0f\n" +
 	"\r_close_reasonB\x10\n" +
 	"\x0e_item_location\"\x91\x01\n" +
@@ -978,7 +1093,10 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
 	"attempt_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tattemptId\x129\n" +
 	"\x06status\x18\x02 \x01(\x0e2!.order.v1.AssignmentAttemptStatusR\x06status\x12\x1c\n" +
-	"\trejection\x18\x03 \x01(\tR\trejection*\xd5\x02\n" +
+	"\trejection\x18\x03 \x01(\tR\trejection\"w\n" +
+	"\x12CancellationResult\x12+\n" +
+	"\foperation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\voperationId\x124\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1c.order.v1.CancellationStatusR\x06status*\xd5\x02\n" +
 	"\vOrderStatus\x12\x1c\n" +
 	"\x18ORDER_STATUS_UNSPECIFIED\x10\x00\x12$\n" +
 	" ORDER_STATUS_PENDING_RESERVATION\x10\x01\x12!\n" +
@@ -1007,7 +1125,12 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"!ASSIGNMENT_ATTEMPT_STATUS_PENDING\x10\x01\x12'\n" +
 	"#ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED\x10\x02\x12&\n" +
 	"\"ASSIGNMENT_ATTEMPT_STATUS_REJECTED\x10\x03\x12*\n" +
-	"&ASSIGNMENT_ATTEMPT_STATUS_COMPENSATING\x10\x04B\x9d\x01\n" +
+	"&ASSIGNMENT_ATTEMPT_STATUS_COMPENSATING\x10\x04*\xa1\x01\n" +
+	"\x12CancellationStatus\x12#\n" +
+	"\x1fCANCELLATION_STATUS_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bCANCELLATION_STATUS_PENDING\x10\x01\x12!\n" +
+	"\x1dCANCELLATION_STATUS_SUCCEEDED\x10\x02\x12\"\n" +
+	"\x1eCANCELLATION_STATUS_SUPERSEDED\x10\x03B\x9d\x01\n" +
 	"\fcom.order.v1B\x10SharedTypesProtoP\x01Z:github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
 
 var (
@@ -1022,47 +1145,50 @@ func file_order_v1_shared_types_proto_rawDescGZIP() []byte {
 	return file_order_v1_shared_types_proto_rawDescData
 }
 
-var file_order_v1_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_order_v1_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_order_v1_shared_types_proto_goTypes = []any{
 	(OrderStatus)(0),                // 0: order.v1.OrderStatus
 	(ParticipantRole)(0),            // 1: order.v1.ParticipantRole
 	(OfferStatus)(0),                // 2: order.v1.OfferStatus
 	(AssignmentAttemptStatus)(0),    // 3: order.v1.AssignmentAttemptStatus
-	(*Order)(nil),                   // 4: order.v1.Order
-	(*LocationSnapshot)(nil),        // 5: order.v1.LocationSnapshot
-	(*DeliveryDetails)(nil),         // 6: order.v1.DeliveryDetails
-	(*ItemImage)(nil),               // 7: order.v1.ItemImage
-	(*Offer)(nil),                   // 8: order.v1.Offer
-	(*PageInfo)(nil),                // 9: order.v1.PageInfo
-	(*AssignmentAttemptResult)(nil), // 10: order.v1.AssignmentAttemptResult
-	(*durationpb.Duration)(nil),     // 11: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),   // 12: google.protobuf.Timestamp
+	(CancellationStatus)(0),         // 4: order.v1.CancellationStatus
+	(*Order)(nil),                   // 5: order.v1.Order
+	(*LocationSnapshot)(nil),        // 6: order.v1.LocationSnapshot
+	(*DeliveryDetails)(nil),         // 7: order.v1.DeliveryDetails
+	(*ItemImage)(nil),               // 8: order.v1.ItemImage
+	(*Offer)(nil),                   // 9: order.v1.Offer
+	(*PageInfo)(nil),                // 10: order.v1.PageInfo
+	(*AssignmentAttemptResult)(nil), // 11: order.v1.AssignmentAttemptResult
+	(*CancellationResult)(nil),      // 12: order.v1.CancellationResult
+	(*durationpb.Duration)(nil),     // 13: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),   // 14: google.protobuf.Timestamp
 }
 var file_order_v1_shared_types_proto_depIdxs = []int32{
 	0,  // 0: order.v1.Order.status:type_name -> order.v1.OrderStatus
-	5,  // 1: order.v1.Order.pickup:type_name -> order.v1.LocationSnapshot
-	6,  // 2: order.v1.Order.delivery:type_name -> order.v1.DeliveryDetails
-	7,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
-	11, // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
-	12, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
-	12, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
-	12, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
-	12, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
-	12, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
-	12, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
-	12, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
-	12, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
-	5,  // 13: order.v1.DeliveryDetails.location:type_name -> order.v1.LocationSnapshot
+	6,  // 1: order.v1.Order.pickup:type_name -> order.v1.LocationSnapshot
+	7,  // 2: order.v1.Order.delivery:type_name -> order.v1.DeliveryDetails
+	8,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
+	13, // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
+	14, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
+	14, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
+	14, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
+	14, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
+	14, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
+	14, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
+	14, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
+	14, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
+	6,  // 13: order.v1.DeliveryDetails.location:type_name -> order.v1.LocationSnapshot
 	2,  // 14: order.v1.Offer.status:type_name -> order.v1.OfferStatus
-	12, // 15: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
-	12, // 16: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 15: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
+	14, // 16: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
 	3,  // 17: order.v1.AssignmentAttemptResult.status:type_name -> order.v1.AssignmentAttemptStatus
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	4,  // 18: order.v1.CancellationResult.status:type_name -> order.v1.CancellationStatus
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_shared_types_proto_init() }
@@ -1078,8 +1204,8 @@ func file_order_v1_shared_types_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_shared_types_proto_rawDesc), len(file_order_v1_shared_types_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   7,
+			NumEnums:      5,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

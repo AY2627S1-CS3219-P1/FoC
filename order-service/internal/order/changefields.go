@@ -27,14 +27,22 @@ func validateFields(before, after Order, action Action) error {
 	case ConfirmReceipt:
 		expected.CompletedAt = after.CompletedAt
 	case Cancel, Expire, Timeout, RefuseReservation:
+		expected.PendingCancellationID = after.PendingCancellationID
 		expected.ClosedAt = after.ClosedAt
 		expected.CloseReason = after.CloseReason
 	case Withdraw, Unassign:
+		expected.PendingCancellationID = after.PendingCancellationID
+		if action == Withdraw {
+			expected.RewardCredits = after.RewardCredits
+			expected.ReservedCredits = after.ReservedCredits
+		}
 		if after.CourierID != nil || after.AssignedAt != nil {
 			return ErrInvalid
 		}
 		expected.CourierID = nil
 		expected.AssignedAt = nil
+	case BeginWithdrawal:
+		expected.PendingCancellationID = after.PendingCancellationID
 	case ProposeOffer, BeginAssignment, ResolveAssignment:
 		// These actions change offers/workflow only, not Order observations.
 	case RecordItemLocation:
@@ -54,6 +62,7 @@ func validateFields(before, after Order, action Action) error {
 // from operation-owned copies so authorization always uses persisted data.
 func cloneOrder(o Order) Order {
 	o.CourierID = clonePointer(o.CourierID)
+	o.PendingCancellationID = clonePointer(o.PendingCancellationID)
 	o.Pickup.Floor = clonePointer(o.Pickup.Floor)
 	o.Delivery.Floor = clonePointer(o.Delivery.Floor)
 	o.DeliveryInstructions = clonePointer(o.DeliveryInstructions)

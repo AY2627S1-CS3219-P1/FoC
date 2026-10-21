@@ -77,11 +77,12 @@ func Order(o app.Order) *pb.Order {
 	}
 
 	return &pb.Order{
-		Id:          o.ID,
-		RequesterId: o.RequesterID,
-		CourierId:   o.CourierID,
-		Status:      status,
-		Pickup:      location(o.Pickup),
+		Id:                  o.ID,
+		CancellationPending: o.PendingCancellationID != nil,
+		RequesterId:         o.RequesterID,
+		CourierId:           o.CourierID,
+		Status:              status,
+		Pickup:              location(o.Pickup),
 		Delivery: &pb.DeliveryDetails{
 			Location:     location(o.Delivery),
 			Instructions: o.DeliveryInstructions,
