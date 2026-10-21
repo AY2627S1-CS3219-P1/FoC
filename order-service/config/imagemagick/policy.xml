@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policymap>
+  <policy domain="resource" name="memory" value="1GiB"/>
+  <policy domain="resource" name="map" value="0"/>
+  <policy domain="resource" name="disk" value="0"/>
+  <policy domain="resource" name="width" value="8192"/>
+  <policy domain="resource" name="height" value="8192"/>
+  <policy domain="resource" name="area" value="24000001"/>
+  <policy domain="resource" name="thread" value="1"/>
+  <policy domain="resource" name="time" value="5"/>
+  <policy domain="delegate" rights="none" pattern="*"/>
+  <policy domain="filter" rights="none" pattern="*"/>
+  <policy domain="coder" rights="none" pattern="*"/>
+  <policy domain="coder" rights="read" pattern="{JPEG,JPG,PNG,WEBP,HEIC,HEIF}"/>
+  <policy domain="coder" rights="write" pattern="RGB"/>
+  <policy domain="path" rights="none" pattern="*"/>
+  <policy domain="path" rights="read|write" pattern="-"/>
+  <policy domain="path" rights="read|write" pattern="*/order-proof-image-*/magick-*"/>
+  <policy domain="path" rights="none" pattern="@*"/>
+</policymap>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Checkbox, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
+	import { Button, Checkbox, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
 	import type { Building, Category } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import type {
 		ArchiveView,
@@ -21,6 +21,9 @@
 		isAdmin: boolean;
 		onchange: (changes: Partial<LocationQuery>) => void;
 	} = $props();
+
+	const advancedOptionsId = $props.id();
+	let advancedOpen = $state(false);
 
 	// Wait for a pause in typing before searching.
 	// Cancelled on unmount so leaving the page cannot navigate back here.
@@ -71,7 +74,7 @@
 		{ value: 'building-desc', text: 'Building (Z–A)' }
 	];
 	const archiveOptions = [
-		{ value: 'active', text: 'Active' },
+		{ value: 'active', text: 'Unarchived' },
 		{ value: 'archived', text: 'Archived' },
 		{ value: 'all', text: 'All' }
 	];
@@ -86,66 +89,114 @@
 			bind:value={searchText}
 			oninput={onSearchInput}
 		/>
+		<Button
+			type="button"
+			variant="text"
+			size="xs"
+			iconType="full"
+			aria-label={advancedOpen ? 'Hide advanced search' : 'Show advanced search'}
+			aria-expanded={advancedOpen}
+			aria-controls={advancedOptionsId}
+			title="Advanced search"
+			onclick={() => (advancedOpen = !advancedOpen)}
+		>
+			<svg
+				class:expanded={advancedOpen}
+				width="20"
+				height="20"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="m6 9 6 6 6-6" />
+			</svg>
+		</Button>
 	</div>
 
-	<SelectOutlined
-		label="Building"
-		options={buildingOptions}
-		value={query.buildingId ?? ''}
-		onchange={(e) => onchange({ buildingId: e.currentTarget.value || undefined })}
-	/>
-
-	<SelectOutlined
-		label="Category"
-		options={categoryOptions}
-		value={query.categoryId ?? ''}
-		onchange={(e) => onchange({ categoryId: e.currentTarget.value || undefined })}
-	/>
-
-	<SelectOutlined
-		label="Sort by"
-		options={sortOptions}
-		value={`${query.sort ?? 'name'}-${query.direction ?? 'asc'}`}
-		onchange={(e) => onSortChange(e.currentTarget.value)}
-	/>
-
-	{#if isAdmin}
+	<div id={advancedOptionsId} class="advanced-options" hidden={!advancedOpen}>
 		<SelectOutlined
-			label="Status"
-			options={archiveOptions}
-			value={query.archive ?? 'active'}
-			onchange={(e) => onchange({ archive: e.currentTarget.value as ArchiveView })}
+			label="Building"
+			options={buildingOptions}
+			value={query.buildingId ?? ''}
+			onchange={(e) => onchange({ buildingId: e.currentTarget.value || undefined })}
 		/>
-	{/if}
 
-	<label class="checkbox">
-		<Checkbox>
-			<input
-				type="checkbox"
-				checked={query.suppliersOnly}
-				onchange={(e) => onchange({ suppliersOnly: e.currentTarget.checked || undefined })}
+		<SelectOutlined
+			label="Category"
+			options={categoryOptions}
+			value={query.categoryId ?? ''}
+			onchange={(e) => onchange({ categoryId: e.currentTarget.value || undefined })}
+		/>
+
+		<SelectOutlined
+			label="Sort by"
+			options={sortOptions}
+			value={`${query.sort ?? 'name'}-${query.direction ?? 'asc'}`}
+			onchange={(e) => onSortChange(e.currentTarget.value)}
+		/>
+
+		{#if isAdmin}
+			<SelectOutlined
+				label="Status"
+				options={archiveOptions}
+				value={query.archive ?? 'active'}
+				onchange={(e) => onchange({ archive: e.currentTarget.value as ArchiveView })}
 			/>
-		</Checkbox>
-		<span>Suppliers only</span>
-	</label>
+		{/if}
+
+		<label class="checkbox">
+			<Checkbox>
+				<input
+					type="checkbox"
+					checked={query.suppliersOnly}
+					onchange={(e) => onchange({ suppliersOnly: e.currentTarget.checked || undefined })}
+				/>
+			</Checkbox>
+			<span>Suppliers only</span>
+		</label>
+	</div>
 </form>
 
 <style>
 	.filters {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.search {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	svg {
+		transition: transform 150ms ease;
+	}
+
+	.expanded {
+		transform: rotate(180deg);
+	}
+
+	.advanced-options {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 		gap: 0.75rem 1rem;
 		align-items: center;
 	}
 
-	.filters > :global(.m3-container),
-	.search > :global(.m3-container) {
-		width: 100%;
-		min-width: 0;
+	.advanced-options[hidden] {
+		display: none;
 	}
 
-	.search {
-		grid-column: 1 / -1;
+	.advanced-options > :global(.m3-container),
+	.search > :global(.m3-container:first-child) {
+		width: 100%;
+		min-width: 0;
 	}
 
 	/*
@@ -175,8 +226,14 @@
 		cursor: pointer;
 	}
 
+	@media (prefers-reduced-motion: reduce) {
+		svg {
+			transition: none;
+		}
+	}
+
 	@media (max-width: 36rem) {
-		.filters {
+		.advanced-options {
 			grid-template-columns: 1fr;
 		}
 	}

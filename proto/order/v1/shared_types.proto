@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package order.v1;
 
+import "buf/validate/validate.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -64,6 +65,8 @@ message Order {
   google.protobuf.Timestamp updated_at = 22;
   // Approximate destination, available without exact delivery access.
   string delivery_building_name = 23;
+  // Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
+  bool cancellation_pending = 24;
 }
 
 // A Supplier Location copied when the order is created, so later Location
@@ -120,4 +123,36 @@ message PageInfo {
   int64 total_items = 3;
   // Total pages, zero for an empty result.
   int32 total_pages = 4;
+}
+
+// Historical outcome of one immutable financial attempt. This does not assert
+// that its courier remains the current assignee. Business rejection is returned
+// as failed_precondition with AssignmentAttemptResult error details.
+enum AssignmentAttemptStatus {
+  ASSIGNMENT_ATTEMPT_STATUS_UNSPECIFIED = 0;
+  ASSIGNMENT_ATTEMPT_STATUS_PENDING = 1;
+  ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED = 2;
+  ASSIGNMENT_ATTEMPT_STATUS_REJECTED = 3;
+  ASSIGNMENT_ATTEMPT_STATUS_COMPENSATING = 4;
+}
+
+message AssignmentAttemptResult {
+  string attempt_id = 1 [(buf.validate.field).string.uuid = true];
+  AssignmentAttemptStatus status = 2;
+  // Stable, non-sensitive business reason. Empty unless the attempt is being
+  // rejected or compensated. It is not a dependency diagnostic or wallet balance.
+  string rejection = 3;
+}
+
+// Historical operation outcome; the response Order always reflects current access.
+enum CancellationStatus {
+  CANCELLATION_STATUS_UNSPECIFIED = 0;
+  CANCELLATION_STATUS_PENDING = 1;
+  CANCELLATION_STATUS_SUCCEEDED = 2;
+  CANCELLATION_STATUS_SUPERSEDED = 3;
+}
+
+message CancellationResult {
+  string operation_id = 1 [(buf.validate.field).string.uuid = true];
+  CancellationStatus status = 2;
 }

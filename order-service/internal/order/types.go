@@ -45,6 +45,7 @@ type LocationSnapshot struct {
 }
 
 type Order struct {
+	PendingCancellationID                                      *string
 	ID, RequesterID                                            string
 	CourierID                                                  *string
 	Status                                                     Status

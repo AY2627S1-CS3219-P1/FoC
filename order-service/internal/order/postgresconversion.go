@@ -49,6 +49,14 @@ func toOrder(o Order) (db.Order, error) {
 		row.CourierID = &v
 	}
 
+	if o.PendingCancellationID != nil {
+		v, err := parseID(*o.PendingCancellationID)
+		if err != nil {
+			return row, err
+		}
+		row.PendingCancellationID = &v
+	}
+
 	// Normalize snapshot IDs before persisting their independent JSON values.
 	pickup, delivery := o.Pickup, o.Delivery
 	pickupID, err := parseID(pickup.LocationID)
@@ -96,6 +104,10 @@ func fromOrder(row db.Order) (Order, error) {
 		Revision:             row.Revision,
 		CreatedAt:            row.CreatedAt.UTC(),
 		UpdatedAt:            row.UpdatedAt.UTC(),
+	}
+	if row.PendingCancellationID != nil {
+		v := row.PendingCancellationID.String()
+		o.PendingCancellationID = &v
 	}
 	if row.CourierID != nil {
 		v := row.CourierID.String()

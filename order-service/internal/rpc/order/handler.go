@@ -31,14 +31,23 @@ type ImageOperations interface {
 
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
-	operations Operations
-	progress   ProgressOperations
-	creator    CreationOperations
-	images     ImageOperations
+	operations    Operations
+	creator       CreationOperations
+	images        ImageOperations
+	assignments   AssignmentOperations
+	cancellations CancellationOperations
+	progress      ProgressOperations
+	disposition   DispositionOperations
+	proofs        ProofOperations
+	proofReceipts ProofReceiptOperations
 }
 
-func NewServer(operations Operations, creator CreationOperations, images ImageOperations) *Server {
-	return &Server{operations: operations, creator: creator, images: images}
+func NewServer(operations Operations, creator CreationOperations, images ImageOperations, assignments ...AssignmentOperations) *Server {
+	s := &Server{operations: operations, creator: creator, images: images}
+	if len(assignments) > 0 {
+		s.assignments = assignments[0]
+	}
+	return s
 }
 
 func (s *Server) CreateOrder(ctx context.Context, req *connect.Request[pb.CreateOrderRequest]) (*connect.Response[pb.CreateOrderResponse], error) {
@@ -87,7 +96,11 @@ func (s *Server) ListOpenOrders(ctx context.Context, req *connect.Request[pb.Lis
 	if m.DeliveryLocationId != nil {
 		return nil, shared.ConnectError(ctx, app.ErrInvalid)
 	}
-	r := app.ListRequest{Page: app.Page{Number: m.GetPage(), Size: m.GetPageSize()}, PickupID: m.GetPickupLocationId(), DeliveryBuildingName: m.GetDeliveryBuildingName()}
+	r := app.ListRequest{
+		Page:                 app.Page{Number: m.GetPage(), Size: m.GetPageSize()},
+		PickupID:             m.GetPickupLocationId(),
+		DeliveryBuildingName: m.GetDeliveryBuildingName(),
+	}
 
 	p, err := s.operations.ListOpenOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {

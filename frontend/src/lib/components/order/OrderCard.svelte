@@ -12,8 +12,6 @@
 		<p>Pick up: {order.pickup?.name ?? 'Unavailable'} · {order.pickup?.buildingName ?? ''}</p>
 		<p>Deliver to: {order.deliveryBuildingName || 'Area unavailable'}</p>
 		<p>{order.rewardCredits.toString()} credits</p>
-		<small>Requester: {order.requesterId}</small>
-		{#if order.courierId}<small>Current courier: {order.courierId}</small>{/if}
 	</article>
 </Card>
 

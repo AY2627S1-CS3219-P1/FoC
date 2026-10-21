@@ -70,8 +70,9 @@ func run(ctx context.Context) error {
 
 	repository := order.NewPostgresRepository(pool)
 	var storage images.ObjectStorage
+	var proofStorage *images.S3
 	if config.S3Bucket != "" {
-		storage, err = images.NewS3(startupCtx, images.S3Config{
+		proofStorage, err = images.NewS3(startupCtx, images.S3Config{
 			Bucket:         config.S3Bucket,
 			Region:         config.AWSRegion,
 			Endpoint:       config.S3Endpoint,
@@ -80,11 +81,21 @@ func run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("initialize image storage: %w", err)
 		}
+		storage = proofStorage
 	}
 	itemImages := order.NewItemImages(repository, storage)
+	proofs := newProofRuntime(startupCtx, repository, proofStorage)
 	creator, recoverCreations, err := newCreator(startupCtx, repository, config, itemImages)
 	if err != nil {
 		return fmt.Errorf("initialize creation: %w", err)
+	}
+	assigner, recoverAssignments, err := newAssigner(startupCtx, repository, config)
+	if err != nil {
+		return fmt.Errorf("initialize assignment: %w", err)
+	}
+	canceller, recoverCancellations, err := newCanceller(startupCtx, repository, config)
+	if err != nil {
+		return fmt.Errorf("initialize cancellation: %w", err)
 	}
 	var publisher *kafka.Publisher
 	if config.KafkaBrokers != "" {
@@ -96,8 +107,16 @@ func run(ctx context.Context) error {
 	}
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
+	proofs.start(workerCtx, &workers)
+	startLifecycleTimers(workerCtx, &workers, repository)
 	if recoverCreations {
 		workers.Go(func() { creator.RecoverCreations(workerCtx) })
+	}
+	if recoverAssignments {
+		workers.Go(func() { assigner.RecoverAssignments(workerCtx) })
+	}
+	if recoverCancellations {
+		workers.Go(func() { canceller.RecoverCancellations(workerCtx) })
 	}
 	if publisher != nil {
 		relay := outbox.New(outbox.NewPostgres(pool), publisher)
@@ -119,7 +138,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool, creator, itemImages)
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)

@@ -198,7 +198,7 @@ func (q *Queries) LockCreationWorkflow(ctx context.Context, orderID uuid.UUID) (
 }
 
 const tryLockCreationOrder = `-- name: TryLockCreationOrder :one
-SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at FROM orders WHERE id = $1 FOR UPDATE SKIP LOCKED
+SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id FROM orders WHERE id = $1 FOR UPDATE SKIP LOCKED
 `
 
 func (q *Queries) TryLockCreationOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -228,6 +228,7 @@ func (q *Queries) TryLockCreationOrder(ctx context.Context, id uuid.UUID) (Order
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PendingCancellationID,
 	)
 	return i, err
 }
