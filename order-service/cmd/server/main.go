@@ -70,8 +70,9 @@ func run(ctx context.Context) error {
 
 	repository := order.NewPostgresRepository(pool)
 	var storage images.ObjectStorage
+	var proofStorage *images.S3
 	if config.S3Bucket != "" {
-		storage, err = images.NewS3(startupCtx, images.S3Config{
+		proofStorage, err = images.NewS3(startupCtx, images.S3Config{
 			Bucket:         config.S3Bucket,
 			Region:         config.AWSRegion,
 			Endpoint:       config.S3Endpoint,
@@ -80,8 +81,10 @@ func run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("initialize image storage: %w", err)
 		}
+		storage = proofStorage
 	}
 	itemImages := order.NewItemImages(repository, storage)
+	proofs := newProofRuntime(startupCtx, repository, proofStorage)
 	creator, recoverCreations, err := newCreator(startupCtx, repository, config, itemImages)
 	if err != nil {
 		return fmt.Errorf("initialize creation: %w", err)
@@ -104,6 +107,7 @@ func run(ctx context.Context) error {
 	}
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
+	proofs.start(workerCtx, &workers)
 	if recoverCreations {
 		workers.Go(func() { creator.RecoverCreations(workerCtx) })
 	}
@@ -133,7 +137,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool, creator, itemImages, assigner, canceller)
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)

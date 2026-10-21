@@ -133,6 +133,22 @@ type OrderCreationWorkflow struct {
 	UpdatedAt         time.Time
 }
 
+type OrderDeliveryReceipt struct {
+	ID            uuid.UUID
+	OrderID       uuid.UUID
+	CourierID     uuid.UUID
+	ProofIds      []uuid.UUID
+	Unattended    bool
+	WithoutProof  bool
+	ReceivedAt    time.Time
+	ProcessedAt   *time.Time
+	NextAttemptAt time.Time
+	AttemptCount  int64
+	AlertedAt     *time.Time
+	State         string
+	Outage        []byte
+}
+
 type OrderIdempotencyKey struct {
 	CallerID       uuid.UUID
 	Method         string
@@ -167,4 +183,45 @@ type OrderOutbox struct {
 	PublishedAt    *time.Time
 	LeaseToken     *uuid.UUID
 	LeaseUntil     *time.Time
+}
+
+type OrderProofConfirmation struct {
+	OrderID uuid.UUID
+	Payload []byte
+}
+
+type OrderProofFence struct {
+	OrderID   uuid.UUID
+	CourierID uuid.UUID
+	UploadID  uuid.UUID
+	RetiredAt time.Time
+}
+
+type OrderProofOutageState struct {
+	Scope      string
+	EvidenceID uuid.UUID
+	Generation int64
+	ObservedAt time.Time
+	ValidUntil time.Time
+	Reason     string
+	Active     bool
+}
+
+type OrderProofUpload struct {
+	ID           uuid.UUID
+	OrderID      uuid.UUID
+	CourierID    uuid.UUID
+	UploadID     uuid.UUID
+	ObjectKey    string
+	ContentType  string
+	SizeBytes    int64
+	State        string
+	Generation   int64
+	SigningEpoch string
+	UploadScope  string
+	GrantedAt    time.Time
+	ExpiresAt    time.Time
+	CreatedAt    time.Time
+	VerifiedAt   *time.Time
+	CleanupAfter time.Time
 }

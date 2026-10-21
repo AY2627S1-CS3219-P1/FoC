@@ -208,6 +208,9 @@ services:
       context: .
       dockerfile: order-service/Dockerfile.dev
     container_name: foc-order-service
+    mem_limit: 3g
+    cpus: 2.0
+    pids_limit: 128
     ports:
       - "${ORDER_PORT:-8083}:8080"
     environment:
