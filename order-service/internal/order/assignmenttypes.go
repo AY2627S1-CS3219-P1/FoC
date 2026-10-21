@@ -76,6 +76,7 @@ type AssignmentCredit interface {
 type AssignmentTx interface {
 	Tx
 	IdempotencyTx
+	HasRejectedAcceptance(context.Context, string, string) (bool, error)
 	FindAssignment(context.Context, string) (AssignmentAttempt, error)
 	ActiveAssignment(context.Context, string) (*AssignmentAttempt, error)
 	OfferAssignment(context.Context, string) (*AssignmentAttempt, error)

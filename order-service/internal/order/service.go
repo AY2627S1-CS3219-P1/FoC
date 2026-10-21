@@ -38,6 +38,16 @@ func canonicalReadCaller(c Caller) Caller {
 	return c
 }
 
+// visibleTo reports whether the caller may see the order: admins and
+// participants always, other active users only while it is open for couriers.
+func visibleTo(o Order, c Caller, now time.Time) bool {
+	if c.Admin || o.HasParticipant(c.ID) {
+		return true
+	}
+
+	return !c.Suspended && o.Status == AwaitingCourier && o.ExpiresAt.After(now)
+}
+
 // Order listings select the visible scope before shared validation and redaction.
 func (s *Service) ListOpenOrders(ctx context.Context, c Caller, r ListRequest) (OrderPage, error) {
 	if c.Suspended {

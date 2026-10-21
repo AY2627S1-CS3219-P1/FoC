@@ -3,7 +3,7 @@ import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
 import { AssignmentAttemptResultSchema, AssignmentAttemptStatus, OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
 import { AcceptanceRejected, OrderActionRejected, createOrderOffersApi } from './index';
-import { clearOfferAction, loadOfferAction, saveOfferAction, type RetryStorage } from './retry';
+import { clearOfferAction, loadOfferAction, saveOfferAction, isProposalRetryExpired, type RetryStorage } from './retry';
 const key='c55ce32c-2af7-46d1-a088-6a976d3bdbaf';
 const attempt='41dbf670-f32c-4cca-9473-5861c274e789';
 
@@ -88,4 +88,16 @@ it('recovers immutable saved input only for the same caller and order',()=>{
  expect(()=>loadOfferAction(storage,'courier-a','order-a')).toThrow('unreadable');
  clearOfferAction(storage,'courier-a','order-a');
  expect(loadOfferAction(storage,'courier-a','order-a')).toBeNull();
+});
+
+// Proposal-only keys have a finite retry window; acceptance identities do not.
+it('blocks late or undated proposal retries without expiring financial acceptance', () => {
+ const start = 1_000_000;
+ const proposal = { kind: 'proposal' as const, key: '11111111-1111-4111-8111-111111111111', credits: '30', outcome: 'uncertain' as const, dispatchedAt: start };
+ expect(isProposalRetryExpired(proposal, start + 86_399_999)).toBe(false);
+ expect(isProposalRetryExpired(proposal, start + 86_400_000)).toBe(true);
+ expect(isProposalRetryExpired({ ...proposal, dispatchedAt: undefined }, start)).toBe(true);
+ expect(isProposalRetryExpired({ ...proposal, dispatchedAt: start + 1 }, start)).toBe(true);
+ expect(isProposalRetryExpired({ ...proposal, kind: 'accept' }, start + 86_400_000)).toBe(false);
+ expect(isProposalRetryExpired({ ...proposal, kind: 'counteroffer' }, start + 86_400_000)).toBe(false);
 });

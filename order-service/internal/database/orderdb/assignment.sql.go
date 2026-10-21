@@ -130,6 +130,24 @@ func (q *Queries) HasPendingAssignments(ctx context.Context) (bool, error) {
 	return exists, err
 }
 
+const hasRejectedAcceptance = `-- name: HasRejectedAcceptance :one
+SELECT EXISTS(SELECT 1 FROM order_assignment_attempts
+ WHERE order_id = $1 AND caller_id = $2 AND method = '/order.v1.OrderService/AcceptOrder'
+ AND phase = 'rejected' AND offer_id IS NULL)
+`
+
+type HasRejectedAcceptanceParams struct {
+	OrderID  uuid.UUID
+	CallerID uuid.UUID
+}
+
+func (q *Queries) HasRejectedAcceptance(ctx context.Context, arg HasRejectedAcceptanceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasRejectedAcceptance, arg.OrderID, arg.CallerID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertAssignmentAttempt = `-- name: InsertAssignmentAttempt :exec
 INSERT INTO order_assignment_attempts
  (id,order_id,offer_id,caller_id,courier_id,method,idempotency_key,request_hash,amount,original_amount,

@@ -1,6 +1,7 @@
 export type OfferAction = {
  kind: 'accept' | 'proposal' | 'counteroffer';
  key: string;
+ dispatchedAt?: number;
  credits?: string;
  offerId?: string;
  outcome: 'uncertain' | 'pending' | 'compensating' | 'succeeded' | 'rejected';
@@ -29,4 +30,11 @@ export function loadOfferAction(storage: RetryStorage, caller: string, order: st
   throw new Error('Stored retry data is invalid. No new action was sent.');
  }
  return value;
+}
+
+/** The proposal key is only guaranteed for 24 hours after its first dispatch. */
+export function isProposalRetryExpired(action: OfferAction, now = Date.now()): boolean {
+ return action.kind === 'proposal' && (action.dispatchedAt === undefined ||
+  !Number.isSafeInteger(action.dispatchedAt) || action.dispatchedAt > now ||
+  now - action.dispatchedAt >= 24 * 60 * 60 * 1000);
 }

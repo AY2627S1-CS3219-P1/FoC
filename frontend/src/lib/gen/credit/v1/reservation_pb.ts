@@ -7,15 +7,13 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { ReleaseReason, Reservation } from "./shared_types_pb";
 import { file_credit_v1_shared_types } from "./shared_types_pb";
-import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file credit/v1/reservation.proto.
  */
 export const file_credit_v1_reservation: GenFile = /*@__PURE__*/
-  fileDesc("ChtjcmVkaXQvdjEvcmVzZXJ2YXRpb24ucHJvdG8SCWNyZWRpdC52MSJnCg5SZXNlcnZlUmVxdWVzdBIcCgpyZXF1ZXN0X2lkGAEgASgJQgi6SAVyA7ABARIeCgxyZXF1ZXN0ZXJfaWQYAiABKAlCCLpIBXIDsAEBEhcKBmFtb3VudBgDIAEoA0IHukgEIgIgACKRAQoYQWRqdXN0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBEhoKCG9mZmVyX2lkGAIgASgJQgi6SAVyA7ABARIcCgpjb3VyaWVyX2lkGAMgASgJQgi6SAVyA7ABARIdCgxvZmZlcl9hbW91bnQYBCABKANCB7pIBCICIAAiUwoXUmV2ZXJ0QWRqdXN0bWVudFJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESGgoIb2ZmZXJfaWQYAiABKAlCCLpIBXIDsAEBIm8KGVJlbGVhc2VSZXNlcnZhdGlvblJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESNAoGcmVhc29uGAIgASgOMhguY3JlZGl0LnYxLlJlbGVhc2VSZWFzb25CCrpIB4IBBBABIAAixgQKGFNldHRsZVJlc2VydmF0aW9uUmVxdWVzdBIcCgpyZXF1ZXN0X2lkGAEgASgJQgi6SAVyA7ABARJCCgljb21wbGV0ZWQYAiABKAsyLS5jcmVkaXQudjEuU2V0dGxlUmVzZXJ2YXRpb25SZXF1ZXN0LkNvbXBsZXRlZEgAEloKFmNhbmNlbGxlZF9hZnRlcl9waWNrdXAYAyABKAsyOC5jcmVkaXQudjEuU2V0dGxlUmVzZXJ2YXRpb25SZXF1ZXN0LkNhbmNlbGxlZEFmdGVyUGlja3VwSAAawQIKCUNvbXBsZXRlZBI4CgxwaWNrZWRfdXBfYXQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESQQoRZGVsaXZlcnlfZHVyYXRpb24YAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CC7pICMgBAaoBAioAEjgKDGRlbGl2ZXJlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCBrpIA8gBATp9ukh6GngKIGNvbXBsZXRlZC5kZWxpdmVyZWRfYWZ0ZXJfcGlja3VwEixkZWxpdmVyZWRfYXQgbXVzdCBub3QgYmUgYmVmb3JlIHBpY2tlZF91cF9hdBomdGhpcy5kZWxpdmVyZWRfYXQgPj0gdGhpcy5waWNrZWRfdXBfYXQaFgoUQ2FuY2VsbGVkQWZ0ZXJQaWNrdXBCEAoHb3V0Y29tZRIFukgCCAEiNQoVR2V0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBIj4KD1Jlc2VydmVSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJIChlBZGp1c3RSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uIkcKGFJldmVydEFkanVzdG1lbnRSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJJChpSZWxlYXNlUmVzZXJ2YXRpb25SZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJIChlTZXR0bGVSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uIkUKFkdldFJlc2VydmF0aW9uUmVzcG9uc2USKwoLcmVzZXJ2YXRpb24YASABKAsyFi5jcmVkaXQudjEuUmVzZXJ2YXRpb24y1AQKGENyZWRpdFJlc2VydmF0aW9uU2VydmljZRJFCgdSZXNlcnZlEhkuY3JlZGl0LnYxLlJlc2VydmVSZXF1ZXN0GhouY3JlZGl0LnYxLlJlc2VydmVSZXNwb25zZSIDkAICEmMKEUFkanVzdFJlc2VydmF0aW9uEiMuY3JlZGl0LnYxLkFkanVzdFJlc2VydmF0aW9uUmVxdWVzdBokLmNyZWRpdC52MS5BZGp1c3RSZXNlcnZhdGlvblJlc3BvbnNlIgOQAgISYAoQUmV2ZXJ0QWRqdXN0bWVudBIiLmNyZWRpdC52MS5SZXZlcnRBZGp1c3RtZW50UmVxdWVzdBojLmNyZWRpdC52MS5SZXZlcnRBZGp1c3RtZW50UmVzcG9uc2UiA5ACAhJmChJSZWxlYXNlUmVzZXJ2YXRpb24SJC5jcmVkaXQudjEuUmVsZWFzZVJlc2VydmF0aW9uUmVxdWVzdBolLmNyZWRpdC52MS5SZWxlYXNlUmVzZXJ2YXRpb25SZXNwb25zZSIDkAICEmYKEVNldHRsZVJlc2VydmF0aW9uEiMuY3JlZGl0LnYxLlNldHRsZVJlc2VydmF0aW9uUmVxdWVzdBokLmNyZWRpdC52MS5TZXR0bGVSZXNlcnZhdGlvblJlc3BvbnNlIgaIAgGQAgISWgoOR2V0UmVzZXJ2YXRpb24SIC5jcmVkaXQudjEuR2V0UmVzZXJ2YXRpb25SZXF1ZXN0GiEuY3JlZGl0LnYxLkdldFJlc2VydmF0aW9uUmVzcG9uc2UiA5ACAUKkAQoNY29tLmNyZWRpdC52MUIQUmVzZXJ2YXRpb25Qcm90b1ABWjxnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9jcmVkaXQvdjE7Y3JlZGl0djGiAgNDWFiqAglDcmVkaXQuVjHKAglDcmVkaXRcVjHiAhVDcmVkaXRcVjFcR1BCTWV0YWRhdGHqAgpDcmVkaXQ6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_credit_v1_shared_types, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("ChtjcmVkaXQvdjEvcmVzZXJ2YXRpb24ucHJvdG8SCWNyZWRpdC52MSJnCg5SZXNlcnZlUmVxdWVzdBIcCgpyZXF1ZXN0X2lkGAEgASgJQgi6SAVyA7ABARIeCgxyZXF1ZXN0ZXJfaWQYAiABKAlCCLpIBXIDsAEBEhcKBmFtb3VudBgDIAEoA0IHukgEIgIgACKRAQoYQWRqdXN0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBEhoKCG9mZmVyX2lkGAIgASgJQgi6SAVyA7ABARIcCgpjb3VyaWVyX2lkGAMgASgJQgi6SAVyA7ABARIdCgxvZmZlcl9hbW91bnQYBCABKANCB7pIBCICIAAiUwoXUmV2ZXJ0QWRqdXN0bWVudFJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESGgoIb2ZmZXJfaWQYAiABKAlCCLpIBXIDsAEBIm8KGVJlbGVhc2VSZXNlcnZhdGlvblJlcXVlc3QSHAoKcmVxdWVzdF9pZBgBIAEoCUIIukgFcgOwAQESNAoGcmVhc29uGAIgASgOMhguY3JlZGl0LnYxLlJlbGVhc2VSZWFzb25CCrpIB4IBBBABIAAiNQoVR2V0UmVzZXJ2YXRpb25SZXF1ZXN0EhwKCnJlcXVlc3RfaWQYASABKAlCCLpIBXIDsAEBIj4KD1Jlc2VydmVSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJIChlBZGp1c3RSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uIkcKGFJldmVydEFkanVzdG1lbnRSZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJJChpSZWxlYXNlUmVzZXJ2YXRpb25SZXNwb25zZRIrCgtyZXNlcnZhdGlvbhgBIAEoCzIWLmNyZWRpdC52MS5SZXNlcnZhdGlvbiJFChZHZXRSZXNlcnZhdGlvblJlc3BvbnNlEisKC3Jlc2VydmF0aW9uGAEgASgLMhYuY3JlZGl0LnYxLlJlc2VydmF0aW9uMuwDChhDcmVkaXRSZXNlcnZhdGlvblNlcnZpY2USRQoHUmVzZXJ2ZRIZLmNyZWRpdC52MS5SZXNlcnZlUmVxdWVzdBoaLmNyZWRpdC52MS5SZXNlcnZlUmVzcG9uc2UiA5ACAhJjChFBZGp1c3RSZXNlcnZhdGlvbhIjLmNyZWRpdC52MS5BZGp1c3RSZXNlcnZhdGlvblJlcXVlc3QaJC5jcmVkaXQudjEuQWRqdXN0UmVzZXJ2YXRpb25SZXNwb25zZSIDkAICEmAKEFJldmVydEFkanVzdG1lbnQSIi5jcmVkaXQudjEuUmV2ZXJ0QWRqdXN0bWVudFJlcXVlc3QaIy5jcmVkaXQudjEuUmV2ZXJ0QWRqdXN0bWVudFJlc3BvbnNlIgOQAgISZgoSUmVsZWFzZVJlc2VydmF0aW9uEiQuY3JlZGl0LnYxLlJlbGVhc2VSZXNlcnZhdGlvblJlcXVlc3QaJS5jcmVkaXQudjEuUmVsZWFzZVJlc2VydmF0aW9uUmVzcG9uc2UiA5ACAhJaCg5HZXRSZXNlcnZhdGlvbhIgLmNyZWRpdC52MS5HZXRSZXNlcnZhdGlvblJlcXVlc3QaIS5jcmVkaXQudjEuR2V0UmVzZXJ2YXRpb25SZXNwb25zZSIDkAIBQqQBCg1jb20uY3JlZGl0LnYxQhBSZXNlcnZhdGlvblByb3RvUAFaPGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL2NyZWRpdC92MTtjcmVkaXR2MaICA0NYWKoCCUNyZWRpdC5WMcoCCUNyZWRpdFxWMeICFUNyZWRpdFxWMVxHUEJNZXRhZGF0YeoCCkNyZWRpdDo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_credit_v1_shared_types]);
 
 /**
  * Holds amount from the requester's available credits when an order is
@@ -52,7 +50,9 @@ export const ReserveRequestSchema: GenMessage<ReserveRequest> = /*@__PURE__*/
 /**
  * Applies an accepted offer to a Held reservation and records the courier.
  * Accepting at the original reward is also an offer, so Order supplies an
- * offer_id for every acceptance. The hold becomes offer_amount; if the
+ * offer_id for every acceptance. offer_amount must be at least
+ * original_amount (invalid_argument otherwise), so a revert never needs back
+ * credits the requester has spent. The hold becomes offer_amount; if the
  * increase exceeds available, nothing changes and INSUFFICIENT_CREDITS is
  * returned. Revert any other applied offer first (ADJUSTMENT_PENDING).
  *
@@ -116,10 +116,11 @@ export const RevertAdjustmentRequestSchema: GenMessage<RevertAdjustmentRequest> 
   messageDesc(file_credit_v1_reservation, 2);
 
 /**
- * Returns the whole hold to the requester when an order is cancelled before
- * pickup, expires or fails. An unknown request is recorded as released, so a
- * later Reserve for it fails with RESERVATION_RELEASED. Fails with
- * RESERVATION_SETTLED on a Settled reservation.
+ * Returns the whole hold to the requester, only as compensation for a creation
+ * that never opened. Opened orders settle through order.outcome instead. An
+ * unknown request is recorded as released, so a later Reserve for it fails
+ * with RESERVATION_RELEASED. Fails with RESERVATION_SETTLED on a Settled
+ * reservation.
  *
  * @generated from message credit.v1.ReleaseReservationRequest
  */
@@ -143,96 +144,6 @@ export const ReleaseReservationRequestSchema: GenMessage<ReleaseReservationReque
   messageDesc(file_credit_v1_reservation, 3);
 
 /**
- * Deprecated: Order publishes order.outcome; Credit settles in its consumer.
- * This draft RPC must not be authorized for Order.
- * Pays the courier when an order completes or the requester cancels after
- * pickup. The reservation must be Assigned. The courier receives the payable
- * amount and the rest of the hold returns to the requester.
- *
- * @generated from message credit.v1.SettleReservationRequest
- */
-export type SettleReservationRequest = Message<"credit.v1.SettleReservationRequest"> & {
-  /**
-   * @generated from field: string request_id = 1;
-   */
-  requestId: string;
-
-  /**
-   * @generated from oneof credit.v1.SettleReservationRequest.outcome
-   */
-  outcome: {
-    /**
-     * @generated from field: credit.v1.SettleReservationRequest.Completed completed = 2;
-     */
-    value: SettleReservationRequest_Completed;
-    case: "completed";
-  } | {
-    /**
-     * @generated from field: credit.v1.SettleReservationRequest.CancelledAfterPickup cancelled_after_pickup = 3;
-     */
-    value: SettleReservationRequest_CancelledAfterPickup;
-    case: "cancelledAfterPickup";
-  } | { case: undefined; value?: undefined };
-};
-
-/**
- * Describes the message credit.v1.SettleReservationRequest.
- * Use `create(SettleReservationRequestSchema)` to create a new message.
- */
-export const SettleReservationRequestSchema: GenMessage<SettleReservationRequest> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 4);
-
-/**
- * Credit applies the lateness rule. With elapsed = delivered_at -
- * picked_up_at, T = delivery_duration and R = the hold:
- * - elapsed <= T pays R;
- * - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
- * - elapsed >= 2T pays 0.
- *
- * @generated from message credit.v1.SettleReservationRequest.Completed
- */
-export type SettleReservationRequest_Completed = Message<"credit.v1.SettleReservationRequest.Completed"> & {
-  /**
-   * @generated from field: google.protobuf.Timestamp picked_up_at = 1;
-   */
-  pickedUpAt?: Timestamp | undefined;
-
-  /**
-   * Allowed time from pickup to delivery.
-   *
-   * @generated from field: google.protobuf.Duration delivery_duration = 2;
-   */
-  deliveryDuration?: Duration | undefined;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp delivered_at = 3;
-   */
-  deliveredAt?: Timestamp | undefined;
-};
-
-/**
- * Describes the message credit.v1.SettleReservationRequest.Completed.
- * Use `create(SettleReservationRequest_CompletedSchema)` to create a new message.
- */
-export const SettleReservationRequest_CompletedSchema: GenMessage<SettleReservationRequest_Completed> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 4, 0);
-
-/**
- * Pays the courier the whole hold.
- *
- * @generated from message credit.v1.SettleReservationRequest.CancelledAfterPickup
- */
-export type SettleReservationRequest_CancelledAfterPickup = Message<"credit.v1.SettleReservationRequest.CancelledAfterPickup"> & {
-};
-
-/**
- * Describes the message credit.v1.SettleReservationRequest.CancelledAfterPickup.
- * Use `create(SettleReservationRequest_CancelledAfterPickupSchema)` to create a new message.
- */
-export const SettleReservationRequest_CancelledAfterPickupSchema: GenMessage<SettleReservationRequest_CancelledAfterPickup> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 4, 1);
-
-/**
  * Includes tombstones. Fails with RESERVATION_NOT_FOUND for unknown requests.
  *
  * @generated from message credit.v1.GetReservationRequest
@@ -249,7 +160,7 @@ export type GetReservationRequest = Message<"credit.v1.GetReservationRequest"> &
  * Use `create(GetReservationRequestSchema)` to create a new message.
  */
 export const GetReservationRequestSchema: GenMessage<GetReservationRequest> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 5);
+  messageDesc(file_credit_v1_reservation, 4);
 
 /**
  * @generated from message credit.v1.ReserveResponse
@@ -266,7 +177,7 @@ export type ReserveResponse = Message<"credit.v1.ReserveResponse"> & {
  * Use `create(ReserveResponseSchema)` to create a new message.
  */
 export const ReserveResponseSchema: GenMessage<ReserveResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 6);
+  messageDesc(file_credit_v1_reservation, 5);
 
 /**
  * @generated from message credit.v1.AdjustReservationResponse
@@ -283,7 +194,7 @@ export type AdjustReservationResponse = Message<"credit.v1.AdjustReservationResp
  * Use `create(AdjustReservationResponseSchema)` to create a new message.
  */
 export const AdjustReservationResponseSchema: GenMessage<AdjustReservationResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 7);
+  messageDesc(file_credit_v1_reservation, 6);
 
 /**
  * @generated from message credit.v1.RevertAdjustmentResponse
@@ -300,7 +211,7 @@ export type RevertAdjustmentResponse = Message<"credit.v1.RevertAdjustmentRespon
  * Use `create(RevertAdjustmentResponseSchema)` to create a new message.
  */
 export const RevertAdjustmentResponseSchema: GenMessage<RevertAdjustmentResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 8);
+  messageDesc(file_credit_v1_reservation, 7);
 
 /**
  * @generated from message credit.v1.ReleaseReservationResponse
@@ -317,24 +228,7 @@ export type ReleaseReservationResponse = Message<"credit.v1.ReleaseReservationRe
  * Use `create(ReleaseReservationResponseSchema)` to create a new message.
  */
 export const ReleaseReservationResponseSchema: GenMessage<ReleaseReservationResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 9);
-
-/**
- * @generated from message credit.v1.SettleReservationResponse
- */
-export type SettleReservationResponse = Message<"credit.v1.SettleReservationResponse"> & {
-  /**
-   * @generated from field: credit.v1.Reservation reservation = 1;
-   */
-  reservation?: Reservation | undefined;
-};
-
-/**
- * Describes the message credit.v1.SettleReservationResponse.
- * Use `create(SettleReservationResponseSchema)` to create a new message.
- */
-export const SettleReservationResponseSchema: GenMessage<SettleReservationResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 10);
+  messageDesc(file_credit_v1_reservation, 8);
 
 /**
  * @generated from message credit.v1.GetReservationResponse
@@ -351,23 +245,26 @@ export type GetReservationResponse = Message<"credit.v1.GetReservationResponse">
  * Use `create(GetReservationResponseSchema)` to create a new message.
  */
 export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = /*@__PURE__*/
-  messageDesc(file_credit_v1_reservation, 11);
+  messageDesc(file_credit_v1_reservation, 9);
 
 /**
  * Order's credit reservations: one per order, keyed by request_id (the Order
  * Service order ID). Called by Order Service only, with its service token.
  *
- * Terminal settlement is driven exclusively by Kafka order.outcome events.
- * Order does not call SettleReservation or use ReleaseReservation for an opened
- * order. ReleaseReservation is compensation for creation that never opened;
- * RevertAdjustment compensates assignment attempts. Credit serializes these
- * operations with event settlement. request_id is the permanent Order UUID.
+ * Order never settles by RPC. Credit pays the courier and refunds the rest when
+ * it consumes Order's order.outcome event (#136), including for cancelled,
+ * expired and failed orders. ReleaseReservation only compensates a creation
+ * that never opened, and RevertAdjustment compensates assignment attempts.
+ * Credit serializes these calls with event settlement.
  *
  * Every mutation is idempotent by its key: request_id, or offer_id for
- * adjustments and reverts. Keys never expire. Repeating a call with the same
- * data returns the stored result; different data is already_exists. Settled
- * and Released reservations never change again, so no call pays or returns
- * credits twice. Reports and appeals have no path into this API.
+ * adjustments and reverts. Keys never expire. Different data for a key is
+ * already_exists. Repeating a call with the same data returns the stored
+ * result, unless a later transition prevents the operation: Reserve after a
+ * release returns RESERVATION_RELEASED, and AdjustReservation for a reverted
+ * offer returns ADJUSTMENT_REVERTED. A retry never reapplies a credit change.
+ * Settled and Released reservations never change again, so credits are paid or
+ * returned at most once. Reports and appeals have no path into this API.
  *
  * Errors carry a google.rpc.ErrorInfo with domain "credit.v1" and one of these
  * reasons:
@@ -376,7 +273,6 @@ export const GetReservationResponseSchema: GenMessage<GetReservationResponse> = 
  * - RESERVATION_NOT_FOUND (not_found)
  * - RESERVATION_RELEASED (failed_precondition)
  * - RESERVATION_SETTLED (failed_precondition)
- * - RESERVATION_NOT_ASSIGNED (failed_precondition)
  * - ADJUSTMENT_PENDING (failed_precondition)
  * - ADJUSTMENT_REVERTED (failed_precondition)
  * Branch on the reason, not the message. After a timeout, repeat the call with
@@ -416,15 +312,6 @@ export const CreditReservationService: GenService<{
     methodKind: "unary";
     input: typeof ReleaseReservationRequestSchema;
     output: typeof ReleaseReservationResponseSchema;
-  },
-  /**
-   * @generated from rpc credit.v1.CreditReservationService.SettleReservation
-   * @deprecated
-   */
-  settleReservation: {
-    methodKind: "unary";
-    input: typeof SettleReservationRequestSchema;
-    output: typeof SettleReservationResponseSchema;
   },
   /**
    * @generated from rpc credit.v1.CreditReservationService.GetReservation
