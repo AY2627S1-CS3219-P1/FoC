@@ -75,6 +75,10 @@ def main():
             respond(route, {"order": order()})
         elif method == "ListOffers":
             respond(route, {"offers": []})
+        elif method == "GetDeliveryProof":
+            # The composed detail page also mounts the proof panel. This
+            # cancellation fixture has no uploaded or admitted evidence.
+            respond(route, {"proofs": []})
         elif method == "CancelOrder":
             state["cancels"].append(body)
             if state["refuse"]:
