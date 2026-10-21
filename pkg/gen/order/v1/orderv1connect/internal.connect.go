@@ -36,11 +36,17 @@ const (
 	// OrderInternalServiceGetOrderParticipantsProcedure is the fully-qualified name of the
 	// OrderInternalService's GetOrderParticipants RPC.
 	OrderInternalServiceGetOrderParticipantsProcedure = "/order.v1.OrderInternalService/GetOrderParticipants"
+	// OrderInternalServiceApplyAccountSuspensionProcedure is the fully-qualified name of the
+	// OrderInternalService's ApplyAccountSuspension RPC.
+	OrderInternalServiceApplyAccountSuspensionProcedure = "/order.v1.OrderInternalService/ApplyAccountSuspension"
 )
 
 // OrderInternalServiceClient is a client for the order.v1.OrderInternalService service.
 type OrderInternalServiceClient interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
+	// User Service's authenticated durable role-decision handoff. This method is
+	// never mounted on the public router or authenticated with an admin user JWT.
+	ApplyAccountSuspension(context.Context, *connect.Request[v1.ApplyAccountSuspensionRequest]) (*connect.Response[v1.ApplyAccountSuspensionResponse], error)
 }
 
 // NewOrderInternalServiceClient constructs a client for the order.v1.OrderInternalService service.
@@ -61,12 +67,20 @@ func NewOrderInternalServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		applyAccountSuspension: connect.NewClient[v1.ApplyAccountSuspensionRequest, v1.ApplyAccountSuspensionResponse](
+			httpClient,
+			baseURL+OrderInternalServiceApplyAccountSuspensionProcedure,
+			connect.WithSchema(orderInternalServiceMethods.ByName("ApplyAccountSuspension")),
+			connect.WithIdempotency(connect.IdempotencyIdempotent),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // orderInternalServiceClient implements OrderInternalServiceClient.
 type orderInternalServiceClient struct {
-	getOrderParticipants *connect.Client[v1.GetOrderParticipantsRequest, v1.GetOrderParticipantsResponse]
+	getOrderParticipants   *connect.Client[v1.GetOrderParticipantsRequest, v1.GetOrderParticipantsResponse]
+	applyAccountSuspension *connect.Client[v1.ApplyAccountSuspensionRequest, v1.ApplyAccountSuspensionResponse]
 }
 
 // GetOrderParticipants calls order.v1.OrderInternalService.GetOrderParticipants.
@@ -74,9 +88,17 @@ func (c *orderInternalServiceClient) GetOrderParticipants(ctx context.Context, r
 	return c.getOrderParticipants.CallUnary(ctx, req)
 }
 
+// ApplyAccountSuspension calls order.v1.OrderInternalService.ApplyAccountSuspension.
+func (c *orderInternalServiceClient) ApplyAccountSuspension(ctx context.Context, req *connect.Request[v1.ApplyAccountSuspensionRequest]) (*connect.Response[v1.ApplyAccountSuspensionResponse], error) {
+	return c.applyAccountSuspension.CallUnary(ctx, req)
+}
+
 // OrderInternalServiceHandler is an implementation of the order.v1.OrderInternalService service.
 type OrderInternalServiceHandler interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
+	// User Service's authenticated durable role-decision handoff. This method is
+	// never mounted on the public router or authenticated with an admin user JWT.
+	ApplyAccountSuspension(context.Context, *connect.Request[v1.ApplyAccountSuspensionRequest]) (*connect.Response[v1.ApplyAccountSuspensionResponse], error)
 }
 
 // NewOrderInternalServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -93,10 +115,19 @@ func NewOrderInternalServiceHandler(svc OrderInternalServiceHandler, opts ...con
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	orderInternalServiceApplyAccountSuspensionHandler := connect.NewUnaryHandler(
+		OrderInternalServiceApplyAccountSuspensionProcedure,
+		svc.ApplyAccountSuspension,
+		connect.WithSchema(orderInternalServiceMethods.ByName("ApplyAccountSuspension")),
+		connect.WithIdempotency(connect.IdempotencyIdempotent),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/order.v1.OrderInternalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OrderInternalServiceGetOrderParticipantsProcedure:
 			orderInternalServiceGetOrderParticipantsHandler.ServeHTTP(w, r)
+		case OrderInternalServiceApplyAccountSuspensionProcedure:
+			orderInternalServiceApplyAccountSuspensionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -108,4 +139,8 @@ type UnimplementedOrderInternalServiceHandler struct{}
 
 func (UnimplementedOrderInternalServiceHandler) GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderInternalService.GetOrderParticipants is not implemented"))
+}
+
+func (UnimplementedOrderInternalServiceHandler) ApplyAccountSuspension(context.Context, *connect.Request[v1.ApplyAccountSuspensionRequest]) (*connect.Response[v1.ApplyAccountSuspensionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderInternalService.ApplyAccountSuspension is not implemented"))
 }

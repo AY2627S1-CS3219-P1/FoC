@@ -32,6 +32,10 @@ func (r *PostgresRepository) WithinCreation(ctx context.Context, fn func(Creatio
 }
 
 func (r *PostgresRepository) within(ctx context.Context, fn func(*postgresTx) error) error {
+	return r.withSuspensionGate(ctx, false, fn)
+}
+
+func (r *PostgresRepository) withSuspensionGate(ctx context.Context, exclusive bool, fn func(*postgresTx) error) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
@@ -43,6 +47,17 @@ func (r *PostgresRepository) within(ctx context.Context, fn func(*postgresTx) er
 		locked:  map[string]Order{},
 		related: map[string]bool{},
 		applied: map[string]bool{},
+	}
+	// Take the gate before Order locks. A suspension takes it exclusively;
+	// ordinary mutations hold it shared through their eligibility check/commit.
+	// No network calls occur under either form of this transaction boundary.
+	if exclusive {
+		err = t.q.LockSuspensionGateExclusive(ctx)
+	} else {
+		err = t.q.LockSuspensionGateShared(ctx)
+	}
+	if err != nil {
+		return err
 	}
 	if err = fn(t); err != nil {
 		return err
@@ -124,6 +139,9 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 
 	if t.failed != nil {
 		return t.failed
+	}
+	if err := t.checkSuspensionEligibility(ctx, c); err != nil {
+		return err
 	}
 
 	// Require a fresh lock baseline for updates and allow one change per order.

@@ -49,6 +49,12 @@ func (p *Progress) advance(ctx context.Context, c Caller, id string, action Acti
 		if !visibleTo(current, c, now) {
 			return nil, ErrNotFound
 		}
+		// A suspended courier may finish an existing delivery, but cannot take
+		// custody of an item. A persisted pickup repeat remains a read of the
+		// earlier result; receipt is still available to a suspended requester.
+		if action == Pickup && current.Status == AwaitingPickup && c.Suspended {
+			return nil, ErrForbidden
+		}
 
 		actor := Actor{Kind: User, ID: c.ID}
 		next, repeat, err := Transition(current, action, actor)

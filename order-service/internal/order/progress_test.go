@@ -105,6 +105,7 @@ func TestProgressRejectsIneligibleCallersAndStates(t *testing.T) {
 		want   error
 	}{
 		{"pickup by requester", AwaitingPickup, pickup, Caller{ID: "requester"}, ErrForbidden},
+		{"pickup by suspended assigned courier", AwaitingPickup, pickup, Caller{ID: "courier", Suspended: true}, ErrForbidden},
 		{"pickup by admin", AwaitingPickup, pickup, Caller{ID: "admin", Admin: true}, ErrForbidden},
 		{"pickup by stranger", AwaitingPickup, pickup, Caller{ID: "stranger"}, ErrNotFound},
 		{"pickup before assignment", AwaitingCourier, pickup, Caller{ID: "courier"}, ErrPrecondition},
@@ -127,6 +128,20 @@ func TestProgressRejectsIneligibleCallersAndStates(t *testing.T) {
 				t.Fatal("rejected action wrote a change")
 			}
 		})
+	}
+}
+
+func TestSuspensionPreservesRecordedPickupAndRequesterReceipt(t *testing.T) {
+	p, tx, current := progressFixture(Delivering)
+	got, err := p.ConfirmPickup(context.Background(), Caller{ID: "courier", Suspended: true}, current.ID)
+	if err != nil || got.Status != Delivering || got.Revision != current.Revision || tx.applied != 0 {
+		t.Fatalf("suspended pickup repeat: %+v, %v, writes %d", got, err, tx.applied)
+	}
+
+	p, tx, current = progressFixture(Delivered)
+	got, err = p.ConfirmReceipt(context.Background(), Caller{ID: "requester", Suspended: true}, current.ID)
+	if err != nil || got.Status != Completed || tx.applied != 1 {
+		t.Fatalf("suspended requester receipt: %+v, %v, writes %d", got, err, tx.applied)
 	}
 }
 

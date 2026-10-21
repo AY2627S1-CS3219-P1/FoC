@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
@@ -23,8 +24,9 @@ type RoleChanges interface {
 }
 
 type RoleStore struct {
-	Users RoleUsers
-	Admin RoleChanges
+	Users      RoleUsers
+	Admin      RoleChanges
+	Dispatches RoleDispatchStore
 }
 
 type RoleTransaction func(context.Context, func(RoleStore) error) error
@@ -32,6 +34,8 @@ type RoleTransaction func(context.Context, func(RoleStore) error) error
 type RoleService struct {
 	Users           RoleUsers
 	WithTransaction RoleTransaction
+	Effects         RoleEffects
+	Dispatches      RoleDispatchStore
 }
 
 func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, email string) (models.User, error) {
@@ -64,6 +68,7 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 		return models.User{}, ErrInvalidRoleChange
 	}
 	var changed models.User
+	var dispatch *models.RoleDispatch
 	err := s.WithTransaction(ctx, func(tx RoleStore) error {
 		actor, err := tx.Users.GetByIDForUpdate(ctx, actorID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -78,7 +83,7 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 		if actorID == targetID {
 			return ErrPermissionDenied
 		}
-		target, err := tx.Users.GetByID(ctx, targetID)
+		target, err := tx.Users.GetByIDForUpdate(ctx, targetID)
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrUserNotFound
 		}
@@ -92,8 +97,39 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 		if target.Role == to {
 			return ErrRoleUnchanged
 		}
-		if (target.Role == models.RoleSuspended || to == models.RoleSuspended) && reason == "" {
-			return ErrInvalidRoleChange
+		changesSuspension := target.Role == models.RoleSuspended || to == models.RoleSuspended
+		if changesSuspension {
+			if reason == "" {
+				return ErrInvalidRoleChange
+			}
+			if s.Effects == nil || s.Dispatches == nil || tx.Dispatches == nil {
+				return ErrRoleEffectsUnconfigured
+			}
+		}
+		if tx.Dispatches != nil {
+			pending, err := tx.Dispatches.PendingRoleDispatch(ctx, targetID)
+			if err != nil {
+				return err
+			}
+			if pending != nil {
+				if pending.ToRole != to || pending.Reason != reason {
+					return ErrConcurrentRoleEdit
+				}
+				dispatch = pending
+				return nil
+			}
+		}
+		if changesSuspension {
+			dispatch = &models.RoleDispatch{
+				ID:        uuid.New(),
+				UserID:    targetID,
+				AdminID:   actorID,
+				FromRole:  target.Role,
+				ToRole:    to,
+				Reason:    reason,
+				CreatedAt: time.Now().UTC(),
+			}
+			return tx.Dispatches.PrepareRoleDispatch(ctx, dispatch)
 		}
 		change := &models.RoleChange{UserID: targetID, FromRole: target.Role, ToRole: to, Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID}}
 		if reason != "" {
@@ -112,6 +148,9 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 	})
 	if err != nil {
 		return models.User{}, fmt.Errorf("change user role: %w", err)
+	}
+	if dispatch != nil {
+		return s.applyRoleDispatch(ctx, *dispatch)
 	}
 	return changed, nil
 }

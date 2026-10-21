@@ -13,7 +13,66 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/internal.proto.
  */
 export const file_order_v1_internal: GenFile = /*@__PURE__*/
-  fileDesc("ChdvcmRlci92MS9pbnRlcm5hbC5wcm90bxIIb3JkZXIudjEiOQobR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKVAQocR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzQg0KC19jb3VyaWVyX2lkMoIBChRPcmRlckludGVybmFsU2VydmljZRJqChRHZXRPcmRlclBhcnRpY2lwYW50cxIlLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVxdWVzdBomLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVzcG9uc2UiA5ACAUKaAQoMY29tLm9yZGVyLnYxQg1JbnRlcm5hbFByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
+  fileDesc("ChdvcmRlci92MS9pbnRlcm5hbC5wcm90bxIIb3JkZXIudjEivwEKHUFwcGx5QWNjb3VudFN1c3BlbnNpb25SZXF1ZXN0Eh0KC2RlY2lzaW9uX2lkGAEgASgJQgi6SAVyA7ABARIZCgd1c2VyX2lkGAIgASgJQgi6SAVyA7ABARIaCghhZG1pbl9pZBgDIAEoCUIIukgFcgOwAQESGQoIcmV2aXNpb24YBCABKANCB7pIBCICIAASEQoJc3VzcGVuZGVkGAUgASgIEhoKBnJlYXNvbhgGIAEoCUIKukgHcgUQARjQDyI1Ch5BcHBseUFjY291bnRTdXNwZW5zaW9uUmVzcG9uc2USEwoLZGVjaXNpb25faWQYASABKAkiOQobR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKVAQocR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzQg0KC19jb3VyaWVyX2lkMvQBChRPcmRlckludGVybmFsU2VydmljZRJqChRHZXRPcmRlclBhcnRpY2lwYW50cxIlLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVxdWVzdBomLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVzcG9uc2UiA5ACARJwChZBcHBseUFjY291bnRTdXNwZW5zaW9uEicub3JkZXIudjEuQXBwbHlBY2NvdW50U3VzcGVuc2lvblJlcXVlc3QaKC5vcmRlci52MS5BcHBseUFjY291bnRTdXNwZW5zaW9uUmVzcG9uc2UiA5ACAkKaAQoMY29tLm9yZGVyLnYxQg1JbnRlcm5hbFByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
+
+/**
+ * @generated from message order.v1.ApplyAccountSuspensionRequest
+ */
+export type ApplyAccountSuspensionRequest = Message<"order.v1.ApplyAccountSuspensionRequest"> & {
+  /**
+   * @generated from field: string decision_id = 1;
+   */
+  decisionId: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string admin_id = 3;
+   */
+  adminId: string;
+
+  /**
+   * @generated from field: int64 revision = 4;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: bool suspended = 5;
+   */
+  suspended: boolean;
+
+  /**
+   * @generated from field: string reason = 6;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message order.v1.ApplyAccountSuspensionRequest.
+ * Use `create(ApplyAccountSuspensionRequestSchema)` to create a new message.
+ */
+export const ApplyAccountSuspensionRequestSchema: GenMessage<ApplyAccountSuspensionRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_internal, 0);
+
+/**
+ * @generated from message order.v1.ApplyAccountSuspensionResponse
+ */
+export type ApplyAccountSuspensionResponse = Message<"order.v1.ApplyAccountSuspensionResponse"> & {
+  /**
+   * @generated from field: string decision_id = 1;
+   */
+  decisionId: string;
+};
+
+/**
+ * Describes the message order.v1.ApplyAccountSuspensionResponse.
+ * Use `create(ApplyAccountSuspensionResponseSchema)` to create a new message.
+ */
+export const ApplyAccountSuspensionResponseSchema: GenMessage<ApplyAccountSuspensionResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_internal, 1);
 
 /**
  * Used by Communication to relay chat only between an order's participants.
@@ -32,7 +91,7 @@ export type GetOrderParticipantsRequest = Message<"order.v1.GetOrderParticipants
  * Use `create(GetOrderParticipantsRequestSchema)` to create a new message.
  */
 export const GetOrderParticipantsRequestSchema: GenMessage<GetOrderParticipantsRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_internal, 0);
+  messageDesc(file_order_v1_internal, 2);
 
 /**
  * @generated from message order.v1.GetOrderParticipantsResponse
@@ -66,7 +125,7 @@ export type GetOrderParticipantsResponse = Message<"order.v1.GetOrderParticipant
  * Use `create(GetOrderParticipantsResponseSchema)` to create a new message.
  */
 export const GetOrderParticipantsResponseSchema: GenMessage<GetOrderParticipantsResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_internal, 1);
+  messageDesc(file_order_v1_internal, 3);
 
 /**
  * Service-to-service reads. Not exposed to the frontend.
@@ -81,6 +140,17 @@ export const OrderInternalService: GenService<{
     methodKind: "unary";
     input: typeof GetOrderParticipantsRequestSchema;
     output: typeof GetOrderParticipantsResponseSchema;
+  },
+  /**
+   * User Service's authenticated durable role-decision handoff. This method is
+   * never mounted on the public router or authenticated with an admin user JWT.
+   *
+   * @generated from rpc order.v1.OrderInternalService.ApplyAccountSuspension
+   */
+  applyAccountSuspension: {
+    methodKind: "unary";
+    input: typeof ApplyAccountSuspensionRequestSchema;
+    output: typeof ApplyAccountSuspensionResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_order_v1_internal, 0);

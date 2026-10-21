@@ -47,6 +47,15 @@ type Order struct {
 	PendingCancellationID *uuid.UUID
 }
 
+type OrderAccountSuspension struct {
+	UserID             uuid.UUID
+	DecisionID         uuid.UUID
+	SuspensionRevision int64
+	Suspended          bool
+	AdminID            uuid.UUID
+	Reason             string
+}
+
 type OrderAssignmentAttempt struct {
 	ID             uuid.UUID
 	Sequence       int64
@@ -95,21 +104,22 @@ type OrderAudit struct {
 }
 
 type OrderCancellation struct {
-	ID             uuid.UUID
-	OrderID        uuid.UUID
-	CallerID       uuid.UUID
-	Reason         string
-	Status         string
-	AssignmentID   *uuid.UUID
-	CourierID      *uuid.UUID
-	AssignedAt     *time.Time
-	OriginalAmount int64
-	Generation     int64
-	Attempts       int32
-	LeaseUntil     time.Time
-	NextAttemptAt  time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   uuid.UUID
+	OrderID              uuid.UUID
+	CallerID             uuid.UUID
+	Reason               string
+	Status               string
+	AssignmentID         *uuid.UUID
+	CourierID            *uuid.UUID
+	AssignedAt           *time.Time
+	OriginalAmount       int64
+	Generation           int64
+	Attempts             int32
+	LeaseUntil           time.Time
+	NextAttemptAt        time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	SuspensionDecisionID *uuid.UUID
 }
 
 type OrderCreationWorkflow struct {

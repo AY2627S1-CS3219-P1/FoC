@@ -75,7 +75,7 @@ func (q *Queries) DueCancellations(ctx context.Context, arg DueCancellationsPara
 }
 
 const getCancellation = `-- name: GetCancellation :one
-SELECT id, order_id, caller_id, reason, status, assignment_id, courier_id, assigned_at, original_amount, generation, attempts, lease_until, next_attempt_at, created_at, updated_at FROM order_cancellations WHERE id = $1
+SELECT id, order_id, caller_id, reason, status, assignment_id, courier_id, assigned_at, original_amount, generation, attempts, lease_until, next_attempt_at, created_at, updated_at, suspension_decision_id FROM order_cancellations WHERE id = $1
 `
 
 func (q *Queries) GetCancellation(ctx context.Context, id uuid.UUID) (OrderCancellation, error) {
@@ -97,6 +97,7 @@ func (q *Queries) GetCancellation(ctx context.Context, id uuid.UUID) (OrderCance
 		&i.NextAttemptAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SuspensionDecisionID,
 	)
 	return i, err
 }
@@ -113,26 +114,27 @@ func (q *Queries) HasPendingCancellations(ctx context.Context) (bool, error) {
 }
 
 const insertCancellation = `-- name: InsertCancellation :exec
-INSERT INTO order_cancellations (id,order_id,caller_id,reason,status,assignment_id,courier_id,assigned_at,original_amount,generation,attempts,lease_until,next_attempt_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+INSERT INTO order_cancellations (id,order_id,caller_id,reason,status,assignment_id,courier_id,assigned_at,original_amount,generation,attempts,lease_until,next_attempt_at,created_at,updated_at,suspension_decision_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 `
 
 type InsertCancellationParams struct {
-	ID             uuid.UUID
-	OrderID        uuid.UUID
-	CallerID       uuid.UUID
-	Reason         string
-	Status         string
-	AssignmentID   *uuid.UUID
-	CourierID      *uuid.UUID
-	AssignedAt     *time.Time
-	OriginalAmount int64
-	Generation     int64
-	Attempts       int32
-	LeaseUntil     time.Time
-	NextAttemptAt  time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   uuid.UUID
+	OrderID              uuid.UUID
+	CallerID             uuid.UUID
+	Reason               string
+	Status               string
+	AssignmentID         *uuid.UUID
+	CourierID            *uuid.UUID
+	AssignedAt           *time.Time
+	OriginalAmount       int64
+	Generation           int64
+	Attempts             int32
+	LeaseUntil           time.Time
+	NextAttemptAt        time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	SuspensionDecisionID *uuid.UUID
 }
 
 func (q *Queries) InsertCancellation(ctx context.Context, arg InsertCancellationParams) error {
@@ -152,6 +154,7 @@ func (q *Queries) InsertCancellation(ctx context.Context, arg InsertCancellation
 		arg.NextAttemptAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.SuspensionDecisionID,
 	)
 	return err
 }

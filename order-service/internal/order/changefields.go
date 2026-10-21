@@ -30,9 +30,9 @@ func validateFields(before, after Order, action Action) error {
 		expected.PendingCancellationID = after.PendingCancellationID
 		expected.ClosedAt = after.ClosedAt
 		expected.CloseReason = after.CloseReason
-	case Withdraw, Unassign:
+	case Withdraw, Unassign, RemoveSuspendedCourier:
 		expected.PendingCancellationID = after.PendingCancellationID
-		if action == Withdraw {
+		if action == Withdraw || action == RemoveSuspendedCourier {
 			expected.RewardCredits = after.RewardCredits
 			expected.ReservedCredits = after.ReservedCredits
 		}
@@ -41,9 +41,9 @@ func validateFields(before, after Order, action Action) error {
 		}
 		expected.CourierID = nil
 		expected.AssignedAt = nil
-	case BeginWithdrawal:
+	case BeginWithdrawal, BeginSuspensionRemoval:
 		expected.PendingCancellationID = after.PendingCancellationID
-	case ProposeOffer, BeginAssignment, ResolveAssignment:
+	case ProposeOffer, BeginAssignment, ResolveAssignment, FenceSuspendedAcceptance:
 		// These actions change offers/workflow only, not Order observations.
 	case RecordItemLocation:
 		expected.ItemLocation = after.ItemLocation

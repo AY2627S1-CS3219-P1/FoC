@@ -107,12 +107,35 @@ func main() {
 	}
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
-		Users: persistence.Users,
+		Users:      persistence.Users,
+		Dispatches: persistence.Admin,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
+				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Dispatches: tx.Admin})
 			})
 		},
+	}
+	// #29 owns the authenticated User-to-Order transport. Effects deliberately
+	// remains nil until that approved dependency is supplied; never install a
+	// plaintext fallback or reuse a human/Credit credential for recovery.
+	pendingRoles, err := persistence.Admin.HasUnfinishedRoleDispatches(ctx)
+	if err != nil {
+		fatal("load role dispatches", err)
+	}
+	if pendingRoles && roleLogic.Effects == nil {
+		fatal("role recovery unavailable", service.ErrRoleEffectsUnconfigured)
+	}
+	if roleLogic.Effects != nil {
+		workerCtx, stopRoleRecovery := context.WithCancel(ctx)
+		roleRecoveryDone := make(chan struct{})
+		go func() {
+			defer close(roleRecoveryDone)
+			roleLogic.RecoverRoleDispatches(workerCtx)
+		}()
+		defer func() {
+			stopRoleRecovery()
+			<-roleRecoveryDone
+		}()
 	}
 	protected := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: profileLogic},
