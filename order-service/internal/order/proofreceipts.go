@@ -123,7 +123,10 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 		for _, id := range in.ProofIDs {
 			row, e := tx.GetProofUpload(ctx, id)
 			if e != nil {
-				return nil, ErrPrecondition
+				if errors.Is(e, ErrNotFound) {
+					return nil, ErrPrecondition
+				}
+				return nil, e
 			}
 			if !proofBelongsTo(row, o.ID, c.ID) || row.UploadScope != s.proofs.uploadScope || row.State != ProofUploading || row.VerifiedAt == nil || row.VerifiedAt.After(now) {
 				return nil, ErrPrecondition
