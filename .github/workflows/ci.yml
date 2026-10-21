@@ -58,6 +58,42 @@ jobs:
       - name: Check Go formatting and lint
         run: make lint GO_MODULES=${{ matrix.module }} GOLANGCI="$(command -v golangci-lint)"
 
+  user-integration:
+    name: User database integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: user_test
+          POSTGRES_USER: user_test
+          POSTGRES_PASSWORD: user_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U user_test -d user_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: user-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+      TEST_DATABASE_URL: postgres://user_test:user_test@localhost:5432/user_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: user-service/go.mod
+          cache-dependency-path: |
+            user-service/go.sum
+            pkg/go.sum
+      - name: Run User database integration tests
+        run: make test-integration
+
   supplier-integration:
     name: Supplier integration tests
     runs-on: ubuntu-latest

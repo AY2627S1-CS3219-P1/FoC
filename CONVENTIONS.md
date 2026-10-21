@@ -172,6 +172,14 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 
 ## Database
 
+- Generate UUIDv7 for new database-backed entity and event IDs. Go uses
+  `uuid.NewV7()` and returns generation errors; PostgreSQL defaults use
+  `uuidv7()` and require PostgreSQL 18 or newer.
+- Preserve existing UUIDs and continue accepting valid older UUID versions in
+  references and idempotency keys. Deterministic seed IDs remain UUIDv5.
+- Use explicit timestamps and revisions for business ordering. See
+  [the UUIDv7 decision](docs/adr/uuid-v7-identifiers.md).
+
 Supplier and Order Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,

@@ -31,6 +31,26 @@ func adminInput() Input {
 	}
 }
 
+func TestPostgresLocationCreationUsesUUIDv7(t *testing.T) {
+	pool := locationfixture.SetupDatabase(t)
+	svc := newTestAdminService(pool)
+	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: "admin", Admin: true})
+	input := CreateRequest{Key: uuid.NewString(), Input: adminInput()}
+
+	created, err := svc.Create(ctx, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, err := uuid.Parse(created.ID); err != nil || id.Version() != 7 {
+		t.Fatalf("location ID %q must be UUIDv7: %v", created.ID, err)
+	}
+
+	replayed, err := svc.Create(ctx, input)
+	if err != nil || replayed.ID != created.ID || replayed.Revision != created.Revision {
+		t.Fatalf("idempotent retry changed identity: created=%+v replayed=%+v error=%v", created, replayed, err)
+	}
+}
+
 func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 	pool := locationfixture.SetupDatabase(t)
 	ctx := context.Background()

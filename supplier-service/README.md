@@ -9,7 +9,7 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
 
 1. Database setup
 
-   1. This project uses PostgreSQL. Postgres 18 is recommended.
+   1. This project requires PostgreSQL 18 or newer for its UUIDv7 ID defaults.
    1. Use [goose](https://github.com/pressly/goose) for database migration.
       Downloading goose: `https://github.com/pressly/goose`
    1. Create a database and populate .env with `DATABASE_URL=<connection string>`

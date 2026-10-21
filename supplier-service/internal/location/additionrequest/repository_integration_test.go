@@ -7,9 +7,47 @@ import (
 	"time"
 
 	additionrequest "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/location/additionrequest"
+	"github.com/google/uuid"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+func TestApprovedLocationUsesUUIDv7(t *testing.T) {
+	f := newFixture(t)
+	f.reset(t)
+
+	service := additionrequest.NewService(additionrequest.NewPostgresRepository(f.pool, time.Now), time.Now)
+	owner := additionrequest.Caller{ID: "owner", Role: "user"}
+	admin := additionrequest.Caller{ID: "admin", Role: "admin"}
+
+	request, err := service.SubmitRequest(f.ctx, owner, additionrequest.SubmitRequest{
+		Proposal: additionrequest.Proposal{
+			Name:       "UUIDv7 location",
+			BuildingID: postgresBuildingID,
+			Latitude:   1.294,
+			Longitude:  103.774,
+		},
+		Key: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	approved, err := service.ApproveRequest(f.ctx, admin, request.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{request.ID, approved.Location.ID} {
+		if id, err := uuid.Parse(value); err != nil || id.Version() != 7 {
+			t.Fatalf("generated ID %q must be UUIDv7: %v", value, err)
+		}
+	}
+
+	replayed, err := service.ApproveRequest(f.ctx, admin, request.ID)
+	if err != nil || replayed.Location.ID != approved.Location.ID || replayed.Request.Revision != approved.Request.Revision {
+		t.Fatalf("approval retry changed identity: approved=%+v replayed=%+v error=%v", approved, replayed, err)
+	}
+}
 
 func TestWorkflowPersistencePostGIS(t *testing.T) {
 	f := newFixture(t)

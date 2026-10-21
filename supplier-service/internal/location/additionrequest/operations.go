@@ -23,7 +23,21 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 			if e := tx.ValidateReferences(ctx, normalizedProposal); e != nil {
 				return "", e
 			}
-			r := AdditionRequest{ID: uuid.NewString(), Proposal: normalizedProposal, SubmittedBy: c.ID, Status: Pending, Revision: 1, CreatedAt: now, UpdatedAt: now}
+
+			resourceID, e := uuid.NewV7()
+			if e != nil {
+				return "", DependencyError("generate addition request ID", e)
+			}
+
+			r := AdditionRequest{
+				ID:          resourceID.String(),
+				Proposal:    normalizedProposal,
+				SubmittedBy: c.ID,
+				Status:      Pending,
+				Revision:    1,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
 			return r.ID, tx.SaveRequest(ctx, r, 0)
 		})
 		if e != nil {
