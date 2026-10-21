@@ -95,7 +95,7 @@ func TestLocationProductionComposition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	approved, err := reviewer.ApproveLocationAdditionRequest(ctx, connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{Id: submitted.Msg.Request.Id}))
+	approved, err := reviewer.ApproveLocationAdditionRequest(ctx, connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{Id: submitted.Msg.Request.Id, ExpectedRevision: submitted.Msg.Request.Revision}))
 	if err != nil || approved.Msg.Location.Id == id {
 		t.Fatalf("approval: %v %v", approved, err)
 	}
