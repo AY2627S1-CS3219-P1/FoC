@@ -97,3 +97,20 @@ func TestClientKeepsTokenOutOfNetworkErrors(t *testing.T) {
 		t.Fatalf("error leaks the token: %v", err)
 	}
 }
+
+func TestClientReturnsAPIErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 7","parameters":{"retry_after":7}}`)
+	}))
+	defer srv.Close()
+
+	err := NewClient(token, srv.URL, srv.Client()).SendMessage(context.Background(), 42, "hi")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 429 || apiErr.RetryAfter != 7*time.Second || apiErr.Method != "sendMessage" {
+		t.Fatalf("err = %#v", err)
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Fatal("error leaks the bot token")
+	}
+}

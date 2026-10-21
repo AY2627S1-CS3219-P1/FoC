@@ -19,6 +19,20 @@ const DefaultBaseURL = "https://api.telegram.org"
 // ErrUnauthorized means Telegram rejected the bot token.
 var ErrUnauthorized = errors.New("telegram rejected the bot token")
 
+// APIError is a request Telegram answered with ok=false, other than a
+// rejected token.
+type APIError struct {
+	Method      string
+	Code        int
+	Description string
+	// Set when Telegram rate-limits the bot (code 429).
+	RetryAfter time.Duration
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s failed: %d %s", e.Method, e.Code, e.Description)
+}
+
 // Client calls the Bot API for one bot. The zero HTTP client is not usable;
 // build one with NewClient.
 type Client struct {
@@ -86,6 +100,9 @@ type response[T any] struct {
 	Result      T      `json:"result"`
 	ErrorCode   int    `json:"error_code"`
 	Description string `json:"description"`
+	Parameters  *struct {
+		RetryAfter int `json:"retry_after"`
+	} `json:"parameters"`
 }
 
 // GetMe returns the bot's own account, which also checks the token.
@@ -142,7 +159,11 @@ func (c *Client) call(ctx context.Context, method string, params any, result any
 		if decoded.ErrorCode == http.StatusUnauthorized {
 			return ErrUnauthorized
 		}
-		return fmt.Errorf("%s failed: %d %s", method, decoded.ErrorCode, decoded.Description)
+		apiErr := &APIError{Method: method, Code: decoded.ErrorCode, Description: decoded.Description}
+		if decoded.Parameters != nil {
+			apiErr.RetryAfter = time.Duration(decoded.Parameters.RetryAfter) * time.Second
+		}
+		return apiErr
 	}
 	if result == nil {
 		return nil

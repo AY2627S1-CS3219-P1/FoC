@@ -1,49 +1,72 @@
 <script lang="ts">
-	import { Card } from 'm3-svelte';
+	import { Button, Card } from 'm3-svelte';
 	import type { Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import { formatOpeningHours } from '$lib/services/location/format';
 	import LocationTags from './LocationTags.svelte';
 
-	let { location }: { location: Location } = $props();
+	let { location, isAdmin = false }: { location: Location; isAdmin?: boolean } = $props();
 </script>
 
-<a class="card-link" class:archived={location.archivedAt} href={`/suppliers/${location.id}`}>
+<div class="location-card" class:archived={location.archivedAt}>
 	<Card variant="outlined">
-		<div class="card-body">
-			<h2>{location.name}</h2>
-			<p class="muted">
-				{location.building?.name}{#if location.floor}, floor {location.floor}{/if}
-			</p>
-			<LocationTags {location} />
-			<p class="muted">{formatOpeningHours(location.opensAt, location.closesAt)}</p>
-			{#if location.currentDisablement}
-				<p class="closed">Temporarily closed: {location.currentDisablement.reason}</p>
-			{/if}
-		</div>
+		<a class="card-link" href={`/suppliers/${location.id}`}>
+			<div class="card-body">
+				<h2>{location.name}</h2>
+				<p class="muted">
+					{location.building?.name}{#if location.floor}, floor {location.floor}{/if}
+				</p>
+				<LocationTags {location} />
+				<p class="muted">{formatOpeningHours(location.opensAt, location.closesAt)}</p>
+				{#if location.currentDisablement}
+					<p class="closed">Temporarily closed: {location.currentDisablement.reason}</p>
+				{/if}
+			</div>
+		</a>
+		{#if isAdmin}
+			<div class="card-actions">
+				<Button
+					variant="outlined"
+					href={`/admin/suppliers/${location.id}`}
+					aria-label={`Edit ${location.name}`}>Edit</Button
+				>
+			</div>
+		{/if}
 	</Card>
-</a>
+</div>
 
 <style>
-	.card-link {
-		display: block;
+	.location-card {
 		height: 100%;
-		color: inherit;
-		text-decoration: none;
-		border-radius: var(--m3-shape-medium);
 	}
 
-	.card-link > :global(.m3-container) {
+	.location-card > :global(.m3-container) {
 		height: 100%;
 		transition: box-shadow var(--m3-easing-fast);
 	}
 
-	.card-link:hover > :global(.m3-container),
-	.card-link:focus-visible > :global(.m3-container) {
+	.location-card:hover > :global(.m3-container),
+	.location-card:focus-within > :global(.m3-container) {
 		box-shadow: var(--m3-elevation-1);
 	}
 
 	.archived > :global(.m3-container) {
 		background: var(--m3c-surface-container);
+	}
+
+	.card-link {
+		display: block;
+		flex: 1;
+		margin: -1rem;
+		padding: 1rem;
+		color: inherit;
+		text-decoration: none;
+		border-radius: var(--m3-shape-medium);
+	}
+
+	.card-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 1rem;
 	}
 
 	.card-body {

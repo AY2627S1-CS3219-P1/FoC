@@ -14,8 +14,8 @@ type ProgressOperations interface {
 	ConfirmReceipt(context.Context, app.Caller, string) (app.Order, error)
 }
 
-func NewServerWithProgress(operations Operations, creator CreationOperations, images ImageOperations, progress ProgressOperations) *Server {
-	s := NewServer(operations, creator, images)
+func NewServerWithProgress(operations Operations, creator CreationOperations, images ImageOperations, progress ProgressOperations, assignments ...AssignmentOperations) *Server {
+	s := NewServer(operations, creator, images, assignments...)
 	s.progress = progress
 	return s
 }

@@ -46,6 +46,28 @@ type Order struct {
 	UpdatedAt            time.Time
 }
 
+type OrderAssignmentAttempt struct {
+	ID             uuid.UUID
+	Sequence       int64
+	OrderID        uuid.UUID
+	OfferID        *uuid.UUID
+	CallerID       uuid.UUID
+	CourierID      uuid.UUID
+	Method         string
+	IdempotencyKey *uuid.UUID
+	RequestHash    string
+	Amount         int64
+	OriginalAmount int64
+	Phase          string
+	Generation     int64
+	Attempts       int32
+	LeaseUntil     time.Time
+	NextAttemptAt  time.Time
+	Rejection      string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type OrderAssignmentHistory struct {
 	ID               uuid.UUID
 	OrderID          uuid.UUID

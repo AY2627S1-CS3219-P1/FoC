@@ -20,9 +20,55 @@ Credit owns reward/lateness/refund calculation and the PRD's 100-credit initial
 grant. This change does not choose a new lateness formula or grant policy.
 
 Credit keeps `request_id` (the permanent Order UUID) and `offer_id` field names.
-Existing creation/offer retry keys remain; unrelated mutation requests do not gain
-required keys. Creation deadline checks run after retained-key lookup, since an
-identical retry after expiry must still find the original operation.
+Existing creation/offer retry keys remain. AcceptOrder is an explicitly approved
+exception to the original keyless mutation design: it requires a client-generated
+acceptance-attempt UUID. Other mutation requests do not gain required keys.
+Creation deadline checks run after retained-key lookup, since an identical retry
+after expiry must still find the original operation.
+
+## Acceptance retries (implemented in #159)
+
+AcceptOrder requires a client-generated acceptance-attempt UUID. After a courier
+withdraws and the Order reopens, the UUID distinguishes a delayed retry from an
+intentional new acceptance. There is no keyless fallback.
+
+The caller generates one UUID for an intentional acceptance attempt and reuses it
+for retries, including after a timeout or lost response. Order persists the attempt
+and its result so replay cannot create a second assignment after withdrawal or
+unassignment. Intentional reacceptance requires a new UUID. Retain the attempt
+identity and result for as long as the Order is retained, rather than applying
+creation's 24-hour retry-key policy. Unresolved work remains durable until resolved.
+Retry-record retention does not extend the Order's acceptance deadline.
+
+A replay returns the recorded attempt outcome alongside the current Order state.
+For example, an acceptance that succeeded before courier withdrawal remains a
+successful historical attempt, but the response must also show that the courier
+is no longer assigned. Replaying that attempt never assigns the courier again.
+The public attempt UUID and Credit's stable offer_id serve different boundaries;
+their exact mapping remains part of the assignment workflow design.
+
+Fresh direct acceptance is admitted only while the Order is Awaiting Courier and
+has not expired. A fresh key for an assigned, terminal or otherwise private Order
+returns not_found, just like a nonexistent Order, and stores no attempt. Recognized
+keys are resolved first and still return their historical outcome and the current
+caller-authorized Order.
+
+While an Order is public, competing couriers may each have one retained rejection
+when an assignment is already pending. Further fresh keys from that courier return
+failed_precondition without creating more rows. The retained rejection stays
+replayable for the Order's lifetime. This preserves contention among 50 eligible
+couriers while bounding rejected-key growth per caller and Order. Admission
+failures have no operation identity and must not be automatically retried after
+the Order changes. An intentional new acceptance always uses a new UUID.
+
+Proposal keys retain the existing 24-hour guarantee. Before sending a proposal,
+the browser saves the original amount, key and first-dispatch timestamp. It will
+retry only within that window. After 24 hours, or when an older saved proposal has
+no timestamp, the user must refresh offers and deliberately start a new proposal.
+That new proposal can replace an existing Open offer. Financial acceptance UUIDs
+keep their lifetime guarantee; this proposal limit does not apply to them.
+
+## Publication and recovery
 
 Kafka schemas belong to `kafka/order/events/v1`, independently of RPC types.
 The merged #123 Kafka contracts are the external event boundary; obsolete RPC
