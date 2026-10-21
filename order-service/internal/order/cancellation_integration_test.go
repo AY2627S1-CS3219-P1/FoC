@@ -66,8 +66,8 @@ func TestPostgresCancellationParticipantsAndStates(t *testing.T) {
 					}
 					now := func() time.Time { return o.UpdatedAt.Add(time.Second) }
 					beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
-					result, err := NewCanceller(f.repo, nil, AssignmentOptions{Now: now}).Cancel(f.ctx, caller, o.ID, "  change of plans  ", uuid.NewString())
-					allowed := role == "requester" && (status == AwaitingCourier || status == AwaitingPickup || status == Delivering) || role == "courier" && status == Delivering
+					result, err := NewCanceller(f.repo, newAssignmentCredit(100, o), AssignmentOptions{Now: now}).Cancel(f.ctx, caller, o.ID, "  change of plans  ", uuid.NewString())
+					allowed := role == "requester" && (status == AwaitingCourier || status == AwaitingPickup || status == Delivering) || role == "courier" && (status == AwaitingPickup || status == Delivering)
 					if !allowed {
 						if err == nil {
 							t.Fatalf("unexpected cancellation: %+v", result)
@@ -525,5 +525,60 @@ func TestPostgresWithdrawalLeaseFencesLaterAssignment(t *testing.T) {
 	credit.mu.Unlock()
 	if view.OfferID != later.AttemptID || view.State != "assigned" {
 		t.Fatalf("late reversal changed financial identity %+v", view)
+	}
+}
+
+func TestPostgresWithdrawalWithoutCreditDoesNotAdmitIntent(t *testing.T) {
+	f := setup(t)
+	o := assignmentOpenOrder(t, f)
+	_, now := assignmentClock(o)
+	credit := newAssignmentCredit(100, o)
+	courier := Caller{ID: uuid.NewString()}
+	assigned, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
+	if err != nil || assigned.Phase != AssignmentSucceeded {
+		t.Fatalf("assign: %+v %v", assigned, err)
+	}
+	before, err := f.repo.Get(f.ctx, o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
+	key := uuid.NewString()
+	withoutCredit := NewCanceller(f.repo, nil, AssignmentOptions{Now: now})
+	if _, err := withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("missing Credit: %v", err)
+	}
+	current, err := f.repo.Get(f.ctx, o.ID)
+	if err != nil || current.Revision != before.Revision || current.PendingCancellationID != nil || current.Status != AwaitingPickup {
+		t.Fatalf("rejected withdrawal changed order: %+v %v", current, err)
+	}
+	audit, facts, _ := f.counts(t, o.ID)
+	var operations, keys int
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_cancellations WHERE order_id=$1", o.ID).Scan(&operations); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_idempotency_keys WHERE idempotency_key=$1", key).Scan(&keys); err != nil {
+		t.Fatal(err)
+	}
+	if audit != beforeAudit || facts != beforeFacts || operations != 0 || keys != 0 {
+		t.Fatalf("rejection wrote state: audit=%d facts=%d operations=%d keys=%d", audit-beforeAudit, facts-beforeFacts, operations, keys)
+	}
+
+	credit.denyRevert = true
+	pending, err := NewCanceller(f.repo, credit, AssignmentOptions{Now: now}).Cancel(f.ctx, courier, o.ID, "withdraw", key)
+	if err != nil || pending.Status != CancellationPending {
+		t.Fatalf("admit after Credit restored: %+v %v", pending, err)
+	}
+	replay, err := withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key)
+	if err != nil || replay.OperationID != pending.OperationID || replay.Status != CancellationPending {
+		t.Fatalf("pending replay without Credit: %+v %v", replay, err)
+	}
+	closed, err := withoutCredit.Cancel(f.ctx, Caller{ID: o.RequesterID}, o.ID, "cancel", uuid.NewString())
+	if err != nil || closed.Order.Status != Cancelled || closed.Status != CancellationSucceeded {
+		t.Fatalf("requester cancellation without Credit: %+v %v", closed, err)
+	}
+	replay, err = withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key)
+	if err != nil || replay.OperationID != pending.OperationID || replay.Status != CancellationSuperseded || replay.Order.Status != Cancelled {
+		t.Fatalf("historical replay without Credit: %+v %v", replay, err)
 	}
 }

@@ -83,8 +83,8 @@ export class AuthService {
 		return this.#runSessionOperation(() => this.#api.login(token));
 	}
 
-	register(token: string, displayName: string): Promise<void> {
-		return this.#runSessionOperation(() => this.#api.register(token, displayName));
+	register(token: string, displayName: string, phoneNumber: string): Promise<void> {
+		return this.#runSessionOperation(() => this.#api.register(token, displayName, phoneNumber));
 	}
 
 	async refresh(): Promise<void> {

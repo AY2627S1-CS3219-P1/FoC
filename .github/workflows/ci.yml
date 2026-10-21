@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service]
+        module: [pkg, user-service, supplier-service, order-service, communication-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service]
+        module: [pkg, user-service, supplier-service, order-service, communication-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -48,6 +48,7 @@ jobs:
             user-service/go.sum
             supplier-service/go.sum
             order-service/go.sum
+            communication-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -96,6 +97,10 @@ jobs:
           cache-dependency-path: |
             supplier-service/go.sum
             pkg/go.sum
+      - name: Run seed runner integration tests
+        if: steps.changes.outputs.run == 'true'
+        working-directory: pkg
+        run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration

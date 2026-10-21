@@ -4,6 +4,12 @@ import { defineConfig } from 'vite';
 import { functionsMixins } from 'vite-plugin-functions-mixins';
 
 export default defineConfig({
+	// Superforms' adapter barrel also references optional server-only validators.
+	// We use Zod; keep Vine out of browser resolution without polyfilling Node DNS.
+	// The unused adapter is tree-shaken; server builds retain normal resolution.
+	environments: {
+		client: { build: { rolldownOptions: { external: ['@vinejs/vine'] } } }
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {
