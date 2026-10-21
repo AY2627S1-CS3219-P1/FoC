@@ -38,6 +38,9 @@ func setupAuthStore(t *testing.T) (*Store, *gorm.DB) {
 	if err := db.Exec("TRUNCATE users CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
+		t.Fatal(err)
+	}
 	return New(db), db
 }
 
