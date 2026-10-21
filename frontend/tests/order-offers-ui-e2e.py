@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:5187")
     parser.add_argument("--out", default=".local/order-offers-ui-evidence")
     parser.add_argument("--channel", default="chrome")
+    parser.add_argument("--executable")
     args = parser.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -106,7 +107,7 @@ def main():
 
     report = {"status": "FAIL", "scope": "Actual shared detail composition and B1 controls using Connect fixtures; not real DB/RPC/Credit/browser-to-live-server proof", "assertions": assertions}
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, channel=args.channel)
+        browser = p.chromium.launch(headless=True, executable_path=args.executable) if args.executable else p.chromium.launch(headless=True, channel=args.channel)
         context = browser.new_context(viewport={"width": 360, "height": 900}, record_video_dir=str(out / "video"))
         context.route("**/*", route_request)
         page = context.new_page()
@@ -153,7 +154,20 @@ def main():
             assert len(state["accept"]) == 3 and all(value == original for value in state["accept"])
             expect(controls.get_by_role("button", name="Accept current reward (20 credits)", exact=True)).to_be_disabled()
             assertions.append("Restored user retries same UUID; historical success is distinct from refreshed CURRENT courier, with no new assignment claim")
+            proposal_storage = f"order-offers:v1:{COURIER}:{PROPOSAL_ORDER}"
+            saved_proposal = {"kind": "proposal", "key": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "credits": "30", "outcome": "uncertain", "dispatchedAt": int(datetime.now(timezone.utc).timestamp() * 1000) - 86_400_001}
+            page.evaluate("([key, value]) => sessionStorage.setItem(key, JSON.stringify(value))", [proposal_storage, saved_proposal])
             page.goto(origin + "/orders/" + PROPOSAL_ORDER)
+            expect(controls.get_by_text("past its 24-hour retry window", exact=False)).to_be_visible()
+            expect(controls.get_by_role("button", name="Retry the same saved request", exact=True)).to_have_count(0)
+            assert len(state["proposal"]) == 0
+            del saved_proposal["dispatchedAt"]
+            page.evaluate("([key, value]) => sessionStorage.setItem(key, JSON.stringify(value))", [proposal_storage, saved_proposal])
+            page.reload()
+            expect(controls.get_by_text("past its 24-hour retry window", exact=False)).to_be_visible()
+            assert len(state["proposal"]) == 0
+            controls.get_by_role("button", name="Start a deliberate new action", exact=True).click()
+            assertions.append("Expired and legacy undated proposal retries send no MakeOffer; user explicitly starts a new proposal")
             expect(controls.get_by_label("Counteroffer credits", exact=True)).to_be_enabled()
             controls.get_by_label("Counteroffer credits", exact=True).fill("30")
             controls.get_by_role("button", name="Submit / replace my open offer", exact=True).click()

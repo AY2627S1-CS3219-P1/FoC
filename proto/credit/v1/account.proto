@@ -5,9 +5,12 @@ package credit.v1;
 import "buf/validate/validate.proto";
 import "credit/v1/shared_types.proto";
 
-// The caller's own credits. Read-only; the caller is identified by their User
-// Service JWT. The first call creates the caller's account with the starting
-// credits.
+// The caller's own credits, identified by their User Service JWT. Reads have no
+// side effects and never open an account. Credit opens it with the starting
+// credits, once per user, when it consumes the user's users.create event or on
+// the user's first Reserve or payout, whichever comes first. Until then, both
+// RPCs fail with not_found and a google.rpc.ErrorInfo with domain "credit.v1"
+// and reason ACCOUNT_NOT_FOUND.
 service CreditAccountService {
   rpc GetMyAccount(GetMyAccountRequest) returns (GetMyAccountResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
   rpc ListMyLedgerEntries(ListMyLedgerEntriesRequest) returns (ListMyLedgerEntriesResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
