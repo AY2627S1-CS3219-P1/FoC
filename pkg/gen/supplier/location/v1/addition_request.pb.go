@@ -485,10 +485,13 @@ func (x *WithdrawLocationAdditionRequestRequest) GetId() string {
 }
 
 type ApproveLocationAdditionRequestRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Must match the pending proposal revision, otherwise aborted. Retrying an
+	// already approved request returns its original result without another write.
+	ExpectedRevision int64 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ApproveLocationAdditionRequestRequest) Reset() {
@@ -528,12 +531,22 @@ func (x *ApproveLocationAdditionRequestRequest) GetId() string {
 	return ""
 }
 
+func (x *ApproveLocationAdditionRequestRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
 type RejectLocationAdditionRequestRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ReviewNote    string                 `protobuf:"bytes,2,opt,name=review_note,json=reviewNote,proto3" json:"review_note,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReviewNote string                 `protobuf:"bytes,2,opt,name=review_note,json=reviewNote,proto3" json:"review_note,omitempty"`
+	// Must match the pending proposal revision, otherwise aborted. Retrying an
+	// already rejected request returns its original decision and review note.
+	ExpectedRevision int64 `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RejectLocationAdditionRequestRequest) Reset() {
@@ -578,6 +591,13 @@ func (x *RejectLocationAdditionRequestRequest) GetReviewNote() string {
 		return x.ReviewNote
 	}
 	return ""
+}
+
+func (x *RejectLocationAdditionRequestRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
 }
 
 type SubmitLocationAdditionRequestResponse struct {
@@ -949,14 +969,16 @@ const file_supplier_location_v1_addition_request_proto_rawDesc = "" +
 	"!GetLocationAdditionRequestRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"B\n" +
 	"&WithdrawLocationAdditionRequestRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"A\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"w\n" +
 	"%ApproveLocationAdditionRequestRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"m\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x124\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\"\xa3\x01\n" +
 	"$RejectLocationAdditionRequestRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12+\n" +
 	"\vreview_note\x18\x02 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fR\n" +
-	"reviewNote\"p\n" +
+	"reviewNote\x124\n" +
+	"\x11expected_revision\x18\x03 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevision\"p\n" +
 	"%SubmitLocationAdditionRequestResponse\x12G\n" +
 	"\arequest\x18\x01 \x01(\v2-.supplier.location.v1.LocationAdditionRequestR\arequest\"m\n" +
 	"\"GetLocationAdditionRequestResponse\x12G\n" +

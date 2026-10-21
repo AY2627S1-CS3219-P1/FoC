@@ -51,24 +51,38 @@ func (f *fakeOperations) GetOrder(_ context.Context, c app.Caller, id string) (a
 	f.called, f.caller, f.id = "get", c, id
 	return fixture(), f.err
 }
+
 func (f *fakeOperations) page(name string, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	f.called, f.caller, f.request = name, c, r
 	return app.OrderPage{Orders: []app.Order{fixture()}, PageInfo: app.PageInfo{Page: app.Page{Number: 2, Size: 20}, Total: 21}}, f.err
 }
+
 func (f *fakeOperations) ListOpenOrders(_ context.Context, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	return f.page("open", c, r)
 }
+
 func (f *fakeOperations) ListMyOrders(_ context.Context, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	return f.page("mine", c, r)
 }
+
 func (f *fakeOperations) ListUserOrders(_ context.Context, c app.Caller, id string, r app.ListRequest) (app.OrderPage, error) {
 	f.id = id
 	return f.page("user", c, r)
 }
+
 func (f *fakeOperations) ListOffers(_ context.Context, c app.Caller, id string, status app.OfferStatus) ([]app.Offer, error) {
 	f.called, f.caller, f.id, f.status = "offers", c, id, status
 	o := fixture()
 	return []app.Offer{{ID: userID, OrderID: id, CourierID: userID, Credits: 50, Status: app.OfferAccepted, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt}}, f.err
+}
+
+func (f *fakeOperations) ConfirmPickup(_ context.Context, c app.Caller, id string) (app.Order, error) {
+	f.called, f.caller, f.id = "pickup", c, id
+	return fixture(), f.err
+}
+func (f *fakeOperations) ConfirmReceipt(_ context.Context, c app.Caller, id string) (app.Order, error) {
+	f.called, f.caller, f.id = "receipt", c, id
+	return fixture(), f.err
 }
 
 type clients struct {
@@ -91,8 +105,8 @@ func mount(t *testing.T, f *fakeOperations, role string) clients {
 	}
 	server := httptest.NewServer(router.Setup(router.RPCServices{
 		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
-		Order:  rpcorder.NewServer(f),
-		Admin:  orderadmin.NewServer(f),
+		Order:  rpcorder.NewServerWithProgress(f, nil, nil, f),
+		Admin:  orderadmin.NewServer(f, nil),
 	}, authenticate))
 	t.Cleanup(server.Close)
 	return clients{order: orderv1connect.NewOrderServiceClient(server.Client(), server.URL), admin: orderv1connect.NewOrderAdminServiceClient(server.Client(), server.URL), internal: orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL)}
@@ -123,8 +137,8 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	if err != nil || f.request.Role != app.CourierRole || f.request.Status != app.Completed || f.request.Page.Number != 2 || my.Msg.PageInfo.TotalItems != 21 || my.Msg.PageInfo.TotalPages != 2 {
 		t.Fatalf("mine filters/page: fake=%+v response=%v err=%v", f, my, err)
 	}
-	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryLocationId: proto.String(orderID), Page: 3, PageSize: 10}))
-	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryID != orderID || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
+	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryBuildingName: "COM3", Page: 3, PageSize: 10}))
+	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryBuildingName != "COM3" || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
 		t.Fatalf("open filters: %+v err=%v", f, err)
 	}
 	offers, err := c.order.ListOffers(ctx, connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus_OFFER_STATUS_ACCEPTED}))
@@ -236,6 +250,29 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 	}
 }
 
+func TestProgressRPCsForwardCallerAndConvertOrder(t *testing.T) {
+	f := &fakeOperations{}
+	c := mount(t, f, "user")
+	ctx := context.Background()
+	picked, err := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
+	if err != nil || f.called != "pickup" || f.id != orderID || f.caller.ID != userID || picked.Msg.Order.GetId() != orderID {
+		t.Fatalf("pickup: fake=%+v response=%v err=%v", f, picked, err)
+	}
+	received, err := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
+	if err != nil || f.called != "receipt" || f.id != orderID || received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
+		t.Fatalf("receipt: fake=%+v response=%v err=%v", f, received, err)
+	}
+
+	f.called = ""
+	if _, err = c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: "invalid"})); connect.CodeOf(err) != connect.CodeInvalidArgument || f.called != "" {
+		t.Fatalf("invalid id reached operation: err=%v called=%q", err, f.called)
+	}
+	f.err = app.ErrPrecondition
+	if _, err = c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("domain error: %v", err)
+	}
+}
+
 func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	c := mount(t, &fakeOperations{}, "admin")
 	ctx := context.Background()
@@ -248,11 +285,11 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"image upload", func() error {
-			_, e := c.order.CreateItemImageUpload(ctx, connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png"}))
+			_, e := c.order.CreateItemImageUpload(ctx, connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: 42}))
 			return e
 		}},
 		{"accept", func() error {
-			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID}))
+			_, e := c.order.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
 			return e
 		}},
 		{"make offer", func() error {
@@ -263,20 +300,12 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			_, e := c.order.AcceptOffer(ctx, connect.NewRequest(&pb.AcceptOfferRequest{Id: orderID}))
 			return e
 		}},
-		{"pickup", func() error {
-			_, e := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
-			return e
-		}},
 		{"proof upload", func() error {
 			_, e := c.order.CreateProofUpload(ctx, connect.NewRequest(&pb.CreateProofUploadRequest{OrderId: orderID, UploadId: userID, ContentType: "image/png"}))
 			return e
 		}},
 		{"delivery", func() error {
 			_, e := c.order.ConfirmDelivery(ctx, connect.NewRequest(&pb.ConfirmDeliveryRequest{OrderId: orderID, ProofIds: []string{userID}}))
-			return e
-		}},
-		{"receipt", func() error {
-			_, e := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
 			return e
 		}},
 		{"cancel", func() error {
@@ -298,7 +327,11 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	}
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
-			if err := call.call(); connect.CodeOf(err) != connect.CodeUnimplemented {
+			want := connect.CodeUnimplemented
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" {
+				want = connect.CodeUnavailable
+			}
+			if err := call.call(); connect.CodeOf(err) != want {
 				t.Fatalf("err=%v", err)
 			}
 		})
