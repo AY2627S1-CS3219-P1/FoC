@@ -9,6 +9,7 @@ import { createAdditionRequestApi } from './addition-request';
 import { createDisablementApi } from './disablement';
 import { SupplierAdminAccess } from './location-admin/service.svelte';
 import { createOrderApi } from './order/index.ts';
+import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 import { createTelegramLinkApi } from './telegram/index.ts';
 
@@ -48,6 +49,7 @@ const orderTransport = createCustomTransport({
 	interceptors: [authService.interceptor]
 });
 export const orderApi = createOrderApi(orderTransport);
+export const orderOffersApi = createOrderOffersApi(orderTransport);
 
 const creditTransport = createCustomTransport({
 	baseUrl: env.PUBLIC_CREDIT_SERVICE_URL ?? 'http://localhost:8085',

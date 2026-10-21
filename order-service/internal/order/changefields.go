@@ -12,7 +12,7 @@ func validateFields(before, after Order, action Action) error {
 	expected.UpdatedAt = after.UpdatedAt
 
 	switch action {
-	case Assign:
+	case Assign, AcceptCounteroffer:
 		expected.CourierID = after.CourierID
 		expected.AssignedAt = after.AssignedAt
 		expected.RewardCredits = after.RewardCredits
@@ -35,6 +35,8 @@ func validateFields(before, after Order, action Action) error {
 		}
 		expected.CourierID = nil
 		expected.AssignedAt = nil
+	case ProposeOffer, BeginAssignment, ResolveAssignment:
+		// These actions change offers/workflow only, not Order observations.
 	case RecordItemLocation:
 		expected.ItemLocation = after.ItemLocation
 	default:
