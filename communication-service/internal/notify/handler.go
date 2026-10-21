@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
@@ -28,7 +26,13 @@ const MaxAge = time.Hour
 
 // Sender is the part of the Bot API the handler needs.
 type Sender interface {
-	SendMessage(ctx context.Context, chatID int64, text string) error
+	Send(ctx context.Context, chatID int64, text string, keyboard *telegram.InlineKeyboard) (telegram.Message, error)
+}
+
+// ReplyTargets remembers sent notifications, so replying to one in Telegram
+// starts a chat about its order.
+type ReplyTargets interface {
+	SaveReplyTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error
 }
 
 // Links is the part of the linking service the handler needs.
@@ -51,8 +55,10 @@ type Handler struct {
 	Sender     Sender
 	Links      Links
 	Deliveries Deliveries
-	Log        *slog.Logger
-	Now        func() time.Time
+	// Optional.
+	ReplyTargets ReplyTargets
+	Log          *slog.Logger
+	Now          func() time.Time
 }
 
 // Handle implements a pkg/kafka handler for Topic. It returns an error only for
@@ -80,14 +86,14 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 			log.Error("skipping recipient with an invalid user ID", "role", r.role)
 			continue
 		}
-		if err := h.notify(ctx, log, eventID, userID, text); err != nil {
+		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID, userID uuid.UUID, text string) error {
+func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID uuid.UUID, orderID string, userID uuid.UUID, text string) error {
 	sent, err := h.Deliveries.HasBeenSent(ctx, eventID, userID)
 	if err != nil {
 		return fmt.Errorf("check sent notification: %w", err)
@@ -104,17 +110,17 @@ func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID, userID 
 		return fmt.Errorf("get Telegram link: %w", err)
 	}
 
-	err = h.Sender.SendMessage(ctx, link.ChatID, text)
+	sentMsg, err := h.Sender.Send(ctx, link.ChatID, text, nil)
 	var apiErr *telegram.APIError
 	switch {
 	case err == nil:
-	case errors.As(err, &apiErr) && chatGone(apiErr):
+	case errors.As(err, &apiErr) && apiErr.ChatGone():
 		if err := h.Links.UnlinkChat(ctx, link.ChatID); err != nil {
 			return fmt.Errorf("unlink unreachable chat: %w", err)
 		}
 		log.Info("telegram unlinked: chat unreachable", "user_id", userID, "code", apiErr.Code)
 		return nil
-	case errors.As(err, &apiErr) && apiErr.Code >= 400 && apiErr.Code < 500 && apiErr.Code != http.StatusTooManyRequests:
+	case errors.As(err, &apiErr) && apiErr.Rejected():
 		// Telegram will reject this message every time; replaying would stall
 		// every later notification.
 		log.Error("skipping notification Telegram rejected", "user_id", userID, "err", err)
@@ -126,12 +132,12 @@ func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID, userID 
 	if err := h.Deliveries.RecordSent(ctx, eventID, userID, h.Now()); err != nil {
 		return fmt.Errorf("record sent notification: %w", err)
 	}
+	// The message is already recorded as sent, so a failure here only makes it
+	// unrepliable; replaying wouldn't resend it.
+	if id, err := uuid.Parse(orderID); h.ReplyTargets != nil && err == nil {
+		if err := h.ReplyTargets.SaveReplyTarget(ctx, link.ChatID, sentMsg.MessageID, id, h.Now()); err != nil {
+			log.Error("notification can't be replied to", "user_id", userID, "err", err)
+		}
+	}
 	return nil
-}
-
-// chatGone reports whether the chat can no longer receive messages: the user
-// blocked the bot or deleted their account, or the chat doesn't exist.
-func chatGone(e *telegram.APIError) bool {
-	return e.Code == http.StatusForbidden ||
-		(e.Code == http.StatusBadRequest && strings.Contains(strings.ToLower(e.Description), "chat not found"))
 }

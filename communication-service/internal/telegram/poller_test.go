@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -89,6 +90,65 @@ func TestPollerStopsOnRejectedToken(t *testing.T) {
 
 	if err := poller.Run(context.Background()); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("Run = %v, want ErrUnauthorized", err)
+	}
+}
+
+func TestPollerRetriesContinuationBeforeLaterUpdates(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
+		func() ([]Update, error) { cancel(); return nil, nil },
+	}}
+	var steps []string
+	attempts := 0
+	var resume func(context.Context) error
+	resume = func(context.Context) error {
+		attempts++
+		steps = append(steps, "resume")
+		if attempts == 1 {
+			return &RetryError{Err: errors.New("still unavailable"), Retry: resume}
+		}
+		return nil
+	}
+	poller := &Poller{Source: source, Log: quietLog(), Backoff: time.Millisecond, Handle: func(_ context.Context, u Update) error {
+		if u.UpdateID == 10 {
+			steps = append(steps, "first")
+			return &RetryError{Err: errors.New("unavailable"), Retry: resume}
+		}
+		steps = append(steps, "second")
+		return nil
+	}}
+	if err := poller.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(steps, ","); got != "first,resume,resume,second" {
+		t.Fatalf("steps = %s", got)
+	}
+	if offsets := source.seenOffsets(); len(offsets) != 2 || offsets[1] != 12 {
+		t.Fatalf("offsets = %v", offsets)
+	}
+}
+
+func TestPollerCancellationStopsPendingRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
+	}}
+	handled := 0
+	poller := &Poller{Source: source, Log: quietLog(), Handle: func(context.Context, Update) error {
+		handled++
+		cancel()
+		return &RetryError{Err: errors.New("unavailable"), Retry: func(context.Context) error {
+			t.Fatal("retried after cancellation")
+			return nil
+		}}
+	}}
+	if err := poller.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if handled != 1 || len(source.seenOffsets()) != 1 {
+		t.Fatalf("handled=%d offsets=%v", handled, source.seenOffsets())
 	}
 }
 

@@ -123,7 +123,7 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 	go func() {
 		defer close(done)
 		runNotifications(runCtx, strings.Split(brokers, ","), "notify-test-"+uuid.NewString(),
-			slog.New(slog.NewTextHandler(io.Discard, nil)), handler)
+			slog.New(slog.NewTextHandler(io.Discard, nil)), handler.Handle)
 	}()
 
 	deadline := time.Now().Add(time.Minute)

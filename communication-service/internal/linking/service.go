@@ -49,6 +49,8 @@ type Store interface {
 	RedeemCode(ctx context.Context, codeHash []byte, chat Chat, now time.Time) (Link, error)
 	// GetLink returns ErrNotLinked when the user has no chat.
 	GetLink(ctx context.Context, userID uuid.UUID) (Link, error)
+	// GetLinkByChat returns ErrNotLinked when no user has the chat.
+	GetLinkByChat(ctx context.Context, chatID int64) (Link, error)
 	// DeleteLink also deletes the user's unused codes.
 	DeleteLink(ctx context.Context, userID uuid.UUID) error
 	DeleteLinkByChat(ctx context.Context, chatID int64) error
@@ -87,6 +89,11 @@ func (s *Service) Redeem(ctx context.Context, code string, chat Chat) (Link, err
 // Get returns the user's link, or ErrNotLinked.
 func (s *Service) Get(ctx context.Context, userID uuid.UUID) (Link, error) {
 	return s.Store.GetLink(ctx, userID)
+}
+
+// GetByChat returns the link for chatID, or ErrNotLinked.
+func (s *Service) GetByChat(ctx context.Context, chatID int64) (Link, error) {
+	return s.Store.GetLinkByChat(ctx, chatID)
 }
 
 // Unlink removes the user's link. It succeeds when nothing is linked.

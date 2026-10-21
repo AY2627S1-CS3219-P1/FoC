@@ -93,7 +93,7 @@ func TestBotShutdownJoinsStartedWorkers(t *testing.T) {
 	ready := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
-	startBot(ctx, config{telegramToken: "test", telegramAPI: api.URL}, discard, nil, &username, func() {
+	startBot(ctx, config{telegramToken: "test", telegramAPI: api.URL}, discard, nil, nil, &username, func() {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()

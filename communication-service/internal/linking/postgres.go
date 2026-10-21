@@ -84,6 +84,18 @@ func (s *PostgresStore) GetLink(ctx context.Context, userID uuid.UUID) (Link, er
 	return fromRow(row), nil
 }
 
+// GetLinkByChat implements Store.
+func (s *PostgresStore) GetLinkByChat(ctx context.Context, chatID int64) (Link, error) {
+	row, err := s.queries().GetLinkByChat(ctx, chatID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Link{}, ErrNotLinked
+	}
+	if err != nil {
+		return Link{}, fmt.Errorf("get link by chat: %w", err)
+	}
+	return fromRow(row), nil
+}
+
 // DeleteLink implements Store. It also deletes the user's unused codes, so an
 // earlier link can't reconnect the account after they disconnect.
 func (s *PostgresStore) DeleteLink(ctx context.Context, userID uuid.UUID) error {
