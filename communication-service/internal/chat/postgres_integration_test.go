@@ -52,7 +52,7 @@ func TestPostgresOrdersIgnoreOlderRevisions(t *testing.T) {
 		}
 	}
 	got, err := s.GetOrder(ctx, o.ID)
-	if err != nil || got.Revision != 6 || got.CourierID != uuid.Nil || got.Open(now) {
+	if err != nil || got.Revision != 6 || got.CourierID != uuid.Nil || got.IsOpen(now) {
 		t.Fatalf("stored = %+v, %v", got, err)
 	}
 	if _, err := s.GetOrder(ctx, uuid.New()); !errors.Is(err, ErrNotFound) {
@@ -148,5 +148,95 @@ func TestPostgresDeleteExpired(t *testing.T) {
 	}
 	if id, err := s.Selection(ctx, courier); err != nil || id != active.ID {
 		t.Fatalf("active selection = %v, %v", id, err)
+	}
+}
+
+func TestPostgresUserOrdersLimitsEligibleOrders(t *testing.T) {
+	s := newPostgresStore(t)
+	ctx := context.Background()
+	active := order(Delivering)
+	if err := s.SaveOrder(ctx, active, now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	// More than a keyboard's worth of newer, ineligible orders must not
+	// displace the active order before the relay checks chat eligibility.
+	for i := range 25 {
+		ineligible := order("awaiting_courier")
+		if i%2 == 0 {
+			ineligible.CourierID = uuid.Nil
+		} else {
+			ineligible.Status = Completed
+			// A terminal order without an end timestamp is also ineligible.
+		}
+		if err := s.SaveOrder(ctx, ineligible, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	orders, err := s.UserOrders(ctx, requester, now.Add(-GracePeriod))
+	if err != nil || len(orders) != 1 || orders[0].ID != active.ID {
+		t.Fatalf("eligible orders = %+v, %v", orders, err)
+	}
+}
+
+func TestPostgresRetentionPreservesActiveReplyTargets(t *testing.T) {
+	s := newPostgresStore(t)
+	ctx := context.Background()
+	active, recentlyEnded, expired := order(Delivering), order(Completed), order(Completed)
+	recentlyEnded.EndedAt = now.Add(-time.Hour)
+	expired.EndedAt = now.Add(-Retention - time.Hour)
+	for _, o := range []Order{active, recentlyEnded, expired} {
+		if err := s.SaveOrder(ctx, o, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	unknown := uuid.New()
+	for i, id := range []uuid.UUID{active.ID, recentlyEnded.ID, expired.ID, unknown} {
+		if err := s.SaveReplyTarget(ctx, requesterChat, int64(i+1), id, now.Add(-Retention-time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SaveReplyTarget(ctx, requesterChat, 5, unknown, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteExpired(ctx, now.Add(-Retention), now.Add(-GracePeriod)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, messageID := range []int64{1, 2, 5} {
+		if _, err := s.ReplyTarget(ctx, requesterChat, messageID); err != nil {
+			t.Fatalf("retained reply target %d: %v", messageID, err)
+		}
+	}
+	for _, messageID := range []int64{3, 4} {
+		if _, err := s.ReplyTarget(ctx, requesterChat, messageID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("expired reply target %d: %v", messageID, err)
+		}
+	}
+}
+
+func TestPostgresRetentionRemovesOrphanAndClosedSelections(t *testing.T) {
+	s := newPostgresStore(t)
+	ctx := context.Background()
+	if err := s.Select(ctx, requester, uuid.New(), now); err != nil {
+		t.Fatal(err)
+	}
+	closed := order(Completed)
+	closed.EndedAt = now.Add(-GracePeriod)
+	if err := s.SaveOrder(ctx, closed, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Select(ctx, courier, closed.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteExpired(ctx, now.Add(-Retention), now.Add(-GracePeriod)); err != nil {
+		t.Fatal(err)
+	}
+	for _, userID := range []uuid.UUID{requester, courier} {
+		if _, err := s.Selection(ctx, userID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("orphan or closed selection kept for %v: %v", userID, err)
+		}
 	}
 }

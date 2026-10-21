@@ -13,8 +13,9 @@ import (
 )
 
 const deleteClosedSelections = `-- name: DeleteClosedSelections :exec
-DELETE FROM chat_selections s USING order_participants p
-WHERE s.order_id = p.order_id AND p.ended_at < $1::timestamptz
+DELETE FROM chat_selections s
+WHERE NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = s.order_id)
+   OR s.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at <= $1::timestamptz)
 `
 
 func (q *Queries) DeleteClosedSelections(ctx context.Context, closedBefore time.Time) error {
@@ -55,11 +56,13 @@ func (q *Queries) DeleteExpiredOrderParticipants(ctx context.Context, cutoff tim
 
 const deleteExpiredReplyTargets = `-- name: DeleteExpiredReplyTargets :exec
 DELETE FROM chat_reply_targets t
-WHERE t.created_at < $1::timestamptz
-   OR t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < $1::timestamptz)
+WHERE t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < $1::timestamptz)
+   OR (t.created_at < $1::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = t.order_id))
 `
 
-// Targets of ended orders, and notifications for orders never seen here.
+// Keep targets for active orders regardless of message age. Notifications
+// whose order projection never arrived expire by their own creation time.
 func (q *Queries) DeleteExpiredReplyTargets(ctx context.Context, cutoff time.Time) error {
 	_, err := q.db.Exec(ctx, deleteExpiredReplyTargets, cutoff)
 	return err
@@ -126,7 +129,10 @@ const listUserOrders = `-- name: ListUserOrders :many
 SELECT order_id, requester_id, courier_id, status, revision, pickup_location_name, ended_at
 FROM order_participants
 WHERE (requester_id = $1 OR courier_id = $1)
-  AND (ended_at IS NULL OR ended_at > $2::timestamptz)
+  AND courier_id IS NOT NULL
+  AND (status IN ('awaiting_pickup', 'delivering', 'delivered')
+       OR (status IN ('completed', 'cancelled', 'failed')
+           AND ended_at > $2::timestamptz))
 ORDER BY updated_at DESC
 LIMIT 20
 `
@@ -146,7 +152,8 @@ type ListUserOrdersRow struct {
 	EndedAt            *time.Time
 }
 
-// Orders that haven't ended or ended after since, capped for the /chat keyboard.
+// Apply chat eligibility before the keyboard limit so closed or unassigned
+// orders cannot hide a user's open orders.
 func (q *Queries) ListUserOrders(ctx context.Context, arg ListUserOrdersParams) ([]ListUserOrdersRow, error) {
 	rows, err := q.db.Query(ctx, listUserOrders, arg.UserID, arg.Since)
 	if err != nil {
@@ -178,6 +185,7 @@ func (q *Queries) ListUserOrders(ctx context.Context, arg ListUserOrdersParams) 
 const saveChatMessage = `-- name: SaveChatMessage :exec
 INSERT INTO chat_messages (id, order_id, sender_id, recipient_id, body, sent_at)
 VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (id) DO NOTHING
 `
 
 type SaveChatMessageParams struct {

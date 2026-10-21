@@ -34,7 +34,7 @@ func order(status string) Order {
 	return Order{ID: uuid.New(), RequesterID: requester, CourierID: courier, Status: status, Revision: 3, PickupName: "Fine Food"}
 }
 
-func TestOpen(t *testing.T) {
+func TestIsOpen(t *testing.T) {
 	ended := func(status string, ago time.Duration) Order {
 		o := order(status)
 		o.EndedAt = now.Add(-ago)
@@ -52,12 +52,13 @@ func TestOpen(t *testing.T) {
 		"no courier":               {unassigned, false},
 		"completed within grace":   {ended(Completed, GracePeriod-time.Minute), true},
 		"cancelled after grace":    {ended(Cancelled, GracePeriod+time.Minute), false},
+		"completed at grace limit": {ended(Completed, GracePeriod), false},
 		"failed within grace":      {ended(Failed, time.Minute), true},
 		"expired never had a chat": {ended("expired", time.Minute), false},
 	}
 	for name, tc := range cases {
-		if got := tc.o.Open(now); got != tc.want {
-			t.Errorf("%s: Open = %v", name, got)
+		if got := tc.o.IsOpen(now); got != tc.want {
+			t.Errorf("%s: IsOpen = %v", name, got)
 		}
 	}
 }
@@ -338,7 +339,11 @@ func TestRelayDeliveryFailures(t *testing.T) {
 			if err := r.HandleMessage(context.Background(), text(courierChat, "hi")); err != nil {
 				t.Fatal(err)
 			}
-			if len(store.messages) != 0 || len(sender.sent) != 1 || sender.sent[0].text != tc.wantReply || sender.sent[0].chatID != courierChat {
+			wantRecords := 1
+			if tc.unlink {
+				wantRecords = 0
+			}
+			if len(store.messages) != wantRecords || len(sender.sent) != 1 || sender.sent[0].text != tc.wantReply || sender.sent[0].chatID != courierChat {
 				t.Fatalf("sent = %+v stored = %+v", sender.sent, store.messages)
 			}
 			if (len(links.unlinked) == 1) != tc.unlinkPeer {
@@ -358,7 +363,7 @@ func TestShowChatsAndSelect(t *testing.T) {
 		t.Fatalf("sent = %+v", sender.sent)
 	}
 
-	cb := &telegram.CallbackQuery{ID: "cb", Data: selectPrefix + b.ID.String(), Message: text(courierChat, "")}
+	cb := &telegram.CallbackQuery{ID: "cb", From: telegram.User{ID: courierChat}, Data: selectPrefix + b.ID.String(), Message: text(courierChat, "")}
 	if err := r.HandleCallback(context.Background(), cb); err != nil {
 		t.Fatal(err)
 	}
@@ -371,10 +376,61 @@ func TestShowChatsAndSelect(t *testing.T) {
 
 	// A stranger can't select someone else's order.
 	cb.Message = text(strangerChat, "")
+	cb.From.ID = strangerChat
 	if err := r.HandleCallback(context.Background(), cb); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := store.selections[stranger]; ok || sender.answered[1] != closedReply {
 		t.Fatalf("stranger selected: %v answered=%v", store.selections, sender.answered)
+	}
+}
+
+func TestCallbackRejectsForwardedButtonsAndGroupChats(t *testing.T) {
+	o := order(Delivering)
+	for _, tc := range []struct {
+		name string
+		chat telegram.Chat
+		from int64
+	}{
+		{"another user", telegram.Chat{ID: courierChat, Type: "private"}, strangerChat},
+		{"group", telegram.Chat{ID: courierChat, Type: "group"}, courierChat},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, sender, store, _ := newRelay(o)
+			cb := &telegram.CallbackQuery{ID: "cb", From: telegram.User{ID: tc.from}, Data: selectPrefix + o.ID.String(), Message: &telegram.Message{Chat: tc.chat}}
+			if err := r.HandleCallback(context.Background(), cb); err != nil {
+				t.Fatal(err)
+			}
+			if len(store.selections) != 0 || len(sender.sent) != 0 {
+				t.Fatalf("invalid callback changed state: selections=%v sent=%v", store.selections, sender.sent)
+			}
+		})
+	}
+}
+
+func TestFeedbackRetryDoesNotRepeatRecipientDelivery(t *testing.T) {
+	r, sender, _, _ := newRelay(order(Delivering))
+	sender.errs[requesterChat] = errors.New("recipient connection reset")
+	sender.errs[courierChat] = errors.New("sender connection reset")
+	err := r.HandleMessage(context.Background(), text(courierChat, "hi"))
+	var retry *telegram.RetryError
+	if !errors.As(err, &retry) {
+		t.Fatalf("HandleMessage = %v, want RetryError", err)
+	}
+	delete(sender.errs, requesterChat)
+	delete(sender.errs, courierChat)
+	if err := retry.Retry(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.sent) != 1 || sender.sent[0].chatID != courierChat || sender.sent[0].text != retryReply {
+		t.Fatalf("retry sent = %+v; want only sender feedback", sender.sent)
+	}
+}
+
+func TestPermanentFeedbackFailureIsConsumed(t *testing.T) {
+	r, sender, _, _ := newRelay()
+	sender.errs[courierChat] = &telegram.APIError{Code: 403, Description: "bot blocked"}
+	if err := r.ShowChats(context.Background(), text(courierChat, "/chat")); err != nil {
+		t.Fatalf("permanent failure should not retry: %v", err)
 	}
 }

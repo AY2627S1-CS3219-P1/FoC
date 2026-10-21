@@ -17,11 +17,15 @@ SELECT order_id, requester_id, courier_id, status, revision, pickup_location_nam
 FROM order_participants WHERE order_id = sqlc.arg(order_id);
 
 -- name: ListUserOrders :many
--- Orders that haven't ended or ended after since, capped for the /chat keyboard.
+-- Apply chat eligibility before the keyboard limit so closed or unassigned
+-- orders cannot hide a user's open orders.
 SELECT order_id, requester_id, courier_id, status, revision, pickup_location_name, ended_at
 FROM order_participants
 WHERE (requester_id = sqlc.arg(user_id) OR courier_id = sqlc.arg(user_id))
-  AND (ended_at IS NULL OR ended_at > sqlc.arg(since)::timestamptz)
+  AND courier_id IS NOT NULL
+  AND (status IN ('awaiting_pickup', 'delivering', 'delivered')
+       OR (status IN ('completed', 'cancelled', 'failed')
+           AND ended_at > sqlc.arg(since)::timestamptz))
 ORDER BY updated_at DESC
 LIMIT 20;
 
@@ -43,24 +47,28 @@ ON CONFLICT (user_id) DO UPDATE SET order_id = EXCLUDED.order_id, selected_at = 
 
 -- name: SaveChatMessage :exec
 INSERT INTO chat_messages (id, order_id, sender_id, recipient_id, body, sent_at)
-VALUES (sqlc.arg(id), sqlc.arg(order_id), sqlc.arg(sender_id), sqlc.arg(recipient_id), sqlc.arg(body), sqlc.arg(sent_at));
+VALUES (sqlc.arg(id), sqlc.arg(order_id), sqlc.arg(sender_id), sqlc.arg(recipient_id), sqlc.arg(body), sqlc.arg(sent_at))
+ON CONFLICT (id) DO NOTHING;
 
 -- name: DeleteExpiredChatMessages :execrows
 DELETE FROM chat_messages m USING order_participants p
 WHERE m.order_id = p.order_id AND p.ended_at < sqlc.arg(cutoff)::timestamptz;
 
 -- name: DeleteExpiredReplyTargets :exec
--- Targets of ended orders, and notifications for orders never seen here.
+-- Keep targets for active orders regardless of message age. Notifications
+-- whose order projection never arrived expire by their own creation time.
 DELETE FROM chat_reply_targets t
-WHERE t.created_at < sqlc.arg(cutoff)::timestamptz
-   OR t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < sqlc.arg(cutoff)::timestamptz);
+WHERE t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < sqlc.arg(cutoff)::timestamptz)
+   OR (t.created_at < sqlc.arg(cutoff)::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = t.order_id));
 
 -- name: DeleteExpiredNotificationRecords :exec
 DELETE FROM order_notifications_sent WHERE sent_at < sqlc.arg(cutoff)::timestamptz;
 
 -- name: DeleteClosedSelections :exec
-DELETE FROM chat_selections s USING order_participants p
-WHERE s.order_id = p.order_id AND p.ended_at < sqlc.arg(closed_before)::timestamptz;
+DELETE FROM chat_selections s
+WHERE NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = s.order_id)
+   OR s.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at <= sqlc.arg(closed_before)::timestamptz);
 
 -- name: DeleteExpiredOrderParticipants :exec
 DELETE FROM order_participants WHERE ended_at < sqlc.arg(cutoff)::timestamptz;

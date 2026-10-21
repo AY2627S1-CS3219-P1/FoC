@@ -54,8 +54,8 @@ func (s *PostgresStore) GetOrder(ctx context.Context, id uuid.UUID) (Order, erro
 	return fromRow(db.ListUserOrdersRow(row)), nil
 }
 
-// UserOrders implements Store. It lists orders that haven't ended or ended
-// after since, capped for the /chat keyboard.
+// UserOrders implements Store. It filters chat eligibility before applying
+// the /chat keyboard limit, using since for the terminal-order grace period.
 func (s *PostgresStore) UserOrders(ctx context.Context, userID uuid.UUID, since time.Time) ([]Order, error) {
 	rows, err := s.queries().ListUserOrders(ctx, db.ListUserOrdersParams{UserID: userID, Since: since})
 	if err != nil {
@@ -117,7 +117,8 @@ func (s *PostgresStore) Select(ctx context.Context, userID, orderID uuid.UUID, a
 	return nil
 }
 
-// SaveMessage implements Store.
+// SaveMessage records an accepted relay attempt once, so retries after an
+// ambiguous database response cannot create duplicate dispute records.
 func (s *PostgresStore) SaveMessage(ctx context.Context, m Message) error {
 	if err := s.queries().SaveChatMessage(ctx, db.SaveChatMessageParams{
 		ID:          m.ID,

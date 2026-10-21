@@ -39,9 +39,9 @@ type Order struct {
 	EndedAt time.Time
 }
 
-// Open reports whether the participants may chat: from assignment until
+// IsOpen reports whether the participants may chat: from assignment until
 // delivery, and for GracePeriod after an order with a courier ends.
-func (o Order) Open(now time.Time) bool {
+func (o Order) IsOpen(now time.Time) bool {
 	if o.CourierID == uuid.Nil {
 		return false
 	}

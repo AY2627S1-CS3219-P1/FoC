@@ -41,7 +41,7 @@ type Store interface {
 	// GetOrder returns ErrNotFound for an unknown order.
 	GetOrder(ctx context.Context, id uuid.UUID) (Order, error)
 	// UserOrders returns the user's orders that may still be open, newest
-	// first. Callers check Open.
+	// first. Callers check IsOpen.
 	UserOrders(ctx context.Context, userID uuid.UUID, since time.Time) ([]Order, error)
 	// ReplyTarget returns ErrNotFound when the message isn't a bot message
 	// tied to an order.
@@ -50,10 +50,12 @@ type Store interface {
 	// Selection returns ErrNotFound when the user hasn't chosen an order.
 	Selection(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	Select(ctx context.Context, userID, orderID uuid.UUID, at time.Time) error
+	// SaveMessage records an accepted attempt; repeating the same ID is a no-op.
 	SaveMessage(ctx context.Context, m Message) error
 }
 
-// Message is one relayed chat message.
+// Message records an accepted relay attempt, including attempts that Telegram
+// could not deliver. SentAt is when the relay accepted it, before delivery.
 type Message struct {
 	ID, OrderID, SenderID, RecipientID uuid.UUID
 	Body                               string
@@ -83,8 +85,8 @@ const (
 )
 
 // HandleMessage relays a message that isn't a command. It replies to the
-// sender with what went wrong when it can't relay, so errors are only returned
-// for storage failures.
+// sender with what went wrong when it can't relay. Retryable errors retain only
+// the unfinished storage or feedback step.
 func (r *Relay) HandleMessage(ctx context.Context, msg *telegram.Message) error {
 	chatID := msg.Chat.ID
 	sender, err := r.Links.GetByChat(ctx, chatID)
@@ -119,7 +121,7 @@ func (r *Relay) HandleMessage(ctx context.Context, msg *telegram.Message) error 
 	if utf8.RuneCountInString(text) > maxMessageLength {
 		return r.reply(ctx, chatID, tooLongReply, nil)
 	}
-	recipient, err := r.Links.Get(ctx, recipientID)
+	_, err = r.Links.Get(ctx, recipientID)
 	if errors.Is(err, linking.ErrNotLinked) {
 		return r.reply(ctx, chatID, notConnectedReply, nil)
 	}
@@ -127,34 +129,93 @@ func (r *Relay) HandleMessage(ctx context.Context, msg *telegram.Message) error 
 		return fmt.Errorf("get recipient link: %w", err)
 	}
 
-	sent, err := r.Sender.Send(ctx, recipient.ChatID, text, nil)
-	var apiErr *telegram.APIError
-	switch {
-	case err == nil:
-	case errors.As(err, &apiErr) && apiErr.ChatGone():
-		if err := r.Links.UnlinkChat(ctx, recipient.ChatID); err != nil {
-			return fmt.Errorf("unlink unreachable chat: %w", err)
-		}
-		return r.reply(ctx, chatID, unreachableReply, nil)
-	default:
-		r.Log.Warn("chat message not relayed", "order_id", order.ID, "err", err)
-		return r.reply(ctx, chatID, retryReply, nil)
-	}
-
-	// The recipient can reply to the relayed message, and the sender's next
-	// plain messages go to the same order.
-	if err := r.Store.SaveReplyTarget(ctx, recipient.ChatID, sent.MessageID, order.ID, now); err != nil {
-		return fmt.Errorf("save reply target: %w", err)
-	}
-	if err := r.Store.Select(ctx, sender.UserID, order.ID, now); err != nil {
-		return fmt.Errorf("select order: %w", err)
-	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		return fmt.Errorf("message ID: %w", err)
 	}
-	return r.Store.SaveMessage(ctx, Message{ID: id, OrderID: order.ID, SenderID: sender.UserID,
-		RecipientID: recipientID, Body: msg.Text, SentAt: now})
+	m := Message{ID: id, OrderID: order.ID, SenderID: sender.UserID,
+		RecipientID: recipientID, Body: msg.Text, SentAt: now}
+	return r.recordAndSend(ctx, m, chatID)
+}
+
+// Persist the dispute record before any external delivery. Retrying this stage
+// keeps the same ID, including when an insert committed before returning an error.
+func (r *Relay) recordAndSend(ctx context.Context, m Message, senderChatID int64) error {
+	if err := r.Store.SaveMessage(ctx, m); err != nil {
+		return &telegram.RetryError{Err: fmt.Errorf("save chat message: %w", err), Retry: func(ctx context.Context) error {
+			return r.recordAndSend(ctx, m, senderChatID)
+		}}
+	}
+	return r.selectAndSend(ctx, m, senderChatID)
+}
+
+func (r *Relay) selectAndSend(ctx context.Context, m Message, senderChatID int64) error {
+	retry := func(err error) error {
+		return &telegram.RetryError{Err: err, Retry: func(ctx context.Context) error {
+			return r.selectAndSend(ctx, m, senderChatID)
+		}}
+	}
+
+	// A database outage can leave this continuation pending while order
+	// participants or Telegram links change. Recheck before every send attempt.
+	order, err := r.openOrder(ctx, m.SenderID, m.OrderID, r.Now())
+	if errors.Is(err, errClosed) {
+		return r.reply(ctx, senderChatID, closedReply, nil)
+	}
+	if err != nil {
+		return retry(err)
+	}
+	if recipientID, _ := order.Other(m.SenderID); recipientID != m.RecipientID {
+		return r.reply(ctx, senderChatID, closedReply, nil)
+	}
+	sender, err := r.Links.Get(ctx, m.SenderID)
+	if errors.Is(err, linking.ErrNotLinked) || err == nil && sender.ChatID != senderChatID {
+		return r.reply(ctx, senderChatID, notLinkedReply, nil)
+	}
+	if err != nil {
+		return retry(fmt.Errorf("refresh sender link: %w", err))
+	}
+	recipient, err := r.Links.Get(ctx, m.RecipientID)
+	if errors.Is(err, linking.ErrNotLinked) {
+		return r.reply(ctx, senderChatID, notConnectedReply, nil)
+	}
+	if err != nil {
+		return retry(fmt.Errorf("refresh recipient link: %w", err))
+	}
+	text := relayedText(order, m.SenderID, m.Body)
+	if utf8.RuneCountInString(text) > maxMessageLength {
+		return r.reply(ctx, senderChatID, tooLongReply, nil)
+	}
+	if err := r.Store.Select(ctx, m.SenderID, m.OrderID, r.Now()); err != nil {
+		return retry(fmt.Errorf("select order: %w", err))
+	}
+	recipientChatID := recipient.ChatID
+
+	sent, err := r.Sender.Send(ctx, recipientChatID, text, nil)
+	var apiErr *telegram.APIError
+	switch {
+	case err == nil:
+	case errors.As(err, &apiErr) && apiErr.ChatGone():
+		if err := r.Links.UnlinkChat(ctx, recipientChatID); err != nil {
+			return fmt.Errorf("unlink unreachable chat: %w", err)
+		}
+		return r.reply(ctx, senderChatID, unreachableReply, nil)
+	default:
+		r.Log.Warn("chat message not relayed", "order_id", m.OrderID, "err", err)
+		return r.reply(ctx, senderChatID, retryReply, nil)
+	}
+
+	return r.saveDeliveredTarget(ctx, recipientChatID, sent.MessageID, m.OrderID, m.SentAt)
+}
+
+func (r *Relay) saveDeliveredTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error {
+	if err := r.Store.SaveReplyTarget(ctx, chatID, messageID, orderID, at); err != nil {
+		// The poller retries only this write, never the successful Telegram send.
+		return &telegram.RetryError{Err: fmt.Errorf("save reply target: %w", err), Retry: func(ctx context.Context) error {
+			return r.saveDeliveredTarget(ctx, chatID, messageID, orderID, at)
+		}}
+	}
+	return nil
 }
 
 // ShowChats answers /chat with the sender's open order chats as buttons.
@@ -182,10 +243,10 @@ func (r *Relay) ShowChats(ctx context.Context, msg *telegram.Message) error {
 func (r *Relay) HandleCallback(ctx context.Context, cb *telegram.CallbackQuery) error {
 	data, ok := strings.CutPrefix(cb.Data, selectPrefix)
 	orderID, err := uuid.Parse(data)
-	if !ok || err != nil || cb.Message == nil {
+	if !ok || err != nil || cb.Message == nil || cb.Message.Chat.Type != "private" || cb.Message.Chat.ID != cb.From.ID {
 		return r.Sender.AnswerCallback(ctx, cb.ID, "")
 	}
-	sender, err := r.Links.GetByChat(ctx, cb.Message.Chat.ID)
+	sender, err := r.Links.GetByChat(ctx, cb.From.ID)
 	if errors.Is(err, linking.ErrNotLinked) {
 		return r.Sender.AnswerCallback(ctx, cb.ID, notLinkedReply)
 	}
@@ -198,7 +259,7 @@ func (r *Relay) HandleCallback(ctx context.Context, cb *telegram.CallbackQuery) 
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return fmt.Errorf("get order: %w", err)
 	}
-	if _, participant := order.Other(sender.UserID); err != nil || !participant || !order.Open(now) {
+	if _, participant := order.Other(sender.UserID); err != nil || !participant || !order.IsOpen(now) {
 		return r.Sender.AnswerCallback(ctx, cb.ID, closedReply)
 	}
 	if err := r.Store.Select(ctx, sender.UserID, order.ID, now); err != nil {
@@ -263,7 +324,7 @@ func (r *Relay) openOrder(ctx context.Context, userID, orderID uuid.UUID, now ti
 	if err != nil {
 		return Order{}, fmt.Errorf("get order: %w", err)
 	}
-	if _, participant := o.Other(userID); !participant || !o.Open(now) {
+	if _, participant := o.Other(userID); !participant || !o.IsOpen(now) {
 		return Order{}, errClosed
 	}
 	return o, nil
@@ -276,7 +337,7 @@ func (r *Relay) openOrders(ctx context.Context, userID uuid.UUID, now time.Time)
 	}
 	open := orders[:0]
 	for _, o := range orders {
-		if _, participant := o.Other(userID); participant && o.Open(now) {
+		if _, participant := o.Other(userID); participant && o.IsOpen(now) {
 			open = append(open, o)
 		}
 	}
@@ -285,7 +346,14 @@ func (r *Relay) openOrders(ctx context.Context, userID uuid.UUID, now time.Time)
 
 func (r *Relay) reply(ctx context.Context, chatID int64, text string, kb *telegram.InlineKeyboard) error {
 	if _, err := r.Sender.Send(ctx, chatID, text, kb); err != nil {
-		// The sender sees nothing; there's nothing more useful to do.
+		var apiErr *telegram.APIError
+		if !errors.Is(err, telegram.ErrUnauthorized) && !(errors.As(err, &apiErr) && apiErr.Rejected()) {
+			// Retry only this feedback. Relaying the original update again could
+			// deliver a message the sender has already been asked to resend.
+			return &telegram.RetryError{Err: fmt.Errorf("send chat feedback: %w", err), Retry: func(ctx context.Context) error {
+				return r.reply(ctx, chatID, text, kb)
+			}}
+		}
 		r.Log.Warn("chat reply failed", "chat_id", chatID, "err", err)
 	}
 	return nil
