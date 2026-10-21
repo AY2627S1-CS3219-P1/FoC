@@ -30,6 +30,10 @@
 	});
 
 	$effect(() => {
+		pickup = query.pickupLocationId ?? '';
+	});
+
+	$effect(() => {
 		const user = authService.user?.id;
 		if (!history && user && !suspended) {
 			let active = true;

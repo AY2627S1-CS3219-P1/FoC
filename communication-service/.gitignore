@@ -1,0 +1,5 @@
+tmp/
+
+# environment files
+.env
+!.env.template

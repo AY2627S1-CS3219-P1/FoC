@@ -221,16 +221,25 @@ func (s *Assigner) AcceptOrder(ctx context.Context, caller Caller, orderID, key 
 			}
 			return nil, err
 		}
-		if o.ReservedCredits <= 0 {
+		// Resolve retained keys before checking public admission.
+		now := s.now().UTC()
+		if o.Status != AwaitingCourier || !o.ExpiresAt.After(now) || o.ReservedCredits <= 0 {
 			return nil, ErrNotFound
 		}
 		if s.credit == nil {
 			return nil, ErrUnavailable
 		}
-		now := s.now().UTC()
 		if cause := s.canPropose(ctx, tx, o, now); cause != nil {
 			if !errors.Is(cause, ErrPrecondition) && !errors.Is(cause, ErrConflict) {
 				return nil, cause
+			}
+			// Retain at most one rejected contention identity per courier and Order.
+			rejected, err := tx.HasRejectedAcceptance(ctx, orderID, caller.ID)
+			if err != nil {
+				return nil, err
+			}
+			if rejected {
+				return nil, ErrPrecondition
 			}
 			// A rejected attempt also needs a permanent identity. Returning a
 			// business error here would roll back that identity and let an old
