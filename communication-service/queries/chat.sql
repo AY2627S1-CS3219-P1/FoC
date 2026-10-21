@@ -51,16 +51,24 @@ VALUES (sqlc.arg(id), sqlc.arg(order_id), sqlc.arg(sender_id), sqlc.arg(recipien
 ON CONFLICT (id) DO NOTHING;
 
 -- name: DeleteExpiredChatMessages :execrows
-DELETE FROM chat_messages m USING order_participants p
-WHERE m.order_id = p.order_id AND p.ended_at < sqlc.arg(cutoff)::timestamptz;
+DELETE FROM chat_messages m
+WHERE EXISTS (SELECT 1 FROM order_participants p
+              WHERE p.order_id = m.order_id AND p.ended_at < sqlc.arg(cutoff)::timestamptz)
+   OR (m.sent_at < sqlc.arg(cutoff)::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = m.order_id));
 
 -- name: DeleteExpiredReplyTargets :exec
--- Keep targets for active orders regardless of message age. Notifications
--- whose order projection never arrived expire by their own creation time.
+-- Eligible active targets survive regardless of age; terminal targets use
+-- ended_at. Orphan and ineligible targets expire by their creation time.
 DELETE FROM chat_reply_targets t
 WHERE t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < sqlc.arg(cutoff)::timestamptz)
    OR (t.created_at < sqlc.arg(cutoff)::timestamptz
-       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = t.order_id));
+       AND NOT EXISTS (
+           SELECT 1 FROM order_participants p
+           WHERE p.order_id = t.order_id
+             AND (p.ended_at IS NOT NULL
+                  OR (p.courier_id IS NOT NULL
+                      AND p.status IN ('awaiting_pickup', 'delivering', 'delivered')))));
 
 -- name: DeleteExpiredNotificationRecords :exec
 DELETE FROM order_notifications_sent WHERE sent_at < sqlc.arg(cutoff)::timestamptz;

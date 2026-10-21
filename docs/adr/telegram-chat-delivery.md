@@ -22,6 +22,10 @@ target was saved can remain without that routing entry. Its pre-send dispute
 record survives. These changes do not provide exactly-once delivery or a durable
 outbox for routing recovery.
 
-Chat eligibility and current Telegram links are rechecked before a delayed send
-resumes. Reply targets for active orders survive cleanup regardless of message
-age; ended orders use the retention period measured from their end time.
+Chat eligibility and intended participants are rechecked before persisting a
+delayed attempt, and current Telegram links are rechecked before sending.
+Reply targets for eligible active orders survive cleanup regardless of message
+age; ended orders use the retention period measured from their end time. Old
+targets for orders without a courier or a supported chat status expire by
+creation time. Orphan dispute records expire by acceptance time, so an insert
+racing with projection cleanup cannot retain personal data indefinitely.

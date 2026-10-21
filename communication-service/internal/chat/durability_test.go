@@ -16,6 +16,95 @@ type failingRelayStore struct {
 	failures int
 }
 
+type pendingMessageStore struct {
+	*fakeStore
+	saveFailures int
+	getFailures  int
+	attempts     []Message
+}
+
+func (s *pendingMessageStore) SaveMessage(ctx context.Context, m Message) error {
+	s.attempts = append(s.attempts, m)
+	if s.saveFailures > 0 {
+		s.saveFailures--
+		return errors.New("database unavailable")
+	}
+	return s.fakeStore.SaveMessage(ctx, m)
+}
+
+func (s *pendingMessageStore) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
+	if s.getFailures > 0 {
+		s.getFailures--
+		return Order{}, errors.New("database unavailable")
+	}
+	return s.fakeStore.GetOrder(ctx, id)
+}
+
+func TestRelayPendingMessageRevalidatesBeforePersistence(t *testing.T) {
+	for _, change := range []string{"removed order", "closed order", "removed sender", "changed recipient"} {
+		t.Run(change, func(t *testing.T) {
+			o := order(Delivering)
+			r, sender, store, _ := newRelay(o)
+			pending := &pendingMessageStore{fakeStore: store, saveFailures: 1}
+			r.Store = pending
+			ctx := context.Background()
+			var retry *telegram.RetryError
+			if err := r.HandleMessage(ctx, text(courierChat, "private message")); !errors.As(err, &retry) {
+				t.Fatalf("expected pending message retry, got %v", err)
+			}
+
+			switch change {
+			case "removed order":
+				delete(store.orders, o.ID)
+			case "closed order":
+				o.Status, o.EndedAt = Completed, now.Add(-2*GracePeriod)
+				store.orders[o.ID] = o
+			case "removed sender":
+				o.CourierID = stranger
+				store.orders[o.ID] = o
+			case "changed recipient":
+				o.RequesterID = stranger
+				store.orders[o.ID] = o
+			}
+			if err := retry.Retry(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if len(store.messages) != 0 || len(pending.attempts) != 1 {
+				t.Fatalf("persisted after eligibility changed: records = %d, attempts = %d", len(store.messages), len(pending.attempts))
+			}
+			if len(sender.sent) != 1 || sender.sent[0].chatID != courierChat || sender.sent[0].text != closedReply {
+				t.Fatalf("expected closed feedback, sent = %+v", sender.sent)
+			}
+		})
+	}
+}
+
+func TestRelayPendingMessageRetriesValidationFailure(t *testing.T) {
+	r, sender, store, _ := newRelay(order(Delivering))
+	pending := &pendingMessageStore{fakeStore: store, saveFailures: 1}
+	r.Store = pending
+	ctx := context.Background()
+	var retry *telegram.RetryError
+	if err := r.HandleMessage(ctx, text(courierChat, "private message")); !errors.As(err, &retry) {
+		t.Fatalf("expected pending message retry, got %v", err)
+	}
+
+	pending.getFailures = 1
+	err := retry.Retry(ctx)
+	if !errors.As(err, &retry) {
+		t.Fatalf("expected retryable validation error, got %v", err)
+	}
+	if len(pending.attempts) != 1 || len(store.messages) != 0 || len(sender.sent) != 0 {
+		t.Fatalf("validation failure advanced delivery: attempts = %d, records = %d, sends = %d", len(pending.attempts), len(store.messages), len(sender.sent))
+	}
+	if err := retry.Retry(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(pending.attempts) != 2 || pending.attempts[0].ID != pending.attempts[1].ID || len(store.messages) != 1 || len(sender.sent) != 1 {
+		t.Fatalf("retry did not resume original record: attempts = %+v, records = %d, sends = %d", pending.attempts, len(store.messages), len(sender.sent))
+	}
+}
+
 func (s *failingRelayStore) fail(stage string) bool {
 	if s.stage == stage && s.failures > 0 {
 		s.failures--

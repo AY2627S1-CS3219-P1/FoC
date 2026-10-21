@@ -24,8 +24,11 @@ func (q *Queries) DeleteClosedSelections(ctx context.Context, closedBefore time.
 }
 
 const deleteExpiredChatMessages = `-- name: DeleteExpiredChatMessages :execrows
-DELETE FROM chat_messages m USING order_participants p
-WHERE m.order_id = p.order_id AND p.ended_at < $1::timestamptz
+DELETE FROM chat_messages m
+WHERE EXISTS (SELECT 1 FROM order_participants p
+              WHERE p.order_id = m.order_id AND p.ended_at < $1::timestamptz)
+   OR (m.sent_at < $1::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = m.order_id))
 `
 
 func (q *Queries) DeleteExpiredChatMessages(ctx context.Context, cutoff time.Time) (int64, error) {
@@ -58,11 +61,16 @@ const deleteExpiredReplyTargets = `-- name: DeleteExpiredReplyTargets :exec
 DELETE FROM chat_reply_targets t
 WHERE t.order_id IN (SELECT p.order_id FROM order_participants p WHERE p.ended_at < $1::timestamptz)
    OR (t.created_at < $1::timestamptz
-       AND NOT EXISTS (SELECT 1 FROM order_participants p WHERE p.order_id = t.order_id))
+       AND NOT EXISTS (
+           SELECT 1 FROM order_participants p
+           WHERE p.order_id = t.order_id
+             AND (p.ended_at IS NOT NULL
+                  OR (p.courier_id IS NOT NULL
+                      AND p.status IN ('awaiting_pickup', 'delivering', 'delivered')))))
 `
 
-// Keep targets for active orders regardless of message age. Notifications
-// whose order projection never arrived expire by their own creation time.
+// Eligible active targets survive regardless of age; terminal targets use
+// ended_at. Orphan and ineligible targets expire by their creation time.
 func (q *Queries) DeleteExpiredReplyTargets(ctx context.Context, cutoff time.Time) error {
 	_, err := q.db.Exec(ctx, deleteExpiredReplyTargets, cutoff)
 	return err

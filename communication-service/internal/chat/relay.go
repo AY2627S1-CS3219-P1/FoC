@@ -141,10 +141,27 @@ func (r *Relay) HandleMessage(ctx context.Context, msg *telegram.Message) error 
 // Persist the dispute record before any external delivery. Retrying this stage
 // keeps the same ID, including when an insert committed before returning an error.
 func (r *Relay) recordAndSend(ctx context.Context, m Message, senderChatID int64) error {
-	if err := r.Store.SaveMessage(ctx, m); err != nil {
-		return &telegram.RetryError{Err: fmt.Errorf("save chat message: %w", err), Retry: func(ctx context.Context) error {
+	retry := func(err error) error {
+		return &telegram.RetryError{Err: err, Retry: func(ctx context.Context) error {
 			return r.recordAndSend(ctx, m, senderChatID)
 		}}
+	}
+
+	// An insert may resume after retention cleanup or a participant change.
+	// Revalidate before writing so a stale continuation cannot recreate records.
+	order, err := r.openOrder(ctx, m.SenderID, m.OrderID, r.Now())
+	if errors.Is(err, errClosed) {
+		return r.reply(ctx, senderChatID, closedReply, nil)
+	}
+	if err != nil {
+		return retry(err)
+	}
+	if recipientID, _ := order.Other(m.SenderID); recipientID != m.RecipientID {
+		return r.reply(ctx, senderChatID, closedReply, nil)
+	}
+
+	if err := r.Store.SaveMessage(ctx, m); err != nil {
+		return retry(fmt.Errorf("save chat message: %w", err))
 	}
 	return r.selectAndSend(ctx, m, senderChatID)
 }
