@@ -229,6 +229,8 @@ message CancelOrderRequest {
     message: "reason must be at most 500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) <= 500"
   }];
+  // Revision whose cancellation consequences the participant confirmed.
+  int64 expected_revision = 4 [(buf.validate.field).int64.gt = 0];
 }
 
 // Courier only, after a cancellation following pickup.

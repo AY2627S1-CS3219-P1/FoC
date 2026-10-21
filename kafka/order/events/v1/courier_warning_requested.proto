@@ -11,6 +11,8 @@ import "google/protobuf/timestamp.proto";
 enum CourierWarningReason {
   COURIER_WARNING_REASON_UNSPECIFIED = 0;
   COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP = 1;
+  // Delivery timeout at twice the allowed duration makes payable reward zero.
+  COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD = 2;
 }
 
 // Asks User Service to record an account warning against the courier.

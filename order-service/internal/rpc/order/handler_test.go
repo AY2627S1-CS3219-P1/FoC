@@ -28,12 +28,13 @@ const userID = "c55ce32c-2af7-46d1-a088-6a976d3bdbaf"
 const locationID = "41dbf670-f32c-4cca-9473-5861c274e789"
 
 type fakeOperations struct {
-	called  string
-	caller  app.Caller
-	id      string
-	request app.ListRequest
-	status  app.OfferStatus
-	err     error
+	progressCalled string
+	called         string
+	caller         app.Caller
+	id             string
+	request        app.ListRequest
+	status         app.OfferStatus
+	err            error
 }
 
 func fixture() app.Order {
@@ -78,10 +79,13 @@ func (f *fakeOperations) ListOffers(_ context.Context, c app.Caller, id string, 
 
 func (f *fakeOperations) ConfirmPickup(_ context.Context, c app.Caller, id string) (app.Order, error) {
 	f.called, f.caller, f.id = "pickup", c, id
+	f.progressCalled = "pickup"
 	return fixture(), f.err
 }
+
 func (f *fakeOperations) ConfirmReceipt(_ context.Context, c app.Caller, id string) (app.Order, error) {
 	f.called, f.caller, f.id = "receipt", c, id
+	f.progressCalled = "receipt"
 	return fixture(), f.err
 }
 
@@ -255,11 +259,11 @@ func TestProgressRPCsForwardCallerAndConvertOrder(t *testing.T) {
 	c := mount(t, f, "user")
 	ctx := context.Background()
 	picked, err := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
-	if err != nil || f.called != "pickup" || f.id != orderID || f.caller.ID != userID || picked.Msg.Order.GetId() != orderID {
+	if err != nil || f.progressCalled != "pickup" || f.called != "get" || f.id != orderID || f.caller.ID != userID || picked.Msg.Order.GetId() != orderID {
 		t.Fatalf("pickup: fake=%+v response=%v err=%v", f, picked, err)
 	}
 	received, err := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
-	if err != nil || f.called != "receipt" || f.id != orderID || received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
+	if err != nil || f.progressCalled != "receipt" || f.called != "get" || f.id != orderID || received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
 		t.Fatalf("receipt: fake=%+v response=%v err=%v", f, received, err)
 	}
 
@@ -309,7 +313,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 			return e
 		}},
 		{"cancel", func() error {
-			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID}))
+			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, ExpectedRevision: 1}))
 			return e
 		}},
 		{"location", func() error {
@@ -328,7 +332,7 @@ func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" {
+			if call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" || call.name == "pickup" || call.name == "receipt" || call.name == "location" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {

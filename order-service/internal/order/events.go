@@ -176,7 +176,8 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 	if after.Status == Completed || after.Status == Cancelled || after.Status == Expired || after.Status == Failed {
 		add(Outcome)
 	}
-	if previous == Delivering && action == Cancel && actor.Kind == User && after.IsAssignedTo(actor.ID) {
+	if previous == Delivering && ((action == Cancel && actor.Kind == User && after.IsAssignedTo(actor.ID)) ||
+		(action == Timeout && actor.Kind == System && after.PickedUpAt != nil && after.CourierID != nil)) {
 		add(CourierWarning)
 	}
 

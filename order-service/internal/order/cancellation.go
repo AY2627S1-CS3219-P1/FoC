@@ -35,11 +35,25 @@ func NewCanceller(repository CancellationRepository, credit CancellationCredit, 
 	}
 }
 
+// A legacy hash is accepted only for an already-retained key. New admissions
+// always store RequestHash, including the confirmed revision when supplied.
+type cancellationRequestKey struct {
+	IdempotencyKey
+	legacyHash string
+}
+
+func (k cancellationRequestKey) checkRetainedHash(stored IdempotencyKey) error {
+	if stored.RequestHash == k.legacyHash {
+		return nil
+	}
+	return stored.CheckRequestHash(k.RequestHash)
+}
+
 type cancellationRepository struct{ tx CancellationTx }
 
 func (r cancellationRepository) Within(_ context.Context, fn func(Tx) error) error { return fn(r.tx) }
 
-func (s *Canceller) mutate(ctx context.Context, id string, requestKey *IdempotencyKey, fn func(CancellationTx, Order, []Offer) (*Change, error)) error {
+func (s *Canceller) mutate(ctx context.Context, id string, requestKey *cancellationRequestKey, fn func(CancellationTx, Order, []Offer) (*Change, error)) error {
 	return s.repository.WithinCancellation(ctx, func(tx CancellationTx) error {
 		if requestKey != nil {
 			if err := tx.LockIdempotencyCaller(ctx, requestKey.Scope); err != nil {
@@ -52,7 +66,7 @@ func (s *Canceller) mutate(ctx context.Context, id string, requestKey *Idempoten
 				return err
 			}
 			if stored != nil {
-				if err := stored.CheckRequestHash(requestKey.RequestHash); err != nil {
+				if err := requestKey.checkRetainedHash(*stored); err != nil {
 					return err
 				}
 			}
@@ -61,14 +75,34 @@ func (s *Canceller) mutate(ctx context.Context, id string, requestKey *Idempoten
 	})
 }
 
-func cancellationHash(id, reason string) string {
+func cancellationHash(id, reason string, revision ...int64) string {
 	data, _ := json.Marshal([]string{id, reason})
+	if len(revision) > 0 {
+		data, _ = json.Marshal(struct {
+			ID       string
+			Reason   string
+			Revision int64
+		}{id, reason, revision[0]})
+	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
 // Cancel admits intent before any Credit call. Suspension does not remove participant rights.
 func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, key string) (CancellationResult, error) {
+	return s.cancel(ctx, caller, orderID, reason, key, nil)
+}
+
+// CancelConfirmed binds new intent to the revision confirmed by the participant.
+// Retained matching operations replay before checking the current revision.
+func (s *Canceller) CancelConfirmed(ctx context.Context, caller Caller, orderID, reason, key string, revision int64) (CancellationResult, error) {
+	if revision <= 0 {
+		return CancellationResult{}, ErrInvalid
+	}
+	return s.cancel(ctx, caller, orderID, reason, key, []int64{revision})
+}
+
+func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, key string, revision []int64) (CancellationResult, error) {
 	cid, err := parseID(caller.ID)
 	if err != nil {
 		return CancellationResult{}, ErrForbidden
@@ -92,10 +126,13 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		key = kid.String()
 		scope = &IdempotencyScope{CallerID: caller.ID, Method: CancelOrderMethod}
 	}
-	hash := cancellationHash(orderID, reason)
-	var requestKey *IdempotencyKey
+	hash := cancellationHash(orderID, reason, revision...)
+	var requestKey *cancellationRequestKey
 	if scope != nil {
-		requestKey = &IdempotencyKey{Scope: *scope, Key: key, RequestHash: hash}
+		requestKey = &cancellationRequestKey{
+			IdempotencyKey: IdempotencyKey{Scope: *scope, Key: key, RequestHash: hash},
+			legacyHash:     cancellationHash(orderID, reason),
+		}
 	}
 	var operation Cancellation
 	err = s.mutate(ctx, orderID, requestKey, func(tx CancellationTx, o Order, offers []Offer) (*Change, error) {
@@ -112,7 +149,7 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 				return nil, err
 			}
 			if stored != nil {
-				if err := stored.CheckRequestHash(hash); err != nil {
+				if err := requestKey.checkRetainedHash(*stored); err != nil {
 					return nil, err
 				}
 				operation, err = tx.FindCancellation(ctx, stored.ResourceID)
@@ -128,6 +165,9 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		// Authorize new intent against the locked aggregate, then join pending work.
 		if !o.HasParticipant(caller.ID) {
 			return nil, ErrForbidden
+		}
+		if len(revision) > 0 && o.Revision != revision[0] {
+			return nil, ErrConflict
 		}
 		now := s.now().UTC()
 		if o.PendingCancellationID != nil && o.IsAssignedTo(caller.ID) {
@@ -167,7 +207,9 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		after.UpdatedAt = now
 		if action == Withdraw {
 			if s.credit == nil {
-				return nil, ErrUnavailable
+				// This is a definitive pre-admission refusal, not an uncertain
+				// dependency reply after a durable withdrawal has started.
+				return nil, ErrPrecondition
 			}
 			operation.Status, operation.CourierID, operation.AssignedAt = CancellationPending, caller.ID, clonePointer(o.AssignedAt)
 			assignment, err := tx.CurrentSuccessfulAssignment(ctx, o.ID)
@@ -218,7 +260,7 @@ func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, 
 		if err := retain(); err != nil {
 			return nil, err
 		}
-		details, _ := json.Marshal(map[string]string{"operation_id": operation.ID, "reason": reason})
+		details, _ := json.Marshal(map[string]any{"operation_id": operation.ID, "reason": reason, "courier_holds_item": o.PickedUpAt != nil})
 		change, err := NewChange(&o, after, Actor{Kind: User, ID: caller.ID}, action, details, s.newID)
 		if err != nil {
 			return nil, err
