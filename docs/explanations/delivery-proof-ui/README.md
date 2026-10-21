@@ -40,3 +40,11 @@ Observed: four scenarios passed with zero browser page errors. The check verifie
 For the fixed-mobile recording, use the same command with `--recording-only --capture-widths 360 --slow-mo 200` and a separate `--out` directory. This skips screenshot captures, whose temporary viewport changes can affect Chrome video frames.
 
 Frontend verification: `npm run check` reported zero errors/warnings, `npm test` passed 112 tests in 16 files, and `npm run build` completed. The build reports existing adapter-auto environment-detection and transitive browser-module notices. Backend code is unchanged and backend/live-service checks were not rerun for this presentation change. Stop only the Vite process started for this walkthrough. The fixture does not write live records.
+
+## Later copy and control cleanup
+
+The [updated UI previews](https://github.com/AY2627S1-CS3219-P1/FoC/pull/177#issuecomment-6310624262) show the later copy and control changes. Repeated instructions, internal status labels and raw account IDs were removed. Offer and order controls now follow the existing Material styling. The camera icon uses native image capture where supported and the same validation and limits as the file picker.
+
+The mounted browser checks passed five proof scenarios at 360/1440px, seven offer scenarios and eight cancellation scenarios with no page errors. Earlier copy checks also covered 390/768px. They use synthetic Connect/storage/auth fixtures, not live services. Camera checks cover keyboard activation, chooser fallback, validation, empty selection, shared photo limits and pending-state locking. Opening a physical phone camera remains unverified.
+
+Final combined checks: `npm run check` reported zero errors and warnings, all 167 frontend tests passed in 27 files, and `npm run build` completed. Both order-creation browser runs passed, including caller-specific balance recovery, denied retry/suspension recovery and duplicate-safe creation. The browser harness now imports the actual Vite-loaded auth module when switching callers, so hot-reload timestamps cannot create a second test-only singleton. No application request handling or financial rules changed.

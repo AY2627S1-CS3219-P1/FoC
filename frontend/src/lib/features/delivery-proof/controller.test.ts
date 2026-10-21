@@ -116,7 +116,7 @@ describe('delivery proof upload and confirmation', () => {
 		const other = scenario().controller;
 		other.addFiles([new File(['text'], 'not-a-photo.txt', { type: 'text/plain' })]);
 		expect(other.snapshot().files[0].outcome).toBe('Rejected');
-		expect(other.snapshot().files[0].message).toContain('10,000,000');
+		expect(other.snapshot().files[0].message).toContain('10MB');
 	});
 
 	it('suppresses duplicate confirmation clicks while the first is pending', async () => {

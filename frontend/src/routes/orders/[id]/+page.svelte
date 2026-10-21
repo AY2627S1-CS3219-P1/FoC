@@ -78,13 +78,13 @@
 <svelte:head><title>Order details · Friend on Campus</title></svelte:head>
 <section class="page-content" aria-label="Order detail">
 	<nav><a href="/orders">Browse</a> · <a href="/orders/mine">My Orders</a></nav>
-	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to read this order.</p>
+	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to view this order.</p>
 	{:else}
-		{#if error}<p class="notice error" role="alert">{order ? 'Showing previously loaded data. ' : ''}{error}</p>{/if}
-		<Button variant="outlined" disabled={loading} onclick={() => void refresh()}>{loading ? 'Refreshing…' : 'Refresh order'}</Button>
+		{#if error}<p class="notice error" role="alert">{order ? 'This order may be out of date. ' : ''}{error}</p>{/if}
+		<div class="refresh-action"><Button variant="outlined" disabled={loading} onclick={() => void refresh()}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
 		{#if !order && loading}<LoadingIndicator aria-label="Loading order" />{/if}
 		{#if order}
-			{#if seconds !== undefined}<p role="status">{seconds > 0 ? 'Time until deadline: ' + Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's' : 'Deadline reached. Checking backend status.'}</p>{/if}
+			{#if seconds !== undefined}<p role="status">{seconds > 0 ? 'Deadline in ' + Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's' : 'Deadline reached. Checking status…'}</p>{/if}
 			<OrderDetailShell {order} {refresh}>
 				{#snippet actions(currentOrder, refreshOrder)}
 					<OrderOfferControls
@@ -103,3 +103,7 @@
 		{/if}
 	{/if}
 </section>
+
+<style>
+	.refresh-action { justify-self: start; }
+</style>

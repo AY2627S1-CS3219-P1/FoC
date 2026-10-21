@@ -6,6 +6,7 @@ behavior are separately exercised by TestCancellationThroughConnectAndPostgres.
 """
 import argparse
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -127,14 +128,14 @@ def main():
         expect.set_options(timeout=30000)
         page.on("pageerror", lambda error: errors.append(str(error)))
         def confirm_cancel():
-            page.get_by_role("button", name="Cancel or withdraw", exact=True).click()
+            page.get_by_role("button", name=re.compile(r"^(Withdraw|Cancel order)$")).click()
             page.get_by_role("alertdialog", name="Confirm cancellation").get_by_role("button", name="Confirm cancellation", exact=True).click()
 
         requests = []
         page.on("request", lambda request: requests.append({"method": request.method, "path": urlparse(request.url).path}))
         page.goto(origin + "/orders/" + ORDER, wait_until="domcontentloaded", timeout=120000)
         try:
-            expect(page.get_by_role("button", name="Cancel or withdraw", exact=True)).to_be_visible()
+            expect(page.get_by_role("button", name=re.compile(r"^(Withdraw|Cancel order)$"))).to_be_visible()
         except Exception:
             (out / "startup-debug.json").write_text(json.dumps({"requests": requests, "pageErrors": errors}, indent=2))
             page.screenshot(path=str(out / "startup-failure.png"), full_page=True)
@@ -142,18 +143,18 @@ def main():
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.get_by_label("Cancellation reason", exact=False).fill("Need to withdraw")
         confirm_cancel()
-        expect(page.get_by_role("alert").filter(has_text="result is unknown")).to_be_visible()
+        expect(page.get_by_role("alert").filter(has_text="We could not confirm your cancellation")).to_be_visible()
         original = dict(state["cancels"][0])
         page.reload(wait_until="domcontentloaded", timeout=120000)
-        page.get_by_role("button", name="Retry saved cancellation").click()
-        expect(page.get_by_role("status").filter(has_text="Waiting for Credit")).to_be_visible()
+        page.get_by_role("button", name="Check cancellation").click()
+        expect(page.get_by_role("status").filter(has_text="Still confirming your withdrawal")).to_be_visible()
         assert state["cancels"][1] == original
         expect(page.get_by_role("button", name="Confirm pickup", exact=True)).to_be_disabled()
         checks.append("Lost response plus page reload retained identical key, reason and confirmed revision; pending withdrawal blocks pickup")
         page.screenshot(path=str(out / "withdrawal-pending-360.png"), full_page=True)
         state.update(pending=False, status="AWAITING_COURIER", courier=None, revision=6)
-        page.get_by_role("button", name="Retry saved cancellation").click()
-        expect(page.get_by_role("status").filter(has_text="Cancellation succeeded")).to_be_visible()
+        page.get_by_role("button", name="Check cancellation").click()
+        expect(page.get_by_role("status").filter(has_text="Cancellation confirmed")).to_be_visible()
         expect(page.get_by_text("Room 02-15", exact=False)).to_have_count(0)
         checks.append("Resolved historical withdrawal refreshes to the redacted current order")
 
@@ -161,7 +162,7 @@ def main():
         page.reload(wait_until="domcontentloaded", timeout=120000)
         page.get_by_label("Cancellation reason", exact=False).fill("Changed plans")
         confirm_cancel()
-        expect(page.get_by_role("alert").filter(has_text="review its consequences")).to_be_visible()
+        expect(page.get_by_role("alert").filter(has_text="check the details")).to_be_visible()
         expect(page.get_by_text("Cancel after pickup. The reserved reward is paid to the courier.", exact=True)).to_be_visible()
         expect(page.get_by_label("Cancellation reason", exact=False)).to_have_value("Changed plans")
         page.screenshot(path=str(out / "stale-confirmation-360.png"), full_page=True)
@@ -174,10 +175,10 @@ def main():
         state["identity"] = COURIER
         page.set_viewport_size({"width": 768, "height": 1000})
         page.reload(wait_until="domcontentloaded", timeout=120000)
-        field = page.get_by_label("Final item location (1 to 500 characters)")
+        field = page.get_by_label("Final item location", exact=True)
         field.fill("Library desk")
         page.get_by_role("button", name="Save final item location").click()
-        expect(page.get_by_role("alert").filter(has_text="Input retained")).to_be_visible()
+        expect(page.get_by_role("alert").filter(has_text="Your input is still here")).to_be_visible()
         expect(field).to_have_value("Library desk")
         page.get_by_role("button", name="Save final item location").click()
         expect(page.get_by_role("status").filter(has_text="Final item location saved")).to_be_visible()
@@ -196,16 +197,16 @@ def main():
 
         state.update(identity=REQUESTER, status="AWAITING_PICKUP", pending=True, picked=False, revision=18, location=None)
         page.reload(wait_until="domcontentloaded", timeout=120000)
-        expect(page.get_by_role("button", name="Cancel or withdraw", exact=True)).to_be_enabled()
+        expect(page.get_by_role("button", name=re.compile(r"^(Withdraw|Cancel order)$"))).to_be_enabled()
         confirm_cancel()
-        expect(page.get_by_role("status").filter(has_text="Cancellation succeeded")).to_be_visible()
+        expect(page.get_by_role("status").filter(has_text="Cancellation confirmed")).to_be_visible()
         checks.append("Requester can cancel while the courier withdrawal is pending")
 
         state.update(identity=COURIER, status="AWAITING_PICKUP", pending=False, picked=False, revision=19, refuse=True)
         page.reload(wait_until="domcontentloaded", timeout=120000)
         confirm_cancel()
-        expect(page.get_by_role("alert").filter(has_text="Cancellation rejected")).to_be_visible()
-        expect(page.get_by_role("button", name="Retry saved cancellation")).to_have_count(0)
+        expect(page.get_by_role("alert").filter(has_text="The order changed or could not be cancelled")).to_be_visible()
+        expect(page.get_by_role("button", name="Check cancellation")).to_have_count(0)
         expect(page.get_by_role("button", name="Confirm pickup", exact=True)).to_be_enabled()
         checks.append("Definitive pre-admission refusal clears retained intent and does not lock pickup")
 
@@ -213,7 +214,7 @@ def main():
         page.evaluate("() => { Storage.prototype.setItem = function() { throw new DOMException('Fixture quota exceeded', 'QuotaExceededError'); }; }")
         confirm_cancel()
         expect(page.get_by_role("status").filter(has_text="Cancellation not submitted")).to_be_visible()
-        expect(page.get_by_role("alert").filter(has_text="Nothing was sent")).to_be_visible()
+        expect(page.get_by_role("alert").filter(has_text="Cancellation was not sent")).to_be_visible()
         assert len(state["cancels"]) == before_storage_failure
         checks.append("Storage failure is reported as not submitted and sends no cancellation RPC")
 

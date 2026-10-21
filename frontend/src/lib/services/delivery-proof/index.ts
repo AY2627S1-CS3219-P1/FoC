@@ -20,8 +20,8 @@ function rethrow(cause: unknown): never {
 		Code.AlreadyExists, Code.ResourceExhausted
 	].includes(cause.code)) {
 		throw new ProofRejectedError(cause.code === Code.ResourceExhausted
-			? 'Proof upload admission is temporarily limited. Keep this photo and retry later.'
-			: 'The server rejected this proof request. Check the order status, photos and delivery deadline before trying again.');
+			? 'Photo uploads are temporarily limited. Keep this photo and try again later.'
+			: 'This action could not be completed. Check the order, photos and delivery deadline, then try again.');
 	}
 	throw cause;
 }

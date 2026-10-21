@@ -1,6 +1,6 @@
 # Delivery proof verification
 
-These results were observed on application source `d5aa5ee`. Subsequent changes are documentation/artifacts only. No builds or runtime tests were repeated for this cleanup. The mounted proof path targets B3 #179; lifecycle timer startup/enforcement is downstream in #183.
+These historical results were observed on application source `d5aa5ee`. The original documentation/artifact cleanup did not repeat builds or runtime tests. [Later UI checks](delivery-proof-ui/README.md#later-copy-and-control-cleanup) record the copy, control and camera changes separately. The mounted proof path targets B3 #179; lifecycle timer startup/enforcement is downstream in #183.
 
 ## Observed automated checks
 
