@@ -159,14 +159,35 @@ covers the foundation boundaries and does not certify the complete NFR.
 | <a id="nfr-02"></a>NFR-02 / NFR-11.6 | [`TestPostgresFoundation/competing mutations serialize to one courier`](internal/order/postgres_integration_test.go#L403); [`TestPostgresFoundation/assignment racing expiry commits one change`](internal/order/postgres_integration_test.go#L429) | **Partial:** one courier wins among 16 local assignment mutations, and assignment/expiry commits one local change. The required 50 concurrent acceptance RPCs and their future saga are not exercised. |
 | <a id="nfr-04"></a>NFR-04 / NFR-04.1 | [`TestCancellationDefaultsAndRepeats`](internal/order/transitions_test.go#L64); [`TestMutateRecognizedRepeatCommitsWithoutWrites`](internal/order/mutation_test.go#L79); [`TestSameStatusAssignmentRepeatCannotCommit`](internal/order/change_invariants_test.go#L63); [Postgres receipt repeat](internal/order/postgres_integration_test.go#L188); [revision conflicts](internal/order/postgres_integration_test.go#L319); [conditional revision writes](internal/order/postgres_integration_test.go#L356); [atomic rollback](internal/order/postgres_integration_test.go#L370); [outbox duplicate protection](internal/order/postgres_integration_test.go#L502) | **Partial:** action-specific local repeats, revision checks, atomic rollback and persisted fact uniqueness. Kafka delivery/replay and downstream idempotency are not exercised. |
 | <a id="nfr-05-auth"></a>NFR-05.2.3 / NFR-05.2.5 | [persisted authorization baseline](internal/order/transaction_invariants_integration_test.go#L25); [persisted participant/history visibility](internal/order/reads_integration_test.go#L110); [persisted offer visibility](internal/order/reads_integration_test.go#L141); [`TestTransitions`](internal/order/transitions_test.go#L10); [`TestGetOrderAccessAndRedaction`](internal/order/service_test.go#L42); [`TestListValidationAndAdminAuthorizationOrder`](internal/order/service_test.go#L109); [`TestAuthorizationBeforeValidation`](internal/rpc/order/handler_test.go#L142) | **Foundation reads and mutation boundary:** integration tests use stored relationships. Domain fakes verify policy; the RPC test verifies method authorization before validation with injected identity. Future mutation operations and end-to-end JWT authentication need their own coverage. |
+| NFR-06.2 | [`TestOrderViewProtectsEveryResponse`](internal/rpc/shared/conversion_test.go); [`TestReadPrivacyThroughConnectAndPostgres`](internal/rpc/order/readprivacy_integration_test.go); [`TestAssignmentHistoryPrivacyAndAtomicity`](internal/order/assignmenthistory_integration_test.go) | **Backend read/mutation projection and history:** real PostgreSQL18 and mounted Connect reads verify coarse destination/filtering, exact-filter rejection, historical/admin redaction and current-participant exact access. Shared response tests verify sensitive text and attachment-URL suppression. Live JWT issuance and authoritative open-case admin grants are not exercised; admin-only sensitive access fails closed. |
 
 The following NFRs have no direct foundation test proving the stated requirement:
 
 | NFR | Current coverage limit |
 | --- | --- |
-| NFR-06.2 / NFR-06.3 | Instruction redaction and offer privacy tests do not prove exact-location or proof-image restrictions. Read contracts expose location snapshots; proof-image workflows are deferred. |
+| NFR-06.3 | Proof-image authorization/workflows are outside this foundation and are not certified by the item-image/read-projection tests above. |
 | NFR-09 / NFR-09.5 | Snapshot round trips and transaction tests do not restart the server/database, recover workflows or detect Order/Credit mismatches within five minutes. |
 | NFR-10.3 | Local Order audit persistence is tested, but Credit settlement and review removal/restoration audit actions are outside this foundation. |
 | NFR-18.1 / NFR-18.2 / NFR-18.5 | The storage fake tests interface semantics, without image-count, size-limit or pre-upload rejection workflows. |
 | NFR-19.1 | No request creation rate limiter or requests-per-account test is implemented. |
 | NFR-20 | Durable outbox facts are tested; publication to Credit and downstream settlement are deferred. |
+
+### Creation, images and publication execution
+
+The replacement implements R1.1.1–R1.1.9 and R1.1.12 at the backend boundary,
+including the five-image/10,000,000-byte limits and NFR-19.1 admission quota.
+[`tests/creation`](tests/creation) contains runnable PostgreSQL/Connect, Floci and
+Kafka coverage; see [setup and scope](README.md). Credit endpoints are scripted
+fixtures. Minimum courier rating (R1.1.10–11) depends on Review and is incomplete.
+
+| Requirement | Execution evidence and limit |
+| --- | --- |
+| NFR-04 / NFR-09 | Concurrent duplicate creation, stable identities, restart after remote success/local rollback, unknown outcomes, delayed responses and durable publication replay. Whole-deployment recovery is not certified. |
+| NFR-05 / NFR-06 | Image owner/attachment checks and authorized signed download grants. Proof-image workflows and the complete relationship/privacy NFR remain follow-ups. |
+| NFR-18 | Supported types, count, exact signed byte length, altered requests rejected before object storage, atomic attachment and orphan cleanup. Bodies are not decoded or converted. |
+| NFR-19.1 | Fifty distinct attempts admit ten per rolling minute; retained retries consume no quota. |
+| NFR-20 | **Partial:** Order publishes outcome events through real Kafka. Credit consumption, financial deduplication/settlement and five-minute reconciliation/alerts remain Credit dependencies. |
+
+Run `GOCACHE=/tmp/foc-go-build make -C order-service test-creation` from the root.
+Later lifecycle RPCs and browser UI are not implemented by this slice. Existing
+foundation tables above describe their original coverage, not the newer tests.

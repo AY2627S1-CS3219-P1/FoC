@@ -15,20 +15,20 @@ SELECT * FROM orders WHERE
  (NOT sqlc.arg(open_only)::boolean OR (status = 'awaiting_courier' AND requester_id <> sqlc.arg(caller_id)::uuid AND expires_at > sqlc.arg(now_at)::timestamptz))
  AND (sqlc.arg(user_id)::text = '' OR
    ((sqlc.arg(role)::text IN ('','requester') AND requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid) OR
-    (sqlc.arg(role)::text IN ('','courier') AND courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
+    (sqlc.arg(role)::text IN ('','courier') AND (courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF(sqlc.arg(user_id)::text,'')::uuid)))))
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
- AND (sqlc.arg(delivery_id)::text = '' OR delivery->>'location_id' = sqlc.arg(delivery_id)::text) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
+ AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
 
 -- name: CountOrders :one
 SELECT count(*) FROM orders WHERE
  (NOT sqlc.arg(open_only)::boolean OR (status = 'awaiting_courier' AND requester_id <> sqlc.arg(caller_id)::uuid AND expires_at > sqlc.arg(now_at)::timestamptz))
  AND (sqlc.arg(user_id)::text = '' OR
    ((sqlc.arg(role)::text IN ('','requester') AND requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid) OR
-    (sqlc.arg(role)::text IN ('','courier') AND courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
+    (sqlc.arg(role)::text IN ('','courier') AND (courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF(sqlc.arg(user_id)::text,'')::uuid)))))
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
- AND (sqlc.arg(delivery_id)::text = '' OR delivery->>'location_id' = sqlc.arg(delivery_id)::text);
+ AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text);
 
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;

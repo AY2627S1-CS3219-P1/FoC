@@ -23,6 +23,33 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (Order, error) 
 	return fromOrder(row)
 }
 
+// GetWithParticipation keeps the Order and historical membership on one snapshot.
+func (r *PostgresRepository) GetWithParticipation(ctx context.Context, id, callerID string) (Order, bool, error) {
+	uid, err := parseID(id)
+	if err != nil {
+		return Order{}, false, err
+	}
+	caller, err := parseID(callerID)
+	if err != nil {
+		return Order{}, false, err
+	}
+	var result Order
+	var historical bool
+	err = r.snapshot(ctx, func(q *db.Queries) error {
+		row, err := q.GetOrder(ctx, uid)
+		if err != nil {
+			return err
+		}
+		result, err = fromOrder(row)
+		if err != nil {
+			return err
+		}
+		historical, err = q.HasAssignmentHistory(ctx, db.HasAssignmentHistoryParams{OrderID: uid, CourierID: caller})
+		return err
+	})
+	return result, historical, persistenceError(err)
+}
+
 // Each list/count and Order/offer read sees one read-only snapshot, without locks.
 func (r *PostgresRepository) snapshot(ctx context.Context, fn func(*db.Queries) error) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -50,7 +77,7 @@ func (r *PostgresRepository) List(ctx context.Context, q ReadQuery) (OrderPage, 
 		return OrderPage{}, err
 	}
 
-	for _, id := range []*string{&q.UserID, &q.ListRequest.PickupID, &q.ListRequest.DeliveryID} {
+	for _, id := range []*string{&q.UserID, &q.ListRequest.PickupID} {
 		if *id != "" {
 			v, e := parseID(*id)
 			if e != nil {
@@ -61,16 +88,16 @@ func (r *PostgresRepository) List(ctx context.Context, q ReadQuery) (OrderPage, 
 	}
 
 	args := db.ListOrdersParams{
-		OpenOnly:     q.Open,
-		CallerID:     caller,
-		NowAt:        time.Now(),
-		UserID:       q.UserID,
-		Role:         string(q.ListRequest.Role),
-		StatusFilter: string(q.ListRequest.Status),
-		PickupID:     q.ListRequest.PickupID,
-		DeliveryID:   q.ListRequest.DeliveryID,
-		PageSize:     p.Size,
-		PageOffset:   int64(p.Number-1) * int64(p.Size),
+		OpenOnly:             q.Open,
+		CallerID:             caller,
+		NowAt:                time.Now(),
+		UserID:               q.UserID,
+		Role:                 string(q.ListRequest.Role),
+		StatusFilter:         string(q.ListRequest.Status),
+		PickupID:             q.ListRequest.PickupID,
+		DeliveryBuildingName: q.ListRequest.DeliveryBuildingName,
+		PageSize:             p.Size,
+		PageOffset:           int64(p.Number-1) * int64(p.Size),
 	}
 	out := OrderPage{PageInfo: PageInfo{Page: p}}
 
@@ -90,14 +117,14 @@ func (r *PostgresRepository) List(ctx context.Context, q ReadQuery) (OrderPage, 
 		}
 
 		out.PageInfo.Total, e = s.CountOrders(ctx, db.CountOrdersParams{
-			OpenOnly:     args.OpenOnly,
-			CallerID:     args.CallerID,
-			NowAt:        args.NowAt,
-			UserID:       args.UserID,
-			Role:         args.Role,
-			StatusFilter: args.StatusFilter,
-			PickupID:     args.PickupID,
-			DeliveryID:   args.DeliveryID,
+			OpenOnly:             args.OpenOnly,
+			CallerID:             args.CallerID,
+			NowAt:                args.NowAt,
+			UserID:               args.UserID,
+			Role:                 args.Role,
+			StatusFilter:         args.StatusFilter,
+			PickupID:             args.PickupID,
+			DeliveryBuildingName: args.DeliveryBuildingName,
 		})
 		return e
 	})

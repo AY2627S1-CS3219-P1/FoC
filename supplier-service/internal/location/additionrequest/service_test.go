@@ -33,11 +33,11 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	}
 	_, e = app.UpdateRequest(ctx, admin, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{Details: "stale"}, Paths: []string{"details"}, ExpectedRevision: 1})
 	expectError(t, e, additionrequest.ErrAborted)
-	result, e := app.ApproveRequest(ctx, admin, r.ID)
+	result, e := app.ApproveRequest(ctx, admin, r.ID, updated.Revision)
 	if e != nil || result.Location.ID == "" || result.Request.Status != additionrequest.Approved || result.Location.Proposal.Details != "updated" {
 		t.Fatalf("approval: %+v %v", result, e)
 	}
-	retry, e := app.ApproveRequest(ctx, admin, r.ID)
+	retry, e := app.ApproveRequest(ctx, admin, r.ID, updated.Revision)
 	if e != nil || retry.Location.ID != result.Location.ID || retry.Request.Revision != result.Request.Revision {
 		t.Fatalf("approval retry: %+v %v", retry, e)
 	}
@@ -53,7 +53,7 @@ func TestRequestApprovalVisibilityRedactionAndRetry(t *testing.T) {
 	if e != nil || list.PageInfo.TotalItems != 1 || list.Items[0].SubmittedBy != "" {
 		t.Fatalf("public list: %+v %v", list, e)
 	}
-	_, e = app.RejectRequest(ctx, admin, r.ID, "different transition")
+	_, e = app.RejectRequest(ctx, admin, r.ID, "different transition", r.Revision)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 	_, e = app.WithdrawRequest(ctx, owner, r.ID)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
@@ -71,7 +71,7 @@ func TestRequestWithdrawRejectAndApprovalRollback(t *testing.T) {
 		t.Fatal(e)
 	}
 	repo.failCreate = true
-	_, e = app.ApproveRequest(ctx, admin, r.ID)
+	_, e = app.ApproveRequest(ctx, admin, r.ID, r.Revision)
 	if e == nil {
 		t.Fatal("expected dependency failure")
 	}
@@ -89,23 +89,23 @@ func TestRequestWithdrawRejectAndApprovalRollback(t *testing.T) {
 	if e != nil || retry.Revision != withdrawn.Revision {
 		t.Fatalf("withdraw retry: %+v %v", retry, e)
 	}
-	_, e = app.RejectRequest(ctx, admin, r.ID, "note")
+	_, e = app.RejectRequest(ctx, admin, r.ID, "note", r.Revision)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 	r, e = app.SubmitRequest(ctx, owner, additionrequest.SubmitRequest{Proposal: validProposal(), Key: "c3600892-6029-4910-b1c9-d3e892039f63"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = app.RejectRequest(ctx, admin, r.ID, " ")
+	_, e = app.RejectRequest(ctx, admin, r.ID, " ", r.Revision)
 	expectError(t, e, additionrequest.ErrInvalidArgument)
-	rejected, e := app.RejectRequest(ctx, admin, r.ID, " not suitable ")
+	rejected, e := app.RejectRequest(ctx, admin, r.ID, " not suitable ", r.Revision)
 	if e != nil || rejected.Status != additionrequest.Rejected || *rejected.ReviewNote != "not suitable" {
 		t.Fatalf("reject: %+v %v", rejected, e)
 	}
-	retry, e = app.RejectRequest(ctx, admin, r.ID, "new note")
+	retry, e = app.RejectRequest(ctx, admin, r.ID, "new note", r.Revision)
 	if e != nil || *retry.ReviewNote != "not suitable" {
 		t.Fatalf("reject retry: %+v %v", retry, e)
 	}
-	_, e = app.ApproveRequest(ctx, admin, r.ID)
+	_, e = app.ApproveRequest(ctx, admin, r.ID, r.Revision)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 }
 
@@ -120,7 +120,7 @@ func TestApprovalRollsBackLocationWhenRequestSaveFails(t *testing.T) {
 	}
 
 	repo.failSaveRequest = true
-	_, err = app.ApproveRequest(ctx, admin, request.ID)
+	_, err = app.ApproveRequest(ctx, admin, request.ID, request.Revision)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("approval error: got %v, want injected save failure", err)
 	}
@@ -203,7 +203,7 @@ func TestConcurrentApprovalAndWithdrawalHaveOneTerminalResult(t *testing.T) {
 		t.Fatal(e)
 	}
 	results := make(chan error, 2)
-	go func() { _, e := app.ApproveRequest(ctx, admin, r.ID); results <- e }()
+	go func() { _, e := app.ApproveRequest(ctx, admin, r.ID, r.Revision); results <- e }()
 	go func() { _, e := app.WithdrawRequest(ctx, owner, r.ID); results <- e }()
 	a, b := <-results, <-results
 	if (a == nil) == (b == nil) {
@@ -229,7 +229,7 @@ func TestApprovalRevalidatesLegacySupplierProposal(t *testing.T) {
 	legacy := repo.requests[r.ID]
 	legacy.Proposal.CategoryIDs = nil
 	repo.requests[r.ID] = legacy
-	_, e = app.ApproveRequest(ctx, admin, r.ID)
+	_, e = app.ApproveRequest(ctx, admin, r.ID, r.Revision)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 }
 
@@ -244,13 +244,13 @@ func TestLegacyProposalCoordinatesCanBeRepairedBeforeApproval(t *testing.T) {
 	legacy := repo.requests[r.ID]
 	legacy.Proposal.CoordinatesMissing = true
 	repo.requests[r.ID] = legacy
-	_, e = app.ApproveRequest(ctx, admin, r.ID)
+	_, e = app.ApproveRequest(ctx, admin, r.ID, r.Revision)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 	repaired, e := app.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: r.ID, Proposal: additionrequest.Proposal{Latitude: 1.294, Longitude: 103.774}, Paths: []string{"coordinates"}, ExpectedRevision: 1})
 	if e != nil || repaired.Proposal.CoordinatesMissing {
 		t.Fatalf("repair: %+v %v", repaired, e)
 	}
-	_, e = app.ApproveRequest(ctx, admin, r.ID)
+	_, e = app.ApproveRequest(ctx, admin, r.ID, repaired.Revision)
 	if e != nil {
 		t.Fatal(e)
 	}

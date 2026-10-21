@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: run sqlc test test-integration migrate-up migrate-down goose-create
+.PHONY: run sqlc test test-creation test-integration migrate-up migrate-down goose-create
 
 run:
 	air -c .air.toml
@@ -10,6 +10,9 @@ sqlc:
 
 test:
 	GOWORK=off go test -mod=readonly ./...
+
+test-creation:
+	GOWORK=off go test -mod=readonly -race -tags=integration ./tests/creation -count=1 -timeout=10m
 
 test-integration:
 	GOWORK=off go test -mod=readonly -p 1 -tags=integration ./... -count=1 -timeout=10m

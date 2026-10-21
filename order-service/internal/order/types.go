@@ -175,6 +175,7 @@ type ListRequest struct {
 	Status               Status
 	Role                 Role
 	PickupID, DeliveryID string
+	DeliveryBuildingName string
 }
 
 type OrderPage struct {
