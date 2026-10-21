@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/account"
 )
@@ -16,6 +17,12 @@ type fakeStore struct {
 	total         int64
 	limit, offset int64
 	listed        bool
+	opened        []string
+}
+
+func (f *fakeStore) Open(_ context.Context, id string, _ time.Time) error {
+	f.opened = append(f.opened, id)
+	return nil
 }
 
 func (f *fakeStore) Account(_ context.Context, id string) (account.Account, error) {
@@ -33,18 +40,18 @@ func (f *fakeStore) LedgerEntries(_ context.Context, _ string, limit, offset int
 
 func TestGetAccountReportsAvailableCredits(t *testing.T) {
 	store := &fakeStore{}
-	a, err := account.NewService(store).GetAccount(context.Background(), userID)
+	a, err := account.NewService(store, store, time.Now).GetAccount(context.Background(), userID)
 	if err != nil || a.Available() != 70 {
 		t.Fatalf("account: %+v %v", a, err)
 	}
-	if _, err := account.NewService(store).GetAccount(context.Background(), "nope"); !errors.Is(err, account.ErrInvalidArgument) {
+	if _, err := account.NewService(store, store, time.Now).GetAccount(context.Background(), "nope"); !errors.Is(err, account.ErrInvalidArgument) {
 		t.Fatalf("invalid id: %v", err)
 	}
 }
 
 func TestReadsReportAMissingAccount(t *testing.T) {
 	store := &fakeStore{missing: true}
-	s := account.NewService(store)
+	s := account.NewService(store, store, time.Now)
 
 	if _, err := s.GetAccount(context.Background(), userID); !errors.Is(err, account.ErrAccountNotFound) {
 		t.Fatalf("get: %v", err)
@@ -72,7 +79,7 @@ func TestListLedgerEntriesPages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeStore{total: tt.total}
-			got, err := account.NewService(store).ListLedgerEntries(context.Background(), userID, tt.page)
+			got, err := account.NewService(store, store, time.Now).ListLedgerEntries(context.Background(), userID, tt.page)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,8 +89,23 @@ func TestListLedgerEntriesPages(t *testing.T) {
 		})
 	}
 	for _, p := range []account.Page{{Number: -1}, {Size: -1}, {Size: 101}} {
-		if _, err := account.NewService(&fakeStore{}).ListLedgerEntries(context.Background(), userID, p); !errors.Is(err, account.ErrInvalidArgument) {
+		if _, err := account.NewService(&fakeStore{}, nil, time.Now).ListLedgerEntries(context.Background(), userID, p); !errors.Is(err, account.ErrInvalidArgument) {
 			t.Fatalf("page %+v: %v", p, err)
 		}
+	}
+}
+
+func TestOpenValidatesTheUserID(t *testing.T) {
+	store := &fakeStore{}
+	s := account.NewService(store, store, time.Now)
+
+	if err := s.Open(context.Background(), "22222222-2222-4222-8222-222222222222"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Open(context.Background(), "nope"); !errors.Is(err, account.ErrInvalidArgument) {
+		t.Fatalf("invalid id: %v", err)
+	}
+	if len(store.opened) != 1 || store.opened[0] != userID {
+		t.Fatalf("opened %v", store.opened)
 	}
 }
