@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
+	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/notify"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
@@ -89,7 +90,7 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 	handler := &notify.Handler{
 		Sender:     telegram.NewClient("123:token", srv.URL, srv.Client()),
 		Links:      links,
-		Deliveries: &notify.PostgresDeliveries{Pool: pool},
+		Deliveries: &notify.PostgresDeliveries{Queries: db.New(pool)},
 		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Now:        time.Now,
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/bot"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/chat"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
+	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
@@ -124,11 +125,9 @@ func main() {
 	var botUsername atomic.Pointer[string]
 	chats := &chat.PostgresStore{Pool: pool}
 	var workers sync.WaitGroup
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		chat.RunCleanup(ctx, chats, log, time.Now)
-	}()
+	})
 	startBot(ctx, cfg, log, links, chats, &botUsername, func() {
 		startNotifications(ctx, cfg, log, links, chats, pool, &workers)
 	}, &workers)
@@ -178,9 +177,7 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		return
 	}
 	client := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: pollTimeout + 10*time.Second})
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		me, err := waitForBot(ctx, client, log, botRetryDelay)
 		if err != nil {
 			if ctx.Err() == nil {
@@ -204,7 +201,7 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		if err := poller.Run(ctx); err != nil {
 			log.Error("telegram polling stopped", "err", err)
 		}
-	}()
+	})
 }
 
 // startNotifications consumes order status changes in the background when
@@ -221,7 +218,7 @@ func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links
 	handler := &notify.Handler{
 		Sender:       telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
 		Links:        links,
-		Deliveries:   &notify.PostgresDeliveries{Pool: pool},
+		Deliveries:   &notify.PostgresDeliveries{Queries: db.New(pool)},
 		ReplyTargets: chats,
 		Log:          log,
 		Now:          time.Now,
@@ -233,11 +230,9 @@ func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links
 		}
 		return handler.Handle(ctx, meta, e)
 	}
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle)
-	}()
+	})
 }
 
 // runNotifications restarts the consumer until ctx is cancelled. pkg/kafka
