@@ -13,3 +13,4 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Reviewer model arguments can differ from runtime](agent-reviewer-model-override.md) | An exact-model review uses an Agent specialization with a model override. |
 | [A new service's database is missing on existing Postgres volumes](new-service-database.md) | A service database was added to `docker/postgres/init-dbs.sh` after your `pgdata` volume was created. |
 | [Stack rebases replay integrated merge history](gh-stack-merge-history.md) | `gh stack` v0.1.1 rebases imported branches with merge commits and squash-merged dependencies. |
+| [Sandbox blocks local HTTP test servers](sandbox-test-sockets.md) | Go tests use `httptest.NewServer` and the agent sandbox denies local socket creation. |
