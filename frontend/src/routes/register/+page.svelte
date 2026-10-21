@@ -48,6 +48,8 @@
 			} else if (cause instanceof ConnectError && cause.code === Code.AlreadyExists) {
 				token = null;
 				error = 'This account already exists. Request a new sign-in link.';
+			} else if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
+				error = 'Your email domain is not allowed. Contact an administrator, then retry before this link expires.';
 			} else {
 				error = 'We could not create your profile. Please try again.';
 			}

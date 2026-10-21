@@ -9,29 +9,37 @@
 	let email = $state('');
 	let sending = $state(false);
 	let sent = $state(false);
+	let token = $state<string | null>(page.url.searchParams.get('token'));
 	let redeeming = $state(page.url.searchParams.has('token'));
 	let error = $state('');
 
 	onMount(() => {
-		const token = page.url.searchParams.get('token');
+		token = page.url.searchParams.get('token');
 		if (token) {
 			replaceState('/login', page.state);
-			void redeemLink(token);
+			void redeemLink();
 		} else if (authService.isAuthenticated) {
 			void goto('/', { replaceState: true });
 		}
 	});
 
-	async function redeemLink(token: string) {
+	async function redeemLink() {
+		if (!token) return;
 		redeeming = true;
+		error = '';
 		try {
 			await authService.login(token);
+			token = null;
 			await goto('/', { replaceState: true });
 		} catch (cause) {
-			error =
-				cause instanceof ConnectError && cause.code === Code.Unauthenticated
-					? 'This sign-in link has expired or has already been used. Request a new one below.'
-					: 'We could not complete sign-in. Please request another link.';
+			if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) {
+				token = null;
+				error = 'This sign-in link has expired or has already been used. Request a new one below.';
+			} else if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
+				error = 'Your email domain is not allowed. Contact an administrator, then retry before this link expires.';
+			} else {
+				error = 'We could not complete sign-in. Please try again.';
+			}
 		} finally {
 			redeeming = false;
 		}
@@ -45,8 +53,10 @@
 		try {
 			await authService.requestLink(email.trim());
 			sent = true;
-		} catch {
-			error = 'We could not send a link. Check your email address and try again.';
+		} catch (cause) {
+			error = cause instanceof ConnectError && cause.code === Code.PermissionDenied
+				? 'Your email domain is not allowed. Contact an administrator to request access.'
+				: 'We could not send a link. Check your email address and try again.';
 		} finally {
 			sending = false;
 		}
@@ -74,6 +84,11 @@
 					<p>Enter your email address and we'll send you a secure sign-in link.</p>
 					{#if error}
 						<p class="notice error" role="alert">{error}</p>
+					{/if}
+					{#if token}
+						<div class="form-actions">
+							<Button onclick={() => void redeemLink()}>Retry sign-in link</Button>
+						</div>
 					{/if}
 					<form class="auth-form" onsubmit={sendLink}>
 						<TextFieldOutlined

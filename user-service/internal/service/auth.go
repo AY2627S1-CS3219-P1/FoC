@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrEmailDomainNotAllowed = errs.NewUnauthorizedError("email domain is not allowed")
+var ErrEmailDomainNotAllowed = errs.NewForbiddenError("email domain is not allowed")
 
 const (
 	MagicLinkLifetime = 10 * time.Minute
