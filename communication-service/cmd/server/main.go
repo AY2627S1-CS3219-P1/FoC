@@ -18,6 +18,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/bot"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
+	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
@@ -204,7 +205,7 @@ func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links
 	handler := &notify.Handler{
 		Sender:     telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
 		Links:      links,
-		Deliveries: &notify.PostgresDeliveries{Pool: pool},
+		Deliveries: &notify.PostgresDeliveries{Queries: db.New(pool)},
 		Log:        log,
 		Now:        time.Now,
 	}

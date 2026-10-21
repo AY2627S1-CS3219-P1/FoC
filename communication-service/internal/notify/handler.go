@@ -40,7 +40,7 @@ type Links interface {
 // Deliveries records which recipients already got an event's message, so a
 // redelivered event skips them.
 type Deliveries interface {
-	Sent(ctx context.Context, eventID, userID uuid.UUID) (bool, error)
+	HasBeenSent(ctx context.Context, eventID, userID uuid.UUID) (bool, error)
 	RecordSent(ctx context.Context, eventID, userID uuid.UUID, at time.Time) error
 }
 
@@ -88,7 +88,7 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 }
 
 func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID, userID uuid.UUID, text string) error {
-	sent, err := h.Deliveries.Sent(ctx, eventID, userID)
+	sent, err := h.Deliveries.HasBeenSent(ctx, eventID, userID)
 	if err != nil {
 		return fmt.Errorf("check sent notification: %w", err)
 	}

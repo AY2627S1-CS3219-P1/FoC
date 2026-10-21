@@ -63,7 +63,7 @@ func (f *fakeLinks) UnlinkChat(_ context.Context, chatID int64) error {
 
 type fakeDeliveries map[[2]uuid.UUID]bool
 
-func (f fakeDeliveries) Sent(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
+func (f fakeDeliveries) HasBeenSent(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
 	return f[[2]uuid.UUID{eventID, userID}], nil
 }
 
