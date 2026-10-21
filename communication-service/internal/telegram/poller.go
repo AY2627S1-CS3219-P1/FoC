@@ -12,9 +12,20 @@ type UpdateSource interface {
 	GetUpdates(ctx context.Context, offset int64, timeout time.Duration) ([]Update, error)
 }
 
-// Handler processes one update. Errors are logged and the update is still
-// acknowledged, so one bad message can't stall the bot.
+// Handler processes one update. RetryError delays acknowledgement until its
+// continuation succeeds; other errors are logged and acknowledged.
 type Handler func(ctx context.Context, update Update) error
+
+// RetryError retains the unfinished part of an update without repeating its
+// completed side effects. Retry must return another RetryError if it still fails.
+type RetryError struct {
+	Err   error
+	Retry func(context.Context) error
+}
+
+func (e *RetryError) Error() string { return e.Err.Error() }
+
+func (e *RetryError) Unwrap() error { return e.Err }
 
 // DefaultPollTimeout is how long each getUpdates call waits for updates.
 const DefaultPollTimeout = 30 * time.Second
@@ -61,8 +72,24 @@ func (p *Poller) Run(ctx context.Context) error {
 			continue
 		}
 		for _, update := range updates {
-			if err := p.Handle(ctx, update); err != nil {
+			err := p.Handle(ctx, update)
+			for err != nil {
 				p.Log.Error("telegram update failed", "update_id", update.UpdateID, "err", err)
+				var retry *RetryError
+				if !errors.As(err, &retry) {
+					break
+				}
+				delay := backoff
+				var apiErr *APIError
+				if errors.As(err, &apiErr) && apiErr.RetryAfter > delay {
+					delay = apiErr.RetryAfter
+				}
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(delay):
+				}
+				err = retry.Retry(ctx)
 			}
 			offset = update.UpdateID + 1
 		}

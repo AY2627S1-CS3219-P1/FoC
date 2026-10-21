@@ -4,6 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/shared_types.proto.
  */
 export const file_order_v1_shared_types: GenFile = /*@__PURE__*/
-  fileDesc("ChtvcmRlci92MS9zaGFyZWRfdHlwZXMucHJvdG8SCG9yZGVyLnYxIpIHCgVPcmRlchIKCgJpZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzEioKBnBpY2t1cBgFIAEoCzIaLm9yZGVyLnYxLkxvY2F0aW9uU25hcHNob3QSKwoIZGVsaXZlcnkYBiABKAsyGS5vcmRlci52MS5EZWxpdmVyeURldGFpbHMSGAoQaXRlbV9kZXNjcmlwdGlvbhgHIAEoCRIoCgtpdGVtX2ltYWdlcxgIIAMoCzITLm9yZGVyLnYxLkl0ZW1JbWFnZRIWCg5yZXdhcmRfY3JlZGl0cxgJIAEoAxI0ChFkZWxpdmVyeV9kdXJhdGlvbhgKIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIuCgpleHBpcmVzX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgthc3NpZ25lZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMcGlja2VkX3VwX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxkZWxpdmVyZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGNvbXBsZXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoJY2xvc2VkX2F0GBAgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIZCgxjbG9zZV9yZWFzb24YESABKAlIAYgBARIbChN1bmF0dGVuZGVkX2RlbGl2ZXJ5GBIgASgIEhoKDWl0ZW1fbG9jYXRpb24YEyABKAlIAogBARIQCghyZXZpc2lvbhgUIAEoAxIuCgpjcmVhdGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GBYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIeChZkZWxpdmVyeV9idWlsZGluZ19uYW1lGBcgASgJQg0KC19jb3VyaWVyX2lkQg8KDV9jbG9zZV9yZWFzb25CEAoOX2l0ZW1fbG9jYXRpb24iagoQTG9jYXRpb25TbmFwc2hvdBITCgtsb2NhdGlvbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhUKDWJ1aWxkaW5nX25hbWUYAyABKAkSEgoFZmxvb3IYBCABKAlIAIgBAUIICgZfZmxvb3IiawoPRGVsaXZlcnlEZXRhaWxzEiwKCGxvY2F0aW9uGAEgASgLMhoub3JkZXIudjEuTG9jYXRpb25TbmFwc2hvdBIZCgxpbnN0cnVjdGlvbnMYAiABKAlIAIgBAUIPCg1faW5zdHJ1Y3Rpb25zIi0KCUl0ZW1JbWFnZRIKCgJpZBgBIAEoCRIUCgxkb3dubG9hZF91cmwYAiABKAki0QEKBU9mZmVyEgoKAmlkGAEgASgJEhAKCG9yZGVyX2lkGAIgASgJEhIKCmNvdXJpZXJfaWQYAyABKAkSDwoHY3JlZGl0cxgEIAEoAxIlCgZzdGF0dXMYBSABKA4yFS5vcmRlci52MS5PZmZlclN0YXR1cxIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBSrVAgoLT3JkZXJTdGF0dXMSHAoYT1JERVJfU1RBVFVTX1VOU1BFQ0lGSUVEEAASJAogT1JERVJfU1RBVFVTX1BFTkRJTkdfUkVTRVJWQVRJT04QARIhCh1PUkRFUl9TVEFUVVNfQVdBSVRJTkdfQ09VUklFUhACEiAKHE9SREVSX1NUQVRVU19BV0FJVElOR19QSUNLVVAQAxIbChdPUkRFUl9TVEFUVVNfREVMSVZFUklORxAEEhoKFk9SREVSX1NUQVRVU19ERUxJVkVSRUQQBRIaChZPUkRFUl9TVEFUVVNfQ09NUExFVEVEEAYSGgoWT1JERVJfU1RBVFVTX0NBTkNFTExFRBAHEhgKFE9SREVSX1NUQVRVU19FWFBJUkVEEAgSFwoTT1JERVJfU1RBVFVTX0ZBSUxFRBAJEhkKFU9SREVSX1NUQVRVU19SRUpFQ1RFRBAKKnEKD1BhcnRpY2lwYW50Um9sZRIgChxQQVJUSUNJUEFOVF9ST0xFX1VOU1BFQ0lGSUVEEAASHgoaUEFSVElDSVBBTlRfUk9MRV9SRVFVRVNURVIQARIcChhQQVJUSUNJUEFOVF9ST0xFX0NPVVJJRVIQAiqQAQoLT2ZmZXJTdGF0dXMSHAoYT0ZGRVJfU1RBVFVTX1VOU1BFQ0lGSUVEEAASFQoRT0ZGRVJfU1RBVFVTX09QRU4QARIaChZPRkZFUl9TVEFUVVNfQUNDRVBUSU5HEAISGQoVT0ZGRVJfU1RBVFVTX0FDQ0VQVEVEEAMSFQoRT0ZGRVJfU1RBVFVTX1ZPSUQQBEKdAQoMY29tLm9yZGVyLnYxQhBTaGFyZWRUeXBlc1Byb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("ChtvcmRlci92MS9zaGFyZWRfdHlwZXMucHJvdG8SCG9yZGVyLnYxIrAHCgVPcmRlchIKCgJpZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzEioKBnBpY2t1cBgFIAEoCzIaLm9yZGVyLnYxLkxvY2F0aW9uU25hcHNob3QSKwoIZGVsaXZlcnkYBiABKAsyGS5vcmRlci52MS5EZWxpdmVyeURldGFpbHMSGAoQaXRlbV9kZXNjcmlwdGlvbhgHIAEoCRIoCgtpdGVtX2ltYWdlcxgIIAMoCzITLm9yZGVyLnYxLkl0ZW1JbWFnZRIWCg5yZXdhcmRfY3JlZGl0cxgJIAEoAxI0ChFkZWxpdmVyeV9kdXJhdGlvbhgKIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIuCgpleHBpcmVzX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgthc3NpZ25lZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMcGlja2VkX3VwX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxkZWxpdmVyZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGNvbXBsZXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoJY2xvc2VkX2F0GBAgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIZCgxjbG9zZV9yZWFzb24YESABKAlIAYgBARIbChN1bmF0dGVuZGVkX2RlbGl2ZXJ5GBIgASgIEhoKDWl0ZW1fbG9jYXRpb24YEyABKAlIAogBARIQCghyZXZpc2lvbhgUIAEoAxIuCgpjcmVhdGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GBYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIeChZkZWxpdmVyeV9idWlsZGluZ19uYW1lGBcgASgJEhwKFGNhbmNlbGxhdGlvbl9wZW5kaW5nGBggASgIQg0KC19jb3VyaWVyX2lkQg8KDV9jbG9zZV9yZWFzb25CEAoOX2l0ZW1fbG9jYXRpb24iagoQTG9jYXRpb25TbmFwc2hvdBITCgtsb2NhdGlvbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhUKDWJ1aWxkaW5nX25hbWUYAyABKAkSEgoFZmxvb3IYBCABKAlIAIgBAUIICgZfZmxvb3IiawoPRGVsaXZlcnlEZXRhaWxzEiwKCGxvY2F0aW9uGAEgASgLMhoub3JkZXIudjEuTG9jYXRpb25TbmFwc2hvdBIZCgxpbnN0cnVjdGlvbnMYAiABKAlIAIgBAUIPCg1faW5zdHJ1Y3Rpb25zIi0KCUl0ZW1JbWFnZRIKCgJpZBgBIAEoCRIUCgxkb3dubG9hZF91cmwYAiABKAki0QEKBU9mZmVyEgoKAmlkGAEgASgJEhAKCG9yZGVyX2lkGAIgASgJEhIKCmNvdXJpZXJfaWQYAyABKAkSDwoHY3JlZGl0cxgEIAEoAxIlCgZzdGF0dXMYBSABKA4yFS5vcmRlci52MS5PZmZlclN0YXR1cxIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBSJ9ChdBc3NpZ25tZW50QXR0ZW1wdFJlc3VsdBIcCgphdHRlbXB0X2lkGAEgASgJQgi6SAVyA7ABARIxCgZzdGF0dXMYAiABKA4yIS5vcmRlci52MS5Bc3NpZ25tZW50QXR0ZW1wdFN0YXR1cxIRCglyZWplY3Rpb24YAyABKAkiYgoSQ2FuY2VsbGF0aW9uUmVzdWx0Eh4KDG9wZXJhdGlvbl9pZBgBIAEoCUIIukgFcgOwAQESLAoGc3RhdHVzGAIgASgOMhwub3JkZXIudjEuQ2FuY2VsbGF0aW9uU3RhdHVzKtUCCgtPcmRlclN0YXR1cxIcChhPUkRFUl9TVEFUVVNfVU5TUEVDSUZJRUQQABIkCiBPUkRFUl9TVEFUVVNfUEVORElOR19SRVNFUlZBVElPThABEiEKHU9SREVSX1NUQVRVU19BV0FJVElOR19DT1VSSUVSEAISIAocT1JERVJfU1RBVFVTX0FXQUlUSU5HX1BJQ0tVUBADEhsKF09SREVSX1NUQVRVU19ERUxJVkVSSU5HEAQSGgoWT1JERVJfU1RBVFVTX0RFTElWRVJFRBAFEhoKFk9SREVSX1NUQVRVU19DT01QTEVURUQQBhIaChZPUkRFUl9TVEFUVVNfQ0FOQ0VMTEVEEAcSGAoUT1JERVJfU1RBVFVTX0VYUElSRUQQCBIXChNPUkRFUl9TVEFUVVNfRkFJTEVEEAkSGQoVT1JERVJfU1RBVFVTX1JFSkVDVEVEEAoqcQoPUGFydGljaXBhbnRSb2xlEiAKHFBBUlRJQ0lQQU5UX1JPTEVfVU5TUEVDSUZJRUQQABIeChpQQVJUSUNJUEFOVF9ST0xFX1JFUVVFU1RFUhABEhwKGFBBUlRJQ0lQQU5UX1JPTEVfQ09VUklFUhACKpABCgtPZmZlclN0YXR1cxIcChhPRkZFUl9TVEFUVVNfVU5TUEVDSUZJRUQQABIVChFPRkZFUl9TVEFUVVNfT1BFThABEhoKFk9GRkVSX1NUQVRVU19BQ0NFUFRJTkcQAhIZChVPRkZFUl9TVEFUVVNfQUNDRVBURUQQAxIVChFPRkZFUl9TVEFUVVNfVk9JRBAEKugBChdBc3NpZ25tZW50QXR0ZW1wdFN0YXR1cxIpCiVBU1NJR05NRU5UX0FUVEVNUFRfU1RBVFVTX1VOU1BFQ0lGSUVEEAASJQohQVNTSUdOTUVOVF9BVFRFTVBUX1NUQVRVU19QRU5ESU5HEAESJwojQVNTSUdOTUVOVF9BVFRFTVBUX1NUQVRVU19TVUNDRUVERUQQAhImCiJBU1NJR05NRU5UX0FUVEVNUFRfU1RBVFVTX1JFSkVDVEVEEAMSKgomQVNTSUdOTUVOVF9BVFRFTVBUX1NUQVRVU19DT01QRU5TQVRJTkcQBCqhAQoSQ2FuY2VsbGF0aW9uU3RhdHVzEiMKH0NBTkNFTExBVElPTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIfChtDQU5DRUxMQVRJT05fU1RBVFVTX1BFTkRJTkcQARIhCh1DQU5DRUxMQVRJT05fU1RBVFVTX1NVQ0NFRURFRBACEiIKHkNBTkNFTExBVElPTl9TVEFUVVNfU1VQRVJTRURFRBADQp0BCgxjb20ub3JkZXIudjFCEFNoYXJlZFR5cGVzUHJvdG9QAVo6Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vb3JkZXIvdjE7b3JkZXJ2MaICA09YWKoCCE9yZGVyLlYxygIIT3JkZXJcVjHiAhRPcmRlclxWMVxHUEJNZXRhZGF0YeoCCU9yZGVyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message order.v1.Order
@@ -150,6 +151,13 @@ export type Order = Message<"order.v1.Order"> & {
    * @generated from field: string delivery_building_name = 23;
    */
   deliveryBuildingName: string;
+
+  /**
+   * Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
+   *
+   * @generated from field: bool cancellation_pending = 24;
+   */
+  cancellationPending: boolean;
 };
 
 /**
@@ -334,6 +342,58 @@ export const PageInfoSchema: GenMessage<PageInfo> = /*@__PURE__*/
   messageDesc(file_order_v1_shared_types, 5);
 
 /**
+ * @generated from message order.v1.AssignmentAttemptResult
+ */
+export type AssignmentAttemptResult = Message<"order.v1.AssignmentAttemptResult"> & {
+  /**
+   * @generated from field: string attempt_id = 1;
+   */
+  attemptId: string;
+
+  /**
+   * @generated from field: order.v1.AssignmentAttemptStatus status = 2;
+   */
+  status: AssignmentAttemptStatus;
+
+  /**
+   * Stable, non-sensitive business reason. Empty unless the attempt is being
+   * rejected or compensated. It is not a dependency diagnostic or wallet balance.
+   *
+   * @generated from field: string rejection = 3;
+   */
+  rejection: string;
+};
+
+/**
+ * Describes the message order.v1.AssignmentAttemptResult.
+ * Use `create(AssignmentAttemptResultSchema)` to create a new message.
+ */
+export const AssignmentAttemptResultSchema: GenMessage<AssignmentAttemptResult> = /*@__PURE__*/
+  messageDesc(file_order_v1_shared_types, 6);
+
+/**
+ * @generated from message order.v1.CancellationResult
+ */
+export type CancellationResult = Message<"order.v1.CancellationResult"> & {
+  /**
+   * @generated from field: string operation_id = 1;
+   */
+  operationId: string;
+
+  /**
+   * @generated from field: order.v1.CancellationStatus status = 2;
+   */
+  status: CancellationStatus;
+};
+
+/**
+ * Describes the message order.v1.CancellationResult.
+ * Use `create(CancellationResultSchema)` to create a new message.
+ */
+export const CancellationResultSchema: GenMessage<CancellationResult> = /*@__PURE__*/
+  messageDesc(file_order_v1_shared_types, 7);
+
+/**
  * Terminal statuses are immutable.
  *
  * @generated from enum order.v1.OrderStatus
@@ -480,4 +540,77 @@ export enum OfferStatus {
  */
 export const OfferStatusSchema: GenEnum<OfferStatus> = /*@__PURE__*/
   enumDesc(file_order_v1_shared_types, 2);
+
+/**
+ * Historical outcome of one immutable financial attempt. This does not assert
+ * that its courier remains the current assignee. Business rejection is returned
+ * as failed_precondition with AssignmentAttemptResult error details.
+ *
+ * @generated from enum order.v1.AssignmentAttemptStatus
+ */
+export enum AssignmentAttemptStatus {
+  /**
+   * @generated from enum value: ASSIGNMENT_ATTEMPT_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ASSIGNMENT_ATTEMPT_STATUS_PENDING = 1;
+   */
+  PENDING = 1,
+
+  /**
+   * @generated from enum value: ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED = 2;
+   */
+  SUCCEEDED = 2,
+
+  /**
+   * @generated from enum value: ASSIGNMENT_ATTEMPT_STATUS_REJECTED = 3;
+   */
+  REJECTED = 3,
+
+  /**
+   * @generated from enum value: ASSIGNMENT_ATTEMPT_STATUS_COMPENSATING = 4;
+   */
+  COMPENSATING = 4,
+}
+
+/**
+ * Describes the enum order.v1.AssignmentAttemptStatus.
+ */
+export const AssignmentAttemptStatusSchema: GenEnum<AssignmentAttemptStatus> = /*@__PURE__*/
+  enumDesc(file_order_v1_shared_types, 3);
+
+/**
+ * Historical operation outcome; the response Order always reflects current access.
+ *
+ * @generated from enum order.v1.CancellationStatus
+ */
+export enum CancellationStatus {
+  /**
+   * @generated from enum value: CANCELLATION_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CANCELLATION_STATUS_PENDING = 1;
+   */
+  PENDING = 1,
+
+  /**
+   * @generated from enum value: CANCELLATION_STATUS_SUCCEEDED = 2;
+   */
+  SUCCEEDED = 2,
+
+  /**
+   * @generated from enum value: CANCELLATION_STATUS_SUPERSEDED = 3;
+   */
+  SUPERSEDED = 3,
+}
+
+/**
+ * Describes the enum order.v1.CancellationStatus.
+ */
+export const CancellationStatusSchema: GenEnum<CancellationStatus> = /*@__PURE__*/
+  enumDesc(file_order_v1_shared_types, 4);
 

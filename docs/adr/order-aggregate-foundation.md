@@ -132,3 +132,8 @@ AWS S3 is the intended backend; evaluate Floci locally when implementing uploads
 SDK clients, credentials, buckets, signing, image persistence and upload workflows
 are deferred. A configurable fake exists only in tests and is never wired into the
 server or injected as an unused Order dependency.
+
+For participant cancellation and durable withdrawal, see
+[the cancellation ADR](order-participant-cancellation.md). It explains how we retain
+optional retry keys for the Order's lifetime, keep withdrawals pending while Credit
+reversal is uncertain, block pickup and recover unfinished work.

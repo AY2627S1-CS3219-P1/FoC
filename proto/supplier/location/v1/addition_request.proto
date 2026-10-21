@@ -93,10 +93,16 @@ message WithdrawLocationAdditionRequestRequest {
 }
 message ApproveLocationAdditionRequestRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // Must match the pending proposal revision, otherwise aborted. Retrying an
+  // already approved request returns its original result without another write.
+  int64 expected_revision = 2 [(buf.validate.field).int64.gt = 0];
 }
 message RejectLocationAdditionRequestRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   string review_note = 2 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
+  // Must match the pending proposal revision, otherwise aborted. Retrying an
+  // already rejected request returns its original decision and review note.
+  int64 expected_revision = 3 [(buf.validate.field).int64.gt = 0];
 }
 message SubmitLocationAdditionRequestResponse {
   LocationAdditionRequest request = 1;
