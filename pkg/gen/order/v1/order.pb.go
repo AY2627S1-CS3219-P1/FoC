@@ -708,8 +708,9 @@ func (x *ConfirmPickupRequest) GetOrderId() string {
 	return ""
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 type CreateProofUploadRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	SizeBytes int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`

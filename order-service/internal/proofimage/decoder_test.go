@@ -103,3 +103,27 @@ func TestProofDecoderExecutionTimeoutIsRetryable(t *testing.T) {
 		t.Fatalf("timeout classified as invalid media: %v", err)
 	}
 }
+
+// A killed native decoder must preserve an admitted receipt for retry rather
+// than label previously verified immutable evidence as invalid media.
+func TestProofDecoderExternalKillIsRetryable(t *testing.T) {
+	binary := t.TempDir() + "/killed-decoder"
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nkill -KILL $$\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewDecoder(binary).Validate(t.Context(), "image/png", []byte("previously verified pixels")); !errors.Is(err, app.ErrUnavailable) {
+		t.Fatalf("external kill classified as invalid media: %v", err)
+	}
+}
+
+// A decoder that exceeds the bounded RGB output has a known invalid result,
+// even when os/exec reports its writer error instead of a process exit error.
+func TestProofDecoderOutputLimitRejectsMedia(t *testing.T) {
+	binary := t.TempDir() + "/verbose-decoder"
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec dd if=/dev/zero bs=1539 count=1 2>/dev/null\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewDecoder(binary).Validate(t.Context(), "image/png", []byte("pixels")); !errors.Is(err, app.ErrPrecondition) {
+		t.Fatalf("output limit classified as retryable: %v", err)
+	}
+}

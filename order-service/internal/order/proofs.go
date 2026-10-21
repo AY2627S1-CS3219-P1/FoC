@@ -249,9 +249,12 @@ func (s *Proofs) VerifyUpload(ctx context.Context, caller Caller, orderID, proof
 	})
 }
 
-// ConfirmDelivery is the immediate application operation. The production RPC
-// uses ProofReceipts to admit a durable receipt before invoking this finalizer.
+// ConfirmDelivery uses durable admission for production repositories.
+// Accepted evidence must attach to a previously committed receipt.
 func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmDeliveryInput) (Order, error) {
+	if repository, ok := s.repository.(ReceiptRepository); ok {
+		return NewProofReceipts(s, repository).ConfirmDelivery(ctx, caller, in)
+	}
 	return s.confirmReceipt(ctx, caller, in, nil)
 }
 
@@ -529,7 +532,7 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 		if errors.Is(err, ErrNotFound) {
 			if receiptTx, ok := tx.(ReceiptTx); ok && o.IsAssignedTo(caller.ID) {
 				value, e := receiptTx.GetPendingDeliveryReceipt(ctx, orderID)
-				if e == nil {
+				if e == nil && strings.EqualFold(value.CourierID, caller.ID) {
 					pending = &value
 				} else if !errors.Is(e, ErrNotFound) {
 					return nil, e
@@ -616,6 +619,16 @@ func canUploadProof(o Order, caller Caller, now time.Time) error {
 		return ErrPrecondition
 	}
 	return nil
+}
+
+// proofEvidenceMatches excludes renewable grant metadata. Credential rotation
+// cannot replace immutable, already-verified bytes or invalidate their receipt.
+func proofEvidenceMatches(stored, expected ProofUpload) bool {
+	return stored.State == expected.State && stored.ID == expected.ID &&
+		stored.OrderID == expected.OrderID && stored.CourierID == expected.CourierID &&
+		stored.UploadID == expected.UploadID && stored.Key == expected.Key &&
+		stored.ContentType == expected.ContentType && stored.SizeBytes == expected.SizeBytes &&
+		stored.UploadScope == expected.UploadScope && stored.CreatedAt.Equal(expected.CreatedAt)
 }
 
 // proofUploadMatches compares persisted values, not time zone or monotonic

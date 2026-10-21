@@ -1,23 +1,26 @@
 <script lang="ts">
 	import { Button, Card } from 'm3-svelte';
+	import { untrack } from 'svelte';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
 	import {
 		DeliveryProofController,
-		type DeliveryProofAPI,
 		type ProofSnapshot
 	} from '$lib/features/delivery-proof/controller';
 
-	// OrderUI mounts this keyed by authenticated caller and order ID, only for
-	// the assigned courier while Delivering. It owns the API adapter and route.
-	let { orderId, api, onDelivered }: {
+	import type { DeliveryProofAPI } from '$lib/services/delivery-proof/api';
+
+	// Mounted by authenticated caller/order, only for the assigned courier
+	// while Delivering. Durable pending input survives navigation and reload.
+	let { orderId, api, onDelivered, pending }: {
 		orderId: string;
 		api: DeliveryProofAPI;
+		pending?: Parameters<DeliveryProofAPI['confirmDelivery']>[0];
 		onDelivered: () => Promise<void>;
 	} = $props();
 	let view = $state<ProofSnapshot>({
-		files: [], unattended: false, outcome: 'Not Submitted', message: '', locked: false
+		files: [], unattended: false, outcome: 'Not Submitted', message: '', locked: false, busy: false
 	});
 	let controller: DeliveryProofController | undefined = $state();
 	let refreshError = $state('');
@@ -26,7 +29,7 @@
 	const schema = z.object({ unattended: z.boolean().default(false) });
 
 	$effect(() => {
-		const instance = new DeliveryProofController(orderId, api, (snapshot) => { view = snapshot; });
+		const instance = new DeliveryProofController(orderId, api, (snapshot) => { view = snapshot; }, undefined, untrack(() => pending));
 		controller = instance;
 		view = instance.snapshot();
 		return () => instance.dispose();
@@ -41,7 +44,7 @@
 		}
 	}
 
-	const confirmation = superForm(defaults({ unattended: false }, zod4(schema)), {
+	const confirmation = superForm(defaults({ unattended: untrack(() => pending?.unattended ?? false) }, zod4(schema)), {
 		SPA: true,
 		validators: zod4Client(schema),
 		multipleSubmits: 'prevent',
@@ -70,6 +73,10 @@
 		<div class="proof-body">
 			<h2>Confirm delivery</h2>
 			<p>Select 1–5 proof photos. Each photo must be JPEG, PNG, WebP, HEIC or HEIF and at most 10,000,000 bytes.</p>
+			<p>Upload and check photos before submitting confirmation. Only the server-received confirmation reserves the original deadline, not photo selection or upload alone.</p>
+			{#if pending && view.locked}
+				<p>Saved submission: {pending.proofIds.length} previously uploaded photo(s). {pending.withoutProof ? 'An upload-outage exception was requested.' : ''}</p>
+			{/if}
 			<label for="delivery-proof-files">Proof photos</label>
 			<input
 				bind:this={fileInput}
@@ -104,14 +111,14 @@
 					<input type="checkbox" name="unattended" bind:checked={$form.unattended} disabled={view.locked} />
 					The requester was unreachable. I left the item without a handover.
 				</label>
-				<Button type="submit" disabled={view.outcome === 'Pending' || view.outcome === 'Succeeded'}>
-					Confirm delivery
+				<Button type="submit" disabled={view.busy || view.outcome === 'Succeeded'}>
+					{view.locked && !view.busy ? 'Retry saved confirmation' : 'Confirm delivery'}
 				</Button>
 			</form>
 			<details>
 				<summary>Photo uploads unavailable?</summary>
 				<p>The server must confirm a storage outage. A failed upload or lost connection alone does not permit delivery without proof. This does not extend the delivery deadline.</p>
-				<Button type="button" variant="text" disabled={view.outcome === 'Pending' || view.outcome === 'Succeeded'} onclick={confirmOutage}>
+				<Button type="button" variant="text" disabled={view.locked} onclick={confirmOutage}>
 					Request outage exception and confirm without photos
 				</Button>
 			</details>

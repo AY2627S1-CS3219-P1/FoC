@@ -368,8 +368,9 @@ export const ConfirmPickupRequestSchema: GenMessage<ConfirmPickupRequest> = /*@_
   messageDesc(file_order_v1_order, 10);
 
 /**
- * Assigned courier only, while Delivering. Repeating with the same upload_id
- * returns the same proof and URL.
+ * Assigned courier only, while Delivering. The same upload_id keeps one proof.
+ * The live signing generation replays its URL; expiry or credential/route rotation
+ * refreshes the grant without creating another proof.
  *
  * @generated from message order.v1.CreateProofUploadRequest
  */

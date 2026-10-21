@@ -178,8 +178,9 @@ message ConfirmPickupRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 message CreateProofUploadRequest {
   int64 size_bytes = 4 [(buf.validate.field).int64 = {gte: 1, lte: 10000000}];
   string order_id = 1 [(buf.validate.field).string.uuid = true];

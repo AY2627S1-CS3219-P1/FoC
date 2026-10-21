@@ -5,6 +5,7 @@ import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
 import { createOrderApi } from './order/index.ts';
+import { createDeliveryProofService } from './delivery-proof/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
@@ -44,3 +45,5 @@ const creditTransport = createCustomTransport({
 export const creditAccountApi = createCreditAccountApi(creditTransport);
 
 export const participantActionsApi = createParticipantActionsApi(orderTransport);
+
+export const deliveryProofApi = createDeliveryProofService(orderTransport);

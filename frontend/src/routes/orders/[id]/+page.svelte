@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Button, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi, orderOffersApi, participantActionsApi } from '$lib/services';
+	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi } from '$lib/services';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { isTerminal, orderDeadline } from '$lib/services/order/presentation';
@@ -9,6 +9,7 @@
 	import OrderDetailShell from '$lib/components/order/OrderDetailShell.svelte';
 	import ParticipantActions from '$lib/components/order-cancellation/ParticipantActions.svelte';
 	import OrderOfferControls from '$lib/components/order-offers/OrderOfferControls.svelte';
+	import DeliveryProofPanel from '$lib/components/order/DeliveryProofPanel.svelte';
 
 	let order = $state<Order | null>(null);
 	let error = $state('');
@@ -66,7 +67,8 @@
 			if (!document.hidden) { lastPoll = Date.now(); void refresh(); }
 		};
 		document.addEventListener('visibilitychange', visible);
-		return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+		window.addEventListener('online', visible);
+		return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('online', visible); };
 	});
 
 	const deadline = $derived(order ? orderDeadline(order) : undefined);
@@ -92,6 +94,9 @@
 						callerId={authService.user?.id ?? ''}
 						suspended={authService.user?.role === UserRole.SUSPENDED_USER}
 					/>
+					{#key `${authService.user?.id}:${currentOrder.id}`}
+						<DeliveryProofPanel order={currentOrder} refresh={refreshOrder} api={deliveryProofApi} callerId={authService.user?.id ?? ''} />
+					{/key}
 					<ParticipantActions order={currentOrder} refresh={refreshOrder} api={participantActionsApi} callerId={authService.user?.id ?? ''} />
 				{/snippet}
 			</OrderDetailShell>

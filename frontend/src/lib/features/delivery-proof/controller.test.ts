@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliveryProofController, ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from './controller';
+import { DeliveryProofController } from './controller';
+import { ProofRejectedError, type DeliveryProofAPI, type ProofGrant } from '$lib/services/delivery-proof/api';
 
 // Expected behavior comes from approved Q1/Q4/Q5/Q8/Q11 and NFR-13.
 function scenario() {
@@ -265,4 +266,36 @@ describe('separate upload and API budgets', () => {
 			vi.useRealTimers();
 		}
 	});
+});
+
+// Reload recovers immutable server-received input, not
+// browser files or a new timestamp. Unknown retries cannot replace evidence.
+describe('durable pending confirmation recovery', () => {
+ it('retries the server-owned submission after reload without reuploading', async () => {
+  const { api, put } = scenario();
+  const pending = { orderId: 'order', proofIds: ['already-uploaded'], unattended: true, withoutProof: false };
+  const controller = new DeliveryProofController('order', api, () => {}, put, pending);
+  expect(controller.snapshot()).toMatchObject({ outcome: 'Pending', locked: true, busy: false, unattended: true, files: [] });
+  controller.addFiles([photo('replacement.png')]);
+  controller.setUnattended(false);
+  await controller.upload();
+  await controller.confirm(true);
+  expect(api.createUpload).not.toHaveBeenCalled();
+  expect(put).not.toHaveBeenCalled();
+  expect(api.confirmDelivery).toHaveBeenCalledWith(pending, expect.any(AbortSignal));
+  expect(controller.snapshot().outcome).toBe('Succeeded');
+ });
+ it('keeps recovered input frozen through unknown results and releases only known rejection', async () => {
+  const { api, put } = scenario();
+  const pending = { orderId: 'order', proofIds: ['already-uploaded'], unattended: false, withoutProof: false };
+  const controller = new DeliveryProofController('order', api, () => {}, put, pending);
+  vi.mocked(api.confirmDelivery).mockRejectedValueOnce(new Error('unknown')).mockRejectedValueOnce(new ProofRejectedError('Invalid proof. Submit a new photo before the deadline.'));
+  await controller.confirm();
+  expect(controller.snapshot().locked).toBe(true);
+  await controller.confirm();
+  expect(controller.snapshot()).toMatchObject({ outcome: 'Rejected', locked: false });
+  controller.addFiles([photo('new-evidence.png')]);
+  expect(controller.snapshot().files).toHaveLength(1);
+  expect(api.confirmDelivery).toHaveBeenNthCalledWith(2, pending, expect.any(AbortSignal));
+ });
 });

@@ -112,8 +112,8 @@ type ProofRepository interface {
 // ProofGrantIssuer reuses the existing immutable S3 signing infrastructure.
 // Implementations must return identical grants for a persisted generation, even
 // across process restarts, and expire any signing identity when its credentials
-// rotate. No concrete retry-stable signing adapter is wired until that contract
-// has an acknowledged owner.
+// rotate. S3ProofGrants implements this using fixed SDK signing time and a
+// durable credential/endpoint epoch.
 type ProofGrantIssuer interface {
 	ProofSigningEpoch(context.Context) (string, time.Time, error)
 	CreateProofGrant(context.Context, ProofUpload) (images.UploadGrant, error)

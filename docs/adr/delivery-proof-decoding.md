@@ -16,7 +16,7 @@ Force the allowlisted input coder and feed bytes through stdin, not caller-contr
 
 Use a 1 GiB pixel-cache ceiling with memory mapping and disk spill disabled. The previous 128 MiB setting could reject ordinary 20–24MP JPEGs despite their compressed size satisfying the byte contract. Native area admission is strict, so an area threshold of 24,000,001 includes the exact 24MP boundary. Regression fixtures independently generate 20MP and 24MP JPEGs. This larger cache allowance is not an allocation reservation or a hard process-RSS limit. Native decoder allocations can exceed cache accounting. The deployment must provision the two simultaneous processes, apply memory/CPU/PID limits and a restricted ImageMagick policy, and verify format support on its exact ImageMagick/quantum-depth build before enabling upload grants. No production RSS measurement or isolated decoder deployment is claimed here.
 
-An execution timeout is a retryable server validation failure, not evidence of an invalid image or a storage outage. Malformed media remains a precondition rejection. CI/deployment capability verification must exercise all required format cases without skips. Missing runtime support must not allow the system to issue grants for photos it cannot validate later.
+An execution timeout, spawn failure or external kill is a retryable server validation failure, not evidence of an invalid image or a storage outage. Malformed media remains a precondition rejection. CI/deployment capability verification must exercise all required format cases without skips. Missing runtime support must not allow the system to issue grants for photos it cannot validate later.
 
 ## Evidence lifetime and authorization
 
