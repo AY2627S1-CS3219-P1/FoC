@@ -53,6 +53,11 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
    the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
 
+   Courier warning requests are consumed from Kafka. `KAFKA_BROKERS` accepts
+   a comma-separated broker list; it defaults to `localhost:9092` in local
+   mode, and must be configured in other environments. Compose sets it to
+   `kafka:9092` for the service container.
+
 2. Set up the database.
 
    The service uses PostgreSQL 18 and
@@ -83,6 +88,10 @@ The generated `user.v1.AuthService` provides `RequestLink`, `Login`,
 publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
+
+`user.v1.WarningService.GetMyWarnings` returns the authenticated caller's
+warnings. `GetWarningsForUser` is restricted to admins and returns the same
+warning history for a specified user.
 
 Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`

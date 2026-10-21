@@ -24,10 +24,12 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -36,6 +38,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"gorm.io/gorm"
 )
 
@@ -57,36 +60,41 @@ type config struct {
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
 	bootstrap       bootstrap.Config
+	kafkaBrokers    []string
 }
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
-	fatal := func(msg string, err error) {
-		log.Error(msg, "err", err)
+	if err := run(log); err != nil {
+		log.Error("user service stopped", "err", err)
 		os.Exit(1)
 	}
+}
 
+func run(log *slog.Logger) error {
 	cfg, err := loadConfig()
 	if err != nil {
-		fatal("invalid config", err)
+		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	ctx, rootCancel := context.WithCancel(signalCtx)
+	defer rootCancel()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
-		fatal("open database", err)
+		return fmt.Errorf("open database: %w", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		fatal("database handle", err)
+		return fmt.Errorf("database handle: %w", err)
 	}
 	defer func() { _ = sqlDB.Close() }()
 
 	if cfg.runMigrations {
 		if err := database.Migrate(db); err != nil {
-			fatal("migrate", err)
+			return fmt.Errorf("migrate: %w", err)
 		}
 		log.Info("migrations applied")
 	}
@@ -94,7 +102,7 @@ func main() {
 	if cfg.bootstrap.Email != "" {
 		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
 		if err != nil {
-			fatal("admin bootstrap", err)
+			return fmt.Errorf("admin bootstrap: %w", err)
 		}
 		if outcome == store.BootstrapAlreadyDone {
 			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
@@ -106,7 +114,15 @@ func main() {
 	allowedDomainLogic := newAllowedDomainService(sqlDB)
 	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
-		fatal("initialize authentication", err)
+		return fmt.Errorf("initialize authentication: %w", err)
+	}
+	warningLogic := newWarningService(sqlDB)
+	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: cfg.kafkaBrokers, GroupID: "user-service"})
+	if err != nil {
+		return fmt.Errorf("configure Kafka subscriber: %w", err)
+	}
+	if err := warningdomain.RegisterCourierWarningConsumer(subscriber, &warningdomain.CourierWarningConsumer{Logic: warningLogic}); err != nil {
+		return fmt.Errorf("register courier warning consumer: %w", err)
 	}
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
@@ -121,6 +137,7 @@ func main() {
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
@@ -130,26 +147,47 @@ func main() {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
+		errCh <- srv.ListenAndServe()
 	}()
+	kafkaErrCh := make(chan error, 1)
+	go func() { kafkaErrCh <- subscriber.Run(ctx) }()
 
+	var runErr error
+	subscriberExited := false
 	select {
 	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			runErr = fmt.Errorf("serve: %w", err)
+		}
+	case err := <-kafkaErrCh:
+		subscriberExited = true
 		if err != nil {
-			fatal("serve", err)
+			runErr = fmt.Errorf("Kafka subscriber: %w", err)
+		} else if ctx.Err() == nil {
+			runErr = errors.New("Kafka subscriber stopped unexpectedly")
 		}
 	case <-ctx.Done():
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
+	defer shutdownCancel()
+	stop()
+	rootCancel()
 	log.Info("shutting down")
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+		runErr = errors.Join(runErr, fmt.Errorf("HTTP shutdown: %w", err))
 	}
+	if !subscriberExited {
+		select {
+		case err := <-kafkaErrCh:
+			if err != nil {
+				runErr = errors.Join(runErr, fmt.Errorf("stop Kafka subscriber: %w", err))
+			}
+		case <-shutdownCtx.Done():
+			runErr = errors.Join(runErr, errors.New("Kafka subscriber did not stop before shutdown deadline"))
+		}
+	}
+	return runErr
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -165,7 +203,7 @@ func newServer(addr string, handler http.Handler) *http.Server {
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
-// defaults and rejecting a missing DATABASE_URL or malformed values.
+// local defaults and rejecting missing required values or malformed settings.
 func loadConfig() (config, error) {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return config{}, fmt.Errorf("load .env: %w", err)
@@ -194,9 +232,13 @@ func loadConfig() (config, error) {
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
 		},
+		kafkaBrokers: envList("KAFKA_BROKERS", ""),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
+	}
+	if len(cfg.kafkaBrokers) == 0 && cfg.appEnv == "local" {
+		cfg.kafkaBrokers = []string{"localhost:9092"}
 	}
 	if cfg.privateKey == "" && cfg.appEnv == "local" {
 		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
@@ -210,6 +252,9 @@ func loadConfig() (config, error) {
 	}
 	if cfg.databaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is not set"))
+	}
+	if len(cfg.kafkaBrokers) == 0 {
+		errs = append(errs, errors.New("KAFKA_BROKERS must contain at least one broker"))
 	}
 	if cfg.frontendURL == "" {
 		errs = append(errs, errors.New("FRONTEND_BASE_URL is not set"))
@@ -233,6 +278,18 @@ func envString(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envList(key, fallback string) []string {
+	value := envString(key, fallback)
+	items := strings.Split(value, ",")
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if item = strings.TrimSpace(item); item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func envPositiveInt(key string, fallback int, errs *[]error) int {
@@ -277,6 +334,10 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
 	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
 	return allowedadmin.NewAllowedDomainService(repo)
+}
+
+func newWarningService(db warningdb.DBTX) *warningdomain.Service {
+	return warningdomain.NewService(warningdomain.NewPostgresRepository(warningdb.New(db)))
 }
 
 func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {

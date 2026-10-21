@@ -4,6 +4,7 @@ import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { createWarningService } from './warning/index.ts';
 import { createLocationAdminApi } from './location-admin';
 import { createAdditionRequestApi } from './addition-request';
 import { createDisablementApi } from './disablement';
@@ -26,6 +27,7 @@ const protectedUserTransport = createCustomTransport({
 
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
+export const warningService = createWarningService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
 const supplierTransport = createCustomTransport({
