@@ -15,9 +15,9 @@ import (
 const createAccountWarning = `-- name: CreateAccountWarning :execrows
 INSERT INTO account_warnings (
     user_id, request_id, report_id, reason, status, source_event_id,
-    created_by, updated_by
+    created_by, updated_by, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, now()))
 ON CONFLICT (source_event_id) DO NOTHING
 `
 
@@ -30,6 +30,7 @@ type CreateAccountWarningParams struct {
 	SourceEventID uuid.NullUUID
 	CreatedBy     uuid.NullUUID
 	UpdatedBy     uuid.NullUUID
+	CreatedAt     sql.NullTime
 }
 
 func (q *Queries) CreateAccountWarning(ctx context.Context, arg CreateAccountWarningParams) (int64, error) {
@@ -42,6 +43,7 @@ func (q *Queries) CreateAccountWarning(ctx context.Context, arg CreateAccountWar
 		arg.SourceEventID,
 		arg.CreatedBy,
 		arg.UpdatedBy,
+		arg.CreatedAt,
 	)
 	if err != nil {
 		return 0, err

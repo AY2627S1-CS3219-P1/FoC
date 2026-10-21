@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
+func setupWarningRepository(t *testing.T) (*PostgresRepository, models.User, models.User) {
+	t.Helper()
+
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL not set")
@@ -43,9 +45,15 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	repository := NewPostgresRepository(warningdb.New(sqlDB))
+	return repository, actor, user
+}
+
+func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
+	repository, actor, user := setupWarningRepository(t)
 	ctx := context.Background()
 	eventID, requestID := uuid.New(), uuid.New()
 	createdBy := actor.ID
+	beforeCreate := time.Now().UTC().Truncate(time.Microsecond)
 	created, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: requestID, Reason: "late cancellation", Status: StatusActive,
 		SourceEventID: &eventID, CreatedBy: &createdBy,
@@ -65,6 +73,9 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	if err != nil || len(warnings) != 1 || warnings[0].RequestID != requestID || warnings[0].CreatedBy == nil || *warnings[0].CreatedBy != actor.ID {
 		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
 	}
+	if warnings[0].CreatedAt.Before(beforeCreate) || warnings[0].CreatedAt.After(time.Now().UTC()) {
+		t.Fatalf("default creation time = %s, want current database time", warnings[0].CreatedAt)
+	}
 
 	removedAt := time.Now().UTC()
 	reason := "appeal overturned"
@@ -79,5 +90,44 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	warnings, err = repository.ListByUser(ctx, user.ID)
 	if err != nil || len(warnings) != 1 || warnings[0].Status != StatusRemoved {
 		t.Fatalf("removed warning missing from user history: %+v err=%v", warnings, err)
+	}
+}
+
+func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
+	repository, _, user := setupWarningRepository(t)
+	ctx := context.Background()
+	newerAt := time.Date(2026, time.October, 12, 10, 30, 0, 0, time.UTC)
+	olderAt := newerAt.Add(-24 * time.Hour)
+	olderEventID := uuid.New()
+
+	// The older cancellation arrives after the newer one.
+	for _, warning := range []Warning{
+		{UserID: user.ID, RequestID: uuid.New(), Reason: "newer cancellation", Status: StatusActive, CreatedAt: newerAt},
+		{UserID: user.ID, RequestID: uuid.New(), Reason: "delayed cancellation", Status: StatusActive, SourceEventID: &olderEventID, CreatedAt: olderAt},
+	} {
+		if created, err := repository.Create(ctx, warning); err != nil || !created {
+			t.Fatalf("create warning: created=%v err=%v", created, err)
+		}
+	}
+
+	warnings, err := repository.ListByUser(ctx, user.ID)
+	if err != nil || len(warnings) != 2 {
+		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
+	}
+	if !warnings[0].CreatedAt.Equal(newerAt) || !warnings[1].CreatedAt.Equal(olderAt) {
+		t.Fatalf("warning times = [%s, %s], want [%s, %s]", warnings[0].CreatedAt, warnings[1].CreatedAt, newerAt, olderAt)
+	}
+
+	// Replaying an event must not change the original issue date.
+	created, err := repository.Create(ctx, Warning{
+		UserID: user.ID, RequestID: uuid.New(), Reason: "retry payload", Status: StatusActive,
+		SourceEventID: &olderEventID, CreatedAt: newerAt.Add(24 * time.Hour),
+	})
+	if err != nil || created {
+		t.Fatalf("duplicate event: created=%v err=%v", created, err)
+	}
+	warnings, err = repository.ListByUser(ctx, user.ID)
+	if err != nil || len(warnings) != 2 || !warnings[0].CreatedAt.Equal(newerAt) || !warnings[1].CreatedAt.Equal(olderAt) {
+		t.Fatalf("replay changed warning history: warnings=%+v err=%v", warnings, err)
 	}
 }

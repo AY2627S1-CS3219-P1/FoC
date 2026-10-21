@@ -1,9 +1,9 @@
 -- name: CreateAccountWarning :execrows
 INSERT INTO account_warnings (
     user_id, request_id, report_id, reason, status, source_event_id,
-    created_by, updated_by
+    created_by, updated_by, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE(sqlc.narg(created_at)::timestamptz, now()))
 ON CONFLICT (source_event_id) DO NOTHING;
 
 -- name: GetAccountWarningByEventID :one

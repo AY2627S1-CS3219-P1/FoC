@@ -30,6 +30,7 @@ func (p *PostgresRepository) Create(ctx context.Context, warning Warning) (bool,
 		UserID: warning.UserID, RequestID: warning.RequestID, ReportID: nullableUUID(warning.ReportID),
 		Reason: warning.Reason, Status: string(warning.Status), SourceEventID: eventID,
 		CreatedBy: nullableUUID(warning.CreatedBy), UpdatedBy: nullableUUID(warning.UpdatedBy),
+		CreatedAt: sql.NullTime{Time: warning.CreatedAt, Valid: !warning.CreatedAt.IsZero()},
 	})
 	if err != nil {
 		return false, fmt.Errorf("insert account warning: %w", err)

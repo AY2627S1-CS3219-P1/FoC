@@ -32,8 +32,9 @@ type Warning struct {
 }
 
 type CourierWarningRequest struct {
-	EventID   string
-	CourierID string
-	RequestID string
-	Reason    string
+	EventID    string
+	CourierID  string
+	RequestID  string
+	Reason     string
+	OccurredAt time.Time
 }

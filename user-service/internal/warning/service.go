@@ -37,11 +37,15 @@ func (s *Service) RecordCourierWarning(ctx context.Context, request CourierWarni
 	if reason == "" || utf8.RuneCountInString(reason) > 2000 {
 		return fmt.Errorf("%w: invalid reason", ErrInvalidRequest)
 	}
+	if request.OccurredAt.IsZero() {
+		return fmt.Errorf("%w: missing occurrence time", ErrInvalidRequest)
+	}
 
 	eventIDCopy := eventID
 	_, err = s.repository.Create(ctx, Warning{
 		UserID: courierID, RequestID: requestID, Reason: reason,
 		Status: StatusActive, SourceEventID: &eventIDCopy,
+		CreatedAt: request.OccurredAt.UTC(),
 	})
 	if err != nil {
 		return fmt.Errorf("record courier warning: %w", err)

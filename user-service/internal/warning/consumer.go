@@ -22,13 +22,19 @@ func (c *CourierWarningConsumer) Handle(ctx context.Context, _ kafka.Metadata, e
 	if event == nil {
 		return fmt.Errorf("courier warning event is nil")
 	}
+
 	reason, err := warningReason(event.GetReason())
 	if err != nil {
 		return err
 	}
+	if err := event.GetOccurredAt().CheckValid(); err != nil {
+		return fmt.Errorf("%w: invalid occurrence time: %v", ErrInvalidRequest, err)
+	}
+
 	return c.Logic.RecordCourierWarning(ctx, CourierWarningRequest{
 		EventID: event.EventId, CourierID: event.CourierId,
 		RequestID: event.OrderId, Reason: reason,
+		OccurredAt: event.OccurredAt.AsTime(),
 	})
 }
 
