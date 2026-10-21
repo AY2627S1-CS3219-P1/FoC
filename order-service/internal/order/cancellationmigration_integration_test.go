@@ -30,7 +30,7 @@ func TestPostgresCancellationMigrationWithData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Down(f.ctx); err != nil {
+	if _, err := provider.DownTo(f.ctx, 5); err != nil {
 		t.Fatal(err)
 	}
 	var status string
@@ -75,7 +75,7 @@ func TestPostgresCancellationMigrationRefusesPendingWithdrawal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Down(f.ctx); err == nil || !strings.Contains(err.Error(), "cannot downgrade while courier withdrawals are pending") {
+	if _, err := provider.DownTo(f.ctx, 5); err == nil || !strings.Contains(err.Error(), "cannot downgrade while courier withdrawals are pending") {
 		t.Fatalf("pending downgrade: %v", err)
 	}
 	var assignmentID, resourceID string
@@ -93,7 +93,7 @@ func TestPostgresCancellationMigrationRefusesPendingWithdrawal(t *testing.T) {
 	if err != nil || closed.Status != CancellationSucceeded {
 		t.Fatalf("supersede: %+v %v", closed, err)
 	}
-	if _, err := provider.Down(f.ctx); err != nil {
+	if _, err := provider.DownTo(f.ctx, 5); err != nil {
 		t.Fatalf("downgrade after supersession: %v", err)
 	}
 	if _, err := provider.Up(f.ctx); err != nil {
