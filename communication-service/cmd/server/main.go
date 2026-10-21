@@ -168,9 +168,7 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		return
 	}
 	client := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: pollTimeout + 10*time.Second})
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		me, err := waitForBot(ctx, client, log, botRetryDelay)
 		if err != nil {
 			if ctx.Err() == nil {
@@ -192,7 +190,7 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		if err := poller.Run(ctx); err != nil {
 			log.Error("telegram polling stopped", "err", err)
 		}
-	}()
+	})
 }
 
 // startNotifications consumes order status changes in the background when
@@ -210,11 +208,9 @@ func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links
 		Log:        log,
 		Now:        time.Now,
 	}
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handler)
-	}()
+	})
 }
 
 // runNotifications restarts the consumer until ctx is cancelled. pkg/kafka
