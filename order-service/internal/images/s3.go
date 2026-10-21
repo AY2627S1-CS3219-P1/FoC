@@ -17,9 +17,11 @@ import (
 type S3Config struct{ Bucket, Region, Endpoint, PublicEndpoint string }
 
 type S3 struct {
-	client *s3.Client
-	signer *s3.PresignClient
-	bucket string
+	client                 *s3.Client
+	signer                 *s3.PresignClient
+	bucket                 string
+	proofScope, grantScope string
+	probeEndpoint          string
 }
 
 // NewS3 uses the standard AWS credential chain. Separate endpoints allow local
@@ -49,7 +51,14 @@ func NewS3(ctx context.Context, c S3Config) (*S3, error) {
 	if public == "" {
 		public = c.Endpoint
 	}
-	return &S3{client: client, signer: s3.NewPresignClient(create(public)), bucket: c.Bucket}, nil
+	return &S3{
+		client:        client,
+		signer:        s3.NewPresignClient(create(public)),
+		bucket:        c.Bucket,
+		proofScope:    c.Bucket + "|" + c.Region + "|" + c.Endpoint,
+		grantScope:    c.Bucket + "|" + c.Region + "|" + public,
+		probeEndpoint: c.Endpoint,
+	}, nil
 }
 
 func (s *S3) CreateUpload(ctx context.Context, in UploadRequest) (UploadGrant, error) {
