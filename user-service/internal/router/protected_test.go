@@ -58,14 +58,18 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
-type allowedDomainStub struct{ calls atomic.Int32 }
+type allowedDomainStub struct {
+	calls  atomic.Int32
+	domain atomic.Value
+}
 
 func (s *allowedDomainStub) ListAllowedDomains(context.Context) ([]allowedadmin.AllowedDomain, error) {
 	s.calls.Add(1)
 	return nil, nil
 }
 
-func (s *allowedDomainStub) AllowDomain(context.Context, string, uuid.UUID) error {
+func (s *allowedDomainStub) AllowDomain(_ context.Context, domain string, _ uuid.UUID) error {
+	s.domain.Store(domain)
 	s.calls.Add(1)
 	return nil
 }
@@ -265,6 +269,33 @@ func TestAllowedDomainAuthorization(t *testing.T) {
 						t.Fatalf("domain logic calls = %d, want %d", calls, wantCalls)
 					}
 				})
+			}
+		})
+	}
+
+	users.users[actorID] = models.User{ID: actorID, Role: models.RoleSuperAdmin}
+	token := "Bearer " + signedTestAccess(t, codec, actorID, jwt.RoleSuperAdmin)
+	for _, tc := range []struct {
+		domain   string
+		wantCode connect.Code
+	}{
+		{" \tEXAMPLE.COM\n", 0},
+		{"\u2003Example.COM\u2003", 0},
+		{"   ", connect.CodeInvalidArgument},
+		{" example .com ", connect.CodeInvalidArgument},
+		{" https://example.com ", connect.CodeInvalidArgument},
+	} {
+		t.Run("hostname/"+tc.domain, func(t *testing.T) {
+			req := connect.NewRequest(&userv1.AllowDomainRequest{Domain: tc.domain})
+			req.Header().Set("Authorization", token)
+			before := logic.calls.Load()
+			_, err := client.AllowDomain(ctx, req)
+			if tc.wantCode == 0 {
+				if err != nil || logic.domain.Load() != "example.com" || logic.calls.Load() != before+1 {
+					t.Fatalf("normalized domain = %v, err = %v", logic.domain.Load(), err)
+				}
+			} else if connect.CodeOf(err) != tc.wantCode || logic.calls.Load() != before {
+				t.Fatalf("invalid hostname reached domain logic or returned wrong code: %v", err)
 			}
 		})
 	}

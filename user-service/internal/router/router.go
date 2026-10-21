@@ -68,7 +68,14 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 			p.Admin, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(adminPath, adminService)
 		allowedDomainsPath, allowedDomainsService := userv1connect.NewAllowedDomainAdminServiceHandler(
-			p.AllowedDomains, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
+			p.AllowedDomains,
+			connect.WithInterceptors(
+				allowedadmin.NormalizeAllowedDomainInput(),
+				validate.NewInterceptor(),
+				authorizeProtected(p.Users),
+				normalizeRPCError(),
+			),
+			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(allowedDomainsPath, allowedDomainsService)
 		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
 			p.Warnings, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))

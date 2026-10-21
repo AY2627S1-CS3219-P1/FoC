@@ -444,12 +444,14 @@ func (x *ListMyOrdersRequest) GetPageSize() int32 {
 	return 0
 }
 
-// Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// Starts one immutable acceptance attempt at the current reward. The caller
+// generates attempt_id once and reuses it after an uncertain result. An
+// intentional new attempt requires a new UUID, including after withdrawal.
+// Recognized business rejections retain the UUID for the retained Order's life.
 type AcceptOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AttemptId     string                 `protobuf:"bytes,2,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -487,6 +489,13 @@ func (*AcceptOrderRequest) Descriptor() ([]byte, []int) {
 func (x *AcceptOrderRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *AcceptOrderRequest) GetAttemptId() string {
+	if x != nil {
+		return x.AttemptId
 	}
 	return ""
 }
@@ -878,12 +887,17 @@ func (x *ConfirmReceiptRequest) GetOrderId() string {
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
+// Keyless calls use current state and must never be automatically retried after uncertainty.
+// A fresh key expresses a new cancellation; retained keys replay their operation.
 type CancelOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Reason        *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IdempotencyKey *string                `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason         *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	// Revision whose cancellation consequences the participant confirmed.
+	ExpectedRevision int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CancelOrderRequest) Reset() {
@@ -916,6 +930,13 @@ func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
 }
 
+func (x *CancelOrderRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
+}
+
 func (x *CancelOrderRequest) GetId() string {
 	if x != nil {
 		return x.Id
@@ -928,6 +949,13 @@ func (x *CancelOrderRequest) GetReason() string {
 		return *x.Reason
 	}
 	return ""
+}
+
+func (x *CancelOrderRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
 }
 
 // Courier only, after a cancellation following pickup.
@@ -1246,8 +1274,11 @@ func (x *ListMyOrdersResponse) GetPageInfo() *PageInfo {
 }
 
 type AcceptOrderResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Current caller-authorized state, not the historical acceptance snapshot.
+	// Absent when the attempt itself does not grant current Order visibility.
+	Order         *Order                   `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Attempt       *AssignmentAttemptResult `protobuf:"bytes,2,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1285,6 +1316,13 @@ func (*AcceptOrderResponse) Descriptor() ([]byte, []int) {
 func (x *AcceptOrderResponse) GetOrder() *Order {
 	if x != nil {
 		return x.Order
+	}
+	return nil
+}
+
+func (x *AcceptOrderResponse) GetAttempt() *AssignmentAttemptResult {
+	if x != nil {
+		return x.Attempt
 	}
 	return nil
 }
@@ -1378,9 +1416,10 @@ func (x *ListOffersResponse) GetOffers() []*Offer {
 }
 
 type AcceptOfferResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
-	Offer         *Offer                 `protobuf:"bytes,2,opt,name=offer,proto3" json:"offer,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Order         *Order                   `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Offer         *Offer                   `protobuf:"bytes,2,opt,name=offer,proto3" json:"offer,omitempty"`
+	Attempt       *AssignmentAttemptResult `protobuf:"bytes,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1425,6 +1464,13 @@ func (x *AcceptOfferResponse) GetOrder() *Order {
 func (x *AcceptOfferResponse) GetOffer() *Offer {
 	if x != nil {
 		return x.Offer
+	}
+	return nil
+}
+
+func (x *AcceptOfferResponse) GetAttempt() *AssignmentAttemptResult {
+	if x != nil {
+		return x.Attempt
 	}
 	return nil
 }
@@ -1625,6 +1671,7 @@ func (x *ConfirmReceiptResponse) GetOrder() *Order {
 type CancelOrderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Cancellation  *CancellationResult    `protobuf:"bytes,2,opt,name=cancellation,proto3" json:"cancellation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1662,6 +1709,13 @@ func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
 func (x *CancelOrderResponse) GetOrder() *Order {
 	if x != nil {
 		return x.Order
+	}
+	return nil
+}
+
+func (x *CancelOrderResponse) GetCancellation() *CancellationResult {
+	if x != nil {
+		return x.Cancellation
 	}
 	return nil
 }
@@ -1756,9 +1810,11 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x04role\x18\x01 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\".\n" +
+	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"W\n" +
 	"\x12AcceptOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8d\x01\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12'\n" +
+	"\n" +
+	"attempt_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tattemptId\"\x8d\x01\n" +
 	"\x10MakeOfferRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12!\n" +
 	"\acredits\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\acredits\x121\n" +
@@ -1785,11 +1841,14 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"unattended\x18\x03 \x01(\bR\n" +
 	"unattended\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xe9\x01\n" +
-	"\x12CancelOrderRequest\x12\x18\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xeb\x02\n" +
+	"\x12CancelOrderRequest\x126\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x0eidempotencyKey\x88\x01\x01\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
-	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01B\t\n" +
+	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x01R\x06reason\x88\x01\x01\x124\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevisionB\x12\n" +
+	"\x10_idempotency_keyB\t\n" +
 	"\a_reason\"\xa2\x02\n" +
 	"\x19RecordItemLocationRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xdf\x01\n" +
@@ -1814,16 +1873,18 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"p\n" +
 	"\x14ListMyOrdersResponse\x12'\n" +
 	"\x06orders\x18\x01 \x03(\v2\x0f.order.v1.OrderR\x06orders\x12/\n" +
-	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"<\n" +
+	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"y\n" +
 	"\x13AcceptOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\":\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12;\n" +
+	"\aattempt\x18\x02 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\":\n" +
 	"\x11MakeOfferResponse\x12%\n" +
 	"\x05offer\x18\x01 \x01(\v2\x0f.order.v1.OfferR\x05offer\"=\n" +
 	"\x12ListOffersResponse\x12'\n" +
-	"\x06offers\x18\x01 \x03(\v2\x0f.order.v1.OfferR\x06offers\"c\n" +
+	"\x06offers\x18\x01 \x03(\v2\x0f.order.v1.OfferR\x06offers\"\xa0\x01\n" +
 	"\x13AcceptOfferResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12%\n" +
-	"\x05offer\x18\x02 \x01(\v2\x0f.order.v1.OfferR\x05offer\">\n" +
+	"\x05offer\x18\x02 \x01(\v2\x0f.order.v1.OfferR\x05offer\x12;\n" +
+	"\aattempt\x18\x03 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\">\n" +
 	"\x15ConfirmPickupResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\x90\x01\n" +
 	"\x19CreateProofUploadResponse\x12\x19\n" +
@@ -1835,9 +1896,10 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x17ConfirmDeliveryResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"?\n" +
 	"\x16ConfirmReceiptResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"<\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"~\n" +
 	"\x13CancelOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"C\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12@\n" +
+	"\fcancellation\x18\x02 \x01(\v2\x1c.order.v1.CancellationResultR\fcancellation\"C\n" +
 	"\x1aRecordItemLocationResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\x98\n" +
 	"\n" +
@@ -1914,7 +1976,9 @@ var file_order_v1_order_proto_goTypes = []any{
 	(OfferStatus)(0),                      // 36: order.v1.OfferStatus
 	(*Order)(nil),                         // 37: order.v1.Order
 	(*PageInfo)(nil),                      // 38: order.v1.PageInfo
-	(*Offer)(nil),                         // 39: order.v1.Offer
+	(*AssignmentAttemptResult)(nil),       // 39: order.v1.AssignmentAttemptResult
+	(*Offer)(nil),                         // 40: order.v1.Offer
+	(*CancellationResult)(nil),            // 41: order.v1.CancellationResult
 }
 var file_order_v1_order_proto_depIdxs = []int32{
 	1,  // 0: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
@@ -1932,51 +1996,54 @@ var file_order_v1_order_proto_depIdxs = []int32{
 	37, // 12: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
 	38, // 13: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
 	37, // 14: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
-	39, // 15: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
-	39, // 16: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
-	37, // 17: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
-	39, // 18: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
-	37, // 19: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
-	33, // 20: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	37, // 21: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
-	37, // 22: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
-	37, // 23: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
-	37, // 24: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
-	0,  // 25: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
-	2,  // 26: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
-	3,  // 27: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
-	4,  // 28: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
-	5,  // 29: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
-	6,  // 30: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
-	7,  // 31: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
-	8,  // 32: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
-	9,  // 33: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
-	10, // 34: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
-	11, // 35: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
-	12, // 36: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
-	13, // 37: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
-	14, // 38: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
-	15, // 39: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
-	16, // 40: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
-	17, // 41: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
-	18, // 42: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
-	19, // 43: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
-	20, // 44: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
-	21, // 45: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
-	22, // 46: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
-	23, // 47: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
-	24, // 48: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
-	25, // 49: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
-	26, // 50: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
-	27, // 51: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
-	28, // 52: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
-	29, // 53: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
-	30, // 54: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
-	40, // [40:55] is the sub-list for method output_type
-	25, // [25:40] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	39, // 15: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	40, // 16: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
+	40, // 17: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
+	37, // 18: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
+	40, // 19: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
+	39, // 20: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	37, // 21: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
+	33, // 22: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	37, // 23: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
+	37, // 24: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
+	37, // 25: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
+	41, // 26: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
+	37, // 27: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
+	0,  // 28: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
+	2,  // 29: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
+	3,  // 30: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
+	4,  // 31: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
+	5,  // 32: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
+	6,  // 33: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
+	7,  // 34: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
+	8,  // 35: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
+	9,  // 36: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
+	10, // 37: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
+	11, // 38: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
+	12, // 39: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
+	13, // 40: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
+	14, // 41: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
+	15, // 42: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
+	16, // 43: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
+	17, // 44: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
+	18, // 45: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
+	19, // 46: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
+	20, // 47: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
+	21, // 48: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
+	22, // 49: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
+	23, // 50: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
+	24, // 51: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
+	25, // 52: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
+	26, // 53: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
+	27, // 54: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
+	28, // 55: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
+	29, // 56: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
+	30, // 57: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
+	43, // [43:58] is the sub-list for method output_type
+	28, // [28:43] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_order_proto_init() }

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto, replaceState } from '$app/navigation';
+	import { onDestroy } from 'svelte';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { Button, Card, TextFieldOutlined } from 'm3-svelte';
@@ -13,8 +13,17 @@
 	let phoneNumber = $state('');
 	let submitting = $state(false);
 	let error = $state('');
+	let mounted = $state(false);
+	let active = true;
+	onDestroy(() => {
+		active = false;
+	});
 
-	onMount(() => {
+	afterNavigate(async ({ complete }) => {
+		// Initial afterNavigate callbacks run before the router marks itself started.
+		await complete;
+		if (!active) return;
+		mounted = true;
 		token = page.url.searchParams.get('token');
 		if (token) {
 			replaceState('/register', page.state);
@@ -48,6 +57,8 @@
 			} else if (cause instanceof ConnectError && cause.code === Code.AlreadyExists) {
 				token = null;
 				error = 'This account already exists. Request a new sign-in link.';
+			} else if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
+				error = 'Your email domain is not allowed. Contact an administrator, then retry before this link expires.';
 			} else {
 				error = 'We could not create your profile. Please try again.';
 			}
@@ -73,14 +84,14 @@
 							type="text"
 							name="displayName"
 							autocomplete="name"
-				maxlength={100}
+							maxlength={100}
 							required
 							bind:value={displayName}
-							disabled={submitting}
+							disabled={!mounted || submitting}
 						/>
-						<PhoneField required disabled={submitting} bind:value={phoneNumber} />
+						<PhoneField required disabled={!mounted || submitting} bind:value={phoneNumber} />
 						<div class="form-actions">
-							<Button type="submit" disabled={submitting}>
+							<Button type="submit" disabled={!mounted || submitting}>
 								{submitting ? 'Creating profile…' : 'Complete sign-up'}
 							</Button>
 						</div>

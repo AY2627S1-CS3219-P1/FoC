@@ -21,29 +21,52 @@ type Offer struct {
 }
 
 type Order struct {
-	ID                   uuid.UUID
-	RequesterID          uuid.UUID
-	CourierID            *uuid.UUID
-	Status               string
-	Pickup               []byte
-	Delivery             []byte
-	DeliveryInstructions *string
-	ItemDescription      string
-	RewardCredits        int64
-	ReservedCredits      int64
-	DeliveryDurationNs   int64
-	ExpiresAt            time.Time
-	AssignedAt           *time.Time
-	PickedUpAt           *time.Time
-	DeliveredAt          *time.Time
-	CompletedAt          *time.Time
-	ClosedAt             *time.Time
-	CloseReason          *string
-	ItemLocation         *string
-	UnattendedDelivery   bool
-	Revision             int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                    uuid.UUID
+	RequesterID           uuid.UUID
+	CourierID             *uuid.UUID
+	Status                string
+	Pickup                []byte
+	Delivery              []byte
+	DeliveryInstructions  *string
+	ItemDescription       string
+	RewardCredits         int64
+	ReservedCredits       int64
+	DeliveryDurationNs    int64
+	ExpiresAt             time.Time
+	AssignedAt            *time.Time
+	PickedUpAt            *time.Time
+	DeliveredAt           *time.Time
+	CompletedAt           *time.Time
+	ClosedAt              *time.Time
+	CloseReason           *string
+	ItemLocation          *string
+	UnattendedDelivery    bool
+	Revision              int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	PendingCancellationID *uuid.UUID
+}
+
+type OrderAssignmentAttempt struct {
+	ID             uuid.UUID
+	Sequence       int64
+	OrderID        uuid.UUID
+	OfferID        *uuid.UUID
+	CallerID       uuid.UUID
+	CourierID      uuid.UUID
+	Method         string
+	IdempotencyKey *uuid.UUID
+	RequestHash    string
+	Amount         int64
+	OriginalAmount int64
+	Phase          string
+	Generation     int64
+	Attempts       int32
+	LeaseUntil     time.Time
+	NextAttemptAt  time.Time
+	Rejection      string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type OrderAssignmentHistory struct {
@@ -69,6 +92,24 @@ type OrderAudit struct {
 	ResultingStatus string
 	OccurredAt      time.Time
 	Details         []byte
+}
+
+type OrderCancellation struct {
+	ID             uuid.UUID
+	OrderID        uuid.UUID
+	CallerID       uuid.UUID
+	Reason         string
+	Status         string
+	AssignmentID   *uuid.UUID
+	CourierID      *uuid.UUID
+	AssignedAt     *time.Time
+	OriginalAmount int64
+	Generation     int64
+	Attempts       int32
+	LeaseUntil     time.Time
+	NextAttemptAt  time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type OrderCreationWorkflow struct {

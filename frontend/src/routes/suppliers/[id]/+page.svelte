@@ -11,9 +11,11 @@
 
 	let location = $state<Location | null>(null);
 	let error = $state<string | null>(null);
+	let reload = $state(0);
 
 	$effect(() => {
 		const id = page.params.id ?? '';
+		void reload;
 		let stale = false;
 		location = null;
 		error = null;
@@ -24,7 +26,11 @@
 		return () => (stale = true);
 	});
 
-	const dateFormat = new Intl.DateTimeFormat('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+	const dateFormat = new Intl.DateTimeFormat('en-SG', {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+		timeZone: 'Asia/Singapore'
+	});
 </script>
 
 <svelte:head><title>{location?.name ?? 'Location'} · Friend on Campus</title></svelte:head>
@@ -35,6 +41,7 @@
 	{#if error}
 		<Notice tone="error">
 			{error}
+			<Button variant="text" onclick={() => reload++}>Retry location</Button>
 			{#if !authService.isAuthenticated}<a href="/login">Log in</a>{/if}
 		</Notice>
 	{:else if !location}
@@ -103,7 +110,9 @@
 					<div>
 						<dt>Coordinates</dt>
 						<dd>
-							{location.coordinates.latitude.toFixed(5)}, {location.coordinates.longitude.toFixed(5)}
+							{location.coordinates.latitude.toFixed(5)}, {location.coordinates.longitude.toFixed(
+								5
+							)}
 						</dd>
 					</div>
 				{/if}

@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Button, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi } from '$lib/services';
+	import { authService, orderApi, orderOffersApi, participantActionsApi } from '$lib/services';
+	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { isTerminal, orderDeadline } from '$lib/services/order/presentation';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import OrderDetailShell from '$lib/components/order/OrderDetailShell.svelte';
+	import ParticipantActions from '$lib/components/order-cancellation/ParticipantActions.svelte';
+	import OrderOfferControls from '$lib/components/order-offers/OrderOfferControls.svelte';
 
 	let order = $state<Order | null>(null);
 	let error = $state('');
@@ -80,7 +83,18 @@
 		{#if !order && loading}<LoadingIndicator aria-label="Loading order" />{/if}
 		{#if order}
 			{#if seconds !== undefined}<p role="status">{seconds > 0 ? 'Time until deadline: ' + Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's' : 'Deadline reached. Checking backend status.'}</p>{/if}
-			<OrderDetailShell {order} {refresh} />
+			<OrderDetailShell {order} {refresh}>
+				{#snippet actions(currentOrder, refreshOrder)}
+					<OrderOfferControls
+						order={currentOrder}
+						refresh={refreshOrder}
+						api={orderOffersApi}
+						callerId={authService.user?.id ?? ''}
+						suspended={authService.user?.role === UserRole.SUSPENDED_USER}
+					/>
+					<ParticipantActions order={currentOrder} refresh={refreshOrder} api={participantActionsApi} callerId={authService.user?.id ?? ''} />
+				{/snippet}
+			</OrderDetailShell>
 		{/if}
 	{/if}
 </section>

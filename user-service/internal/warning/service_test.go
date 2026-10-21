@@ -70,21 +70,34 @@ func TestRecordCourierWarningRejectsInvalidInput(t *testing.T) {
 }
 
 func TestCourierWarningConsumerMapsEvent(t *testing.T) {
-	repository := &repositoryStub{}
-	consumer := &CourierWarningConsumer{Logic: NewService(repository)}
-	occurredAt := time.Date(2026, time.October, 12, 10, 30, 0, 0, time.UTC)
-	event := &eventsv1.CourierWarningRequested{
-		EventId: uuid.NewString(), OrderId: uuid.NewString(), CourierId: uuid.NewString(),
-		Reason:     eventsv1.CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP,
-		OccurredAt: timestamppb.New(occurredAt),
-	}
-	if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
-		t.Fatal(err)
-	}
-	if len(repository.created) != 1 || repository.created[0].Reason != "Courier cancelled after pickup" ||
-		repository.created[0].RequestID.String() != event.OrderId || repository.created[0].UserID.String() != event.CourierId ||
-		!repository.created[0].CreatedAt.Equal(occurredAt) {
-		t.Fatalf("consumer persisted %+v for event %+v", repository.created, event)
+	for _, tc := range []struct {
+		reason     eventsv1.CourierWarningReason
+		wantReason string
+	}{
+		{eventsv1.CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP, "Courier cancelled after pickup"},
+		{eventsv1.CourierWarningReason_COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD, "Delivery timed out with no payable reward"},
+	} {
+		t.Run(tc.reason.String(), func(t *testing.T) {
+			repository := &repositoryStub{}
+			consumer := &CourierWarningConsumer{Logic: NewService(repository)}
+			occurredAt := time.Date(2026, time.October, 12, 10, 30, 0, 0, time.UTC)
+			event := &eventsv1.CourierWarningRequested{
+				EventId:    uuid.NewString(),
+				OrderId:    uuid.NewString(),
+				CourierId:  uuid.NewString(),
+				Reason:     tc.reason,
+				OccurredAt: timestamppb.New(occurredAt),
+			}
+
+			if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
+				t.Fatal(err)
+			}
+			if len(repository.created) != 1 || repository.created[0].Reason != tc.wantReason ||
+				repository.created[0].RequestID.String() != event.OrderId || repository.created[0].UserID.String() != event.CourierId ||
+				!repository.created[0].CreatedAt.Equal(occurredAt) {
+				t.Fatalf("consumer persisted %+v for event %+v", repository.created, event)
+			}
+		})
 	}
 }
 

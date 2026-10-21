@@ -31,14 +31,21 @@ type ImageOperations interface {
 
 type Server struct {
 	orderv1connect.UnimplementedOrderServiceHandler
-	operations Operations
-	progress   ProgressOperations
-	creator    CreationOperations
-	images     ImageOperations
+	operations    Operations
+	creator       CreationOperations
+	images        ImageOperations
+	assignments   AssignmentOperations
+	cancellations CancellationOperations
+	progress      ProgressOperations
+	disposition   DispositionOperations
 }
 
-func NewServer(operations Operations, creator CreationOperations, images ImageOperations) *Server {
-	return &Server{operations: operations, creator: creator, images: images}
+func NewServer(operations Operations, creator CreationOperations, images ImageOperations, assignments ...AssignmentOperations) *Server {
+	s := &Server{operations: operations, creator: creator, images: images}
+	if len(assignments) > 0 {
+		s.assignments = assignments[0]
+	}
+	return s
 }
 
 func (s *Server) CreateOrder(ctx context.Context, req *connect.Request[pb.CreateOrderRequest]) (*connect.Response[pb.CreateOrderResponse], error) {

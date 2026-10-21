@@ -42,6 +42,8 @@ func warningReason(reason eventsv1.CourierWarningReason) (string, error) {
 	switch reason {
 	case eventsv1.CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP:
 		return "Courier cancelled after pickup", nil
+	case eventsv1.CourierWarningReason_COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD:
+		return "Delivery timed out with no payable reward", nil
 	default:
 		return "", fmt.Errorf("unsupported courier warning reason %s", reason)
 	}
