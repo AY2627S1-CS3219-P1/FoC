@@ -16,8 +16,8 @@ enum ReservationStatus {
   RESERVATION_STATUS_ASSIGNED = 2;
   // The whole reserved amount returned to the requester.
   RESERVATION_STATUS_RELEASED = 3;
-  // The payable reward went to the courier and any remainder returned to the
-  // requester.
+  // From Order's order.outcome event: the payable reward went to the courier
+  // and any remainder returned to the requester.
   RESERVATION_STATUS_SETTLED = 4;
 }
 
@@ -60,7 +60,14 @@ message Adjustment {
 enum SettlementOutcome {
   SETTLEMENT_OUTCOME_UNSPECIFIED = 0;
   SETTLEMENT_OUTCOME_RELEASED = 1;
+  // Credit applies the lateness rule. With elapsed = delivered_at -
+  // picked_up_at, T = the allowed delivery duration and R = the
+  // accepted offer_amount:
+  // - elapsed <= T pays R;
+  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+  // - elapsed >= 2T pays 0.
   SETTLEMENT_OUTCOME_COMPLETED = 2;
+  // Pays the courier the accepted offer_amount.
   SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP = 3;
 }
 
@@ -82,7 +89,8 @@ message Settlement {
   ReleaseReason release_reason = 5;
 }
 
-// Created the first time Credit sees a user, with the starting credits.
+// Opened with the starting credits by the user's users.create event or first
+// Reserve or payout, whichever comes first.
 message Account {
   string user_id = 1;
   // Credits the user owns, including credits held in reservations.
@@ -95,7 +103,7 @@ message Account {
 
 enum LedgerEntryKind {
   LEDGER_ENTRY_KIND_UNSPECIFIED = 0;
-  // Starting credits (100, per C1.3.1), granted once when the account is created.
+  // Starting credits (100), granted once when the account is opened.
   LEDGER_ENTRY_KIND_GRANT = 1;
   LEDGER_ENTRY_KIND_RESERVE = 2;
   // An accepted offer changed the hold.

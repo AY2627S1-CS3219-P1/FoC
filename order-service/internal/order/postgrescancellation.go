@@ -77,9 +77,21 @@ func (r *PostgresRepository) DueCancellations(ctx context.Context, now time.Time
 }
 
 func fromCancellation(row db.OrderCancellation) Cancellation {
-	w := Cancellation{ID: row.ID.String(), OrderID: row.OrderID.String(), CallerID: row.CallerID.String(), Reason: row.Reason,
-		Status: CancellationStatus(row.Status), AssignedAt: utcTime(row.AssignedAt), OriginalAmount: row.OriginalAmount,
-		Generation: row.Generation, Attempts: row.Attempts, LeaseUntil: row.LeaseUntil.UTC(), NextAttemptAt: row.NextAttemptAt.UTC(), CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC()}
+	w := Cancellation{
+		ID:             row.ID.String(),
+		OrderID:        row.OrderID.String(),
+		CallerID:       row.CallerID.String(),
+		Reason:         row.Reason,
+		Status:         CancellationStatus(row.Status),
+		AssignedAt:     utcTime(row.AssignedAt),
+		OriginalAmount: row.OriginalAmount,
+		Generation:     row.Generation,
+		Attempts:       row.Attempts,
+		LeaseUntil:     row.LeaseUntil.UTC(),
+		NextAttemptAt:  row.NextAttemptAt.UTC(),
+		CreatedAt:      row.CreatedAt.UTC(),
+		UpdatedAt:      row.UpdatedAt.UTC(),
+	}
 	if row.AssignmentID != nil {
 		w.AssignmentID = row.AssignmentID.String()
 	}
@@ -141,9 +153,21 @@ func (t *cancellationPostgresTx) InsertCancellation(ctx context.Context, w Cance
 	}
 	// Values originate from validated domain intent and the locked assignment.
 	err := t.q.InsertCancellation(ctx, db.InsertCancellationParams{
-		ID: uuid.MustParse(w.ID), OrderID: uuid.MustParse(w.OrderID), CallerID: uuid.MustParse(w.CallerID), Reason: w.Reason, Status: string(w.Status),
-		AssignmentID: optionalCancellationID(w.AssignmentID), CourierID: optionalCancellationID(w.CourierID), AssignedAt: w.AssignedAt, OriginalAmount: w.OriginalAmount,
-		Generation: w.Generation, Attempts: w.Attempts, LeaseUntil: w.LeaseUntil, NextAttemptAt: w.NextAttemptAt, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt,
+		ID:                   uuid.MustParse(w.ID),
+		OrderID:              uuid.MustParse(w.OrderID),
+		CallerID:             uuid.MustParse(w.CallerID),
+		Reason:               w.Reason,
+		Status:               string(w.Status),
+		AssignmentID:         optionalCancellationID(w.AssignmentID),
+		CourierID:            optionalCancellationID(w.CourierID),
+		AssignedAt:           w.AssignedAt,
+		OriginalAmount:       w.OriginalAmount,
+		Generation:           w.Generation,
+		Attempts:             w.Attempts,
+		LeaseUntil:           w.LeaseUntil,
+		NextAttemptAt:        w.NextAttemptAt,
+		CreatedAt:            w.CreatedAt,
+		UpdatedAt:            w.UpdatedAt,
 		SuspensionDecisionID: optionalCancellationID(w.SuspensionDecisionID),
 	})
 	if err := t.writeResult(err); err != nil {
@@ -162,8 +186,16 @@ func (t *cancellationPostgresTx) SaveCancellation(ctx context.Context, w Cancell
 		w.Generation < expected || w.Generation > expected+1 || w.Attempts < before.Attempts || w.Attempts > before.Attempts+1 {
 		return t.writeResult(ErrConflict)
 	}
-	n, err := t.q.UpdateCancellation(ctx, db.UpdateCancellationParams{ID: uuid.MustParse(w.ID), Status: string(w.Status), Generation: w.Generation,
-		ExpectedGeneration: expected, Attempts: w.Attempts, LeaseUntil: w.LeaseUntil, NextAttemptAt: w.NextAttemptAt, UpdatedAt: w.UpdatedAt})
+	n, err := t.q.UpdateCancellation(ctx, db.UpdateCancellationParams{
+		ID:                 uuid.MustParse(w.ID),
+		Status:             string(w.Status),
+		Generation:         w.Generation,
+		ExpectedGeneration: expected,
+		Attempts:           w.Attempts,
+		LeaseUntil:         w.LeaseUntil,
+		NextAttemptAt:      w.NextAttemptAt,
+		UpdatedAt:          w.UpdatedAt,
+	})
 	if err == nil && n != 1 {
 		err = ErrConflict
 	}

@@ -46,7 +46,7 @@ func (p *Progress) advance(ctx context.Context, c Caller, id string, action Acti
 	err := p.mutator.Mutate(ctx, id, func(current Order, _ []Offer) (*Change, error) {
 		// Postgres keeps microseconds; truncate so the response matches a reread.
 		now := p.now().UTC().Truncate(time.Microsecond)
-		if !c.Admin && !current.HasParticipant(c.ID) && (c.Suspended || current.Status != AwaitingCourier || !current.ExpiresAt.After(now)) {
+		if !visibleTo(current, c, now) {
 			return nil, ErrNotFound
 		}
 		// A suspended courier may finish an existing delivery, but cannot take

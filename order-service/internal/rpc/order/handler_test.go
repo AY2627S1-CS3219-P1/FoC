@@ -28,12 +28,13 @@ const userID = "c55ce32c-2af7-46d1-a088-6a976d3bdbaf"
 const locationID = "41dbf670-f32c-4cca-9473-5861c274e789"
 
 type fakeOperations struct {
-	called  string
-	caller  app.Caller
-	id      string
-	request app.ListRequest
-	status  app.OfferStatus
-	err     error
+	progressCalled string
+	called         string
+	caller         app.Caller
+	id             string
+	request        app.ListRequest
+	status         app.OfferStatus
+	err            error
 }
 
 func fixture() app.Order {
@@ -76,6 +77,18 @@ func (f *fakeOperations) ListOffers(_ context.Context, c app.Caller, id string, 
 	return []app.Offer{{ID: userID, OrderID: id, CourierID: userID, Credits: 50, Status: app.OfferAccepted, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt}}, f.err
 }
 
+func (f *fakeOperations) ConfirmPickup(_ context.Context, c app.Caller, id string) (app.Order, error) {
+	f.called, f.caller, f.id = "pickup", c, id
+	f.progressCalled = "pickup"
+	return fixture(), f.err
+}
+
+func (f *fakeOperations) ConfirmReceipt(_ context.Context, c app.Caller, id string) (app.Order, error) {
+	f.called, f.caller, f.id = "receipt", c, id
+	f.progressCalled = "receipt"
+	return fixture(), f.err
+}
+
 type clients struct {
 	order    orderv1connect.OrderServiceClient
 	admin    orderv1connect.OrderAdminServiceClient
@@ -96,7 +109,7 @@ func mount(t *testing.T, f *fakeOperations, role string) clients {
 	}
 	server := httptest.NewServer(router.Setup(router.RPCServices{
 		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
-		Order:  rpcorder.NewServer(f, nil, nil),
+		Order:  rpcorder.NewServerWithProgress(f, nil, nil, f),
 		Admin:  orderadmin.NewServer(f, nil),
 	}, authenticate))
 	t.Cleanup(server.Close)
@@ -241,7 +254,30 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 	}
 }
 
-func TestUnconfiguredParticipantRPCsFailClosedAndUploadRemainsUnimplemented(t *testing.T) {
+func TestProgressRPCsForwardCallerAndConvertOrder(t *testing.T) {
+	f := &fakeOperations{}
+	c := mount(t, f, "user")
+	ctx := context.Background()
+	picked, err := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
+	if err != nil || f.progressCalled != "pickup" || f.called != "get" || f.id != orderID || f.caller.ID != userID || picked.Msg.Order.GetId() != orderID {
+		t.Fatalf("pickup: fake=%+v response=%v err=%v", f, picked, err)
+	}
+	received, err := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
+	if err != nil || f.progressCalled != "receipt" || f.called != "get" || f.id != orderID || received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
+		t.Fatalf("receipt: fake=%+v response=%v err=%v", f, received, err)
+	}
+
+	f.called = ""
+	if _, err = c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: "invalid"})); connect.CodeOf(err) != connect.CodeInvalidArgument || f.called != "" {
+		t.Fatalf("invalid id reached operation: err=%v called=%q", err, f.called)
+	}
+	f.err = app.ErrPrecondition
+	if _, err = c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("domain error: %v", err)
+	}
+}
+
+func TestMutationAndUploadRPCsRemainUnimplemented(t *testing.T) {
 	c := mount(t, &fakeOperations{}, "admin")
 	ctx := context.Background()
 	calls := []struct {
@@ -268,20 +304,12 @@ func TestUnconfiguredParticipantRPCsFailClosedAndUploadRemainsUnimplemented(t *t
 			_, e := c.order.AcceptOffer(ctx, connect.NewRequest(&pb.AcceptOfferRequest{Id: orderID}))
 			return e
 		}},
-		{"pickup", func() error {
-			_, e := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
-			return e
-		}},
 		{"proof upload", func() error {
 			_, e := c.order.CreateProofUpload(ctx, connect.NewRequest(&pb.CreateProofUploadRequest{OrderId: orderID, UploadId: userID, ContentType: "image/png"}))
 			return e
 		}},
 		{"delivery", func() error {
 			_, e := c.order.ConfirmDelivery(ctx, connect.NewRequest(&pb.ConfirmDeliveryRequest{OrderId: orderID, ProofIds: []string{userID}}))
-			return e
-		}},
-		{"receipt", func() error {
-			_, e := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
 			return e
 		}},
 		{"cancel", func() error {

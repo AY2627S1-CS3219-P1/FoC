@@ -8,6 +8,7 @@ import { createOrderApi } from './order/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
+import { createTelegramLinkApi } from './telegram/index.ts';
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -44,3 +45,10 @@ const creditTransport = createCustomTransport({
 export const creditAccountApi = createCreditAccountApi(creditTransport);
 
 export const participantActionsApi = createParticipantActionsApi(orderTransport);
+const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
+const communicationTransport = createCustomTransport({
+	baseUrl: communicationServiceBaseUrl,
+	interceptors: [authService.interceptor]
+});
+
+export const telegramLinkApi = createTelegramLinkApi(communicationTransport);

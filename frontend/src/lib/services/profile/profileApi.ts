@@ -5,7 +5,7 @@ export interface UserProfile {
 	email: string;
 	displayName: string;
 	description: string;
-	telegramHandle?: string;
+	/** E.164. Absent only for the bootstrapped admin until they add one. */
 	phoneNumber?: string;
 	role: UserRole;
 }
@@ -13,8 +13,7 @@ export interface UserProfile {
 export interface UpdateProfileInput {
 	displayName: string;
 	description: string;
-	telegramHandle?: string;
-	phoneNumber?: string;
+	phoneNumber: string;
 }
 
 export interface ProfileApi {
