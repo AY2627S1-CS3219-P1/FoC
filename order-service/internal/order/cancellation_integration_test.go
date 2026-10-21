@@ -545,7 +545,7 @@ func TestPostgresWithdrawalWithoutCreditDoesNotAdmitIntent(t *testing.T) {
 	beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
 	key := uuid.NewString()
 	withoutCredit := NewCanceller(f.repo, nil, AssignmentOptions{Now: now})
-	if _, err := withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key); !errors.Is(err, ErrUnavailable) {
+	if _, err := withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("missing Credit: %v", err)
 	}
 	current, err := f.repo.Get(f.ctx, o.ID)

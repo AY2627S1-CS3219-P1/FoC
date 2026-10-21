@@ -58,10 +58,24 @@ func TestCancellationThroughConnectAndPostgres(t *testing.T) {
 			next.ServeHTTP(w, r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: r.Header.Get("X-Test-User"), Role: r.Header.Get("X-Test-Role")})))
 		})
 	}
-	server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: rpcorder.NewServerWithCancellation(app.NewService(repo), nil, nil, assigner, canceller), Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{}}, authenticate))
+	services := router.RPCServices{
+		Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+		Order: rpcorder.NewServerWithCancellation(app.NewService(repo), nil, nil, assigner, canceller).
+			WithParticipantActions(app.NewProgress(app.NewMutator(repo)), app.NewDisposition(app.NewMutator(repo))),
+		Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+	}
+	server := httptest.NewServer(router.Setup(services, authenticate))
 	t.Cleanup(server.Close)
 	client := orderv1connect.NewOrderServiceClient(server.Client(), server.URL)
 	call := func(message *pb.CancelOrderRequest, caller, role string) (*connect.Response[pb.CancelOrderResponse], error) {
+		if message.ExpectedRevision == 0 {
+			current, err := repo.Get(ctx, message.Id)
+			if err == nil {
+				message.ExpectedRevision = current.Revision
+			} else {
+				message.ExpectedRevision = 1
+			}
+		}
 		return client.CancelOrder(ctx, acceptanceRequest(message, caller, role))
 	}
 	for _, bad := range []*pb.CancelOrderRequest{
@@ -84,7 +98,7 @@ func TestCancellationThroughConnectAndPostgres(t *testing.T) {
 	credit.loseObservation = true
 	credit.mu.Unlock()
 	key := uuid.NewString()
-	request := &pb.CancelOrderRequest{Id: o.ID, Reason: proto.String("  leave  "), IdempotencyKey: &key}
+	request := &pb.CancelOrderRequest{Id: o.ID, Reason: proto.String("  leave  "), IdempotencyKey: &key, ExpectedRevision: assigned.Msg.Order.Revision}
 	lostClient := orderv1connect.NewOrderServiceClient(&http.Client{Transport: &loseFirstCancellation{base: server.Client().Transport}}, server.URL)
 	if _, err := lostClient.CancelOrder(ctx, acceptanceRequest(request, courier, "suspended_user")); err == nil {
 		t.Fatal("response loss missing")
@@ -93,12 +107,15 @@ func TestCancellationThroughConnectAndPostgres(t *testing.T) {
 	if err != nil || pending.Msg.Cancellation.Status != pb.CancellationStatus_CANCELLATION_STATUS_PENDING || !pending.Msg.Order.CancellationPending || pending.Msg.Order.Delivery == nil {
 		t.Fatalf("pending %v %v", pending, err)
 	}
+	if _, err := client.ConfirmPickup(ctx, acceptanceRequest(&pb.ConfirmPickupRequest{OrderId: o.ID}, courier, "user")); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("mounted pickup bypassed pending withdrawal: %v", err)
+	}
 	id := pending.Msg.Cancellation.OperationId
 	read, err := client.GetOrder(ctx, acceptanceRequest(&pb.GetOrderRequest{Id: o.ID}, requester, "suspended_user"))
 	if err != nil || !read.Msg.Order.CancellationPending {
 		t.Fatalf("pending read %v %v", read, err)
 	}
-	if _, err := call(&pb.CancelOrderRequest{Id: o.ID, Reason: proto.String("changed"), IdempotencyKey: &key}, courier, "user"); connect.CodeOf(err) != connect.CodeAlreadyExists {
+	if _, err := call(&pb.CancelOrderRequest{Id: o.ID, Reason: proto.String("changed"), IdempotencyKey: &key, ExpectedRevision: assigned.Msg.Order.Revision}, courier, "user"); connect.CodeOf(err) != connect.CodeAlreadyExists {
 		t.Fatalf("changed key %v", err)
 	}
 	clock.Add(int64(time.Minute))
@@ -128,8 +145,52 @@ func TestCancellationThroughConnectAndPostgres(t *testing.T) {
 	if _, err := call(&pb.CancelOrderRequest{Id: o.ID}, requester, "user"); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("keyless terminal %v", err)
 	}
-	terminalReplay, err := call(&pb.CancelOrderRequest{Id: o.ID, IdempotencyKey: &terminalKey}, requester, "suspended_user")
+	terminalReplay, err := call(&pb.CancelOrderRequest{Id: o.ID, IdempotencyKey: &terminalKey, ExpectedRevision: terminal.Msg.Order.Revision - 1}, requester, "suspended_user")
 	if err != nil || terminalReplay.Msg.Cancellation.OperationId != terminal.Msg.Cancellation.OperationId {
 		t.Fatalf("terminal replay %v %v", terminalReplay, err)
 	}
+	// A second order exercises the real mounted pickup/cancel/disposition seams.
+	second := seedAcceptanceOrder(t, ctx, repo, requester, base)
+	credit.mu.Lock()
+	credit.views[second.ID] = app.AssignmentReservation{OrderID: second.ID, RequesterID: requester, OriginalAmount: 20, ReservedAmount: 20, State: "held"}
+	credit.mu.Unlock()
+	accepted, err := client.AcceptOrder(ctx, acceptanceRequest(&pb.AcceptOrderRequest{Id: second.ID, AttemptId: uuid.NewString()}, courier, "user"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked, err := client.ConfirmPickup(ctx, acceptanceRequest(&pb.ConfirmPickupRequest{OrderId: second.ID}, courier, "user"))
+	if err != nil || picked.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_DELIVERING {
+		t.Fatalf("mounted pickup: %v %v", picked, err)
+	}
+	stale := &pb.CancelOrderRequest{Id: second.ID, ExpectedRevision: accepted.Msg.Order.Revision, IdempotencyKey: proto.String(uuid.NewString())}
+	if _, err := call(stale, requester, "user"); connect.CodeOf(err) != connect.CodeAborted {
+		t.Fatalf("stale mounted confirmation: %v", err)
+	}
+	failed, err := call(&pb.CancelOrderRequest{Id: second.ID, ExpectedRevision: picked.Msg.Order.Revision, IdempotencyKey: proto.String(uuid.NewString())}, courier, "user")
+	if err != nil || failed.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_FAILED || failed.Msg.Order.ItemLocation != nil {
+		t.Fatalf("postpickup cancel: %v %v", failed, err)
+	}
+	location := &pb.RecordItemLocationRequest{OrderId: second.ID, ItemLocation: "Library desk"}
+	if _, err := client.RecordItemLocation(ctx, acceptanceRequest(location, requester, "user")); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("requester disposition: %v", err)
+	}
+	firstLocation, err := client.RecordItemLocation(ctx, acceptanceRequest(location, courier, "suspended_user"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	repeatLocation, err := client.RecordItemLocation(ctx, acceptanceRequest(location, courier, "user"))
+	if err != nil || repeatLocation.Msg.Order.Revision != firstLocation.Msg.Order.Revision {
+		t.Fatalf("location retry: %v %v", repeatLocation, err)
+	}
+	location.ItemLocation = "Residence reception"
+	corrected, err := client.RecordItemLocation(ctx, acceptanceRequest(location, courier, "user"))
+	if err != nil || corrected.Msg.Order.GetItemLocation() != "Residence reception" || corrected.Msg.Order.Revision != firstLocation.Msg.Order.Revision+1 {
+		t.Fatalf("location correction: %v %v", corrected, err)
+	}
+	var outcomes, warnings int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE kind='order.outcome'), count(*) FILTER (WHERE kind='order.courier_warning_requested') FROM order_outbox WHERE order_id=$1", second.ID).Scan(&outcomes, &warnings); err != nil || outcomes != 1 || warnings != 1 {
+		t.Fatalf("duplicate terminal effects %d %d %v", outcomes, warnings, err)
+	}
+	t.Log("PASS mounted Connect/Postgres: lost withdrawal response, durable recovery, replacement courier privacy, stale cancellation rejection, pickup, terminal warning, location retry and correction")
+
 }
