@@ -23,15 +23,25 @@ type Linker interface {
 	UnlinkChat(ctx context.Context, chatID int64) error
 }
 
-// Handler links chats through /start and unlinks chats that block the bot.
+// Chat is the part of the chat relay the handler needs.
+type Chat interface {
+	HandleMessage(ctx context.Context, msg *telegram.Message) error
+	ShowChats(ctx context.Context, msg *telegram.Message) error
+	HandleCallback(ctx context.Context, cb *telegram.CallbackQuery) error
+}
+
+// Handler links chats through /start, unlinks chats that block the bot, and
+// passes everything else to the chat relay.
 type Handler struct {
 	Sender Sender
 	Linker Linker
+	Chat   Chat
 	Log    *slog.Logger
 }
 
 const (
-	startReply   = "Hi! This is the Friend on Campus bot. To get order updates here, choose Connect Telegram in the FoC app."
+	startReply   = "Hi! This is the Friend on Campus bot. To get order updates and chat with your courier or requester here, choose Connect Telegram in the FoC app."
+	helpReply    = "Send a message to chat with the other person on your order. Reply to a message about an order to answer about that order, or use /chat to choose one."
 	linkedReply  = "Connected. You'll get FoC order updates here. You can disconnect anytime from your FoC profile."
 	invalidReply = "This link has expired or was already used. Choose Connect Telegram in the FoC app to get a new one."
 	retryReply   = "Something went wrong connecting your account. Please press Start again."
@@ -42,6 +52,8 @@ func (h *Handler) Handle(ctx context.Context, update telegram.Update) error {
 	switch {
 	case update.MyChatMember != nil:
 		return h.handleMembership(ctx, update.MyChatMember)
+	case update.CallbackQuery != nil:
+		return h.Chat.HandleCallback(ctx, update.CallbackQuery)
 	case update.Message != nil:
 		return h.handleMessage(ctx, update.Message)
 	default:
@@ -54,8 +66,15 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 		return nil
 	}
 	command, code, _ := strings.Cut(strings.TrimSpace(msg.Text), " ")
-	if command != "/start" {
-		return nil
+	switch {
+	case command == "/chat":
+		return h.Chat.ShowChats(ctx, msg)
+	case command == "/help":
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, helpReply)
+	case strings.HasPrefix(command, "/") && command != "/start":
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, helpReply)
+	case command != "/start":
+		return h.Chat.HandleMessage(ctx, msg)
 	}
 	code = strings.TrimSpace(code)
 	if code == "" {
