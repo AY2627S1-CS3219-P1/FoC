@@ -108,6 +108,9 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   - user-service: handlers live in `internal/handlers/<domain>`. A handler is
     a struct that holds its dependencies as fields (see "Dependencies and
     interfaces").
+  - credit-service: handlers live under `internal/rpc/<domain>`, with error
+    and message conversion in `internal/rpc/shared`. Kafka handlers live in
+    `internal/events`.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.
