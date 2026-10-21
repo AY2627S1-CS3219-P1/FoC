@@ -37,8 +37,10 @@
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
   default golangci-lint correctness linters across `pkg`, `user-service`,
-  `supplier-service` and `order-service`. CI installs the tool with the official
-  action, then runs the same target for each module. The Makefile pins
+  `supplier-service`, `order-service`, `communication-service` and
+  `credit-service`. CI installs the tool
+  with the official action, then runs the same target for each module. The
+  Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
@@ -172,14 +174,15 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 
 ## Database
 
-Supplier and Order Services use sqlc:
+Supplier, Order and Credit Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
   Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
   hand-edit generated files. Order generates one aggregate package,
-  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`.
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
+  generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
