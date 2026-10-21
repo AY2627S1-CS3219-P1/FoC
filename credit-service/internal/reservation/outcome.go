@@ -10,9 +10,10 @@ import (
 // ApplyOutcome settles or releases an order's reservation from Order's
 // order.outcome event, the only terminal settlement trigger. Terminal
 // reservations never change, so a redelivered or repeated outcome is a no-op
-// and reports applied = false (C1.2.14). An outcome that contradicts Credit's
-// records changes nothing and fails with ErrOutcomeMismatch,
-// ErrReservationNotFound or ErrReservationNotAssigned.
+// and reports applied = false (C1.2.14). A repeat must name the same outcome,
+// courier or release reason. An outcome that contradicts Credit's records
+// changes nothing and fails with ErrOutcomeMismatch, ErrReservationNotFound or
+// ErrReservationNotAssigned.
 func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reservation, applied bool, err error) {
 	if err := o.validate(); err != nil {
 		return Reservation{}, false, err
@@ -37,6 +38,9 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 			if r != nil && r.Status == Settled {
 				return ErrOutcomeMismatch
 			}
+			if r != nil && r.Status == Released && r.Settlement.ReleaseReason != reason {
+				return ErrOutcomeMismatch
+			}
 			out, applied, err = release(ctx, tx, o.OrderID, r, reason, now)
 			return err
 		}
@@ -48,6 +52,13 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 		switch r.Status {
 		case Settled:
 			if r.Settlement.Outcome != o.settlementOutcome() {
+				return ErrOutcomeMismatch
+			}
+			a, err := tx.Assignment(ctx, r.OrderID, r.AssignmentID)
+			if err != nil {
+				return err
+			}
+			if a == nil || a.CourierID != o.CourierID {
 				return ErrOutcomeMismatch
 			}
 			out = *r

@@ -67,13 +67,11 @@ func TestPostgresReservations(t *testing.T) {
 		}
 	})
 
-	t.Run("replays return the snapshot each call produced", func(t *testing.T) {
+	t.Run("replays return the snapshot each call produced until fenced", func(t *testing.T) {
 		order, req, cour := uuid.NewString(), uuid.NewString(), uuid.NewString()
 		offer := uuid.NewString()
 		reserved := must(t)(s.Reserve(ctx, order, req, 20))
 		adjusted := must(t)(s.AdjustReservation(ctx, order, offer, cour, 40))
-		must(t)(s.RevertAdjustment(ctx, order, offer))
-		must(t)(s.ReleaseReservation(ctx, order, reservation.Failed))
 		r := must(t)(s.Reserve(ctx, order, req, 20))
 		if r.Status != reservation.Held || r.Revision != 1 || !sameStamps(r, reserved) {
 			t.Fatalf("reserve replay: %+v, first %+v", r, reserved)
@@ -85,11 +83,21 @@ func TestPostgresReservations(t *testing.T) {
 		if r.Revision != 2 || !sameStamps(r, adjusted) {
 			t.Fatalf("adjust replay: %+v, first %+v", r, adjusted)
 		}
+
+		must(t)(s.RevertAdjustment(ctx, order, offer))
+		_, err := s.AdjustReservation(ctx, order, offer, cour, 40)
+		expect(t, err, reservation.ErrAdjustmentReverted)
+
+		must(t)(s.ReleaseReservation(ctx, order, reservation.Failed))
+		_, err = s.Reserve(ctx, order, req, 20)
+		expect(t, err, reservation.ErrReservationReleased)
+		_, err = s.AdjustReservation(ctx, order, offer, cour, 40)
+		expect(t, err, reservation.ErrReservationReleased)
 		r = must(t)(s.ReleaseReservation(ctx, order, reservation.Failed))
 		if r.Status != reservation.Released || r.Settlement.ReturnedToRequester != 20 {
 			t.Fatalf("release replay: %+v", r.Settlement)
 		}
-		_, err := s.ReleaseReservation(ctx, order, reservation.Expired)
+		_, err = s.ReleaseReservation(ctx, order, reservation.Expired)
 		expect(t, err, reservation.ErrIdempotencyConflict)
 	})
 

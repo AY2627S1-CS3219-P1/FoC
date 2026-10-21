@@ -50,9 +50,10 @@ type result struct {
 }
 
 // mutate runs apply at most once per operation key. A repeat with the same
-// payload replays the first outcome; a different payload is a conflict.
-// Refusals other than INSUFFICIENT_CREDITS store nothing, so a repeat
-// recomputes them from current state.
+// payload replays the first outcome, unless a later release or revert has
+// fenced the operation off; a different payload is a conflict. Refusals other
+// than INSUFFICIENT_CREDITS store nothing, so a repeat recomputes them from
+// current state.
 func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, apply func(Tx, time.Time) (result, error)) (Reservation, error) {
 	hash, err := requestHash(payload)
 	if err != nil {
@@ -73,6 +74,9 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 		if op != nil {
 			if op.RequestHash != hash {
 				return ErrIdempotencyConflict
+			}
+			if err := checkReplay(ctx, tx, key); err != nil {
+				return err
 			}
 			if op.Insufficient {
 				out = result{insufficient: true}
@@ -114,6 +118,35 @@ func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, app
 		return Reservation{}, ErrInsufficientCredits
 	}
 	return out.reservation, nil
+}
+
+// checkReplay fails a repeated call that a later transition prevents: Reserve
+// or AdjustReservation after a release, and AdjustReservation for a reverted
+// offer. Checks run in the order of a first call, so a replay reports what a
+// fresh call would.
+func checkReplay(ctx context.Context, tx Tx, key OperationKey) error {
+	if key.Kind != OpReserve && key.Kind != OpAdjust {
+		return nil
+	}
+	r, err := tx.Reservation(ctx, key.OrderID)
+	if err != nil {
+		return err
+	}
+	if r != nil && r.Status == Released {
+		return ErrReservationReleased
+	}
+	if key.Kind != OpAdjust {
+		return nil
+	}
+
+	a, err := tx.Assignment(ctx, key.OrderID, key.AssignmentID)
+	if err != nil {
+		return err
+	}
+	if a != nil && a.Status == Reverted {
+		return ErrAdjustmentReverted
+	}
+	return nil
 }
 
 // withAdjustment describes the applied offer of an Assigned reservation. The

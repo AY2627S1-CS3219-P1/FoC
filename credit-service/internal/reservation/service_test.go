@@ -102,6 +102,37 @@ func TestReleaseBeforeReserveFencesTheReservation(t *testing.T) {
 	repo.checkLedger(t)
 }
 
+func TestReleaseFencesRepeatedReservesAndAdjustments(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newService()
+	must(t)(s.Reserve(ctx, orderID, requester, 30))
+	must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 40))
+	must(t)(s.ReleaseReservation(ctx, orderID, reservation.Failed))
+
+	_, err := s.Reserve(ctx, orderID, requester, 30)
+	expect(t, err, reservation.ErrReservationReleased)
+	_, err = s.AdjustReservation(ctx, orderID, offerID, courier, 40)
+	expect(t, err, reservation.ErrReservationReleased)
+	// A conflicting payload is still reported as a conflict.
+	_, err = s.Reserve(ctx, orderID, requester, 31)
+	expect(t, err, reservation.ErrIdempotencyConflict)
+	if a := repo.balance(requester); a.Balance != 100 || a.Reserved != 0 {
+		t.Fatalf("account: %+v", a)
+	}
+	repo.checkLedger(t)
+}
+
+func TestReleaseFencesARepeatedRejectedReserve(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newService()
+	_, err := s.Reserve(ctx, orderID, requester, 101)
+	expect(t, err, reservation.ErrInsufficientCredits)
+	must(t)(s.ReleaseReservation(ctx, orderID, reservation.Expired))
+	_, err = s.Reserve(ctx, orderID, requester, 101)
+	expect(t, err, reservation.ErrReservationReleased)
+	repo.checkLedger(t)
+}
+
 func TestAdjustRaisesTheHoldAndRevertRestoresIt(t *testing.T) {
 	ctx := context.Background()
 	s, repo := newService()
@@ -123,11 +154,9 @@ func TestAdjustRaisesTheHoldAndRevertRestoresIt(t *testing.T) {
 	if repo.balance(requester).Reserved != 30 {
 		t.Fatalf("account after revert: %+v", repo.balance(requester))
 	}
-	// Replays return the snapshot each call produced.
-	replay := must(t)(s.AdjustReservation(ctx, orderID, offerID, courier, 50))
-	if replay.Status != reservation.Assigned || replay.Revision != 2 || replay.Adjustment == nil {
-		t.Fatalf("adjust replay: %+v", replay)
-	}
+	// The revert fences the offer; a repeated revert returns its snapshot.
+	_, err = s.AdjustReservation(ctx, orderID, offerID, courier, 50)
+	expect(t, err, reservation.ErrAdjustmentReverted)
 	if again := must(t)(s.RevertAdjustment(ctx, orderID, offerID)); again.Revision != 3 {
 		t.Fatalf("revert replay: %+v", again)
 	}
@@ -287,6 +316,10 @@ func TestOutcomesSettleAtMostOnce(t *testing.T) {
 	if _, applied, err = s.ApplyOutcome(ctx, cancelled); err != nil || applied {
 		t.Fatalf("duplicate: %v %v", applied, err)
 	}
+	otherCourier := cancelled
+	otherCourier.CourierID = otherPerson
+	_, _, err = s.ApplyOutcome(ctx, otherCourier)
+	expect(t, err, reservation.ErrOutcomeMismatch)
 	_, _, err = s.ApplyOutcome(ctx, completed(now, now, time.Hour))
 	expect(t, err, reservation.ErrOutcomeMismatch)
 	_, _, err = s.ApplyOutcome(ctx, reservation.OrderOutcome{OrderID: orderID, Type: reservation.OrderFailed, RequesterID: requester})
@@ -314,6 +347,13 @@ func TestReleaseOutcomesReturnTheHold(t *testing.T) {
 			if _, applied, err = s.ApplyOutcome(ctx, event); err != nil || applied {
 				t.Fatalf("duplicate: %v %v", applied, err)
 			}
+			other := event
+			other.Type = reservation.OrderExpired
+			if outcome == reservation.OrderExpired {
+				other.Type = reservation.OrderFailed
+			}
+			_, _, err = s.ApplyOutcome(ctx, other)
+			expect(t, err, reservation.ErrOutcomeMismatch)
 			if a := repo.balance(requester); a.Balance != 100 || a.Reserved != 0 {
 				t.Fatalf("requester: %+v", a)
 			}
