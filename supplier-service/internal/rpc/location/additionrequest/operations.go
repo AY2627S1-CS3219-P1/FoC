@@ -80,7 +80,7 @@ func (h *Server) WithdrawLocationAdditionRequest(ctx context.Context, r *connect
 }
 
 func (h *Server) ApproveLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.ApproveLocationAdditionRequestRequest]) (*connect.Response[pb.ApproveLocationAdditionRequestResponse], error) {
-	v, e := h.operations.ApproveRequest(ctx, h.principal(ctx), r.Msg.Id)
+	v, e := h.operations.ApproveRequest(ctx, h.principal(ctx), r.Msg.Id, r.Msg.ExpectedRevision)
 	if e != nil {
 		return nil, e
 	}
@@ -88,7 +88,7 @@ func (h *Server) ApproveLocationAdditionRequest(ctx context.Context, r *connect.
 }
 
 func (h *Server) RejectLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.RejectLocationAdditionRequestRequest]) (*connect.Response[pb.RejectLocationAdditionRequestResponse], error) {
-	v, e := h.operations.RejectRequest(ctx, h.principal(ctx), r.Msg.Id, r.Msg.ReviewNote)
+	v, e := h.operations.RejectRequest(ctx, h.principal(ctx), r.Msg.Id, r.Msg.ReviewNote, r.Msg.ExpectedRevision)
 	if e != nil {
 		return nil, e
 	}

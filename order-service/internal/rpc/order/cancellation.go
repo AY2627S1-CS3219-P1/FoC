@@ -13,9 +13,12 @@ type CancellationOperations interface {
 	CancelConfirmed(context.Context, app.Caller, string, string, string, int64) (app.CancellationResult, error)
 }
 
-func NewServerWithCancellation(operations Operations, creator CreationOperations, images ImageOperations, assignments AssignmentOperations, cancellations CancellationOperations) *Server {
+func NewServerWithCancellation(operations Operations, creator CreationOperations, images ImageOperations, assignments AssignmentOperations, cancellations CancellationOperations, progress ...ProgressOperations) *Server {
 	s := NewServer(operations, creator, images, assignments)
 	s.cancellations = cancellations
+	if len(progress) > 0 {
+		s.progress = progress[0]
+	}
 	return s
 }
 

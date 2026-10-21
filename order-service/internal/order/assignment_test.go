@@ -58,6 +58,9 @@ func (r *replayAssignmentRepository) DeleteIdempotencyKey(context.Context, Idemp
 	r.writes++
 	return nil
 }
+func (r *replayAssignmentRepository) HasRejectedAcceptance(context.Context, string, string) (bool, error) {
+	return false, nil
+}
 func (r *replayAssignmentRepository) FindAssignment(context.Context, string) (AssignmentAttempt, error) {
 	return r.attempt, nil
 }
@@ -167,17 +170,12 @@ func (c *revertObservationCredit) AssignmentReservation(context.Context, string)
 // attempts too. A losing courier's delayed retry must not become a new win.
 func TestRejectedAcceptanceRemainsRejectedAfterReopening(t *testing.T) {
 	r, caller, key := replayAssignmentFixture()
-	r.key = nil
-	r.order.Status = AwaitingPickup
-	s := NewAssigner(r, &revertObservationCredit{}, AssignmentOptions{})
-	first, err := s.AcceptOrder(context.Background(), caller, r.order.ID, key)
-	if err != nil || first.Phase != AssignmentRejected || first.Rejection != "order_unavailable" || r.key == nil || r.writes != 2 {
-		t.Fatalf("failed acceptance identity was not committed: %+v %v writes=%d", first, err, r.writes)
-	}
+	r.attempt.Phase, r.attempt.Rejection = AssignmentRejected, "assignment_in_progress"
 	r.order.Status = AwaitingCourier
-	second, err := s.AcceptOrder(context.Background(), caller, r.order.ID, key)
-	if err != nil || second.Phase != AssignmentRejected || second.AttemptID != first.AttemptID || r.writes != 2 {
-		t.Fatalf("rejected retry became a new attempt: %+v %v writes=%d", second, err, r.writes)
+	s := NewAssigner(r, &revertObservationCredit{}, AssignmentOptions{})
+	result, err := s.AcceptOrder(context.Background(), caller, r.order.ID, key)
+	if err != nil || result.Phase != AssignmentRejected || result.AttemptID != r.attempt.ID || r.writes != 0 {
+		t.Fatalf("rejected retry became a new attempt: %+v %v writes=%d", result, err, r.writes)
 	}
 }
 

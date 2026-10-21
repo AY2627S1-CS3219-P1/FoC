@@ -118,6 +118,18 @@ func TestPostgresAssignmentContentionAndReplay(t *testing.T) {
 	o := assignmentOpenOrder(t, f)
 	_, now := assignmentClock(o)
 	credit := newAssignmentCredit(70, o)
+	// Keep the Order public while all 50 eligible requests contend. Requests
+	// arriving after assignment are private-order admission failures instead.
+	credit.afterAdjust = func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			var count int
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err == nil && count == 50 {
+				return
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+	}
 	s := NewAssigner(f.repo, credit, AssignmentOptions{Now: now})
 	type answer struct {
 		caller Caller
@@ -315,5 +327,54 @@ func TestPostgresPendingOfferCannotBeReplacedAndCancellationWins(t *testing.T) {
 	current, err := f.repo.Get(f.ctx, o.ID)
 	if err != nil || current.Status != Cancelled || current.CourierID != nil {
 		t.Fatalf("cancellation lost: %+v %v", current, err)
+	}
+}
+
+// Fresh private IDs must not disclose existence or create retained retry rows.
+func TestPostgresAcceptanceAdmissionPrivacyAndBound(t *testing.T) {
+	f := setup(t)
+	o := assignmentOpenOrder(t, f)
+	clock, now := assignmentClock(o)
+	credit := newAssignmentCredit(70, o)
+	credit.denyReads = true
+	s := NewAssigner(f.repo, credit, AssignmentOptions{Now: now})
+	winner := Caller{ID: uuid.NewString()}
+	first, err := s.AcceptOrder(f.ctx, winner, o.ID, uuid.NewString())
+	if err != nil || first.Phase != AdjustmentPending {
+		t.Fatalf("pending admission: %+v %v", first, err)
+	}
+	caller := Caller{ID: uuid.NewString()}
+	key := uuid.NewString()
+	rejected, err := s.AcceptOrder(f.ctx, caller, o.ID, key)
+	if err != nil || rejected.Phase != AssignmentRejected {
+		t.Fatalf("contending admission: %+v %v", rejected, err)
+	}
+	for range 10 {
+		if _, err := s.AcceptOrder(f.ctx, caller, o.ID, uuid.NewString()); !errors.Is(err, ErrPrecondition) {
+			t.Fatalf("fresh contention key: %v", err)
+		}
+	}
+	var count int
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("retained contention rows=%d err=%v", count, err)
+	}
+	credit.denyReads = false
+	clock.Add(int64(time.Minute))
+	if err := s.ProcessAssignment(f.ctx, first.AttemptID); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{o.ID, uuid.NewString()} {
+		for range 5 {
+			if _, err := s.AcceptOrder(f.ctx, Caller{ID: uuid.NewString()}, id, uuid.NewString()); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("private/missing admission: %v", err)
+			}
+		}
+	}
+	replay, err := s.AcceptOrder(f.ctx, caller, o.ID, key)
+	if err != nil || replay.AttemptID != rejected.AttemptID {
+		t.Fatalf("retained rejection on private order: %+v %v", replay, err)
+	}
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("private-ID rows=%d err=%v", count, err)
 	}
 }

@@ -11,7 +11,7 @@ Implement AcceptOrder, MakeOffer, AcceptOffer and assignment recovery. Reuse
 ListOffers, the aggregate mutation boundary, transactional audit/outbox facts,
 shared retry-key storage and the existing Credit RPC contracts. R1.2.1–4/6,
 R1.6.2/12/13, C1.1.1–2, C1.2.2 and NFR-02/04/05/11 define the backend outcomes.
-The original backlog is /Users/andrewsoon/dev/cs3219-proj/09-d1-product-backlog.md.
+The original backlog is `09-d1-product-backlog.md`.
 
 Do not implement Credit, reviews, aggregate ratings, moderation, Reports/Appeals,
 or pickup/receipt backend from #148. R1.1.10–11 and R1.2.5 remain explicitly

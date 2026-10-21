@@ -34,3 +34,8 @@ UPDATE order_assignment_attempts SET phase=sqlc.arg(phase), generation=sqlc.arg(
 
 -- name: HasPendingAssignments :one
 SELECT EXISTS(SELECT 1 FROM order_assignment_attempts WHERE phase IN ('adjustment_pending','revert_pending'));
+
+-- name: HasRejectedAcceptance :one
+SELECT EXISTS(SELECT 1 FROM order_assignment_attempts
+ WHERE order_id = $1 AND caller_id = $2 AND method = '/order.v1.OrderService/AcceptOrder'
+ AND phase = 'rejected' AND offer_id IS NULL);

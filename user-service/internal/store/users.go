@@ -39,13 +39,12 @@ func (p ListParams) Normalize() ListParams {
 }
 
 // UserUpdate is a partial profile update: nil leaves a field unchanged, and ""
-// clears TelegramHandle or PhoneNumber. UpdatedBy is the acting user (nil = system).
+// clears PhoneNumber. UpdatedBy is the acting user (nil = system).
 type UserUpdate struct {
-	DisplayName    *string
-	Description    *string
-	TelegramHandle *string
-	PhoneNumber    *string
-	UpdatedBy      *uuid.UUID
+	DisplayName *string
+	Description *string
+	PhoneNumber *string
+	UpdatedBy   *uuid.UUID
 }
 
 type Users struct{ db *gorm.DB }
@@ -102,11 +101,10 @@ func (s *Users) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.Use
 // active. The role predicate closes the race with a concurrent suspension.
 func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) error {
 	fields := map[string]any{
-		"display_name":    user.DisplayName,
-		"description":     user.Description,
-		"telegram_handle": nullString(user.TelegramHandle),
-		"phone_number":    nullString(user.PhoneNumber),
-		"updated_by":      user.UpdatedBy,
+		"display_name": user.DisplayName,
+		"description":  user.Description,
+		"phone_number": nullString(user.PhoneNumber),
+		"updated_by":   user.UpdatedBy,
 	}
 	res := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("id = ? AND role <> ?", user.ID, models.RoleSuspended).Updates(fields)
@@ -157,9 +155,6 @@ func (s *Users) Update(ctx context.Context, id uuid.UUID, in UserUpdate) error {
 	}
 	if in.Description != nil {
 		fields["description"] = *in.Description
-	}
-	if in.TelegramHandle != nil {
-		fields["telegram_handle"] = nullIfEmpty(*in.TelegramHandle)
 	}
 	if in.PhoneNumber != nil {
 		fields["phone_number"] = nullIfEmpty(*in.PhoneNumber)

@@ -243,7 +243,9 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	}
 	losingKey := uuid.NewString()
 	_, err = accept(first.ID, losingKey, other, "user")
-	rejected := acceptanceRejection(t, err)
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("private fresh acceptance: %v", err)
+	}
 	// Exercise the existing aggregate removal hook, not an unimplemented
 	// withdrawal RPC or a real cross-service compensation workflow.
 	clock.Add(int64(time.Second))
@@ -262,10 +264,6 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	clock.Add(int64(time.Second))
-	_, err = accept(first.ID, losingKey, other, "user")
-	if next := acceptanceRejection(t, err); next.AttemptId != rejected.AttemptId || next.Rejection != rejected.Rejection {
-		t.Fatal("reopened request changed losing UUID outcome")
-	}
 	if _, err = accept(first.ID, uuid.NewString(), other, "user"); err != nil {
 		t.Fatal(err)
 	}
@@ -329,5 +327,5 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if applied != 3 || remaining != 0 {
 		t.Fatalf("scripted intent duplication: applied=%d remaining=%d", applied, remaining)
 	}
-	t.Log("PASS: mounted generated Connect acceptance -> real PostgreSQL18 migrations00004/00005 + Apply/history; committed lost-response retry, suspended replay denied without changing retained success, permanent losing UUID after reopening, redacted former-courier current state, insufficient-credit typed detail + fenced baseline, pending counteroffer and same-attempt recovery. Credit/auth/removal remain explicitly scripted seams.")
+	t.Log("PASS: mounted generated Connect acceptance -> real PostgreSQL18 migrations00004/00005 + Apply/history; committed lost-response retry, suspended replay denied without changing retained success, private-order fresh-key admission rejection, redacted former-courier current state, insufficient-credit typed detail + fenced baseline, pending counteroffer and same-attempt recovery. Credit/auth/removal remain explicitly scripted seams.")
 }

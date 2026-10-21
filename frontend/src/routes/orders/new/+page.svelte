@@ -21,6 +21,7 @@
 	let busy = $state(false);
 	let available = $state<bigint | null>(null);
 	let balanceError = $state('');
+	let balanceRequest = 0;
 	let initialized = $state(false);
 	const suspended = $derived(authService.user?.role === UserRole.SUSPENDED_USER);
 
@@ -55,12 +56,15 @@
 	);
 
 	async function loadBalance() {
+		const request = ++balanceRequest;
+		available = null;
 		balanceError = '';
 		const caller = authService.user?.id;
+		if (!caller) return;
 		try {
 			const balance = await creditAccountApi.getAvailableCredits();
-			if (authService.user?.id === caller) available = balance;
-		} catch { if (authService.user?.id === caller) balanceError = 'Balance unavailable. The backend will check credits when you submit.'; }
+			if (request === balanceRequest && authService.user?.id === caller) available = balance;
+		} catch { if (request === balanceRequest && authService.user?.id === caller) balanceError = 'Balance unavailable. The backend will check credits when you submit.'; }
 	}
 
 	async function sendSubmission() {
@@ -140,7 +144,9 @@
 
 	$effect(() => {
 		const caller = authService.user?.id;
-		if (!initialized || !caller) return;
+		if (!initialized) return;
+		void loadBalance();
+		if (!caller) return;
 		const restored = recoverSubmission(sessionStorage, caller);
 		if (restored.state === 'blocked') recoveryError = restored.message;
 		if (restored.state === 'ready') {
@@ -150,7 +156,6 @@
 			outcome = 'pending';
 			feedback = 'Recovered a submitted Order. Check/retry this same submission before creating another.';
 		}
-		void loadBalance();
 	});
 
 	onMount(() => { initialized = true; });
