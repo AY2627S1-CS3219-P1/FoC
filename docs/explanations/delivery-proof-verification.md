@@ -29,13 +29,13 @@ Identity middleware and Credit are scripted external seams. These tests do not e
 
 The existing Svelte route/form and Connect adapter were exercised against explicit synthetic API/storage/auth fixtures without credentials or personal photos. Four scenarios passed at 360/768/1440px with zero page errors: retained failed files, same-identity retry, uncertain removal acknowledgment, denied outage bypass, immutable pending restoration after reload, keyboard retry and participant-only evidence reads.
 
-To repeat, start `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort` from `frontend/` after `npm ci`. From the repository root, with Python Playwright and Chromium installed:
+To repeat, start `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort` from `frontend/` after `npm ci`. From the repository root, with Python Playwright, Pillow 10.1+ and Chromium installed:
 
 ```sh
 python3 frontend/tests/delivery-proof-ui-e2e.py --url http://127.0.0.1:5194 --out .local/order-proof-browser
 ```
 
-Use `--browser-channel chrome` for installed Chrome instead. Stop only the frontend started for this check; retain its artifacts. These are repeat instructions, not commands rerun during cleanup.
+Use `--browser-channel chrome` for installed Chrome instead. Stop only the frontend started for this check; retain its artifacts. These are repeat instructions, not commands rerun during cleanup. The [desktop/mobile UI verification](delivery-proof-ui/README.md) records the newer 360/390/768/1440px captures, dependency setup and fixed-mobile recording command.
 
 - [Retained failed photos, mobile](delivery-proof-retained-mobile.png)
 - [Restored pending confirmation, mobile](delivery-proof-pending-mobile.png)
