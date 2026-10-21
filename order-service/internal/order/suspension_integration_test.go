@@ -61,8 +61,18 @@ func TestPostgresSuspensionRemovalTargetsAssignmentAndReusesRecovery(t *testing.
 	if _, err := progress.ConfirmPickup(f.ctx, courier, o.ID); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("pickup during recovery: %v", err)
 	}
-	if _, err := assigner.AcceptOrder(f.ctx, Caller{ID: uuid.NewString()}, o.ID, uuid.NewString()); err == nil {
-		t.Fatal("accepted during recovery")
+	// Domain admission may return a retained rejection with nil error. Only a
+	// successful/pending financial attempt would accept a replacement courier.
+	adjusts := credit.adjusts
+	competing, err := assigner.AcceptOrder(f.ctx, Caller{ID: uuid.NewString()}, o.ID, uuid.NewString())
+	if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrPrecondition) && !errors.Is(err, ErrConflict) {
+		t.Fatalf("unexpected competing acceptance failure: %v", err)
+	}
+	if err == nil && (competing.Phase != AssignmentRejected || competing.Order.PendingCancellationID == nil || !competing.Order.IsAssignedTo(courier.ID)) {
+		t.Fatalf("accepted during recovery: %+v", competing)
+	}
+	if credit.adjusts != adjusts {
+		t.Fatal("competing acceptance called Credit during removal recovery")
 	}
 	credit.denyRevert = true
 	if err := canceller.ProcessCancellation(f.ctx, first.OperationID); err != nil {
