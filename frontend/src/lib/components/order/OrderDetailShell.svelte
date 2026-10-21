@@ -20,20 +20,19 @@
 			<dt>Destination area</dt><dd>{order.deliveryBuildingName || 'Area unavailable'}</dd>
 			{#if order.delivery?.location?.locationId}
 				<dt>Exact destination</dt><dd>{order.delivery.location.name}{order.delivery.location.floor ? ' · ' + order.delivery.location.floor : ''}</dd>
-			{:else}<dt>Destination access</dt><dd>Exact destination is restricted to authorized participants.</dd>{/if}
+			{:else}<dt>Exact destination</dt><dd>Details are private.</dd>{/if}
 			{#if order.delivery?.instructions}<dt>Delivery instructions</dt><dd>{order.delivery.instructions}</dd>{/if}
 			<dt>Reward</dt><dd>{order.rewardCredits.toString()} credits</dd>
-			<dt>Allowed delivery time from pickup</dt><dd>{Number(order.deliveryDuration?.seconds ?? 0n) / 60} minutes</dd>
-			<dt>Unaccepted order expires</dt><dd>{dateLabel(order.expiresAt)}</dd>
-			<dt>Requester</dt><dd>{order.requesterId}</dd>
-			<dt>Current courier</dt><dd>{order.courierId || 'Not assigned'}</dd>
+			<dt>Delivery time after pickup</dt><dd>{Number(order.deliveryDuration?.seconds ?? 0n) / 60} minutes</dd>
+			<dt>Accept by</dt><dd>{dateLabel(order.expiresAt)}</dd>
+			<dt>Courier</dt><dd>{order.courierId ? 'Assigned' : 'Not assigned'}</dd>
 			<dt>Created</dt><dd>{dateLabel(order.createdAt)}</dd>
 			<dt>Last updated</dt><dd>{dateLabel(order.updatedAt)}</dd>
 		</dl>
 		{#if order.itemImages.length}
 			<section aria-label="Item images" class="images">
 				{#each order.itemImages as image (image.id)}
-					<a href={image.downloadUrl} target="_blank" rel="noreferrer"><img src={image.downloadUrl} alt="Item description attachment" loading="lazy" /></a>
+					<a href={image.downloadUrl} target="_blank" rel="noreferrer"><img src={image.downloadUrl} alt="Order item" loading="lazy" /></a>
 				{/each}
 			</section>
 		{/if}

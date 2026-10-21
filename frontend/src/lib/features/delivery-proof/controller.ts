@@ -58,7 +58,7 @@ export class DeliveryProofController {
 			this.submitted = { ...pending, proofIds: [...pending.proofIds] };
 			this.unattended = pending.unattended;
 			this.outcome = 'Pending';
-			this.message = 'The server received this confirmation. Validation is pending. Retry only the saved submission; its photos and choices cannot change.';
+			this.message = 'We’re checking your delivery. Photos and choices can’t be changed while confirmation is pending.';
 		}
 	}
 
@@ -95,7 +95,7 @@ export class DeliveryProofController {
 	addFiles(selected: File[]): void {
 		if (this.busy || this.submitted || this.outcome === 'Succeeded') return;
 		if (this.files.length + selected.length > 5) {
-			this.message = 'Select at most 5 proof photos. Remove a photo before adding another.';
+			this.message = 'Select at most 5 photos.';
 			this.publish();
 			return;
 		}
@@ -107,7 +107,7 @@ export class DeliveryProofController {
 				outcome: valid ? 'Not Submitted' : 'Rejected',
 				message: valid
 					? ''
-					: 'Use a JPEG, PNG, WebP, HEIC or HEIF photo from 1 to 10,000,000 bytes. Remove this file and select a supported photo.'
+					: 'Replace this file with a JPEG, PNG, WebP, HEIC or HEIF photo, up to 10MB.'
 			});
 		}
 		this.publish();
@@ -127,16 +127,16 @@ export class DeliveryProofController {
 		this.outcome = 'Pending';
 		row.removalRequested = true;
 		row.outcome = 'Pending';
-		row.message = 'Retiring this upload before removing the photo…';
+		row.message = 'Removing photo…';
 		this.publish();
 		try {
 			await this.bounded((signal) => this.api.abandonUpload(this.orderId, row.id, signal));
 			this.files = this.files.filter((file) => file.id !== id);
 			this.outcome = 'Not Submitted';
-			this.message = 'Photo removed. Its upload slot is available for a replacement.';
+			this.message = 'Photo removed. You can add a replacement.';
 		} catch {
 			row.outcome = 'Failed';
-			row.message = 'Removal could not be confirmed. The photo and upload ID are retained. Try Remove again.';
+			row.message = 'Could not remove this photo. It’s still selected. Try Remove again.';
 			this.outcome = 'Failed';
 			this.message = row.message;
 		} finally {
@@ -155,7 +155,7 @@ export class DeliveryProofController {
 		if (this.busy || this.submitted || this.outcome === 'Succeeded' || this.disposed) return;
 		this.busy = true;
 		this.outcome = 'Pending';
-		this.message = 'Uploading and checking proof photos. Delivery is not yet confirmed.';
+		this.message = 'Uploading photos. Delivery is not yet confirmed.';
 		this.publish();
 		try {
 			for (const row of this.files) {
@@ -179,24 +179,24 @@ export class DeliveryProofController {
 						const uploadTimeoutMs = apiTimeoutMs + Math.ceil(row.file.size / uploadBytesPerSecond) * 1000;
 						await this.bounded((signal) => this.put(grant, row.file, signal), uploadTimeoutMs);
 					} catch {
-						row.message = 'Upload result is unknown. Checking whether the photo was saved…';
+						row.message = 'Checking whether the upload was saved…';
 						this.publish();
 					}
 					await this.bounded((signal) => this.api.verifyUpload(this.orderId, grant.proofId, signal));
 					row.outcome = 'Succeeded';
-					row.message = 'Photo saved and checked.';
+					row.message = '';
 				} catch (cause) {
 					row.outcome = cause instanceof ProofRejectedError ? 'Rejected' : 'Failed';
 					row.message = cause instanceof ProofRejectedError
 						? cause.message
-						: 'Photo upload could not be confirmed. Keep this photo and try uploading again, or remove it.';
+						: 'Could not check this upload. Try uploading again or remove the photo.';
 				}
 				this.publish();
 			}
 			this.outcome = 'Not Submitted';
 			this.message = this.files.length > 0 && this.files.every((row) => row.outcome === 'Succeeded')
-				? 'Photos saved. Confirm delivery when the item has been delivered.'
-				: 'Delivery is not confirmed. Retry or remove each photo that was not saved.';
+				? 'Photos saved. Confirm once the item is delivered.'
+				: 'Delivery is not confirmed. Retry or remove unsaved photos.';
 		} finally {
 			this.busy = false;
 			this.publish();
@@ -207,7 +207,7 @@ export class DeliveryProofController {
 		if (this.busy || this.outcome === 'Succeeded' || this.disposed) return;
 		if (!this.submitted && !withoutProof && (this.files.length === 0 || this.files.some((row) => row.outcome !== 'Succeeded'))) {
 			this.outcome = 'Rejected';
-			this.message = 'Upload and check at least one photo. Retry or remove each failed photo before confirming.';
+			this.message = 'Upload your photos before confirming delivery. Try again or remove any photos that failed.';
 			this.publish();
 			return;
 		}
@@ -215,7 +215,7 @@ export class DeliveryProofController {
 		this.outcome = 'Pending';
 		const effectiveWithoutProof = this.submitted?.withoutProof ?? withoutProof;
 		this.message = effectiveWithoutProof
-			? 'Asking the server to confirm an upload outage before confirming delivery…'
+			? 'Checking whether you can confirm without photos…'
 			: 'Confirming delivery…';
 		this.publish();
 		try {
@@ -229,7 +229,7 @@ export class DeliveryProofController {
 			await this.bounded((signal) => this.api.confirmDelivery({ ...submitted, proofIds: [...submitted.proofIds] }, signal));
 			this.outcome = 'Succeeded';
 			this.message = this.submitted.withoutProof
-				? 'Delivery confirmed. The server recorded the upload outage and the missing proof.'
+				? 'Delivery confirmed without photos.'
 				: 'Delivery confirmed.';
 		} catch (cause) {
 			if (cause instanceof ProofRejectedError) {
@@ -238,7 +238,7 @@ export class DeliveryProofController {
 				this.message = cause.message;
 			} else {
 				this.outcome = 'Failed';
-				this.message = 'Delivery confirmation could not be confirmed. Your submitted photos and selection are retained and locked. Try confirmation again; the server will recheck the order and will not duplicate an accepted confirmation.';
+				this.message = 'We couldn’t check your confirmation. Photos and choices can’t be changed. You can safely try again.';
 			}
 		} finally {
 			this.busy = false;

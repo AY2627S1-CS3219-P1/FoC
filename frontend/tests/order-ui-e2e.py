@@ -136,14 +136,14 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"horizontal overflow at {width}"
                 page.screenshot(path=str(out / f"browse-{width}.png"), full_page=True)
             assertions.append("Browse renders coarse fixture destinations without horizontal scrolling at 360/768/1440")
-            page.get_by_label("Destination building/area").select_option("COM3")
+            page.get_by_label("Destination", exact=True).select_option("COM3")
             expect(page).to_have_url(origin + "/orders?destination=COM3")
             expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
             assert state["open"][-1].get("deliveryBuildingName") == "COM3"
             assert "deliveryLocationId" not in state["open"][-1]
             assertions.append("Destination filter sends the explicit coarse building field, never an exact Location ID")
-            picker = page.get_by_role("group", name="Pickup location filter", exact=True)
-            picker.get_by_label("Pickup location filter search", exact=True).fill("Cafe")
+            picker = page.get_by_role("group", name="Pickup location", exact=True)
+            picker.get_by_label("Pickup location search", exact=True).fill("Cafe")
             picker.get_by_role("button", name="Search", exact=True).click()
             picker.get_by_role("button", name="Campus Cafe · COM3", exact=True).click()
             expect(page).to_have_url(origin + "/orders?destination=COM3&pickup=" + PICKUP)
@@ -165,14 +165,32 @@ def main():
             # Change the authenticated caller without remounting this route.
             # The next account's failed lookup must not expose the old balance.
             state["caller"], state["balance_failure"] = OTHER, True
-            page.evaluate("async () => { const { authService } = await import('/src/lib/services/index.ts'); await authService.refresh(); }")
+            page.evaluate("""async () => {
+                // Import the loaded module, including Vite's HMR timestamp, so
+                // this updates the same auth service used by the mounted route.
+                const loaded = performance.getEntriesByType('resource').find(
+                    ({name}) => new URL(name).pathname === '/src/lib/services/index.ts'
+                );
+                if (!loaded) throw new Error('Auth composition module was not loaded');
+                const { authService } = await import(loaded.name);
+                await authService.refresh();
+            }""")
             expect(page.get_by_text("Balance unavailable.", exact=False)).to_be_visible()
             expect(page.get_by_text("Available credits:", exact=False)).to_have_count(0)
             state["balance_failure"] = False
             page.get_by_role("button", name="Retry balance", exact=True).click()
             expect(page.get_by_text("Available credits:", exact=False)).to_be_visible()
             state["caller"], state["balance_failure"] = USER, True
-            page.evaluate("async () => { const { authService } = await import('/src/lib/services/index.ts'); await authService.refresh(); }")
+            page.evaluate("""async () => {
+                // Import the loaded module, including Vite's HMR timestamp, so
+                // this updates the same auth service used by the mounted route.
+                const loaded = performance.getEntriesByType('resource').find(
+                    ({name}) => new URL(name).pathname === '/src/lib/services/index.ts'
+                );
+                if (!loaded) throw new Error('Auth composition module was not loaded');
+                const { authService } = await import(loaded.name);
+                await authService.refresh();
+            }""")
             expect(page.get_by_text("Balance unavailable.", exact=False)).to_be_visible()
             expect(page.get_by_text("Available credits:", exact=False)).to_have_count(0)
             state["balance_failure"] = False
@@ -189,52 +207,52 @@ def main():
         page.get_by_label("Reward in whole credits", exact=True).fill("20")
         png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
         page.get_by_label("Item images", exact=False).set_input_files({"name": "meal.png", "mimeType": "image/png", "buffer": png})
-        expect(page.get_by_text("Upload status unknown.", exact=False)).to_be_visible()
+        expect(page.get_by_text("We will check this image when you create your order.", exact=False)).to_be_visible()
         if not args.suspension_retry:
             page.get_by_label("Item images", exact=False).set_input_files({"name": "notes.txt", "mimeType": "text/plain", "buffer": b"not an image"})
             expect(page.get_by_text("Choose JPEG, PNG, WebP, HEIC or HEIF.", exact=True)).to_be_visible()
-            page.get_by_role("button", name="Create Order", exact=True).click()
-            expect(page.get_by_text("Not submitted. Retry or remove failed images first.", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Create order", exact=True).click()
+            expect(page.get_by_text("Retry or remove failed images before submitting.", exact=True)).to_be_visible()
             assert not state["create"], "Failed selected image must not be silently omitted"
-            page.locator(".uploads li").filter(has_text="notes.txt").get_by_role("button", name="Remove image", exact=True).click()
+            page.locator(".uploads li").filter(has_text="notes.txt").get_by_role("button", name="Remove", exact=True).click()
             assertions.append("Invalid selected image blocks creation until explicit removal, preserving the other image reference")
             for width in (360, 768, 1440):
                 page.set_viewport_size({"width": width, "height": 900})
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"creation horizontal overflow at {width}"
                 page.screenshot(path=str(out / f"creation-{width}.png"), full_page=True)
-        page.get_by_role("button", name="Create Order", exact=True).click()
-        expect(page.get_by_text("Failed to confirm the result.", exact=False)).to_be_visible()
+        page.get_by_role("button", name="Create order", exact=True).click()
+        expect(page.get_by_text("Could not confirm your order.", exact=False)).to_be_visible()
         assert len(state["create"]) == 1 and state["create"][0]["itemImageIds"] == [IMAGE]
         assert state["uploads"] == 1
         page.screenshot(path=str(out / "uncertain-submission.png"), full_page=True)
         assertions.append("Lost upload acknowledgment does not silently remove the image or create an Order before explicit submission")
         page.reload()
-        expect(page.get_by_text("Recovered a submitted Order.", exact=False)).to_be_visible()
+        expect(page.get_by_text("Your last order still needs confirmation.", exact=False)).to_be_visible()
         if args.suspension_retry:
             # Approved submitted-recovery contract: a later denied retry is
             # not a resolution of the earlier request with a lost response.
             saved_key = "foc.order.submission." + USER
             saved = page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key)
             assert saved and saved["key"] == state["create"][0]["idempotencyKey"]
-            page.get_by_role("button", name="Check/retry same submission", exact=True).click()
-            expect(page.get_by_text("Failed to confirm the result.", exact=False)).to_be_visible()
+            page.get_by_role("button", name="Check order", exact=True).click()
+            expect(page.get_by_text("Could not confirm your order.", exact=False)).to_be_visible()
             assert len(state["create"]) == 2 and state["create"][0] == state["create"][1]
             assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
-            expect(page.get_by_role("button", name="Create Order", exact=True)).to_be_disabled()
+            expect(page.get_by_role("button", name="Create order", exact=True)).to_be_disabled()
             page.screenshot(path=str(out / "denied-creation-retry.png"), full_page=True)
             state["suspended"] = True
             page.reload()
-            expect(page.get_by_text("Your account is suspended. Creation is unavailable.", exact=False)).to_be_visible()
-            expect(page.get_by_role("button", name="Check/retry same submission", exact=True)).to_have_count(0)
+            expect(page.get_by_text("Your account is suspended.", exact=False)).to_be_visible()
+            expect(page.get_by_role("button", name="Check order", exact=True)).to_have_count(0)
             assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
             assert len(state["create"]) == 2 and state["uploads"] == 1
             page.screenshot(path=str(out / "suspended-creation-recovery.png"), full_page=True)
             state["suspended"] = False
             page.reload()
-            expect(page.get_by_text("Recovered a submitted Order.", exact=False)).to_be_visible()
+            expect(page.get_by_text("Your last order still needs confirmation.", exact=False)).to_be_visible()
             assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", saved_key) == saved
             assertions.append("PermissionDenied after lost creation response retains identical saved fields/image IDs/key; suspended reload disables retry; restored caller recovers the original submission")
-        page.get_by_role("button", name="Check/retry same submission", exact=True).click()
+        page.get_by_role("button", name="Check order", exact=True).click()
         expect(page).to_have_url(origin + "/orders/" + ORDER)
         expect(page.get_by_role("heading", name="Two meals for a study group", exact=True)).to_be_visible()
         assert len(state["create"]) == (3 if args.suspension_retry else 2)
@@ -245,7 +263,7 @@ def main():
 
         if not args.suspension_retry:
             state["deadline"] = True
-            page.get_by_role("button", name="Refresh order", exact=True).click()
+            page.get_by_role("button", name="Refresh", exact=True).click()
             expect(page.get_by_text("Expired", exact=True)).to_be_visible()
             assertions.append("Explicit refresh renders authoritative backend status rather than deriving terminality in the browser")
             state["suspended"] = True
@@ -254,8 +272,8 @@ def main():
             expect(page.get_by_text("Two meals for a study group", exact=True)).to_be_visible()
             assert state["history"][-1].get("role") == "PARTICIPANT_ROLE_COURIER"
             page.goto(origin + "/orders/new")
-            expect(page.get_by_text("Your account is suspended. Creation is unavailable.", exact=False)).to_be_visible()
-            expect(page.get_by_role("button", name="Create Order", exact=True)).to_have_count(0)
+            expect(page.get_by_text("Your account is suspended.", exact=False)).to_be_visible()
+            expect(page.get_by_role("button", name="Create order", exact=True)).to_have_count(0)
             assertions.append("Suspended user retains courier-filtered history while CreateOrder UI is unavailable")
         assert not console_errors, console_errors
         page.screenshot(path=str(out / ("resolved-creation.png" if args.suspension_retry else "suspended.png")), full_page=True)

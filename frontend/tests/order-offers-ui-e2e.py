@@ -125,32 +125,33 @@ def main():
                 page.screenshot(path=str(out / f"controls-{width}.png"), full_page=True)
             assertions.append("Shared protected singleton/detail snippet mounts actual B1 controls at 360/768/1440 without horizontal overflow")
             accept.click()
-            expect(controls.get_by_text("Keep the saved identity", exact=False)).to_be_visible()
+            expect(controls.get_by_text("Try again to check the result", exact=False)).to_be_visible()
             assert len(state["accept"]) == 1
             original = state["accept"][0].copy()
             key = f"order-offers:v1:{COURIER}:{ORDER}"
             stored = page.evaluate("key => JSON.parse(sessionStorage.getItem(key))", key)
             assert stored["key"] == original["attemptId"] and stored["outcome"] == "uncertain"
             state["suspended"] = True
-            controls.get_by_role("button", name="Retry the same saved request", exact=True).click()
-            expect(controls.get_by_text("Your account cannot", exact=False)).to_be_visible()
+            controls.get_by_role("button", name="Try again", exact=True).click()
+            expect(controls.get_by_text("You cannot", exact=False)).to_be_visible()
             assert len(state["accept"]) == 2 and state["accept"][1] == original
             assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key)).outcome", key) == "uncertain"
-            expect(controls.get_by_role("button", name="Start a deliberate new action", exact=True)).to_have_count(0)
+            expect(controls.get_by_role("button", name="Start again", exact=True)).to_have_count(0)
             assertions.append("Lost acceptance response then PermissionDenied preserves original UUID and uncertain state, never unlocks a new intent")
             page.reload()
-            expect(controls.get_by_text("Your account can read its history", exact=False)).to_be_visible()
-            expect(controls.get_by_role("button", name="Retry the same saved request", exact=True)).to_be_disabled()
+            expect(controls.get_by_text("Your account is suspended", exact=False)).to_be_visible()
+            expect(controls.get_by_role("button", name="Try again", exact=True)).to_be_disabled()
             assert page.evaluate("key => JSON.parse(sessionStorage.getItem(key)).key", key) == original["attemptId"]
             page.screenshot(path=str(out / "suspended-retained-attempt.png"), full_page=True)
             assertions.append("Suspended reload retains historical detail/saved UUID while mutation controls are disabled")
             state["suspended"] = False
             page.reload()
-            retry = controls.get_by_role("button", name="Retry the same saved request", exact=True)
+            retry = controls.get_by_role("button", name="Try again", exact=True)
             expect(retry).to_be_enabled()
             retry.click()
-            expect(controls.get_by_text("This earlier attempt succeeded.", exact=False)).to_be_visible()
-            expect(page.locator("dd").filter(has_text=NEWER)).to_be_visible()
+            expect(controls.get_by_text("Your earlier acceptance was confirmed.", exact=False)).to_be_visible()
+            expect(page.locator("dd").filter(has_text="Assigned")).to_be_visible()
+            expect(page.get_by_text(NEWER, exact=False)).to_have_count(0)
             assert len(state["accept"]) == 3 and all(value == original for value in state["accept"])
             expect(controls.get_by_role("button", name="Accept current reward (20 credits)", exact=True)).to_be_disabled()
             assertions.append("Restored user retries same UUID; historical success is distinct from refreshed CURRENT courier, with no new assignment claim")
@@ -158,20 +159,20 @@ def main():
             saved_proposal = {"kind": "proposal", "key": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "credits": "30", "outcome": "uncertain", "dispatchedAt": int(datetime.now(timezone.utc).timestamp() * 1000) - 86_400_001}
             page.evaluate("([key, value]) => sessionStorage.setItem(key, JSON.stringify(value))", [proposal_storage, saved_proposal])
             page.goto(origin + "/orders/" + PROPOSAL_ORDER)
-            expect(controls.get_by_text("past its 24-hour retry window", exact=False)).to_be_visible()
-            expect(controls.get_by_role("button", name="Retry the same saved request", exact=True)).to_have_count(0)
+            expect(controls.get_by_text("We cannot check this earlier offer again.", exact=False)).to_be_visible()
+            expect(controls.get_by_role("button", name="Try again", exact=True)).to_have_count(0)
             assert len(state["proposal"]) == 0
             del saved_proposal["dispatchedAt"]
             page.evaluate("([key, value]) => sessionStorage.setItem(key, JSON.stringify(value))", [proposal_storage, saved_proposal])
             page.reload()
-            expect(controls.get_by_text("past its 24-hour retry window", exact=False)).to_be_visible()
+            expect(controls.get_by_text("We cannot check this earlier offer again.", exact=False)).to_be_visible()
             assert len(state["proposal"]) == 0
-            controls.get_by_role("button", name="Start a deliberate new action", exact=True).click()
+            controls.get_by_role("button", name="Start again", exact=True).click()
             assertions.append("Expired and legacy undated proposal retries send no MakeOffer; user explicitly starts a new proposal")
             expect(controls.get_by_label("Counteroffer credits", exact=True)).to_be_enabled()
             controls.get_by_label("Counteroffer credits", exact=True).fill("30")
-            controls.get_by_role("button", name="Submit / replace my open offer", exact=True).click()
-            expect(controls.get_by_text("Proposal recorded.", exact=False)).to_be_visible()
+            controls.get_by_role("button", name="Submit or replace my offer", exact=True).click()
+            expect(controls.get_by_text("Offer submitted.", exact=False)).to_be_visible()
             assert len(state["proposal"]) == 1 and state["proposal"][0]["credits"] == "30"
             assert len(state["accept"]) == 3
             assertions.append("Courier proposal uses actual factory and does not claim assignment or start acceptance")
@@ -180,19 +181,19 @@ def main():
             offer_accept = controls.get_by_role("button", name="Accept 30-credit offer", exact=True)
             expect(offer_accept).to_be_enabled()
             offer_accept.click()
-            expect(controls.get_by_text("Credit recovery is pending.", exact=False)).to_be_visible()
-            repeat = controls.get_by_role("button", name="Repeat saved acceptance (may start a new financial attempt)", exact=True)
+            expect(controls.get_by_text("We could not complete acceptance yet.", exact=False)).to_be_visible()
+            repeat = controls.get_by_role("button", name="Accept again (may reserve credits again)", exact=True)
             dialogs = []
             def dismiss(dialog):
                 dialogs.append(dialog.message)
                 dialog.dismiss()
             page.once("dialog", dismiss)
             repeat.click()
-            assert len(state["counteroffer"]) == 1 and dialogs and "new financial attempt" in dialogs[0]
+            assert len(state["counteroffer"]) == 1 and dialogs and "reserve credits again" in dialogs[0]
             page.once("dialog", lambda dialog: dialog.accept())
             repeat.click()
             expect(controls.get_by_text("Insufficient credits.", exact=False)).to_be_visible()
-            expect(controls.get_by_role("button", name="Start a deliberate new action", exact=True)).to_be_enabled()
+            expect(controls.get_by_role("button", name="Start again", exact=True)).to_be_enabled()
             assert len(state["counteroffer"]) == 2 and state["counteroffer"][0] == state["counteroffer"][1] == {"id": OFFER}
             page.screenshot(path=str(out / "typed-counteroffer-rejection.png"), full_page=True)
             assertions.append("Requester sees compensating rather than success; explicit warning gates repeated acceptance, typed rejected detail stays failure")

@@ -1,6 +1,6 @@
 # Delivery proof verification
 
-These results were observed on application source `d5aa5ee`. Subsequent changes are documentation/artifacts only. No builds or runtime tests were repeated for this cleanup. The mounted proof path targets B3 #179; lifecycle timer startup/enforcement is downstream in #183.
+These historical results were observed on application source `d5aa5ee`. The original documentation/artifact cleanup did not repeat builds or runtime tests. [Later UI checks](delivery-proof-ui/README.md#later-copy-and-control-cleanup) record the copy, control and camera changes separately. The mounted proof path targets B3 #179; lifecycle timer startup/enforcement is downstream in #183.
 
 ## Observed automated checks
 
@@ -37,11 +37,11 @@ python3 frontend/tests/delivery-proof-ui-e2e.py --url http://127.0.0.1:5194 --ou
 
 Use `--browser-channel chrome` for installed Chrome instead. Stop only the frontend started for this check; retain its artifacts. These are repeat instructions, not commands rerun during cleanup. The [desktop/mobile UI verification](delivery-proof-ui/README.md) records the newer 360/390/768/1440px captures, dependency setup and fixed-mobile recording command.
 
-- [Retained failed photos, mobile](delivery-proof-retained-mobile.png)
-- [Restored pending confirmation, mobile](delivery-proof-pending-mobile.png)
-- [Private gallery, mobile](delivery-proof-gallery-mobile.png)
-- [Private gallery, desktop](delivery-proof-gallery-desktop.png)
-- [Retry/removal/reload recording](delivery-proof-retry-reload.mp4) ([original WebM](delivery-proof-retry-reload.webm))
+- [Retained failed photos, mobile](https://github.com/user-attachments/assets/9548a782-cae0-4a66-96f6-b83ec48a2fac)
+- [Restored pending confirmation, mobile](https://github.com/user-attachments/assets/aa58e75d-cec6-489f-ae14-862207ca865b)
+- [Private gallery, mobile](https://github.com/user-attachments/assets/388b55a6-f011-464b-86e7-236e97cb48c6)
+- [Private gallery, desktop](https://github.com/user-attachments/assets/ab9d971c-9c49-4eac-bec9-9c536ba95bdb)
+- [Retry/removal/reload recording](https://github.com/user-attachments/assets/d172adf9-4cb0-452c-9607-d9b412357c20) ([original WebM](https://github.com/user-attachments/assets/b5add7b1-63fc-4936-8a94-a1c72d5fef72))
 
 Mobile fixture inspection shows dense paragraphs, a truncated native file label, tall verbose status cards, a wrapped retry button and tiny synthetic gallery thumbnails. These views do not establish real-photo quality. No mobile UI was changed in this cleanup.
 

@@ -33,7 +33,7 @@
 			const expiry = Math.min(...value.photos.map((photo) => photo.expiresAt).filter((at) => at > 0));
 			if (Number.isFinite(expiry)) refreshTimer = setTimeout(() => void load(key), Math.max(1000, expiry - Date.now() - 30000));
 		} catch {
-			if (ticket === request) error = 'Proof status could not be refreshed. Retry before starting a new confirmation. Delivery has not been inferred from this failure.';
+			if (ticket === request) error = 'Could not load delivery photos. Try again before confirming delivery.';
 		} finally {
 			if (ticket === request) loading = false;
 		}
@@ -53,13 +53,13 @@
 	<section class="proof-evidence" aria-label="Delivery evidence">
 		{#if error}
 			<p role="alert">{error}</p>
-			<Button variant="outlined" disabled={loading} onclick={() => void load(scope)}>Retry proof status</Button>
-		{:else if loading && !proof}<p role="status">Checking delivery proof status…</p>{/if}
+			<Button variant="outlined" disabled={loading} onclick={() => void load(scope)}>Retry</Button>
+		{:else if loading && !proof}<p role="status">Loading delivery photos…</p>{/if}
 		{#if proof}
 			{#if canConfirm && !proof.photos.length && !proof.outageReason}<DeliveryProofForm orderId={order.id} {api} pending={proof.pending} onDelivered={refresh} />
-			{:else if canConfirm}<p role="status">The server accepted delivery. Refresh the order to see its current status.</p><Button variant="outlined" onclick={refresh}>Refresh accepted delivery</Button>{/if}
+			{:else if canConfirm}<p role="status">Delivery confirmed. Refresh to see the latest order.</p><Button variant="outlined" onclick={refresh}>Refresh order</Button>{/if}
 			{#if proof.photos.length > 0}
-				<header><h2>Delivery proof</h2><p>{proof.photos.length} saved photo{proof.photos.length === 1 ? '' : 's'}. Open a photo to view or download the original.</p></header>
+				<header><h2>Delivery proof</h2></header>
 				<ul aria-label="Saved delivery proof photos">
 					{#each proof.photos as photo, index (photo.id)}
 						<li>
@@ -67,14 +67,14 @@
 								{#if ['image/jpeg', 'image/png', 'image/webp'].includes(photo.contentType)}
 									<span class="photo-preview"><img src={photo.url} alt={`Delivery proof photo ${index + 1}`} loading="lazy" referrerpolicy="no-referrer" /></span>
 								{/if}
-								<span class="photo-link-text">Open or download proof photo {index + 1}</span>
+								<span class="photo-link-text">Photo {index + 1}</span>
 							</a>
 						</li>
 					{/each}
 				</ul>
-				<Button variant="text" disabled={loading} onclick={() => void load(scope)}>Refresh proof links</Button>
+				<Button variant="text" disabled={loading} onclick={() => void load(scope)}>Refresh photos</Button>
 			{/if}
-			{#if proof.outageReason}<p role="status">Delivered without photos. Server-confirmed upload outage: {proof.outageReason}</p>{/if}
+			{#if proof.outageReason}<p role="status">Delivered without photos because photo uploads were unavailable.</p>{/if}
 		{/if}
 	</section>
 {/if}
@@ -83,7 +83,6 @@
 	.proof-evidence { min-width: 0; display: grid; gap: 1rem; overflow-wrap: anywhere; line-height: 1.5; }
 	.proof-evidence h2, .proof-evidence p { margin: 0; }
 	.proof-evidence h2 { font-size: 1.35rem; }
-	.proof-evidence header p { margin-top: .35rem; color: var(--m3c-on-surface-variant); font-size: .9rem; }
 	.proof-evidence ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; padding: 0; margin: 0; list-style: none; }
 	.proof-evidence li { display: grid; align-content: start; gap: .75rem; min-width: 0; padding: .75rem; border: 1px solid var(--m3c-outline-variant); border-radius: .75rem; }
 	.photo-preview { display: grid; place-items: center; aspect-ratio: 4 / 3; background: var(--m3c-surface-container); border-radius: .5rem; overflow: hidden; }
