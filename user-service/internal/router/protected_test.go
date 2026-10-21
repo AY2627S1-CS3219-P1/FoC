@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
@@ -55,6 +57,27 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+type allowedDomainStub struct {
+	calls  atomic.Int32
+	domain atomic.Value
+}
+
+func (s *allowedDomainStub) ListAllowedDomains(context.Context) ([]allowedadmin.AllowedDomain, error) {
+	s.calls.Add(1)
+	return nil, nil
+}
+
+func (s *allowedDomainStub) AllowDomain(_ context.Context, domain string, _ uuid.UUID) error {
+	s.domain.Store(domain)
+	s.calls.Add(1)
+	return nil
+}
+
+func (s *allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) error {
+	s.calls.Add(1)
+	return nil
+}
+
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -72,9 +95,10 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
-			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
-			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
-			Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+			Profile:        &profilehandler.Handler{Logic: profileStub{actor}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -125,6 +149,125 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
+	}
+}
+
+func TestAllowedDomainAuthorization(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec, err := jwt.NewES256Codec(key, "test-key", httpauth.TokenIssuer, httpauth.TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorID := uuid.New()
+	users := &protectedUsers{users: make(map[uuid.UUID]models.User)}
+	logic := &allowedDomainStub{}
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
+		router.ProtectedRoutes{
+			Profile:        &profilehandler.Handler{Logic: profileStub{}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: logic},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+		})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAllowedDomainAdminServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+	operations := []struct {
+		name string
+		call func(string) error
+	}{
+		{"list", func(token string) error {
+			req := connect.NewRequest(&userv1.ListAllowedDomainsRequest{})
+			req.Header().Set("Authorization", token)
+			_, err := client.ListAllowedDomains(ctx, req)
+			return err
+		}},
+		{"allow", func(token string) error {
+			req := connect.NewRequest(&userv1.AllowDomainRequest{Domain: "example.com"})
+			req.Header().Set("Authorization", token)
+			_, err := client.AllowDomain(ctx, req)
+			return err
+		}},
+		{"remove", func(token string) error {
+			req := connect.NewRequest(&userv1.RemoveAllowedDomainRequest{Id: uuid.NewString()})
+			req.Header().Set("Authorization", token)
+			_, err := client.RemoveAllowedDomain(ctx, req)
+			return err
+		}},
+	}
+	for _, tc := range []struct {
+		name          string
+		role          models.RoleName
+		tokenRole     jwt.Role
+		wantListCode  connect.Code
+		wantWriteCode connect.Code
+	}{
+		{"super admin", models.RoleSuperAdmin, jwt.RoleSuperAdmin, 0, 0},
+		{"admin", models.RoleAdmin, jwt.RoleAdmin, 0, connect.CodePermissionDenied},
+		{"user", models.RoleUser, jwt.RoleUser, connect.CodePermissionDenied, connect.CodePermissionDenied},
+		{"suspended", models.RoleSuspended, jwt.RoleSuspendedUser, connect.CodePermissionDenied, connect.CodePermissionDenied},
+		{"missing credentials", models.RoleSuperAdmin, "", connect.CodeUnauthenticated, connect.CodeUnauthenticated},
+		{"demoted super admin", models.RoleAdmin, jwt.RoleSuperAdmin, 0, connect.CodePermissionDenied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			users.users[actorID] = models.User{ID: actorID, Role: tc.role}
+			var token string
+			if tc.tokenRole != "" {
+				token = "Bearer " + signedTestAccess(t, codec, actorID, tc.tokenRole)
+			}
+			for _, operation := range operations {
+				t.Run(operation.name, func(t *testing.T) {
+					wantCode := tc.wantWriteCode
+					if operation.name == "list" {
+						wantCode = tc.wantListCode
+					}
+					before := logic.calls.Load()
+					err := operation.call(token)
+					var wantCalls int32
+					if wantCode == 0 {
+						wantCalls = 1
+						if err != nil {
+							t.Fatalf("authorized request: %v", err)
+						}
+					} else if connect.CodeOf(err) != wantCode {
+						t.Fatalf("want %v, got %v", wantCode, err)
+					}
+					if calls := logic.calls.Load() - before; calls != wantCalls {
+						t.Fatalf("domain logic calls = %d, want %d", calls, wantCalls)
+					}
+				})
+			}
+		})
+	}
+
+	users.users[actorID] = models.User{ID: actorID, Role: models.RoleSuperAdmin}
+	token := "Bearer " + signedTestAccess(t, codec, actorID, jwt.RoleSuperAdmin)
+	for _, tc := range []struct {
+		domain   string
+		wantCode connect.Code
+	}{
+		{" \tEXAMPLE.COM\n", 0},
+		{"\u2003Example.COM\u2003", 0},
+		{"   ", connect.CodeInvalidArgument},
+		{" example .com ", connect.CodeInvalidArgument},
+		{" https://example.com ", connect.CodeInvalidArgument},
+	} {
+		t.Run("hostname/"+tc.domain, func(t *testing.T) {
+			req := connect.NewRequest(&userv1.AllowDomainRequest{Domain: tc.domain})
+			req.Header().Set("Authorization", token)
+			before := logic.calls.Load()
+			_, err := client.AllowDomain(ctx, req)
+			if tc.wantCode == 0 {
+				if err != nil || logic.domain.Load() != "example.com" || logic.calls.Load() != before+1 {
+					t.Fatalf("normalized domain = %v, err = %v", logic.domain.Load(), err)
+				}
+			} else if connect.CodeOf(err) != tc.wantCode || logic.calls.Load() != before {
+				t.Fatalf("invalid hostname reached domain logic or returned wrong code: %v", err)
+			}
+		})
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -225,6 +226,10 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
+	logic.requestErr = service.ErrEmailDomainNotAllowed
+	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("disallowed domain returned %v", err)
+	}
 	logic.requestErr = errors.New("database password details")
 	_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
 	if connect.CodeOf(err) != connect.CodeInternal || strings.Contains(err.Error(), "password details") {
@@ -246,6 +251,48 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic.logoutAllErr = jwt.ErrRefreshFailed
 	if _, err := client.LogoutAll(ctx, connect.NewRequest(&userv1.LogoutAllRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed logout all returned %v", err)
+	}
+}
+
+func TestAuthDomainDenialReturnsPermissionDenied(t *testing.T) {
+	denied := fmt.Errorf("authentication transaction: %w", service.ErrEmailDomainNotAllowed)
+	logic := &stubLogic{
+		requestErr:  denied,
+		loginErr:    denied,
+		registerErr: denied,
+		refreshErr:  denied,
+	}
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	for _, operation := range []struct {
+		name string
+		call func() error
+	}{
+		{"request link", func() error {
+			_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
+			return err
+		}},
+		{"login", func() error {
+			_, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "magic"}))
+			return err
+		}},
+		{"register", func() error {
+			_, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User", PhoneNumber: "+6591234567"}))
+			return err
+		}},
+		{"refresh", func() error {
+			_, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{}))
+			return err
+		}},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call(); connect.CodeOf(err) != connect.CodePermissionDenied {
+				t.Fatalf("domain policy rejection: %v", err)
+			}
+		})
 	}
 }
 
