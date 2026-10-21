@@ -26,7 +26,7 @@ export function dateLabel(value?: Timestamp): string {
 export function orderDeadline(order: Order): number | undefined {
 	if (order.status === OrderStatus.AWAITING_COURIER && order.expiresAt) return timestampDate(order.expiresAt).getTime();
 	if (order.status === OrderStatus.DELIVERING && order.pickedUpAt && order.deliveryDuration) {
-		return timestampDate(order.pickedUpAt).getTime() + Number(order.deliveryDuration.seconds) * 2000;
+		return timestampDate(order.pickedUpAt).getTime() + Number(order.deliveryDuration.seconds) * 1000;
 	}
 	return undefined;
 }

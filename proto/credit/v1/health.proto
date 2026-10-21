@@ -2,12 +2,6 @@ syntax = "proto3";
 
 package credit.v1; // credit service
 
-service HealthService {
-  rpc Check(CheckRequest) returns (CheckResponse) {}
-}
-
-message CheckRequest {}
-
-message CheckResponse {
-  string status = 1;
-}
+// Use the standard gRPC health checking protocol:
+// grpc.health.v1.Health with grpc.health.v1.HealthCheckRequest,
+// grpc.health.v1.HealthCheckResponse, and ServingStatus.

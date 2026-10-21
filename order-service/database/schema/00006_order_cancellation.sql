@@ -25,6 +25,15 @@ ALTER TABLE orders ADD CONSTRAINT orders_pending_cancellation FOREIGN KEY (id,pe
 ALTER TABLE orders ADD CONSTRAINT orders_pending_cancellation_state CHECK (pending_cancellation_id IS NULL OR status = 'awaiting_pickup');
 
 -- +goose Down
+-- Pending withdrawals still need their durable reversal identity and retry state.
+-- +goose StatementBegin
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM order_cancellations WHERE status = 'pending') THEN
+  RAISE EXCEPTION 'cannot downgrade while courier withdrawals are pending';
+ END IF;
+END $$;
+-- +goose StatementEnd
 DELETE FROM order_idempotency_keys WHERE method = '/order.v1.OrderService/CancelOrder';
 ALTER TABLE orders DROP CONSTRAINT orders_pending_cancellation_state;
 ALTER TABLE orders DROP CONSTRAINT orders_pending_cancellation;

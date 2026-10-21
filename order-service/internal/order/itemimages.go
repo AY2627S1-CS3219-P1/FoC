@@ -116,14 +116,14 @@ func (s *ItemImages) Prepare(ctx context.Context, caller Caller, ids []string) (
 	return result, nil
 }
 
-// ForOrder accepts only the already-authorized Order, then checks the same
-// visibility boundary before issuing temporary object credentials.
+// ForOrder accepts an already-authorized Order. Browsing an order does not
+// grant access to its private images; only participants and admins get URLs.
 func (s *ItemImages) ForOrder(ctx context.Context, caller Caller, o Order) ([]ItemImageView, error) {
 	if caller.ID == "" {
 		return nil, ErrForbidden
 	}
-	if !caller.Admin && !o.HasParticipant(caller.ID) && (caller.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(s.now())) {
-		return nil, ErrNotFound
+	if !caller.Admin && !o.HasParticipant(caller.ID) {
+		return nil, nil
 	}
 	rows, err := s.repository.OrderImages(ctx, o.ID)
 	if err != nil {

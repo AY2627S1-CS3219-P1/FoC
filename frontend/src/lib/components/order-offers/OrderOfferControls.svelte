@@ -4,7 +4,7 @@
  import { timestampDate } from '@bufbuild/protobuf/wkt';
  import { AssignmentAttemptStatus, OfferStatus, OrderStatus, type Offer, type Order } from '$lib/gen/order/v1/shared_types_pb';
  import { OrderActionRejected, type OrderOffersApi } from '$lib/services/order-offers';
- import { clearOfferAction, loadOfferAction, saveOfferAction, type OfferAction } from '$lib/services/order-offers/retry';
+ import { clearOfferAction, loadOfferAction, saveOfferAction, isProposalRetryExpired, type OfferAction } from '$lib/services/order-offers/retry';
  import { describeOrderError } from '$lib/services/order/errors';
  let { order, refresh, api, callerId, suspended }: {
   order: Order; refresh: () => Promise<void>; api: OrderOffersApi; callerId: string; suspended: boolean
@@ -16,7 +16,8 @@
  const requester = $derived(order.requesterId === callerId);
  const beforeDeadline = $derived(Boolean(order.expiresAt && timestampDate(order.expiresAt).getTime() > now));
  const canStart = $derived(Boolean(callerId && !suspended && !busy && storageReady && !action && order.status === OrderStatus.AWAITING_COURIER && beforeDeadline));
- const resolved = $derived(action?.outcome === 'succeeded' || action?.outcome === 'rejected');
+ const expiredProposal = $derived(Boolean(action && isProposalRetryExpired(action, now)));
+ const resolved = $derived(action?.outcome === 'succeeded' || action?.outcome === 'rejected' || expiredProposal);
  function outcomeMessage(value: OfferAction): string {
   switch (value.outcome) {
    case 'pending': return 'Acceptance is pending. No assignment success has been confirmed.';
@@ -50,6 +51,7 @@
  onDestroy(() => { epoch++; offerRead++; });
  async function perform(next: OfferAction) {
   if (busy || suspended || !callerId || !storageReady) return;
+  if (isProposalRetryExpired(next)) { error = 'The proposal retry window has ended. Refresh offers and start a deliberate new action if needed.'; return; }
   const current = epoch, caller = callerId, id = order.id;
   busy = true; error = '';
   try {
@@ -94,7 +96,7 @@
   if (!/^[1-9][0-9]{0,18}$/.test(amount) || BigInt(amount) > 9223372036854775807n || BigInt(amount) <= order.rewardCredits) {
    error = 'Enter whole credits above the current reward and within the supported range.'; return;
   }
-  void perform({ kind: 'proposal', key: crypto.randomUUID(), credits: amount, outcome: 'uncertain' });
+  void perform({ kind: 'proposal', key: crypto.randomUUID(), credits: amount, dispatchedAt: Date.now(), outcome: 'uncertain' });
  }
  function newIntent() {
   if (!resolved || busy || suspended) return;
@@ -112,6 +114,7 @@
  {#if suspended}<p>Your account can read its history but cannot accept or make offers.</p>{/if}
  {#if message}<p role="status">{message}</p>{/if}
  {#if error}<p role="alert">{error}</p>{/if}
+ {#if expiredProposal}<p>The saved proposal is past its 24-hour retry window, or its dispatch time is unknown. Refresh offers before deciding whether to submit a new proposal. A new proposal may replace your existing open offer.</p>{/if}
  {#if action}
   {#if resolved}<button type="button" disabled={busy || suspended} onclick={newIntent}>Start a deliberate new action</button>
   {:else}<button type="button" disabled={busy || suspended || !storageReady} onclick={retrySaved}>{busy ? 'Sending…' : action.kind === 'counteroffer' ? 'Repeat saved acceptance (may start a new financial attempt)' : 'Retry the same saved request'}</button>{/if}
