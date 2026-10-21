@@ -7,6 +7,15 @@
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService } from '$lib/services';
+	import { clearSubmittedOrders } from '$lib/services/order/creation';
+	let previousUser: string | undefined;
+	$effect(() => {
+		const currentUser = authService.user?.id;
+		if (previousUser && previousUser !== currentUser) {
+			try { clearSubmittedOrders(sessionStorage); } catch { /* Storage may be disabled. */ }
+		}
+		previousUser = currentUser;
+	});
 
 	let { children } = $props();
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
@@ -66,7 +75,7 @@
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
 				<div class="primary-links">
-					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
+					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
 						<Button
 							variant="text"
 							href={item.href}

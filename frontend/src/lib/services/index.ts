@@ -8,6 +8,9 @@ import { createLocationAdminApi } from './location-admin';
 import { createAdditionRequestApi } from './addition-request';
 import { createDisablementApi } from './disablement';
 import { SupplierAdminAccess } from './location-admin/service.svelte';
+import { createOrderApi } from './order/index.ts';
+import { createCreditAccountApi } from './credit/index.ts';
+import { createTelegramLinkApi } from './telegram/index.ts';
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -39,3 +42,22 @@ const supplierAdminTransport = createCustomTransport({
 export const locationAdminApi = createLocationAdminApi(supplierAdminTransport);
 export const additionRequestApi = createAdditionRequestApi(supplierAdminTransport);
 export const disablementApi = createDisablementApi(supplierAdminTransport);
+
+const orderTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_ORDER_SERVICE_URL ?? 'http://localhost:8083',
+	interceptors: [authService.interceptor]
+});
+export const orderApi = createOrderApi(orderTransport);
+
+const creditTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_CREDIT_SERVICE_URL ?? 'http://localhost:8085',
+	interceptors: [authService.interceptor]
+});
+export const creditAccountApi = createCreditAccountApi(creditTransport);
+const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
+const communicationTransport = createCustomTransport({
+	baseUrl: communicationServiceBaseUrl,
+	interceptors: [authService.interceptor]
+});
+
+export const telegramLinkApi = createTelegramLinkApi(communicationTransport);

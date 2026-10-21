@@ -24,6 +24,14 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 // Within owns the transaction lifecycle and rejects a commit after any Apply
 // failure, even when the callback swallows that failure.
 func (r *PostgresRepository) Within(ctx context.Context, fn func(Tx) error) error {
+	return r.within(ctx, func(tx *postgresTx) error { return fn(tx) })
+}
+
+func (r *PostgresRepository) WithinCreation(ctx context.Context, fn func(CreationTx) error) error {
+	return r.within(ctx, func(tx *postgresTx) error { return fn(tx) })
+}
+
+func (r *PostgresRepository) within(ctx context.Context, fn func(*postgresTx) error) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
@@ -55,10 +63,12 @@ func rollback(ctx context.Context, tx pgx.Tx) {
 
 // postgresTx tracks lock baselines, fresh relationship reads and applied changes.
 type postgresTx struct {
-	q                *db.Queries
-	locked           map[string]Order
-	related, applied map[string]bool
-	failed           error
+	q                  *db.Queries
+	locked             map[string]Order
+	related, applied   map[string]bool
+	failed             error
+	idempotencyCallers map[IdempotencyScope]bool
+	creationBaselines  map[string]CreationWorkflow
 }
 
 // LockOrder keeps an independent baseline for validating the eventual change.
@@ -178,6 +188,11 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 	}
 	if err != nil {
 		return persistenceError(err)
+	}
+
+	// Assignment history shares this transaction, including its rollback poison.
+	if err = t.applyAssignmentHistory(ctx, before, c); err != nil {
+		return err
 	}
 
 	// Offer writes check their expected status within the same transaction.
@@ -350,3 +365,12 @@ func parseID(id string) (uuid.UUID, error) {
 
 var _ Repository = (*PostgresRepository)(nil)
 var _ Reader = (*PostgresRepository)(nil)
+
+// writeResult poisons the shared transaction after a failed persistence write.
+func (t *postgresTx) writeResult(err error) error {
+	err = persistenceError(err)
+	if err != nil {
+		t.failed = err
+	}
+	return err
+}

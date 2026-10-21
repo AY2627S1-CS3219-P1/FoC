@@ -11,7 +11,7 @@ describe('administrative access', () => {
 	});
 	it('blocks calls before transport for non-administrators', async () => {
 		const access = new SupplierAdminAccess({
-			user: { role: UserRole.USER },
+			user: { id: 'alice', role: UserRole.USER },
 			refresh: async () => {}
 		});
 		const next = vi.fn();
@@ -22,7 +22,7 @@ describe('administrative access', () => {
 	});
 	it('hides stale data after denial and requires a successful session refresh', async () => {
 		const refresh = vi.fn(async () => {});
-		const access = new SupplierAdminAccess({ user: { role: UserRole.ADMIN }, refresh });
+		const access = new SupplierAdminAccess({ user: { id: 'alice', role: UserRole.ADMIN }, refresh });
 		const next = vi.fn(async () => {
 			throw new ConnectError('Denied', Code.PermissionDenied);
 		});
@@ -34,6 +34,29 @@ describe('administrative access', () => {
 		await expect(access.recover()).rejects.toThrow('offline');
 		expect(access.denied).toBe(true);
 		await access.recover();
+		expect(access.denied).toBe(false);
+	});
+	it('does not carry a denial into another administrator identity', async () => {
+		const session = { user: { id: 'alice', role: UserRole.ADMIN }, refresh: async () => {} };
+		const access = new SupplierAdminAccess(session);
+		await expect(access.interceptor(async () => {
+			throw new ConnectError('Denied', Code.PermissionDenied);
+		})({} as never)).rejects.toThrow('Denied');
+		expect(access.denied).toBe(true);
+		session.user = { id: 'bob', role: UserRole.ADMIN };
+		expect(access.denied).toBe(false);
+		const next = vi.fn(async () => ({} as never));
+		await access.interceptor(next)({} as never);
+		expect(next).toHaveBeenCalledOnce();
+	});
+	it('ignores a late denial from a previous administrator', async () => {
+		const session = { user: { id: 'alice', role: UserRole.ADMIN }, refresh: async () => {} };
+		const access = new SupplierAdminAccess(session);
+		let deny!: (cause: unknown) => void;
+		const pending = access.interceptor(() => new Promise((_, reject) => { deny = reject; }))({} as never);
+		session.user = { id: 'bob', role: UserRole.ADMIN };
+		deny(new ConnectError('Denied', Code.PermissionDenied));
+		await expect(pending).rejects.toThrow('Denied');
 		expect(access.denied).toBe(false);
 	});
 });

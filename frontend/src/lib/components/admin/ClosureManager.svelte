@@ -23,7 +23,7 @@
     changedClosurePaths,
     type ClosureForm,
   } from "$lib/services/disablement/closureSchema";
-  import { CreationAttempt } from "$lib/services/location-admin/retry";
+  import { CreationAttempt, CreationAttemptError } from "$lib/services/location-admin/retry";
   import { adminError } from "$lib/services/location-admin/errors";
   import { formatTimestamp } from "$lib/services/location-admin/format";
   import Pagination from "./Pagination.svelte";
@@ -155,7 +155,7 @@
           onchange(locationId);
         }
         error =
-          cause instanceof Error && cause.message.startsWith("A creation may")
+          cause instanceof CreationAttemptError
             ? cause.message
             : adminError(cause, "closure");
       } finally {
@@ -343,8 +343,8 @@
       </div>
     </form>
     {#if retryPending}<p class="notice" role="status">
-        A creation has been attempted. Retry the same details safely, or check
-        history before starting another.
+        A creation has been attempted. Unchanged details can be retried for up to
+        24 hours; older retries are blocked. Check history before starting another.
       </p>
       <Button
         variant="text"
@@ -456,7 +456,7 @@
       ? "Cancel closure"
       : confirmation === "discard"
         ? "Discard draft"
-        : "Start new attempt"}
+        : "I checked history · start new attempt"}
   {busy}
   onconfirm={confirm}
 >

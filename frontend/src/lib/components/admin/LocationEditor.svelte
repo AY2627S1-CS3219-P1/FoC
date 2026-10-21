@@ -26,7 +26,7 @@
   } from "$lib/services/location-admin/locationSchema";
   import { adminError } from "$lib/services/location-admin/errors";
   import { Code, ConnectError } from "@connectrpc/connect";
-  import { CreationAttempt } from "$lib/services/location-admin/retry";
+  import { CreationAttempt, CreationAttemptError } from "$lib/services/location-admin/retry";
   import type { LocationValues } from "$lib/services/location-admin/adminApi";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   let {
@@ -102,7 +102,7 @@
         if (cause instanceof ConnectError && cause.code === Code.Aborted)
           conflict = true;
         error =
-          cause instanceof Error && cause.message.startsWith("A creation may")
+          cause instanceof CreationAttemptError
             ? cause.message
             : adminError(cause);
       }
@@ -384,8 +384,9 @@
       </div>
     </form>
     {#if retryPending}<p class="notice" role="status">
-        A creation has been attempted. Keep these details unchanged to retry
-        safely. Check the location list before starting another creation.
+        A creation has been attempted. Unchanged details can be retried for up to
+        24 hours; older retries are blocked. Check the location list before
+        starting another creation.
       </p>
       <Button variant="text" onclick={() => (restartOpen = true)}
         >Start a new creation attempt</Button
@@ -395,7 +396,7 @@
 <ConfirmDialog
   bind:open={restartOpen}
   title="Start a new creation?"
-  label="Start new attempt"
+  label="I checked the list · start new attempt"
   onconfirm={restart}
   ><p>
     The previous attempt may already have created a location. Check the list

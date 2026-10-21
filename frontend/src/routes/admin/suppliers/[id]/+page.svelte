@@ -11,6 +11,9 @@
 	let location = $state<Location | null>(null);
 	let buildings = $state<Building[]>([]),
 		categories = $state<Category[]>([]);
+	let referencesLoading = $state(true),
+		referencesError = $state(''),
+		referencesReload = $state(0);
 	let loading = $state(true),
 		error = $state(''),
 		mutationError = $state(''),
@@ -28,17 +31,9 @@
 		notice = '';
 		confirmOpen = false;
 		location = null;
-		Promise.all([
-			locationApi.getLocation(id),
-			locationApi.listBuildings(),
-			locationApi.listCategories()
-		])
-			.then(([l, b, c]) => {
-				if (!stale) {
-					location = l;
-					buildings = b;
-					categories = c;
-				}
+		locationApi.getLocation(id)
+			.then((value) => {
+				if (!stale) location = value;
 			})
 			.catch((cause) => {
 				if (!stale) error = adminError(cause);
@@ -50,6 +45,29 @@
 			stale = true;
 		};
 	});
+	$effect(() => {
+		void referencesReload;
+		let stale = false;
+		referencesLoading = true;
+		referencesError = '';
+		Promise.all([locationApi.listBuildings(), locationApi.listCategories()])
+			.then(([b, c]) => {
+				if (!stale) {
+					buildings = b;
+					categories = c;
+				}
+			})
+			.catch((cause) => {
+				if (!stale) referencesError = adminError(cause);
+			})
+			.finally(() => {
+				if (!stale) referencesLoading = false;
+			});
+		return () => {
+			stale = true;
+		};
+	});
+
 	async function transition() {
 		if (!location || busy) return;
 		const id = location.id;
@@ -109,14 +127,21 @@
 				Archived {formatTimestamp(location.archivedAt)}. This location is unavailable for new
 				requests. You can edit or restore it.
 			</p>{/if}
-		{#key `${location.id}:${location.revision}`}<LocationEditor
-				{location}
-				{buildings}
-				{categories}
-				onsaved={(saved) => {
-					if (page.params.id === saved.id) location = saved;
-				}}
-			/>{/key}
+		{#if referencesError}
+			<p class="notice error" role="alert">Location editing is unavailable: {referencesError}</p>
+			<Button onclick={() => referencesReload++}>Retry buildings and categories</Button>
+		{:else if referencesLoading}
+			<p role="status">Loading buildings and categories for editing…</p>
+		{:else}
+			{#key `${location.id}:${location.revision}`}<LocationEditor
+					{location}
+					{buildings}
+					{categories}
+					onsaved={(saved) => {
+						if (page.params.id === saved.id) location = saved;
+					}}
+				/>{/key}
+		{/if}
 		{#key location.id}<ClosureManager
 				locationId={location.id}
 				archived={!!location.archivedAt}
