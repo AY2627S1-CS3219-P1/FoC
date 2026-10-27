@@ -5,7 +5,7 @@ target on long boolean expressions.
 
 ## Failure and reproduction
 
-A successful `make fmt` can leave changes that the next `make fmt-check` rejects.
+A single formatter pass can leave changes that `make fmt-check` rejects.
 The formatter splits some boolean expressions incrementally on successive runs.
 This was reproduced while resolving PR #143 against main at `9075a80`, using
 `order-service/internal/order/postgrescancellation.go` and
@@ -15,9 +15,11 @@ three different outputs; the repository output eventually stabilized.
 
 ## Workaround
 
-Repeat `make fmt` until another run leaves the diff unchanged, then run
-`make fmt-check` and `make lint`. Do not assume one successful formatting run
-means CI's formatting check will pass.
+Run `make fmt`: it now runs `make fmt-check` after each formatter pass and stops
+as soon as the check passes, with a maximum of five attempts. A formatter
+execution error stops the target immediately; five unsuccessful checks also
+fail the target. Run `make lint` afterward. Direct formatter invocations still
+need a separate formatting check.
 
 ## Removal condition
 
