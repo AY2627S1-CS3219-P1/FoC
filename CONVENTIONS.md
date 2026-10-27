@@ -60,6 +60,16 @@
   `andrew/feat/location-workflows`. Use `fix`, `refactor`, `chore`, or `docs`
   instead of `feat` when appropriate.
 
+## Issues and PRs
+
+- Automatically add the appropriate label(s) when you create an issue or a pull
+  request: the service/domain label (for example `order-service`), the type label
+  (`type.bug`, `type.enhancement`, `type.chore`, `type.documentation`), and any
+  project category label (for example `shared-or-infra`, `ready-for-agent`).
+- Determine the available labels dynamically with `gh label list` instead of
+  relying on a hard-coded label set, so newly added labels stay usable.
+- Link the issue the pull request resolves in its body (for example `Closes #123`).
+
 ## REST handlers
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
