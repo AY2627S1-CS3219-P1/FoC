@@ -12,9 +12,16 @@ $(GOLANGCI):
 	GOTOOLCHAIN="$$(go env GOVERSION)" GOBIN=$(abspath $(dir $(GOLANGCI))) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_VERSION)
 
 fmt: $(GOLANGCI)
-	@set -e; for module in $(GO_MODULES); do \
-		(cd $$module && $(abspath $(GOLANGCI)) fmt ./...); \
-	done
+	@set -e; for attempt in 1 2 3 4 5; do \
+		for module in $(GO_MODULES); do \
+			(cd $$module && $(abspath $(GOLANGCI)) fmt ./...); \
+		done; \
+		if $(MAKE) --no-print-directory fmt-check; then \
+			exit 0; \
+		fi; \
+	done; \
+	echo "Go formatting did not pass fmt-check after 5 attempts." >&2; \
+	exit 1
 
 fmt-check: $(GOLANGCI)
 	@set -e; for module in $(GO_MODULES); do \

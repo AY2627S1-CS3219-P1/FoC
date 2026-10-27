@@ -303,7 +303,10 @@ func validateChange(before *Order, c Change) error {
 	if err != nil {
 		return err
 	}
-	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus || expected.Audit.Status != c.Audit.Status || !expected.Audit.At.Equal(c.Audit.At) || len(expected.Facts) != len(c.Facts) {
+	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus ||
+		expected.Audit.Status != c.Audit.Status ||
+		!expected.Audit.At.Equal(c.Audit.At) ||
+		len(expected.Facts) != len(c.Facts) {
 		return ErrInvalid
 	}
 
@@ -316,7 +319,8 @@ func validateChange(before *Order, c Change) error {
 			return ErrInvalid
 		}
 		seen[f.ID] = true
-		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version || !jsonEqual(f.Payload, expected.Facts[i].Payload) {
+		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version ||
+			!jsonEqual(f.Payload, expected.Facts[i].Payload) {
 			return ErrInvalid
 		}
 	}

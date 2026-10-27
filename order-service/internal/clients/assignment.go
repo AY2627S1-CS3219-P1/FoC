@@ -25,7 +25,8 @@ func (c *Credit) Adjust(ctx context.Context, intent app.AdjustmentIntent) error 
 		}
 		return app.ErrUnavailable
 	}
-	if response == nil || response.Msg == nil || response.Msg.Reservation == nil || response.Msg.Reservation.RequestId != intent.OrderID {
+	if response == nil || response.Msg == nil || response.Msg.Reservation == nil ||
+		response.Msg.Reservation.RequestId != intent.OrderID {
 		return app.ErrUnavailable
 	}
 	return nil
@@ -37,7 +38,8 @@ func (c *Credit) Revert(ctx context.Context, orderID, attemptID string) error {
 		return err
 	}
 	response, err := c.Client.RevertAdjustment(ctx, request)
-	if err != nil || response == nil || response.Msg == nil || response.Msg.Reservation == nil || response.Msg.Reservation.RequestId != orderID {
+	if err != nil || response == nil || response.Msg == nil || response.Msg.Reservation == nil ||
+		response.Msg.Reservation.RequestId != orderID {
 		return app.ErrUnavailable
 	}
 	return nil
@@ -66,13 +68,20 @@ func (c *Credit) AssignmentReservation(ctx context.Context, orderID string) (app
 	}
 	switch v.Status {
 	case creditpb.ReservationStatus_RESERVATION_STATUS_HELD:
-		if v.ActiveAdjustment != nil || v.Settlement != nil || v.OriginalAmount <= 0 || v.RequesterId == "" || v.ReservedAmount != v.OriginalAmount {
+		if v.ActiveAdjustment != nil || v.Settlement != nil || v.OriginalAmount <= 0 || v.RequesterId == "" ||
+			v.ReservedAmount != v.OriginalAmount {
 			return app.AssignmentReservation{}, app.ErrUnavailable
 		}
 		view.State = "held"
 	case creditpb.ReservationStatus_RESERVATION_STATUS_ASSIGNED:
 		a := v.ActiveAdjustment
-		if a == nil || a.Status != creditpb.AdjustmentStatus_ADJUSTMENT_STATUS_APPLIED || a.OfferId == "" || a.CourierId == "" || a.OfferAmount != v.ReservedAmount || a.PreviousAmount != v.OriginalAmount || v.RequesterId == "" || v.OriginalAmount <= 0 || v.Settlement != nil {
+		if a == nil || a.Status != creditpb.AdjustmentStatus_ADJUSTMENT_STATUS_APPLIED || a.OfferId == "" ||
+			a.CourierId == "" ||
+			a.OfferAmount != v.ReservedAmount ||
+			a.PreviousAmount != v.OriginalAmount ||
+			v.RequesterId == "" ||
+			v.OriginalAmount <= 0 ||
+			v.Settlement != nil {
 			return app.AssignmentReservation{}, app.ErrUnavailable
 		}
 		view.State, view.OfferID, view.CourierID = "assigned", a.OfferId, a.CourierId

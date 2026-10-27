@@ -32,7 +32,13 @@ type Proofs struct {
 	newID             func() string
 }
 
-func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects ProofObjects, validator ProofImageValidator, options ProofOptions) *Proofs {
+func NewProofs(
+	repository ProofRepository,
+	grants ProofGrantIssuer,
+	objects ProofObjects,
+	validator ProofImageValidator,
+	options ProofOptions,
+) *Proofs {
 	clockOverride := options.Now != nil
 	if options.Now == nil {
 		options.Now = time.Now
@@ -62,7 +68,11 @@ func NewProofs(repository ProofRepository, grants ProofGrantIssuer, objects Proo
 // CreateUpload persists one identity before signing. Failed signing is retried
 // against that identity. Grant generation and assignment are checked again after
 // signing, so cancellation or expiry cannot be hidden by a slow signer.
-func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUploadInput) (ProofUpload, images.UploadGrant, error) {
+func (s *Proofs) CreateUpload(
+	ctx context.Context,
+	caller Caller,
+	in ProofUploadInput,
+) (ProofUpload, images.UploadGrant, error) {
 	var err error
 	caller, in.OrderID, err = proofCaller(caller, in.OrderID)
 	if err != nil {
@@ -101,7 +111,10 @@ func (s *Proofs) CreateUpload(ctx context.Context, caller Caller, in ProofUpload
 				return nil, err
 			}
 			if count >= MaxStagedProofs {
-				return nil, fmt.Errorf("proof staging limit reached; retry an existing upload or wait for orphan cleanup: %w", ErrPrecondition)
+				return nil, fmt.Errorf(
+					"proof staging limit reached; retry an existing upload or wait for orphan cleanup: %w",
+					ErrPrecondition,
+				)
 			}
 			proofID := s.newID()
 			stored = ProofUpload{
@@ -258,7 +271,12 @@ func (s *Proofs) ConfirmDelivery(ctx context.Context, caller Caller, in ConfirmD
 	return s.confirmReceipt(ctx, caller, in, nil)
 }
 
-func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDeliveryInput, receipt *DeliveryReceipt) (Order, error) {
+func (s *Proofs) confirmReceipt(
+	ctx context.Context,
+	caller Caller,
+	in ConfirmDeliveryInput,
+	receipt *DeliveryReceipt,
+) (Order, error) {
 	var err error
 	caller, in.OrderID, err = proofCaller(caller, in.OrderID)
 	if err != nil {
@@ -412,7 +430,13 @@ func (s *Proofs) confirmReceipt(ctx context.Context, caller Caller, in ConfirmDe
 
 // receiptTime never accepts a client clock. Re-read the immutable durable
 // record under the parent lock before using its earlier effective timestamp.
-func (s *Proofs) receiptTime(ctx context.Context, tx ProofTx, c Caller, in ConfirmDeliveryInput, expected *DeliveryReceipt) (time.Time, error) {
+func (s *Proofs) receiptTime(
+	ctx context.Context,
+	tx ProofTx,
+	c Caller,
+	in ConfirmDeliveryInput,
+	expected *DeliveryReceipt,
+) (time.Time, error) {
 	if expected == nil {
 		return s.proofTime(ctx, tx)
 	}
@@ -424,7 +448,8 @@ func (s *Proofs) receiptTime(ctx context.Context, tx ProofTx, c Caller, in Confi
 	if err != nil {
 		return time.Time{}, err
 	}
-	if (stored.State != "pending" && stored.State != "accepted") || !stored.matches(c, in) || !stored.ReceivedAt.Equal(expected.ReceivedAt) {
+	if (stored.State != "pending" && stored.State != "accepted") || !stored.matches(c, in) ||
+		!stored.ReceivedAt.Equal(expected.ReceivedAt) {
 		return time.Time{}, ErrPrecondition
 	}
 	return stored.ReceivedAt, nil
@@ -433,13 +458,22 @@ func (s *Proofs) receiptTime(ctx context.Context, tx ProofTx, c Caller, in Confi
 // confirmationState recognizes only a durable, matching accepted input, before
 // checking a first confirmation's status or deadline. Completed alone is not
 // evidence that this particular confirmation succeeded.
-func (s *Proofs) confirmationState(ctx context.Context, tx ProofTx, o Order, caller Caller, in ConfirmDeliveryInput, now time.Time) (bool, error) {
+func (s *Proofs) confirmationState(
+	ctx context.Context,
+	tx ProofTx,
+	o Order,
+	caller Caller,
+	in ConfirmDeliveryInput,
+	now time.Time,
+) (bool, error) {
 	if !o.IsAssignedTo(caller.ID) {
 		return false, ErrNotFound
 	}
 	accepted, err := tx.GetProofConfirmation(ctx, o.ID)
 	if err == nil {
-		if !strings.EqualFold(accepted.CourierID, caller.ID) || accepted.Unattended != in.Unattended || !slices.Equal(accepted.ProofIDs, in.ProofIDs) || (accepted.OutageReason != "") != in.WithoutProof {
+		if !strings.EqualFold(accepted.CourierID, caller.ID) || accepted.Unattended != in.Unattended ||
+			!slices.Equal(accepted.ProofIDs, in.ProofIDs) ||
+			(accepted.OutageReason != "") != in.WithoutProof {
 			return false, ErrPrecondition
 		}
 		if o.Status != Delivered && o.Status != Completed {
@@ -459,7 +493,10 @@ func (s *Proofs) recheckProofs(ctx context.Context, tx ProofTx, o Order, caller 
 		if err != nil {
 			return err
 		}
-		if stored.State != ProofUploading || !proofBelongsTo(stored, o.ID, caller.ID) || stored.ID != expected.ID || stored.Key != expected.Key || stored.ContentType != expected.ContentType || stored.SizeBytes != expected.SizeBytes {
+		if stored.State != ProofUploading || !proofBelongsTo(stored, o.ID, caller.ID) || stored.ID != expected.ID ||
+			stored.Key != expected.Key ||
+			stored.ContentType != expected.ContentType ||
+			stored.SizeBytes != expected.SizeBytes {
 			return ErrPrecondition
 		}
 	}
@@ -488,7 +525,8 @@ func (s *Proofs) verifyObject(ctx context.Context, upload ProofUpload) error {
 	if err != nil {
 		return ErrUnavailable
 	}
-	if !info.Exists || info.Size != upload.SizeBytes || info.Size < 1 || info.Size > MaxImageBytes || info.ContentType != upload.ContentType {
+	if !info.Exists || info.Size != upload.SizeBytes || info.Size < 1 || info.Size > MaxImageBytes ||
+		info.ContentType != upload.ContentType {
 		return ErrPrecondition
 	}
 	body, err := s.objects.ReadProof(ctx, upload.Key, MaxImageBytes)
@@ -572,7 +610,10 @@ func (s *Proofs) ForOrder(ctx context.Context, caller Caller, orderID string) (D
 		if err != nil {
 			return DeliveryProofView{}, ErrUnavailable
 		}
-		out.Proofs = append(out.Proofs, ProofView{ID: row.ID, DownloadURL: grant.URL, ExpiresAt: grant.ExpiresAt, ContentType: row.ContentType})
+		out.Proofs = append(
+			out.Proofs,
+			ProofView{ID: row.ID, DownloadURL: grant.URL, ExpiresAt: grant.ExpiresAt, ContentType: row.ContentType},
+		)
 	}
 	return out, nil
 }
@@ -615,7 +656,8 @@ func canUploadProof(o Order, caller Caller, now time.Time) error {
 	if !o.IsAssignedTo(caller.ID) {
 		return ErrNotFound
 	}
-	if o.Status != Delivering || o.PickedUpAt == nil || o.DeliveryDuration <= 0 || !now.Before(o.PickedUpAt.Add(2*o.DeliveryDuration)) {
+	if o.Status != Delivering || o.PickedUpAt == nil || o.DeliveryDuration <= 0 ||
+		!now.Before(o.PickedUpAt.Add(2*o.DeliveryDuration)) {
 		return ErrPrecondition
 	}
 	return nil

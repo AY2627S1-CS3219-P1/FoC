@@ -55,7 +55,11 @@ func TestMutateLocksLoadsRelationshipsBuildsAndAppliesInOrder(t *testing.T) {
 	offer := Offer{ID: "offer", OrderID: "o1", Status: OfferOpen}
 	tx := &txFake{events: &events, order: current, offers: []Offer{offer}}
 	repo := &repoFake{tx: tx}
-	wantChange := Change{ExpectedRevision: 4, Order: Order{ID: "o1", Status: AwaitingPickup, Revision: 5}, Action: Assign}
+	wantChange := Change{
+		ExpectedRevision: 4,
+		Order:            Order{ID: "o1", Status: AwaitingPickup, Revision: 5},
+		Action:           Assign,
+	}
 	err := NewMutator(repo).Mutate(context.Background(), "o1", func(got Order, offers []Offer) (*Change, error) {
 		events = append(events, "build")
 		if got != current || !reflect.DeepEqual(offers, []Offer{offer}) {
@@ -86,7 +90,9 @@ func TestMutateRecognizedRepeatCommitsWithoutWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(events, []string{"lock:o1", "relationships:o1", "build"}) || repo.commits != 1 || repo.rollbacks != 0 || repo.tx.applied != 0 {
+	if !reflect.DeepEqual(events, []string{"lock:o1", "relationships:o1", "build"}) || repo.commits != 1 ||
+		repo.rollbacks != 0 ||
+		repo.tx.applied != 0 {
 		t.Fatalf("repeat had writes/rollback: events=%v repo=%+v apply=%d", events, repo, repo.tx.applied)
 	}
 }
@@ -98,20 +104,32 @@ func TestMutateRollsBackAnyFailure(t *testing.T) {
 		setup func(*txFake)
 		build func() func(Order, []Offer) (*Change, error)
 	}{
-		{name: "lock", setup: func(tx *txFake) { tx.lockErr = failure }, build: func() func(Order, []Offer) (*Change, error) {
-			return func(Order, []Offer) (*Change, error) { return nil, nil }
-		}},
-		{name: "relationships", setup: func(tx *txFake) { tx.relationshipErr = failure }, build: func() func(Order, []Offer) (*Change, error) {
-			return func(Order, []Offer) (*Change, error) { return nil, nil }
-		}},
+		{
+			name:  "lock",
+			setup: func(tx *txFake) { tx.lockErr = failure },
+			build: func() func(Order, []Offer) (*Change, error) {
+				return func(Order, []Offer) (*Change, error) { return nil, nil }
+			},
+		},
+		{
+			name:  "relationships",
+			setup: func(tx *txFake) { tx.relationshipErr = failure },
+			build: func() func(Order, []Offer) (*Change, error) {
+				return func(Order, []Offer) (*Change, error) { return nil, nil }
+			},
+		},
 		{name: "build", setup: func(*txFake) {}, build: func() func(Order, []Offer) (*Change, error) {
 			return func(Order, []Offer) (*Change, error) { return nil, failure }
 		}},
-		{name: "apply", setup: func(tx *txFake) { tx.applyErr = failure }, build: func() func(Order, []Offer) (*Change, error) {
-			return func(o Order, _ []Offer) (*Change, error) {
-				return &Change{ExpectedRevision: o.Revision, Order: Order{ID: o.ID, Revision: o.Revision + 1}}, nil
-			}
-		}},
+		{
+			name:  "apply",
+			setup: func(tx *txFake) { tx.applyErr = failure },
+			build: func() func(Order, []Offer) (*Change, error) {
+				return func(o Order, _ []Offer) (*Change, error) {
+					return &Change{ExpectedRevision: o.Revision, Order: Order{ID: o.ID, Revision: o.Revision + 1}}, nil
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

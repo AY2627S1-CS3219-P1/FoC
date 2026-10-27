@@ -79,6 +79,11 @@ func TestSameStatusAssignmentRepeatCannotCommit(t *testing.T) {
 		t.Fatalf("same-status assignment error = %v, want ErrPrecondition", err)
 	}
 	if repo.commits != 0 || repo.rollbacks != 1 || repo.tx.applied != 0 {
-		t.Fatalf("same-status assignment committed: commits=%d rollbacks=%d apply=%d", repo.commits, repo.rollbacks, repo.tx.applied)
+		t.Fatalf(
+			"same-status assignment committed: commits=%d rollbacks=%d apply=%d",
+			repo.commits,
+			repo.rollbacks,
+			repo.tx.applied,
+		)
 	}
 }

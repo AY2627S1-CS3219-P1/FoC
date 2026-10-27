@@ -81,7 +81,12 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	profileClient := userv1connect.NewProfileServiceClient(server.Client(), server.URL)
 	adminClient := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
-	if _, err := profileClient.GetMyProfile(ctx, connect.NewRequest(&userv1.GetMyProfileRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := profileClient.GetMyProfile(
+		ctx,
+		connect.NewRequest(&userv1.GetMyProfileRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("missing bearer token: %v", err)
 	}
 	token := signedTestAccess(t, codec, actorID, jwt.RoleUser)
@@ -115,13 +120,19 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users.users[actorID] = actor
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
 	lookup.Header().Set("Authorization", "Bearer "+token)
-	if response, err := adminClient.GetUserByEmail(ctx, lookup); err != nil || response.Msg.User.Id != targetID.String() {
+	if response, err := adminClient.GetUserByEmail(
+		ctx,
+		lookup,
+	); err != nil ||
+		response.Msg.User.Id != targetID.String() {
 		t.Fatalf("persisted admin lookup: %+v, %v", response, err)
 	}
 	actor.Role = models.RoleUser
 	users.users[actorID] = actor
 	staleAdminToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
-	change := connect.NewRequest(&userv1.ChangeUserRoleRequest{UserId: targetID.String(), ToRole: userv1.UserRole_USER_ROLE_ADMIN})
+	change := connect.NewRequest(
+		&userv1.ChangeUserRoleRequest{UserId: targetID.String(), ToRole: userv1.UserRole_USER_ROLE_ADMIN},
+	)
 	change.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)

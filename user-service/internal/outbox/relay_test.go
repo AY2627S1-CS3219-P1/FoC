@@ -91,7 +91,11 @@ func TestRelayPublishesUserCreatedAndRetriesWithStableEventID(t *testing.T) {
 		t.Fatalf("first drain error = %v, want broker error", err)
 	}
 	if !repository.retriedAt.Equal(now.Add(retryDelay)) || repository.published {
-		t.Fatalf("failed publish was not scheduled for retry: retried_at=%v published=%t", repository.retriedAt, repository.published)
+		t.Fatalf(
+			"failed publish was not scheduled for retry: retried_at=%v published=%t",
+			repository.retriedAt,
+			repository.published,
+		)
 	}
 
 	now = repository.retriedAt
@@ -99,7 +103,11 @@ func TestRelayPublishesUserCreatedAndRetriesWithStableEventID(t *testing.T) {
 		t.Fatalf("retry drain: %v", err)
 	}
 	if len(publisher.calls) != 2 || !repository.published {
-		t.Fatalf("publishes=%d published=%t, want two attempts and acknowledgement", len(publisher.calls), repository.published)
+		t.Fatalf(
+			"publishes=%d published=%t, want two attempts and acknowledgement",
+			len(publisher.calls),
+			repository.published,
+		)
 	}
 	for _, call := range publisher.calls {
 		message, ok := call.msg.(*events.UserCreated)

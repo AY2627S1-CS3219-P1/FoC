@@ -61,7 +61,8 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err = f.repo.Get(f.ctx, o.ID)
-		if err != nil || got.Status != Expired || got.ClosedAt == nil || got.ClosedAt.Before(serverNow) || !got.ExpiresAt.Equal(original) {
+		if err != nil || got.Status != Expired || got.ClosedAt == nil || got.ClosedAt.Before(serverNow) ||
+			!got.ExpiresAt.Equal(original) {
 			t.Fatalf("locked DB-clock expiry failed: %+v %v", got, err)
 		}
 		var after time.Time
@@ -71,15 +72,26 @@ func TestPostgresExpiryTimers(t *testing.T) {
 		if got.ClosedAt.After(after) {
 			t.Fatal("closure used the fast discovery clock")
 		}
-		t.Log("discovery one year fast cannot expire a future request; due request closes on actual locked DB time and preserves original expiry")
+		t.Log(
+			"discovery one year fast cannot expire a future request; due request closes on actual locked DB time and preserves original expiry",
+		)
 	})
 	t.Run("fifty workers commit one expiry outcome", func(t *testing.T) {
 		f.reset(t)
 		deadline := now.Add(-20 * time.Minute)
 		o := seed(t, deadline)
 		for _, status := range []OfferStatus{OfferOpen, OfferAccepting} {
-			_, err := f.pool.Exec(f.ctx, `INSERT INTO offers (id,order_id,courier_id,credits,status,created_at,updated_at)
-                VALUES ($1,$2,$3,$4,$5,$6,$6)`, uuid.NewString(), o.ID, uuid.NewString(), o.RewardCredits, status, o.CreatedAt)
+			_, err := f.pool.Exec(
+				f.ctx,
+				`INSERT INTO offers (id,order_id,courier_id,credits,status,created_at,updated_at)
+                VALUES ($1,$2,$3,$4,$5,$6,$6)`,
+				uuid.NewString(),
+				o.ID,
+				uuid.NewString(),
+				o.RewardCredits,
+				status,
+				o.CreatedAt,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -102,7 +114,9 @@ func TestPostgresExpiryTimers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if row.Status != string(Expired) || row.Revision != 3 || row.ClosedAt == nil || !row.ClosedAt.Equal(now) || !row.ExpiresAt.Equal(deadline) || row.ReservedCredits != o.ReservedCredits {
+		if row.Status != string(Expired) || row.Revision != 3 || row.ClosedAt == nil || !row.ClosedAt.Equal(now) ||
+			!row.ExpiresAt.Equal(deadline) ||
+			row.ReservedCredits != o.ReservedCredits {
 			t.Fatalf("wrong expiry observations: %+v", row)
 		}
 		var audits, outcomes, systemActors int
@@ -113,13 +127,22 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		if audits != 1 || outcomes != 1 || systemActors != 1 {
-			t.Fatalf("duplicate or missing durable records: audits=%d outcomes=%d system=%d", audits, outcomes, systemActors)
+			t.Fatalf(
+				"duplicate or missing durable records: audits=%d outcomes=%d system=%d",
+				audits,
+				outcomes,
+				systemActors,
+			)
 		}
 		var voidOffers int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM offers WHERE order_id=$1 AND status='void'", o.ID).Scan(&voidOffers); err != nil || voidOffers != 2 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM offers WHERE order_id=$1 AND status='void'", o.ID).
+			Scan(&voidOffers); err != nil ||
+			voidOffers != 2 {
 			t.Fatalf("active offer voiding not committed with expiry: %d %v", voidOffers, err)
 		}
-		t.Log("50 expiry contenders -> one revision, one System expiry audit, one terminal outcome; original expiry/reservation retained and active offers voided")
+		t.Log(
+			"50 expiry contenders -> one revision, one System expiry audit, one terminal outcome; original expiry/reservation retained and active offers voided",
+		)
 	})
 
 	t.Run("failed first candidate cannot starve a later page", func(t *testing.T) {
@@ -142,7 +165,10 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if _, err := f.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS reject_expiry ON orders; DROP FUNCTION IF EXISTS reject_expiry()"); err != nil {
+			if _, err := f.pool.Exec(
+				context.Background(),
+				"DROP TRIGGER IF EXISTS reject_expiry ON orders; DROP FUNCTION IF EXISTS reject_expiry()",
+			); err != nil {
 				t.Error(err)
 			}
 		})
@@ -154,25 +180,38 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		var expired, brokenOutcomes int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM orders WHERE status='expired'").Scan(&expired); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM orders WHERE status='expired'").
+			Scan(&expired); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", broken).Scan(&brokenOutcomes); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", broken).
+			Scan(&brokenOutcomes); err != nil {
 			t.Fatal(err)
 		}
 		if expired != expiryTimerBatchSize+1 || brokenOutcomes != 0 {
-			t.Fatalf("starved backlog or partial failed outcome: expired=%d broken_outcomes=%d", expired, brokenOutcomes)
+			t.Fatalf(
+				"starved backlog or partial failed outcome: expired=%d broken_outcomes=%d",
+				expired,
+				brokenOutcomes,
+			)
 		}
-		if _, err := f.pool.Exec(f.ctx, "DROP TRIGGER reject_expiry ON orders; DROP FUNCTION reject_expiry()"); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"DROP TRIGGER reject_expiry ON orders; DROP FUNCTION reject_expiry()",
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := NewExpiryTimers(f.repo, options).ScanOnce(f.ctx); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM orders WHERE status='expired'").Scan(&expired); err != nil || expired != expiryTimerBatchSize+2 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM orders WHERE status='expired'").
+			Scan(&expired); err != nil ||
+			expired != expiryTimerBatchSize+2 {
 			t.Fatalf("restart did not recover failed work: %d %v", expired, err)
 		}
-		t.Log("52 overdue orders -> failure on first candidate rolls back; next page expires; new worker recovers the failed order")
+		t.Log(
+			"52 overdue orders -> failure on first candidate rolls back; next page expires; new worker recovers the failed order",
+		)
 	})
 
 	t.Run("withdrawal and unassignment retain original expiry", func(t *testing.T) {
@@ -195,7 +234,9 @@ func TestPostgresExpiryTimers(t *testing.T) {
 				t.Fatalf("%s extended expiry or retained assignment: %+v %v", action, row, err)
 			}
 		}
-		t.Log("local withdrawal/unassignment preserve original expiry; overdue reopened orders expire without a renewed window (financial reset saga is external)")
+		t.Log(
+			"local withdrawal/unassignment preserve original expiry; overdue reopened orders expire without a renewed window (financial reset saga is external)",
+		)
 	})
 
 	t.Run("cancellation racing expiry records only one outcome", func(t *testing.T) {
@@ -217,7 +258,9 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatalf("conflicting terminal changes: %+v %v", row, err)
 		}
 		var outcomes int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&outcomes); err != nil || outcomes != 1 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+			Scan(&outcomes); err != nil ||
+			outcomes != 1 {
 			t.Fatalf("conflicting outcomes: %d %v", outcomes, err)
 		}
 		t.Log("cancellation versus expiry -> one terminal revision and one outcome")
@@ -304,7 +347,9 @@ func TestPostgresExpiryTimers(t *testing.T) {
 			t.Fatalf("expiry ignored newly committed assignment: %+v %v", row, err)
 		}
 		var outcomes int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&outcomes); err != nil || outcomes != 0 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+			Scan(&outcomes); err != nil ||
+			outcomes != 0 {
 			t.Fatalf("assignment also produced expiry: %d %v", outcomes, err)
 		}
 		t.Log("expiry waited on a real PostgreSQL row lock, saw the committed assignment, and wrote no outcome")

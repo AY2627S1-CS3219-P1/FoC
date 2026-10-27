@@ -14,7 +14,12 @@ func (r *PostgresRepository) WithinDeliveryTimers(ctx context.Context, fn func(D
 	})
 }
 
-func (r *PostgresRepository) DueDeliveryTimers(ctx context.Context, now time.Time, after string, limit int32) ([]string, error) {
+func (r *PostgresRepository) DueDeliveryTimers(
+	ctx context.Context,
+	now time.Time,
+	after string,
+	limit int32,
+) ([]string, error) {
 	cursor, err := uuid.Parse(after)
 	if err != nil || limit < 1 || limit > deliveryTimerBatchSize {
 		return nil, ErrInvalid

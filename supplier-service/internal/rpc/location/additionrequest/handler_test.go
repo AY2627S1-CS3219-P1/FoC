@@ -20,12 +20,23 @@ type reviewOperations struct {
 	note     string
 }
 
-func (o *reviewOperations) ApproveRequest(_ context.Context, _ app.Caller, _ string, revision int64) (app.Approval, error) {
+func (o *reviewOperations) ApproveRequest(
+	_ context.Context,
+	_ app.Caller,
+	_ string,
+	revision int64,
+) (app.Approval, error) {
 	o.calls++
 	o.revision = revision
 	return app.Approval{}, app.ErrAborted
 }
-func (o *reviewOperations) RejectRequest(_ context.Context, _ app.Caller, _, note string, revision int64) (app.AdditionRequest, error) {
+
+func (o *reviewOperations) RejectRequest(
+	_ context.Context,
+	_ app.Caller,
+	_, note string,
+	revision int64,
+) (app.AdditionRequest, error) {
 	o.calls++
 	o.revision = revision
 	o.note = note
@@ -35,7 +46,11 @@ func TestDecisionRevisionValidationAndConflictMapping(t *testing.T) {
 	for _, method := range []string{"approve", "reject"} {
 		t.Run(method, func(t *testing.T) {
 			operations := &reviewOperations{}
-			handler := NewServer(operations, func(context.Context) app.Caller { return app.Caller{ID: "admin", Role: "admin"} }, time.Now)
+			handler := NewServer(
+				operations,
+				func(context.Context) app.Caller { return app.Caller{ID: "admin", Role: "admin"} },
+				time.Now,
+			)
 			mux := http.NewServeMux()
 			if err := Mount(mux, handler, func(h http.Handler) http.Handler { return h }); err != nil {
 				t.Fatal(err)
@@ -46,10 +61,24 @@ func TestDecisionRevisionValidationAndConflictMapping(t *testing.T) {
 			decide := func(revision int64) error {
 				id := "11111111-1111-4111-8111-111111111111"
 				if method == "approve" {
-					_, err := client.ApproveLocationAdditionRequest(context.Background(), connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{Id: id, ExpectedRevision: revision}))
+					_, err := client.ApproveLocationAdditionRequest(
+						context.Background(),
+						connect.NewRequest(
+							&pb.ApproveLocationAdditionRequestRequest{Id: id, ExpectedRevision: revision},
+						),
+					)
 					return err
 				}
-				_, err := client.RejectLocationAdditionRequest(context.Background(), connect.NewRequest(&pb.RejectLocationAdditionRequestRequest{Id: id, ExpectedRevision: revision, ReviewNote: "  Not on campus  "}))
+				_, err := client.RejectLocationAdditionRequest(
+					context.Background(),
+					connect.NewRequest(
+						&pb.RejectLocationAdditionRequestRequest{
+							Id:               id,
+							ExpectedRevision: revision,
+							ReviewNote:       "  Not on campus  ",
+						},
+					),
+				)
 				return err
 			}
 			for _, revision := range []int64{0, -1} {

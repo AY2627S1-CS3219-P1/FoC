@@ -54,7 +54,13 @@ func (f *fakeAdmin) Unarchive(ctx context.Context, _ string) (domainshared.Locat
 }
 
 func testAdminLocation() domainshared.Location {
-	return domainshared.Location{ID: locationID, Name: "Cafe", Building: domainshared.Building{ID: buildingID}, Coordinates: domainshared.Coordinates{Latitude: 1.294, Longitude: 103.774}, Revision: 1}
+	return domainshared.Location{
+		ID:          locationID,
+		Name:        "Cafe",
+		Building:    domainshared.Building{ID: buildingID},
+		Coordinates: domainshared.Coordinates{Latitude: 1.294, Longitude: 103.774},
+		Revision:    1,
+	}
 }
 
 func adminClient(t *testing.T, admin LocationAdmin, role string) locationv1connect.LocationAdminServiceClient {
@@ -94,15 +100,31 @@ func TestAdminRPCOnlyAdministratorRoles(t *testing.T) {
 					return err
 				}},
 				{"update", func() error {
-					_, err := client.UpdateLocation(ctx, connect.NewRequest(&locationv1.UpdateLocationRequest{Id: locationID, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}}, Location: &locationv1.LocationInput{Floor: proto.String("2")}}))
+					_, err := client.UpdateLocation(
+						ctx,
+						connect.NewRequest(
+							&locationv1.UpdateLocationRequest{
+								Id:               locationID,
+								ExpectedRevision: 1,
+								UpdateMask:       &fieldmaskpb.FieldMask{Paths: []string{"floor"}},
+								Location:         &locationv1.LocationInput{Floor: proto.String("2")},
+							},
+						),
+					)
 					return err
 				}},
 				{"archive", func() error {
-					_, err := client.ArchiveLocation(ctx, connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
+					_, err := client.ArchiveLocation(
+						ctx,
+						connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}),
+					)
 					return err
 				}},
 				{"unarchive", func() error {
-					_, err := client.UnarchiveLocation(ctx, connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}))
+					_, err := client.UnarchiveLocation(
+						ctx,
+						connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}),
+					)
 					return err
 				}},
 			}
@@ -147,7 +169,15 @@ func TestAdminRPCClockPrecisionChecksOnlyMaskedFields(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || fake.called != "" {
 		t.Fatalf("create code=%v called=%q", connect.CodeOf(err), fake.called)
 	}
-	update := &locationv1.UpdateLocationRequest{Id: locationID, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}}, Location: &locationv1.LocationInput{Floor: proto.String("2"), OpensAt: &timeofday.TimeOfDay{Hours: 8, Nanos: 1}}}
+	update := &locationv1.UpdateLocationRequest{
+		Id:               locationID,
+		ExpectedRevision: 1,
+		UpdateMask:       &fieldmaskpb.FieldMask{Paths: []string{"floor"}},
+		Location: &locationv1.LocationInput{
+			Floor:   proto.String("2"),
+			OpensAt: &timeofday.TimeOfDay{Hours: 8, Nanos: 1},
+		},
+	}
 	_, err = client.UpdateLocation(context.Background(), connect.NewRequest(update))
 	if err != nil || fake.called != "update" || fake.updated.Input.OpensAt == nil {
 		t.Fatalf("unmasked time: err=%v called=%q", err, fake.called)
@@ -173,7 +203,10 @@ func TestAdminRPCMapsDomainErrors(t *testing.T) {
 	} {
 		fake := &fakeAdmin{err: row.err}
 		client := adminClient(t, fake, "admin")
-		_, err := client.ArchiveLocation(context.Background(), connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
+		_, err := client.ArchiveLocation(
+			context.Background(),
+			connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}),
+		)
 		if connect.CodeOf(err) != row.code {
 			t.Fatalf("error %v maps to %v, want %v", row.err, connect.CodeOf(err), row.code)
 		}
@@ -216,15 +249,31 @@ func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
 					return err
 				}},
 				{"update", func() error {
-					_, err := client.UpdateLocation(ctx, connect.NewRequest(&locationv1.UpdateLocationRequest{Id: locationID, ExpectedRevision: 1, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"floor"}}, Location: &locationv1.LocationInput{Floor: proto.String("2")}}))
+					_, err := client.UpdateLocation(
+						ctx,
+						connect.NewRequest(
+							&locationv1.UpdateLocationRequest{
+								Id:               locationID,
+								ExpectedRevision: 1,
+								UpdateMask:       &fieldmaskpb.FieldMask{Paths: []string{"floor"}},
+								Location:         &locationv1.LocationInput{Floor: proto.String("2")},
+							},
+						),
+					)
 					return err
 				}},
 				{"archive", func() error {
-					_, err := client.ArchiveLocation(ctx, connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}))
+					_, err := client.ArchiveLocation(
+						ctx,
+						connect.NewRequest(&locationv1.ArchiveLocationRequest{Id: locationID}),
+					)
 					return err
 				}},
 				{"unarchive", func() error {
-					_, err := client.UnarchiveLocation(ctx, connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}))
+					_, err := client.UnarchiveLocation(
+						ctx,
+						connect.NewRequest(&locationv1.UnarchiveLocationRequest{Id: locationID}),
+					)
 					return err
 				}},
 			}
@@ -233,7 +282,8 @@ func TestAdminRPCPreservesSharedErrorResponses(t *testing.T) {
 				t.Run(call.name, func(t *testing.T) {
 					err := call.call()
 					var transportError *connect.Error
-					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+					if !errors.As(err, &transportError) || transportError.Code() != row.code ||
+						transportError.Message() != row.message {
 						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
 					}
 				})

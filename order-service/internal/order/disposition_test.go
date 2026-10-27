@@ -41,20 +41,36 @@ func TestDispositionCorrectionAndIdenticalRetry(t *testing.T) {
 		t.Run(string(status), func(t *testing.T) {
 			s, tx, original := cancellationFixture(status)
 			for i, location := range []string{"Library desk", "Residence reception"} {
-				got, err := s.RecordItemLocation(context.Background(), Caller{ID: "courier", Suspended: true}, original.ID, "  "+location+"  ")
+				got, err := s.RecordItemLocation(
+					context.Background(),
+					Caller{ID: "courier", Suspended: true},
+					original.ID,
+					"  "+location+"  ",
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got.ItemLocation == nil || *got.ItemLocation != location || got.Revision != int64(8+i) || got.Status != status || len(tx.change.Facts) != 0 {
+				if got.ItemLocation == nil || *got.ItemLocation != location || got.Revision != int64(8+i) ||
+					got.Status != status ||
+					len(tx.change.Facts) != 0 {
 					t.Fatalf("result=%+v facts=%v", got, tx.change.Facts)
 				}
 				var audit map[string]string
-				if err := json.Unmarshal(tx.change.Audit.Details, &audit); err != nil || audit["item_location"] != location {
+				if err := json.Unmarshal(
+					tx.change.Audit.Details,
+					&audit,
+				); err != nil ||
+					audit["item_location"] != location {
 					t.Fatalf("audit=%s error=%v", tx.change.Audit.Details, err)
 				}
 				tx.order = cloneOrder(got)
 				applied := tx.applied
-				repeated, err := s.RecordItemLocation(context.Background(), Caller{ID: "courier"}, original.ID, location)
+				repeated, err := s.RecordItemLocation(
+					context.Background(),
+					Caller{ID: "courier"},
+					original.ID,
+					location,
+				)
 				if err != nil || !reflect.DeepEqual(repeated, got) || tx.applied != applied {
 					t.Fatalf("retry changed disposition: %+v %v", repeated, err)
 				}
@@ -101,11 +117,23 @@ func TestCancellationAndDispositionValidateTextBeforeLocking(t *testing.T) {
 	s, tx, o := cancellationFixture(Delivering)
 	tooLong := strings.Repeat("界", 501)
 	for _, location := range []string{"  ", tooLong, string([]byte{0xff})} {
-		if _, err := s.RecordItemLocation(context.Background(), Caller{ID: "courier"}, o.ID, location); !errors.Is(err, ErrInvalid) || len(*tx.events) != 0 {
+		if _, err := s.RecordItemLocation(
+			context.Background(),
+			Caller{ID: "courier"},
+			o.ID,
+			location,
+		); !errors.Is(err, ErrInvalid) ||
+			len(*tx.events) != 0 {
 			t.Fatalf("invalid location reached lock: %v", err)
 		}
 	}
-	if _, err := s.RecordItemLocation(context.Background(), Caller{ID: "courier"}, "invalid", "desk"); !errors.Is(err, ErrInvalid) || len(*tx.events) != 0 {
+	if _, err := s.RecordItemLocation(
+		context.Background(),
+		Caller{ID: "courier"},
+		"invalid",
+		"desk",
+	); !errors.Is(err, ErrInvalid) ||
+		len(*tx.events) != 0 {
 		t.Fatalf("invalid ID reached lock: %v", err)
 	}
 }

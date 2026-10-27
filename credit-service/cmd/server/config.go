@@ -56,7 +56,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
 	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {

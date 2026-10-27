@@ -45,7 +45,10 @@ func Mount(mux *http.ServeMux, handler *Server, authenticate func(http.Handler) 
 	if err != nil {
 		return err
 	}
-	path, h := locationv1connect.NewLocationAdditionRequestServiceHandler(handler, connect.WithInterceptors(CallerInterceptor(handler.principal, validator)))
+	path, h := locationv1connect.NewLocationAdditionRequestServiceHandler(
+		handler,
+		connect.WithInterceptors(CallerInterceptor(handler.principal, validator)),
+	)
 	mux.Handle(path, authenticate(h))
 	return nil
 }

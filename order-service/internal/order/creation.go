@@ -23,7 +23,12 @@ type Creator struct {
 	newID      func() string
 }
 
-func NewCreator(repository CreationRepository, locations CreationLocations, credit CreationCredit, options CreationOptions) *Creator {
+func NewCreator(
+	repository CreationRepository,
+	locations CreationLocations,
+	credit CreationCredit,
+	options CreationOptions,
+) *Creator {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -96,7 +101,10 @@ func (s *Creator) Create(ctx context.Context, caller Caller, input CreateInput) 
 	}
 
 	err = s.repository.WithinCreation(ctx, func(tx CreationTx) error {
-		if err := tx.LockIdempotencyCaller(ctx, IdempotencyScope{CallerID: caller.ID, Method: CreateOrderMethod}); err != nil {
+		if err := tx.LockIdempotencyCaller(
+			ctx,
+			IdempotencyScope{CallerID: caller.ID, Method: CreateOrderMethod},
+		); err != nil {
 			return err
 		}
 		now := s.now().UTC()
@@ -188,10 +196,13 @@ func canonicalCreation(in CreateInput) (CreateInput, []byte, string, error) {
 		return in, nil, "", ErrInvalid
 	}
 	descriptionLength := utf8.RuneCountInString(in.ItemDescription)
-	if descriptionLength < 1 || descriptionLength > 1000 || (in.Instructions != nil && utf8.RuneCountInString(*in.Instructions) > 500) {
+	if descriptionLength < 1 || descriptionLength > 1000 ||
+		(in.Instructions != nil && utf8.RuneCountInString(*in.Instructions) > 500) {
 		return in, nil, "", ErrInvalid
 	}
-	if in.DeliveryDuration < 5*time.Minute || in.DeliveryDuration > 24*time.Hour || in.ExpiresAt.IsZero() || in.ExpiresAt.Year() < 1 || in.ExpiresAt.Year() > 9999 {
+	if in.DeliveryDuration < 5*time.Minute || in.DeliveryDuration > 24*time.Hour || in.ExpiresAt.IsZero() ||
+		in.ExpiresAt.Year() < 1 ||
+		in.ExpiresAt.Year() > 9999 {
 		return in, nil, "", ErrInvalid
 	}
 	in.ExpiresAt = in.ExpiresAt.UTC()
@@ -250,7 +261,10 @@ func (s *Creator) resume(ctx context.Context, replay CreationReplay, hash string
 func (s *Creator) findCreation(ctx context.Context, caller, key string) (*CreationReplay, error) {
 	var result *CreationReplay
 	err := s.repository.WithinCreation(ctx, func(tx CreationTx) error {
-		if err := tx.LockIdempotencyCaller(ctx, IdempotencyScope{CallerID: caller, Method: CreateOrderMethod}); err != nil {
+		if err := tx.LockIdempotencyCaller(
+			ctx,
+			IdempotencyScope{CallerID: caller, Method: CreateOrderMethod},
+		); err != nil {
 			return err
 		}
 		var err error

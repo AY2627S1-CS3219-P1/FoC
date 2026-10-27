@@ -12,7 +12,12 @@ func (r *PostgresRepository) WithinExpiryTimers(ctx context.Context, fn func(Exp
 	return r.WithinProofs(ctx, func(tx ProofTx) error { return fn(tx) })
 }
 
-func (r *PostgresRepository) DueExpiryTimers(ctx context.Context, now time.Time, after string, limit int32) ([]string, error) {
+func (r *PostgresRepository) DueExpiryTimers(
+	ctx context.Context,
+	now time.Time,
+	after string,
+	limit int32,
+) ([]string, error) {
 	cursor, err := uuid.Parse(after)
 	if err != nil || limit < 1 || limit > expiryTimerBatchSize {
 		return nil, ErrInvalid

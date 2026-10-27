@@ -81,7 +81,10 @@ func (c credit) account(t *testing.T, userID string) *creditv1.Account {
 
 func (c credit) ledger(t *testing.T, userID string) []creditv1.LedgerEntryKind {
 	t.Helper()
-	res, err := c.accounts.ListMyLedgerEntries(context.Background(), withBearer(&creditv1.ListMyLedgerEntriesRequest{}, userID))
+	res, err := c.accounts.ListMyLedgerEntries(
+		context.Background(),
+		withBearer(&creditv1.ListMyLedgerEntriesRequest{}, userID),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,10 @@ func TestCreditOverPostgres(t *testing.T) {
 	t.Run("an order outcome settles a reservation made over RPC once", func(t *testing.T) {
 		order, requester, courier, offer := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 
-		_, err := c.reservations.Reserve(ctx, connect.NewRequest(&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: 30}))
+		_, err := c.reservations.Reserve(
+			ctx,
+			connect.NewRequest(&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: 30}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,11 +147,16 @@ func TestCreditOverPostgres(t *testing.T) {
 			}
 		}
 
-		res, err := c.reservations.GetReservation(ctx, connect.NewRequest(&creditv1.GetReservationRequest{RequestId: order}))
+		res, err := c.reservations.GetReservation(
+			ctx,
+			connect.NewRequest(&creditv1.GetReservationRequest{RequestId: order}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s := res.Msg.GetReservation().GetSettlement(); s.GetPaidToCourier() != 15 || s.GetReturnedToRequester() != 15 {
+		if s := res.Msg.GetReservation().
+			GetSettlement(); s.GetPaidToCourier() != 15 ||
+			s.GetReturnedToRequester() != 15 {
 			t.Fatalf("settlement: %v", s)
 		}
 		if a := c.account(t, requester); a.GetBalance() != 85 || a.GetReserved() != 0 {
@@ -169,7 +180,10 @@ func TestCreditOverPostgres(t *testing.T) {
 
 	t.Run("a mismatched outcome is acknowledged without moving credits", func(t *testing.T) {
 		order, requester := uuid.NewString(), uuid.NewString()
-		_, err := c.reservations.Reserve(ctx, connect.NewRequest(&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: 10}))
+		_, err := c.reservations.Reserve(
+			ctx,
+			connect.NewRequest(&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: 10}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +221,13 @@ func TestCreditOverPostgres(t *testing.T) {
 		if a := c.account(t, user); a.GetBalance() != account.StartingCredits {
 			t.Fatalf("account: %v", a)
 		}
-		if got := c.ledger(t, user); !equalKinds(got, []creditv1.LedgerEntryKind{creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT}) {
+		if got := c.ledger(
+			t,
+			user,
+		); !equalKinds(
+			got,
+			[]creditv1.LedgerEntryKind{creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT},
+		) {
 			t.Fatalf("ledger %v", got)
 		}
 	})

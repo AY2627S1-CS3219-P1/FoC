@@ -32,7 +32,11 @@
 
 ## Go checks
 
-- Run `make fmt` from the repository root to apply Go formatting.
+- Use `gofmt` and `golines` for handwritten Go, with a target line width of
+  120 characters. Generated files are excluded from formatting.
+- Run `make fmt` from the repository root to apply Go formatting. It runs
+  `fmt-check` after each pass and stops when the check passes, failing after
+  five unsuccessful attempts.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the

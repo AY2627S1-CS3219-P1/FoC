@@ -67,7 +67,8 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		defer ticker.Stop()
 		for {
 			var due bool
-			if err := f.pool.QueryRow(ctx, `SELECT (EXTRACT(EPOCH FROM clock_timestamp())-EXTRACT(EPOCH FROM picked_up_at))*1000000000 >= delivery_duration_ns::numeric*2 FROM orders WHERE id=$1`, id).Scan(&due); err != nil {
+			if err := f.pool.QueryRow(ctx, `SELECT (EXTRACT(EPOCH FROM clock_timestamp())-EXTRACT(EPOCH FROM picked_up_at))*1000000000 >= delivery_duration_ns::numeric*2 FROM orders WHERE id=$1`, id).
+				Scan(&due); err != nil {
 				t.Fatal(err)
 			}
 			if due {
@@ -103,7 +104,11 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		for range 50 {
 			wg.Go(func() { failures <- NewDeliveryTimers(f.repo, DeliveryTimerOptions{}).Timeout(f.ctx, o.ID) })
 		}
-		_, admissionErr := receipts.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{proof.ID}})
+		_, admissionErr := receipts.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{proof.ID}},
+		)
 		if !errors.Is(admissionErr, ErrPrecondition) {
 			t.Fatalf("late admission: %v", admissionErr)
 		}
@@ -118,14 +123,16 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Status != Failed || got.Revision != before.Revision+1 || got.DeliveredAt != nil || got.ClosedAt == nil || got.ReservedCredits != before.ReservedCredits {
+		if got.Status != Failed || got.Revision != before.Revision+1 || got.DeliveredAt != nil || got.ClosedAt == nil ||
+			got.ReservedCredits != before.ReservedCredits {
 			t.Fatalf("bad terminal timeout: %+v", got)
 		}
 		if a, n, w := counts(t, o.ID); a != 1 || n != 1 || w != 1 {
 			t.Fatalf("duplicate/missing records: audit=%d outcome=%d warning=%d", a, n, w)
 		}
 		var payload []byte
-		if err := f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&payload); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+			Scan(&payload); err != nil {
 			t.Fatal(err)
 		}
 		var fact FactsPayload
@@ -135,7 +142,9 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if fact.Action != Timeout || fact.Status != Failed || !fact.At.Equal(*got.ClosedAt) || fact.DeliveredAt != nil {
 			t.Fatalf("wrong settlement observations: %+v", fact)
 		}
-		t.Log("50 timeout contenders + late confirmation -> one Failed revision, one System timeout audit, one outcome and one warning; no invented delivery/refund")
+		t.Log(
+			"50 timeout contenders + late confirmation -> one Failed revision, one System timeout audit, one outcome and one warning; no invented delivery/refund",
+		)
 	})
 	t.Run("on-time unavailable submission survives timeout and restart", func(t *testing.T) {
 		receipts, d, o, courier, proof := prepare(t)
@@ -146,7 +155,8 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		var received time.Time
-		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1 AND state='pending'", o.ID).Scan(&received); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1 AND state='pending'", o.ID).
+			Scan(&received); err != nil {
 			t.Fatal(err)
 		}
 		awaitDue(t, o.ID)
@@ -166,10 +176,13 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err = f.repo.Get(f.ctx, o.ID)
-		if err != nil || got.Status != Delivered || got.DeliveredAt == nil || !got.DeliveredAt.Equal(received) || !got.UpdatedAt.After(got.PickedUpAt.Add(2*got.DeliveryDuration)) {
+		if err != nil || got.Status != Delivered || got.DeliveredAt == nil || !got.DeliveredAt.Equal(received) ||
+			!got.UpdatedAt.After(got.PickedUpAt.Add(2*got.DeliveryDuration)) {
 			t.Fatalf("lost receipt/effective delivery on restart: %+v %v", got, err)
 		}
-		if _, err := NewProgress(NewMutator(f.repo)).ConfirmReceipt(f.ctx, Caller{ID: o.RequesterID}, o.ID); err != nil {
+		if _, err := NewProgress(
+			NewMutator(f.repo),
+		).ConfirmReceipt(f.ctx, Caller{ID: o.RequesterID}, o.ID); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := restarted.ConfirmDelivery(f.ctx, courier, input); err != nil {
@@ -181,7 +194,9 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if a, n, w := counts(t, o.ID); a != 0 || n != 1 || w != 0 {
 			t.Fatalf("successful recovery also timed out: %d %d %d", a, n, w)
 		}
-		t.Log("preverified on-time receipt survives actual deadline and timer scan; fresh proof controller recovers original effective time; Completed replay succeeds; no timeout warning")
+		t.Log(
+			"preverified on-time receipt survives actual deadline and timer scan; fresh proof controller recovers original effective time; Completed replay succeeds; no timeout warning",
+		)
 	})
 	t.Run("invalid pending releases timeout without lending receipt", func(t *testing.T) {
 		receipts, d, o, courier, proof := prepare(t)
@@ -217,7 +232,9 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if a, n, w := counts(t, o.ID); a != 1 || n != 1 || w != 1 {
 			t.Fatalf("bad timeout after rejection: %d %d %d", a, n, w)
 		}
-		t.Log("unavailable receipt protects order; definitive invalid proof releases protection; timeout commits once; rejected receipt cannot be replayed into delivery")
+		t.Log(
+			"unavailable receipt protects order; definitive invalid proof releases protection; timeout commits once; rejected receipt cannot be replayed into delivery",
+		)
 	})
 	t.Run("SQL discovery and pending predicate agree at microsecond boundary", func(t *testing.T) {
 		for _, extra := range []time.Duration{0, time.Nanosecond} {
@@ -228,7 +245,13 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 			}
 			duration := 5*time.Minute + extra
 			picked := at.Add(-10 * time.Minute)
-			if _, err := f.pool.Exec(f.ctx, "UPDATE orders SET picked_up_at=$2,delivery_duration_ns=$3 WHERE id=$1", o.ID, picked, int64(duration)); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"UPDATE orders SET picked_up_at=$2,delivery_duration_ns=$3 WHERE id=$1",
+				o.ID,
+				picked,
+				int64(duration),
+			); err != nil {
 				t.Fatal(err)
 			}
 			ids, err := f.repo.DueDeliveryTimers(f.ctx, at, uuid.Nil.String(), deliveryTimerBatchSize)
@@ -238,7 +261,12 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 			if (len(ids) == 1) != (extra == 0) {
 				t.Fatalf("numeric discovery rounded fractional deadline early: extra=%s ids=%v", extra, ids)
 			}
-			ids, err = f.repo.DueDeliveryTimers(f.ctx, at.Add(time.Microsecond), uuid.Nil.String(), deliveryTimerBatchSize)
+			ids, err = f.repo.DueDeliveryTimers(
+				f.ctx,
+				at.Add(time.Microsecond),
+				uuid.Nil.String(),
+				deliveryTimerBatchSize,
+			)
 			if err != nil || len(ids) != 1 || ids[0] != o.ID {
 				t.Fatalf("next representable instant did not discover deadline: %v %v", ids, err)
 			}
@@ -267,7 +295,12 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 				t.Fatalf("strict pending boundary disagrees: extra=%s pending=%v", extra, pending)
 			}
 			// Synthetic receipt timestamps isolate SQL precision, not live admission.
-			if _, err := f.pool.Exec(f.ctx, "UPDATE order_delivery_receipts SET received_at=$2 WHERE order_id=$1", o.ID, at.Add(time.Microsecond)); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"UPDATE order_delivery_receipts SET received_at=$2 WHERE order_id=$1",
+				o.ID,
+				at.Add(time.Microsecond),
+			); err != nil {
 				t.Fatal(err)
 			}
 			if err := f.repo.WithinProofs(f.ctx, func(base ProofTx) error {
@@ -281,7 +314,9 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 				t.Fatalf("late pending record suppressed timeout: %v %v", pending, err)
 			}
 		}
-		t.Log("real SQL: equality is due/not eligible; +2ns deadline waits until next microsecond and protects only the prior representable receipt")
+		t.Log(
+			"real SQL: equality is due/not eligible; +2ns deadline waits until next microsecond and protects only the prior representable receipt",
+		)
 	})
 	t.Run("on-time pending commit is visible after timer lock wait", func(t *testing.T) {
 		_, _, o, courier, proof := prepare(t)
@@ -365,7 +400,9 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if a, n, w := counts(t, o.ID); a != 0 || n != 0 || w != 0 {
 			t.Fatalf("pending commit lost race: %d %d %d", a, n, w)
 		}
-		t.Log("timer waited on real PostgreSQL admission lock across deadline, then fresh pending read protected the order; no outcome/warning")
+		t.Log(
+			"timer waited on real PostgreSQL admission lock across deadline, then fresh pending read protected the order; no outcome/warning",
+		)
 	})
 	t.Run("cancellation wins over pending validation and timeout", func(t *testing.T) {
 		receipts, d, o, courier, proof := prepare(t)
@@ -389,6 +426,8 @@ func TestPostgresDeliveryTimers(t *testing.T) {
 		if a, n, w := counts(t, o.ID); a != 0 || n != 1 || w != 0 {
 			t.Fatalf("cancel generated duplicate timeout: %d %d %d", a, n, w)
 		}
-		t.Log("requester cancellation defeats pending proof; timer writes no timeout; recovery cannot resurrect the order")
+		t.Log(
+			"requester cancellation defeats pending proof; timer writes no timeout; recovery cannot resurrect the order",
+		)
 	})
 }

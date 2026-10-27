@@ -31,7 +31,14 @@ func TestSupportedProofImagesDecode(t *testing.T) {
 			if err := (NewDecoder("")).Validate(t.Context(), tc.media, body); err != nil {
 				t.Fatal(err)
 			}
-			if err := (NewDecoder("")).Validate(t.Context(), tc.media, []byte("not an image")); !errors.Is(err, app.ErrPrecondition) {
+			if err := (NewDecoder("")).Validate(
+				t.Context(),
+				tc.media,
+				[]byte("not an image"),
+			); !errors.Is(
+				err,
+				app.ErrPrecondition,
+			) {
 				t.Fatalf("accepted disguised text: %v", err)
 			}
 		})
@@ -64,7 +71,14 @@ func TestProofDecoderRejectsTruncatedAndMismatchedImages(t *testing.T) {
 }
 
 func TestProofDecoderMissingRuntimeIsNotAnUploadOutage(t *testing.T) {
-	if err := (NewDecoder("/not/an/installed/decoder")).Validate(context.Background(), "image/png", []byte("body")); !errors.Is(err, app.ErrUnavailable) {
+	if err := (NewDecoder("/not/an/installed/decoder")).Validate(
+		context.Background(),
+		"image/png",
+		[]byte("body"),
+	); !errors.Is(
+		err,
+		app.ErrUnavailable,
+	) {
 		t.Fatal(err)
 	}
 }
@@ -99,7 +113,12 @@ func TestProofDecoderExecutionTimeoutIsRetryable(t *testing.T) {
 	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec sleep 7\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := NewDecoder(binary).Validate(t.Context(), "image/jpeg", []byte("body")); !errors.Is(err, app.ErrUnavailable) {
+	if err := NewDecoder(
+		binary,
+	).Validate(t.Context(), "image/jpeg", []byte("body")); !errors.Is(
+		err,
+		app.ErrUnavailable,
+	) {
 		t.Fatalf("timeout classified as invalid media: %v", err)
 	}
 }
@@ -111,7 +130,12 @@ func TestProofDecoderExternalKillIsRetryable(t *testing.T) {
 	if err := os.WriteFile(binary, []byte("#!/bin/sh\nkill -KILL $$\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := NewDecoder(binary).Validate(t.Context(), "image/png", []byte("previously verified pixels")); !errors.Is(err, app.ErrUnavailable) {
+	if err := NewDecoder(
+		binary,
+	).Validate(t.Context(), "image/png", []byte("previously verified pixels")); !errors.Is(
+		err,
+		app.ErrUnavailable,
+	) {
 		t.Fatalf("external kill classified as invalid media: %v", err)
 	}
 }
@@ -120,10 +144,19 @@ func TestProofDecoderExternalKillIsRetryable(t *testing.T) {
 // even when os/exec reports its writer error instead of a process exit error.
 func TestProofDecoderOutputLimitRejectsMedia(t *testing.T) {
 	binary := t.TempDir() + "/verbose-decoder"
-	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec dd if=/dev/zero bs=1539 count=1 2>/dev/null\n"), 0700); err != nil {
+	if err := os.WriteFile(
+		binary,
+		[]byte("#!/bin/sh\nexec dd if=/dev/zero bs=1539 count=1 2>/dev/null\n"),
+		0700,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := NewDecoder(binary).Validate(t.Context(), "image/png", []byte("pixels")); !errors.Is(err, app.ErrPrecondition) {
+	if err := NewDecoder(
+		binary,
+	).Validate(t.Context(), "image/png", []byte("pixels")); !errors.Is(
+		err,
+		app.ErrPrecondition,
+	) {
 		t.Fatalf("output limit classified as retryable: %v", err)
 	}
 }

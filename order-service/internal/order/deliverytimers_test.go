@@ -48,11 +48,14 @@ func TestDeliveryTimerDeadlineAndAtomicFacts(t *testing.T) {
 				if err := json.Unmarshal(fact.Payload, &p); err != nil {
 					t.Fatal(err)
 				}
-				if p.Status != Failed || p.Action != Timeout || !p.At.Equal(now) || p.ReservedCredits != before.ReservedCredits || p.DeliveredAt != nil {
+				if p.Status != Failed || p.Action != Timeout || !p.At.Equal(now) ||
+					p.ReservedCredits != before.ReservedCredits ||
+					p.DeliveredAt != nil {
 					t.Fatalf("wrong timeout observations: %+v", p)
 				}
 			}
-			if kinds[StatusChanged] != 1 || kinds[Outcome] != 1 || kinds[CourierWarning] != 1 || len(change.Facts) != 3 {
+			if kinds[StatusChanged] != 1 || kinds[Outcome] != 1 || kinds[CourierWarning] != 1 ||
+				len(change.Facts) != 3 {
 				t.Fatalf("missing/duplicate timeout facts: %+v", kinds)
 			}
 			if err := s.Timeout(t.Context(), before.ID); err != nil || len(r.changes) != 1 {
@@ -153,7 +156,10 @@ func TestDeliveryTimerGuardAndCommitFailuresLeaveOrderRetryable(t *testing.T) {
 				t.Fatal("failure left partial terminal facts")
 			}
 			r.guardError, r.failID = nil, ""
-			if err := NewDeliveryTimers(r, DeliveryTimerOptions{TestNow: func() time.Time { return now }}).ScanOnce(t.Context()); err != nil {
+			if err := NewDeliveryTimers(
+				r,
+				DeliveryTimerOptions{TestNow: func() time.Time { return now }},
+			).ScanOnce(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			if r.orders[o.ID].Status != Failed || len(r.changes) != 1 {
@@ -242,7 +248,12 @@ func (r *deliveryTimerFake) WithinDeliveryTimers(ctx context.Context, fn func(De
 	})
 }
 
-func (r *deliveryTimerFake) DueDeliveryTimers(_ context.Context, now time.Time, after string, limit int32) ([]string, error) {
+func (r *deliveryTimerFake) DueDeliveryTimers(
+	_ context.Context,
+	now time.Time,
+	after string,
+	limit int32,
+) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var ids []string

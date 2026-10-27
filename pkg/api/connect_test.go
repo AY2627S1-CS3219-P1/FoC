@@ -33,7 +33,10 @@ func TestToConnectErrorUsesWrappedExternalError(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(http.StatusText(tc.status), func(t *testing.T) {
-			err := ToConnectError(context.Background(), fmt.Errorf("context: %w", connectTestError{status: tc.status, code: tc.code}))
+			err := ToConnectError(
+				context.Background(),
+				fmt.Errorf("context: %w", connectTestError{status: tc.status, code: tc.code}),
+			)
 			if got := connect.CodeOf(err); got != tc.code {
 				t.Fatalf("code = %v, want %v", got, tc.code)
 			}

@@ -42,7 +42,13 @@ func TestWaitForBotRetriesTransientFailures(t *testing.T) {
 
 func TestWaitForBotStopsOnRejectedToken(t *testing.T) {
 	bot := &fakeBot{errs: []error{telegram.ErrUnauthorized}}
-	if _, err := waitForBot(context.Background(), bot, discard, time.Millisecond); !errors.Is(err, telegram.ErrUnauthorized) || bot.calls != 1 {
+	if _, err := waitForBot(
+		context.Background(),
+		bot,
+		discard,
+		time.Millisecond,
+	); !errors.Is(err, telegram.ErrUnauthorized) ||
+		bot.calls != 1 {
 		t.Fatalf("err=%v calls=%d", err, bot.calls)
 	}
 }
@@ -63,7 +69,11 @@ func TestNotificationRetryDelay(t *testing.T) {
 		want time.Duration
 	}{
 		{"network failure", errors.New("connection reset"), time.Second},
-		{"long rate limit", fmt.Errorf("handler: %w", &telegram.APIError{Code: 429, RetryAfter: 2 * time.Minute}), 2 * time.Minute},
+		{
+			"long rate limit",
+			fmt.Errorf("handler: %w", &telegram.APIError{Code: 429, RetryAfter: 2 * time.Minute}),
+			2 * time.Minute,
+		},
 		{"short rate limit", &telegram.APIError{Code: 429, RetryAfter: time.Millisecond}, time.Second},
 		{"other API failure", &telegram.APIError{Code: 502}, time.Second},
 	}

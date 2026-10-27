@@ -82,7 +82,12 @@ func (h *Outcomes) Handle(ctx context.Context, meta kafka.Metadata, event *order
 
 	for _, mismatch := range mismatches {
 		if errors.Is(err, mismatch) {
-			log.ErrorContext(ctx, "Order outcome does not match Credit's records; acknowledged without settling", "error", err)
+			log.ErrorContext(
+				ctx,
+				"Order outcome does not match Credit's records; acknowledged without settling",
+				"error",
+				err,
+			)
 			return nil
 		}
 	}

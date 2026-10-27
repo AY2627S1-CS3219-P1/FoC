@@ -93,7 +93,9 @@ func (s *Canceller) ProcessCancellation(ctx context.Context, operationID string)
 
 func matchesWithdrawal(o Order, w Cancellation) bool {
 	return o.Status == AwaitingPickup && o.PendingCancellationID != nil && *o.PendingCancellationID == w.ID &&
-		o.IsAssignedTo(w.CourierID) && o.AssignedAt != nil && w.AssignedAt != nil && o.AssignedAt.Equal(*w.AssignedAt) && o.PickedUpAt == nil
+		o.IsAssignedTo(
+			w.CourierID,
+		) && o.AssignedAt != nil && w.AssignedAt != nil && o.AssignedAt.Equal(*w.AssignedAt) && o.PickedUpAt == nil
 }
 
 func confirmsWithdrawal(v *AssignmentReservation, w Cancellation, o Order) bool {

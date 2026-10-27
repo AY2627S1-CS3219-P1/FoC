@@ -54,7 +54,8 @@ func (s *S3) ProbeProofUpload(ctx context.Context, key string) (ProofProbeResult
 	// browser Host. Never rewrite a public HTTPS endpoint or client input.
 	internal, parseErr := url.Parse(s.probeEndpoint)
 	host := request.URL.Hostname()
-	if parseErr == nil && internal.Host != "" && internal.Scheme == "http" && request.URL.Scheme == "http" && (host == "localhost" || host == "127.0.0.1" || host == "::1") {
+	if parseErr == nil && internal.Host != "" && internal.Scheme == "http" && request.URL.Scheme == "http" &&
+		(host == "localhost" || host == "127.0.0.1" || host == "::1") {
 		request.Host = request.URL.Host
 		request.URL.Host = internal.Host
 	}
@@ -62,7 +63,10 @@ func (s *S3) ProbeProofUpload(ctx context.Context, key string) (ProofProbeResult
 	for key, value := range grant.Headers {
 		request.Header.Set(key, value)
 	}
-	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{
+		Timeout:       5 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		return ProofProbeResult{CleanupKey: key}, errors.New("proof upload path probe could not be confirmed")

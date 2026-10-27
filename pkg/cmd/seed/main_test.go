@@ -114,7 +114,13 @@ func TestInvalidManifestCannotExecuteAnyFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			called := false
-			err := run(context.Background(), path, false, func(context.Context, fixture, bool) error { called = true; return nil }, io.Discard)
+			err := run(
+				context.Background(),
+				path,
+				false,
+				func(context.Context, fixture, bool) error { called = true; return nil },
+				io.Discard,
+			)
 			if err == nil || called {
 				t.Fatalf("invalid manifest executed=%v error=%v", called, err)
 			}

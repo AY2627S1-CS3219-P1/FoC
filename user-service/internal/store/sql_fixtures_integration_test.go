@@ -68,7 +68,10 @@ func TestSQLFixturesPreserveUsersResetAndRejectIdentityConflicts(t *testing.T) {
 	if err := db.Where("email = ?", "other@demo.foc.test").Take(&other).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Model(&models.User{}).Where("id = ?", admin.ID).Updates(map[string]any{"role": "user", "description": "Edited"}).Error; err != nil {
+	if err := db.Model(&models.User{}).
+		Where("id = ?", admin.ID).
+		Updates(map[string]any{"role": "user", "description": "Edited"}).
+		Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Delete(&other).Error; err != nil {
@@ -99,14 +102,21 @@ func TestSQLFixturesPreserveUsersResetAndRejectIdentityConflicts(t *testing.T) {
 	if err := db.Model(&models.RoleChange{}).Count(&count).Error; err != nil || count != 1 {
 		t.Fatalf("audit count %d: %v", count, err)
 	}
-	if err := db.Model(&models.AllowedEmailDomain{}).Where("domain = ?", "demo.foc.test").Count(&count).Error; err != nil || count != 1 {
+	if err := db.Model(&models.AllowedEmailDomain{}).
+		Where("domain = ?", "demo.foc.test").
+		Count(&count).
+		Error; err != nil ||
+		count != 1 {
 		t.Fatalf("domain count %d: %v", count, err)
 	}
 	got = models.User{}
 	if err := db.Take(&got, unrelated.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Model(&models.User{}).Where("id = ?", other.ID).Update("email", "changed@example.com").Error; err != nil {
+	if err := db.Model(&models.User{}).
+		Where("id = ?", other.ID).
+		Update("email", "changed@example.com").
+		Error; err != nil {
 		t.Fatal(err)
 	}
 	before = list()

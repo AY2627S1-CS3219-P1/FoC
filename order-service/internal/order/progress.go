@@ -34,7 +34,13 @@ func (p *Progress) ConfirmReceipt(ctx context.Context, c Caller, id string) (Ord
 
 // advance applies one caller action to the locked order. stamp records the
 // action's own timestamp on the copy that becomes the next revision.
-func (p *Progress) advance(ctx context.Context, c Caller, id string, action Action, stamp func(*Order, time.Time)) (Order, error) {
+func (p *Progress) advance(
+	ctx context.Context,
+	c Caller,
+	id string,
+	action Action,
+	stamp func(*Order, time.Time),
+) (Order, error) {
 	if c.ID == "" {
 		return Order{}, ErrForbidden
 	}

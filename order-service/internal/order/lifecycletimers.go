@@ -30,7 +30,12 @@ type lifecycleTimerRetry struct {
 	seen        bool
 }
 
-func newLifecycleTimerScanner(kind string, testNow func() time.Time, discover func(context.Context, time.Time, string, int32) ([]string, error), attempt func(context.Context, string) error) *lifecycleTimerScanner {
+func newLifecycleTimerScanner(
+	kind string,
+	testNow func() time.Time,
+	discover func(context.Context, time.Time, string, int32) ([]string, error),
+	attempt func(context.Context, string) error,
+) *lifecycleTimerScanner {
 	now := testNow
 	if now == nil {
 		now = time.Now
@@ -133,7 +138,18 @@ func (s *lifecycleTimerScanner) ScanOnce(ctx context.Context) error {
 		retry.nextAttempt = s.now().UTC().Add(retry.delay)
 		retry.seen = true
 		s.retries[result.id] = retry
-		slog.WarnContext(ctx, "Order lifecycle attempt deferred", "timer", s.kind, "order_id", result.id, "error", result.err, "retry_at", retry.nextAttempt)
+		slog.WarnContext(
+			ctx,
+			"Order lifecycle attempt deferred",
+			"timer",
+			s.kind,
+			"order_id",
+			result.id,
+			"error",
+			result.err,
+			"retry_at",
+			retry.nextAttempt,
+		)
 	}
 
 	if len(ids) == lifecycleTimerBatchSize {

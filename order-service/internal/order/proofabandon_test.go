@@ -38,7 +38,12 @@ func TestProofAbandonmentFencesUnknownAndInFlightAdmissions(t *testing.T) {
 			s, r, d, _ := proofScenario()
 			in := proofUploadInput(d)
 			retire := func() {
-				if err := s.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, in.UploadID); err != nil {
+				if err := s.AbandonUpload(
+					t.Context(),
+					Caller{ID: proofCourier},
+					proofOrderID,
+					in.UploadID,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -66,10 +71,25 @@ func TestProofActiveQuotaStillAppliesAndAbandonmentProtectsAcceptedProofs(t *tes
 	for range MaxStagedProofs {
 		first = uploadedProof(t, s, d)
 	}
-	if _, _, err := s.CreateUpload(t.Context(), Caller{ID: proofCourier}, proofUploadInput(d)); !errors.Is(err, ErrPrecondition) {
+	if _, _, err := s.CreateUpload(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofUploadInput(d),
+	); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatal(err)
 	}
-	if err := s.AbandonUpload(t.Context(), Caller{ID: proofOther}, proofOrderID, first.UploadID); !errors.Is(err, ErrNotFound) {
+	if err := s.AbandonUpload(
+		t.Context(),
+		Caller{ID: proofOther},
+		proofOrderID,
+		first.UploadID,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
 		t.Fatal(err)
 	}
 	if err := s.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, first.UploadID); err != nil {
@@ -78,10 +98,22 @@ func TestProofActiveQuotaStillAppliesAndAbandonmentProtectsAcceptedProofs(t *tes
 	uploadedProof(t, s, d)
 	accepted, r, objects, _ := proofScenario()
 	row := uploadedProof(t, accepted, objects)
-	if _, err := accepted.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); err != nil {
+	if _, err := accepted.ConfirmDelivery(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofConfirmationInput(row),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := accepted.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.UploadID); !errors.Is(err, ErrPrecondition) {
+	if err := accepted.AbandonUpload(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofOrderID,
+		row.UploadID,
+	); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatal(err)
 	}
 	if r.uploads[row.ID].State != ProofAccepted || len(r.changes) != 1 {
@@ -111,7 +143,15 @@ func TestProofAbandonmentDoesNotAliasServerProofIDs(t *testing.T) {
 	if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, in); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AbandonUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.UploadID); !errors.Is(err, ErrPrecondition) {
+	if err := s.AbandonUpload(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofOrderID,
+		row.UploadID,
+	); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatal(err)
 	}
 }
@@ -121,7 +161,13 @@ func TestProofAbandonmentFenceRollsBackWithTransaction(t *testing.T) {
 	row := uploadedProof(t, s, d)
 	aborted := errors.New("transaction aborted")
 	err := r.WithinProofs(t.Context(), func(tx ProofTx) error {
-		if err := tx.AbandonProofUpload(t.Context(), proofOrderID, proofCourier, row.UploadID, row.CreatedAt); err != nil {
+		if err := tx.AbandonProofUpload(
+			t.Context(),
+			proofOrderID,
+			proofCourier,
+			row.UploadID,
+			row.CreatedAt,
+		); err != nil {
 			return err
 		}
 		return aborted

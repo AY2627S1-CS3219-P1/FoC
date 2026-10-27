@@ -44,7 +44,8 @@ func TestRemovedCourierSurvivesStatusEventWireEncoding(t *testing.T) {
 			if err := proto.Unmarshal(wire, &decoded); err != nil {
 				t.Fatal(err)
 			}
-			if decoded.PreviousCourierId == nil || *decoded.PreviousCourierId != courier || decoded.CourierId != nil || decoded.EventId != "stable-event" {
+			if decoded.PreviousCourierId == nil || *decoded.PreviousCourierId != courier || decoded.CourierId != nil ||
+				decoded.EventId != "stable-event" {
 				t.Fatalf("removed courier was lost or reassigned: %v", &decoded)
 			}
 		})

@@ -26,7 +26,8 @@ func TestProofReceiptAdmissionPreservesUploadReadFailures(t *testing.T) {
 			if !errors.Is(err, want) {
 				t.Fatalf("admission returned %v, want %v", err, want)
 			}
-			if memory.order.Status != Delivering || memory.confirmation != nil || len(memory.changes) != 0 || repository.inserted {
+			if memory.order.Status != Delivering || memory.confirmation != nil || len(memory.changes) != 0 ||
+				repository.inserted {
 				t.Fatal("failed admission changed delivery or created a receipt")
 			}
 		})

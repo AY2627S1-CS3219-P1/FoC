@@ -28,7 +28,10 @@ func newPostgresStore(t *testing.T) *PostgresStore {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `TRUNCATE order_participants, chat_messages, chat_reply_targets, chat_selections, order_notifications_sent`); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`TRUNCATE order_participants, chat_messages, chat_reply_targets, chat_selections, order_notifications_sent`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	return &PostgresStore{Pool: pool}
@@ -106,7 +109,10 @@ func TestPostgresDeleteExpired(t *testing.T) {
 		if err := s.SaveOrder(ctx, o, now); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.SaveMessage(ctx, Message{ID: uuid.New(), OrderID: o.ID, SenderID: courier, RecipientID: requester, Body: "hi", SentAt: now}); err != nil {
+		if err := s.SaveMessage(
+			ctx,
+			Message{ID: uuid.New(), OrderID: o.ID, SenderID: courier, RecipientID: requester, Body: "hi", SentAt: now},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.SaveReplyTarget(ctx, requesterChat, int64(i+1), o.ID, now); err != nil {
@@ -279,7 +285,17 @@ func TestPostgresRetentionRemovesOldOrphanMessages(t *testing.T) {
 		{recent.ID, cutoff.Add(-time.Hour)},
 	} {
 		id := uuid.New()
-		if err := s.SaveMessage(ctx, Message{ID: id, OrderID: tc.orderID, SenderID: courier, RecipientID: requester, Body: "hi", SentAt: tc.sentAt}); err != nil {
+		if err := s.SaveMessage(
+			ctx,
+			Message{
+				ID:          id,
+				OrderID:     tc.orderID,
+				SenderID:    courier,
+				RecipientID: requester,
+				Body:        "hi",
+				SentAt:      tc.sentAt,
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if tc.sentAt.Before(cutoff) && tc.orderID != active.ID && tc.orderID != recent.ID {
@@ -294,7 +310,9 @@ func TestPostgresRetentionRemovesOldOrphanMessages(t *testing.T) {
 	}
 	for _, id := range retained {
 		var exists bool
-		if err := s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM chat_messages WHERE id = $1)`, id).Scan(&exists); err != nil || !exists {
+		if err := s.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM chat_messages WHERE id = $1)`, id).
+			Scan(&exists); err != nil ||
+			!exists {
 			t.Fatalf("retained message %v: exists=%v, err=%v", id, exists, err)
 		}
 	}

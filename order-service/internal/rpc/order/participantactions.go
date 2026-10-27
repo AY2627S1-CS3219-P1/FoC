@@ -34,7 +34,10 @@ func (s *Server) participantView(ctx context.Context, id string) (*pb.Order, err
 	return shared.OrderView(ctx, caller, current, s.images)
 }
 
-func (s *Server) ConfirmPickup(ctx context.Context, req *connect.Request[pb.ConfirmPickupRequest]) (*connect.Response[pb.ConfirmPickupResponse], error) {
+func (s *Server) ConfirmPickup(
+	ctx context.Context,
+	req *connect.Request[pb.ConfirmPickupRequest],
+) (*connect.Response[pb.ConfirmPickupResponse], error) {
 	if s.progress == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
@@ -49,7 +52,10 @@ func (s *Server) ConfirmPickup(ctx context.Context, req *connect.Request[pb.Conf
 	return connect.NewResponse(&pb.ConfirmPickupResponse{Order: view}), nil
 }
 
-func (s *Server) ConfirmReceipt(ctx context.Context, req *connect.Request[pb.ConfirmReceiptRequest]) (*connect.Response[pb.ConfirmReceiptResponse], error) {
+func (s *Server) ConfirmReceipt(
+	ctx context.Context,
+	req *connect.Request[pb.ConfirmReceiptRequest],
+) (*connect.Response[pb.ConfirmReceiptResponse], error) {
 	if s.progress == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
@@ -64,7 +70,10 @@ func (s *Server) ConfirmReceipt(ctx context.Context, req *connect.Request[pb.Con
 	return connect.NewResponse(&pb.ConfirmReceiptResponse{Order: view}), nil
 }
 
-func (s *Server) RecordItemLocation(ctx context.Context, req *connect.Request[pb.RecordItemLocationRequest]) (*connect.Response[pb.RecordItemLocationResponse], error) {
+func (s *Server) RecordItemLocation(
+	ctx context.Context,
+	req *connect.Request[pb.RecordItemLocationRequest],
+) (*connect.Response[pb.RecordItemLocationResponse], error) {
 	if s.disposition == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}

@@ -31,7 +31,14 @@ const (
 )
 
 func order(status string) Order {
-	return Order{ID: uuid.New(), RequesterID: requester, CourierID: courier, Status: status, Revision: 3, PickupName: "Fine Food"}
+	return Order{
+		ID:          uuid.New(),
+		RequesterID: requester,
+		CourierID:   courier,
+		Status:      status,
+		Revision:    3,
+		PickupName:  "Fine Food",
+	}
 }
 
 func TestIsOpen(t *testing.T) {
@@ -75,7 +82,11 @@ func (f fakeOrders) SaveOrder(_ context.Context, o Order, _ time.Time) error {
 
 func TestProjection(t *testing.T) {
 	store := fakeOrders{}
-	p := &Projection{Store: store, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }}
+	p := &Projection{
+		Store: store,
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now:   func() time.Time { return now },
+	}
 	id := uuid.New()
 	e := &eventsv1.OrderStatusChanged{EventId: uuid.NewString(), OrderId: id.String(), Revision: 5,
 		Status: eventsv1.OrderStatus_ORDER_STATUS_CANCELLED, RequesterId: requester.String(),
@@ -88,7 +99,10 @@ func TestProjection(t *testing.T) {
 		t.Fatalf("stored = %+v", got)
 	}
 
-	if err := p.Apply(context.Background(), &eventsv1.OrderStatusChanged{OrderId: "bad", RequesterId: requester.String()}); err != nil {
+	if err := p.Apply(
+		context.Background(),
+		&eventsv1.OrderStatusChanged{OrderId: "bad", RequesterId: requester.String()},
+	); err != nil {
 		t.Fatalf("malformed event should be skipped: %v", err)
 	}
 }
@@ -102,7 +116,11 @@ type fakeStore struct {
 }
 
 func newStore(orders ...Order) *fakeStore {
-	s := &fakeStore{orders: map[uuid.UUID]Order{}, targets: map[[2]int64]uuid.UUID{}, selections: map[uuid.UUID]uuid.UUID{}}
+	s := &fakeStore{
+		orders:     map[uuid.UUID]Order{},
+		targets:    map[[2]int64]uuid.UUID{},
+		selections: map[uuid.UUID]uuid.UUID{},
+	}
 	for _, o := range orders {
 		s.orders[o.ID] = o
 	}
@@ -170,7 +188,12 @@ type fakeSender struct {
 	errs     map[int64]error
 }
 
-func (f *fakeSender) Send(_ context.Context, chatID int64, text string, kb *telegram.InlineKeyboard) (telegram.Message, error) {
+func (f *fakeSender) Send(
+	_ context.Context,
+	chatID int64,
+	text string,
+	kb *telegram.InlineKeyboard,
+) (telegram.Message, error) {
 	if err := f.errs[chatID]; err != nil {
 		return telegram.Message{}, err
 	}
@@ -213,7 +236,9 @@ func (f *fakeLinks) UnlinkChat(_ context.Context, chatID int64) error {
 func newRelay(orders ...Order) (*Relay, *fakeSender, *fakeStore, *fakeLinks) {
 	sender := &fakeSender{errs: map[int64]error{}}
 	store := newStore(orders...)
-	links := &fakeLinks{chats: map[uuid.UUID]int64{requester: requesterChat, courier: courierChat, stranger: strangerChat}}
+	links := &fakeLinks{
+		chats: map[uuid.UUID]int64{requester: requesterChat, courier: courierChat, stranger: strangerChat},
+	}
 	r := &Relay{Sender: sender, Links: links, Store: store,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }}
 	return r, sender, store, links
@@ -229,10 +254,13 @@ func TestRelayToTheOnlyOpenOrder(t *testing.T) {
 	if err := r.HandleMessage(context.Background(), text(courierChat, "I'm at the lobby")); err != nil {
 		t.Fatal(err)
 	}
-	if len(sender.sent) != 1 || sender.sent[0].chatID != requesterChat || sender.sent[0].text != "Your courier (Fine Food order):\nI'm at the lobby" {
+	if len(sender.sent) != 1 || sender.sent[0].chatID != requesterChat ||
+		sender.sent[0].text != "Your courier (Fine Food order):\nI'm at the lobby" {
 		t.Fatalf("sent = %+v", sender.sent)
 	}
-	if len(store.messages) != 1 || store.messages[0].Body != "I'm at the lobby" || store.messages[0].SenderID != courier || store.messages[0].RecipientID != requester {
+	if len(store.messages) != 1 || store.messages[0].Body != "I'm at the lobby" ||
+		store.messages[0].SenderID != courier ||
+		store.messages[0].RecipientID != requester {
 		t.Fatalf("stored = %+v", store.messages)
 	}
 	if store.targets[[2]int64{requesterChat, 101}] != o.ID || store.selections[courier] != o.ID {
@@ -271,7 +299,8 @@ func TestSeveralOpenOrdersAskWhichOne(t *testing.T) {
 	if err := r.HandleMessage(context.Background(), text(requesterChat, "Hello")); err != nil {
 		t.Fatal(err)
 	}
-	if len(store.messages) != 0 || len(sender.sent) != 1 || sender.sent[0].text != chooseReply || len(sender.sent[0].keyboard.Rows) != 2 {
+	if len(store.messages) != 0 || len(sender.sent) != 1 || sender.sent[0].text != chooseReply ||
+		len(sender.sent[0].keyboard.Rows) != 2 {
 		t.Fatalf("sent = %+v", sender.sent)
 	}
 }
@@ -308,7 +337,8 @@ func TestRelayRefusals(t *testing.T) {
 			if err := r.HandleMessage(context.Background(), msg); err != nil {
 				t.Fatal(err)
 			}
-			if len(store.messages) != 0 || len(sender.sent) != 1 || sender.sent[0].text != tc.want || sender.sent[0].chatID != tc.chatID {
+			if len(store.messages) != 0 || len(sender.sent) != 1 || sender.sent[0].text != tc.want ||
+				sender.sent[0].chatID != tc.chatID {
 				t.Fatalf("sent = %+v", sender.sent)
 			}
 		})
@@ -324,7 +354,13 @@ func TestRelayDeliveryFailures(t *testing.T) {
 		unlinkPeer bool
 	}{
 		{"recipient not connected", nil, true, notConnectedReply, false},
-		{"recipient blocked the bot", &telegram.APIError{Code: 403, Description: "Forbidden: bot was blocked by the user"}, false, unreachableReply, true},
+		{
+			"recipient blocked the bot",
+			&telegram.APIError{Code: 403, Description: "Forbidden: bot was blocked by the user"},
+			false,
+			unreachableReply,
+			true,
+		},
 		{"transient", errors.New("connection reset"), false, retryReply, false},
 	}
 	for _, tc := range cases {
@@ -343,7 +379,8 @@ func TestRelayDeliveryFailures(t *testing.T) {
 			if tc.unlink {
 				wantRecords = 0
 			}
-			if len(store.messages) != wantRecords || len(sender.sent) != 1 || sender.sent[0].text != tc.wantReply || sender.sent[0].chatID != courierChat {
+			if len(store.messages) != wantRecords || len(sender.sent) != 1 || sender.sent[0].text != tc.wantReply ||
+				sender.sent[0].chatID != courierChat {
 				t.Fatalf("sent = %+v stored = %+v", sender.sent, store.messages)
 			}
 			if (len(links.unlinked) == 1) != tc.unlinkPeer {
@@ -363,7 +400,12 @@ func TestShowChatsAndSelect(t *testing.T) {
 		t.Fatalf("sent = %+v", sender.sent)
 	}
 
-	cb := &telegram.CallbackQuery{ID: "cb", From: telegram.User{ID: courierChat}, Data: selectPrefix + b.ID.String(), Message: text(courierChat, "")}
+	cb := &telegram.CallbackQuery{
+		ID:      "cb",
+		From:    telegram.User{ID: courierChat},
+		Data:    selectPrefix + b.ID.String(),
+		Message: text(courierChat, ""),
+	}
 	if err := r.HandleCallback(context.Background(), cb); err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +439,12 @@ func TestCallbackRejectsForwardedButtonsAndGroupChats(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, sender, store, _ := newRelay(o)
-			cb := &telegram.CallbackQuery{ID: "cb", From: telegram.User{ID: tc.from}, Data: selectPrefix + o.ID.String(), Message: &telegram.Message{Chat: tc.chat}}
+			cb := &telegram.CallbackQuery{
+				ID:      "cb",
+				From:    telegram.User{ID: tc.from},
+				Data:    selectPrefix + o.ID.String(),
+				Message: &telegram.Message{Chat: tc.chat},
+			}
 			if err := r.HandleCallback(context.Background(), cb); err != nil {
 				t.Fatal(err)
 			}

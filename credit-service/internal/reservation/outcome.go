@@ -83,7 +83,14 @@ func (s *Service) ApplyOutcome(ctx context.Context, o OrderOutcome) (out Reserva
 // settle pays the courier and returns the rest of the hold to the requester.
 // payout decides the courier's share of the accepted offer; any hold above it
 // is refunded, so the requester's final cost equals the payout (C1.2.6).
-func settle(ctx context.Context, tx Tx, r Reservation, o OrderOutcome, payout PayoutRule, now time.Time) (Reservation, error) {
+func settle(
+	ctx context.Context,
+	tx Tx,
+	r Reservation,
+	o OrderOutcome,
+	payout PayoutRule,
+	now time.Time,
+) (Reservation, error) {
 	a, err := tx.Assignment(ctx, r.OrderID, r.AssignmentID)
 	if err != nil {
 		return Reservation{}, err

@@ -49,11 +49,19 @@ func (f *fakeReservations) record(call string) (reservation.Reservation, error) 
 	return r, f.err
 }
 
-func (f *fakeReservations) Reserve(_ context.Context, order, requester string, _ int64) (reservation.Reservation, error) {
+func (f *fakeReservations) Reserve(
+	_ context.Context,
+	order, requester string,
+	_ int64,
+) (reservation.Reservation, error) {
 	return f.record("reserve " + order + " " + requester)
 }
 
-func (f *fakeReservations) AdjustReservation(_ context.Context, _, offer, _ string, _ int64) (reservation.Reservation, error) {
+func (f *fakeReservations) AdjustReservation(
+	_ context.Context,
+	_, offer, _ string,
+	_ int64,
+) (reservation.Reservation, error) {
 	return f.record("adjust " + offer)
 }
 
@@ -61,7 +69,11 @@ func (f *fakeReservations) RevertAdjustment(_ context.Context, _, offer string) 
 	return f.record("revert " + offer)
 }
 
-func (f *fakeReservations) ReleaseReservation(_ context.Context, order string, reason reservation.ReleaseReason) (reservation.Reservation, error) {
+func (f *fakeReservations) ReleaseReservation(
+	_ context.Context,
+	order string,
+	reason reservation.ReleaseReason,
+) (reservation.Reservation, error) {
 	f.reason = reason
 	return f.record("release " + order)
 }
@@ -102,7 +114,10 @@ func start(t *testing.T) servers {
 	t.Helper()
 	s := servers{reservations: &fakeReservations{}, accounts: &fakeAccounts{}}
 	services := router.RPCServices{
-		Health:      &healthrpc.Checker{DB: pingable{}, Services: []string{creditv1connect.CreditReservationServiceName}},
+		Health: &healthrpc.Checker{
+			DB:       pingable{},
+			Services: []string{creditv1connect.CreditReservationServiceName},
+		},
 		Account:     &accountrpc.Server{Accounts: s.accounts},
 		Reservation: &reservationrpc.Server{Reservations: s.reservations},
 	}
@@ -136,11 +151,15 @@ func TestReservationRPCsServeOrderOnTheInternalListener(t *testing.T) {
 	client := creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, s.internal.URL)
 	ctx := context.Background()
 
-	res, err := client.Reserve(ctx, connect.NewRequest(&creditv1.ReserveRequest{RequestId: orderID, RequesterId: requesterID, Amount: 20}))
+	res, err := client.Reserve(
+		ctx,
+		connect.NewRequest(&creditv1.ReserveRequest{RequestId: orderID, RequesterId: requesterID, Amount: 20}),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := res.Msg.GetReservation(); r.GetRequestId() != orderID || r.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_HELD {
+	if r := res.Msg.GetReservation(); r.GetRequestId() != orderID ||
+		r.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_HELD {
 		t.Fatalf("reservation: %v", r)
 	}
 
@@ -163,7 +182,10 @@ func TestReservationRPCsValidateBeforeCallingTheDomain(t *testing.T) {
 	client := creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, s.internal.URL)
 	ctx := context.Background()
 
-	_, err := client.Reserve(ctx, connect.NewRequest(&creditv1.ReserveRequest{RequestId: "nope", RequesterId: requesterID, Amount: 20}))
+	_, err := client.Reserve(
+		ctx,
+		connect.NewRequest(&creditv1.ReserveRequest{RequestId: "nope", RequesterId: requesterID, Amount: 20}),
+	)
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("bad id: %v", err)
 	}
@@ -181,7 +203,10 @@ func TestReservationRPCsReportContractReasons(t *testing.T) {
 	s.reservations.err = reservation.ErrInsufficientCredits
 	client := creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, s.internal.URL)
 
-	_, err := client.Reserve(context.Background(), connect.NewRequest(&creditv1.ReserveRequest{RequestId: orderID, RequesterId: requesterID, Amount: 20}))
+	_, err := client.Reserve(
+		context.Background(),
+		connect.NewRequest(&creditv1.ReserveRequest{RequestId: orderID, RequesterId: requesterID, Amount: 20}),
+	)
 
 	var connectErr *connect.Error
 	if !errors.As(err, &connectErr) || connectErr.Code() != connect.CodeFailedPrecondition {
@@ -189,7 +214,8 @@ func TestReservationRPCsReportContractReasons(t *testing.T) {
 	}
 	for _, detail := range connectErr.Details() {
 		value, _ := detail.Value()
-		if info, ok := value.(*errdetails.ErrorInfo); ok && info.Domain == "credit.v1" && info.Reason == "INSUFFICIENT_CREDITS" {
+		if info, ok := value.(*errdetails.ErrorInfo); ok && info.Domain == "credit.v1" &&
+			info.Reason == "INSUFFICIENT_CREDITS" {
 			return
 		}
 	}
@@ -200,7 +226,10 @@ func TestReservationRPCsAreNotPublic(t *testing.T) {
 	s := start(t)
 	client := creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, s.public.URL)
 
-	_, err := client.GetReservation(context.Background(), withBearer(&creditv1.GetReservationRequest{RequestId: orderID}, "user:"+requesterID))
+	_, err := client.GetReservation(
+		context.Background(),
+		withBearer(&creditv1.GetReservationRequest{RequestId: orderID}, "user:"+requesterID),
+	)
 	if connect.CodeOf(err) != connect.CodeUnimplemented || len(s.reservations.calls) != 0 {
 		t.Fatalf("public reservation RPC: %v, calls %v", err, s.reservations.calls)
 	}
@@ -221,7 +250,10 @@ func TestAccountRPCsReadTheCallersAccount(t *testing.T) {
 		t.Fatalf("account: %v", a)
 	}
 
-	_, err = client.ListMyLedgerEntries(ctx, withBearer(&creditv1.ListMyLedgerEntriesRequest{Page: 2, PageSize: 10}, "user:"+requesterID))
+	_, err = client.ListMyLedgerEntries(
+		ctx,
+		withBearer(&creditv1.ListMyLedgerEntriesRequest{Page: 2, PageSize: 10}, "user:"+requesterID),
+	)
 	if err != nil || s.accounts.page != (account.Page{Number: 2, Size: 10}) {
 		t.Fatalf("list: %v, page %+v", err, s.accounts.page)
 	}
@@ -235,10 +267,18 @@ func TestAccountRPCsRejectAnonymousAndInvalidRequests(t *testing.T) {
 	client := creditv1connect.NewCreditAccountServiceClient(http.DefaultClient, s.public.URL)
 	ctx := context.Background()
 
-	if _, err := client.GetMyAccount(ctx, connect.NewRequest(&creditv1.GetMyAccountRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := client.GetMyAccount(
+		ctx,
+		connect.NewRequest(&creditv1.GetMyAccountRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("anonymous: %v", err)
 	}
-	_, err := client.ListMyLedgerEntries(ctx, withBearer(&creditv1.ListMyLedgerEntriesRequest{PageSize: 101}, "user:"+requesterID))
+	_, err := client.ListMyLedgerEntries(
+		ctx,
+		withBearer(&creditv1.ListMyLedgerEntriesRequest{PageSize: 101}, "user:"+requesterID),
+	)
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("page size: %v", err)
 	}
@@ -247,7 +287,12 @@ func TestAccountRPCsRejectAnonymousAndInvalidRequests(t *testing.T) {
 	}
 
 	s.accounts.err = account.ErrAccountNotFound
-	if _, err := client.GetMyAccount(ctx, withBearer(&creditv1.GetMyAccountRequest{}, "user:"+requesterID)); connect.CodeOf(err) != connect.CodeNotFound {
+	if _, err := client.GetMyAccount(
+		ctx,
+		withBearer(&creditv1.GetMyAccountRequest{}, "user:"+requesterID),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeNotFound {
 		t.Fatalf("missing account: %v", err)
 	}
 }

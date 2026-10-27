@@ -26,7 +26,10 @@ type Server struct {
 	Accounts Accounts
 }
 
-func (s *Server) GetMyAccount(ctx context.Context, _ *connect.Request[creditv1.GetMyAccountRequest]) (*connect.Response[creditv1.GetMyAccountResponse], error) {
+func (s *Server) GetMyAccount(
+	ctx context.Context,
+	_ *connect.Request[creditv1.GetMyAccountRequest],
+) (*connect.Response[creditv1.GetMyAccountResponse], error) {
 	caller, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("unauthenticated"))
@@ -39,7 +42,10 @@ func (s *Server) GetMyAccount(ctx context.Context, _ *connect.Request[creditv1.G
 	return connect.NewResponse(&creditv1.GetMyAccountResponse{Account: shared.Account(a)}), nil
 }
 
-func (s *Server) ListMyLedgerEntries(ctx context.Context, req *connect.Request[creditv1.ListMyLedgerEntriesRequest]) (*connect.Response[creditv1.ListMyLedgerEntriesResponse], error) {
+func (s *Server) ListMyLedgerEntries(
+	ctx context.Context,
+	req *connect.Request[creditv1.ListMyLedgerEntriesRequest],
+) (*connect.Response[creditv1.ListMyLedgerEntriesResponse], error) {
 	caller, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return nil, api.ToConnectError(ctx, errs.NewUnauthorizedError("unauthenticated"))

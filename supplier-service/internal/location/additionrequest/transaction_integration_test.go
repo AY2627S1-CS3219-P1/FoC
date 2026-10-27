@@ -24,7 +24,16 @@ func TestWorkflowCallbackErrorsPostGIS(t *testing.T) {
 			f.reset(t)
 			var createdID string
 			err := repository.Within(f.ctx, func(tx additionrequest.Tx) error {
-				location, err := tx.CreateLocation(f.ctx, additionrequest.Proposal{Name: "Rolled back Location", BuildingID: postgresBuildingID, Latitude: 1.294, Longitude: 103.774}, now)
+				location, err := tx.CreateLocation(
+					f.ctx,
+					additionrequest.Proposal{
+						Name:       "Rolled back Location",
+						BuildingID: postgresBuildingID,
+						Latitude:   1.294,
+						Longitude:  103.774,
+					},
+					now,
+				)
 				if err != nil {
 					return err
 				}
@@ -38,7 +47,9 @@ func TestWorkflowCallbackErrorsPostGIS(t *testing.T) {
 				t.Errorf("callback error identity changed: got=%v want=%v", err, tc.err)
 			}
 			var count int
-			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM locations WHERE id=$1", createdID).Scan(&count); err != nil || count != 0 {
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM locations WHERE id=$1", createdID).
+				Scan(&count); err != nil ||
+				count != 0 {
 				t.Fatalf("callback failure did not roll back Location: count=%d error=%v", count, err)
 			}
 		})

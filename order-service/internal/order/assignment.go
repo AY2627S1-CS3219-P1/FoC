@@ -36,14 +36,21 @@ func (r assignmentRepository) Within(_ context.Context, fn func(Tx) error) error
 	return fn(r.tx)
 }
 
-func (s *Assigner) mutate(ctx context.Context, orderID string, scope *IdempotencyScope, build func(AssignmentTx, Order, []Offer) (*Change, error)) error {
+func (s *Assigner) mutate(
+	ctx context.Context,
+	orderID string,
+	scope *IdempotencyScope,
+	build func(AssignmentTx, Order, []Offer) (*Change, error),
+) error {
 	return s.repository.WithinAssignment(ctx, func(tx AssignmentTx) error {
 		if scope != nil {
 			if err := tx.LockIdempotencyCaller(ctx, *scope); err != nil {
 				return err
 			}
 		}
-		return NewMutator(assignmentRepository{tx}).Mutate(ctx, orderID, func(o Order, offers []Offer) (*Change, error) {
+		return NewMutator(
+			assignmentRepository{tx},
+		).Mutate(ctx, orderID, func(o Order, offers []Offer) (*Change, error) {
 			change, err := build(tx, o, offers)
 			if err != nil || change == nil {
 				return change, err
@@ -51,7 +58,8 @@ func (s *Assigner) mutate(ctx context.Context, orderID string, scope *Idempotenc
 			var attempt *AssignmentAttempt
 			if change.Action != ProposeOffer {
 				for _, update := range change.Offers {
-					if change.Action == ResolveAssignment || update.ExpectedStatus == OfferAccepting || update.Offer.Status == OfferAccepting {
+					if change.Action == ResolveAssignment || update.ExpectedStatus == OfferAccepting ||
+						update.Offer.Status == OfferAccepting {
 						attempt, err = tx.OfferAssignment(ctx, update.Offer.ID)
 						if err != nil {
 							return nil, err
@@ -88,7 +96,13 @@ func assignmentHash(orderID string, amount int64) string {
 
 // MakeOffer records a proposal, without asking Credit about the requester's
 // balance. Replacing a proposal and retaining its retry key commit atomically.
-func (s *Assigner) MakeOffer(ctx context.Context, caller Caller, orderID string, credits int64, key string) (Offer, error) {
+func (s *Assigner) MakeOffer(
+	ctx context.Context,
+	caller Caller,
+	orderID string,
+	credits int64,
+	key string,
+) (Offer, error) {
 	caller, err := assignmentCaller(caller)
 	if err != nil {
 		return Offer{}, err
@@ -140,7 +154,15 @@ func (s *Assigner) MakeOffer(ctx context.Context, caller Caller, orderID string,
 		if credits <= o.RewardCredits {
 			return nil, ErrInvalid
 		}
-		result = Offer{ID: s.newID(), OrderID: orderID, CourierID: caller.ID, Credits: credits, Status: OfferOpen, CreatedAt: now, UpdatedAt: now}
+		result = Offer{
+			ID:        s.newID(),
+			OrderID:   orderID,
+			CourierID: caller.ID,
+			Credits:   credits,
+			Status:    OfferOpen,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
 		change, err := s.metadata(o, caller, ProposeOffer, now)
 		if err != nil {
 			return nil, err
@@ -153,7 +175,16 @@ func (s *Assigner) MakeOffer(ctx context.Context, caller Caller, orderID string,
 			}
 		}
 		change.Offers = append(change.Offers, OfferChange{Offer: result})
-		if err := tx.InsertIdempotencyKey(ctx, IdempotencyKey{Scope: scope, Key: key, ResourceID: result.ID, RequestHash: hash, ExpiresAt: now.Add(24 * time.Hour)}); err != nil {
+		if err := tx.InsertIdempotencyKey(
+			ctx,
+			IdempotencyKey{
+				Scope:       scope,
+				Key:         key,
+				ResourceID:  result.ID,
+				RequestHash: hash,
+				ExpiresAt:   now.Add(24 * time.Hour),
+			},
+		); err != nil {
 			return nil, err
 		}
 		return change, nil
@@ -216,7 +247,8 @@ func (s *Assigner) AcceptOrder(ctx context.Context, caller Caller, orderID, key 
 			if errors.Is(err, ErrNotFound) {
 				return nil, ErrIdempotencyIntegrity
 			}
-			if err == nil && (attempt.CallerID != caller.ID || attempt.Method != AcceptOrderMethod || attempt.Key != key || attempt.RequestHash != hash || attempt.OrderID != orderID) {
+			if err == nil &&
+				(attempt.CallerID != caller.ID || attempt.Method != AcceptOrderMethod || attempt.Key != key || attempt.RequestHash != hash || attempt.OrderID != orderID) {
 				return nil, ErrIdempotencyIntegrity
 			}
 			return nil, err
@@ -261,7 +293,15 @@ func (s *Assigner) AcceptOrder(ctx context.Context, caller Caller, orderID, key 
 		}
 		// Every assignment, including the original reward, has an immutable
 		// offer identity for Credit. Existing public counteroffers remain separate.
-		f := Offer{ID: s.newID(), OrderID: orderID, CourierID: caller.ID, Credits: o.RewardCredits, Status: OfferAccepting, CreatedAt: now, UpdatedAt: now}
+		f := Offer{
+			ID:        s.newID(),
+			OrderID:   orderID,
+			CourierID: caller.ID,
+			Credits:   o.RewardCredits,
+			Status:    OfferAccepting,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
 		attempt = s.attempt(o, f, caller, AcceptOrderMethod, key, hash, now)
 		if err := tx.InsertAssignment(ctx, attempt); err != nil {
 			return nil, err

@@ -24,7 +24,10 @@ func NewServer(operations Operations, images shared.ItemImageViews) *Server {
 	return &Server{operations: operations, images: images}
 }
 
-func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.ListUserOrdersRequest]) (*connect.Response[pb.ListUserOrdersResponse], error) {
+func (s *Server) ListUserOrders(
+	ctx context.Context,
+	req *connect.Request[pb.ListUserOrdersRequest],
+) (*connect.Response[pb.ListUserOrdersResponse], error) {
 	m := req.Msg
 	r, err := shared.ListRequest(m.GetPage(), m.GetPageSize(), m.GetStatus(), m.GetRole())
 	if err != nil {
