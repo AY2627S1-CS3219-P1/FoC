@@ -61,7 +61,10 @@ func TestTelegramLinkRequiresCaller(t *testing.T) {
 	srv := newServer(t)
 	client := communicationv1connect.NewTelegramLinkServiceClient(srv.Client(), srv.URL)
 
-	_, err := client.GetTelegramLink(context.Background(), connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}))
+	_, err := client.GetTelegramLink(
+		context.Background(),
+		connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}),
+	)
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("without caller: err = %v, want unauthenticated", err)
 	}

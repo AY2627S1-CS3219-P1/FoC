@@ -35,7 +35,12 @@ type fakeSender struct {
 	errs map[int64]error
 }
 
-func (f *fakeSender) Send(_ context.Context, chatID int64, text string, _ *telegram.InlineKeyboard) (telegram.Message, error) {
+func (f *fakeSender) Send(
+	_ context.Context,
+	chatID int64,
+	text string,
+	_ *telegram.InlineKeyboard,
+) (telegram.Message, error) {
 	if err := f.errs[chatID]; err != nil {
 		return telegram.Message{}, err
 	}
@@ -105,7 +110,11 @@ var system = &eventsv1.Actor{Type: eventsv1.ActorType_ACTOR_TYPE_SYSTEM}
 
 func TestHandleNotifiesTheOtherParticipant(t *testing.T) {
 	h, sender, _, _ := newHandler()
-	e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, user(courierID))
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+		user(courierID),
+	)
 	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +159,24 @@ func TestHandleSendFailures(t *testing.T) {
 		wantErr    bool
 		wantUnlink bool
 	}{
-		{"blocked", &telegram.APIError{Code: http.StatusForbidden, Description: "Forbidden: bot was blocked by the user"}, false, true},
-		{"chat not found", &telegram.APIError{Code: http.StatusBadRequest, Description: "Bad Request: chat not found"}, false, true},
-		{"other rejection", &telegram.APIError{Code: http.StatusBadRequest, Description: "Bad Request: message is too long"}, false, false},
+		{
+			"blocked",
+			&telegram.APIError{Code: http.StatusForbidden, Description: "Forbidden: bot was blocked by the user"},
+			false,
+			true,
+		},
+		{
+			"chat not found",
+			&telegram.APIError{Code: http.StatusBadRequest, Description: "Bad Request: chat not found"},
+			false,
+			true,
+		},
+		{
+			"other rejection",
+			&telegram.APIError{Code: http.StatusBadRequest, Description: "Bad Request: message is too long"},
+			false,
+			false,
+		},
 		{"rate limited", &telegram.APIError{Code: http.StatusTooManyRequests, RetryAfter: time.Second}, true, false},
 		{"server error", &telegram.APIError{Code: http.StatusBadGateway}, true, false},
 		{"network", errors.New("dial tcp: timeout"), true, false},
@@ -161,7 +185,11 @@ func TestHandleSendFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h, sender, links, deliveries := newHandler()
 			sender.errs[1] = tc.err
-			e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, user(courierID))
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+				user(courierID),
+			)
 			err := h.Handle(context.Background(), kafka.Metadata{}, e)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
@@ -188,7 +216,11 @@ func TestHandleSkipsWithoutSending(t *testing.T) {
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			h, sender, links, _ := newHandler()
-			e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, user(courierID))
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+				user(courierID),
+			)
 			mutate(e, links)
 			if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
 				t.Fatal(err)
@@ -204,7 +236,11 @@ func TestHandleMakesNotificationsRepliable(t *testing.T) {
 	h, _, _, _ := newHandler()
 	targets := fakeTargets{}
 	h.ReplyTargets = targets
-	e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, user(courierID))
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+		user(courierID),
+	)
 	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
 		t.Fatal(err)
 	}

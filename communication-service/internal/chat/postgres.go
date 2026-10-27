@@ -81,7 +81,12 @@ func (s *PostgresStore) ReplyTarget(ctx context.Context, chatID, messageID int64
 }
 
 // SaveReplyTarget implements Store.
-func (s *PostgresStore) SaveReplyTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error {
+func (s *PostgresStore) SaveReplyTarget(
+	ctx context.Context,
+	chatID, messageID int64,
+	orderID uuid.UUID,
+	at time.Time,
+) error {
 	if err := s.queries().SaveReplyTarget(ctx, db.SaveReplyTargetParams{
 		ChatID:    chatID,
 		MessageID: messageID,
