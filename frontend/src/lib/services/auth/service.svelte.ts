@@ -29,7 +29,10 @@ export class AuthService {
 
 				try {
 					await this.refresh();
-				} catch {
+				} catch (refreshError) {
+					if (refreshError instanceof ConnectError && refreshError.code === Code.PermissionDenied) {
+						throw refreshError;
+					}
 					throw error;
 				}
 
@@ -83,8 +86,8 @@ export class AuthService {
 		return this.#runSessionOperation(() => this.#api.login(token));
 	}
 
-	register(token: string, displayName: string): Promise<void> {
-		return this.#runSessionOperation(() => this.#api.register(token, displayName));
+	register(token: string, displayName: string, phoneNumber: string): Promise<void> {
+		return this.#runSessionOperation(() => this.#api.register(token, displayName, phoneNumber));
 	}
 
 	async refresh(): Promise<void> {
@@ -153,7 +156,7 @@ export class AuthService {
 					clearOnFailure &&
 					revision === this.#sessionRevision &&
 					error instanceof ConnectError &&
-					error.code === Code.Unauthenticated
+					(error.code === Code.Unauthenticated || error.code === Code.PermissionDenied)
 				) {
 					this.#clearSession();
 				}

@@ -1,0 +1,11 @@
+# Compose provides the service, shared pkg module and persistent module cache.
+FROM golang:1.27.0
+WORKDIR /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends imagemagick libheif-plugin-libde265 \
+ && rm -rf /var/lib/apt/lists/*
+COPY order-service/config/imagemagick/policy.xml /etc/order-proof-imagemagick/policy.xml
+ENV MAGICK_CONFIGURE_PATH=/etc/order-proof-imagemagick
+RUN go install github.com/air-verse/air@v1.67.4
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]

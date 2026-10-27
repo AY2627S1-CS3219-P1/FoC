@@ -23,7 +23,6 @@ erDiagram
         citext email UK "among live rows"
         text display_name "1-100 chars"
         text description "max 500"
-        text telegram_handle "5-32 of A-Za-z0-9_, no @"
         text phone_number "max 20"
         text profile_picture_key
         text role FK "roles.name"
@@ -38,7 +37,7 @@ erDiagram
     }
     allowed_email_domains {
         uuid id PK
-        citext domain UK "among live rows"
+        citext domain UK "across all rows"
     }
     auth_tokens {
         uuid id PK
@@ -84,7 +83,7 @@ erDiagram
 | Migration | Table | Backlog | Notes |
 |---|---|---|---|
 | 00001 | `users` | U1, U3 | `citext` email = case-insensitive unique |
-| 00002 | `allowed_email_domains` | U1.1.2 | empty table = no restriction |
+| 00002 | `allowed_email_domains` | U1.1.2 | empty table blocks non-super-admin authentication; super-admins bypass the domain policy |
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
@@ -92,7 +91,8 @@ erDiagram
 | 00004 | `role_changes` | U4, U6 | append-only history; reason required when suspending/reinstating |
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
-| 00006 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
+| 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#126) |
+| 00007 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
 
 ## Soft delete
 

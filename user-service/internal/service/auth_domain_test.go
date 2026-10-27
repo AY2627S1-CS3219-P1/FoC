@@ -38,7 +38,7 @@ func TestAuthenticationDomainPolicy(t *testing.T) {
 					case "register":
 						token := addRegistrationChallenge(t, store, now)
 						attempt = func() error {
-							_, _, err := svc.Register(ctx, token, jwt.Profile{DisplayName: "New"})
+							_, _, err := svc.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"})
 							return err
 						}
 					case "login", "refresh":
@@ -84,8 +84,8 @@ func TestAuthenticationDomainPolicy(t *testing.T) {
 					}
 					var external api.ExternalError
 					if result == "disallowed" {
-						if !errors.Is(err, ErrEmailDomainNotAllowed) || !errors.As(err, &external) || external.Code() != http.StatusUnauthorized {
-							t.Fatalf("expected shared Unauthorized domain error, got %v", err)
+						if !errors.Is(err, ErrEmailDomainNotAllowed) || !errors.As(err, &external) || external.Code() != http.StatusForbidden {
+							t.Fatalf("expected shared Forbidden domain error, got %v", err)
 						}
 					} else if !errors.Is(err, lookupFailure) || errors.As(err, &external) {
 						t.Fatalf("lookup failure was lost or misclassified: %v", err)

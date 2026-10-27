@@ -44,7 +44,7 @@ func (h *Handler) UpdateMyProfile(ctx context.Context, req *connect.Request[user
 	}
 	user, err := h.Logic.UpdateMyProfile(ctx, actorID, service.ProfileInput{
 		DisplayName: req.Msg.DisplayName, Description: req.Msg.Description,
-		TelegramHandle: req.Msg.TelegramHandle, PhoneNumber: req.Msg.PhoneNumber,
+		PhoneNumber: req.Msg.PhoneNumber,
 	})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)

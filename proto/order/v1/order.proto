@@ -28,6 +28,9 @@ service OrderService {
 
   rpc ConfirmPickup(ConfirmPickupRequest) returns (ConfirmPickupResponse) { option idempotency_level = IDEMPOTENT; }
   rpc CreateProofUpload(CreateProofUploadRequest) returns (CreateProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc VerifyProofUpload(VerifyProofUploadRequest) returns (VerifyProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc AbandonProofUpload(AbandonProofUploadRequest) returns (AbandonProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc GetDeliveryProof(GetDeliveryProofRequest) returns (GetDeliveryProofResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
   rpc ConfirmDelivery(ConfirmDeliveryRequest) returns (ConfirmDeliveryResponse) { option idempotency_level = IDEMPOTENT; }
   rpc ConfirmReceipt(ConfirmReceiptRequest) returns (ConfirmReceiptResponse) { option idempotency_level = IDEMPOTENT; }
 
@@ -69,8 +72,7 @@ message CreateOrderRequest {
   ];
   // When an unaccepted order expires. The UI pre-fills a default.
   google.protobuf.Timestamp expires_at = 7 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).timestamp.gt_now = true
+    (buf.validate.field).required = true
   ];
   // UUID retry key scoped by caller and method for 24 hours.
   string idempotency_key = 8 [(buf.validate.field).string.uuid = true];
@@ -90,6 +92,8 @@ message DeliveryInput {
 // Returns a signed URL for one item image. Upload with PUT and the same
 // content type, then pass image_id to CreateOrder.
 message CreateItemImageUploadRequest {
+  // Exact body length, enforced by the signed upload request before storage.
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {gte: 1, lte: 10000000}];
   string content_type = 1 [(buf.validate.field).string = {
     in: [
       "image/jpeg",
@@ -101,8 +105,8 @@ message CreateItemImageUploadRequest {
   }];
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
@@ -112,7 +116,10 @@ message GetOrderRequest {
 message ListOpenOrdersRequest {
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
-  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true];
+  // Legacy exact filter is rejected: membership would disclose a hidden Location.
+  optional string delivery_location_id = 2 [(buf.validate.field).string.uuid = true, deprecated = true];
+  // Filter by the destination snapshot building/area, never an exact Location ID.
+  string delivery_building_name = 5 [(buf.validate.field).string.max_len = 200];
   // One-based; zero means 1.
   int32 page = 3 [(buf.validate.field).int32.gte = 0];
   // Zero means 20; maximum 100.
@@ -122,7 +129,7 @@ message ListOpenOrdersRequest {
   }];
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 message ListMyOrdersRequest {
   ParticipantRole role = 1 [(buf.validate.field).enum.defined_only = true];
   OrderStatus status = 2 [(buf.validate.field).enum.defined_only = true];
@@ -135,11 +142,13 @@ message ListMyOrdersRequest {
   }];
 }
 
-// Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// Starts one immutable acceptance attempt at the current reward. The caller
+// generates attempt_id once and reuses it after an uncertain result. An
+// intentional new attempt requires a new UUID, including after withdrawal.
+// Recognized business rejections retain the UUID for the retained Order's life.
 message AcceptOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+  string attempt_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
 // A counteroffer above the current reward on an Awaiting Courier order. It may
@@ -169,9 +178,11 @@ message ConfirmPickupRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 message CreateProofUploadRequest {
+  int64 size_bytes = 4 [(buf.validate.field).int64 = {gte: 1, lte: 10000000}];
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   // Client-generated UUID identifying this upload attempt.
   string upload_id = 2 [(buf.validate.field).string.uuid = true];
@@ -186,19 +197,21 @@ message CreateProofUploadRequest {
   }];
 }
 
-// Assigned courier only. Delivering to Delivered. Every proof must be uploaded
-// already; otherwise the order stays Delivering and failed_precondition is
-// returned so the courier can retry.
+// Assigned courier only. Proofs must be uploaded and server-verified first.
+// On-time durable receipt preserves eligibility through delayed validation.
+// Unavailable validation stays pending/Delivering; invalid proof rejects that
+// submission without granting replacement photos its receipt time.
 message ConfirmDeliveryRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   repeated string proof_ids = 2 [(buf.validate.field).repeated = {
-    min_items: 1
     max_items: 5
     unique: true
     items: {string: {uuid: true}}
   }];
   // The requester was unreachable, so the item was left with proof.
   bool unattended = 3;
+  // Only server-confirmed upload outages permit zero proof IDs.
+  bool without_proof = 4;
 }
 
 // Requester only. Delivered to Completed, which settles the reward. Repeating
@@ -213,13 +226,18 @@ message ConfirmReceiptRequest {
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
+// Keyless calls use current state and must never be automatically retried after uncertainty.
+// A fresh key expresses a new cancellation; retained keys replay their operation.
 message CancelOrderRequest {
+  optional string idempotency_key = 3 [(buf.validate.field).string.uuid = true];
   string id = 1 [(buf.validate.field).string.uuid = true];
   optional string reason = 2 [(buf.validate.field).cel = {
     id: "cancel_order.reason_length"
     message: "reason must be at most 500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) <= 500"
   }];
+  // Revision whose cancellation consequences the participant confirmed.
+  int64 expected_revision = 4 [(buf.validate.field).int64.gt = 0];
 }
 
 // Courier only, after a cancellation following pickup.
@@ -236,6 +254,8 @@ message CreateOrderResponse {
   Order order = 1;
 }
 message CreateItemImageUploadResponse {
+  // Send these headers with PUT. The browser supplies Content-Length from the File.
+  map<string, string> upload_headers = 4;
   string image_id = 1;
   // PUT the image here before it expires.
   string upload_url = 2;
@@ -253,7 +273,10 @@ message ListMyOrdersResponse {
   PageInfo page_info = 2;
 }
 message AcceptOrderResponse {
+  // Current caller-authorized state, not the historical acceptance snapshot.
+  // Absent when the attempt itself does not grant current Order visibility.
   Order order = 1;
+  AssignmentAttemptResult attempt = 2;
 }
 message MakeOfferResponse {
   Offer offer = 1;
@@ -264,11 +287,13 @@ message ListOffersResponse {
 message AcceptOfferResponse {
   Order order = 1;
   Offer offer = 2;
+  AssignmentAttemptResult attempt = 3;
 }
 message ConfirmPickupResponse {
   Order order = 1;
 }
 message CreateProofUploadResponse {
+  map<string, string> upload_headers = 4;
   string proof_id = 1;
   // PUT the image here before it expires.
   string upload_url = 2;
@@ -282,7 +307,41 @@ message ConfirmReceiptResponse {
 }
 message CancelOrderResponse {
   Order order = 1;
+  CancellationResult cancellation = 2;
 }
 message RecordItemLocationResponse {
   Order order = 1;
+}
+
+message VerifyProofUploadRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string proof_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message VerifyProofUploadResponse {}
+message AbandonProofUploadRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string upload_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message AbandonProofUploadResponse {}
+message GetDeliveryProofRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message DeliveryProofPhoto {
+  string content_type = 4;
+  string proof_id = 1;
+  string download_url = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message PendingDeliveryConfirmation {
+  repeated string proof_ids = 1;
+  bool unattended = 2;
+  bool without_proof = 3;
+  google.protobuf.Timestamp received_at = 4;
+}
+// Participant-only proof access is independent of general order/history access.
+// Pending input is returned only to its submitting courier, never role-only admin.
+message GetDeliveryProofResponse {
+  repeated DeliveryProofPhoto proofs = 1;
+  string outage_reason = 2;
+  PendingDeliveryConfirmation pending = 3;
 }
