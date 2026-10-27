@@ -18,7 +18,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
@@ -191,17 +190,12 @@ func (s *Service) Register(
 		}
 		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName,
 			PhoneNumber: &phone, Role: models.RoleUser}
-		if err := tx.Users.Create(ctx, &user); err != nil {
+		provisioner := UserProvisioner{Users: tx.Users, Events: tx.UserCreatedEvents}
+		if err := provisioner.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
 				return jwt.ErrAlreadyRegistered
 			}
 			return err
-		}
-		if err := tx.UserCreatedEvents.Append(ctx, userdomain.CreatedEvent{
-			EventID: uuid.New(), UserID: user.ID, Email: user.Email,
-			DisplayName: user.DisplayName, CreatedAt: user.CreatedAt,
-		}); err != nil {
-			return fmt.Errorf("write user-created outbox event: %w", err)
 		}
 		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "id": "f0c00001-0000-4000-8000-000000000001",
+      "email": "superadmin@demo.foc.test",
+      "display_name": "Super Admin",
+      "role": "super_admin",
+      "description": "Can promote/demote admins, suspend and reinstate other accounts.",
+      "phone_number": null
+    },
+    {
+      "id": "f0c00001-0000-4000-8000-000000000002",
+      "email": "admin@demo.foc.test",
+      "display_name": "Admin",
+      "role": "admin",
+      "description": "Can manage locations, review proposals and suspend/reinstate ordinary users.",
+      "phone_number": null
+    },
+    {
+      "id": "f0c00001-0000-4000-8000-000000000003",
+      "email": "student@demo.foc.test",
+      "display_name": "Student",
+      "role": "user",
+      "description": "Owns demo requests. Try changing these profile fields.",
+      "phone_number": "+6500000000"
+    },
+    {
+      "id": "f0c00001-0000-4000-8000-000000000004",
+      "email": "suspended@demo.foc.test",
+      "display_name": "Suspended Student",
+      "role": "suspended",
+      "description": "Read-only profile. Use an administrator to reinstate this account.",
+      "phone_number": null
+    },
+    {
+      "id": "f0c00001-0000-4000-8000-000000000005",
+      "email": "other@demo.foc.test",
+      "display_name": "Other Student",
+      "role": "user",
+      "description": "",
+      "phone_number": null
+    },
+    {
+      "id": "f0c00001-0000-4000-8000-000000000006",
+      "email": "staff@demo.foc.test",
+      "display_name": "Other Admin",
+      "role": "admin",
+      "description": "Target for super-admin demotion and admin-to-admin permission tests.",
+      "phone_number": null
+    }
+  ],
+  "registration_domain": {
+    "id": "f0c00001-0000-4000-8000-000000000010",
+    "domain": "demo.foc.test"
+  },
+  "suspension": {
+    "id": "f0c00001-0000-4000-8000-000000000011",
+    "user_id": "f0c00001-0000-4000-8000-000000000004",
+    "actor_id": "f0c00001-0000-4000-8000-000000000002",
+    "reason": "Seeded suspension for reinstatement testing"
+  }
+}

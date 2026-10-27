@@ -196,3 +196,8 @@ retried when the broker is available.
 uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
 owns the 100-credit starting grant. Existing users are not backfilled, and
 bootstrap-created administrators do not emit registration events.
+
+Explicit demo fixtures use the same user/event provisioning operation as
+registration. `make seed-demo` invokes the User-owned command and repairs missing
+events for fixture users from older seeds. Credit continues to own account and
+ledger creation; see [the seed instructions](../data/seeds/README.md).
