@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service]
+        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -47,6 +47,9 @@ jobs:
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
+            order-service/go.sum
+            communication-service/go.sum
+            credit-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -95,9 +98,72 @@ jobs:
           cache-dependency-path: |
             supplier-service/go.sum
             pkg/go.sum
+      - name: Run seed runner integration tests
+        if: steps.changes.outputs.run == 'true'
+        working-directory: pkg
+        run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration
+
+  order-integration:
+    name: Order integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: order-service
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: order-service/go.mod
+          cache-dependency-path: |
+            order-service/go.sum
+            pkg/go.sum
+      - name: Run Order database integration tests
+        run: make test-integration
+
+  credit-integration:
+    name: Credit integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: credit-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: credit-service/go.mod
+          cache-dependency-path: credit-service/go.sum
+      - name: Run Credit database integration tests
+        if: steps.changes.outputs.run == 'true'
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
 
   frontend:
     name: Frontend checks

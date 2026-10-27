@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Lost response plus page reload retained identical key, reason and confirmed revision; pending withdrawal blocks pickup",
+    "Resolved historical withdrawal refreshes to the redacted current order",
+    "Stale pre-pickup cancellation is rejected; retained reason and fresh consequences require a new confirmed intent",
+    "Lost location response retained text; identical retry and correction work with labelled, visibly focused controls at 768/1440px",
+    "Requester can cancel while the courier withdrawal is pending",
+    "Definitive pre-admission refusal clears retained intent and does not lock pickup",
+    "Storage failure is reported as not submitted and sends no cancellation RPC",
+    "Mounted pickup and receipt controls use their existing RPCs and refresh current state"
+  ],
+  "pageErrors": [],
+  "fixtureBoundary": "Browser Connect fixtures; backend proven separately against PostgreSQL"
+}

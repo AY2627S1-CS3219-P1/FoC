@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
@@ -160,15 +161,7 @@ func (s *Service) Register(
 	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > MaxDisplayNameLength {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
-	var ok bool
-	profile.TelegramHandle, ok = normalizedContact(profile.TelegramHandle, 32)
-	if !ok {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
-	}
-	if profile.TelegramHandle != nil && !telegramHandlePattern.MatchString(*profile.TelegramHandle) {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
-	}
-	profile.PhoneNumber, ok = normalizedContact(profile.PhoneNumber, 20)
+	phone, ok := normalizedPhoneNumber(profile.PhoneNumber)
 	if !ok {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
 	}
@@ -197,12 +190,18 @@ func (s *Service) Register(
 			return jwt.ErrRegistrationFailed
 		}
 		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName,
-			TelegramHandle: profile.TelegramHandle, PhoneNumber: profile.PhoneNumber, Role: models.RoleUser}
+			PhoneNumber: &phone, Role: models.RoleUser}
 		if err := tx.Users.Create(ctx, &user); err != nil {
 			if errors.Is(err, store.ErrDuplicate) {
 				return jwt.ErrAlreadyRegistered
 			}
 			return err
+		}
+		if err := tx.UserCreatedEvents.Append(ctx, userdomain.CreatedEvent{
+			EventID: uuid.New(), UserID: user.ID, Email: user.Email,
+			DisplayName: user.DisplayName, CreatedAt: user.CreatedAt,
+		}); err != nil {
+			return fmt.Errorf("write user-created outbox event: %w", err)
 		}
 		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {

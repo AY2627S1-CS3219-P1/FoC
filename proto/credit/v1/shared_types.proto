@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package credit.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Credits are whole numbers. Amounts are non-negative unless a field says
+// otherwise; the operation name gives the direction.
+
+// Terminal statuses are immutable.
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  // Reserved at the order's original reward. No offer is applied.
+  RESERVATION_STATUS_HELD = 1;
+  // An accepted offer is applied and the courier is known.
+  RESERVATION_STATUS_ASSIGNED = 2;
+  // The whole reserved amount returned to the requester.
+  RESERVATION_STATUS_RELEASED = 3;
+  // From Order's order.outcome event: the payable reward went to the courier
+  // and any remainder returned to the requester.
+  RESERVATION_STATUS_SETTLED = 4;
+}
+
+// One reservation per order, keyed by the Order Service order ID.
+message Reservation {
+  string request_id = 1;
+  // Empty for a tombstone created by releasing an unknown request.
+  string requester_id = 2;
+  ReservationStatus status = 3;
+  // Amount at Reserve. Zero for a tombstone.
+  int64 original_amount = 4;
+  // Current hold. Zero once terminal.
+  int64 reserved_amount = 5;
+  // Set while Assigned.
+  Adjustment active_adjustment = 6;
+  // Set once Settled or Released.
+  Settlement settlement = 7;
+  // For optimistic concurrency.
+  int64 revision = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+enum AdjustmentStatus {
+  ADJUSTMENT_STATUS_UNSPECIFIED = 0;
+  ADJUSTMENT_STATUS_APPLIED = 1;
+  ADJUSTMENT_STATUS_REVERTED = 2;
+}
+
+// An accepted offer applied to a reservation.
+message Adjustment {
+  string offer_id = 1;
+  string courier_id = 2;
+  // Restored by RevertAdjustment.
+  int64 previous_amount = 3;
+  int64 offer_amount = 4;
+  AdjustmentStatus status = 5;
+}
+
+enum SettlementOutcome {
+  SETTLEMENT_OUTCOME_UNSPECIFIED = 0;
+  SETTLEMENT_OUTCOME_RELEASED = 1;
+  // Credit applies the lateness rule. With elapsed = delivered_at -
+  // picked_up_at, T = the allowed delivery duration and R = the
+  // accepted offer_amount:
+  // - elapsed <= T pays R;
+  // - T < elapsed < 2T pays floor(R * (2T - elapsed) / T);
+  // - elapsed >= 2T pays 0.
+  SETTLEMENT_OUTCOME_COMPLETED = 2;
+  // Pays the courier the accepted offer_amount.
+  SETTLEMENT_OUTCOME_CANCELLED_AFTER_PICKUP = 3;
+}
+
+// Why Order released a reservation. For audit only.
+enum ReleaseReason {
+  RELEASE_REASON_UNSPECIFIED = 0;
+  RELEASE_REASON_CANCELLED_BEFORE_PICKUP = 1;
+  RELEASE_REASON_EXPIRED = 2;
+  RELEASE_REASON_FAILED = 3;
+}
+
+// How a reservation ended. Written once and never changed.
+message Settlement {
+  SettlementOutcome outcome = 1;
+  int64 paid_to_courier = 2;
+  int64 returned_to_requester = 3;
+  google.protobuf.Timestamp settled_at = 4;
+  // Set when outcome is Released.
+  ReleaseReason release_reason = 5;
+}
+
+// Opened with the starting credits by the user's users.create event or first
+// Reserve or payout, whichever comes first.
+message Account {
+  string user_id = 1;
+  // Credits the user owns, including credits held in reservations.
+  int64 balance = 2;
+  // Sum of active reservations where the user is the requester.
+  int64 reserved = 3;
+  // balance - reserved. Never negative.
+  int64 available = 4;
+}
+
+enum LedgerEntryKind {
+  LEDGER_ENTRY_KIND_UNSPECIFIED = 0;
+  // Starting credits (100), granted once when the account is opened.
+  LEDGER_ENTRY_KIND_GRANT = 1;
+  LEDGER_ENTRY_KIND_RESERVE = 2;
+  // An accepted offer changed the hold.
+  LEDGER_ENTRY_KIND_ADJUST = 3;
+  // A lost assignment restored the previous hold.
+  LEDGER_ENTRY_KIND_REVERT = 4;
+  LEDGER_ENTRY_KIND_RELEASE = 5;
+  // Requester to courier.
+  LEDGER_ENTRY_KIND_PAYOUT = 6;
+  // Unused remainder returned to the requester at settlement.
+  LEDGER_ENTRY_KIND_REFUND = 7;
+}
+
+// Append-only. A user's balance_delta values sum to their balance, and their
+// reserved_delta values sum to their reserved credits.
+message LedgerEntry {
+  string id = 1;
+  LedgerEntryKind kind = 2;
+  // Signed change to balance.
+  int64 balance_delta = 3;
+  // Signed change to reserved.
+  int64 reserved_delta = 4;
+  // Absent for grants.
+  optional string request_id = 5;
+  // Set for adjustments and reverts.
+  optional string offer_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// Counts include only resources visible to the caller after filtering.
+message PageInfo {
+  // One-based current page.
+  int32 page = 1;
+  // Effective size, default 20, maximum 100.
+  int32 page_size = 2;
+  int64 total_items = 3;
+  // Total pages, zero for an empty result.
+  int32 total_pages = 4;
+}

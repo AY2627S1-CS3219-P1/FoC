@@ -189,8 +189,10 @@ func (x *DeliveryInput) GetInstructions() string {
 // Returns a signed URL for one item image. Upload with PUT and the same
 // content type, then pass image_id to CreateOrder.
 type CreateItemImageUploadRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact body length, enforced by the signed upload request before storage.
+	SizeBytes     int64  `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ContentType   string `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,6 +227,13 @@ func (*CreateItemImageUploadRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{2}
 }
 
+func (x *CreateItemImageUploadRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
 func (x *CreateItemImageUploadRequest) GetContentType() string {
 	if x != nil {
 		return x.ContentType
@@ -232,8 +241,8 @@ func (x *CreateItemImageUploadRequest) GetContentType() string {
 	return ""
 }
 
-// Participants and admins see every field. Couriers browsing an Awaiting
-// Courier order see it without delivery instructions.
+// Requester/current courier see exact delivery details. Browsers, former couriers
+// and admins without authoritative open-case assignment receive a coarse view.
 type GetOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -283,8 +292,13 @@ func (x *GetOrderRequest) GetId() string {
 type ListOpenOrdersRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Filters are optional.
-	PickupLocationId   *string `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3,oneof" json:"pickup_location_id,omitempty"`
+	PickupLocationId *string `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3,oneof" json:"pickup_location_id,omitempty"`
+	// Legacy exact filter is rejected: membership would disclose a hidden Location.
+	//
+	// Deprecated: Marked as deprecated in order/v1/order.proto.
 	DeliveryLocationId *string `protobuf:"bytes,2,opt,name=delivery_location_id,json=deliveryLocationId,proto3,oneof" json:"delivery_location_id,omitempty"`
+	// Filter by the destination snapshot building/area, never an exact Location ID.
+	DeliveryBuildingName string `protobuf:"bytes,5,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
@@ -330,9 +344,17 @@ func (x *ListOpenOrdersRequest) GetPickupLocationId() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in order/v1/order.proto.
 func (x *ListOpenOrdersRequest) GetDeliveryLocationId() string {
 	if x != nil && x.DeliveryLocationId != nil {
 		return *x.DeliveryLocationId
+	}
+	return ""
+}
+
+func (x *ListOpenOrdersRequest) GetDeliveryBuildingName() string {
+	if x != nil {
+		return x.DeliveryBuildingName
 	}
 	return ""
 }
@@ -351,7 +373,7 @@ func (x *ListOpenOrdersRequest) GetPageSize() int32 {
 	return 0
 }
 
-// Orders the caller requested or is assigned to, newest first.
+// Orders the caller requested or was ever assigned to, newest first.
 type ListMyOrdersRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Role   ParticipantRole        `protobuf:"varint,1,opt,name=role,proto3,enum=order.v1.ParticipantRole" json:"role,omitempty"`
@@ -422,12 +444,14 @@ func (x *ListMyOrdersRequest) GetPageSize() int32 {
 	return 0
 }
 
-// Assigns the caller at the current reward. Only one courier can win; the
-// others get failed_precondition. Repeating by the assigned courier returns
-// the order unchanged.
+// Starts one immutable acceptance attempt at the current reward. The caller
+// generates attempt_id once and reuses it after an uncertain result. An
+// intentional new attempt requires a new UUID, including after withdrawal.
+// Recognized business rejections retain the UUID for the retained Order's life.
 type AcceptOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AttemptId     string                 `protobuf:"bytes,2,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -465,6 +489,13 @@ func (*AcceptOrderRequest) Descriptor() ([]byte, []int) {
 func (x *AcceptOrderRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *AcceptOrderRequest) GetAttemptId() string {
+	if x != nil {
+		return x.AttemptId
 	}
 	return ""
 }
@@ -677,11 +708,13 @@ func (x *ConfirmPickupRequest) GetOrderId() string {
 	return ""
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 type CreateProofUploadRequest struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	OrderId string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SizeBytes int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	OrderId   string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	// Client-generated UUID identifying this upload attempt.
 	UploadId      string `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	ContentType   string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
@@ -719,6 +752,13 @@ func (*CreateProofUploadRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{11}
 }
 
+func (x *CreateProofUploadRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
 func (x *CreateProofUploadRequest) GetOrderId() string {
 	if x != nil {
 		return x.OrderId
@@ -740,15 +780,18 @@ func (x *CreateProofUploadRequest) GetContentType() string {
 	return ""
 }
 
-// Assigned courier only. Delivering to Delivered. Every proof must be uploaded
-// already; otherwise the order stays Delivering and failed_precondition is
-// returned so the courier can retry.
+// Assigned courier only. Proofs must be uploaded and server-verified first.
+// On-time durable receipt preserves eligibility through delayed validation.
+// Unavailable validation stays pending/Delivering; invalid proof rejects that
+// submission without granting replacement photos its receipt time.
 type ConfirmDeliveryRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	OrderId  string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	ProofIds []string               `protobuf:"bytes,2,rep,name=proof_ids,json=proofIds,proto3" json:"proof_ids,omitempty"`
 	// The requester was unreachable, so the item was left with proof.
-	Unattended    bool `protobuf:"varint,3,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	Unattended bool `protobuf:"varint,3,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	// Only server-confirmed upload outages permit zero proof IDs.
+	WithoutProof  bool `protobuf:"varint,4,opt,name=without_proof,json=withoutProof,proto3" json:"without_proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -800,6 +843,13 @@ func (x *ConfirmDeliveryRequest) GetProofIds() []string {
 func (x *ConfirmDeliveryRequest) GetUnattended() bool {
 	if x != nil {
 		return x.Unattended
+	}
+	return false
+}
+
+func (x *ConfirmDeliveryRequest) GetWithoutProof() bool {
+	if x != nil {
+		return x.WithoutProof
 	}
 	return false
 }
@@ -856,12 +906,17 @@ func (x *ConfirmReceiptRequest) GetOrderId() string {
 // requester after pickup: Cancelled, reward paid to the courier;
 // courier after pickup: Failed, reservation released, courier warned.
 // After pickup, the courier must then record the item's location.
+// Keyless calls use current state and must never be automatically retried after uncertainty.
+// A fresh key expresses a new cancellation; retained keys replay their operation.
 type CancelOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Reason        *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IdempotencyKey *string                `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason         *string                `protobuf:"bytes,2,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	// Revision whose cancellation consequences the participant confirmed.
+	ExpectedRevision int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CancelOrderRequest) Reset() {
@@ -894,6 +949,13 @@ func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
 }
 
+func (x *CancelOrderRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
+}
+
 func (x *CancelOrderRequest) GetId() string {
 	if x != nil {
 		return x.Id
@@ -906,6 +968,13 @@ func (x *CancelOrderRequest) GetReason() string {
 		return *x.Reason
 	}
 	return ""
+}
+
+func (x *CancelOrderRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
 }
 
 // Courier only, after a cancellation following pickup.
@@ -1006,8 +1075,10 @@ func (x *CreateOrderResponse) GetOrder() *Order {
 }
 
 type CreateItemImageUploadResponse struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	ImageId string                 `protobuf:"bytes,1,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Send these headers with PUT. The browser supplies Content-Length from the File.
+	UploadHeaders map[string]string `protobuf:"bytes,4,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ImageId       string            `protobuf:"bytes,1,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
 	// PUT the image here before it expires.
 	UploadUrl     string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -1043,6 +1114,13 @@ func (x *CreateItemImageUploadResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateItemImageUploadResponse.ProtoReflect.Descriptor instead.
 func (*CreateItemImageUploadResponse) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CreateItemImageUploadResponse) GetUploadHeaders() map[string]string {
+	if x != nil {
+		return x.UploadHeaders
+	}
+	return nil
 }
 
 func (x *CreateItemImageUploadResponse) GetImageId() string {
@@ -1215,8 +1293,11 @@ func (x *ListMyOrdersResponse) GetPageInfo() *PageInfo {
 }
 
 type AcceptOrderResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Current caller-authorized state, not the historical acceptance snapshot.
+	// Absent when the attempt itself does not grant current Order visibility.
+	Order         *Order                   `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Attempt       *AssignmentAttemptResult `protobuf:"bytes,2,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1254,6 +1335,13 @@ func (*AcceptOrderResponse) Descriptor() ([]byte, []int) {
 func (x *AcceptOrderResponse) GetOrder() *Order {
 	if x != nil {
 		return x.Order
+	}
+	return nil
+}
+
+func (x *AcceptOrderResponse) GetAttempt() *AssignmentAttemptResult {
+	if x != nil {
+		return x.Attempt
 	}
 	return nil
 }
@@ -1347,9 +1435,10 @@ func (x *ListOffersResponse) GetOffers() []*Offer {
 }
 
 type AcceptOfferResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
-	Offer         *Offer                 `protobuf:"bytes,2,opt,name=offer,proto3" json:"offer,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Order         *Order                   `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Offer         *Offer                   `protobuf:"bytes,2,opt,name=offer,proto3" json:"offer,omitempty"`
+	Attempt       *AssignmentAttemptResult `protobuf:"bytes,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1394,6 +1483,13 @@ func (x *AcceptOfferResponse) GetOrder() *Order {
 func (x *AcceptOfferResponse) GetOffer() *Offer {
 	if x != nil {
 		return x.Offer
+	}
+	return nil
+}
+
+func (x *AcceptOfferResponse) GetAttempt() *AssignmentAttemptResult {
+	if x != nil {
+		return x.Attempt
 	}
 	return nil
 }
@@ -1443,8 +1539,9 @@ func (x *ConfirmPickupResponse) GetOrder() *Order {
 }
 
 type CreateProofUploadResponse struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	ProofId string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UploadHeaders map[string]string      `protobuf:"bytes,4,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProofId       string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
 	// PUT the image here before it expires.
 	UploadUrl     string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -1480,6 +1577,13 @@ func (x *CreateProofUploadResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateProofUploadResponse.ProtoReflect.Descriptor instead.
 func (*CreateProofUploadResponse) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateProofUploadResponse) GetUploadHeaders() map[string]string {
+	if x != nil {
+		return x.UploadHeaders
+	}
+	return nil
 }
 
 func (x *CreateProofUploadResponse) GetProofId() string {
@@ -1594,6 +1698,7 @@ func (x *ConfirmReceiptResponse) GetOrder() *Order {
 type CancelOrderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Cancellation  *CancellationResult    `protobuf:"bytes,2,opt,name=cancellation,proto3" json:"cancellation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1631,6 +1736,13 @@ func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
 func (x *CancelOrderResponse) GetOrder() *Order {
 	if x != nil {
 		return x.Order
+	}
+	return nil
+}
+
+func (x *CancelOrderResponse) GetCancellation() *CancellationResult {
+	if x != nil {
+		return x.Cancellation
 	}
 	return nil
 }
@@ -1679,11 +1791,429 @@ func (x *RecordItemLocationResponse) GetOrder() *Order {
 	return nil
 }
 
+type VerifyProofUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	ProofId       string                 `protobuf:"bytes,2,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyProofUploadRequest) Reset() {
+	*x = VerifyProofUploadRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyProofUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyProofUploadRequest) ProtoMessage() {}
+
+func (x *VerifyProofUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyProofUploadRequest.ProtoReflect.Descriptor instead.
+func (*VerifyProofUploadRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *VerifyProofUploadRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *VerifyProofUploadRequest) GetProofId() string {
+	if x != nil {
+		return x.ProofId
+	}
+	return ""
+}
+
+type VerifyProofUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyProofUploadResponse) Reset() {
+	*x = VerifyProofUploadResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyProofUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyProofUploadResponse) ProtoMessage() {}
+
+func (x *VerifyProofUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyProofUploadResponse.ProtoReflect.Descriptor instead.
+func (*VerifyProofUploadResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{32}
+}
+
+type AbandonProofUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonProofUploadRequest) Reset() {
+	*x = AbandonProofUploadRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonProofUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonProofUploadRequest) ProtoMessage() {}
+
+func (x *AbandonProofUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonProofUploadRequest.ProtoReflect.Descriptor instead.
+func (*AbandonProofUploadRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *AbandonProofUploadRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *AbandonProofUploadRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+type AbandonProofUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonProofUploadResponse) Reset() {
+	*x = AbandonProofUploadResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonProofUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonProofUploadResponse) ProtoMessage() {}
+
+func (x *AbandonProofUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonProofUploadResponse.ProtoReflect.Descriptor instead.
+func (*AbandonProofUploadResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{34}
+}
+
+type GetDeliveryProofRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDeliveryProofRequest) Reset() {
+	*x = GetDeliveryProofRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeliveryProofRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeliveryProofRequest) ProtoMessage() {}
+
+func (x *GetDeliveryProofRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeliveryProofRequest.ProtoReflect.Descriptor instead.
+func (*GetDeliveryProofRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetDeliveryProofRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+type DeliveryProofPhoto struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	ProofId       string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	DownloadUrl   string                 `protobuf:"bytes,2,opt,name=download_url,json=downloadUrl,proto3" json:"download_url,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeliveryProofPhoto) Reset() {
+	*x = DeliveryProofPhoto{}
+	mi := &file_order_v1_order_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeliveryProofPhoto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeliveryProofPhoto) ProtoMessage() {}
+
+func (x *DeliveryProofPhoto) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeliveryProofPhoto.ProtoReflect.Descriptor instead.
+func (*DeliveryProofPhoto) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *DeliveryProofPhoto) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetProofId() string {
+	if x != nil {
+		return x.ProofId
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type PendingDeliveryConfirmation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProofIds      []string               `protobuf:"bytes,1,rep,name=proof_ids,json=proofIds,proto3" json:"proof_ids,omitempty"`
+	Unattended    bool                   `protobuf:"varint,2,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	WithoutProof  bool                   `protobuf:"varint,3,opt,name=without_proof,json=withoutProof,proto3" json:"without_proof,omitempty"`
+	ReceivedAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=received_at,json=receivedAt,proto3" json:"received_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PendingDeliveryConfirmation) Reset() {
+	*x = PendingDeliveryConfirmation{}
+	mi := &file_order_v1_order_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingDeliveryConfirmation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingDeliveryConfirmation) ProtoMessage() {}
+
+func (x *PendingDeliveryConfirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PendingDeliveryConfirmation.ProtoReflect.Descriptor instead.
+func (*PendingDeliveryConfirmation) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *PendingDeliveryConfirmation) GetProofIds() []string {
+	if x != nil {
+		return x.ProofIds
+	}
+	return nil
+}
+
+func (x *PendingDeliveryConfirmation) GetUnattended() bool {
+	if x != nil {
+		return x.Unattended
+	}
+	return false
+}
+
+func (x *PendingDeliveryConfirmation) GetWithoutProof() bool {
+	if x != nil {
+		return x.WithoutProof
+	}
+	return false
+}
+
+func (x *PendingDeliveryConfirmation) GetReceivedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReceivedAt
+	}
+	return nil
+}
+
+// Participant-only proof access is independent of general order/history access.
+// Pending input is returned only to its submitting courier, never role-only admin.
+type GetDeliveryProofResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Proofs        []*DeliveryProofPhoto        `protobuf:"bytes,1,rep,name=proofs,proto3" json:"proofs,omitempty"`
+	OutageReason  string                       `protobuf:"bytes,2,opt,name=outage_reason,json=outageReason,proto3" json:"outage_reason,omitempty"`
+	Pending       *PendingDeliveryConfirmation `protobuf:"bytes,3,opt,name=pending,proto3" json:"pending,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDeliveryProofResponse) Reset() {
+	*x = GetDeliveryProofResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeliveryProofResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeliveryProofResponse) ProtoMessage() {}
+
+func (x *GetDeliveryProofResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeliveryProofResponse.ProtoReflect.Descriptor instead.
+func (*GetDeliveryProofResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetDeliveryProofResponse) GetProofs() []*DeliveryProofPhoto {
+	if x != nil {
+		return x.Proofs
+	}
+	return nil
+}
+
+func (x *GetDeliveryProofResponse) GetOutageReason() string {
+	if x != nil {
+		return x.OutageReason
+	}
+	return ""
+}
+
+func (x *GetDeliveryProofResponse) GetPending() *PendingDeliveryConfirmation {
+	if x != nil {
+		return x.Pending
+	}
+	return nil
+}
+
 var File_order_v1_order_proto protoreflect.FileDescriptor
 
 const file_order_v1_order_proto_rawDesc = "" +
 	"\n" +
-	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"\xbf\x06\n" +
+	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"\xba\x06\n" +
 	"\x12CreateOrderRequest\x126\n" +
 	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x10pickupLocationId\x12;\n" +
 	"\bdelivery\x18\x02 \x01(\v2\x17.order.v1.DeliveryInputB\x06\xbaH\x03\xc8\x01\x01R\bdelivery\x12\xe5\x01\n" +
@@ -1691,9 +2221,9 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"$create_order.item_description_length\x12Titem_description must be 1-1000 characters excluding leading and trailing whitespace\x1a3size(this.trim()) >= 1 && size(this.trim()) <= 1000R\x0fitemDescription\x127\n" +
 	"\x0eitem_image_ids\x18\x04 \x03(\tB\x11\xbaH\x0e\x92\x01\v\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\fitemImageIds\x12.\n" +
 	"\x0ereward_credits\x18\x05 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\rrewardCredits\x12\\\n" +
-	"\x11delivery_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\x14\xbaH\x11\xc8\x01\x01\xaa\x01\v\"\x04\b\x80\xa3\x052\x03\b\xac\x02R\x10deliveryDuration\x12F\n" +
+	"\x11delivery_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\x14\xbaH\x11\xc8\x01\x01\xaa\x01\v\"\x04\b\x80\xa3\x052\x03\b\xac\x02R\x10deliveryDuration\x12A\n" +
 	"\n" +
-	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampB\v\xbaH\b\xc8\x01\x01\xb2\x01\x02@\x01R\texpiresAt\x121\n" +
+	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\texpiresAt\x121\n" +
 	"\x0fidempotency_key\x18\b \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey:\x89\x01\xbaH\x85\x01\x1a\x82\x01\n" +
 	"\x1fcreate_order.distinct_locations\x12)pickup and delivery locations must differ\x1a4this.pickup_location_id != this.delivery.location_id\"\x95\x02\n" +
 	"\rDeliveryInput\x12)\n" +
@@ -1701,18 +2231,22 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"locationId\x12\xc7\x01\n" +
 	"\finstructions\x18\x02 \x01(\tB\x9d\x01\xbaH\x99\x01\xba\x01\x95\x01\n" +
 	"\"delivery_input.instructions_length\x12Uinstructions must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\finstructions\x88\x01\x01B\x0f\n" +
-	"\r_instructions\"\x83\x01\n" +
-	"\x1cCreateItemImageUploadRequest\x12c\n" +
+	"\r_instructions\"\xb0\x01\n" +
+	"\x1cCreateItemImageUploadRequest\x12+\n" +
+	"\n" +
+	"size_bytes\x18\x02 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\x12c\n" +
 	"\fcontent_type\x18\x01 \x01(\tB@\xbaH=r;R\n" +
 	"image/jpegR\timage/pngR\n" +
 	"image/webpR\n" +
 	"image/heicR\n" +
 	"image/heifR\vcontentType\"+\n" +
 	"\x0fGetOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8a\x02\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xcc\x02\n" +
 	"\x15ListOpenOrdersRequest\x12;\n" +
-	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x10pickupLocationId\x88\x01\x01\x12?\n" +
-	"\x14delivery_location_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\x12deliveryLocationId\x88\x01\x01\x12\x1b\n" +
+	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x10pickupLocationId\x88\x01\x01\x12A\n" +
+	"\x14delivery_location_id\x18\x02 \x01(\tB\n" +
+	"\xbaH\x05r\x03\xb0\x01\x01\x18\x01H\x01R\x12deliveryLocationId\x88\x01\x01\x12>\n" +
+	"\x16delivery_building_name\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x14deliveryBuildingName\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSizeB\x15\n" +
 	"\x13_pickup_location_idB\x17\n" +
@@ -1721,9 +2255,11 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x04role\x18\x01 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\".\n" +
+	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"W\n" +
 	"\x12AcceptOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x8d\x01\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12'\n" +
+	"\n" +
+	"attempt_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tattemptId\"\x8d\x01\n" +
 	"\x10MakeOfferRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12!\n" +
 	"\acredits\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\acredits\x121\n" +
@@ -1734,40 +2270,50 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x12AcceptOfferRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
 	"\x14ConfirmPickupRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xcb\x01\n" +
-	"\x18CreateProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xf8\x01\n" +
+	"\x18CreateProofUploadRequest\x12+\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12%\n" +
 	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\x12c\n" +
 	"\fcontent_type\x18\x03 \x01(\tB@\xbaH=r;R\n" +
 	"image/jpegR\timage/pngR\n" +
 	"image/webpR\n" +
 	"image/heicR\n" +
-	"image/heifR\vcontentType\"\x8f\x01\n" +
+	"image/heifR\vcontentType\"\xb2\x01\n" +
 	"\x16ConfirmDeliveryRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x120\n" +
-	"\tproof_ids\x18\x02 \x03(\tB\x13\xbaH\x10\x92\x01\r\b\x01\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\bproofIds\x12\x1e\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12.\n" +
+	"\tproof_ids\x18\x02 \x03(\tB\x11\xbaH\x0e\x92\x01\v\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\bproofIds\x12\x1e\n" +
 	"\n" +
 	"unattended\x18\x03 \x01(\bR\n" +
-	"unattended\"<\n" +
+	"unattended\x12#\n" +
+	"\rwithout_proof\x18\x04 \x01(\bR\fwithoutProof\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xe9\x01\n" +
-	"\x12CancelOrderRequest\x12\x18\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xeb\x02\n" +
+	"\x12CancelOrderRequest\x126\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x0eidempotencyKey\x88\x01\x01\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12\xad\x01\n" +
 	"\x06reason\x18\x02 \x01(\tB\x8f\x01\xbaH\x8b\x01\xba\x01\x87\x01\n" +
-	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x00R\x06reason\x88\x01\x01B\t\n" +
+	"\x1acancel_order.reason_length\x12Oreason must be at most 500 characters excluding leading and trailing whitespace\x1a\x18size(this.trim()) <= 500H\x01R\x06reason\x88\x01\x01\x124\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x10expectedRevisionB\x12\n" +
+	"\x10_idempotency_keyB\t\n" +
 	"\a_reason\"\xa2\x02\n" +
 	"\x19RecordItemLocationRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12\xdf\x01\n" +
 	"\ritem_location\x18\x02 \x01(\tB\xb9\x01\xbaH\xb5\x01\xba\x01\xb1\x01\n" +
 	")record_item_location.item_location_length\x12Pitem_location must be 1-500 characters excluding leading and trailing whitespace\x1a2size(this.trim()) >= 1 && size(this.trim()) <= 500R\fitemLocation\"<\n" +
 	"\x13CreateOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\x94\x01\n" +
-	"\x1dCreateItemImageUploadResponse\x12\x19\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\xb9\x02\n" +
+	"\x1dCreateItemImageUploadResponse\x12a\n" +
+	"\x0eupload_headers\x18\x04 \x03(\v2:.order.v1.CreateItemImageUploadResponse.UploadHeadersEntryR\ruploadHeaders\x12\x19\n" +
 	"\bimage_id\x18\x01 \x01(\tR\aimageId\x12\x1d\n" +
 	"\n" +
 	"upload_url\x18\x02 \x01(\tR\tuploadUrl\x129\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"9\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x1a@\n" +
+	"\x12UploadHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
 	"\x10GetOrderResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"r\n" +
 	"\x16ListOpenOrdersResponse\x12'\n" +
@@ -1775,33 +2321,67 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"p\n" +
 	"\x14ListMyOrdersResponse\x12'\n" +
 	"\x06orders\x18\x01 \x03(\v2\x0f.order.v1.OrderR\x06orders\x12/\n" +
-	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"<\n" +
+	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"y\n" +
 	"\x13AcceptOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\":\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12;\n" +
+	"\aattempt\x18\x02 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\":\n" +
 	"\x11MakeOfferResponse\x12%\n" +
 	"\x05offer\x18\x01 \x01(\v2\x0f.order.v1.OfferR\x05offer\"=\n" +
 	"\x12ListOffersResponse\x12'\n" +
-	"\x06offers\x18\x01 \x03(\v2\x0f.order.v1.OfferR\x06offers\"c\n" +
+	"\x06offers\x18\x01 \x03(\v2\x0f.order.v1.OfferR\x06offers\"\xa0\x01\n" +
 	"\x13AcceptOfferResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12%\n" +
-	"\x05offer\x18\x02 \x01(\v2\x0f.order.v1.OfferR\x05offer\">\n" +
+	"\x05offer\x18\x02 \x01(\v2\x0f.order.v1.OfferR\x05offer\x12;\n" +
+	"\aattempt\x18\x03 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\">\n" +
 	"\x15ConfirmPickupResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\x90\x01\n" +
-	"\x19CreateProofUploadResponse\x12\x19\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\xb1\x02\n" +
+	"\x19CreateProofUploadResponse\x12]\n" +
+	"\x0eupload_headers\x18\x04 \x03(\v26.order.v1.CreateProofUploadResponse.UploadHeadersEntryR\ruploadHeaders\x12\x19\n" +
 	"\bproof_id\x18\x01 \x01(\tR\aproofId\x12\x1d\n" +
 	"\n" +
 	"upload_url\x18\x02 \x01(\tR\tuploadUrl\x129\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"@\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x1a@\n" +
+	"\x12UploadHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
 	"\x17ConfirmDeliveryResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"?\n" +
 	"\x16ConfirmReceiptResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"<\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"~\n" +
 	"\x13CancelOrderResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"C\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12@\n" +
+	"\fcancellation\x18\x02 \x01(\v2\x1c.order.v1.CancellationResultR\fcancellation\"C\n" +
 	"\x1aRecordItemLocationResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\x98\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"d\n" +
+	"\x18VerifyProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12#\n" +
+	"\bproof_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aproofId\"\x1b\n" +
+	"\x19VerifyProofUploadResponse\"g\n" +
+	"\x19AbandonProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12%\n" +
+	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\"\x1c\n" +
+	"\x1aAbandonProofUploadResponse\">\n" +
+	"\x17GetDeliveryProofRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb0\x01\n" +
+	"\x12DeliveryProofPhoto\x12!\n" +
+	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x12\x19\n" +
+	"\bproof_id\x18\x01 \x01(\tR\aproofId\x12!\n" +
+	"\fdownload_url\x18\x02 \x01(\tR\vdownloadUrl\x129\n" +
 	"\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xbc\x01\n" +
+	"\x1bPendingDeliveryConfirmation\x12\x1b\n" +
+	"\tproof_ids\x18\x01 \x03(\tR\bproofIds\x12\x1e\n" +
+	"\n" +
+	"unattended\x18\x02 \x01(\bR\n" +
+	"unattended\x12#\n" +
+	"\rwithout_proof\x18\x03 \x01(\bR\fwithoutProof\x12;\n" +
+	"\vreceived_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"receivedAt\"\xb6\x01\n" +
+	"\x18GetDeliveryProofResponse\x124\n" +
+	"\x06proofs\x18\x01 \x03(\v2\x1c.order.v1.DeliveryProofPhotoR\x06proofs\x12#\n" +
+	"\routage_reason\x18\x02 \x01(\tR\foutageReason\x12?\n" +
+	"\apending\x18\x03 \x01(\v2%.order.v1.PendingDeliveryConfirmationR\apending2\xc1\f\n" +
 	"\fOrderService\x12L\n" +
 	"\vCreateOrder\x12\x1c.order.v1.CreateOrderRequest\x1a\x1d.order.v1.CreateOrderResponse\"\x00\x12j\n" +
 	"\x15CreateItemImageUpload\x12&.order.v1.CreateItemImageUploadRequest\x1a'.order.v1.CreateItemImageUploadResponse\"\x00\x12F\n" +
@@ -1814,7 +2394,10 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"ListOffers\x12\x1b.order.v1.ListOffersRequest\x1a\x1c.order.v1.ListOffersResponse\"\x03\x90\x02\x01\x12O\n" +
 	"\vAcceptOffer\x12\x1c.order.v1.AcceptOfferRequest\x1a\x1d.order.v1.AcceptOfferResponse\"\x03\x90\x02\x02\x12U\n" +
 	"\rConfirmPickup\x12\x1e.order.v1.ConfirmPickupRequest\x1a\x1f.order.v1.ConfirmPickupResponse\"\x03\x90\x02\x02\x12a\n" +
-	"\x11CreateProofUpload\x12\".order.v1.CreateProofUploadRequest\x1a#.order.v1.CreateProofUploadResponse\"\x03\x90\x02\x02\x12[\n" +
+	"\x11CreateProofUpload\x12\".order.v1.CreateProofUploadRequest\x1a#.order.v1.CreateProofUploadResponse\"\x03\x90\x02\x02\x12a\n" +
+	"\x11VerifyProofUpload\x12\".order.v1.VerifyProofUploadRequest\x1a#.order.v1.VerifyProofUploadResponse\"\x03\x90\x02\x02\x12d\n" +
+	"\x12AbandonProofUpload\x12#.order.v1.AbandonProofUploadRequest\x1a$.order.v1.AbandonProofUploadResponse\"\x03\x90\x02\x02\x12^\n" +
+	"\x10GetDeliveryProof\x12!.order.v1.GetDeliveryProofRequest\x1a\".order.v1.GetDeliveryProofResponse\"\x03\x90\x02\x01\x12[\n" +
 	"\x0fConfirmDelivery\x12 .order.v1.ConfirmDeliveryRequest\x1a!.order.v1.ConfirmDeliveryResponse\"\x03\x90\x02\x02\x12X\n" +
 	"\x0eConfirmReceipt\x12\x1f.order.v1.ConfirmReceiptRequest\x1a .order.v1.ConfirmReceiptResponse\"\x03\x90\x02\x02\x12L\n" +
 	"\vCancelOrder\x12\x1c.order.v1.CancelOrderRequest\x1a\x1d.order.v1.CancelOrderResponse\"\x00\x12a\n" +
@@ -1834,7 +2417,7 @@ func file_order_v1_order_proto_rawDescGZIP() []byte {
 	return file_order_v1_order_proto_rawDescData
 }
 
-var file_order_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_order_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_order_v1_order_proto_goTypes = []any{
 	(*CreateOrderRequest)(nil),            // 0: order.v1.CreateOrderRequest
 	(*DeliveryInput)(nil),                 // 1: order.v1.DeliveryInput
@@ -1867,75 +2450,102 @@ var file_order_v1_order_proto_goTypes = []any{
 	(*ConfirmReceiptResponse)(nil),        // 28: order.v1.ConfirmReceiptResponse
 	(*CancelOrderResponse)(nil),           // 29: order.v1.CancelOrderResponse
 	(*RecordItemLocationResponse)(nil),    // 30: order.v1.RecordItemLocationResponse
-	(*durationpb.Duration)(nil),           // 31: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),         // 32: google.protobuf.Timestamp
-	(ParticipantRole)(0),                  // 33: order.v1.ParticipantRole
-	(OrderStatus)(0),                      // 34: order.v1.OrderStatus
-	(OfferStatus)(0),                      // 35: order.v1.OfferStatus
-	(*Order)(nil),                         // 36: order.v1.Order
-	(*PageInfo)(nil),                      // 37: order.v1.PageInfo
-	(*Offer)(nil),                         // 38: order.v1.Offer
+	(*VerifyProofUploadRequest)(nil),      // 31: order.v1.VerifyProofUploadRequest
+	(*VerifyProofUploadResponse)(nil),     // 32: order.v1.VerifyProofUploadResponse
+	(*AbandonProofUploadRequest)(nil),     // 33: order.v1.AbandonProofUploadRequest
+	(*AbandonProofUploadResponse)(nil),    // 34: order.v1.AbandonProofUploadResponse
+	(*GetDeliveryProofRequest)(nil),       // 35: order.v1.GetDeliveryProofRequest
+	(*DeliveryProofPhoto)(nil),            // 36: order.v1.DeliveryProofPhoto
+	(*PendingDeliveryConfirmation)(nil),   // 37: order.v1.PendingDeliveryConfirmation
+	(*GetDeliveryProofResponse)(nil),      // 38: order.v1.GetDeliveryProofResponse
+	nil,                                   // 39: order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	nil,                                   // 40: order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	(*durationpb.Duration)(nil),           // 41: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),         // 42: google.protobuf.Timestamp
+	(ParticipantRole)(0),                  // 43: order.v1.ParticipantRole
+	(OrderStatus)(0),                      // 44: order.v1.OrderStatus
+	(OfferStatus)(0),                      // 45: order.v1.OfferStatus
+	(*Order)(nil),                         // 46: order.v1.Order
+	(*PageInfo)(nil),                      // 47: order.v1.PageInfo
+	(*AssignmentAttemptResult)(nil),       // 48: order.v1.AssignmentAttemptResult
+	(*Offer)(nil),                         // 49: order.v1.Offer
+	(*CancellationResult)(nil),            // 50: order.v1.CancellationResult
 }
 var file_order_v1_order_proto_depIdxs = []int32{
 	1,  // 0: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
-	31, // 1: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
-	32, // 2: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
-	33, // 3: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
-	34, // 4: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
-	35, // 5: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
-	36, // 6: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
-	32, // 7: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	36, // 8: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
-	36, // 9: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
-	37, // 10: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	36, // 11: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
-	37, // 12: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	36, // 13: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
-	38, // 14: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
-	38, // 15: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
-	36, // 16: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
-	38, // 17: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
-	36, // 18: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
-	32, // 19: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	36, // 20: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
-	36, // 21: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
-	36, // 22: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
-	36, // 23: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
-	0,  // 24: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
-	2,  // 25: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
-	3,  // 26: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
-	4,  // 27: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
-	5,  // 28: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
-	6,  // 29: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
-	7,  // 30: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
-	8,  // 31: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
-	9,  // 32: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
-	10, // 33: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
-	11, // 34: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
-	12, // 35: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
-	13, // 36: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
-	14, // 37: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
-	15, // 38: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
-	16, // 39: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
-	17, // 40: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
-	18, // 41: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
-	19, // 42: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
-	20, // 43: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
-	21, // 44: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
-	22, // 45: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
-	23, // 46: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
-	24, // 47: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
-	25, // 48: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
-	26, // 49: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
-	27, // 50: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
-	28, // 51: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
-	29, // 52: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
-	30, // 53: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
-	39, // [39:54] is the sub-list for method output_type
-	24, // [24:39] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	41, // 1: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
+	42, // 2: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
+	43, // 3: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
+	44, // 4: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
+	45, // 5: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
+	46, // 6: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
+	39, // 7: order.v1.CreateItemImageUploadResponse.upload_headers:type_name -> order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	42, // 8: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	46, // 9: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
+	46, // 10: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
+	47, // 11: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	46, // 12: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
+	47, // 13: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	46, // 14: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
+	48, // 15: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	49, // 16: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
+	49, // 17: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
+	46, // 18: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
+	49, // 19: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
+	48, // 20: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	46, // 21: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
+	40, // 22: order.v1.CreateProofUploadResponse.upload_headers:type_name -> order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	42, // 23: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	46, // 24: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
+	46, // 25: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
+	46, // 26: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
+	50, // 27: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
+	46, // 28: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
+	42, // 29: order.v1.DeliveryProofPhoto.expires_at:type_name -> google.protobuf.Timestamp
+	42, // 30: order.v1.PendingDeliveryConfirmation.received_at:type_name -> google.protobuf.Timestamp
+	36, // 31: order.v1.GetDeliveryProofResponse.proofs:type_name -> order.v1.DeliveryProofPhoto
+	37, // 32: order.v1.GetDeliveryProofResponse.pending:type_name -> order.v1.PendingDeliveryConfirmation
+	0,  // 33: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
+	2,  // 34: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
+	3,  // 35: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
+	4,  // 36: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
+	5,  // 37: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
+	6,  // 38: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
+	7,  // 39: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
+	8,  // 40: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
+	9,  // 41: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
+	10, // 42: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
+	11, // 43: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
+	31, // 44: order.v1.OrderService.VerifyProofUpload:input_type -> order.v1.VerifyProofUploadRequest
+	33, // 45: order.v1.OrderService.AbandonProofUpload:input_type -> order.v1.AbandonProofUploadRequest
+	35, // 46: order.v1.OrderService.GetDeliveryProof:input_type -> order.v1.GetDeliveryProofRequest
+	12, // 47: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
+	13, // 48: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
+	14, // 49: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
+	15, // 50: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
+	16, // 51: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
+	17, // 52: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
+	18, // 53: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
+	19, // 54: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
+	20, // 55: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
+	21, // 56: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
+	22, // 57: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
+	23, // 58: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
+	24, // 59: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
+	25, // 60: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
+	26, // 61: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
+	32, // 62: order.v1.OrderService.VerifyProofUpload:output_type -> order.v1.VerifyProofUploadResponse
+	34, // 63: order.v1.OrderService.AbandonProofUpload:output_type -> order.v1.AbandonProofUploadResponse
+	38, // 64: order.v1.OrderService.GetDeliveryProof:output_type -> order.v1.GetDeliveryProofResponse
+	27, // 65: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
+	28, // 66: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
+	29, // 67: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
+	30, // 68: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
+	51, // [51:69] is the sub-list for method output_type
+	33, // [33:51] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_order_proto_init() }
@@ -1953,7 +2563,7 @@ func file_order_v1_order_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_order_proto_rawDesc), len(file_order_v1_order_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

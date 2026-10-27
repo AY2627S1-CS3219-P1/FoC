@@ -11,6 +11,25 @@
 - Execution plans under `docs/plans/` describe intended work, not proof that it has
   landed. Verify the target branch before treating a plan as the current structure.
 
+## Go readability
+
+- Separate functions and type declarations with a blank line. Within functions,
+  use blank lines between logical steps such as validation, database access,
+  conversion and response construction.
+- Keep a call, its immediate error check and associated cleanup registration
+  together. Use spacing to group related statements, rather than separating
+  every line.
+- Expand long struct and configuration literals across multiple lines so their
+  fields are easy to scan.
+- Name boolean helpers as predicates that read naturally at call sites, such as
+  `HasParticipant(userID)`, `IsRequestedBy(userID)` and `IsValid()`. Parameter
+  names should identify what is being checked.
+- In longer files, use brief section comments to identify groups of related
+  responsibilities. Within complex functions, mark major phases and explain
+  non-obvious constraints. Avoid decorative banners and comments that simply
+  restate the code.
+- Choose logical spacing deliberately; `gofmt` preserves it but does not add it.
+
 ## Go checks
 
 - Use `gofmt` and `golines` for handwritten Go, with a target line width of
@@ -19,9 +38,11 @@
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
-  default golangci-lint correctness linters across `pkg`, `user-service` and
-  `supplier-service`. CI installs the tool with the official action, then runs
-  the same target for each module. The Makefile pins
+  default golangci-lint correctness linters across `pkg`, `user-service`,
+  `supplier-service`, `order-service`, `communication-service` and
+  `credit-service`. CI installs the tool
+  with the official action, then runs the same target for each module. The
+  Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
@@ -89,6 +110,9 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   - user-service: handlers live in `internal/handlers/<domain>`. A handler is
     a struct that holds its dependencies as fields (see "Dependencies and
     interfaces").
+  - credit-service: handlers live under `internal/rpc/<domain>`, with error
+    and message conversion in `internal/rpc/shared`. Kafka handlers live in
+    `internal/events`.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.
@@ -144,22 +168,32 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   the methods it calls (e.g. a handler's `Logic`, a logic package's
   `UserStore`). Implementations return concrete types; never return an
   interface from a constructor.
-- Layers: `internal/handlers/<domain>` (Connect adapter) →
+- User Service layers: `internal/handlers/<domain>` (Connect adapter) →
   `internal/<domain>` (business rules and the store interfaces they need) →
   `internal/store` (GORM persistence over `internal/models`).
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
+- Supplier and Order use domain packages with consumer-owned read/transaction
+  interfaces and colocated Postgres adapters. Order keeps its aggregate in one
+  `internal/order` package; see `docs/adr/order-aggregate-foundation.md`.
 
 ## Database
 
-Supplier Service uses sqlc:
+Supplier, Order and Credit Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
-  `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never hand-edit
-  generated files.
+  Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
+  hand-edit generated files. Order generates one aggregate package,
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
+  generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
+and generates `internal/database/orderdb`; Communication keeps it at the service
+root, reads `migrations` and `queries`, and generates
+`internal/database/communicationdb`. Run `make sqlc` in the service directory.
 
 ## Frontend services
 

@@ -3,7 +3,7 @@ BUF := .tools/buf/$(BUF_VERSION)/buf
 
 GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
-GO_MODULES := pkg user-service supplier-service
+GO_MODULES := pkg user-service supplier-service order-service communication-service credit-service
 
 .PHONY: buf-lint buf-generate buf-generate-rpc buf-generate-kafka fmt fmt-check lint
 
@@ -41,3 +41,12 @@ buf-generate-rpc: $(BUF)
 
 buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
+
+.PHONY: seed-demo seed-demo-reset
+# The manifest owns file order and database targets; SQL owns transactions.
+seed-demo:
+	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
+
+# Restore fixed fixture IDs without deleting unrelated records.
+seed-demo-reset:
+	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset

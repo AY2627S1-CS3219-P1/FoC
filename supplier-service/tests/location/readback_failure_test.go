@@ -132,9 +132,9 @@ func TestMutationReadbackFailureRollsBack(t *testing.T) {
 			case "withdraw":
 				_, err = service.WithdrawRequest(ctx, owner, rID)
 			case "reject":
-				_, err = service.RejectRequest(ctx, admin, rID, "not suitable")
+				_, err = service.RejectRequest(ctx, admin, rID, "not suitable", 1)
 			case "approve":
-				_, err = service.ApproveRequest(ctx, admin, rID)
+				_, err = service.ApproveRequest(ctx, admin, rID, 1)
 			}
 			if err != failure {
 				t.Fatalf("readback error identity changed: got=%v want=%v", err, failure)

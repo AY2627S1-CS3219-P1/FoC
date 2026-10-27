@@ -345,9 +345,9 @@ func committedSeedPaths(t *testing.T) Paths {
 	}
 	repositoryRoot := filepath.Join(filepath.Dir(file), "..", "..", "..")
 	return Paths{
-		Suppliers:         filepath.Join(repositoryRoot, "data", "csv", "supplier-seed-data.csv"),
-		Buildings:         filepath.Join(repositoryRoot, "data", "csv", "building-seed-data.csv"),
-		OrdinaryLocations: filepath.Join(repositoryRoot, "data", "csv", "location-seed-data.csv"),
+		Suppliers:         filepath.Join(repositoryRoot, "data", "assignment", "supplier-seed-data.csv"),
+		Buildings:         filepath.Join(repositoryRoot, "data", "assignment", "building-seed-data.csv"),
+		OrdinaryLocations: filepath.Join(repositoryRoot, "data", "assignment", "location-seed-data.csv"),
 	}
 }
 

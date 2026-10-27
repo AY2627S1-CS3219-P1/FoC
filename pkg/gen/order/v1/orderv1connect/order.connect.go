@@ -63,6 +63,15 @@ const (
 	// OrderServiceCreateProofUploadProcedure is the fully-qualified name of the OrderService's
 	// CreateProofUpload RPC.
 	OrderServiceCreateProofUploadProcedure = "/order.v1.OrderService/CreateProofUpload"
+	// OrderServiceVerifyProofUploadProcedure is the fully-qualified name of the OrderService's
+	// VerifyProofUpload RPC.
+	OrderServiceVerifyProofUploadProcedure = "/order.v1.OrderService/VerifyProofUpload"
+	// OrderServiceAbandonProofUploadProcedure is the fully-qualified name of the OrderService's
+	// AbandonProofUpload RPC.
+	OrderServiceAbandonProofUploadProcedure = "/order.v1.OrderService/AbandonProofUpload"
+	// OrderServiceGetDeliveryProofProcedure is the fully-qualified name of the OrderService's
+	// GetDeliveryProof RPC.
+	OrderServiceGetDeliveryProofProcedure = "/order.v1.OrderService/GetDeliveryProof"
 	// OrderServiceConfirmDeliveryProcedure is the fully-qualified name of the OrderService's
 	// ConfirmDelivery RPC.
 	OrderServiceConfirmDeliveryProcedure = "/order.v1.OrderService/ConfirmDelivery"
@@ -90,6 +99,9 @@ type OrderServiceClient interface {
 	AcceptOffer(context.Context, *connect.Request[v1.AcceptOfferRequest]) (*connect.Response[v1.AcceptOfferResponse], error)
 	ConfirmPickup(context.Context, *connect.Request[v1.ConfirmPickupRequest]) (*connect.Response[v1.ConfirmPickupResponse], error)
 	CreateProofUpload(context.Context, *connect.Request[v1.CreateProofUploadRequest]) (*connect.Response[v1.CreateProofUploadResponse], error)
+	VerifyProofUpload(context.Context, *connect.Request[v1.VerifyProofUploadRequest]) (*connect.Response[v1.VerifyProofUploadResponse], error)
+	AbandonProofUpload(context.Context, *connect.Request[v1.AbandonProofUploadRequest]) (*connect.Response[v1.AbandonProofUploadResponse], error)
+	GetDeliveryProof(context.Context, *connect.Request[v1.GetDeliveryProofRequest]) (*connect.Response[v1.GetDeliveryProofResponse], error)
 	ConfirmDelivery(context.Context, *connect.Request[v1.ConfirmDeliveryRequest]) (*connect.Response[v1.ConfirmDeliveryResponse], error)
 	ConfirmReceipt(context.Context, *connect.Request[v1.ConfirmReceiptRequest]) (*connect.Response[v1.ConfirmReceiptResponse], error)
 	CancelOrder(context.Context, *connect.Request[v1.CancelOrderRequest]) (*connect.Response[v1.CancelOrderResponse], error)
@@ -181,6 +193,27 @@ func NewOrderServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithIdempotency(connect.IdempotencyIdempotent),
 			connect.WithClientOptions(opts...),
 		),
+		verifyProofUpload: connect.NewClient[v1.VerifyProofUploadRequest, v1.VerifyProofUploadResponse](
+			httpClient,
+			baseURL+OrderServiceVerifyProofUploadProcedure,
+			connect.WithSchema(orderServiceMethods.ByName("VerifyProofUpload")),
+			connect.WithIdempotency(connect.IdempotencyIdempotent),
+			connect.WithClientOptions(opts...),
+		),
+		abandonProofUpload: connect.NewClient[v1.AbandonProofUploadRequest, v1.AbandonProofUploadResponse](
+			httpClient,
+			baseURL+OrderServiceAbandonProofUploadProcedure,
+			connect.WithSchema(orderServiceMethods.ByName("AbandonProofUpload")),
+			connect.WithIdempotency(connect.IdempotencyIdempotent),
+			connect.WithClientOptions(opts...),
+		),
+		getDeliveryProof: connect.NewClient[v1.GetDeliveryProofRequest, v1.GetDeliveryProofResponse](
+			httpClient,
+			baseURL+OrderServiceGetDeliveryProofProcedure,
+			connect.WithSchema(orderServiceMethods.ByName("GetDeliveryProof")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		confirmDelivery: connect.NewClient[v1.ConfirmDeliveryRequest, v1.ConfirmDeliveryResponse](
 			httpClient,
 			baseURL+OrderServiceConfirmDeliveryProcedure,
@@ -223,6 +256,9 @@ type orderServiceClient struct {
 	acceptOffer           *connect.Client[v1.AcceptOfferRequest, v1.AcceptOfferResponse]
 	confirmPickup         *connect.Client[v1.ConfirmPickupRequest, v1.ConfirmPickupResponse]
 	createProofUpload     *connect.Client[v1.CreateProofUploadRequest, v1.CreateProofUploadResponse]
+	verifyProofUpload     *connect.Client[v1.VerifyProofUploadRequest, v1.VerifyProofUploadResponse]
+	abandonProofUpload    *connect.Client[v1.AbandonProofUploadRequest, v1.AbandonProofUploadResponse]
+	getDeliveryProof      *connect.Client[v1.GetDeliveryProofRequest, v1.GetDeliveryProofResponse]
 	confirmDelivery       *connect.Client[v1.ConfirmDeliveryRequest, v1.ConfirmDeliveryResponse]
 	confirmReceipt        *connect.Client[v1.ConfirmReceiptRequest, v1.ConfirmReceiptResponse]
 	cancelOrder           *connect.Client[v1.CancelOrderRequest, v1.CancelOrderResponse]
@@ -284,6 +320,21 @@ func (c *orderServiceClient) CreateProofUpload(ctx context.Context, req *connect
 	return c.createProofUpload.CallUnary(ctx, req)
 }
 
+// VerifyProofUpload calls order.v1.OrderService.VerifyProofUpload.
+func (c *orderServiceClient) VerifyProofUpload(ctx context.Context, req *connect.Request[v1.VerifyProofUploadRequest]) (*connect.Response[v1.VerifyProofUploadResponse], error) {
+	return c.verifyProofUpload.CallUnary(ctx, req)
+}
+
+// AbandonProofUpload calls order.v1.OrderService.AbandonProofUpload.
+func (c *orderServiceClient) AbandonProofUpload(ctx context.Context, req *connect.Request[v1.AbandonProofUploadRequest]) (*connect.Response[v1.AbandonProofUploadResponse], error) {
+	return c.abandonProofUpload.CallUnary(ctx, req)
+}
+
+// GetDeliveryProof calls order.v1.OrderService.GetDeliveryProof.
+func (c *orderServiceClient) GetDeliveryProof(ctx context.Context, req *connect.Request[v1.GetDeliveryProofRequest]) (*connect.Response[v1.GetDeliveryProofResponse], error) {
+	return c.getDeliveryProof.CallUnary(ctx, req)
+}
+
 // ConfirmDelivery calls order.v1.OrderService.ConfirmDelivery.
 func (c *orderServiceClient) ConfirmDelivery(ctx context.Context, req *connect.Request[v1.ConfirmDeliveryRequest]) (*connect.Response[v1.ConfirmDeliveryResponse], error) {
 	return c.confirmDelivery.CallUnary(ctx, req)
@@ -317,6 +368,9 @@ type OrderServiceHandler interface {
 	AcceptOffer(context.Context, *connect.Request[v1.AcceptOfferRequest]) (*connect.Response[v1.AcceptOfferResponse], error)
 	ConfirmPickup(context.Context, *connect.Request[v1.ConfirmPickupRequest]) (*connect.Response[v1.ConfirmPickupResponse], error)
 	CreateProofUpload(context.Context, *connect.Request[v1.CreateProofUploadRequest]) (*connect.Response[v1.CreateProofUploadResponse], error)
+	VerifyProofUpload(context.Context, *connect.Request[v1.VerifyProofUploadRequest]) (*connect.Response[v1.VerifyProofUploadResponse], error)
+	AbandonProofUpload(context.Context, *connect.Request[v1.AbandonProofUploadRequest]) (*connect.Response[v1.AbandonProofUploadResponse], error)
+	GetDeliveryProof(context.Context, *connect.Request[v1.GetDeliveryProofRequest]) (*connect.Response[v1.GetDeliveryProofResponse], error)
 	ConfirmDelivery(context.Context, *connect.Request[v1.ConfirmDeliveryRequest]) (*connect.Response[v1.ConfirmDeliveryResponse], error)
 	ConfirmReceipt(context.Context, *connect.Request[v1.ConfirmReceiptRequest]) (*connect.Response[v1.ConfirmReceiptResponse], error)
 	CancelOrder(context.Context, *connect.Request[v1.CancelOrderRequest]) (*connect.Response[v1.CancelOrderResponse], error)
@@ -404,6 +458,27 @@ func NewOrderServiceHandler(svc OrderServiceHandler, opts ...connect.HandlerOpti
 		connect.WithIdempotency(connect.IdempotencyIdempotent),
 		connect.WithHandlerOptions(opts...),
 	)
+	orderServiceVerifyProofUploadHandler := connect.NewUnaryHandler(
+		OrderServiceVerifyProofUploadProcedure,
+		svc.VerifyProofUpload,
+		connect.WithSchema(orderServiceMethods.ByName("VerifyProofUpload")),
+		connect.WithIdempotency(connect.IdempotencyIdempotent),
+		connect.WithHandlerOptions(opts...),
+	)
+	orderServiceAbandonProofUploadHandler := connect.NewUnaryHandler(
+		OrderServiceAbandonProofUploadProcedure,
+		svc.AbandonProofUpload,
+		connect.WithSchema(orderServiceMethods.ByName("AbandonProofUpload")),
+		connect.WithIdempotency(connect.IdempotencyIdempotent),
+		connect.WithHandlerOptions(opts...),
+	)
+	orderServiceGetDeliveryProofHandler := connect.NewUnaryHandler(
+		OrderServiceGetDeliveryProofProcedure,
+		svc.GetDeliveryProof,
+		connect.WithSchema(orderServiceMethods.ByName("GetDeliveryProof")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	orderServiceConfirmDeliveryHandler := connect.NewUnaryHandler(
 		OrderServiceConfirmDeliveryProcedure,
 		svc.ConfirmDelivery,
@@ -454,6 +529,12 @@ func NewOrderServiceHandler(svc OrderServiceHandler, opts ...connect.HandlerOpti
 			orderServiceConfirmPickupHandler.ServeHTTP(w, r)
 		case OrderServiceCreateProofUploadProcedure:
 			orderServiceCreateProofUploadHandler.ServeHTTP(w, r)
+		case OrderServiceVerifyProofUploadProcedure:
+			orderServiceVerifyProofUploadHandler.ServeHTTP(w, r)
+		case OrderServiceAbandonProofUploadProcedure:
+			orderServiceAbandonProofUploadHandler.ServeHTTP(w, r)
+		case OrderServiceGetDeliveryProofProcedure:
+			orderServiceGetDeliveryProofHandler.ServeHTTP(w, r)
 		case OrderServiceConfirmDeliveryProcedure:
 			orderServiceConfirmDeliveryHandler.ServeHTTP(w, r)
 		case OrderServiceConfirmReceiptProcedure:
@@ -513,6 +594,18 @@ func (UnimplementedOrderServiceHandler) ConfirmPickup(context.Context, *connect.
 
 func (UnimplementedOrderServiceHandler) CreateProofUpload(context.Context, *connect.Request[v1.CreateProofUploadRequest]) (*connect.Response[v1.CreateProofUploadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.CreateProofUpload is not implemented"))
+}
+
+func (UnimplementedOrderServiceHandler) VerifyProofUpload(context.Context, *connect.Request[v1.VerifyProofUploadRequest]) (*connect.Response[v1.VerifyProofUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.VerifyProofUpload is not implemented"))
+}
+
+func (UnimplementedOrderServiceHandler) AbandonProofUpload(context.Context, *connect.Request[v1.AbandonProofUploadRequest]) (*connect.Response[v1.AbandonProofUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.AbandonProofUpload is not implemented"))
+}
+
+func (UnimplementedOrderServiceHandler) GetDeliveryProof(context.Context, *connect.Request[v1.GetDeliveryProofRequest]) (*connect.Response[v1.GetDeliveryProofResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.GetDeliveryProof is not implemented"))
 }
 
 func (UnimplementedOrderServiceHandler) ConfirmDelivery(context.Context, *connect.Request[v1.ConfirmDeliveryRequest]) (*connect.Response[v1.ConfirmDeliveryResponse], error) {
