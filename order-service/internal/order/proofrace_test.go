@@ -84,7 +84,14 @@ func TestProofOutageRejectsWrongScopeRecoveryAndDeadline(t *testing.T) {
 			case "unbounded validity":
 				d.outage.ValidUntil = now.Add(time.Hour)
 			}
-			if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, ConfirmDeliveryInput{OrderID: proofOrderID, WithoutProof: true, Unattended: true}); !errors.Is(err, ErrPrecondition) {
+			if _, err := s.ConfirmDelivery(
+				t.Context(),
+				Caller{ID: proofCourier},
+				ConfirmDeliveryInput{OrderID: proofOrderID, WithoutProof: true, Unattended: true},
+			); !errors.Is(
+				err,
+				ErrPrecondition,
+			) {
 				t.Fatal(err)
 			}
 			if r.order.Status != Delivering || r.confirmation != nil || len(r.changes) != 0 {
@@ -107,7 +114,14 @@ func TestProofSaturationRejectsBeforeReadingObject(t *testing.T) {
 			<-s.verificationSlots
 		}
 	}()
-	if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); !errors.Is(err, ErrUnavailable) {
+	if _, err := s.ConfirmDelivery(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofConfirmationInput(row),
+	); !errors.Is(
+		err,
+		ErrUnavailable,
+	) {
 		t.Fatal(err)
 	}
 	if d.inspections != 0 || r.confirmation != nil || r.order.Status != Delivering {

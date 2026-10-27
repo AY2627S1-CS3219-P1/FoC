@@ -93,7 +93,14 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 	return nil
 }
 
-func (h *Handler) notify(ctx context.Context, log *slog.Logger, eventID uuid.UUID, orderID string, userID uuid.UUID, text string) error {
+func (h *Handler) notify(
+	ctx context.Context,
+	log *slog.Logger,
+	eventID uuid.UUID,
+	orderID string,
+	userID uuid.UUID,
+	text string,
+) error {
 	sent, err := h.Deliveries.HasBeenSent(ctx, eventID, userID)
 	if err != nil {
 		return fmt.Errorf("check sent notification: %w", err)

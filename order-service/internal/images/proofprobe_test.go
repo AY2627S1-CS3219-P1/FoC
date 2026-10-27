@@ -40,7 +40,10 @@ func TestProofProbeRequiresExplicitUploadServiceFailure(t *testing.T) {
 				w.WriteHeader(status)
 			}))
 			defer server.Close()
-			store, err := NewS3(t.Context(), S3Config{Bucket: "probe-tests", Region: "us-east-1", Endpoint: server.URL, PublicEndpoint: server.URL})
+			store, err := NewS3(
+				t.Context(),
+				S3Config{Bucket: "probe-tests", Region: "us-east-1", Endpoint: server.URL, PublicEndpoint: server.URL},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

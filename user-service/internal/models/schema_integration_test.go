@@ -88,7 +88,9 @@ func TestSchema(t *testing.T) {
 				t.Errorf("DB role %q has no Go const", r.Name)
 			}
 		}
-		if err := db.Exec("INSERT INTO users (email, display_name) VALUES ('norole@u.nus.edu', 'N')").Error; err != nil {
+		if err := db.Exec(
+			"INSERT INTO users (email, display_name) VALUES ('norole@u.nus.edu', 'N')",
+		).Error; err != nil {
 			t.Fatal(err)
 		}
 		var def m.User
@@ -142,13 +144,19 @@ func TestSchema(t *testing.T) {
 	t.Run("role_changes: reason required for suspend/reinstate", func(t *testing.T) {
 		blank := "  "
 		reason := "spam"
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended, Reason: &blank}).Error; err == nil {
+		if err := db.Create(
+			&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended, Reason: &blank},
+		).Error; err == nil {
 			t.Fatal("expected blank suspend reason to fail")
 		}
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleSuspended, ToRole: m.RoleUser}).Error; err == nil {
+		if err := db.Create(
+			&m.RoleChange{UserID: alice.ID, FromRole: m.RoleSuspended, ToRole: m.RoleUser},
+		).Error; err == nil {
 			t.Fatal("expected missing reinstate reason to fail")
 		}
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleUser, Reason: &reason}).Error; err == nil {
+		if err := db.Create(
+			&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleUser, Reason: &reason},
+		).Error; err == nil {
 			t.Fatal("expected no-op change to fail")
 		}
 		suspend := &m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended, Reason: &reason}
@@ -159,14 +167,18 @@ func TestSchema(t *testing.T) {
 		if suspend.CreatedBy == nil || *suspend.CreatedBy != admin.ID {
 			t.Fatalf("created_by = %v, want %v", suspend.CreatedBy, admin.ID)
 		}
-		if err := db.Create(&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleAdmin}).Error; err != nil {
+		if err := db.Create(
+			&m.RoleChange{UserID: alice.ID, FromRole: m.RoleUser, ToRole: m.RoleAdmin},
+		).Error; err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("admin bootstrap is single-winner", func(t *testing.T) {
-		first := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&m.AdminBootstrap{Singleton: true, UserID: admin.ID})
-		second := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&m.AdminBootstrap{Singleton: true, UserID: alice.ID})
+		first := db.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&m.AdminBootstrap{Singleton: true, UserID: admin.ID})
+		second := db.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&m.AdminBootstrap{Singleton: true, UserID: alice.ID})
 		if first.Error != nil || second.Error != nil || first.RowsAffected != 1 || second.RowsAffected != 0 {
 			t.Fatalf("first=%v/%d second=%v/%d", first.Error, first.RowsAffected, second.Error, second.RowsAffected)
 		}
@@ -175,7 +187,14 @@ func TestSchema(t *testing.T) {
 	t.Run("magic link consumed exactly once", func(t *testing.T) {
 		h := hash()
 		ip := "10.0.0.1"
-		tok := &m.AuthToken{TokenHash: h, Purpose: m.TokenPurposeLogin, Email: alice.Email, UserID: &alice.ID, RequestedIP: &ip, ExpiresAt: now.Add(m.MagicLinkTTL)}
+		tok := &m.AuthToken{
+			TokenHash:   h,
+			Purpose:     m.TokenPurposeLogin,
+			Email:       alice.Email,
+			UserID:      &alice.ID,
+			RequestedIP: &ip,
+			ExpiresAt:   now.Add(m.MagicLinkTTL),
+		}
 		if err := db.Create(tok).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +210,13 @@ func TestSchema(t *testing.T) {
 			t.Fatalf("reuse consume = %d", n)
 		}
 		h2 := hash()
-		expired := &m.AuthToken{TokenHash: h2, Purpose: m.TokenPurposeLogin, Email: alice.Email, UserID: &alice.ID, ExpiresAt: now.Add(-10 * time.Minute)}
+		expired := &m.AuthToken{
+			TokenHash: h2,
+			Purpose:   m.TokenPurposeLogin,
+			Email:     alice.Email,
+			UserID:    &alice.ID,
+			ExpiresAt: now.Add(-10 * time.Minute),
+		}
 		expired.CreatedAt = now.Add(-20 * time.Minute)
 		if err := db.Create(expired).Error; err != nil {
 			t.Fatal(err)
@@ -199,18 +224,35 @@ func TestSchema(t *testing.T) {
 		if n := consume(h2); n != 0 {
 			t.Fatalf("expired consume = %d", n)
 		}
-		if err := db.Create(&m.AuthToken{TokenHash: hash(), Purpose: m.TokenPurposeLogin, Email: "x@y.com", ExpiresAt: now.Add(time.Minute)}).Error; err == nil {
+		if err := db.Create(
+			&m.AuthToken{
+				TokenHash: hash(),
+				Purpose:   m.TokenPurposeLogin,
+				Email:     "x@y.com",
+				ExpiresAt: now.Add(time.Minute),
+			},
+		).Error; err == nil {
 			t.Fatal("expected check violation for login token without user_id")
 		}
 	})
 
 	t.Run("sessions logout-all", func(t *testing.T) {
 		for i := 0; i < 3; i++ {
-			if err := db.Create(&m.Session{TokenHash: hash(), UserID: alice.ID, LastSeenAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour)}).Error; err != nil {
+			if err := db.Create(
+				&m.Session{
+					TokenHash:  hash(),
+					UserID:     alice.ID,
+					LastSeenAt: now,
+					ExpiresAt:  now.Add(30 * 24 * time.Hour),
+				},
+			).Error; err != nil {
 				t.Fatal(err)
 			}
 		}
-		n := db.Model(&m.Session{}).Where("user_id = ? AND revoked_at IS NULL", alice.ID).Update("revoked_at", now).RowsAffected
+		n := db.Model(&m.Session{}).
+			Where("user_id = ? AND revoked_at IS NULL", alice.ID).
+			Update("revoked_at", now).
+			RowsAffected
 		if n != 3 {
 			t.Fatalf("revoked %d", n)
 		}
@@ -251,14 +293,20 @@ func TestSchema(t *testing.T) {
 			t.Fatal("expected duplicate favourite to fail")
 		}
 		ev := uuid.New()
-		w := &m.AccountWarning{UserID: alice.ID, RequestID: uuid.New(), Reason: "cancelled after pickup", SourceEventID: &ev}
+		w := &m.AccountWarning{
+			UserID:        alice.ID,
+			RequestID:     uuid.New(),
+			Reason:        "cancelled after pickup",
+			SourceEventID: &ev,
+		}
 		if err := db.Create(w).Error; err != nil {
 			t.Fatal(err)
 		}
 		if w.Status != m.WarningActive {
 			t.Fatalf("default status = %q", w.Status)
 		}
-		dup := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&m.AccountWarning{UserID: alice.ID, RequestID: uuid.New(), Reason: "dup", SourceEventID: &ev})
+		dup := db.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&m.AccountWarning{UserID: alice.ID, RequestID: uuid.New(), Reason: "dup", SourceEventID: &ev})
 		if dup.Error != nil || dup.RowsAffected != 0 {
 			t.Fatalf("replayed event created warning: %v/%d", dup.Error, dup.RowsAffected)
 		}

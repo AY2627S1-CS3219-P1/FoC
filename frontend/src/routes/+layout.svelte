@@ -7,6 +7,7 @@
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService } from '$lib/services';
+	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
 	let previousUser: string | undefined;
 	$effect(() => {
@@ -99,6 +100,7 @@
 						>
 					{/each}
 				</div>
+				<CreditBalance />
 				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}
 					>{signingOut ? 'Signing out…' : 'Sign out'}</Button
 				>

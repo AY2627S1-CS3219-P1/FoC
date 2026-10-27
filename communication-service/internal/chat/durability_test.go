@@ -70,7 +70,11 @@ func TestRelayPendingMessageRevalidatesBeforePersistence(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(store.messages) != 0 || len(pending.attempts) != 1 {
-				t.Fatalf("persisted after eligibility changed: records = %d, attempts = %d", len(store.messages), len(pending.attempts))
+				t.Fatalf(
+					"persisted after eligibility changed: records = %d, attempts = %d",
+					len(store.messages),
+					len(pending.attempts),
+				)
 			}
 			if len(sender.sent) != 1 || sender.sent[0].chatID != courierChat || sender.sent[0].text != closedReply {
 				t.Fatalf("expected closed feedback, sent = %+v", sender.sent)
@@ -95,13 +99,24 @@ func TestRelayPendingMessageRetriesValidationFailure(t *testing.T) {
 		t.Fatalf("expected retryable validation error, got %v", err)
 	}
 	if len(pending.attempts) != 1 || len(store.messages) != 0 || len(sender.sent) != 0 {
-		t.Fatalf("validation failure advanced delivery: attempts = %d, records = %d, sends = %d", len(pending.attempts), len(store.messages), len(sender.sent))
+		t.Fatalf(
+			"validation failure advanced delivery: attempts = %d, records = %d, sends = %d",
+			len(pending.attempts),
+			len(store.messages),
+			len(sender.sent),
+		)
 	}
 	if err := retry.Retry(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(pending.attempts) != 2 || pending.attempts[0].ID != pending.attempts[1].ID || len(store.messages) != 1 || len(sender.sent) != 1 {
-		t.Fatalf("retry did not resume original record: attempts = %+v, records = %d, sends = %d", pending.attempts, len(store.messages), len(sender.sent))
+	if len(pending.attempts) != 2 || pending.attempts[0].ID != pending.attempts[1].ID || len(store.messages) != 1 ||
+		len(sender.sent) != 1 {
+		t.Fatalf(
+			"retry did not resume original record: attempts = %+v, records = %d, sends = %d",
+			pending.attempts,
+			len(store.messages),
+			len(sender.sent),
+		)
 	}
 }
 
@@ -138,7 +153,12 @@ func (s *failingRelayStore) Select(ctx context.Context, userID, orderID uuid.UUI
 	return s.fakeStore.Select(ctx, userID, orderID, at)
 }
 
-func (s *failingRelayStore) SaveReplyTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error {
+func (s *failingRelayStore) SaveReplyTarget(
+	ctx context.Context,
+	chatID, messageID int64,
+	orderID uuid.UUID,
+	at time.Time,
+) error {
 	if s.fail("target") {
 		return errors.New("database unavailable")
 	}
@@ -173,7 +193,12 @@ func TestRelayStorageRetriesDoNotResend(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(sender.sent) != 1 || len(store.messages) != 1 || len(store.targets) != 1 {
-				t.Fatalf("sends = %d, records = %d, targets = %d", len(sender.sent), len(store.messages), len(store.targets))
+				t.Fatalf(
+					"sends = %d, records = %d, targets = %d",
+					len(sender.sent),
+					len(store.messages),
+					len(store.targets),
+				)
 			}
 		})
 	}
@@ -223,7 +248,8 @@ func TestRelayRetryRevalidatesOrderAndLinks(t *testing.T) {
 					t.Fatalf("sends = %+v", sender.sent)
 				}
 				if change == "recipient relinked" {
-					if sender.sent[0].chatID != 999 || sender.sent[0].text != relayedText(o, courier, "private message") {
+					if sender.sent[0].chatID != 999 ||
+						sender.sent[0].text != relayedText(o, courier, "private message") {
 						t.Fatalf("message did not use refreshed recipient: %+v", sender.sent)
 					}
 				} else if sender.sent[0].chatID != courierChat || sender.sent[0].text != wantReply {

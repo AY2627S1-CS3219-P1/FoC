@@ -34,7 +34,12 @@ type ProofOutages struct {
 }
 
 func NewProofOutages(repository ProofOutageRepository, probe ProofProbe, scope string) *ProofOutages {
-	return &ProofOutages{repository: repository, probe: probe, scope: scope, key: "order/proof/probe/" + uuid.NewString()}
+	return &ProofOutages{
+		repository: repository,
+		probe:      probe,
+		scope:      scope,
+		key:        "order/proof/probe/" + uuid.NewString(),
+	}
 }
 
 func (s *ProofOutages) ConfirmProofOutage(ctx context.Context) (ProofOutage, error) {

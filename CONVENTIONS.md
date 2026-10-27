@@ -32,7 +32,11 @@
 
 ## Go checks
 
-- Run `make fmt` from the repository root to apply Go formatting.
+- Use `gofmt` and `golines` for handwritten Go, with a target line width of
+  120 characters. Generated files are excluded from formatting.
+- Run `make fmt` from the repository root to apply Go formatting. It runs
+  `fmt-check` after each pass and stops when the check passes, failing after
+  five unsuccessful attempts.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
@@ -106,9 +110,12 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   - supplier-service: implementations live under `internal/rpc`. Pass
     application dependencies to each RPC service constructor.
   - user-service: handlers live in `internal/handlers/<domain>` and are structs
-    that hold dependencies as fields. The allowed-domain admin feature is
-    grouped by domain under `internal/admin`, with its Connect handler, service,
-    and PostgreSQL repository together.
+    that hold dependencies as fields (see "Dependencies and interfaces"). The
+    allowed-domain admin feature is grouped by domain under `internal/admin`,
+    with its Connect handler, service, and PostgreSQL repository together.
+  - credit-service: handlers live under `internal/rpc/<domain>`, with error
+    and message conversion in `internal/rpc/shared`. Kafka handlers live in
+    `internal/events`.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.

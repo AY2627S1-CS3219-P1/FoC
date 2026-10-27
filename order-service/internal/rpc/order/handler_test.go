@@ -39,13 +39,35 @@ type fakeOperations struct {
 
 func fixture() app.Order {
 	now := time.Date(2026, 10, 15, 12, 34, 56, 123, time.UTC)
-	return app.Order{ID: orderID, RequesterID: userID, CourierID: proto.String(orderID), Status: app.Delivered,
-		Pickup:               app.LocationSnapshot{LocationID: locationID, Name: "Cafe", BuildingName: "COM1", Floor: proto.String("2")},
+	return app.Order{
+		ID:          orderID,
+		RequesterID: userID,
+		CourierID:   proto.String(orderID),
+		Status:      app.Delivered,
+		Pickup: app.LocationSnapshot{
+			LocationID:   locationID,
+			Name:         "Cafe",
+			BuildingName: "COM1",
+			Floor:        proto.String("2"),
+		},
 		Delivery:             app.LocationSnapshot{LocationID: orderID, Name: "Library", BuildingName: "Central"},
-		DeliveryInstructions: proto.String("Call outside"), ItemDescription: "Book", RewardCredits: 42,
-		DeliveryDuration: 10 * time.Minute, ExpiresAt: now.Add(time.Hour), AssignedAt: &now, PickedUpAt: &now,
-		DeliveredAt: &now, CompletedAt: &now, ClosedAt: &now, CloseReason: proto.String("reason"),
-		ItemLocation: proto.String("reception"), UnattendedDelivery: true, Revision: 7, CreatedAt: now, UpdatedAt: now}
+		DeliveryInstructions: proto.String("Call outside"),
+		ItemDescription:      "Book",
+		RewardCredits:        42,
+		DeliveryDuration:     10 * time.Minute,
+		ExpiresAt:            now.Add(time.Hour),
+		AssignedAt:           &now,
+		PickedUpAt:           &now,
+		DeliveredAt:          &now,
+		CompletedAt:          &now,
+		ClosedAt:             &now,
+		CloseReason:          proto.String("reason"),
+		ItemLocation:         proto.String("reception"),
+		UnattendedDelivery:   true,
+		Revision:             7,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 }
 
 func (f *fakeOperations) GetOrder(_ context.Context, c app.Caller, id string) (app.Order, error) {
@@ -55,7 +77,10 @@ func (f *fakeOperations) GetOrder(_ context.Context, c app.Caller, id string) (a
 
 func (f *fakeOperations) page(name string, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
 	f.called, f.caller, f.request = name, c, r
-	return app.OrderPage{Orders: []app.Order{fixture()}, PageInfo: app.PageInfo{Page: app.Page{Number: 2, Size: 20}, Total: 21}}, f.err
+	return app.OrderPage{
+		Orders:   []app.Order{fixture()},
+		PageInfo: app.PageInfo{Page: app.Page{Number: 2, Size: 20}, Total: 21},
+	}, f.err
 }
 
 func (f *fakeOperations) ListOpenOrders(_ context.Context, c app.Caller, r app.ListRequest) (app.OrderPage, error) {
@@ -66,12 +91,22 @@ func (f *fakeOperations) ListMyOrders(_ context.Context, c app.Caller, r app.Lis
 	return f.page("mine", c, r)
 }
 
-func (f *fakeOperations) ListUserOrders(_ context.Context, c app.Caller, id string, r app.ListRequest) (app.OrderPage, error) {
+func (f *fakeOperations) ListUserOrders(
+	_ context.Context,
+	c app.Caller,
+	id string,
+	r app.ListRequest,
+) (app.OrderPage, error) {
 	f.id = id
 	return f.page("user", c, r)
 }
 
-func (f *fakeOperations) ListOffers(_ context.Context, c app.Caller, id string, status app.OfferStatus) ([]app.Offer, error) {
+func (f *fakeOperations) ListOffers(
+	_ context.Context,
+	c app.Caller,
+	id string,
+	status app.OfferStatus,
+) ([]app.Offer, error) {
 	f.called, f.caller, f.id, f.status = "offers", c, id, status
 	o := fixture()
 	return []app.Offer{{
@@ -110,7 +145,12 @@ func mount(t *testing.T, f *fakeOperations, role string) clients {
 	authenticate := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if role != "" {
-				r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: role, Admin: role == "admin" || role == "super_admin"}))
+				r = r.WithContext(
+					auth.WithCaller(
+						r.Context(),
+						auth.Caller{ID: userID, Role: role, Admin: role == "admin" || role == "super_admin"},
+					),
+				)
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -140,13 +180,28 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	if f.called != "get" || f.id != orderID || f.caller.ID != userID || !f.caller.Suspended {
 		t.Fatalf("caller/input not forwarded: %+v", f)
 	}
-	if o.Id != orderID || o.RequesterId != userID || o.GetCourierId() != orderID || o.Status != pb.OrderStatus_ORDER_STATUS_DELIVERED || o.Revision != 7 || len(o.ItemImages) != 0 || o.RewardCredits != 42 {
+	if o.Id != orderID || o.RequesterId != userID || o.GetCourierId() != orderID ||
+		o.Status != pb.OrderStatus_ORDER_STATUS_DELIVERED ||
+		o.Revision != 7 ||
+		len(o.ItemImages) != 0 ||
+		o.RewardCredits != 42 {
 		t.Fatalf("order conversion: %+v", o)
 	}
-	if o.Pickup.GetFloor() != "2" || o.Pickup.Name != "Cafe" || o.Pickup.BuildingName != "COM1" || o.Delivery.Location.Name != "Library" || o.Delivery.GetInstructions() != "Call outside" || o.ItemDescription != "Book" {
+	if o.Pickup.GetFloor() != "2" || o.Pickup.Name != "Cafe" || o.Pickup.BuildingName != "COM1" ||
+		o.Delivery.Location.Name != "Library" ||
+		o.Delivery.GetInstructions() != "Call outside" ||
+		o.ItemDescription != "Book" {
 		t.Fatalf("snapshot conversion: %+v", o)
 	}
-	if o.DeliveryDuration.AsDuration() != 10*time.Minute || !o.CreatedAt.AsTime().Equal(fixture().CreatedAt) || o.AssignedAt == nil || o.PickedUpAt == nil || o.DeliveredAt == nil || o.CompletedAt == nil || o.ClosedAt == nil || !o.UnattendedDelivery || o.GetItemLocation() != "reception" || o.GetCloseReason() != "reason" {
+	if o.DeliveryDuration.AsDuration() != 10*time.Minute || !o.CreatedAt.AsTime().Equal(fixture().CreatedAt) ||
+		o.AssignedAt == nil ||
+		o.PickedUpAt == nil ||
+		o.DeliveredAt == nil ||
+		o.CompletedAt == nil ||
+		o.ClosedAt == nil ||
+		!o.UnattendedDelivery ||
+		o.GetItemLocation() != "reception" ||
+		o.GetCloseReason() != "reason" {
 		t.Fatalf("lifecycle conversion: %+v", o)
 	}
 	my, err := c.order.ListMyOrders(ctx, connect.NewRequest(&pb.ListMyOrdersRequest{
@@ -155,15 +210,36 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 		Page:     2,
 		PageSize: 20,
 	}))
-	if err != nil || f.request.Role != app.CourierRole || f.request.Status != app.Completed || f.request.Page.Number != 2 || my.Msg.PageInfo.TotalItems != 21 || my.Msg.PageInfo.TotalPages != 2 {
+	if err != nil || f.request.Role != app.CourierRole || f.request.Status != app.Completed ||
+		f.request.Page.Number != 2 ||
+		my.Msg.PageInfo.TotalItems != 21 ||
+		my.Msg.PageInfo.TotalPages != 2 {
 		t.Fatalf("mine filters/page: fake=%+v response=%v err=%v", f, my, err)
 	}
-	_, err = c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String(locationID), DeliveryBuildingName: "COM3", Page: 3, PageSize: 10}))
-	if err != nil || f.called != "open" || f.request.PickupID != locationID || f.request.DeliveryBuildingName != "COM3" || f.request.Page.Number != 3 || f.request.Page.Size != 10 {
+	_, err = c.order.ListOpenOrders(
+		ctx,
+		connect.NewRequest(
+			&pb.ListOpenOrdersRequest{
+				PickupLocationId:     proto.String(locationID),
+				DeliveryBuildingName: "COM3",
+				Page:                 3,
+				PageSize:             10,
+			},
+		),
+	)
+	if err != nil || f.called != "open" || f.request.PickupID != locationID ||
+		f.request.DeliveryBuildingName != "COM3" ||
+		f.request.Page.Number != 3 ||
+		f.request.Page.Size != 10 {
 		t.Fatalf("open filters: %+v err=%v", f, err)
 	}
-	offers, err := c.order.ListOffers(ctx, connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus_OFFER_STATUS_ACCEPTED}))
-	if err != nil || f.id != orderID || f.status != app.OfferAccepted || len(offers.Msg.Offers) != 1 || offers.Msg.Offers[0].Status != pb.OfferStatus_OFFER_STATUS_ACCEPTED || offers.Msg.Offers[0].Credits != 50 {
+	offers, err := c.order.ListOffers(
+		ctx,
+		connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus_OFFER_STATUS_ACCEPTED}),
+	)
+	if err != nil || f.id != orderID || f.status != app.OfferAccepted || len(offers.Msg.Offers) != 1 ||
+		offers.Msg.Offers[0].Status != pb.OfferStatus_OFFER_STATUS_ACCEPTED ||
+		offers.Msg.Offers[0].Credits != 50 {
 		t.Fatalf("offer conversion: %v err=%v", offers, err)
 	}
 	admin := mount(t, f, "admin")
@@ -173,7 +249,9 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 		Status:   pb.OrderStatus_ORDER_STATUS_CANCELLED,
 		PageSize: 10,
 	}))
-	if err != nil || f.called != "user" || f.id != userID || !f.caller.Admin || f.request.Role != app.RequesterRole || f.request.Status != app.Cancelled || f.request.Page.Size != 10 {
+	if err != nil || f.called != "user" || f.id != userID || !f.caller.Admin || f.request.Role != app.RequesterRole ||
+		f.request.Status != app.Cancelled ||
+		f.request.Page.Size != 10 {
 		t.Fatalf("admin filters: %+v err=%v", f, err)
 	}
 }
@@ -219,11 +297,17 @@ func TestInvalidReadFiltersNeverReachOperations(t *testing.T) {
 			return e
 		},
 		func() error {
-			_, e := c.order.ListMyOrders(ctx, connect.NewRequest(&pb.ListMyOrdersRequest{Role: pb.ParticipantRole(999)}))
+			_, e := c.order.ListMyOrders(
+				ctx,
+				connect.NewRequest(&pb.ListMyOrdersRequest{Role: pb.ParticipantRole(999)}),
+			)
 			return e
 		},
 		func() error {
-			_, e := c.order.ListOffers(ctx, connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus(999)}))
+			_, e := c.order.ListOffers(
+				ctx,
+				connect.NewRequest(&pb.ListOffersRequest{OrderId: orderID, Status: pb.OfferStatus(999)}),
+			)
 			return e
 		},
 		func() error {
@@ -235,11 +319,17 @@ func TestInvalidReadFiltersNeverReachOperations(t *testing.T) {
 			return e
 		},
 		func() error {
-			_, e := c.order.ListOpenOrders(ctx, connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String("invalid")}))
+			_, e := c.order.ListOpenOrders(
+				ctx,
+				connect.NewRequest(&pb.ListOpenOrdersRequest{PickupLocationId: proto.String("invalid")}),
+			)
 			return e
 		},
 		func() error {
-			_, e := c.admin.ListUserOrders(ctx, connect.NewRequest(&pb.ListUserOrdersRequest{UserId: userID, Role: pb.ParticipantRole(999)}))
+			_, e := c.admin.ListUserOrders(
+				ctx,
+				connect.NewRequest(&pb.ListUserOrdersRequest{UserId: userID, Role: pb.ParticipantRole(999)}),
+			)
 			return e
 		},
 	}
@@ -269,7 +359,8 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 			c := mount(t, &fakeOperations{err: fmt.Errorf("private dependency details: %w", row.err)}, "user")
 			_, err := c.order.GetOrder(context.Background(), connect.NewRequest(&pb.GetOrderRequest{Id: orderID}))
 			var ce *connect.Error
-			if !errors.As(err, &ce) || ce.Code() != row.code || ce.Message() != row.message || strings.Contains(ce.Message(), "private") {
+			if !errors.As(err, &ce) || ce.Code() != row.code || ce.Message() != row.message ||
+				strings.Contains(ce.Message(), "private") {
 				t.Fatalf("error=%v", err)
 			}
 		})
@@ -281,20 +372,31 @@ func TestProgressRPCsForwardCallerAndConvertOrder(t *testing.T) {
 	c := mount(t, f, "user")
 	ctx := context.Background()
 	picked, err := c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: orderID}))
-	if err != nil || f.progressCalled != "pickup" || f.called != "get" || f.id != orderID || f.caller.ID != userID || picked.Msg.Order.GetId() != orderID {
+	if err != nil || f.progressCalled != "pickup" || f.called != "get" || f.id != orderID || f.caller.ID != userID ||
+		picked.Msg.Order.GetId() != orderID {
 		t.Fatalf("pickup: fake=%+v response=%v err=%v", f, picked, err)
 	}
 	received, err := c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}))
-	if err != nil || f.progressCalled != "receipt" || f.called != "get" || f.id != orderID || received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
+	if err != nil || f.progressCalled != "receipt" || f.called != "get" || f.id != orderID ||
+		received.Msg.Order.GetStatus() != pb.OrderStatus_ORDER_STATUS_DELIVERED {
 		t.Fatalf("receipt: fake=%+v response=%v err=%v", f, received, err)
 	}
 
 	f.called = ""
-	if _, err = c.order.ConfirmPickup(ctx, connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: "invalid"})); connect.CodeOf(err) != connect.CodeInvalidArgument || f.called != "" {
+	if _, err = c.order.ConfirmPickup(
+		ctx,
+		connect.NewRequest(&pb.ConfirmPickupRequest{OrderId: "invalid"}),
+	); connect.CodeOf(err) != connect.CodeInvalidArgument ||
+		f.called != "" {
 		t.Fatalf("invalid id reached operation: err=%v called=%q", err, f.called)
 	}
 	f.err = app.ErrPrecondition
-	if _, err = c.order.ConfirmReceipt(ctx, connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+	if _, err = c.order.ConfirmReceipt(
+		ctx,
+		connect.NewRequest(&pb.ConfirmReceiptRequest{OrderId: orderID}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeFailedPrecondition {
 		t.Fatalf("domain error: %v", err)
 	}
 }
@@ -319,7 +421,10 @@ func TestUnconfiguredParticipantRPCsFailClosed(t *testing.T) {
 			return e
 		}},
 		{"image upload", func() error {
-			_, e := c.order.CreateItemImageUpload(ctx, connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: 42}))
+			_, e := c.order.CreateItemImageUpload(
+				ctx,
+				connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: 42}),
+			)
 			return e
 		}},
 		{"accept", func() error {
@@ -327,7 +432,10 @@ func TestUnconfiguredParticipantRPCsFailClosed(t *testing.T) {
 			return e
 		}},
 		{"make offer", func() error {
-			_, e := c.order.MakeOffer(ctx, connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 10, IdempotencyKey: userID}))
+			_, e := c.order.MakeOffer(
+				ctx,
+				connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 10, IdempotencyKey: userID}),
+			)
 			return e
 		}},
 		{"accept offer", func() error {
@@ -335,34 +443,67 @@ func TestUnconfiguredParticipantRPCsFailClosed(t *testing.T) {
 			return e
 		}},
 		{"proof upload", func() error {
-			_, e := c.order.CreateProofUpload(ctx, connect.NewRequest(&pb.CreateProofUploadRequest{OrderId: orderID, UploadId: userID, ContentType: "image/png", SizeBytes: 1}))
+			_, e := c.order.CreateProofUpload(
+				ctx,
+				connect.NewRequest(
+					&pb.CreateProofUploadRequest{
+						OrderId:     orderID,
+						UploadId:    userID,
+						ContentType: "image/png",
+						SizeBytes:   1,
+					},
+				),
+			)
 			return e
 		}},
 		{"delivery", func() error {
-			_, e := c.order.ConfirmDelivery(ctx, connect.NewRequest(&pb.ConfirmDeliveryRequest{OrderId: orderID, ProofIds: []string{userID}}))
+			_, e := c.order.ConfirmDelivery(
+				ctx,
+				connect.NewRequest(&pb.ConfirmDeliveryRequest{OrderId: orderID, ProofIds: []string{userID}}),
+			)
 			return e
 		}},
 		{"cancel", func() error {
-			_, e := c.order.CancelOrder(ctx, connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, ExpectedRevision: 1}))
+			_, e := c.order.CancelOrder(
+				ctx,
+				connect.NewRequest(&pb.CancelOrderRequest{Id: orderID, ExpectedRevision: 1}),
+			)
 			return e
 		}},
 		{"location", func() error {
-			_, e := c.order.RecordItemLocation(ctx, connect.NewRequest(&pb.RecordItemLocationRequest{OrderId: orderID, ItemLocation: "Reception"}))
+			_, e := c.order.RecordItemLocation(
+				ctx,
+				connect.NewRequest(&pb.RecordItemLocationRequest{OrderId: orderID, ItemLocation: "Reception"}),
+			)
 			return e
 		}},
 		{"admin cancel", func() error {
-			_, e := c.admin.AdminCancelOrder(ctx, connect.NewRequest(&pb.AdminCancelOrderRequest{Id: orderID, Reason: "Suspended"}))
+			_, e := c.admin.AdminCancelOrder(
+				ctx,
+				connect.NewRequest(&pb.AdminCancelOrderRequest{Id: orderID, Reason: "Suspended"}),
+			)
 			return e
 		}},
 		{"unassign", func() error {
-			_, e := c.admin.UnassignCourier(ctx, connect.NewRequest(&pb.UnassignCourierRequest{OrderId: orderID, Reason: "Suspended"}))
+			_, e := c.admin.UnassignCourier(
+				ctx,
+				connect.NewRequest(&pb.UnassignCourierRequest{OrderId: orderID, Reason: "Suspended"}),
+			)
 			return e
 		}},
 	}
 	for _, call := range calls {
 		t.Run(call.name, func(t *testing.T) {
 			want := connect.CodeUnimplemented
-			if call.name == "proof upload" || call.name == "delivery" || call.name == "create" || call.name == "image upload" || call.name == "make offer" || call.name == "accept" || call.name == "accept offer" || call.name == "cancel" || call.name == "pickup" || call.name == "receipt" || call.name == "location" {
+			if call.name == "proof upload" || call.name == "delivery" || call.name == "create" ||
+				call.name == "image upload" ||
+				call.name == "make offer" ||
+				call.name == "accept" ||
+				call.name == "accept offer" ||
+				call.name == "cancel" ||
+				call.name == "pickup" ||
+				call.name == "receipt" ||
+				call.name == "location" {
 				want = connect.CodeUnavailable
 			}
 			if err := call.call(); connect.CodeOf(err) != want {

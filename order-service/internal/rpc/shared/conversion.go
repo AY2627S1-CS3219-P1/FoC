@@ -182,7 +182,12 @@ func OrderView(ctx context.Context, caller app.Caller, o app.Order, images ItemI
 	return result, nil
 }
 
-func OrderViews(ctx context.Context, caller app.Caller, orders []app.Order, images ItemImageViews) ([]*pb.Order, error) {
+func OrderViews(
+	ctx context.Context,
+	caller app.Caller,
+	orders []app.Order,
+	images ItemImageViews,
+) ([]*pb.Order, error) {
 	result := make([]*pb.Order, 0, len(orders))
 	for _, o := range orders {
 		view, err := OrderView(ctx, caller, o, images)

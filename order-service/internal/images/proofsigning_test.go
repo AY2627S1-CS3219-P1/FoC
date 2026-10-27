@@ -16,7 +16,12 @@ func TestS3FixedProofGrantAcrossReplicasAndRotation(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "proof-test-secret")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-	cfg := S3Config{Bucket: "proof-tests", Region: "us-east-1", Endpoint: "http://127.0.0.1:4566", PublicEndpoint: "http://localhost:4566"}
+	cfg := S3Config{
+		Bucket:         "proof-tests",
+		Region:         "us-east-1",
+		Endpoint:       "http://127.0.0.1:4566",
+		PublicEndpoint: "http://localhost:4566",
+	}
 	first, err := NewS3(t.Context(), cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +56,8 @@ func TestS3FixedProofGrantAcrossReplicasAndRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.Host != "localhost:4566" || parsed.Query().Get("X-Amz-Date") != at.Format("20060102T150405Z") || parsed.Query().Get("X-Amz-Expires") != "600" {
+	if parsed.Host != "localhost:4566" || parsed.Query().Get("X-Amz-Date") != at.Format("20060102T150405Z") ||
+		parsed.Query().Get("X-Amz-Expires") != "600" {
 		t.Fatal("wrong public endpoint, signing instant or lifetime")
 	}
 	signed := parsed.Query().Get("X-Amz-SignedHeaders")
@@ -75,7 +81,8 @@ func TestS3FixedProofGrantAcrossReplicasAndRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if moved.ProofScope() != first.ProofScope() || moved.ProofOutageScope() == first.ProofOutageScope() || movedEpoch == epoch {
+	if moved.ProofScope() != first.ProofScope() || moved.ProofOutageScope() == first.ProofOutageScope() ||
+		movedEpoch == epoch {
 		t.Fatal("browser route must rotate grants/outage evidence without changing stored-byte identity")
 	}
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "rotated-test-secret")

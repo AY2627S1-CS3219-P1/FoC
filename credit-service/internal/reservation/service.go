@@ -54,7 +54,12 @@ type result struct {
 // fenced the operation off; a different payload is a conflict. Refusals other
 // than INSUFFICIENT_CREDITS store nothing, so a repeat recomputes them from
 // current state.
-func (s *Service) mutate(ctx context.Context, key OperationKey, payload any, apply func(Tx, time.Time) (result, error)) (Reservation, error) {
+func (s *Service) mutate(
+	ctx context.Context,
+	key OperationKey,
+	payload any,
+	apply func(Tx, time.Time) (result, error),
+) (Reservation, error) {
 	hash, err := requestHash(payload)
 	if err != nil {
 		return Reservation{}, err

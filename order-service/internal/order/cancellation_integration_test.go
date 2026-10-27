@@ -24,7 +24,8 @@ func cancellationState(t *testing.T, f *fixture, status Status, courier string) 
 	if status == Expired {
 		f.mustTransition(t, o.ID, Expire, Actor{Kind: System})
 	}
-	if status == AwaitingPickup || status == Delivering || status == Delivered || status == Completed || status == Failed {
+	if status == AwaitingPickup || status == Delivering || status == Delivered || status == Completed ||
+		status == Failed {
 		f.mustTransition(t, o.ID, Assign, Actor{Kind: User, ID: courier})
 	}
 	if status == Delivering || status == Delivered || status == Completed || status == Failed {
@@ -54,59 +55,76 @@ func TestPostgresCancellationParticipantsAndStates(t *testing.T) {
 	for _, status := range []Status{PendingReservation, AwaitingCourier, AwaitingPickup, Delivering, Delivered, Completed, Cancelled, Expired, Failed, Rejected} {
 		for _, role := range []string{"requester", "courier", "foreign", "admin"} {
 			for _, suspended := range []bool{false, true} {
-				t.Run(string(status)+"/"+role+map[bool]string{true: "/suspended", false: "/active"}[suspended], func(t *testing.T) {
-					courier := uuid.NewString()
-					o := cancellationState(t, f, status, courier)
-					caller := Caller{ID: uuid.NewString(), Suspended: suspended, Admin: role == "admin"}
-					if role == "requester" {
-						caller.ID = o.RequesterID
-					}
-					if role == "courier" {
-						caller.ID = courier
-					}
-					now := func() time.Time { return o.UpdatedAt.Add(time.Second) }
-					beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
-					result, err := NewCanceller(f.repo, newAssignmentCredit(100, o), AssignmentOptions{Now: now}).Cancel(f.ctx, caller, o.ID, "  change of plans  ", uuid.NewString())
-					allowed := role == "requester" && (status == AwaitingCourier || status == AwaitingPickup || status == Delivering) || role == "courier" && (status == AwaitingPickup || status == Delivering)
-					if !allowed {
-						if err == nil {
-							t.Fatalf("unexpected cancellation: %+v", result)
+				t.Run(
+					string(status)+"/"+role+map[bool]string{true: "/suspended", false: "/active"}[suspended],
+					func(t *testing.T) {
+						courier := uuid.NewString()
+						o := cancellationState(t, f, status, courier)
+						caller := Caller{ID: uuid.NewString(), Suspended: suspended, Admin: role == "admin"}
+						if role == "requester" {
+							caller.ID = o.RequesterID
+						}
+						if role == "courier" {
+							caller.ID = courier
+						}
+						now := func() time.Time { return o.UpdatedAt.Add(time.Second) }
+						beforeAudit, beforeFacts, _ := f.counts(t, o.ID)
+						result, err := NewCanceller(
+							f.repo,
+							newAssignmentCredit(100, o),
+							AssignmentOptions{Now: now},
+						).Cancel(f.ctx, caller, o.ID, "  change of plans  ", uuid.NewString())
+						allowed := role == "requester" &&
+							(status == AwaitingCourier || status == AwaitingPickup || status == Delivering) ||
+							role == "courier" && (status == AwaitingPickup || status == Delivering)
+						if !allowed {
+							if err == nil {
+								t.Fatalf("unexpected cancellation: %+v", result)
+							}
+							audit, facts, _ := f.counts(t, o.ID)
+							if audit != beforeAudit || facts != beforeFacts {
+								t.Fatal("rejection wrote audit/events")
+							}
+							return
+						}
+						if err != nil {
+							t.Fatal(err)
+						}
+						want, added := Cancelled, 2
+						if role == "courier" {
+							want, added = Failed, 3
+						}
+						if role == "courier" && status == AwaitingPickup {
+							want, added = AwaitingPickup, 0
+							if result.Status != CancellationPending || result.Order.PendingCancellationID == nil {
+								t.Fatal("missing pending intent")
+							}
+							if err := f.transition(
+								o.ID,
+								Pickup,
+								Actor{Kind: User, ID: courier},
+							); !errors.Is(
+								err,
+								ErrPrecondition,
+							) {
+								t.Fatalf("pending pickup: %v", err)
+							}
+						} else if result.Status != CancellationSucceeded || result.Order.CloseReason == nil || *result.Order.CloseReason != "change of plans" {
+							t.Fatal("missing terminal result/reason")
+						}
+						if result.Order.Status != want || result.Order.ReservedCredits != o.ReservedCredits {
+							t.Fatalf("result: %+v", result)
+						}
+						if (o.PickedUpAt == nil) != (result.Order.PickedUpAt == nil) ||
+							(o.CourierID == nil) != (result.Order.CourierID == nil) {
+							t.Fatal("lost terminal observations")
 						}
 						audit, facts, _ := f.counts(t, o.ID)
-						if audit != beforeAudit || facts != beforeFacts {
-							t.Fatal("rejection wrote audit/events")
+						if audit != beforeAudit+1 || facts != beforeFacts+added {
+							t.Fatalf("audit/facts: %d/%d", audit-beforeAudit, facts-beforeFacts)
 						}
-						return
-					}
-					if err != nil {
-						t.Fatal(err)
-					}
-					want, added := Cancelled, 2
-					if role == "courier" {
-						want, added = Failed, 3
-					}
-					if role == "courier" && status == AwaitingPickup {
-						want, added = AwaitingPickup, 0
-						if result.Status != CancellationPending || result.Order.PendingCancellationID == nil {
-							t.Fatal("missing pending intent")
-						}
-						if err := f.transition(o.ID, Pickup, Actor{Kind: User, ID: courier}); !errors.Is(err, ErrPrecondition) {
-							t.Fatalf("pending pickup: %v", err)
-						}
-					} else if result.Status != CancellationSucceeded || result.Order.CloseReason == nil || *result.Order.CloseReason != "change of plans" {
-						t.Fatal("missing terminal result/reason")
-					}
-					if result.Order.Status != want || result.Order.ReservedCredits != o.ReservedCredits {
-						t.Fatalf("result: %+v", result)
-					}
-					if (o.PickedUpAt == nil) != (result.Order.PickedUpAt == nil) || (o.CourierID == nil) != (result.Order.CourierID == nil) {
-						t.Fatal("lost terminal observations")
-					}
-					audit, facts, _ := f.counts(t, o.ID)
-					if audit != beforeAudit+1 || facts != beforeFacts+added {
-						t.Fatalf("audit/facts: %d/%d", audit-beforeAudit, facts-beforeFacts)
-					}
-				})
+					},
+				)
 			}
 		}
 	}
@@ -174,11 +192,29 @@ func TestPostgresWithdrawalRestorationAndLifetimeReplay(t *testing.T) {
 			if _, err := canceller.Cancel(f.ctx, courier, o.ID, "different", key); !errors.Is(err, ErrAlreadyExists) {
 				t.Fatalf("changed key: %v", err)
 			}
-			if _, err := canceller.Cancel(f.ctx, courier, uuid.NewString(), "withdraw", key); !errors.Is(err, ErrAlreadyExists) {
+			if _, err := canceller.Cancel(
+				f.ctx,
+				courier,
+				uuid.NewString(),
+				"withdraw",
+				key,
+			); !errors.Is(
+				err,
+				ErrAlreadyExists,
+			) {
 				t.Fatalf("changed missing order: %v", err)
 			}
 			other := assignmentOpenOrder(t, f)
-			if _, err := canceller.Cancel(f.ctx, courier, other.ID, "withdraw", key); !errors.Is(err, ErrAlreadyExists) {
+			if _, err := canceller.Cancel(
+				f.ctx,
+				courier,
+				other.ID,
+				"withdraw",
+				key,
+			); !errors.Is(
+				err,
+				ErrAlreadyExists,
+			) {
 				t.Fatalf("changed order: %v", err)
 			}
 			// Simulate a restart; retry identity and original amount come only from PostgreSQL.
@@ -192,7 +228,12 @@ func TestPostgresWithdrawalRestorationAndLifetimeReplay(t *testing.T) {
 			if err != nil || replay.Status != CancellationSucceeded || replay.OperationID != first.OperationID {
 				t.Fatalf("recovered: %+v %v", replay, err)
 			}
-			if replay.Order.Status != AwaitingCourier || replay.Order.CourierID != nil || replay.Order.AssignedAt != nil || replay.Order.PendingCancellationID != nil || replay.Order.RewardCredits != o.RewardCredits || replay.Order.ReservedCredits != o.ReservedCredits || !replay.Order.ExpiresAt.Equal(o.ExpiresAt) {
+			if replay.Order.Status != AwaitingCourier || replay.Order.CourierID != nil ||
+				replay.Order.AssignedAt != nil ||
+				replay.Order.PendingCancellationID != nil ||
+				replay.Order.RewardCredits != o.RewardCredits ||
+				replay.Order.ReservedCredits != o.ReservedCredits ||
+				!replay.Order.ExpiresAt.Equal(o.ExpiresAt) {
 				t.Fatalf("restoration: %+v", replay.Order)
 			}
 			fresh, err := assigner.AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
@@ -222,11 +263,23 @@ func TestPostgresWithdrawalRestorationAndLifetimeReplay(t *testing.T) {
 			if _, err := assigner.AcceptOrder(f.ctx, replacement, o.ID, uuid.NewString()); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := restarted.Cancel(f.ctx, courier, o.ID, "foreign", uuid.NewString()); !errors.Is(err, ErrForbidden) {
+			if _, err := restarted.Cancel(
+				f.ctx,
+				courier,
+				o.ID,
+				"foreign",
+				uuid.NewString(),
+			); !errors.Is(
+				err,
+				ErrForbidden,
+			) {
 				t.Fatalf("former courier: %v", err)
 			}
 			var episodes, closed int
-			if err := f.pool.QueryRow(f.ctx, "SELECT count(*), count(ended_at) FROM order_assignment_history WHERE order_id=$1", o.ID).Scan(&episodes, &closed); err != nil || episodes != 3 || closed != 2 {
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*), count(ended_at) FROM order_assignment_history WHERE order_id=$1", o.ID).
+				Scan(&episodes, &closed); err != nil ||
+				episodes != 3 ||
+				closed != 2 {
 				t.Fatalf("history %d/%d %v", episodes, closed, err)
 			}
 		})
@@ -253,9 +306,17 @@ func TestPostgresCancellationSupersedesLateWithdrawal(t *testing.T) {
 	f := setup(t)
 	o := assignmentOpenOrder(t, f)
 	_, now := assignmentClock(o)
-	credit := &delayedWithdrawalCredit{assignmentCreditFixture: newAssignmentCredit(100, o), entered: make(chan struct{}), finish: make(chan struct{})}
+	credit := &delayedWithdrawalCredit{
+		assignmentCreditFixture: newAssignmentCredit(100, o),
+		entered:                 make(chan struct{}),
+		finish:                  make(chan struct{}),
+	}
 	courier := Caller{ID: uuid.NewString()}
-	if _, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
+	if _, err := NewAssigner(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
 	s := NewCanceller(f.repo, credit, AssignmentOptions{Now: now})
@@ -272,11 +333,14 @@ func TestPostgresCancellationSupersedesLateWithdrawal(t *testing.T) {
 		t.Fatal(err)
 	}
 	replay, err := s.Cancel(f.ctx, courier, o.ID, "withdraw", key)
-	if err != nil || replay.Status != CancellationSuperseded || replay.Order.Status != Cancelled || replay.Order.CourierID == nil {
+	if err != nil || replay.Status != CancellationSuperseded || replay.Order.Status != Cancelled ||
+		replay.Order.CourierID == nil {
 		t.Fatalf("late reopen %+v %v", replay, err)
 	}
 	var outcomes int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&outcomes); err != nil || outcomes != 1 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+		Scan(&outcomes); err != nil ||
+		outcomes != 1 {
 		t.Fatalf("outcomes %d %v", outcomes, err)
 	}
 }
@@ -295,7 +359,11 @@ func TestPostgresCancellationFencesLateAcceptance(t *testing.T) {
 		done <- err
 	}()
 	<-entered
-	result, err := NewCanceller(f.repo, credit, AssignmentOptions{Now: now}).Cancel(f.ctx, Caller{ID: o.RequesterID}, o.ID, "stop", uuid.NewString())
+	result, err := NewCanceller(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).Cancel(f.ctx, Caller{ID: o.RequesterID}, o.ID, "stop", uuid.NewString())
 	if err != nil || result.Order.Status != Cancelled {
 		t.Fatalf("cancel %+v %v", result, err)
 	}
@@ -313,7 +381,9 @@ func TestPostgresCancellationFencesLateAcceptance(t *testing.T) {
 		t.Fatalf("late assignment %+v %v", current, err)
 	}
 	var pending bool
-	if err := f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM order_assignment_attempts WHERE order_id=$1 AND phase IN ('adjustment_pending','revert_pending'))", o.ID).Scan(&pending); err != nil || pending {
+	if err := f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM order_assignment_attempts WHERE order_id=$1 AND phase IN ('adjustment_pending','revert_pending'))", o.ID).
+		Scan(&pending); err != nil ||
+		pending {
 		t.Fatalf("compensation pending %v %v", pending, err)
 	}
 }
@@ -352,7 +422,8 @@ func TestPostgresCancellationRacesAndAtomicity(t *testing.T) {
 				t.Fatalf("invalid lifecycle: %+v", current)
 			}
 			var outcomes int
-			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&outcomes); err != nil {
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+				Scan(&outcomes); err != nil {
 				t.Fatal(err)
 			}
 			if outcomes != map[bool]int{true: 1, false: 0}[current.Status == Cancelled] {
@@ -364,7 +435,10 @@ func TestPostgresCancellationRacesAndAtomicity(t *testing.T) {
 	_, now := assignmentClock(o)
 	s := NewCanceller(f.repo, nil, AssignmentOptions{Now: now})
 	key := uuid.NewString()
-	if _, err := f.pool.Exec(f.ctx, `CREATE FUNCTION fail_cancellation_fact() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'scripted outbox failure'; END $$; CREATE TRIGGER fail_cancellation_fact BEFORE INSERT ON order_outbox FOR EACH ROW EXECUTE FUNCTION fail_cancellation_fact()`); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`CREATE FUNCTION fail_cancellation_fact() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'scripted outbox failure'; END $$; CREATE TRIGGER fail_cancellation_fact BEFORE INSERT ON order_outbox FOR EACH ROW EXECUTE FUNCTION fail_cancellation_fact()`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Cancel(f.ctx, Caller{ID: o.RequesterID}, o.ID, "atomic", key); err == nil {
@@ -375,16 +449,21 @@ func TestPostgresCancellationRacesAndAtomicity(t *testing.T) {
 		t.Fatalf("partial aggregate %+v %v", current, err)
 	}
 	var operations, keys int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_cancellations WHERE order_id=$1", o.ID).Scan(&operations); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_cancellations WHERE order_id=$1", o.ID).
+		Scan(&operations); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_idempotency_keys WHERE idempotency_key=$1", key).Scan(&keys); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_idempotency_keys WHERE idempotency_key=$1", key).
+		Scan(&keys); err != nil {
 		t.Fatal(err)
 	}
 	if operations != 0 || keys != 0 {
 		t.Fatal("partial operation/key")
 	}
-	if _, err := f.pool.Exec(f.ctx, "DROP TRIGGER fail_cancellation_fact ON order_outbox; DROP FUNCTION fail_cancellation_fact()"); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		"DROP TRIGGER fail_cancellation_fact ON order_outbox; DROP FUNCTION fail_cancellation_fact()",
+	); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
@@ -422,7 +501,11 @@ func TestPostgresWithdrawalRequiresAcknowledgedMatchingHeld(t *testing.T) {
 	clock, now := assignmentClock(o)
 	credit := newAssignmentCredit(100, o)
 	courier := Caller{ID: uuid.NewString()}
-	if _, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
+	if _, err := NewAssigner(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
 	credit.denyReads = true
@@ -433,7 +516,12 @@ func TestPostgresWithdrawalRequiresAcknowledgedMatchingHeld(t *testing.T) {
 		t.Fatalf("lost observation %+v %v", result, err)
 	}
 	credit.denyReads = false
-	credit.views[o.ID] = AssignmentReservation{OrderID: o.ID, RequesterID: o.RequesterID, State: "released", OriginalAmount: o.RewardCredits}
+	credit.views[o.ID] = AssignmentReservation{
+		OrderID:        o.ID,
+		RequesterID:    o.RequesterID,
+		State:          "released",
+		OriginalAmount: o.RewardCredits,
+	}
 	clock.Add(int64(time.Minute))
 	if err := s.RecoverCancellationsOnce(f.ctx); err != nil {
 		t.Fatal(err)
@@ -442,7 +530,13 @@ func TestPostgresWithdrawalRequiresAcknowledgedMatchingHeld(t *testing.T) {
 	if err != nil || result.Status != CancellationPending {
 		t.Fatalf("released reopened %+v %v", result, err)
 	}
-	credit.views[o.ID] = AssignmentReservation{OrderID: o.ID, RequesterID: o.RequesterID, State: "held", OriginalAmount: o.RewardCredits, ReservedAmount: o.RewardCredits}
+	credit.views[o.ID] = AssignmentReservation{
+		OrderID:        o.ID,
+		RequesterID:    o.RequesterID,
+		State:          "held",
+		OriginalAmount: o.RewardCredits,
+		ReservedAmount: o.RewardCredits,
+	}
 	credit.denyRevert = true
 	clock.Add(int64(time.Minute))
 	if err := s.RecoverCancellationsOnce(f.ctx); err != nil {
@@ -492,7 +586,11 @@ func TestPostgresWithdrawalLeaseFencesLaterAssignment(t *testing.T) {
 	f := setup(t)
 	o := assignmentOpenOrder(t, f)
 	clock, now := assignmentClock(o)
-	credit := &firstDelayedWithdrawalCredit{assignmentCreditFixture: newAssignmentCredit(100, o), entered: make(chan struct{}), finish: make(chan struct{})}
+	credit := &firstDelayedWithdrawalCredit{
+		assignmentCreditFixture: newAssignmentCredit(100, o),
+		entered:                 make(chan struct{}),
+		finish:                  make(chan struct{}),
+	}
 	courier := Caller{ID: uuid.NewString()}
 	assigner := NewAssigner(f.repo, credit, AssignmentOptions{Now: now})
 	if _, err := assigner.AcceptOrder(f.ctx, courier, o.ID, uuid.NewString()); err != nil {
@@ -517,7 +615,8 @@ func TestPostgresWithdrawalLeaseFencesLaterAssignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	current, err := f.repo.Get(f.ctx, o.ID)
-	if err != nil || current.Status != AwaitingPickup || !current.IsAssignedTo(courier.ID) || current.PendingCancellationID != nil {
+	if err != nil || current.Status != AwaitingPickup || !current.IsAssignedTo(courier.ID) ||
+		current.PendingCancellationID != nil {
 		t.Fatalf("late generation changed later assignment %+v %v", current, err)
 	}
 	credit.mu.Lock()
@@ -534,7 +633,11 @@ func TestPostgresWithdrawalWithoutCreditDoesNotAdmitIntent(t *testing.T) {
 	_, now := assignmentClock(o)
 	credit := newAssignmentCredit(100, o)
 	courier := Caller{ID: uuid.NewString()}
-	assigned, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
+	assigned, err := NewAssigner(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
 	if err != nil || assigned.Phase != AssignmentSucceeded {
 		t.Fatalf("assign: %+v %v", assigned, err)
 	}
@@ -549,23 +652,36 @@ func TestPostgresWithdrawalWithoutCreditDoesNotAdmitIntent(t *testing.T) {
 		t.Fatalf("missing Credit: %v", err)
 	}
 	current, err := f.repo.Get(f.ctx, o.ID)
-	if err != nil || current.Revision != before.Revision || current.PendingCancellationID != nil || current.Status != AwaitingPickup {
+	if err != nil || current.Revision != before.Revision || current.PendingCancellationID != nil ||
+		current.Status != AwaitingPickup {
 		t.Fatalf("rejected withdrawal changed order: %+v %v", current, err)
 	}
 	audit, facts, _ := f.counts(t, o.ID)
 	var operations, keys int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_cancellations WHERE order_id=$1", o.ID).Scan(&operations); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_cancellations WHERE order_id=$1", o.ID).
+		Scan(&operations); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_idempotency_keys WHERE idempotency_key=$1", key).Scan(&keys); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_idempotency_keys WHERE idempotency_key=$1", key).
+		Scan(&keys); err != nil {
 		t.Fatal(err)
 	}
 	if audit != beforeAudit || facts != beforeFacts || operations != 0 || keys != 0 {
-		t.Fatalf("rejection wrote state: audit=%d facts=%d operations=%d keys=%d", audit-beforeAudit, facts-beforeFacts, operations, keys)
+		t.Fatalf(
+			"rejection wrote state: audit=%d facts=%d operations=%d keys=%d",
+			audit-beforeAudit,
+			facts-beforeFacts,
+			operations,
+			keys,
+		)
 	}
 
 	credit.denyRevert = true
-	pending, err := NewCanceller(f.repo, credit, AssignmentOptions{Now: now}).Cancel(f.ctx, courier, o.ID, "withdraw", key)
+	pending, err := NewCanceller(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).Cancel(f.ctx, courier, o.ID, "withdraw", key)
 	if err != nil || pending.Status != CancellationPending {
 		t.Fatalf("admit after Credit restored: %+v %v", pending, err)
 	}
@@ -578,7 +694,8 @@ func TestPostgresWithdrawalWithoutCreditDoesNotAdmitIntent(t *testing.T) {
 		t.Fatalf("requester cancellation without Credit: %+v %v", closed, err)
 	}
 	replay, err = withoutCredit.Cancel(f.ctx, courier, o.ID, "withdraw", key)
-	if err != nil || replay.OperationID != pending.OperationID || replay.Status != CancellationSuperseded || replay.Order.Status != Cancelled {
+	if err != nil || replay.OperationID != pending.OperationID || replay.Status != CancellationSuperseded ||
+		replay.Order.Status != Cancelled {
 		t.Fatalf("historical replay without Credit: %+v %v", replay, err)
 	}
 }

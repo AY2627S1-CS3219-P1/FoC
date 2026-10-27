@@ -55,7 +55,18 @@ func encode(f Fact) (proto.Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &events.OrderOutcome{EventId: f.ID, OrderId: f.OrderID, Outcome: outcome, RequesterId: p.RequesterID, CourierId: p.CourierID, ReservedCredits: p.ReservedCredits, DeliveryDuration: durationpb.New(time.Duration(p.DeliveryDurationNS)), PickedUpAt: timestamp(p.PickedUpAt), DeliveredAt: timestamp(p.DeliveredAt), OccurredAt: timestamppb.New(p.At)}, nil
+		return &events.OrderOutcome{
+			EventId:          f.ID,
+			OrderId:          f.OrderID,
+			Outcome:          outcome,
+			RequesterId:      p.RequesterID,
+			CourierId:        p.CourierID,
+			ReservedCredits:  p.ReservedCredits,
+			DeliveryDuration: durationpb.New(time.Duration(p.DeliveryDurationNS)),
+			PickedUpAt:       timestamp(p.PickedUpAt),
+			DeliveredAt:      timestamp(p.DeliveredAt),
+			OccurredAt:       timestamppb.New(p.At),
+		}, nil
 	case app.CourierWarning:
 		if p.CourierID == nil || !p.AfterPickup || p.Status != app.Failed {
 			return nil, errors.New("invalid courier warning fact")
@@ -78,7 +89,8 @@ func encode(f Fact) (proto.Message, error) {
 func outcomeType(p app.FactsPayload) (events.OrderOutcomeType, error) {
 	switch p.Status {
 	case app.Completed:
-		if p.CourierID == nil || p.PickedUpAt == nil || p.DeliveredAt == nil || p.DeliveredAt.Before(*p.PickedUpAt) || p.DeliveryDurationNS <= 0 {
+		if p.CourierID == nil || p.PickedUpAt == nil || p.DeliveredAt == nil || p.DeliveredAt.Before(*p.PickedUpAt) ||
+			p.DeliveryDurationNS <= 0 {
 			break
 		}
 		return events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED, nil
@@ -105,12 +117,21 @@ func timestamp(t *time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(*t)
 }
 
-var eventActors = map[string]events.ActorType{"user": events.ActorType_ACTOR_TYPE_USER, "admin": events.ActorType_ACTOR_TYPE_ADMIN, "system": events.ActorType_ACTOR_TYPE_SYSTEM}
+var eventActors = map[string]events.ActorType{
+	"user":   events.ActorType_ACTOR_TYPE_USER,
+	"admin":  events.ActorType_ACTOR_TYPE_ADMIN,
+	"system": events.ActorType_ACTOR_TYPE_SYSTEM,
+}
 var eventStatuses = map[app.Status]events.OrderStatus{
 	"":                     events.OrderStatus_ORDER_STATUS_UNSPECIFIED,
-	app.PendingReservation: events.OrderStatus_ORDER_STATUS_PENDING_RESERVATION, app.AwaitingCourier: events.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
-	app.AwaitingPickup: events.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, app.Delivering: events.OrderStatus_ORDER_STATUS_DELIVERING,
-	app.Delivered: events.OrderStatus_ORDER_STATUS_DELIVERED, app.Completed: events.OrderStatus_ORDER_STATUS_COMPLETED,
-	app.Cancelled: events.OrderStatus_ORDER_STATUS_CANCELLED, app.Expired: events.OrderStatus_ORDER_STATUS_EXPIRED,
-	app.Failed: events.OrderStatus_ORDER_STATUS_FAILED, app.Rejected: events.OrderStatus_ORDER_STATUS_REJECTED,
+	app.PendingReservation: events.OrderStatus_ORDER_STATUS_PENDING_RESERVATION,
+	app.AwaitingCourier:    events.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+	app.AwaitingPickup:     events.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+	app.Delivering:         events.OrderStatus_ORDER_STATUS_DELIVERING,
+	app.Delivered:          events.OrderStatus_ORDER_STATUS_DELIVERED,
+	app.Completed:          events.OrderStatus_ORDER_STATUS_COMPLETED,
+	app.Cancelled:          events.OrderStatus_ORDER_STATUS_CANCELLED,
+	app.Expired:            events.OrderStatus_ORDER_STATUS_EXPIRED,
+	app.Failed:             events.OrderStatus_ORDER_STATUS_FAILED,
+	app.Rejected:           events.OrderStatus_ORDER_STATUS_REJECTED,
 }

@@ -21,7 +21,11 @@ type assignmentPostgresTx struct {
 
 func (r *PostgresRepository) WithinAssignment(ctx context.Context, fn func(AssignmentTx) error) error {
 	return r.within(ctx, func(base *postgresTx) error {
-		tx := &assignmentPostgresTx{postgresTx: base, baselines: map[string]AssignmentAttempt{}, written: map[string]AssignmentAttempt{}}
+		tx := &assignmentPostgresTx{
+			postgresTx: base,
+			baselines:  map[string]AssignmentAttempt{},
+			written:    map[string]AssignmentAttempt{},
+		}
 		if err := fn(tx); err != nil {
 			return err
 		}
@@ -71,11 +75,22 @@ func (r *PostgresRepository) HasPendingAssignments(ctx context.Context) (bool, e
 
 func fromAssignment(row db.OrderAssignmentAttempt) AssignmentAttempt {
 	w := AssignmentAttempt{
-		ID: row.ID.String(), OrderID: row.OrderID.String(), CallerID: row.CallerID.String(), CourierID: row.CourierID.String(),
-		Method: row.Method, RequestHash: row.RequestHash, Amount: row.Amount, OriginalAmount: row.OriginalAmount,
-		Phase: AssignmentPhase(row.Phase), Generation: row.Generation, Attempts: row.Attempts,
-		LeaseUntil: row.LeaseUntil.UTC(), NextAttemptAt: row.NextAttemptAt.UTC(), Rejection: row.Rejection,
-		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
+		ID:             row.ID.String(),
+		OrderID:        row.OrderID.String(),
+		CallerID:       row.CallerID.String(),
+		CourierID:      row.CourierID.String(),
+		Method:         row.Method,
+		RequestHash:    row.RequestHash,
+		Amount:         row.Amount,
+		OriginalAmount: row.OriginalAmount,
+		Phase:          AssignmentPhase(row.Phase),
+		Generation:     row.Generation,
+		Attempts:       row.Attempts,
+		LeaseUntil:     row.LeaseUntil.UTC(),
+		NextAttemptAt:  row.NextAttemptAt.UTC(),
+		Rejection:      row.Rejection,
+		CreatedAt:      row.CreatedAt.UTC(),
+		UpdatedAt:      row.UpdatedAt.UTC(),
 	}
 	if row.OfferID != nil {
 		w.OfferID = row.OfferID.String()
@@ -176,7 +191,8 @@ func (t *assignmentPostgresTx) InsertAssignment(ctx context.Context, w Assignmen
 	}
 	if w.Method == AcceptOrderMethod {
 		v, err := parseID(w.Key)
-		if err != nil || caller != courier || !t.idempotencyCallers[IdempotencyScope{CallerID: w.CallerID, Method: w.Method}] {
+		if err != nil || caller != courier ||
+			!t.idempotencyCallers[IdempotencyScope{CallerID: w.CallerID, Method: w.Method}] {
 			return t.writeResult(ErrPrecondition)
 		}
 		key = &v
@@ -184,10 +200,24 @@ func (t *assignmentPostgresTx) InsertAssignment(ctx context.Context, w Assignmen
 		return t.writeResult(ErrForbidden)
 	}
 	if err := t.writeResult(t.q.InsertAssignmentAttempt(ctx, db.InsertAssignmentAttemptParams{
-		ID: id, OrderID: uuid.MustParse(w.OrderID), OfferID: offer, CallerID: caller, CourierID: courier,
-		Method: w.Method, IdempotencyKey: key, RequestHash: w.RequestHash, Amount: w.Amount, OriginalAmount: w.OriginalAmount,
-		Phase: string(w.Phase), Generation: w.Generation, Attempts: w.Attempts,
-		LeaseUntil: w.LeaseUntil, NextAttemptAt: w.NextAttemptAt, Rejection: w.Rejection, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt,
+		ID:             id,
+		OrderID:        uuid.MustParse(w.OrderID),
+		OfferID:        offer,
+		CallerID:       caller,
+		CourierID:      courier,
+		Method:         w.Method,
+		IdempotencyKey: key,
+		RequestHash:    w.RequestHash,
+		Amount:         w.Amount,
+		OriginalAmount: w.OriginalAmount,
+		Phase:          string(w.Phase),
+		Generation:     w.Generation,
+		Attempts:       w.Attempts,
+		LeaseUntil:     w.LeaseUntil,
+		NextAttemptAt:  w.NextAttemptAt,
+		Rejection:      w.Rejection,
+		CreatedAt:      w.CreatedAt,
+		UpdatedAt:      w.UpdatedAt,
 	})); err != nil {
 		return err
 	}
@@ -233,7 +263,8 @@ func (t *assignmentPostgresTx) Apply(ctx context.Context, c Change) error {
 	var attempt *AssignmentAttempt
 	if c.Action != ProposeOffer {
 		for _, update := range c.Offers {
-			if c.Action == ResolveAssignment || update.ExpectedStatus == OfferAccepting || update.Offer.Status == OfferAccepting {
+			if c.Action == ResolveAssignment || update.ExpectedStatus == OfferAccepting ||
+				update.Offer.Status == OfferAccepting {
 				attempt, err = t.OfferAssignment(ctx, update.Offer.ID)
 				if err != nil {
 					return t.writeResult(err)

@@ -44,7 +44,14 @@ type fixedProofPresigner struct {
 	scope       string
 }
 
-func (p fixedProofPresigner) PresignHTTP(ctx context.Context, c aws.Credentials, r *http.Request, hash, service, region string, _ time.Time, options ...func(*v4.SignerOptions)) (string, http.Header, error) {
+func (p fixedProofPresigner) PresignHTTP(
+	ctx context.Context,
+	c aws.Credentials,
+	r *http.Request,
+	hash, service, region string,
+	_ time.Time,
+	options ...func(*v4.SignerOptions),
+) (string, http.Header, error) {
 	if proofEpoch(c, p.scope) != p.epoch || (c.CanExpire && p.expires.After(c.Expires)) {
 		return "", nil, fmt.Errorf("proof signing identity rotated or expired")
 	}
@@ -54,14 +61,26 @@ func (p fixedProofPresigner) PresignHTTP(ctx context.Context, c aws.Credentials,
 // CreateFixedUpload uses the SDK's supported signer injection. Every signed
 // request field, time and credential identity comes from the durable generation.
 func (s *S3) CreateFixedUpload(ctx context.Context, in FixedUploadRequest) (UploadGrant, error) {
-	if in.Key == "" || in.SizeBytes < 1 || in.SigningEpoch == "" || !in.ExpiresAt.After(in.GrantedAt) || !in.ExpiresAt.After(time.Now()) {
+	if in.Key == "" || in.SizeBytes < 1 || in.SigningEpoch == "" || !in.ExpiresAt.After(in.GrantedAt) ||
+		!in.ExpiresAt.After(time.Now()) {
 		return UploadGrant{}, fmt.Errorf("invalid fixed proof grant")
 	}
 	signed, err := s.signer.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket), Key: aws.String(in.Key), ContentType: aws.String(in.ContentType), ContentLength: aws.Int64(in.SizeBytes), IfNoneMatch: aws.String("*"),
+		Bucket: aws.String(
+			s.bucket,
+		),
+		Key:           aws.String(in.Key),
+		ContentType:   aws.String(in.ContentType),
+		ContentLength: aws.Int64(in.SizeBytes),
+		IfNoneMatch:   aws.String("*"),
 	}, func(o *s3.PresignOptions) {
 		o.Expires = in.ExpiresAt.Sub(in.GrantedAt)
-		o.Presigner = fixedProofPresigner{at: in.GrantedAt, expires: in.ExpiresAt, epoch: in.SigningEpoch, scope: s.grantScope}
+		o.Presigner = fixedProofPresigner{
+			at:      in.GrantedAt,
+			expires: in.ExpiresAt,
+			epoch:   in.SigningEpoch,
+			scope:   s.grantScope,
+		}
 	})
 	if err != nil {
 		return UploadGrant{}, err

@@ -45,7 +45,12 @@ func TestCreationStartupRequiresRecoveryCredentialsButNotReachability(t *testing
 		{"unreadable credential", true, config{CreditServiceURL: server.URL, CreditTokenFile: file + "-missing"}, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			creator, recover, err := newCreator(context.Background(), creationStartupRepository{pending: tc.pending}, tc.config, nil)
+			creator, recover, err := newCreator(
+				context.Background(),
+				creationStartupRepository{pending: tc.pending},
+				tc.config,
+				nil,
+			)
 			if (err == nil) != tc.valid || recover != tc.recover {
 				t.Fatalf("creator=%v recover=%v err=%v", creator, recover, err)
 			}

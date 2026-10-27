@@ -25,9 +25,15 @@ func TestClientCallsBotAPI(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/getMe"):
 			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"foc_bot"}}`)
 		case strings.HasSuffix(r.URL.Path, "/getUpdates"):
-			_, _ = io.WriteString(w, `{"ok":true,"result":[{"update_id":7,"message":{"message_id":1,"chat":{"id":42,"type":"private"},"text":"/start"}}]}`)
+			_, _ = io.WriteString(
+				w,
+				`{"ok":true,"result":[{"update_id":7,"message":{"message_id":1,"chat":{"id":42,"type":"private"},"text":"/start"}}]}`,
+			)
 		case strings.HasSuffix(r.URL.Path, "/sendMessage"):
-			_, _ = io.WriteString(w, `{"ok":true,"result":{"message_id":99,"chat":{"id":42,"type":"private"},"text":"hi"}}`)
+			_, _ = io.WriteString(
+				w,
+				`{"ok":true,"result":{"message_id":99,"chat":{"id":42,"type":"private"},"text":"hi"}}`,
+			)
 		default:
 			_, _ = io.WriteString(w, `{"ok":true,"result":true}`)
 		}
@@ -72,7 +78,8 @@ func TestClientCallsBotAPI(t *testing.T) {
 	if err := client.AnswerCallback(ctx, "cb1", "Chat closed"); err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/bot"+token+"/answerCallbackQuery" || gotBody["callback_query_id"] != "cb1" || gotBody["text"] != "Chat closed" {
+	if gotPath != "/bot"+token+"/answerCallbackQuery" || gotBody["callback_query_id"] != "cb1" ||
+		gotBody["text"] != "Chat closed" {
 		t.Fatalf("answerCallbackQuery %q body = %v", gotPath, gotBody)
 	}
 }
@@ -120,13 +127,17 @@ func TestClientKeepsTokenOutOfNetworkErrors(t *testing.T) {
 func TestClientReturnsAPIErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = io.WriteString(w, `{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 7","parameters":{"retry_after":7}}`)
+		_, _ = io.WriteString(
+			w,
+			`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 7","parameters":{"retry_after":7}}`,
+		)
 	}))
 	defer srv.Close()
 
 	err := NewClient(token, srv.URL, srv.Client()).SendMessage(context.Background(), 42, "hi")
 	var apiErr *APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != 429 || apiErr.RetryAfter != 7*time.Second || apiErr.Method != "sendMessage" {
+	if !errors.As(err, &apiErr) || apiErr.Code != 429 || apiErr.RetryAfter != 7*time.Second ||
+		apiErr.Method != "sendMessage" {
 		t.Fatalf("err = %#v", err)
 	}
 	if strings.Contains(err.Error(), token) {

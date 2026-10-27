@@ -30,7 +30,16 @@ func TestPostgresProofReceipts(t *testing.T) {
 		now := time.Now().UTC()
 		d := &proofDependencies{repo: &proofMemory{}, now: &now, body: []byte("decoder seam")}
 		proofs := NewProofs(f.repo, d, d, d, ProofOptions{UploadScope: "proof-primary"})
-		row, _, err := proofs.CreateUpload(f.ctx, courier, ProofUploadInput{OrderID: o.ID, UploadID: uuid.NewString(), ContentType: "image/png", SizeBytes: int64(len(d.body))})
+		row, _, err := proofs.CreateUpload(
+			f.ctx,
+			courier,
+			ProofUploadInput{
+				OrderID:     o.ID,
+				UploadID:    uuid.NewString(),
+				ContentType: "image/png",
+				SizeBytes:   int64(len(d.body)),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +56,8 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var received time.Time
-		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1 AND state='pending'", o.ID).Scan(&received); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1 AND state='pending'", o.ID).
+			Scan(&received); err != nil {
 			t.Fatal(err)
 		}
 		if err := f.repo.WithinProofs(f.ctx, func(tx ProofTx) error {
@@ -70,7 +80,8 @@ func TestPostgresProofReceipts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if delivered.DeliveredAt == nil || !delivered.DeliveredAt.Equal(received) || delivered.UpdatedAt.Before(received) {
+		if delivered.DeliveredAt == nil || !delivered.DeliveredAt.Equal(received) ||
+			delivered.UpdatedAt.Before(received) {
 			t.Fatalf("effective/audit times: %+v", delivered)
 		}
 		if _, err = NewProgress(NewMutator(f.repo)).ConfirmReceipt(f.ctx, Caller{ID: o.RequesterID}, o.ID); err != nil {
@@ -80,7 +91,9 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var n int
-		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='deliver'", o.ID).Scan(&n); err != nil || n != 1 {
+		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='deliver'", o.ID).
+			Scan(&n); err != nil ||
+			n != 1 {
 			t.Fatalf("delivery audit count %d: %v", n, err)
 		}
 	})
@@ -101,21 +114,46 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatalf("resurrected %+v: %v", stored, err)
 		}
 		var state string
-		if err = f.pool.QueryRow(f.ctx, "SELECT state FROM order_delivery_receipts WHERE order_id=$1", o.ID).Scan(&state); err != nil || state != "superseded" {
+		if err = f.pool.QueryRow(f.ctx, "SELECT state FROM order_delivery_receipts WHERE order_id=$1", o.ID).
+			Scan(&state); err != nil ||
+			state != "superseded" {
 			t.Fatalf("receipt=%s %v", state, err)
 		}
 	})
 	t.Run("preexisting verification required and pending evidence cannot be removed", func(t *testing.T) {
 		proofs, service, d, o, courier, row := prepare(t)
-		late, _, err := proofs.CreateUpload(f.ctx, courier, ProofUploadInput{OrderID: o.ID, UploadID: uuid.NewString(), ContentType: "image/png", SizeBytes: int64(len(d.body))})
+		late, _, err := proofs.CreateUpload(
+			f.ctx,
+			courier,
+			ProofUploadInput{
+				OrderID:     o.ID,
+				UploadID:    uuid.NewString(),
+				ContentType: "image/png",
+				SizeBytes:   int64(len(d.body)),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{late.ID}}); !errors.Is(err, ErrPrecondition) {
+		if _, err = service.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{late.ID}},
+		); !errors.Is(
+			err,
+			ErrPrecondition,
+		) {
 			t.Fatal(err)
 		}
 		d.unavailable = true
-		if _, err = service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}); !errors.Is(err, ErrUnavailable) {
+		if _, err = service.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}},
+		); !errors.Is(
+			err,
+			ErrUnavailable,
+		) {
 			t.Fatal(err)
 		}
 		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, row.UploadID); !errors.Is(err, ErrPrecondition) {
@@ -146,13 +184,19 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var n int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1 AND state='rejected'", o.ID).Scan(&n); err != nil || n != 1 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1 AND state='rejected'", o.ID).
+			Scan(&n); err != nil ||
+			n != 1 {
 			t.Fatalf("rejections=%d %v", n, err)
 		}
 	})
 	t.Run("on-time pending remains eligible after the strict deadline", func(t *testing.T) {
 		_, service, d, o, courier, row := prepare(t)
-		if _, err := f.pool.Exec(f.ctx, "UPDATE orders SET picked_up_at=clock_timestamp()-((delivery_duration_ns*2)/1000)*interval '1 microsecond'+interval '2 seconds' WHERE id=$1", o.ID); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE orders SET picked_up_at=clock_timestamp()-((delivery_duration_ns*2)/1000)*interval '1 microsecond'+interval '2 seconds' WHERE id=$1",
+			o.ID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		d.unavailable = true
@@ -161,7 +205,8 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var received time.Time
-		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1", o.ID).Scan(&received); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT received_at FROM order_delivery_receipts WHERE order_id=$1", o.ID).
+			Scan(&received); err != nil {
 			t.Fatal(err)
 		}
 		timer := time.NewTimer(2100 * time.Millisecond)
@@ -178,14 +223,27 @@ func TestPostgresProofReceipts(t *testing.T) {
 	})
 	t.Run("late first receipt never becomes pending", func(t *testing.T) {
 		_, service, _, o, courier, row := prepare(t)
-		if _, err := f.pool.Exec(f.ctx, "UPDATE orders SET picked_up_at=clock_timestamp()-((delivery_duration_ns*2)/1000)*interval '1 microsecond' WHERE id=$1", o.ID); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE orders SET picked_up_at=clock_timestamp()-((delivery_duration_ns*2)/1000)*interval '1 microsecond' WHERE id=$1",
+			o.ID,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}); !errors.Is(err, ErrPrecondition) {
+		if _, err := service.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}},
+		); !errors.Is(
+			err,
+			ErrPrecondition,
+		) {
 			t.Fatal(err)
 		}
 		var n int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1", o.ID).Scan(&n); err != nil || n != 0 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1", o.ID).
+			Scan(&n); err != nil ||
+			n != 0 {
 			t.Fatalf("late admission persisted: %d %v", n, err)
 		}
 	})
@@ -194,7 +252,12 @@ func TestPostgresProofReceipts(t *testing.T) {
 		started := make(chan struct{}, 2)
 		release := make(chan struct{})
 		d.onInspect = func() { started <- struct{}{}; <-release }
-		d2 := &proofDependencies{repo: &proofMemory{}, now: d.now, body: d.body, onInspect: func() { started <- struct{}{}; <-release }}
+		d2 := &proofDependencies{
+			repo:      &proofMemory{},
+			now:       d.now,
+			body:      d.body,
+			onInspect: func() { started <- struct{}{}; <-release },
+		}
 		second := NewProofReceipts(NewProofs(f.repo, d2, d2, d2, ProofOptions{UploadScope: proofs.uploadScope}), f.repo)
 		input := ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}
 		errs := make([]error, 2)
@@ -220,30 +283,47 @@ func TestPostgresProofReceipts(t *testing.T) {
 			}
 		}
 		var n int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='deliver'", o.ID).Scan(&n); err != nil || n != 1 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='deliver'", o.ID).
+			Scan(&n); err != nil ||
+			n != 1 {
 			t.Fatalf("deliveries=%d %v", n, err)
 		}
 	})
 
 	t.Run("public application entry admits a durable receipt", func(t *testing.T) {
 		proofs, _, _, o, courier, row := prepare(t)
-		result, err := proofs.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}})
+		result, err := proofs.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}},
+		)
 		if err != nil || result.Status != Delivered {
 			t.Fatalf("public confirmation did not use receipt admission: %+v %v", result, err)
 		}
 		var count int
-		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1 AND state='accepted'", o.ID).Scan(&count); err != nil || count != 1 {
+		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1 AND state='accepted'", o.ID).
+			Scan(&count); err != nil ||
+			count != 1 {
 			t.Fatalf("durable receipt count %d: %v", count, err)
 		}
 	})
 	t.Run("unknown outage authority is unavailable rather than an invalid submission", func(t *testing.T) {
 		proofs, service, _, o, courier, _ := prepare(t)
 		proofs.outages = unavailableProofAuthority{}
-		if _, err := service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, WithoutProof: true}); !errors.Is(err, ErrUnavailable) {
+		if _, err := service.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, WithoutProof: true},
+		); !errors.Is(
+			err,
+			ErrUnavailable,
+		) {
 			t.Fatalf("unknown authority classified as rejection: %v", err)
 		}
 		var count int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 0 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_delivery_receipts WHERE order_id=$1", o.ID).
+			Scan(&count); err != nil ||
+			count != 0 {
 			t.Fatalf("uncertified receipt admitted: %d %v", count, err)
 		}
 	})
@@ -256,7 +336,8 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var first time.Time
-		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).Scan(&first); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).
+			Scan(&first); err != nil {
 			t.Fatal(err)
 		}
 		d.unavailable = false
@@ -264,7 +345,9 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 		var again time.Time
-		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).Scan(&again); err != nil || !first.Equal(again) {
+		if err := f.pool.QueryRow(f.ctx, "SELECT verified_at FROM order_proof_uploads WHERE id=$1", row.ID).
+			Scan(&again); err != nil ||
+			!first.Equal(again) {
 			t.Fatalf("verification moved: %v %v %v", first, again, err)
 		}
 		if _, err := service.ConfirmDelivery(f.ctx, courier, input); err != nil {
@@ -278,7 +361,12 @@ func TestPostgresProofReceipts(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		input := ProofUploadInput{OrderID: o.ID, UploadID: row.UploadID, ContentType: row.ContentType, SizeBytes: int64(len(d.body))}
+		input := ProofUploadInput{
+			OrderID:     o.ID,
+			UploadID:    row.UploadID,
+			ContentType: row.ContentType,
+			SizeBytes:   int64(len(d.body)),
+		}
 		if again, _, err := proofs.CreateUpload(f.ctx, courier, input); err != nil || again.ID != row.ID {
 			t.Fatalf("known retry blocked: %v", err)
 		}
@@ -292,18 +380,35 @@ func TestPostgresProofReceipts(t *testing.T) {
 	})
 	t.Run("cleanup fences unaccepted bytes and reaps late writes without touching accepted photos", func(t *testing.T) {
 		proofs, service, d, o, courier, row := prepare(t)
-		abandoned, _, err := proofs.CreateUpload(f.ctx, courier, ProofUploadInput{OrderID: o.ID, UploadID: uuid.NewString(), ContentType: "image/png", SizeBytes: int64(len(d.body))})
+		abandoned, _, err := proofs.CreateUpload(
+			f.ctx,
+			courier,
+			ProofUploadInput{
+				OrderID:     o.ID,
+				UploadID:    uuid.NewString(),
+				ContentType: "image/png",
+				SizeBytes:   int64(len(d.body)),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, abandoned.UploadID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = service.ConfirmDelivery(f.ctx, courier, ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}}); err != nil {
+		if _, err = service.ConfirmDelivery(
+			f.ctx,
+			courier,
+			ConfirmDeliveryInput{OrderID: o.ID, ProofIDs: []string{row.ID}},
+		); err != nil {
 			t.Fatal(err)
 		}
 		// Represent expiration of all issued grants, not an attempt to revoke them.
-		if _, err = f.pool.Exec(f.ctx, "UPDATE order_proof_uploads SET expires_at=clock_timestamp()-interval '1 second' WHERE order_id=$1", o.ID); err != nil {
+		if _, err = f.pool.Exec(
+			f.ctx,
+			"UPDATE order_proof_uploads SET expires_at=clock_timestamp()-interval '1 second' WHERE order_id=$1",
+			o.ID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		deleted := &proofCleanupRecorder{}
@@ -315,7 +420,11 @@ func TestPostgresProofReceipts(t *testing.T) {
 			t.Fatalf("wrong cleanup: %v", deleted.keys)
 		}
 		// A pre-expiry PUT may finish after deletion. Retain its fence and revisit.
-		if _, err = f.pool.Exec(f.ctx, "UPDATE order_proof_uploads SET cleanup_after=clock_timestamp()-interval '1 second' WHERE id=$1", abandoned.ID); err != nil {
+		if _, err = f.pool.Exec(
+			f.ctx,
+			"UPDATE order_proof_uploads SET cleanup_after=clock_timestamp()-interval '1 second' WHERE id=$1",
+			abandoned.ID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err = cleaner.CleanOnce(f.ctx); err != nil {
@@ -330,7 +439,12 @@ func TestPostgresProofReceipts(t *testing.T) {
 		if err = proofs.AbandonUpload(f.ctx, courier, o.ID, row.ID); err != nil {
 			t.Fatalf("nonce fence collision: %v", err)
 		}
-		if _, err = proofs.ForOrder(f.ctx, Caller{ID: uuid.NewString(), Admin: true}, o.ID); !errors.Is(err, ErrNotFound) || d.downloads != 0 {
+		if _, err = proofs.ForOrder(
+			f.ctx,
+			Caller{ID: uuid.NewString(), Admin: true},
+			o.ID,
+		); !errors.Is(err, ErrNotFound) ||
+			d.downloads != 0 {
 			t.Fatalf("role-only admin signed private evidence: %v", err)
 		}
 		view, err := proofs.ForOrder(f.ctx, Caller{ID: o.RequesterID}, o.ID)

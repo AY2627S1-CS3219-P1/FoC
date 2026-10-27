@@ -46,7 +46,11 @@ func TestCancellationStartupPreservesRecoveryDuringOutage(t *testing.T) {
 		{"unreadable identity", true, config{CreditServiceURL: server.URL, CreditTokenFile: file + "-missing"}, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assigner, recover, err := newCanceller(context.Background(), cancellationStartupFixture{pending: tc.pending}, tc.config)
+			assigner, recover, err := newCanceller(
+				context.Background(),
+				cancellationStartupFixture{pending: tc.pending},
+				tc.config,
+			)
 			if (err == nil) != tc.valid || recover != tc.recover || (tc.valid && assigner == nil) {
 				t.Fatalf("assigner=%v recover=%v err=%v", assigner, recover, err)
 			}

@@ -28,19 +28,41 @@ func (s *Server) WithProofs(proofs ProofOperations, receipts ProofReceiptOperati
 	return s
 }
 
-func (s *Server) CreateProofUpload(ctx context.Context, req *connect.Request[pb.CreateProofUploadRequest]) (*connect.Response[pb.CreateProofUploadResponse], error) {
+func (s *Server) CreateProofUpload(
+	ctx context.Context,
+	req *connect.Request[pb.CreateProofUploadRequest],
+) (*connect.Response[pb.CreateProofUploadResponse], error) {
 	if s.proofs == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
 	m := req.Msg
-	row, grant, err := s.proofs.CreateUpload(ctx, shared.Caller(ctx), app.ProofUploadInput{OrderID: m.OrderId, UploadID: m.UploadId, ContentType: m.ContentType, SizeBytes: m.SizeBytes})
+	row, grant, err := s.proofs.CreateUpload(
+		ctx,
+		shared.Caller(ctx),
+		app.ProofUploadInput{
+			OrderID:     m.OrderId,
+			UploadID:    m.UploadId,
+			ContentType: m.ContentType,
+			SizeBytes:   m.SizeBytes,
+		},
+	)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
-	return connect.NewResponse(&pb.CreateProofUploadResponse{ProofId: row.ID, UploadUrl: grant.URL, UploadHeaders: grant.Headers, ExpiresAt: timestamppb.New(grant.ExpiresAt)}), nil
+	return connect.NewResponse(
+		&pb.CreateProofUploadResponse{
+			ProofId:       row.ID,
+			UploadUrl:     grant.URL,
+			UploadHeaders: grant.Headers,
+			ExpiresAt:     timestamppb.New(grant.ExpiresAt),
+		},
+	), nil
 }
 
-func (s *Server) VerifyProofUpload(ctx context.Context, req *connect.Request[pb.VerifyProofUploadRequest]) (*connect.Response[pb.VerifyProofUploadResponse], error) {
+func (s *Server) VerifyProofUpload(
+	ctx context.Context,
+	req *connect.Request[pb.VerifyProofUploadRequest],
+) (*connect.Response[pb.VerifyProofUploadResponse], error) {
 	if s.proofs == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
@@ -50,7 +72,10 @@ func (s *Server) VerifyProofUpload(ctx context.Context, req *connect.Request[pb.
 	return connect.NewResponse(&pb.VerifyProofUploadResponse{}), nil
 }
 
-func (s *Server) AbandonProofUpload(ctx context.Context, req *connect.Request[pb.AbandonProofUploadRequest]) (*connect.Response[pb.AbandonProofUploadResponse], error) {
+func (s *Server) AbandonProofUpload(
+	ctx context.Context,
+	req *connect.Request[pb.AbandonProofUploadRequest],
+) (*connect.Response[pb.AbandonProofUploadResponse], error) {
 	if s.proofs == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
@@ -60,13 +85,25 @@ func (s *Server) AbandonProofUpload(ctx context.Context, req *connect.Request[pb
 	return connect.NewResponse(&pb.AbandonProofUploadResponse{}), nil
 }
 
-func (s *Server) ConfirmDelivery(ctx context.Context, req *connect.Request[pb.ConfirmDeliveryRequest]) (*connect.Response[pb.ConfirmDeliveryResponse], error) {
+func (s *Server) ConfirmDelivery(
+	ctx context.Context,
+	req *connect.Request[pb.ConfirmDeliveryRequest],
+) (*connect.Response[pb.ConfirmDeliveryResponse], error) {
 	if s.proofReceipts == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
 	caller := shared.Caller(ctx)
 	m := req.Msg
-	result, err := s.proofReceipts.ConfirmDelivery(ctx, caller, app.ConfirmDeliveryInput{OrderID: m.OrderId, ProofIDs: m.ProofIds, Unattended: m.Unattended, WithoutProof: m.WithoutProof})
+	result, err := s.proofReceipts.ConfirmDelivery(
+		ctx,
+		caller,
+		app.ConfirmDeliveryInput{
+			OrderID:      m.OrderId,
+			ProofIDs:     m.ProofIds,
+			Unattended:   m.Unattended,
+			WithoutProof: m.WithoutProof,
+		},
+	)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
@@ -77,7 +114,10 @@ func (s *Server) ConfirmDelivery(ctx context.Context, req *connect.Request[pb.Co
 	return connect.NewResponse(&pb.ConfirmDeliveryResponse{Order: view}), nil
 }
 
-func (s *Server) GetDeliveryProof(ctx context.Context, req *connect.Request[pb.GetDeliveryProofRequest]) (*connect.Response[pb.GetDeliveryProofResponse], error) {
+func (s *Server) GetDeliveryProof(
+	ctx context.Context,
+	req *connect.Request[pb.GetDeliveryProofRequest],
+) (*connect.Response[pb.GetDeliveryProofResponse], error) {
 	if s.proofs == nil {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}

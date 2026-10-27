@@ -27,10 +27,12 @@ func TestMutationExternalErrors(t *testing.T) {
 		{"unavailable", errs.NewUnavailableError("temporarily unavailable"), errs.WrapUnavailableError(cause, "temporarily unavailable"), http.StatusServiceUnavailable, connect.CodeUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.plain.Code() != tc.status || tc.plain.GetConnectCode() != tc.code || tc.plain.ErrorTrace() != tc.plain.Error() {
+			if tc.plain.Code() != tc.status || tc.plain.GetConnectCode() != tc.code ||
+				tc.plain.ErrorTrace() != tc.plain.Error() {
 				t.Fatalf("plain error mapping: %v", tc.plain)
 			}
-			if tc.wrapped.Code() != tc.status || tc.wrapped.GetConnectCode() != tc.code || !errors.Is(tc.wrapped, cause) {
+			if tc.wrapped.Code() != tc.status || tc.wrapped.GetConnectCode() != tc.code ||
+				!errors.Is(tc.wrapped, cause) {
 				t.Fatalf("wrapped error mapping: %v", tc.wrapped)
 			}
 			if tc.wrapped.ErrorTrace() != tc.wrapped.Error()+"\n"+cause.Error() {

@@ -59,7 +59,14 @@ func TestProofUploadRecheckRejectsChangedPersistedValues(t *testing.T) {
 					r.uploads[id] = row
 				}
 			}
-			if _, _, err := s.CreateUpload(t.Context(), Caller{ID: proofCourier}, proofUploadInput(d)); !errors.Is(err, ErrConflict) {
+			if _, _, err := s.CreateUpload(
+				t.Context(),
+				Caller{ID: proofCourier},
+				proofUploadInput(d),
+			); !errors.Is(
+				err,
+				ErrConflict,
+			) {
 				t.Fatalf("changed upload accepted: %v", err)
 			}
 		})

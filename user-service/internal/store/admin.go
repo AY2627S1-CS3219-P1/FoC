@@ -169,7 +169,14 @@ func (s *Admin) Warnings(ctx context.Context, userID uuid.UUID) ([]models.Accoun
 	return ws, err
 }
 
-func (s *Admin) RemoveWarning(ctx context.Context, id uuid.UUID, now time.Time, reason *string, appealID *uuid.UUID, actor *uuid.UUID) (*models.AccountWarning, error) {
+func (s *Admin) RemoveWarning(
+	ctx context.Context,
+	id uuid.UUID,
+	now time.Time,
+	reason *string,
+	appealID *uuid.UUID,
+	actor *uuid.UUID,
+) (*models.AccountWarning, error) {
 	var w models.AccountWarning
 	res := s.db.WithContext(ctx).Model(&w).Clauses(clause.Returning{}).
 		Where("id = ? AND status = ?", id, models.WarningActive).

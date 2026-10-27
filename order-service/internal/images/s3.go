@@ -33,7 +33,16 @@ func NewS3(ctx context.Context, c S3Config) (*S3, error) {
 	if c.Region == "" {
 		c.Region = "us-east-1"
 	}
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(c.Region), config.WithHTTPClient(&http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}))
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(c.Region),
+		config.WithHTTPClient(
+			&http.Client{
+				Timeout:       5 * time.Second,
+				CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+			},
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +94,12 @@ func (s *S3) CreateUpload(ctx context.Context, in UploadRequest) (UploadGrant, e
 			headers[key] = values[0]
 		}
 	}
-	return UploadGrant{URL: grant.URL, Method: grant.Method, Headers: headers, ExpiresAt: time.Now().Add(10 * time.Minute)}, nil
+	return UploadGrant{
+		URL:       grant.URL,
+		Method:    grant.Method,
+		Headers:   headers,
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}, nil
 }
 
 func (s *S3) Inspect(ctx context.Context, key string) (ObjectInfo, error) {
@@ -97,11 +111,19 @@ func (s *S3) Inspect(ctx context.Context, key string) (ObjectInfo, error) {
 		}
 		return ObjectInfo{}, err
 	}
-	return ObjectInfo{Exists: true, Size: aws.ToInt64(out.ContentLength), ContentType: aws.ToString(out.ContentType)}, nil
+	return ObjectInfo{
+		Exists:      true,
+		Size:        aws.ToInt64(out.ContentLength),
+		ContentType: aws.ToString(out.ContentType),
+	}, nil
 }
 
 func (s *S3) CreateDownload(ctx context.Context, key string) (DownloadGrant, error) {
-	out, err := s.signer.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)}, func(o *s3.PresignOptions) { o.Expires = 5 * time.Minute })
+	out, err := s.signer.PresignGetObject(
+		ctx,
+		&s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)},
+		func(o *s3.PresignOptions) { o.Expires = 5 * time.Minute },
+	)
 	if err != nil {
 		return DownloadGrant{}, err
 	}

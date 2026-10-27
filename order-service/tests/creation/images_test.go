@@ -23,7 +23,13 @@ import (
 	"github.com/google/uuid"
 )
 
-func uploadGrant(t *testing.T, f *fixture, c orderv1connect.OrderServiceClient, media string, size int64) *pb.CreateItemImageUploadResponse {
+func uploadGrant(
+	t *testing.T,
+	f *fixture,
+	c orderv1connect.OrderServiceClient,
+	media string,
+	size int64,
+) *pb.CreateItemImageUploadResponse {
 	t.Helper()
 	request := connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: media, SizeBytes: size})
 	request.Header().Set("Authorization", "Bearer user-token")
@@ -64,7 +70,12 @@ func TestItemImagesWithS3(t *testing.T) {
 		s := newScenario(t, f)
 		s.clock.nanos.Store(time.Now().UnixNano())
 		images := app.NewItemImages(f.repo, storage)
-		s.creator = app.NewCreator(f.repo, s.locations, s.credit, app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now, Images: images})
+		s.creator = app.NewCreator(
+			f.repo,
+			s.locations,
+			s.credit,
+			app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now, Images: images},
+		)
 		return s, images, mountImages(t, f, s.creator, images, app.Caller{ID: requester})
 	}
 	t.Run("five formats attach and retained retries preserve image records", func(t *testing.T) {
@@ -157,7 +168,8 @@ func TestItemImagesWithS3(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = response.Body.Close()
-			if response.StatusCode >= 400 || response.Header.Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
+			if response.StatusCode >= 400 ||
+				response.Header.Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
 				t.Fatal("browser upload preflight denied")
 			}
 			// Re-sign the same upload with the known test issuer and an earlier clock.
@@ -186,7 +198,8 @@ func TestItemImagesWithS3(t *testing.T) {
 			if expired {
 				signedAt = signedAt.Add(-11 * time.Minute)
 			}
-			signed, _, err := v4.NewSigner().PresignHTTP(f.ctx, aws.Credentials{AccessKeyID: "test", SecretAccessKey: "test"}, put, "UNSIGNED-PAYLOAD", "s3", "us-east-1", signedAt)
+			signed, _, err := v4.NewSigner().
+				PresignHTTP(f.ctx, aws.Credentials{AccessKeyID: "test", SecretAccessKey: "test"}, put, "UNSIGNED-PAYLOAD", "s3", "us-east-1", signedAt)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -290,12 +303,18 @@ func TestItemImagesWithS3(t *testing.T) {
 		if putImage(t, grant, body, nil) != 200 {
 			t.Fatal("PUT failed")
 		}
-		_, err := f.pool.Exec(f.ctx, `CREATE FUNCTION fail_image_admission() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test failure'; END $$; CREATE TRIGGER fail_image_admission BEFORE INSERT ON order_creation_workflows FOR EACH ROW EXECUTE FUNCTION fail_image_admission()`)
+		_, err := f.pool.Exec(
+			f.ctx,
+			`CREATE FUNCTION fail_image_admission() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test failure'; END $$; CREATE TRIGGER fail_image_admission BEFORE INSERT ON order_creation_workflows FOR EACH ROW EXECUTE FUNCTION fail_image_admission()`,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			_, _ = f.pool.Exec(f.ctx, "DROP TRIGGER fail_image_admission ON order_creation_workflows; DROP FUNCTION fail_image_admission()")
+			_, _ = f.pool.Exec(
+				f.ctx,
+				"DROP TRIGGER fail_image_admission ON order_creation_workflows; DROP FUNCTION fail_image_admission()",
+			)
 		}()
 		in := input(s.clock.Now())
 		in.ItemImageIds = []string{grant.ImageId}
@@ -329,7 +348,12 @@ func TestItemImagesWithS3(t *testing.T) {
 		suspended := mountImages(t, f, s.creator, service, app.Caller{ID: requester, Suspended: true})
 		upload := connect.NewRequest(&pb.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: 8})
 		upload.Header().Set("Authorization", "Bearer user-token")
-		if _, err := suspended.CreateItemImageUpload(f.ctx, upload); connect.CodeOf(err) != connect.CodePermissionDenied {
+		if _, err := suspended.CreateItemImageUpload(
+			f.ctx,
+			upload,
+		); connect.CodeOf(
+			err,
+		) != connect.CodePermissionDenied {
 			t.Fatal("suspended user received upload grant")
 		}
 	})
@@ -352,7 +376,10 @@ func TestItemImagesWithS3(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.pool.Exec(f.ctx, "UPDATE order_item_images SET created_at=now()-interval '25 hours',upload_expires_at=now()-interval '24 hours'"); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE order_item_images SET created_at=now()-interval '25 hours',upload_expires_at=now()-interval '24 hours'",
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := service.CleanupOnce(f.ctx); err != nil {

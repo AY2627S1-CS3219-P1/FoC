@@ -176,7 +176,11 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		log.Warn("TELEGRAM_BOT_TOKEN is not set; Telegram is disabled")
 		return
 	}
-	client := telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: pollTimeout + 10*time.Second})
+	client := telegram.NewClient(
+		cfg.telegramToken,
+		cfg.telegramAPI,
+		&http.Client{Timeout: pollTimeout + 10*time.Second},
+	)
 	workers.Go(func() {
 		me, err := waitForBot(ctx, client, log, botRetryDelay)
 		if err != nil {
@@ -208,8 +212,14 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 // Kafka is configured: it updates the chat participants, then sends
 // notifications. It runs only with a working bot, so offsets aren't committed
 // for messages that were never sent.
-func startNotifications(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore,
-	pool *pgxpool.Pool, workers *sync.WaitGroup,
+func startNotifications(
+	ctx context.Context,
+	cfg config,
+	log *slog.Logger,
+	links *linking.Service,
+	chats *chat.PostgresStore,
+	pool *pgxpool.Pool,
+	workers *sync.WaitGroup,
 ) {
 	if len(cfg.kafkaBrokers) == 0 {
 		log.Warn("KAFKA_BROKERS is not set; order notifications are disabled")

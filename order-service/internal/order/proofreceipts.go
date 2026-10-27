@@ -21,11 +21,18 @@ type DeliveryReceipt struct {
 }
 
 func (r DeliveryReceipt) Input() ConfirmDeliveryInput {
-	return ConfirmDeliveryInput{OrderID: r.OrderID, ProofIDs: slices.Clone(r.ProofIDs), Unattended: r.Unattended, WithoutProof: r.WithoutProof}
+	return ConfirmDeliveryInput{
+		OrderID:      r.OrderID,
+		ProofIDs:     slices.Clone(r.ProofIDs),
+		Unattended:   r.Unattended,
+		WithoutProof: r.WithoutProof,
+	}
 }
 
 func (r DeliveryReceipt) matches(c Caller, in ConfirmDeliveryInput) bool {
-	return strings.EqualFold(r.CourierID, c.ID) && r.OrderID == in.OrderID && slices.Equal(r.ProofIDs, in.ProofIDs) && r.Unattended == in.Unattended && r.WithoutProof == in.WithoutProof
+	return strings.EqualFold(r.CourierID, c.ID) && r.OrderID == in.OrderID && slices.Equal(r.ProofIDs, in.ProofIDs) &&
+		r.Unattended == in.Unattended &&
+		r.WithoutProof == in.WithoutProof
 }
 
 // ReceiptTx borrows the proof/aggregate transaction. All status changes follow
@@ -93,7 +100,9 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 		// Accepted replay is evaluated before deadline, current status and outage.
 		existing, e := tx.GetProofConfirmation(ctx, o.ID)
 		if e == nil {
-			if !o.IsAssignedTo(c.ID) || existing.CourierID != c.ID || existing.Unattended != in.Unattended || !slices.Equal(existing.ProofIDs, in.ProofIDs) || (existing.OutageReason != "") != in.WithoutProof {
+			if !o.IsAssignedTo(c.ID) || existing.CourierID != c.ID || existing.Unattended != in.Unattended ||
+				!slices.Equal(existing.ProofIDs, in.ProofIDs) ||
+				(existing.OutageReason != "") != in.WithoutProof {
 				return nil, ErrPrecondition
 			}
 			accepted = &o
@@ -128,7 +137,10 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 				}
 				return nil, e
 			}
-			if !proofBelongsTo(row, o.ID, c.ID) || row.UploadScope != s.proofs.uploadScope || row.State != ProofUploading || row.VerifiedAt == nil || row.VerifiedAt.After(now) {
+			if !proofBelongsTo(row, o.ID, c.ID) || row.UploadScope != s.proofs.uploadScope ||
+				row.State != ProofUploading ||
+				row.VerifiedAt == nil ||
+				row.VerifiedAt.After(now) {
 				return nil, ErrPrecondition
 			}
 		}
@@ -174,7 +186,8 @@ func (s *ProofReceipts) process(ctx context.Context, r DeliveryReceipt) (Order, 
 	if err == nil {
 		return result, nil
 	}
-	if errors.Is(err, ErrPrecondition) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrInvalid) || errors.Is(err, ErrForbidden) {
+	if errors.Is(err, ErrPrecondition) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrInvalid) ||
+		errors.Is(err, ErrForbidden) {
 		finishErr := s.proofs.locked(ctx, r.OrderID, func(o Order, base ProofTx) (*Change, error) {
 			tx, ok := base.(ReceiptTx)
 			if !ok {
@@ -209,7 +222,15 @@ func (s *ProofReceipts) process(ctx context.Context, r DeliveryReceipt) (Order, 
 			return Order{}, e
 		}
 		if alert {
-			slog.Error("delivery proof validation remains pending", "order_id", r.OrderID, "receipt_id", r.ID, "received_at", r.ReceivedAt)
+			slog.Error(
+				"delivery proof validation remains pending",
+				"order_id",
+				r.OrderID,
+				"receipt_id",
+				r.ID,
+				"received_at",
+				r.ReceivedAt,
+			)
 		}
 	}
 	return Order{}, err
@@ -231,7 +252,11 @@ func (s *ProofReceipts) RecoverOnce(ctx context.Context) error {
 		if r.State != "pending" {
 			continue
 		}
-		if _, e = s.process(ctx, r); e != nil && !errors.Is(e, ErrPrecondition) && !errors.Is(e, ErrNotFound) && !errors.Is(e, ErrUnavailable) {
+		if _, e = s.process(
+			ctx,
+			r,
+		); e != nil && !errors.Is(e, ErrPrecondition) && !errors.Is(e, ErrNotFound) &&
+			!errors.Is(e, ErrUnavailable) {
 			slog.Error("delivery proof recovery failed", "receipt_id", id, "error", e)
 		}
 	}

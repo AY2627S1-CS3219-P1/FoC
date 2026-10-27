@@ -10,15 +10,25 @@ import (
 	"google.golang.org/genproto/googleapis/type/timeofday"
 )
 
-func (h *Server) SubmitLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.SubmitLocationAdditionRequestRequest]) (*connect.Response[pb.SubmitLocationAdditionRequestResponse], error) {
-	v, e := h.operations.SubmitRequest(ctx, h.principal(ctx), app.SubmitRequest{Proposal: proposal(r.Msg.Proposal), Key: r.Msg.IdempotencyKey})
+func (h *Server) SubmitLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.SubmitLocationAdditionRequestRequest],
+) (*connect.Response[pb.SubmitLocationAdditionRequestResponse], error) {
+	v, e := h.operations.SubmitRequest(
+		ctx,
+		h.principal(ctx),
+		app.SubmitRequest{Proposal: proposal(r.Msg.Proposal), Key: r.Msg.IdempotencyKey},
+	)
 	if e != nil {
 		return nil, e
 	}
 	return connect.NewResponse(&pb.SubmitLocationAdditionRequestResponse{Request: toProtoAdditionRequest(v)}), nil
 }
 
-func (h *Server) GetLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.GetLocationAdditionRequestRequest]) (*connect.Response[pb.GetLocationAdditionRequestResponse], error) {
+func (h *Server) GetLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.GetLocationAdditionRequestRequest],
+) (*connect.Response[pb.GetLocationAdditionRequestResponse], error) {
 	v, e := h.operations.GetRequest(ctx, h.principal(ctx), r.Msg.Id)
 	if e != nil {
 		return nil, e
@@ -26,8 +36,16 @@ func (h *Server) GetLocationAdditionRequest(ctx context.Context, r *connect.Requ
 	return connect.NewResponse(&pb.GetLocationAdditionRequestResponse{Request: toProtoAdditionRequest(v)}), nil
 }
 
-func (h *Server) ListLocationAdditionRequests(ctx context.Context, r *connect.Request[pb.ListLocationAdditionRequestsRequest]) (*connect.Response[pb.ListLocationAdditionRequestsResponse], error) {
-	p, e := h.operations.ListRequests(ctx, h.principal(ctx), statusFromWire[r.Msg.Status], app.Page{Number: r.Msg.Page, Size: r.Msg.PageSize})
+func (h *Server) ListLocationAdditionRequests(
+	ctx context.Context,
+	r *connect.Request[pb.ListLocationAdditionRequestsRequest],
+) (*connect.Response[pb.ListLocationAdditionRequestsResponse], error) {
+	p, e := h.operations.ListRequests(
+		ctx,
+		h.principal(ctx),
+		statusFromWire[r.Msg.Status],
+		app.Page{Number: r.Msg.Page, Size: r.Msg.PageSize},
+	)
 	if e != nil {
 		return nil, e
 	}
@@ -38,7 +56,10 @@ func (h *Server) ListLocationAdditionRequests(ctx context.Context, r *connect.Re
 	return connect.NewResponse(out), nil
 }
 
-func (h *Server) UpdateLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.UpdateLocationAdditionRequestRequest]) (*connect.Response[pb.UpdateLocationAdditionRequestResponse], error) {
+func (h *Server) UpdateLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.UpdateLocationAdditionRequestRequest],
+) (*connect.Response[pb.UpdateLocationAdditionRequestResponse], error) {
 	// Presence belongs to transport translation: absent coordinates/classification
 	// must not silently become a valid zero coordinate or false classification.
 	if r.Msg.Proposal == nil {
@@ -54,7 +75,8 @@ func (h *Server) UpdateLocationAdditionRequest(ctx context.Context, r *connect.R
 		case "closes_at":
 			value = r.Msg.Proposal.ClosesAt
 		}
-		if value != nil && (value.Hours < 0 || value.Hours >= 24 || value.Minutes < 0 || value.Minutes >= 60 || value.Seconds != 0 || value.Nanos != 0) {
+		if value != nil &&
+			(value.Hours < 0 || value.Hours >= 24 || value.Minutes < 0 || value.Minutes >= 60 || value.Seconds != 0 || value.Nanos != 0) {
 			return nil, app.ErrInvalidArgument
 		}
 		if p == "coordinates" && r.Msg.GetProposal().GetCoordinates() == nil {
@@ -64,14 +86,26 @@ func (h *Server) UpdateLocationAdditionRequest(ctx context.Context, r *connect.R
 			return nil, app.ErrInvalidArgument
 		}
 	}
-	v, e := h.operations.UpdateRequest(ctx, h.principal(ctx), app.UpdateRequest{ID: r.Msg.Id, Proposal: proposal(r.Msg.Proposal), Paths: proposalPaths(r.Msg.GetUpdateMask().GetPaths()), ExpectedRevision: r.Msg.ExpectedRevision})
+	v, e := h.operations.UpdateRequest(
+		ctx,
+		h.principal(ctx),
+		app.UpdateRequest{
+			ID:               r.Msg.Id,
+			Proposal:         proposal(r.Msg.Proposal),
+			Paths:            proposalPaths(r.Msg.GetUpdateMask().GetPaths()),
+			ExpectedRevision: r.Msg.ExpectedRevision,
+		},
+	)
 	if e != nil {
 		return nil, e
 	}
 	return connect.NewResponse(&pb.UpdateLocationAdditionRequestResponse{Request: toProtoAdditionRequest(v)}), nil
 }
 
-func (h *Server) WithdrawLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.WithdrawLocationAdditionRequestRequest]) (*connect.Response[pb.WithdrawLocationAdditionRequestResponse], error) {
+func (h *Server) WithdrawLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.WithdrawLocationAdditionRequestRequest],
+) (*connect.Response[pb.WithdrawLocationAdditionRequestResponse], error) {
 	v, e := h.operations.WithdrawRequest(ctx, h.principal(ctx), r.Msg.Id)
 	if e != nil {
 		return nil, e
@@ -79,15 +113,26 @@ func (h *Server) WithdrawLocationAdditionRequest(ctx context.Context, r *connect
 	return connect.NewResponse(&pb.WithdrawLocationAdditionRequestResponse{Request: toProtoAdditionRequest(v)}), nil
 }
 
-func (h *Server) ApproveLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.ApproveLocationAdditionRequestRequest]) (*connect.Response[pb.ApproveLocationAdditionRequestResponse], error) {
+func (h *Server) ApproveLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.ApproveLocationAdditionRequestRequest],
+) (*connect.Response[pb.ApproveLocationAdditionRequestResponse], error) {
 	v, e := h.operations.ApproveRequest(ctx, h.principal(ctx), r.Msg.Id, r.Msg.ExpectedRevision)
 	if e != nil {
 		return nil, e
 	}
-	return connect.NewResponse(&pb.ApproveLocationAdditionRequestResponse{Request: toProtoAdditionRequest(v.Request), Location: h.toProtoLocation(v.Location)}), nil
+	return connect.NewResponse(
+		&pb.ApproveLocationAdditionRequestResponse{
+			Request:  toProtoAdditionRequest(v.Request),
+			Location: h.toProtoLocation(v.Location),
+		},
+	), nil
 }
 
-func (h *Server) RejectLocationAdditionRequest(ctx context.Context, r *connect.Request[pb.RejectLocationAdditionRequestRequest]) (*connect.Response[pb.RejectLocationAdditionRequestResponse], error) {
+func (h *Server) RejectLocationAdditionRequest(
+	ctx context.Context,
+	r *connect.Request[pb.RejectLocationAdditionRequestRequest],
+) (*connect.Response[pb.RejectLocationAdditionRequestResponse], error) {
 	v, e := h.operations.RejectRequest(ctx, h.principal(ctx), r.Msg.Id, r.Msg.ReviewNote, r.Msg.ExpectedRevision)
 	if e != nil {
 		return nil, e
