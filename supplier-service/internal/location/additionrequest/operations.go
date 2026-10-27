@@ -19,29 +19,13 @@ func (s *Service) SubmitRequest(ctx context.Context, c Caller, in SubmitRequest)
 		return out, err
 	}
 	err = s.repo.Within(ctx, func(tx Tx) error {
-		id, e := s.idempotent(
-			ctx,
-			tx,
-			c,
-			"SubmitLocationAdditionRequest",
-			in.Key,
-			normalizedProposal,
-			func(now time.Time) (string, error) {
-				if e := tx.ValidateReferences(ctx, normalizedProposal); e != nil {
-					return "", e
-				}
-				r := AdditionRequest{
-					ID:          uuid.NewString(),
-					Proposal:    normalizedProposal,
-					SubmittedBy: c.ID,
-					Status:      Pending,
-					Revision:    1,
-					CreatedAt:   now,
-					UpdatedAt:   now,
-				}
-				return r.ID, tx.SaveRequest(ctx, r, 0)
-			},
-		)
+		id, e := s.idempotent(ctx, tx, c, "SubmitLocationAdditionRequest", in.Key, normalizedProposal, func(now time.Time) (string, error) {
+			if e := tx.ValidateReferences(ctx, normalizedProposal); e != nil {
+				return "", e
+			}
+			r := AdditionRequest{ID: uuid.NewString(), Proposal: normalizedProposal, SubmittedBy: c.ID, Status: Pending, Revision: 1, CreatedAt: now, UpdatedAt: now}
+			return r.ID, tx.SaveRequest(ctx, r, 0)
+		})
 		if e != nil {
 			return e
 		}
@@ -72,12 +56,7 @@ func (s *Service) GetRequest(ctx context.Context, c Caller, id string) (out Addi
 	return out, err
 }
 
-func (s *Service) ListRequests(
-	ctx context.Context,
-	c Caller,
-	status RequestStatus,
-	p Page,
-) (out RequestPage, err error) {
+func (s *Service) ListRequests(ctx context.Context, c Caller, status RequestStatus, p Page) (out RequestPage, err error) {
 	if err = requireAuthenticated(c); err != nil {
 		return out, err
 	}
@@ -106,19 +85,7 @@ func (s *Service) UpdateRequest(ctx context.Context, c Caller, in UpdateRequest)
 	if validateID(in.ID) != nil || in.ExpectedRevision <= 0 {
 		return out, ErrInvalidArgument
 	}
-	m, e := parseFieldMask(
-		in.Paths,
-		"name",
-		"is_supplier",
-		"category_ids",
-		"building_id",
-		"floor",
-		"coordinates",
-		"open_from",
-		"open_to",
-		"contact",
-		"details",
-	)
+	m, e := parseFieldMask(in.Paths, "name", "is_supplier", "category_ids", "building_id", "floor", "coordinates", "open_from", "open_to", "contact", "details")
 	if e != nil {
 		return out, e
 	}
@@ -176,13 +143,7 @@ func (s *Service) ApproveRequest(ctx context.Context, c Caller, id string) (Appr
 	return s.transitionRequest(ctx, c, id, Approved, "")
 }
 
-func (s *Service) transitionRequest(
-	ctx context.Context,
-	c Caller,
-	id string,
-	target RequestStatus,
-	note string,
-) (out Approval, err error) {
+func (s *Service) transitionRequest(ctx context.Context, c Caller, id string, target RequestStatus, note string) (out Approval, err error) {
 	if err = requireAuthenticated(c); err != nil {
 		return out, err
 	}

@@ -58,11 +58,7 @@ func (s *stubLogic) Login(_ context.Context, token string) (models.User, jwt.Aut
 	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(
-	_ context.Context,
-	token string,
-	profile jwt.Profile,
-) (models.User, jwt.AuthTokens, error) {
+func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
 	s.registerToken = token
 	s.registerProfile = profile
 	return testUser(), testTokens(), s.registerErr
@@ -84,9 +80,7 @@ func (s *stubLogic) LogoutAll(_ context.Context, token string) error {
 }
 
 func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
-	return jwt.JWKSet{
-		Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}},
-	}, s.keyErr
+	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
 }
 
 func testUser() models.User {
@@ -98,13 +92,8 @@ func testUser() models.User {
 func stringPtr(value string) *string { return &value }
 
 func testTokens() jwt.AuthTokens {
-	return jwt.AuthTokens{
-		AccessToken:  "access-secret",
-		RefreshToken: "refresh-secret",
-		AccessExpiry: time.Now().
-			Add(service.AccessTokenLifetime),
-		RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime),
-	}
+	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
+		AccessExpiry: time.Now().Add(service.AccessTokenLifetime), RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime)}
 }
 
 func TestAuthConnectMethodsAndCookies(t *testing.T) {
@@ -186,11 +175,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if logic.logoutIn != "old-refresh" || logout.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf(
-			"logout did not use cookie or set cache policy: %q, %q",
-			logic.logoutIn,
-			logout.Header().Get("Cache-Control"),
-		)
+		t.Fatalf("logout did not use cookie or set cache policy: %q, %q", logic.logoutIn, logout.Header().Get("Cache-Control"))
 	}
 	cleared := (&http.Response{Header: logout.Header()}).Cookies()
 	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 ||
@@ -207,11 +192,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if logic.logoutAllIn != "device-refresh" || logoutAll.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf(
-			"logout all did not use cookie or set cache policy: %q, %q",
-			logic.logoutAllIn,
-			logoutAll.Header().Get("Cache-Control"),
-		)
+		t.Fatalf("logout all did not use cookie or set cache policy: %q, %q", logic.logoutAllIn, logoutAll.Header().Get("Cache-Control"))
 	}
 	cleared = (&http.Response{Header: logoutAll.Header()}).Cookies()
 	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 {
@@ -221,9 +202,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 
 func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(
-		router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}),
-	)
+	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
@@ -246,12 +225,7 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	}
 
 	logic.requestErr = jwt.ErrUnavailable
-	if _, err := client.RequestLink(
-		ctx,
-		connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}),
-	); connect.CodeOf(
-		err,
-	) != connect.CodeUnavailable {
+	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
 	logic.requestErr = errors.New("database password details")
@@ -261,39 +235,19 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	}
 
 	logic.loginErr = jwt.ErrLoginFailed
-	if _, err := client.Login(
-		ctx,
-		connect.NewRequest(&userv1.LoginRequest{Token: "bad"}),
-	); connect.CodeOf(
-		err,
-	) != connect.CodeUnauthenticated {
+	if _, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "bad"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed login returned %v", err)
 	}
 	logic.registerErr = jwt.ErrAlreadyRegistered
-	if _, err := client.Register(
-		ctx,
-		connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"}),
-	); connect.CodeOf(
-		err,
-	) != connect.CodeAlreadyExists {
+	if _, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"})); connect.CodeOf(err) != connect.CodeAlreadyExists {
 		t.Fatalf("duplicate registration returned %v", err)
 	}
 	logic.refreshErr = jwt.ErrRefreshFailed
-	if _, err := client.Refresh(
-		ctx,
-		connect.NewRequest(&userv1.RefreshRequest{}),
-	); connect.CodeOf(
-		err,
-	) != connect.CodeUnauthenticated {
+	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
 	}
 	logic.logoutAllErr = jwt.ErrRefreshFailed
-	if _, err := client.LogoutAll(
-		ctx,
-		connect.NewRequest(&userv1.LogoutAllRequest{}),
-	); connect.CodeOf(
-		err,
-	) != connect.CodeUnauthenticated {
+	if _, err := client.LogoutAll(ctx, connect.NewRequest(&userv1.LogoutAllRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("failed logout all returned %v", err)
 	}
 }

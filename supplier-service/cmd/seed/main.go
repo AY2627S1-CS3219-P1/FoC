@@ -36,12 +36,7 @@ func parseFlags() seed.Paths {
 	var paths seed.Paths
 	flag.StringVar(&paths.Suppliers, "suppliers", "../data/csv/supplier-seed-data.csv", "Supplier CSV path")
 	flag.StringVar(&paths.Buildings, "buildings", "../data/csv/building-seed-data.csv", "Building CSV path")
-	flag.StringVar(
-		&paths.OrdinaryLocations,
-		"locations",
-		"../data/csv/location-seed-data.csv",
-		"ordinary Location CSV path",
-	)
+	flag.StringVar(&paths.OrdinaryLocations, "locations", "../data/csv/location-seed-data.csv", "ordinary Location CSV path")
 	flag.Parse()
 	return paths
 }
