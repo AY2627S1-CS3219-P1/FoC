@@ -94,7 +94,12 @@ func TestCreationExecution(t *testing.T) {
 		s.remotes.refuse = true
 		c := mount(t, f, s.creator)
 		in := input(s.clock.Now())
-		if _, err := create(c, f.ctx, in); connect.CodeOf(err) != connect.CodeFailedPrecondition || strings.Contains(err.Error(), "private") {
+		if _, err := create(
+			c,
+			f.ctx,
+			in,
+		); connect.CodeOf(err) != connect.CodeFailedPrecondition ||
+			strings.Contains(err.Error(), "private") {
 			t.Fatalf("refusal=%v", err)
 		}
 		s.remotes.mu.Lock()
@@ -107,7 +112,8 @@ func TestCreationExecution(t *testing.T) {
 			t.Fatal("refused order opened")
 		}
 		var outcomes int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE kind='order.outcome'").Scan(&outcomes); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE kind='order.outcome'").
+			Scan(&outcomes); err != nil {
 			t.Fatal(err)
 		}
 		s.remotes.mu.Lock()
@@ -175,7 +181,8 @@ func TestCreationExecution(t *testing.T) {
 		}
 		id := f.onlyOrder(t)
 		w, err := f.repo.Creation(f.ctx, id)
-		if err != nil || w.Rejection != app.CreationExpired || get(t, c, id).Status != orderpb.OrderStatus_ORDER_STATUS_REJECTED {
+		if err != nil || w.Rejection != app.CreationExpired ||
+			get(t, c, id).Status != orderpb.OrderStatus_ORDER_STATUS_REJECTED {
 			t.Fatalf("workflow=%+v err=%v", w, err)
 		}
 		s.remotes.mu.Lock()
@@ -203,7 +210,8 @@ func TestCreationExecution(t *testing.T) {
 			t.Fatal(err)
 		}
 		w, err := f.repo.Creation(f.ctx, pending.Id)
-		if err != nil || w.Rejection != app.ReservationReleased || get(t, c, pending.Id).Status != orderpb.OrderStatus_ORDER_STATUS_REJECTED {
+		if err != nil || w.Rejection != app.ReservationReleased ||
+			get(t, c, pending.Id).Status != orderpb.OrderStatus_ORDER_STATUS_REJECTED {
 			t.Fatalf("workflow=%+v err=%v", w, err)
 		}
 	})
@@ -289,7 +297,8 @@ func TestCreationExecution(t *testing.T) {
 				t.Fatalf("duplicate=%+v expected=%s", result, id)
 			}
 		}
-		if f.count(t, "order_creation_workflows") != 1 || f.count(t, "order_idempotency_keys") != 1 || f.count(t, "order_audit") != 2 {
+		if f.count(t, "order_creation_workflows") != 1 || f.count(t, "order_idempotency_keys") != 1 ||
+			f.count(t, "order_audit") != 2 {
 			t.Fatal("duplicate workflow or revision")
 		}
 		s.remotes.mu.Lock()
@@ -391,7 +400,15 @@ func TestCreationExecution(t *testing.T) {
 				cancel()
 			}
 		}
-		in := app.CreateInput{Key: uuid.NewString(), PickupID: pickupID, DeliveryID: deliveryID, ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: 10 * time.Minute, ExpiresAt: s.clock.Now().Add(time.Hour)}
+		in := app.CreateInput{
+			Key:              uuid.NewString(),
+			PickupID:         pickupID,
+			DeliveryID:       deliveryID,
+			ItemDescription:  "Book",
+			RewardCredits:    10,
+			DeliveryDuration: 10 * time.Minute,
+			ExpiresAt:        s.clock.Now().Add(time.Hour),
+		}
 		if _, err := s.creator.Create(ctx, app.Caller{ID: requester}, in); !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancellation=%v", err)
 		}
@@ -403,7 +420,8 @@ func TestCreationExecution(t *testing.T) {
 		if err != nil || w.Phase != app.CreationOpened {
 			t.Fatalf("recovery=%+v err=%v", w, err)
 		}
-		if strings.Contains(string(w.Canonical), "user-token") || strings.Contains(string(w.Canonical), "service-credit-token") {
+		if strings.Contains(string(w.Canonical), "user-token") ||
+			strings.Contains(string(w.Canonical), "service-credit-token") {
 			t.Fatal("credential persisted")
 		}
 	})
@@ -433,7 +451,12 @@ func TestCreationPreflightRaces(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s := newScenario(t, f)
 			locations := blockedLocations{entered: make(chan struct{}), release: make(chan struct{})}
-			slow := app.NewCreator(f.repo, locations, s.credit, app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now})
+			slow := app.NewCreator(
+				f.repo,
+				locations,
+				s.credit,
+				app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now},
+			)
 			slowClient := mount(t, f, slow)
 			fastClient := mount(t, f, s.creator)
 			in := input(s.clock.Now())
@@ -481,7 +504,15 @@ func TestCreationPreflightRaces(t *testing.T) {
 		s := newScenario(t, f)
 		key := uuid.NewString()
 		ctx := auth.WithUserBearer(f.ctx, "Bearer user-token")
-		in := app.CreateInput{Key: key, PickupID: pickupID, DeliveryID: deliveryID, ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: 10 * time.Minute, ExpiresAt: s.clock.Now().Add(time.Hour)}
+		in := app.CreateInput{
+			Key:              key,
+			PickupID:         pickupID,
+			DeliveryID:       deliveryID,
+			ItemDescription:  "Book",
+			RewardCredits:    10,
+			DeliveryDuration: 10 * time.Minute,
+			ExpiresAt:        s.clock.Now().Add(time.Hour),
+		}
 		first, err := s.creator.Create(ctx, app.Caller{ID: requester}, in)
 		if err != nil {
 			t.Fatal(err)

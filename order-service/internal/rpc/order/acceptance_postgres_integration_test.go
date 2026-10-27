@@ -74,7 +74,10 @@ func (c *mountedAcceptanceCredit) Revert(_ context.Context, orderID, attemptID s
 	return nil
 }
 
-func (c *mountedAcceptanceCredit) AssignmentReservation(_ context.Context, orderID string) (app.AssignmentReservation, error) {
+func (c *mountedAcceptanceCredit) AssignmentReservation(
+	_ context.Context,
+	orderID string,
+) (app.AssignmentReservation, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.loseObservation {
@@ -93,7 +96,8 @@ type loseFirstAcceptance struct {
 
 func (r *loseFirstAcceptance) RoundTrip(req *http.Request) (*http.Response, error) {
 	response, err := r.base.RoundTrip(req)
-	if err == nil && req.URL.Path == orderv1connect.OrderServiceAcceptOrderProcedure && r.lost.CompareAndSwap(false, true) {
+	if err == nil && req.URL.Path == orderv1connect.OrderServiceAcceptOrderProcedure &&
+		r.lost.CompareAndSwap(false, true) {
 		_, _ = io.Copy(io.Discard, response.Body)
 		_ = response.Body.Close()
 		return nil, errors.New("scripted response loss after acceptance handler completed")
@@ -104,7 +108,14 @@ func (r *loseFirstAcceptance) RoundTrip(req *http.Request) (*http.Response, erro
 func acceptancePostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
 	// Always allocate a new database, never honor a shared TEST_DATABASE_URL.
-	container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("acceptance_rpc"), postgres.WithUsername("order"), postgres.WithPassword("order"), postgres.BasicWaitStrategies())
+	container, err := postgres.Run(
+		ctx,
+		"postgres:18",
+		postgres.WithDatabase("acceptance_rpc"),
+		postgres.WithUsername("order"),
+		postgres.WithPassword("order"),
+		postgres.BasicWaitStrategies(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +134,9 @@ func acceptancePostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	var version int
-	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").Scan(&version); err != nil || version < 180000 || version >= 190000 {
+	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").
+		Scan(&version); err != nil || version < 180000 ||
+		version >= 190000 {
 		t.Fatalf("requires isolated PostgreSQL18: %d %v", version, err)
 	}
 	db, err := sql.Open("pgx", url)
@@ -141,10 +154,35 @@ func acceptancePostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	return pool
 }
 
-func seedAcceptanceOrder(t *testing.T, ctx context.Context, repo *app.PostgresRepository, requester string, now time.Time) app.Order {
+func seedAcceptanceOrder(
+	t *testing.T,
+	ctx context.Context,
+	repo *app.PostgresRepository,
+	requester string,
+	now time.Time,
+) app.Order {
 	t.Helper()
 	secret := "Call private room 02-15"
-	o := app.Order{ID: uuid.NewString(), RequesterID: requester, Status: app.PendingReservation, Pickup: app.LocationSnapshot{LocationID: uuid.NewString(), Name: "Cafe", BuildingName: "COM2"}, Delivery: app.LocationSnapshot{LocationID: uuid.NewString(), Name: "Private room", BuildingName: "COM3"}, DeliveryInstructions: &secret, ItemDescription: "Two meals", RewardCredits: 20, ReservedCredits: 20, DeliveryDuration: 30 * time.Minute, ExpiresAt: now.Add(time.Hour), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	o := app.Order{
+		ID:          uuid.NewString(),
+		RequesterID: requester,
+		Status:      app.PendingReservation,
+		Pickup:      app.LocationSnapshot{LocationID: uuid.NewString(), Name: "Cafe", BuildingName: "COM2"},
+		Delivery: app.LocationSnapshot{
+			LocationID:   uuid.NewString(),
+			Name:         "Private room",
+			BuildingName: "COM3",
+		},
+		DeliveryInstructions: &secret,
+		ItemDescription:      "Two meals",
+		RewardCredits:        20,
+		ReservedCredits:      20,
+		DeliveryDuration:     30 * time.Minute,
+		ExpiresAt:            now.Add(time.Hour),
+		Revision:             1,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 	change, err := app.NewChange(nil, o, app.Actor{Kind: app.User, ID: requester}, app.Create, nil, uuid.NewString)
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +194,14 @@ func seedAcceptanceOrder(t *testing.T, ctx context.Context, repo *app.PostgresRe
 	err = app.NewMutator(repo).Mutate(ctx, o.ID, func(before app.Order, _ []app.Offer) (*app.Change, error) {
 		after = before
 		after.Status, after.Revision, after.UpdatedAt = app.AwaitingCourier, before.Revision+1, now.Add(time.Second)
-		change, err := app.NewChange(&before, after, app.Actor{Kind: app.System}, app.ConfirmReservation, nil, uuid.NewString)
+		change, err := app.NewChange(
+			&before,
+			after,
+			app.Actor{Kind: app.System},
+			app.ConfirmReservation,
+			nil,
+			uuid.NewString,
+		)
 		return &change, err
 	})
 	if err != nil {
@@ -183,7 +228,8 @@ func acceptanceRejection(t *testing.T, err error) *pb.AssignmentAttemptResult {
 		if decodeErr != nil {
 			t.Fatal(decodeErr)
 		}
-		if attempt, ok := value.(*pb.AssignmentAttemptResult); ok && attempt.Status == pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_REJECTED {
+		if attempt, ok := value.(*pb.AssignmentAttemptResult); ok &&
+			attempt.Status == pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_REJECTED {
 			return attempt
 		}
 	}
@@ -206,29 +252,61 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	clock := atomic.Int64{}
 	clock.Store(base.Add(5 * time.Second).UnixNano())
 	now := func() time.Time { return time.Unix(0, clock.Load()).UTC() }
-	credit := &mountedAcceptanceCredit{views: map[string]app.AssignmentReservation{}, applied: map[string]bool{}, reverted: map[string]bool{}, available: 30}
+	credit := &mountedAcceptanceCredit{
+		views:     map[string]app.AssignmentReservation{},
+		applied:   map[string]bool{},
+		reverted:  map[string]bool{},
+		available: 30,
+	}
 	for _, o := range []app.Order{first, second} {
-		credit.views[o.ID] = app.AssignmentReservation{OrderID: o.ID, RequesterID: requester, OriginalAmount: 20, ReservedAmount: 20, State: "held"}
+		credit.views[o.ID] = app.AssignmentReservation{
+			OrderID:        o.ID,
+			RequesterID:    requester,
+			OriginalAmount: 20,
+			ReservedAmount: 20,
+			State:          "held",
+		}
 	}
 	assigner := app.NewAssigner(repo, credit, app.AssignmentOptions{Now: now})
 	authenticate := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: r.Header.Get("X-Test-User"), Role: r.Header.Get("X-Test-Role")})))
+			next.ServeHTTP(
+				w,
+				r.WithContext(
+					auth.WithCaller(
+						r.Context(),
+						auth.Caller{ID: r.Header.Get("X-Test-User"), Role: r.Header.Get("X-Test-Role")},
+					),
+				),
+			)
 		})
 	}
-	server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: rpcorder.NewServer(app.NewService(repo), nil, app.NewItemImages(repo, nil), assigner), Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{}}, authenticate))
+	server := httptest.NewServer(
+		router.Setup(
+			router.RPCServices{
+				Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+				Order:  rpcorder.NewServer(app.NewService(repo), nil, app.NewItemImages(repo, nil), assigner),
+				Admin:  &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+			},
+			authenticate,
+		),
+	)
 	t.Cleanup(server.Close)
 	transport := &loseFirstAcceptance{base: server.Client().Transport}
 	client := orderv1connect.NewOrderServiceClient(&http.Client{Transport: transport}, server.URL)
 	key := uuid.NewString()
 	accept := func(id, attempt, actor, role string) (*connect.Response[pb.AcceptOrderResponse], error) {
-		return client.AcceptOrder(ctx, acceptanceRequest(&pb.AcceptOrderRequest{Id: id, AttemptId: attempt}, actor, role))
+		return client.AcceptOrder(
+			ctx,
+			acceptanceRequest(&pb.AcceptOrderRequest{Id: id, AttemptId: attempt}, actor, role),
+		)
 	}
 	if _, err := accept(first.ID, key, courier, "user"); err == nil {
 		t.Fatal("response loss was not injected")
 	}
 	var storedID string
-	if err := pool.QueryRow(ctx, "SELECT id::text FROM order_assignment_attempts WHERE idempotency_key=$1 AND phase='succeeded'", key).Scan(&storedID); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT id::text FROM order_assignment_attempts WHERE idempotency_key=$1 AND phase='succeeded'", key).
+		Scan(&storedID); err != nil {
 		t.Fatal("lost response did not follow committed assignment", err)
 	}
 	if _, err := accept(first.ID, key, courier, "suspended_user"); connect.CodeOf(err) != connect.CodePermissionDenied {
@@ -238,7 +316,11 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replay.Msg.Attempt.AttemptId != storedID || replay.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED || replay.Msg.Order.CourierId == nil || *replay.Msg.Order.CourierId != courier || replay.Msg.Order.Delivery == nil {
+	if replay.Msg.Attempt.AttemptId != storedID ||
+		replay.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED ||
+		replay.Msg.Order.CourierId == nil ||
+		*replay.Msg.Order.CourierId != courier ||
+		replay.Msg.Order.Delivery == nil {
 		t.Fatalf("active replay: %v", replay.Msg)
 	}
 	losingKey := uuid.NewString()
@@ -257,7 +339,14 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 		after.Status, after.CourierID, after.AssignedAt = app.AwaitingCourier, nil, nil
 		after.Revision++
 		after.UpdatedAt = now()
-		change, err := app.NewChange(&before, after, app.Actor{Kind: app.User, ID: courier}, app.Withdraw, nil, uuid.NewString)
+		change, err := app.NewChange(
+			&before,
+			after,
+			app.Actor{Kind: app.User, ID: courier},
+			app.Withdraw,
+			nil,
+			uuid.NewString,
+		)
 		return &change, err
 	})
 	if err != nil {
@@ -271,14 +360,28 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if historical.Msg.Attempt.AttemptId != storedID || historical.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED || historical.Msg.Order == nil || historical.Msg.Order.GetCourierId() != other || historical.Msg.Order.Delivery != nil || historical.Msg.Order.DeliveryBuildingName != "COM3" {
+	if historical.Msg.Attempt.AttemptId != storedID ||
+		historical.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED ||
+		historical.Msg.Order == nil ||
+		historical.Msg.Order.GetCourierId() != other ||
+		historical.Msg.Order.Delivery != nil ||
+		historical.Msg.Order.DeliveryBuildingName != "COM3" {
 		t.Fatalf("historical outcome exposed stale/private current assignment: %v", historical.Msg)
 	}
 	var episodes int
-	if err = pool.QueryRow(ctx, "SELECT count(*) FROM order_assignment_history WHERE order_id=$1", first.ID).Scan(&episodes); err != nil || episodes != 2 {
+	if err = pool.QueryRow(ctx, "SELECT count(*) FROM order_assignment_history WHERE order_id=$1", first.ID).
+		Scan(&episodes); err != nil ||
+		episodes != 2 {
 		t.Fatalf("atomic history episodes=%d err=%v", episodes, err)
 	}
-	proposal, err := client.MakeOffer(ctx, acceptanceRequest(&pb.MakeOfferRequest{OrderId: second.ID, Credits: 60, IdempotencyKey: uuid.NewString()}, courier, "user"))
+	proposal, err := client.MakeOffer(
+		ctx,
+		acceptanceRequest(
+			&pb.MakeOfferRequest{OrderId: second.ID, Credits: 60, IdempotencyKey: uuid.NewString()},
+			courier,
+			"user",
+		),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +395,9 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 		t.Fatalf("unexpected rejection: %v", refused)
 	}
 	var offerState string
-	if err = pool.QueryRow(ctx, "SELECT status FROM offers WHERE id=$1", offerID).Scan(&offerState); err != nil || offerState != "open" {
+	if err = pool.QueryRow(ctx, "SELECT status FROM offers WHERE id=$1", offerID).
+		Scan(&offerState); err != nil ||
+		offerState != "open" {
 		t.Fatalf("refusal offer=%s err=%v", offerState, err)
 	}
 	credit.mu.Lock()
@@ -309,7 +414,9 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pending.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_PENDING || pending.Msg.Attempt.AttemptId == refused.AttemptId || pending.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_AWAITING_COURIER {
+	if pending.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_PENDING ||
+		pending.Msg.Attempt.AttemptId == refused.AttemptId ||
+		pending.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_AWAITING_COURIER {
 		t.Fatalf("pending misreported as assignment: %v", pending.Msg)
 	}
 	clock.Add(int64(30 * time.Second))
@@ -317,7 +424,10 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settled.Msg.Attempt.AttemptId != pending.Msg.Attempt.AttemptId || settled.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED || settled.Msg.Order.RewardCredits != 60 || settled.Msg.Offer.Id != offerID {
+	if settled.Msg.Attempt.AttemptId != pending.Msg.Attempt.AttemptId ||
+		settled.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED ||
+		settled.Msg.Order.RewardCredits != 60 ||
+		settled.Msg.Offer.Id != offerID {
 		t.Fatalf("counteroffer recovery: %v", settled.Msg)
 	}
 	credit.mu.Lock()
@@ -327,5 +437,7 @@ func TestAcceptanceThroughConnectAndPostgres(t *testing.T) {
 	if applied != 3 || remaining != 0 {
 		t.Fatalf("scripted intent duplication: applied=%d remaining=%d", applied, remaining)
 	}
-	t.Log("PASS: mounted generated Connect acceptance -> real PostgreSQL18 migrations00004/00005 + Apply/history; committed lost-response retry, suspended replay denied without changing retained success, private-order fresh-key admission rejection, redacted former-courier current state, insufficient-credit typed detail + fenced baseline, pending counteroffer and same-attempt recovery. Credit/auth/removal remain explicitly scripted seams.")
+	t.Log(
+		"PASS: mounted generated Connect acceptance -> real PostgreSQL18 migrations00004/00005 + Apply/history; committed lost-response retry, suspended replay denied without changing retained success, private-order fresh-key admission rejection, redacted former-courier current state, insufficient-credit typed detail + fenced baseline, pending counteroffer and same-attempt recovery. Credit/auth/removal remain explicitly scripted seams.",
+	)
 }

@@ -41,7 +41,13 @@ func newProofRuntime(ctx context.Context, repository *order.PostgresRepository, 
 		runtime.outages = order.NewProofOutages(repository, storage, outageScope)
 		authority = runtime.outages
 	}
-	runtime.proofs = order.NewProofs(repository, grants, objects, validator, order.ProofOptions{UploadScope: scope, OutageScope: outageScope, Outages: authority})
+	runtime.proofs = order.NewProofs(
+		repository,
+		grants,
+		objects,
+		validator,
+		order.ProofOptions{UploadScope: scope, OutageScope: outageScope, Outages: authority},
+	)
 	runtime.receipts = order.NewProofReceipts(runtime.proofs, repository)
 	if storage != nil {
 		runtime.cleaner = order.NewProofCleaner(runtime.proofs, repository, storage)

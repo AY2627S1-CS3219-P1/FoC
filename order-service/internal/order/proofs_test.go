@@ -80,7 +80,13 @@ func (r *proofMemory) Apply(_ context.Context, c Change) error {
 }
 func (r *proofMemory) FindProofUpload(_ context.Context, orderID, courierID, uploadID string) (ProofUpload, error) {
 	if at, ok := r.retired[proofUploadIdentity{orderID, courierID, uploadID}]; ok {
-		return ProofUpload{State: ProofDeleting, OrderID: orderID, CourierID: courierID, UploadID: uploadID, CreatedAt: at}, nil
+		return ProofUpload{
+			State:     ProofDeleting,
+			OrderID:   orderID,
+			CourierID: courierID,
+			UploadID:  uploadID,
+			CreatedAt: at,
+		}, nil
 	}
 	for _, row := range r.uploads {
 		if row.OrderID == orderID && row.CourierID == courierID && row.UploadID == uploadID {
@@ -227,11 +233,27 @@ func proofScenario() (*Proofs, *proofMemory, *proofDependencies, *time.Time) {
 		uploads: map[string]ProofUpload{},
 	}
 	d := &proofDependencies{repo: r, now: &now, body: []byte("decoded by the injected validator")}
-	s := NewProofs(r, d, d, d, ProofOptions{Now: func() time.Time { return now }, NewID: uuid.NewString, Outages: d, UploadScope: "proof-primary"})
+	s := NewProofs(
+		r,
+		d,
+		d,
+		d,
+		ProofOptions{
+			Now:         func() time.Time { return now },
+			NewID:       uuid.NewString,
+			Outages:     d,
+			UploadScope: "proof-primary",
+		},
+	)
 	return s, r, d, &now
 }
 func proofUploadInput(d *proofDependencies) ProofUploadInput {
-	return ProofUploadInput{OrderID: proofOrderID, UploadID: uuid.NewString(), ContentType: "image/png", SizeBytes: int64(len(d.body))}
+	return ProofUploadInput{
+		OrderID:     proofOrderID,
+		UploadID:    uuid.NewString(),
+		ContentType: "image/png",
+		SizeBytes:   int64(len(d.body)),
+	}
 }
 func uploadedProof(t *testing.T, s *Proofs, d *proofDependencies) ProofUpload {
 	t.Helper()
@@ -260,7 +282,8 @@ func TestProofUploadIdentityAndExpiredGrant(t *testing.T) {
 	}
 	*now = first.ExpiresAt
 	refreshed, third, err := s.CreateUpload(t.Context(), caller, in)
-	if err != nil || refreshed.ID != row.ID || third.URL == first.URL || !third.ExpiresAt.After(first.ExpiresAt) || len(r.uploads) != 1 {
+	if err != nil || refreshed.ID != row.ID || third.URL == first.URL || !third.ExpiresAt.After(first.ExpiresAt) ||
+		len(r.uploads) != 1 {
 		t.Fatalf("expired repeat: %v %+v", err, refreshed)
 	}
 	in.SizeBytes++
@@ -286,7 +309,14 @@ func TestProofSigningFailureRetainsStableIdentity(t *testing.T) {
 func TestProofUploadRechecksAssignmentAfterSigning(t *testing.T) {
 	s, _, d, _ := proofScenario()
 	d.onGrant = func() { d.repo.order.Status = Cancelled }
-	if _, _, err := s.CreateUpload(t.Context(), Caller{ID: proofCourier}, proofUploadInput(d)); !errors.Is(err, ErrPrecondition) {
+	if _, _, err := s.CreateUpload(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofUploadInput(d),
+	); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatal(err)
 	}
 }
@@ -338,7 +368,14 @@ func TestProofConfirmationRequiresUploadedDecodedObjects(t *testing.T) {
 				row.OrderID = proofOther
 				r.uploads[row.ID] = row
 			}
-			if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); !errors.Is(err, want) {
+			if _, err := s.ConfirmDelivery(
+				t.Context(),
+				Caller{ID: proofCourier},
+				proofConfirmationInput(row),
+			); !errors.Is(
+				err,
+				want,
+			) {
 				t.Fatalf("got %v want %v", err, want)
 			}
 			if r.order.Status != Delivering || len(r.changes) != 0 || r.confirmation != nil {
@@ -358,7 +395,8 @@ func TestProofFiveUploadsConfirmOnceAndRetryAfterReceipt(t *testing.T) {
 	if err != nil || first.Status != Delivered || !first.UnattendedDelivery || len(r.changes) != 1 {
 		t.Fatalf("confirm: %v %+v", err, first)
 	}
-	if len(r.changes[0].Facts) != 1 || r.changes[0].Facts[0].Kind != StatusChanged || len(r.confirmation.ProofIDs) != 5 {
+	if len(r.changes[0].Facts) != 1 || r.changes[0].Facts[0].Kind != StatusChanged ||
+		len(r.confirmation.ProofIDs) != 5 {
 		t.Fatal("incorrect audit/outbox/attachment")
 	}
 	calls := d.inspections
@@ -368,7 +406,12 @@ func TestProofFiveUploadsConfirmOnceAndRetryAfterReceipt(t *testing.T) {
 	}
 	// Simulate the separately owned receipt operation after this confirmation.
 	r.order.Status = Completed
-	if result, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, in); err != nil || result.Status != Completed || len(r.changes) != 1 || d.inspections != calls {
+	if result, err := s.ConfirmDelivery(
+		t.Context(),
+		Caller{ID: proofCourier},
+		in,
+	); err != nil || result.Status != Completed || len(r.changes) != 1 ||
+		d.inspections != calls {
 		t.Fatalf("completed retry: %v %+v", err, result)
 	}
 	in.Unattended = false
@@ -450,7 +493,14 @@ func TestProofDeadlineRecheckedAfterObjectRead(t *testing.T) {
 					r.uploads[row.ID] = changed
 				}
 			}
-			if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); !errors.Is(err, ErrPrecondition) {
+			if _, err := s.ConfirmDelivery(
+				t.Context(),
+				Caller{ID: proofCourier},
+				proofConfirmationInput(row),
+			); !errors.Is(
+				err,
+				ErrPrecondition,
+			) {
 				t.Fatal(err)
 			}
 			if r.confirmation != nil || len(r.changes) != 0 {
@@ -508,7 +558,8 @@ func TestProofOutageExceptionRequiresFreshServerAuthority(t *testing.T) {
 				t.Fatalf("got %v want %v", err, tc.want)
 			}
 			if tc.want == nil {
-				if r.order.Status != Delivered || r.confirmation.OutageReason != tc.reason || r.order.UnattendedDelivery != tc.unattended {
+				if r.order.Status != Delivered || r.confirmation.OutageReason != tc.reason ||
+					r.order.UnattendedDelivery != tc.unattended {
 					t.Fatal("exception was not recorded")
 				}
 			} else if r.order.Status != Delivering {
@@ -535,7 +586,11 @@ func TestProofReadAuthorizationPrecedesSignedDownloads(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s, _, d, _ := proofScenario()
 			row := uploadedProof(t, s, d)
-			if _, err := s.ConfirmDelivery(t.Context(), Caller{ID: proofCourier}, proofConfirmationInput(row)); err != nil {
+			if _, err := s.ConfirmDelivery(
+				t.Context(),
+				Caller{ID: proofCourier},
+				proofConfirmationInput(row),
+			); err != nil {
 				t.Fatal(err)
 			}
 			view, err := s.ForOrder(t.Context(), tc.caller, proofOrderID)
@@ -560,7 +615,15 @@ func TestProofVerifyResolvesLostUploadResponseWithoutDelivery(t *testing.T) {
 		t.Fatal("upload verification confirmed delivery")
 	}
 	d.missing = true
-	if err := s.VerifyUpload(t.Context(), Caller{ID: proofCourier}, proofOrderID, row.ID); !errors.Is(err, ErrPrecondition) {
+	if err := s.VerifyUpload(
+		t.Context(),
+		Caller{ID: proofCourier},
+		proofOrderID,
+		row.ID,
+	); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatal(err)
 	}
 }

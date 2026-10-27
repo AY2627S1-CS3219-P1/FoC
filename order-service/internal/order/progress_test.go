@@ -10,9 +10,20 @@ import (
 func progressFixture(status Status) (*Progress, *txFake, Order) {
 	created := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
 	courier := "courier"
-	current := Order{ID: "37dbf670-f32c-4cca-9473-5861c274e789", RequesterID: "requester", CourierID: &courier, Status: status,
-		RewardCredits: 15, ReservedCredits: 15, DeliveryDuration: 15 * time.Minute, ExpiresAt: created.Add(time.Hour),
-		AssignedAt: &created, Revision: 3, CreatedAt: created, UpdatedAt: created}
+	current := Order{
+		ID:               "37dbf670-f32c-4cca-9473-5861c274e789",
+		RequesterID:      "requester",
+		CourierID:        &courier,
+		Status:           status,
+		RewardCredits:    15,
+		ReservedCredits:  15,
+		DeliveryDuration: 15 * time.Minute,
+		ExpiresAt:        created.Add(time.Hour),
+		AssignedAt:       &created,
+		Revision:         3,
+		CreatedAt:        created,
+		UpdatedAt:        created,
+	}
 	if status == Delivered || status == Completed {
 		current.PickedUpAt, current.DeliveredAt = &created, &created
 	}
@@ -45,10 +56,12 @@ func TestConfirmPickupByAssignedCourier(t *testing.T) {
 	}
 
 	at := current.CreatedAt.Add(time.Minute) // nanoseconds truncated to microseconds
-	if got.Status != Delivering || got.Revision != 4 || got.PickedUpAt == nil || !got.PickedUpAt.Equal(at) || !got.UpdatedAt.Equal(at) {
+	if got.Status != Delivering || got.Revision != 4 || got.PickedUpAt == nil || !got.PickedUpAt.Equal(at) ||
+		!got.UpdatedAt.Equal(at) {
 		t.Fatalf("result = %+v", got)
 	}
-	if tx.applied != 1 || tx.change.Action != Pickup || tx.change.ExpectedRevision != 3 || tx.change.Order.Status != Delivering {
+	if tx.applied != 1 || tx.change.Action != Pickup || tx.change.ExpectedRevision != 3 ||
+		tx.change.Order.Status != Delivering {
 		t.Fatalf("change = %+v", tx.change)
 	}
 	if kinds := factKinds(tx.change); len(kinds) != 1 || kinds[0] != StatusChanged {
@@ -132,7 +145,14 @@ func TestProgressRejectsIneligibleCallersAndStates(t *testing.T) {
 
 func TestProgressRejectsMalformedIDBeforeLocking(t *testing.T) {
 	p, tx, _ := progressFixture(AwaitingPickup)
-	if _, err := p.ConfirmPickup(context.Background(), Caller{ID: "courier"}, "not-a-uuid"); !errors.Is(err, ErrInvalid) {
+	if _, err := p.ConfirmPickup(
+		context.Background(),
+		Caller{ID: "courier"},
+		"not-a-uuid",
+	); !errors.Is(
+		err,
+		ErrInvalid,
+	) {
 		t.Fatal(err)
 	}
 	if len(*tx.events) != 0 {

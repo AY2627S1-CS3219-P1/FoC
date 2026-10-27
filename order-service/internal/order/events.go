@@ -48,7 +48,14 @@ type FactsPayload struct {
 
 // NewChange builds mandatory audit/facts. Creation is expected revision zero,
 // Pending Reservation only. Metadata changes produce an audit but no status fact.
-func NewChange(before *Order, after Order, actor Actor, action Action, details json.RawMessage, newID func() string) (Change, error) {
+func NewChange(
+	before *Order,
+	after Order,
+	actor Actor,
+	action Action,
+	details json.RawMessage,
+	newID func() string,
+) (Change, error) {
 	// Establish the prior revision before checking the lifecycle and actor.
 	expected := int64(0)
 	previous := Status("")
@@ -60,7 +67,8 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		}
 	}
 
-	if after.Revision <= 0 || after.Revision != expected+1 || !after.Status.IsValid() || (before == nil && (after.Status != PendingReservation || action != Create)) {
+	if after.Revision <= 0 || after.Revision != expected+1 || !after.Status.IsValid() ||
+		(before == nil && (after.Status != PendingReservation || action != Create)) {
 		return Change{}, ErrInvalid
 	}
 	if actor.Kind != System && ((actor.Kind != User && actor.Kind != Admin) || actor.ID == "") {
@@ -83,7 +91,8 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		if action == Assign && !after.IsAssignedTo(actor.ID) {
 			return Change{}, ErrInvalid
 		}
-		if action == AcceptCounteroffer && (after.CourierID == nil || *after.CourierID == "" || after.IsAssignedTo(before.RequesterID)) {
+		if action == AcceptCounteroffer &&
+			(after.CourierID == nil || *after.CourierID == "" || after.IsAssignedTo(before.RequesterID)) {
 			return Change{}, ErrInvalid
 		}
 	} else {
@@ -91,11 +100,14 @@ func NewChange(before *Order, after Order, actor Actor, action Action, details j
 		// AssignmentTx additionally checks offers and immutable attempt ownership.
 		switch action {
 		case BeginWithdrawal:
-			if actor.Kind != User || before.Status != AwaitingPickup || !before.IsAssignedTo(actor.ID) || before.PendingCancellationID != nil || after.PendingCancellationID == nil {
+			if actor.Kind != User || before.Status != AwaitingPickup || !before.IsAssignedTo(actor.ID) ||
+				before.PendingCancellationID != nil ||
+				after.PendingCancellationID == nil {
 				return Change{}, ErrPrecondition
 			}
 		case RecordItemLocation:
-			if actor.Kind != User || !before.IsAssignedTo(actor.ID) || before.PickedUpAt == nil || (before.Status != Cancelled && before.Status != Failed) {
+			if actor.Kind != User || !before.IsAssignedTo(actor.ID) || before.PickedUpAt == nil ||
+				(before.Status != Cancelled && before.Status != Failed) {
 				return Change{}, ErrPrecondition
 			}
 		case ProposeOffer:

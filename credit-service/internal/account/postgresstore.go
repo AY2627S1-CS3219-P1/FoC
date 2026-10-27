@@ -34,13 +34,20 @@ func (s *PostgresStore) Account(ctx context.Context, userID string) (Account, er
 	return FromRow(a), nil
 }
 
-func (s *PostgresStore) LedgerEntries(ctx context.Context, userID string, limit, offset int64) ([]LedgerEntry, int64, error) {
+func (s *PostgresStore) LedgerEntries(
+	ctx context.Context,
+	userID string,
+	limit, offset int64,
+) ([]LedgerEntry, int64, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, 0, ErrInvalidArgument
 	}
 	q := creditdb.New(s.pool)
-	rows, err := q.ListLedgerEntries(ctx, creditdb.ListLedgerEntriesParams{UserID: id, PageSize: limit, PageOffset: offset})
+	rows, err := q.ListLedgerEntries(
+		ctx,
+		creditdb.ListLedgerEntriesParams{UserID: id, PageSize: limit, PageOffset: offset},
+	)
 	if err != nil {
 		return nil, 0, err
 	}

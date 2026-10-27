@@ -28,7 +28,8 @@ func TestProofCredentialRotationRefreshesGrantNotProof(t *testing.T) {
 	issuer.epoch = "rotated"
 	issuer.expiry = now.Add(2 * time.Minute)
 	refreshed, _, err := proofs.CreateUpload(t.Context(), Caller{ID: proofCourier}, input)
-	if err != nil || refreshed.ID != first.ID || refreshed.Generation != first.Generation+1 || len(repo.uploads) != 1 || !refreshed.ExpiresAt.Equal(issuer.expiry) {
+	if err != nil || refreshed.ID != first.ID || refreshed.Generation != first.Generation+1 || len(repo.uploads) != 1 ||
+		!refreshed.ExpiresAt.Equal(issuer.expiry) {
 		t.Fatalf("rotation lost identity or temporary-credential lifetime: %+v %v", refreshed, err)
 	}
 }

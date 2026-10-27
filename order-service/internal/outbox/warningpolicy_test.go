@@ -37,7 +37,16 @@ func TestTerminalWarningPolicyAndEncoding(t *testing.T) {
 					continue
 				}
 				warnings++
-				message, err := encode(Fact{ID: fact.ID, OrderID: before.ID, Revision: 5, Kind: string(fact.Kind), Version: fact.Version, Payload: fact.Payload})
+				message, err := encode(
+					Fact{
+						ID:       fact.ID,
+						OrderID:  before.ID,
+						Revision: 5,
+						Kind:     string(fact.Kind),
+						Version:  fact.Version,
+						Payload:  fact.Payload,
+					},
+				)
 				if err != nil {
 					t.Fatal(err)
 				}

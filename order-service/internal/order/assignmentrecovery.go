@@ -31,7 +31,8 @@ func (s *Assigner) ProcessAssignment(ctx context.Context, attemptID string) erro
 			return nil, err
 		}
 		now := s.now().UTC()
-		if w.IsResolved() || w.LeaseUntil.After(now) || (w.NextAttemptAt.After(now) && (w.Phase != AdjustmentPending || (o.Status == AwaitingCourier && o.ExpiresAt.After(now)))) {
+		if w.IsResolved() || w.LeaseUntil.After(now) ||
+			(w.NextAttemptAt.After(now) && (w.Phase != AdjustmentPending || (o.Status == AwaitingCourier && o.ExpiresAt.After(now)))) {
 			return nil, nil
 		}
 		active, err := tx.ActiveAssignment(ctx, orderID)
@@ -67,7 +68,8 @@ func (s *Assigner) ProcessAssignment(ctx context.Context, attemptID string) erro
 			return nil, err
 		}
 		now := s.now().UTC()
-		if w.IsResolved() || w.Generation != claimed.Generation || w.Phase != claimed.Phase || !w.LeaseUntil.After(now) {
+		if w.IsResolved() || w.Generation != claimed.Generation || w.Phase != claimed.Phase ||
+			!w.LeaseUntil.After(now) {
 			return nil, nil
 		}
 		var change *Change
@@ -76,7 +78,9 @@ func (s *Assigner) ProcessAssignment(ctx context.Context, attemptID string) erro
 			if confirmsRevert(observation.reservation, w, o) {
 				w.Phase = AssignmentRejected
 				status := OfferVoid
-				if w.Method != AcceptOrderMethod && w.Rejection == "insufficient_credits" && o.Status == AwaitingCourier && o.ExpiresAt.After(now) {
+				if w.Method != AcceptOrderMethod && w.Rejection == "insufficient_credits" &&
+					o.Status == AwaitingCourier &&
+					o.ExpiresAt.After(now) {
 					status = OfferOpen
 				}
 				change, err = s.resolveOffer(o, offers, w, status, now)
@@ -127,7 +131,10 @@ func (s *Assigner) observeAssignment(ctx context.Context, w AssignmentAttempt) a
 	if w.Phase == RevertPending {
 		err = s.credit.Revert(call, w.OrderID, w.ID)
 	} else {
-		err = s.credit.Adjust(call, AdjustmentIntent{OrderID: w.OrderID, OfferID: w.ID, CourierID: w.CourierID, Amount: w.Amount})
+		err = s.credit.Adjust(
+			call,
+			AdjustmentIntent{OrderID: w.OrderID, OfferID: w.ID, CourierID: w.CourierID, Amount: w.Amount},
+		)
 	}
 	cancel()
 	if w.Phase == AdjustmentPending && errors.Is(err, ErrCreditInsufficient) {
@@ -153,14 +160,22 @@ func confirmsAdjustment(v *AssignmentReservation, w AssignmentAttempt, o Order) 
 }
 
 func confirmsRevert(v *AssignmentReservation, w AssignmentAttempt, o Order) bool {
-	if v == nil || v.OrderID != w.OrderID || v.RequesterID != o.RequesterID || v.OriginalAmount != w.OriginalAmount || v.OfferID != "" || v.CourierID != "" {
+	if v == nil || v.OrderID != w.OrderID || v.RequesterID != o.RequesterID || v.OriginalAmount != w.OriginalAmount ||
+		v.OfferID != "" ||
+		v.CourierID != "" {
 		return false
 	}
 	return (v.State == "held" && v.ReservedAmount == w.OriginalAmount && v.OriginalAmount == w.OriginalAmount) ||
 		(v.State == "released" && v.ReservedAmount == 0)
 }
 
-func (s *Assigner) resolveOffer(o Order, offers []Offer, w AssignmentAttempt, status OfferStatus, now time.Time) (*Change, error) {
+func (s *Assigner) resolveOffer(
+	o Order,
+	offers []Offer,
+	w AssignmentAttempt,
+	status OfferStatus,
+	now time.Time,
+) (*Change, error) {
 	change, err := s.metadata(o, Caller{ID: w.CallerID}, ResolveAssignment, now)
 	if err != nil {
 		return nil, err

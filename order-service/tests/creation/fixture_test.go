@@ -65,7 +65,14 @@ func databaseFixture(t *testing.T) *fixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-	container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("order_creation_test"), postgres.WithUsername("order"), postgres.WithPassword("order"), postgres.BasicWaitStrategies())
+	container, err := postgres.Run(
+		ctx,
+		"postgres:18",
+		postgres.WithDatabase("order_creation_test"),
+		postgres.WithUsername("order"),
+		postgres.WithPassword("order"),
+		postgres.BasicWaitStrategies(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +118,10 @@ func databaseFixture(t *testing.T) *fixture {
 
 func (f *fixture) reset(t *testing.T) {
 	t.Helper()
-	if _, err := f.pool.Exec(f.ctx, "TRUNCATE order_idempotency_keys,order_outbox,order_audit,offers,orders CASCADE"); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		"TRUNCATE order_idempotency_keys,order_outbox,order_audit,offers,orders CASCADE",
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -132,7 +142,11 @@ type remotes struct {
 }
 
 func newRemotes(t *testing.T) *remotes {
-	return &remotes{t: t, reservations: map[string]*creditpb.Reservation{}, original: map[string]*creditpb.Reservation{}}
+	return &remotes{
+		t:            t,
+		reservations: map[string]*creditpb.Reservation{},
+		original:     map[string]*creditpb.Reservation{},
+	}
 }
 
 func businessError(code connect.Code, reason string) *connect.Error {
@@ -148,7 +162,10 @@ func (r *remotes) checkCreditBearer(value string) {
 	}
 }
 
-func (r *remotes) Reserve(_ context.Context, req *connect.Request[creditpb.ReserveRequest]) (*connect.Response[creditpb.ReserveResponse], error) {
+func (r *remotes) Reserve(
+	_ context.Context,
+	req *connect.Request[creditpb.ReserveRequest],
+) (*connect.Response[creditpb.ReserveResponse], error) {
 	r.checkCreditBearer(req.Header().Get("Authorization"))
 	r.mu.Lock()
 	r.reserveCalls++
@@ -167,12 +184,21 @@ func (r *remotes) Reserve(_ context.Context, req *connect.Request[creditpb.Reser
 	}
 	id := req.Msg.RequestId
 	if original := r.original[id]; original != nil {
-		return connect.NewResponse(&creditpb.ReserveResponse{Reservation: proto.Clone(original).(*creditpb.Reservation)}), nil
+		return connect.NewResponse(
+			&creditpb.ReserveResponse{Reservation: proto.Clone(original).(*creditpb.Reservation)},
+		), nil
 	}
-	if r.reservations[id] != nil && r.reservations[id].Status == creditpb.ReservationStatus_RESERVATION_STATUS_RELEASED {
+	if r.reservations[id] != nil &&
+		r.reservations[id].Status == creditpb.ReservationStatus_RESERVATION_STATUS_RELEASED {
 		return nil, businessError(connect.CodeFailedPrecondition, "RESERVATION_RELEASED")
 	}
-	value := &creditpb.Reservation{RequestId: id, RequesterId: req.Msg.RequesterId, Status: creditpb.ReservationStatus_RESERVATION_STATUS_HELD, OriginalAmount: req.Msg.Amount, ReservedAmount: req.Msg.Amount}
+	value := &creditpb.Reservation{
+		RequestId:      id,
+		RequesterId:    req.Msg.RequesterId,
+		Status:         creditpb.ReservationStatus_RESERVATION_STATUS_HELD,
+		OriginalAmount: req.Msg.Amount,
+		ReservedAmount: req.Msg.Amount,
+	}
 	r.reservations[id] = value
 	r.original[id] = proto.Clone(value).(*creditpb.Reservation)
 	r.holds++
@@ -182,7 +208,10 @@ func (r *remotes) Reserve(_ context.Context, req *connect.Request[creditpb.Reser
 	return connect.NewResponse(&creditpb.ReserveResponse{Reservation: proto.Clone(value).(*creditpb.Reservation)}), nil
 }
 
-func (r *remotes) GetReservation(_ context.Context, req *connect.Request[creditpb.GetReservationRequest]) (*connect.Response[creditpb.GetReservationResponse], error) {
+func (r *remotes) GetReservation(
+	_ context.Context,
+	req *connect.Request[creditpb.GetReservationRequest],
+) (*connect.Response[creditpb.GetReservationResponse], error) {
 	r.checkCreditBearer(req.Header().Get("Authorization"))
 	r.mu.Lock()
 	r.getCalls++
@@ -204,7 +233,10 @@ func (r *remotes) GetReservation(_ context.Context, req *connect.Request[creditp
 	return connect.NewResponse(&creditpb.GetReservationResponse{Reservation: snapshot}), nil
 }
 
-func (r *remotes) ReleaseReservation(_ context.Context, req *connect.Request[creditpb.ReleaseReservationRequest]) (*connect.Response[creditpb.ReleaseReservationResponse], error) {
+func (r *remotes) ReleaseReservation(
+	_ context.Context,
+	req *connect.Request[creditpb.ReleaseReservationRequest],
+) (*connect.Response[creditpb.ReleaseReservationResponse], error) {
 	r.checkCreditBearer(req.Header().Get("Authorization"))
 	if req.Msg.Reason != creditpb.ReleaseReason_RELEASE_REASON_EXPIRED {
 		r.t.Error("incorrect release reason")
@@ -223,10 +255,15 @@ func (r *remotes) ReleaseReservation(_ context.Context, req *connect.Request[cre
 	value.Status = creditpb.ReservationStatus_RESERVATION_STATUS_RELEASED
 	value.ReservedAmount = 0
 	value.ActiveAdjustment = nil
-	return connect.NewResponse(&creditpb.ReleaseReservationResponse{Reservation: proto.Clone(value).(*creditpb.Reservation)}), nil
+	return connect.NewResponse(
+		&creditpb.ReleaseReservationResponse{Reservation: proto.Clone(value).(*creditpb.Reservation)},
+	), nil
 }
 
-func (r *remotes) GetLocation(_ context.Context, req *connect.Request[locationpb.GetLocationRequest]) (*connect.Response[locationpb.GetLocationResponse], error) {
+func (r *remotes) GetLocation(
+	_ context.Context,
+	req *connect.Request[locationpb.GetLocationRequest],
+) (*connect.Response[locationpb.GetLocationResponse], error) {
 	if req.Header().Get("Authorization") != "Bearer user-token" {
 		r.t.Error("Supplier did not receive delegated user credential")
 	}
@@ -257,7 +294,12 @@ func (r *remotes) adapters(t *testing.T) (*clients.Supplier, *clients.Credit) {
 	if err := os.WriteFile(file, []byte("service-credit-token"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return &clients.Supplier{Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL)}, &clients.Credit{Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL), Tokens: fixtureTokens("service-credit-token")}
+	return &clients.Supplier{
+		Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
+	}, &clients.Credit{
+		Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
+		Tokens: fixtureTokens("service-credit-token"),
+	}
 }
 
 func mount(t *testing.T, f *fixture, creator *app.Creator) orderv1connect.OrderServiceClient {
@@ -265,7 +307,13 @@ func mount(t *testing.T, f *fixture, creator *app.Creator) orderv1connect.OrderS
 	return mountImages(t, f, creator, nil, app.Caller{ID: requester})
 }
 
-func mountImages(t *testing.T, f *fixture, creator *app.Creator, images *app.ItemImages, caller app.Caller) orderv1connect.OrderServiceClient {
+func mountImages(
+	t *testing.T,
+	f *fixture,
+	creator *app.Creator,
+	images *app.ItemImages,
+	caller app.Caller,
+) orderv1connect.OrderServiceClient {
 	t.Helper()
 	reads := app.NewService(f.repo)
 	var imageOperations orderrpc.ImageOperations
@@ -278,24 +326,44 @@ func mountImages(t *testing.T, f *fixture, creator *app.Creator, images *app.Ite
 				http.Error(w, "unauthenticated", http.StatusUnauthorized)
 				return
 			}
-			r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: caller.ID, Role: callerRole(caller), Admin: caller.Admin}))
+			r = r.WithContext(
+				auth.WithCaller(r.Context(), auth.Caller{ID: caller.ID, Role: callerRole(caller), Admin: caller.Admin}),
+			)
 			r = r.WithContext(auth.WithUserBearer(r.Context(), r.Header.Get("Authorization")))
 			next.ServeHTTP(w, r)
 		})
 	}
-	server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: orderrpc.NewServer(reads, creator, imageOperations), Admin: adminrpc.NewServer(reads, imageOperations)}, authenticate))
+	server := httptest.NewServer(
+		router.Setup(
+			router.RPCServices{
+				Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+				Order:  orderrpc.NewServer(reads, creator, imageOperations),
+				Admin:  adminrpc.NewServer(reads, imageOperations),
+			},
+			authenticate,
+		),
+	)
 	t.Cleanup(server.Close)
 	return orderv1connect.NewOrderServiceClient(server.Client(), server.URL)
 }
 
 func input(now time.Time) *orderpb.CreateOrderRequest {
 	return &orderpb.CreateOrderRequest{
-		PickupLocationId: pickupID, Delivery: &orderpb.DeliveryInput{LocationId: deliveryID, Instructions: proto.String("Call outside")},
-		ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: durationpb.New(10 * time.Minute), ExpiresAt: timestamppb.New(now.Add(time.Hour)), IdempotencyKey: uuid.NewString(),
+		PickupLocationId: pickupID,
+		Delivery:         &orderpb.DeliveryInput{LocationId: deliveryID, Instructions: proto.String("Call outside")},
+		ItemDescription:  "Book",
+		RewardCredits:    10,
+		DeliveryDuration: durationpb.New(10 * time.Minute),
+		ExpiresAt:        timestamppb.New(now.Add(time.Hour)),
+		IdempotencyKey:   uuid.NewString(),
 	}
 }
 
-func create(c orderv1connect.OrderServiceClient, ctx context.Context, in *orderpb.CreateOrderRequest) (*orderpb.Order, error) {
+func create(
+	c orderv1connect.OrderServiceClient,
+	ctx context.Context,
+	in *orderpb.CreateOrderRequest,
+) (*orderpb.Order, error) {
 	request := connect.NewRequest(in)
 	request.Header().Set("Authorization", "Bearer user-token")
 	response, err := c.CreateOrder(ctx, request)

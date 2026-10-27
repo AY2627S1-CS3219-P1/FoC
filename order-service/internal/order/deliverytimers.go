@@ -47,7 +47,12 @@ func NewDeliveryTimers(repository DeliveryTimerRepository, options DeliveryTimer
 		testNow:    options.TestNow,
 		newID:      options.NewID,
 	}
-	s.lifecycleTimerScanner = newLifecycleTimerScanner("delivery_timeout", options.TestNow, repository.DueDeliveryTimers, s.Timeout)
+	s.lifecycleTimerScanner = newLifecycleTimerScanner(
+		"delivery_timeout",
+		options.TestNow,
+		repository.DueDeliveryTimers,
+		s.Timeout,
+	)
 	return s
 }
 
@@ -56,7 +61,9 @@ func NewDeliveryTimers(repository DeliveryTimerRepository, options DeliveryTimer
 // confirmations win by changing the same locked parent before this recheck.
 func (s *DeliveryTimers) Timeout(ctx context.Context, id string) error {
 	err := s.repository.WithinDeliveryTimers(ctx, func(tx DeliveryTimerTx) error {
-		return NewMutator(borrowedTimerRepository{tx: tx}).Mutate(ctx, id, func(before Order, _ []Offer) (*Change, error) {
+		return NewMutator(
+			borrowedTimerRepository{tx: tx},
+		).Mutate(ctx, id, func(before Order, _ []Offer) (*Change, error) {
 			if before.Status != Delivering {
 				return nil, nil
 			}
@@ -115,7 +122,8 @@ func (s *DeliveryTimers) Timeout(ctx context.Context, id string) error {
 func deliveryTimeoutDeadline(o Order) (time.Time, error) {
 	// Validate before multiplying a persisted duration to avoid overflow on a
 	// malformed/legacy row. Normal creation limits are much smaller.
-	if o.PickedUpAt == nil || o.CourierID == nil || o.DeliveryDuration <= 0 || o.DeliveryDuration > time.Duration(1<<63-1)/2 {
+	if o.PickedUpAt == nil || o.CourierID == nil || o.DeliveryDuration <= 0 ||
+		o.DeliveryDuration > time.Duration(1<<63-1)/2 {
 		return time.Time{}, ErrPrecondition
 	}
 	return o.PickedUpAt.Add(2 * o.DeliveryDuration), nil

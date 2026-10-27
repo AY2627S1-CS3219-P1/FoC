@@ -20,7 +20,13 @@ func imageStorage(t *testing.T, ctx context.Context) *images.S3 {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	t.Setenv("AWS_SESSION_TOKEN", "")
-	c, err := testcontainers.Run(ctx, "floci/floci:2.3.0", testcontainers.WithExposedPorts("4566/tcp"), testcontainers.WithEnv(map[string]string{"FLOCI_SERVICES_S3_ENFORCE_AUTH": "true"}), testcontainers.WithWaitStrategy(wait.ForListeningPort("4566/tcp")))
+	c, err := testcontainers.Run(
+		ctx,
+		"floci/floci:2.3.0",
+		testcontainers.WithExposedPorts("4566/tcp"),
+		testcontainers.WithEnv(map[string]string{"FLOCI_SERVICES_S3_ENFORCE_AUTH": "true"}),
+		testcontainers.WithWaitStrategy(wait.ForListeningPort("4566/tcp")),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,9 +47,28 @@ func imageStorage(t *testing.T, ctx context.Context) *images.S3 {
 
 func kafkaBroker(t *testing.T, ctx context.Context) string {
 	t.Helper()
-	c, err := testcontainers.Run(ctx, "apache/kafka:4.2.2", testcontainers.WithExposedPorts("19092/tcp"), testcontainers.WithEntrypoint("/bin/sh"), testcontainers.WithCmd("-c", "while [ ! -f /tmp/start-order-kafka ]; do sleep 0.1; done; exec sh /tmp/start-order-kafka"), testcontainers.WithEnv(map[string]string{
-		"KAFKA_NODE_ID": "1", "KAFKA_PROCESS_ROLES": "broker,controller", "KAFKA_CONTROLLER_QUORUM_VOTERS": "1@localhost:9093", "KAFKA_CONTROLLER_LISTENER_NAMES": "CONTROLLER", "KAFKA_LISTENERS": "BROKER://:9092,EXTERNAL://:19092,CONTROLLER://:9093", "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP": "BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT", "KAFKA_INTER_BROKER_LISTENER_NAME": "BROKER", "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR": "1", "KAFKA_AUTO_CREATE_TOPICS_ENABLE": "false",
-	}), testcontainers.WithWaitStrategy(wait.ForMappedPort("19092/tcp")))
+	c, err := testcontainers.Run(
+		ctx,
+		"apache/kafka:4.2.2",
+		testcontainers.WithExposedPorts("19092/tcp"),
+		testcontainers.WithEntrypoint("/bin/sh"),
+		testcontainers.WithCmd(
+			"-c",
+			"while [ ! -f /tmp/start-order-kafka ]; do sleep 0.1; done; exec sh /tmp/start-order-kafka",
+		),
+		testcontainers.WithEnv(map[string]string{
+			"KAFKA_NODE_ID":                          "1",
+			"KAFKA_PROCESS_ROLES":                    "broker,controller",
+			"KAFKA_CONTROLLER_QUORUM_VOTERS":         "1@localhost:9093",
+			"KAFKA_CONTROLLER_LISTENER_NAMES":        "CONTROLLER",
+			"KAFKA_LISTENERS":                        "BROKER://:9092,EXTERNAL://:19092,CONTROLLER://:9093",
+			"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP":   "BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT",
+			"KAFKA_INTER_BROKER_LISTENER_NAME":       "BROKER",
+			"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR": "1",
+			"KAFKA_AUTO_CREATE_TOPICS_ENABLE":        "false",
+		}),
+		testcontainers.WithWaitStrategy(wait.ForMappedPort("19092/tcp")),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +77,10 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	script := fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS='BROKER://localhost:9092,EXTERNAL://%s'\nexec /etc/kafka/docker/run\n", address)
+	script := fmt.Sprintf(
+		"export KAFKA_ADVERTISED_LISTENERS='BROKER://localhost:9092,EXTERNAL://%s'\nexec /etc/kafka/docker/run\n",
+		address,
+	)
 	if err := c.CopyToContainer(ctx, []byte(script), "/tmp/start-order-kafka", 0755); err != nil {
 		t.Fatal(err)
 	}

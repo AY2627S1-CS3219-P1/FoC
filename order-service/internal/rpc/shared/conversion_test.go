@@ -18,17 +18,32 @@ func (r *imageRecorder) ForOrder(context.Context, app.Caller, app.Order) ([]app.
 // membership must not cause a later attachment credential to be minted.
 func TestOrderViewProtectsEveryResponse(t *testing.T) {
 	courier, secret, room := "current", "Call Room 02-15", "Room 02-15"
-	original := app.Order{RequesterID: "requester", CourierID: &courier, Status: app.Completed, Delivery: app.LocationSnapshot{LocationID: "exact", Name: room, BuildingName: "COM3"}, DeliveryInstructions: &secret, ItemLocation: &room, CloseReason: &room, ExpiresAt: time.Now().Add(time.Hour)}
+	original := app.Order{
+		RequesterID:          "requester",
+		CourierID:            &courier,
+		Status:               app.Completed,
+		Delivery:             app.LocationSnapshot{LocationID: "exact", Name: room, BuildingName: "COM3"},
+		DeliveryInstructions: &secret,
+		ItemLocation:         &room,
+		CloseReason:          &room,
+		ExpiresAt:            time.Now().Add(time.Hour),
+	}
 	for _, c := range []app.Caller{{ID: "admin", Admin: true}, {ID: "former"}, {ID: "former", Suspended: true}} {
 		recorder := &imageRecorder{}
 		got, err := OrderView(context.Background(), c, original, recorder)
-		if err != nil || got.Delivery != nil || got.DeliveryBuildingName != "COM3" || got.ItemLocation != nil || got.CloseReason != nil || len(got.ItemImages) != 0 || recorder.calls != 0 {
+		if err != nil || got.Delivery != nil || got.DeliveryBuildingName != "COM3" || got.ItemLocation != nil ||
+			got.CloseReason != nil ||
+			len(got.ItemImages) != 0 ||
+			recorder.calls != 0 {
 			t.Fatalf("unauthorized response: %+v calls=%d err=%v", got, recorder.calls, err)
 		}
 	}
 	recorder := &imageRecorder{}
 	got, err := OrderView(context.Background(), app.Caller{ID: "requester", Suspended: true}, original, recorder)
-	if err != nil || got.Delivery.GetLocation().GetLocationId() != "exact" || got.Delivery.GetInstructions() != secret || len(got.ItemImages) != 1 || recorder.calls != 1 {
+	if err != nil || got.Delivery.GetLocation().GetLocationId() != "exact" ||
+		got.Delivery.GetInstructions() != secret ||
+		len(got.ItemImages) != 1 ||
+		recorder.calls != 1 {
 		t.Fatal(got, err)
 	}
 	if original.Delivery.LocationID != "exact" || original.ItemLocation == nil {
@@ -39,7 +54,12 @@ func TestOrderViewProtectsEveryResponse(t *testing.T) {
 func TestOrderViewsKeepsPageWhenSelectedOrderExpires(t *testing.T) {
 	selectedAt := time.Now().Add(-time.Minute)
 	orders := []app.Order{
-		{ID: "just-expired", RequesterID: "requester", Status: app.AwaitingCourier, ExpiresAt: selectedAt.Add(time.Second)},
+		{
+			ID:          "just-expired",
+			RequesterID: "requester",
+			Status:      app.AwaitingCourier,
+			ExpiresAt:   selectedAt.Add(time.Second),
+		},
 		{ID: "still-open", RequesterID: "requester", Status: app.AwaitingCourier, ExpiresAt: selectedAt.Add(time.Hour)},
 	}
 	// The read layer already selected both orders at selectedAt. Projection must

@@ -79,18 +79,25 @@ func run(ctx context.Context) error {
 	}
 
 	// RPC listeners
-	authenticator, err := newAuthenticator(startupCtx, 2*time.Second, func(ctx context.Context) (*httpauth.Authenticator, error) {
-		return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
-			UserServiceURL: config.UserServiceURL,
-			Issuer:         httpauth.TokenIssuer,
-			Audience:       httpauth.TokenAudience,
-		})
-	})
+	authenticator, err := newAuthenticator(
+		startupCtx,
+		2*time.Second,
+		func(ctx context.Context) (*httpauth.Authenticator, error) {
+			return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
+				UserServiceURL: config.UserServiceURL,
+				Issuer:         httpauth.TokenIssuer,
+				Audience:       httpauth.TokenAudience,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	public := newServer(":"+config.Port, getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate)))
+	public := newServer(
+		":"+config.Port,
+		getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate)),
+	)
 	internal := newServer(":"+config.InternalPort, router.Internal(services.rpc))
 	for _, server := range []*http.Server{public, internal} {
 		server.BaseContext = func(net.Listener) context.Context { return ctx }
@@ -182,7 +189,11 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 
 // newAuthenticator bounds both network attempts and waits by the caller's
 // startup context; callbacks are construction attempts, never transactions.
-func newAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+func newAuthenticator(
+	ctx context.Context,
+	interval time.Duration,
+	build func(context.Context) (*httpauth.Authenticator, error),
+) (*httpauth.Authenticator, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 

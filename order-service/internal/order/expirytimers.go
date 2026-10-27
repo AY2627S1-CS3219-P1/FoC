@@ -55,7 +55,9 @@ func NewExpiryTimers(repository ExpiryTimerRepository, options ExpiryTimerOption
 // Assignment recovery, not this local transaction, compensates late Credit work.
 func (s *ExpiryTimers) Expire(ctx context.Context, id string) error {
 	err := s.repository.WithinExpiryTimers(ctx, func(tx ExpiryTimerTx) error {
-		return NewMutator(borrowedTimerRepository{tx: tx}).Mutate(ctx, id, func(before Order, offers []Offer) (*Change, error) {
+		return NewMutator(
+			borrowedTimerRepository{tx: tx},
+		).Mutate(ctx, id, func(before Order, offers []Offer) (*Change, error) {
 			if before.Status != AwaitingCourier {
 				return nil, nil
 			}

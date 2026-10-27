@@ -32,7 +32,10 @@ type fakeSettler struct {
 	outcomes []reservation.OrderOutcome
 }
 
-func (f *fakeSettler) ApplyOutcome(_ context.Context, o reservation.OrderOutcome) (reservation.Reservation, bool, error) {
+func (f *fakeSettler) ApplyOutcome(
+	_ context.Context,
+	o reservation.OrderOutcome,
+) (reservation.Reservation, bool, error) {
 	f.outcomes = append(f.outcomes, o)
 	if len(f.errs) == 0 {
 		return reservation.Reservation{}, true, nil
@@ -85,7 +88,12 @@ func TestOutcomeCarriesLatenessInputs(t *testing.T) {
 		t.Fatalf("lateness: %+v", o)
 	}
 
-	expired := events.Outcome(&ordereventsv1.OrderOutcome{OrderId: orderID, Outcome: ordereventsv1.OrderOutcomeType_ORDER_OUTCOME_TYPE_EXPIRED})
+	expired := events.Outcome(
+		&ordereventsv1.OrderOutcome{
+			OrderId: orderID,
+			Outcome: ordereventsv1.OrderOutcomeType_ORDER_OUTCOME_TYPE_EXPIRED,
+		},
+	)
 	if expired.CourierID != "" || !expired.PickedUpAt.IsZero() || expired.DeliveryDuration != 0 {
 		t.Fatalf("unset fields: %+v", expired)
 	}
@@ -130,7 +138,12 @@ func TestOutcomesRetryAbortedSettlement(t *testing.T) {
 
 	settler = &fakeSettler{errs: []error{aborted, aborted, aborted}}
 	h = &events.Outcomes{Settler: settler}
-	if err := h.Handle(context.Background(), meta, completed()); !errors.Is(err, reservation.ErrAborted) || len(settler.outcomes) != 3 {
+	if err := h.Handle(
+		context.Background(),
+		meta,
+		completed(),
+	); !errors.Is(err, reservation.ErrAborted) ||
+		len(settler.outcomes) != 3 {
 		t.Fatalf("err %v after %d attempts", err, len(settler.outcomes))
 	}
 }
@@ -160,7 +173,11 @@ func TestUsersOpenAccounts(t *testing.T) {
 	opener := &fakeOpener{}
 	h := &events.Users{Opener: opener}
 
-	if err := h.Handle(context.Background(), kafka.Metadata{}, &userseventsv1.UserCreated{EventId: "event", UserId: requesterID}); err != nil {
+	if err := h.Handle(
+		context.Background(),
+		kafka.Metadata{},
+		&userseventsv1.UserCreated{EventId: "event", UserId: requesterID},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if len(opener.opened) != 1 || opener.opened[0] != requesterID {
@@ -176,7 +193,14 @@ func TestUsersAcknowledgeInvalidIDsAndReturnFailures(t *testing.T) {
 
 	down := errors.New("connection refused")
 	h = &events.Users{Opener: &fakeOpener{err: down}}
-	if err := h.Handle(context.Background(), kafka.Metadata{}, &userseventsv1.UserCreated{UserId: requesterID}); !errors.Is(err, down) {
+	if err := h.Handle(
+		context.Background(),
+		kafka.Metadata{},
+		&userseventsv1.UserCreated{UserId: requesterID},
+	); !errors.Is(
+		err,
+		down,
+	) {
 		t.Fatalf("failure: %v", err)
 	}
 }

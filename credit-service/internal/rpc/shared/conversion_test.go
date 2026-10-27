@@ -32,9 +32,13 @@ func TestReservationDescribesEachStatus(t *testing.T) {
 		UpdatedAt: now,
 	})
 	a := assigned.GetActiveAdjustment()
-	if assigned.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_ASSIGNED || assigned.GetRequestId() != "order" ||
-		a.GetOfferId() != "offer" || a.GetCourierId() != "courier" || a.GetPreviousAmount() != 20 ||
-		a.GetStatus() != creditv1.AdjustmentStatus_ADJUSTMENT_STATUS_APPLIED || assigned.Settlement != nil ||
+	if assigned.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_ASSIGNED ||
+		assigned.GetRequestId() != "order" ||
+		a.GetOfferId() != "offer" ||
+		a.GetCourierId() != "courier" ||
+		a.GetPreviousAmount() != 20 ||
+		a.GetStatus() != creditv1.AdjustmentStatus_ADJUSTMENT_STATUS_APPLIED ||
+		assigned.Settlement != nil ||
 		!assigned.GetCreatedAt().AsTime().Equal(now) {
 		t.Fatalf("assigned: %v", assigned)
 	}
@@ -51,8 +55,10 @@ func TestReservationDescribesEachStatus(t *testing.T) {
 		},
 	})
 	s := settled.GetSettlement()
-	if settled.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_SETTLED || settled.ActiveAdjustment != nil ||
-		s.GetOutcome() != creditv1.SettlementOutcome_SETTLEMENT_OUTCOME_COMPLETED || s.GetPaidToCourier() != 15 ||
+	if settled.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_SETTLED ||
+		settled.ActiveAdjustment != nil ||
+		s.GetOutcome() != creditv1.SettlementOutcome_SETTLEMENT_OUTCOME_COMPLETED ||
+		s.GetPaidToCourier() != 15 ||
 		s.GetReleaseReason() != creditv1.ReleaseReason_RELEASE_REASON_UNSPECIFIED {
 		t.Fatalf("settled: %v", settled)
 	}
@@ -66,7 +72,8 @@ func TestReservationDescribesEachStatus(t *testing.T) {
 			ReleaseReason: reservation.Expired,
 		},
 	})
-	if tombstone.GetRequesterId() != "" || tombstone.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_RELEASED ||
+	if tombstone.GetRequesterId() != "" ||
+		tombstone.GetStatus() != creditv1.ReservationStatus_RESERVATION_STATUS_RELEASED ||
 		tombstone.GetSettlement().GetReleaseReason() != creditv1.ReleaseReason_RELEASE_REASON_EXPIRED {
 		t.Fatalf("tombstone: %v", tombstone)
 	}
@@ -88,16 +95,25 @@ func TestLedgerPageKeepsOptionalIDsAbsent(t *testing.T) {
 	page := shared.LedgerPage(account.LedgerPage{
 		Entries: []account.LedgerEntry{
 			{ID: "grant", Kind: account.Grant, BalanceDelta: 100, CreatedAt: now},
-			{ID: "adjust", Kind: account.Adjust, ReservedDelta: 10, OrderID: "order", AssignmentID: "offer", CreatedAt: now},
+			{
+				ID:            "adjust",
+				Kind:          account.Adjust,
+				ReservedDelta: 10,
+				OrderID:       "order",
+				AssignmentID:  "offer",
+				CreatedAt:     now,
+			},
 		},
 		PageInfo: account.PageInfo{Page: 1, PageSize: 20, TotalItems: 2, TotalPages: 1},
 	})
 
 	grant, adjust := page.GetEntries()[0], page.GetEntries()[1]
-	if grant.RequestId != nil || grant.OfferId != nil || grant.GetKind() != creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT {
+	if grant.RequestId != nil || grant.OfferId != nil ||
+		grant.GetKind() != creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_GRANT {
 		t.Fatalf("grant: %v", grant)
 	}
-	if adjust.GetRequestId() != "order" || adjust.GetOfferId() != "offer" || adjust.GetKind() != creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_ADJUST {
+	if adjust.GetRequestId() != "order" || adjust.GetOfferId() != "offer" ||
+		adjust.GetKind() != creditv1.LedgerEntryKind_LEDGER_ENTRY_KIND_ADJUST {
 		t.Fatalf("adjust: %v", adjust)
 	}
 	if info := page.GetPageInfo(); info.GetTotalItems() != 2 || info.GetPageSize() != 20 {

@@ -25,7 +25,13 @@ type proposalRPCFixture struct {
 	credits      int64
 }
 
-func (f *proposalRPCFixture) MakeOffer(_ context.Context, c app.Caller, id string, credits int64, key string) (app.Offer, error) {
+func (f *proposalRPCFixture) MakeOffer(
+	_ context.Context,
+	c app.Caller,
+	id string,
+	credits int64,
+	key string,
+) (app.Offer, error) {
 	f.called, f.caller, f.orderID, f.credits, f.key = true, c, id, credits, key
 	return app.Offer{ID: locationID, OrderID: id, CourierID: c.ID, Credits: credits, Status: app.OfferOpen}, nil
 }
@@ -46,10 +52,22 @@ func TestMakeOfferGeneratedConnectBoundary(t *testing.T) {
 					next.ServeHTTP(w, r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: role})))
 				})
 			}
-			server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: rpcorder.NewServer(&fakeOperations{}, nil, nil, f), Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{}}, authenticate))
+			server := httptest.NewServer(
+				router.Setup(
+					router.RPCServices{
+						Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+						Order:  rpcorder.NewServer(&fakeOperations{}, nil, nil, f),
+						Admin:  &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+					},
+					authenticate,
+				),
+			)
 			t.Cleanup(server.Close)
 			client := orderv1connect.NewOrderServiceClient(server.Client(), server.URL)
-			result, err := client.MakeOffer(context.Background(), connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 50, IdempotencyKey: locationID}))
+			result, err := client.MakeOffer(
+				context.Background(),
+				connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 50, IdempotencyKey: locationID}),
+			)
 			if suspended {
 				if connect.CodeOf(err) != connect.CodePermissionDenied || f.called {
 					t.Fatalf("suspended offer: called=%v err=%v", f.called, err)
@@ -59,10 +77,15 @@ func TestMakeOfferGeneratedConnectBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !f.called || f.caller.ID != userID || f.orderID != orderID || f.key != locationID || f.credits != 50 || result.Msg.Offer.CourierId != userID || result.Msg.Offer.Credits != 50 {
+			if !f.called || f.caller.ID != userID || f.orderID != orderID || f.key != locationID || f.credits != 50 ||
+				result.Msg.Offer.CourierId != userID ||
+				result.Msg.Offer.Credits != 50 {
 				t.Fatalf("offer mapping: %+v %v", f, result.Msg)
 			}
-			_, err = client.MakeOffer(context.Background(), connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 50, IdempotencyKey: "not-a-uuid"}))
+			_, err = client.MakeOffer(
+				context.Background(),
+				connect.NewRequest(&pb.MakeOfferRequest{OrderId: orderID, Credits: 50, IdempotencyKey: "not-a-uuid"}),
+			)
 			if connect.CodeOf(err) != connect.CodeInvalidArgument {
 				t.Fatalf("invalid key: %v", err)
 			}
@@ -79,7 +102,13 @@ type acceptanceRPCFixture struct {
 func (f *acceptanceRPCFixture) MakeOffer(context.Context, app.Caller, string, int64, string) (app.Offer, error) {
 	return app.Offer{}, app.ErrUnavailable
 }
-func (f *acceptanceRPCFixture) AcceptOrder(_ context.Context, _ app.Caller, _ string, key string) (app.AssignmentResult, error) {
+
+func (f *acceptanceRPCFixture) AcceptOrder(
+	_ context.Context,
+	_ app.Caller,
+	_ string,
+	key string,
+) (app.AssignmentResult, error) {
 	f.calls++
 	f.key = key
 	return f.result, nil
@@ -95,17 +124,39 @@ func (f *acceptanceRPCFixture) AcceptOffer(context.Context, app.Caller, string) 
 func TestAcceptanceTypedOutcomesAcrossConnect(t *testing.T) {
 	for _, phase := range []app.AssignmentPhase{app.AdjustmentPending, app.RevertPending, app.AssignmentSucceeded, app.AssignmentRejected} {
 		t.Run(string(phase), func(t *testing.T) {
-			f := &acceptanceRPCFixture{result: app.AssignmentResult{Order: app.Order{ID: orderID, Status: app.AwaitingPickup}, AttemptID: locationID, Phase: phase, Rejection: "order_unavailable"}}
+			f := &acceptanceRPCFixture{
+				result: app.AssignmentResult{
+					Order:     app.Order{ID: orderID, Status: app.AwaitingPickup},
+					AttemptID: locationID,
+					Phase:     phase,
+					Rejection: "order_unavailable",
+				},
+			}
 			reads := &fakeOperations{}
 			authenticate := func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					next.ServeHTTP(w, r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: "user"})))
+					next.ServeHTTP(
+						w,
+						r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: userID, Role: "user"})),
+					)
 				})
 			}
-			server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: rpcorder.NewServer(reads, nil, nil, f), Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{}}, authenticate))
+			server := httptest.NewServer(
+				router.Setup(
+					router.RPCServices{
+						Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+						Order:  rpcorder.NewServer(reads, nil, nil, f),
+						Admin:  &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+					},
+					authenticate,
+				),
+			)
 			t.Cleanup(server.Close)
 			client := orderv1connect.NewOrderServiceClient(server.Client(), server.URL)
-			result, err := client.AcceptOrder(context.Background(), connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
+			result, err := client.AcceptOrder(
+				context.Background(),
+				connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}),
+			)
 			if phase == app.AssignmentRejected {
 				if connect.CodeOf(err) != connect.CodeFailedPrecondition {
 					t.Fatalf("rejection became success: %v", err)
@@ -121,7 +172,9 @@ func TestAcceptanceTypedOutcomesAcrossConnect(t *testing.T) {
 						t.Fatal(e)
 					}
 					if a, ok := value.(*pb.AssignmentAttemptResult); ok {
-						found = a.AttemptId == locationID && a.Status == pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_REJECTED && a.Rejection == "order_unavailable"
+						found = a.AttemptId == locationID &&
+							a.Status == pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_REJECTED &&
+							a.Rejection == "order_unavailable"
 					}
 				}
 				if !found || reads.called != "" {
@@ -132,7 +185,9 @@ func TestAcceptanceTypedOutcomesAcrossConnect(t *testing.T) {
 					t.Fatal(err)
 				}
 				want := map[app.AssignmentPhase]pb.AssignmentAttemptStatus{app.AdjustmentPending: pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_PENDING, app.RevertPending: pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_COMPENSATING, app.AssignmentSucceeded: pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED}[phase]
-				if result.Msg.Attempt.Status != want || result.Msg.Attempt.AttemptId != locationID || result.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_DELIVERED || reads.called != "get" {
+				if result.Msg.Attempt.Status != want || result.Msg.Attempt.AttemptId != locationID ||
+					result.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_DELIVERED ||
+					reads.called != "get" {
 					t.Fatalf("did not use historical outcome plus current read: %v", result.Msg)
 				}
 			}
@@ -150,12 +205,19 @@ func TestAcceptanceTypedOutcomesAcrossConnect(t *testing.T) {
 // Source: acknowledged replay privacy: an offer-only/failed-attempt identity is
 // not permission to receive the current Order. Historical result survives 404.
 func TestAcceptanceReplayWithoutCurrentVisibilityOmitsOrder(t *testing.T) {
-	f := &acceptanceRPCFixture{result: app.AssignmentResult{Order: app.Order{ID: orderID, DeliveryInstructions: proto.String("must not leak")}, AttemptID: locationID, Phase: app.AssignmentSucceeded}}
+	f := &acceptanceRPCFixture{
+		result: app.AssignmentResult{
+			Order:     app.Order{ID: orderID, DeliveryInstructions: proto.String("must not leak")},
+			AttemptID: locationID,
+			Phase:     app.AssignmentSucceeded,
+		},
+	}
 	reads := &fakeOperations{err: app.ErrNotFound}
 	server := rpcorder.NewServer(reads, nil, nil, f)
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: userID, Role: "user"})
 	result, err := server.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))
-	if err != nil || result.Msg.Order != nil || result.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED {
+	if err != nil || result.Msg.Order != nil ||
+		result.Msg.Attempt.Status != pb.AssignmentAttemptStatus_ASSIGNMENT_ATTEMPT_STATUS_SUCCEEDED {
 		t.Fatalf("historical attempt leaked current aggregate: %v %v", result, err)
 	}
 }
@@ -163,7 +225,13 @@ func TestAcceptanceReplayWithoutCurrentVisibilityOmitsOrder(t *testing.T) {
 // Source: failure to read/project current state must not turn a recorded success
 // into an admission rejection that would cause the client to discard its key.
 func TestAcceptedOutcomeProjectionFailureRemainsRetryable(t *testing.T) {
-	f := &acceptanceRPCFixture{result: app.AssignmentResult{Order: app.Order{ID: orderID}, AttemptID: locationID, Phase: app.AssignmentSucceeded}}
+	f := &acceptanceRPCFixture{
+		result: app.AssignmentResult{
+			Order:     app.Order{ID: orderID},
+			AttemptID: locationID,
+			Phase:     app.AssignmentSucceeded,
+		},
+	}
 	server := rpcorder.NewServer(&fakeOperations{err: app.ErrForbidden}, nil, nil, f)
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: userID, Role: "user"})
 	_, err := server.AcceptOrder(ctx, connect.NewRequest(&pb.AcceptOrderRequest{Id: orderID, AttemptId: userID}))

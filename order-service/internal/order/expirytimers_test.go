@@ -51,10 +51,13 @@ func TestExpiryTimerDeadlineAndFacts(t *testing.T) {
 			if err := json.Unmarshal(change.Facts[1].Payload, &fact); err != nil {
 				t.Fatal(err)
 			}
-			if fact.Status != Expired || fact.Action != Expire || fact.ReservedCredits != before.ReservedCredits || !fact.At.Equal(now) {
+			if fact.Status != Expired || fact.Action != Expire || fact.ReservedCredits != before.ReservedCredits ||
+				!fact.At.Equal(now) {
 				t.Fatalf("wrong outcome observations: %+v", fact)
 			}
-			if len(change.Offers) != 2 || r.offers[before.ID][0].Status != OfferVoid || r.offers[before.ID][1].Status != OfferVoid || r.offers[before.ID][2].Status != OfferAccepted {
+			if len(change.Offers) != 2 || r.offers[before.ID][0].Status != OfferVoid ||
+				r.offers[before.ID][1].Status != OfferVoid ||
+				r.offers[before.ID][2].Status != OfferAccepted {
 				t.Fatal("expiry did not void active offers while retaining historical acceptance")
 			}
 			if err := s.Expire(t.Context(), before.ID); err != nil || len(r.changes) != 1 {
@@ -222,7 +225,11 @@ func TestExpiryTimerRetryDoesNotDelayHealthyCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r.orders[healthy.ID].Status != Expired || attempts != 1 {
-		t.Fatalf("healthy order delayed or broken candidate retried without backoff: healthy=%s attempts=%d", r.orders[healthy.ID].Status, attempts)
+		t.Fatalf(
+			"healthy order delayed or broken candidate retried without backoff: healthy=%s attempts=%d",
+			r.orders[healthy.ID].Status,
+			attempts,
+		)
 	}
 	now = now.Add(time.Minute)
 	if err := s.ScanOnce(t.Context()); err != nil {
@@ -352,7 +359,12 @@ func newExpiryTimerFake(orders ...Order) *expiryTimerFake {
 	return r
 }
 
-func (r *expiryTimerFake) DueExpiryTimers(_ context.Context, now time.Time, after string, limit int32) ([]string, error) {
+func (r *expiryTimerFake) DueExpiryTimers(
+	_ context.Context,
+	now time.Time,
+	after string,
+	limit int32,
+) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var ids []string

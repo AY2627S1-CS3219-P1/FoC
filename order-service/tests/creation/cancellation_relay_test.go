@@ -36,22 +36,30 @@ func TestCancellationOutboxWithKafka(t *testing.T) {
 			if who != "requester before pickup" {
 				for _, action := range []app.Action{app.Assign, app.Pickup} {
 					s.clock.Advance(time.Second)
-					err := app.NewMutator(s.repo).Mutate(f.ctx, created.Id, func(o app.Order, _ []app.Offer) (*app.Change, error) {
-						after := o
-						now := s.clock.Now()
-						after.Revision++
-						after.UpdatedAt = now
-						if action == app.Assign {
-							after.Status = app.AwaitingPickup
-							after.CourierID = &courier
-							after.AssignedAt = &now
-						} else {
-							after.Status = app.Delivering
-							after.PickedUpAt = &now
-						}
-						change, err := app.NewChange(&o, after, app.Actor{Kind: app.User, ID: courier}, action, nil, uuid.NewString)
-						return &change, err
-					})
+					err := app.NewMutator(s.repo).
+						Mutate(f.ctx, created.Id, func(o app.Order, _ []app.Offer) (*app.Change, error) {
+							after := o
+							now := s.clock.Now()
+							after.Revision++
+							after.UpdatedAt = now
+							if action == app.Assign {
+								after.Status = app.AwaitingPickup
+								after.CourierID = &courier
+								after.AssignedAt = &now
+							} else {
+								after.Status = app.Delivering
+								after.PickedUpAt = &now
+							}
+							change, err := app.NewChange(
+								&o,
+								after,
+								app.Actor{Kind: app.User, ID: courier},
+								action,
+								nil,
+								uuid.NewString,
+							)
+							return &change, err
+						})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -93,7 +101,9 @@ func TestCancellationOutboxWithKafka(t *testing.T) {
 			if err := proto.Unmarshal(message.Value, &status); err != nil {
 				t.Fatal(err)
 			}
-			if status.Status != expectedStatus || status.OrderId != created.Id || string(message.Key) != created.Id || status.Actor.UserId == nil || *status.Actor.UserId != caller.ID {
+			if status.Status != expectedStatus || status.OrderId != created.Id || string(message.Key) != created.Id ||
+				status.Actor.UserId == nil ||
+				*status.Actor.UserId != caller.ID {
 				t.Fatalf("status %v", &status)
 			}
 			var outcome events.OrderOutcome
@@ -101,7 +111,9 @@ func TestCancellationOutboxWithKafka(t *testing.T) {
 			if err := proto.Unmarshal(message.Value, &outcome); err != nil {
 				t.Fatal(err)
 			}
-			if outcome.Outcome != expectedOutcome || outcome.OrderId != created.Id || outcome.ReservedCredits != 10 || string(message.Key) != created.Id || (outcome.PickedUpAt == nil) != (who == "requester before pickup") {
+			if outcome.Outcome != expectedOutcome || outcome.OrderId != created.Id || outcome.ReservedCredits != 10 ||
+				string(message.Key) != created.Id ||
+				(outcome.PickedUpAt == nil) != (who == "requester before pickup") {
 				t.Fatalf("outcome %v", &outcome)
 			}
 			if who == "courier after pickup" {
@@ -115,7 +127,9 @@ func TestCancellationOutboxWithKafka(t *testing.T) {
 				}
 				warnings++
 			}
-			if topicOffset(t, address, "order.status_changed") != statuses+1 || topicOffset(t, address, "order.outcome") != outcomes+1 || topicOffset(t, address, "order.courier_warning_requested") != warnings {
+			if topicOffset(t, address, "order.status_changed") != statuses+1 ||
+				topicOffset(t, address, "order.outcome") != outcomes+1 ||
+				topicOffset(t, address, "order.courier_warning_requested") != warnings {
 				t.Fatal("duplicate or unexpected events")
 			}
 			if s.remotes.releaseCalls != 0 {

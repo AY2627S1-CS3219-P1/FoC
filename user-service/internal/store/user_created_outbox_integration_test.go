@@ -40,7 +40,11 @@ func TestUserCreatedOutboxPersistenceAndLeases(t *testing.T) {
 		t.Fatalf("transaction error = %v, want rollback error", err)
 	}
 	var rolledBack int64
-	if err := db.Model(&models.UserCreatedOutbox{}).Where("event_id = ?", rollbackEvent.EventID).Count(&rolledBack).Error; err != nil || rolledBack != 0 {
+	if err := db.Model(&models.UserCreatedOutbox{}).
+		Where("event_id = ?", rollbackEvent.EventID).
+		Count(&rolledBack).
+		Error; err != nil ||
+		rolledBack != 0 {
 		t.Fatalf("outbox transaction rollback left %d rows: %v", rolledBack, err)
 	}
 
@@ -53,7 +57,12 @@ func TestUserCreatedOutboxPersistenceAndLeases(t *testing.T) {
 		fact.DisplayName != event.DisplayName || !fact.CreatedAt.Equal(event.CreatedAt) || fact.PayloadVersion != 1 || fact.LeaseToken == uuid.Nil {
 		t.Fatalf("claimed fact = %+v, want event %+v and a lease", fact, event)
 	}
-	if second, err := store.UserCreatedOutbox.Claim(ctx, now, firstLeaseUntil.Add(time.Minute)); err != nil || second != nil {
+	if second, err := store.UserCreatedOutbox.Claim(
+		ctx,
+		now,
+		firstLeaseUntil.Add(time.Minute),
+	); err != nil ||
+		second != nil {
 		t.Fatalf("claimed a row with a live lease: fact=%+v err=%v", second, err)
 	}
 
@@ -61,7 +70,12 @@ func TestUserCreatedOutboxPersistenceAndLeases(t *testing.T) {
 	if err := store.UserCreatedOutbox.Retry(ctx, *fact, retryAt); err != nil {
 		t.Fatalf("schedule outbox retry: %v", err)
 	}
-	if early, err := store.UserCreatedOutbox.Claim(ctx, retryAt.Add(-time.Second), retryAt.Add(time.Minute)); err != nil || early != nil {
+	if early, err := store.UserCreatedOutbox.Claim(
+		ctx,
+		retryAt.Add(-time.Second),
+		retryAt.Add(time.Minute),
+	); err != nil ||
+		early != nil {
 		t.Fatalf("claimed before retry time: fact=%+v err=%v", early, err)
 	}
 	retried, err := store.UserCreatedOutbox.Claim(ctx, retryAt, retryAt.Add(time.Minute))
@@ -77,7 +91,12 @@ func TestUserCreatedOutboxPersistenceAndLeases(t *testing.T) {
 	if err := store.UserCreatedOutbox.Published(ctx, *retried, retryAt.Add(time.Second)); err != nil {
 		t.Fatalf("acknowledge publication: %v", err)
 	}
-	if pending, err := store.UserCreatedOutbox.Claim(ctx, retryAt.Add(2*time.Second), retryAt.Add(3*time.Minute)); err != nil || pending != nil {
+	if pending, err := store.UserCreatedOutbox.Claim(
+		ctx,
+		retryAt.Add(2*time.Second),
+		retryAt.Add(3*time.Minute),
+	); err != nil ||
+		pending != nil {
 		t.Fatalf("published row was claimed again: fact=%+v err=%v", pending, err)
 	}
 	var published models.UserCreatedOutbox

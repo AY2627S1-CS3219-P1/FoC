@@ -17,7 +17,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func newRPCServices(pool *pgxpool.Pool, creator *order.Creator, images *order.ItemImages, assignments orderrpc.AssignmentOperations, cancellations orderrpc.CancellationOperations, proofs ...*proofRuntime) router.RPCServices {
+func newRPCServices(
+	pool *pgxpool.Pool,
+	creator *order.Creator,
+	images *order.ItemImages,
+	assignments orderrpc.AssignmentOperations,
+	cancellations orderrpc.CancellationOperations,
+	proofs ...*proofRuntime,
+) router.RPCServices {
 	repository := order.NewPostgresRepository(pool)
 	service := order.NewService(repository)
 	mutator := order.NewMutator(repository)
@@ -37,7 +44,12 @@ func newRPCServices(pool *pgxpool.Pool, creator *order.Creator, images *order.It
 
 // Configuration is checked locally; Credit reachability is deliberately not a
 // startup dependency. Recovery must remain configured while holds are unresolved.
-func newCreator(ctx context.Context, repository order.CreationRepository, c config, images *order.ItemImages) (*order.Creator, bool, error) {
+func newCreator(
+	ctx context.Context,
+	repository order.CreationRepository,
+	c config,
+	images *order.ItemImages,
+) (*order.Creator, bool, error) {
 	pending, err := repository.HasPendingCreations(ctx)
 	if err != nil {
 		return nil, false, err
@@ -49,13 +61,25 @@ func newCreator(ctx context.Context, repository order.CreationRepository, c conf
 	var credit order.CreationCredit
 	if c.CreditServiceURL != "" {
 		if _, err := clients.ReadServiceToken(c.CreditTokenFile); err != nil {
-			return nil, false, errors.New("CREDIT_WORKLOAD_TOKEN_FILE must contain a readable nonempty bearer credential")
+			return nil, false, errors.New(
+				"CREDIT_WORKLOAD_TOKEN_FILE must contain a readable nonempty bearer credential",
+			)
 		}
-		credit = &clients.Credit{Client: creditv1connect.NewCreditReservationServiceClient(client, c.CreditServiceURL), Tokens: clients.FileTokens{Path: c.CreditTokenFile}}
+		credit = &clients.Credit{
+			Client: creditv1connect.NewCreditReservationServiceClient(client, c.CreditServiceURL),
+			Tokens: clients.FileTokens{Path: c.CreditTokenFile},
+		}
 	}
 	var locations order.CreationLocations
 	if c.SupplierServiceURL != "" {
-		locations = &clients.Supplier{Client: locationv1connect.NewLocationDiscoveryServiceClient(client, c.SupplierServiceURL)}
+		locations = &clients.Supplier{
+			Client: locationv1connect.NewLocationDiscoveryServiceClient(client, c.SupplierServiceURL),
+		}
 	}
-	return order.NewCreator(repository, locations, credit, order.CreationOptions{AdmissionsEnabled: credit != nil && locations != nil, Images: images}), credit != nil, nil
+	return order.NewCreator(
+		repository,
+		locations,
+		credit,
+		order.CreationOptions{AdmissionsEnabled: credit != nil && locations != nil, Images: images},
+	), credit != nil, nil
 }

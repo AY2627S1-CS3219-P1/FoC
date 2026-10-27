@@ -127,13 +127,17 @@ func run(ctx context.Context) error {
 	}
 	defer func() { stopWorkers(); workers.Wait() }()
 
-	authenticator, err := newAuthenticator(startupCtx, 2*time.Second, func(ctx context.Context) (*httpauth.Authenticator, error) {
-		return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
-			UserServiceURL: config.UserServiceURL,
-			Issuer:         httpauth.TokenIssuer,
-			Audience:       httpauth.TokenAudience,
-		})
-	})
+	authenticator, err := newAuthenticator(
+		startupCtx,
+		2*time.Second,
+		func(ctx context.Context) (*httpauth.Authenticator, error) {
+			return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
+				UserServiceURL: config.UserServiceURL,
+				Issuer:         httpauth.TokenIssuer,
+				Audience:       httpauth.TokenAudience,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
@@ -222,7 +226,11 @@ func serve(ctx context.Context, server *http.Server) error {
 
 // newAuthenticator bounds both network attempts and waits by the caller's
 // startup context; callbacks are construction attempts, never transactions.
-func newAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+func newAuthenticator(
+	ctx context.Context,
+	interval time.Duration,
+	build func(context.Context) (*httpauth.Authenticator, error),
+) (*httpauth.Authenticator, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 

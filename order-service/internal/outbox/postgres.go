@@ -44,12 +44,24 @@ func (r *Postgres) Claim(ctx context.Context, now, until time.Time) (*Fact, erro
 		value := actor.ActorID.String()
 		actorID = &value
 	}
-	return &Fact{ID: row.EventID.String(), OrderID: row.OrderID.String(), Kind: row.Kind, LeaseToken: token.String(), Revision: row.Revision, Version: row.PayloadVersion, Payload: row.Payload, ActorKind: actor.ActorKind, PickupName: pickup.Name, ActorID: actorID}, nil
+	return &Fact{
+		ID:         row.EventID.String(),
+		OrderID:    row.OrderID.String(),
+		Kind:       row.Kind,
+		LeaseToken: token.String(),
+		Revision:   row.Revision,
+		Version:    row.PayloadVersion,
+		Payload:    row.Payload,
+		ActorKind:  actor.ActorKind,
+		PickupName: pickup.Name,
+		ActorID:    actorID,
+	}, nil
 }
 
 func (r *Postgres) Published(ctx context.Context, f Fact, now time.Time) error {
 	token := uuid.MustParse(f.LeaseToken)
-	n, err := db.New(r.pool).MarkOrderFactPublished(ctx, db.MarkOrderFactPublishedParams{EventID: uuid.MustParse(f.ID), LeaseToken: &token, NowAt: &now})
+	n, err := db.New(r.pool).
+		MarkOrderFactPublished(ctx, db.MarkOrderFactPublishedParams{EventID: uuid.MustParse(f.ID), LeaseToken: &token, NowAt: &now})
 	if err != nil {
 		return err
 	}
@@ -61,5 +73,6 @@ func (r *Postgres) Published(ctx context.Context, f Fact, now time.Time) error {
 
 func (r *Postgres) Retry(ctx context.Context, f Fact, next time.Time) error {
 	token := uuid.MustParse(f.LeaseToken)
-	return db.New(r.pool).RetryOrderFact(ctx, db.RetryOrderFactParams{EventID: uuid.MustParse(f.ID), LeaseToken: &token, LeaseUntil: &next})
+	return db.New(r.pool).
+		RetryOrderFact(ctx, db.RetryOrderFactParams{EventID: uuid.MustParse(f.ID), LeaseToken: &token, LeaseUntil: &next})
 }

@@ -74,7 +74,11 @@ func (s *Service) Reserve(ctx context.Context, orderID, requesterID string, amou
 // records the courier. The hold becomes the offer, which must be at least the
 // original amount, so RevertAdjustment only ever lowers the hold and never
 // needs back credits the requester has spent.
-func (s *Service) AdjustReservation(ctx context.Context, orderID, assignmentID, courierID string, offerAmount int64) (Reservation, error) {
+func (s *Service) AdjustReservation(
+	ctx context.Context,
+	orderID, assignmentID, courierID string,
+	offerAmount int64,
+) (Reservation, error) {
 	if err := canonicalIDs(&orderID, &assignmentID, &courierID); err != nil {
 		return Reservation{}, err
 	}
@@ -250,7 +254,14 @@ func (s *Service) ReleaseReservation(ctx context.Context, orderID string, reason
 
 // release returns r's hold to the requester, or records a tombstone when r is
 // nil. It reports whether anything changed.
-func release(ctx context.Context, tx Tx, orderID string, r *Reservation, reason ReleaseReason, now time.Time) (Reservation, bool, error) {
+func release(
+	ctx context.Context,
+	tx Tx,
+	orderID string,
+	r *Reservation,
+	reason ReleaseReason,
+	now time.Time,
+) (Reservation, bool, error) {
 	if r == nil {
 		tombstone := Reservation{
 			OrderID: orderID,

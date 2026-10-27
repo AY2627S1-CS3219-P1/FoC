@@ -69,7 +69,8 @@ func (s *ProofCleaner) CleanOnce(ctx context.Context) error {
 			if pending {
 				return nil, nil
 			}
-			if row.State == ProofUploading && o.Status == Delivering && o.PickedUpAt != nil && now.Before(o.PickedUpAt.Add(2*o.DeliveryDuration)) {
+			if row.State == ProofUploading && o.Status == Delivering && o.PickedUpAt != nil &&
+				now.Before(o.PickedUpAt.Add(2*o.DeliveryDuration)) {
 				return nil, nil
 			}
 			if err = tx.AbandonProofUpload(ctx, o.ID, row.CourierID, row.UploadID, now); err != nil {
@@ -114,8 +115,14 @@ func (s *ProofCleaner) Run(ctx context.Context) {
 	}
 }
 
-func (r *PostgresRepository) ProofCleanupCandidates(ctx context.Context, scope string, now time.Time, limit int32) ([]ProofUpload, error) {
-	rows, err := db.New(r.pool).ProofCleanupCandidates(ctx, db.ProofCleanupCandidatesParams{ExpiresAt: now, UploadScope: scope, Limit: limit})
+func (r *PostgresRepository) ProofCleanupCandidates(
+	ctx context.Context,
+	scope string,
+	now time.Time,
+	limit int32,
+) ([]ProofUpload, error) {
+	rows, err := db.New(r.pool).
+		ProofCleanupCandidates(ctx, db.ProofCleanupCandidatesParams{ExpiresAt: now, UploadScope: scope, Limit: limit})
 	if err != nil {
 		return nil, err
 	}
