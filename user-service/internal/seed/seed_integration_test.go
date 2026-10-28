@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSeedTransactionsAndRepair(t *testing.T) {
+func TestSeedTransactions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	db, _ := testPostgres(t, ctx)
@@ -104,7 +104,7 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		requireCount(t, db, "role_changes", 1)
 	})
 
-	t.Run("repair existing users and preserve deleted users until reset", func(t *testing.T) {
+	t.Run("existing users never emit creation events on rerun or reset", func(t *testing.T) {
 		reset(t)
 		seed(t, false)
 		mustExec(t, db, "TRUNCATE user_created_outbox")
@@ -113,19 +113,11 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		originalUsers := scalar(t, db, userSnapshot)
 		seed(t, false)
 		if scalar(t, db, userSnapshot) != originalUsers {
-			t.Fatal("repair changed existing profiles or deletions")
+			t.Fatal("rerun changed existing profiles or deletions")
 		}
-		requireCount(t, db, "user_created_outbox", 5)
-		if got := scalar(
-			t,
-			db,
-			"SELECT display_name FROM user_created_outbox WHERE user_id=?",
-			fixtures.Users[0].ID,
-		); got != "Existing edited name" {
-			t.Fatalf("repair did not snapshot persisted user: %s", got)
-		}
+		requireCount(t, db, "user_created_outbox", 0)
 		seed(t, true)
-		requireCount(t, db, "user_created_outbox", 6)
+		requireCount(t, db, "user_created_outbox", 0)
 		if got := scalar(t, db, "SELECT count(*)::text FROM users WHERE deleted_at IS NOT NULL"); got != "0" {
 			t.Fatal("reset did not restore deleted fixture")
 		}

@@ -198,6 +198,6 @@ owns the 100-credit starting grant. Existing users are not backfilled, and
 bootstrap-created administrators do not emit registration events.
 
 Explicit demo fixtures use the same user/event provisioning operation as
-registration. `make seed-demo` invokes the User-owned command and repairs missing
-events for fixture users from older seeds. Credit continues to own account and
-ledger creation; see [the seed instructions](../data/seeds/README.md).
+registration. `make seed-demo` invokes the User-owned command; only newly created
+fixture users emit creation events. Credit continues to own account and ledger
+creation; see [the seed instructions](../data/seeds/README.md).

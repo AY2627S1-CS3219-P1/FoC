@@ -131,8 +131,8 @@ separate campus CSV dataset. Buildings and categories reuse matching records by
 name when the CSV importer has already created them; otherwise they receive fixed
 fixture IDs. Reset only updates reference records with fixture IDs.
 
-It also repairs missing creation events for active users seeded by the old SQL
-fixtures. Existing event IDs, payloads, leases and publication state are preserved.
+Only newly created fixture users emit creation events. Existing users and their
+event history are left as-is, including when no creation event exists.
 Soft-deleted fixture users stay deleted on an ordinary rerun; reset restores them.
 Neither rerun nor reset changes Credit balances, reservations or ledger history,
 and duplicate event delivery cannot grant credits again.

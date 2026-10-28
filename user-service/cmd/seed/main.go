@@ -63,6 +63,6 @@ func run(ctx context.Context, path string, reset bool) error {
 	if err := seeder.Run(ctx, fixtures, reset); err != nil {
 		return err
 	}
-	fmt.Printf("Seeded %d users; Credit provisioning events are queued or already recorded.\n", len(fixtures.Users))
+	fmt.Printf("Applied %d user fixtures; newly created users queue Credit provisioning events.\n", len(fixtures.Users))
 	return nil
 }

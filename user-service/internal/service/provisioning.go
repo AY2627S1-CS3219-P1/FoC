@@ -24,12 +24,6 @@ func (p UserProvisioner) Create(ctx context.Context, user *models.User) error {
 	if err := p.Users.Create(ctx, user); err != nil {
 		return err
 	}
-	return p.RecordCreation(ctx, *user)
-}
-
-// RecordCreation also repairs an existing fixture user without a creation event.
-// The event store preserves the first event for each user, including delivery state.
-func (p UserProvisioner) RecordCreation(ctx context.Context, user models.User) error {
 	if err := p.Events.Append(ctx, userdomain.CreatedEvent{
 		EventID: uuid.New(), UserID: user.ID, Email: user.Email,
 		DisplayName: user.DisplayName, CreatedAt: user.CreatedAt,

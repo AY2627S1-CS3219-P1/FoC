@@ -23,7 +23,7 @@ func (s *Store) WithFixtureTransaction(ctx context.Context, operation func(*Stor
 		if err := tx.db.Exec("SET LOCAL lock_timeout = '5s'").Error; err != nil {
 			return err
 		}
-		// Serialize with other seeds, including the former SQL implementation.
+		// Serialize concurrent seed invocations.
 		if err := tx.db.Exec("SELECT pg_advisory_xact_lock(18003219, 1)").Error; err != nil {
 			return err
 		}
@@ -39,18 +39,12 @@ func (s *FixtureData) UserMatches(ctx context.Context, id uuid.UUID, email strin
 	return matches, err
 }
 
-func (s *FixtureData) RestoreUser(ctx context.Context, fixture models.User) (models.User, error) {
-	if err := s.db.WithContext(ctx).Unscoped().Model(&models.User{}).Where("id = ?", fixture.ID).
+func (s *FixtureData) RestoreUser(ctx context.Context, fixture models.User) error {
+	return s.db.WithContext(ctx).Unscoped().Model(&models.User{}).Where("id = ?", fixture.ID).
 		Updates(map[string]any{
 			"display_name": fixture.DisplayName, "description": fixture.Description,
 			"phone_number": fixture.PhoneNumber, "role": fixture.Role, "deleted_at": nil,
-		}).Error; err != nil {
-		return models.User{}, err
-	}
-	// A fresh destination ensures SQL NULL clears a previously set DeletedAt.
-	var restored models.User
-	err := s.db.WithContext(ctx).Unscoped().Take(&restored, "id = ?", fixture.ID).Error
-	return restored, err
+		}).Error
 }
 
 func (s *FixtureData) EnsureDomain(ctx context.Context, fixture models.AllowedEmailDomain) error {

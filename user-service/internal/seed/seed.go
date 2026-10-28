@@ -12,7 +12,7 @@ import (
 
 type FixtureStore interface {
 	UserMatches(context.Context, uuid.UUID, string) ([]models.User, error)
-	RestoreUser(context.Context, models.User) (models.User, error)
+	RestoreUser(context.Context, models.User) error
 	EnsureDomain(context.Context, models.AllowedEmailDomain) error
 	EnsureRoleChange(context.Context, models.RoleChange) error
 }
@@ -77,15 +77,8 @@ func seedUser(
 	if len(matches) == 0 {
 		return provisioner.Create(ctx, &candidate)
 	}
-	user := matches[0]
 	if reset {
-		user, err = persistence.RestoreUser(ctx, candidate)
-		if err != nil {
-			return err
-		}
+		return persistence.RestoreUser(ctx, candidate)
 	}
-	if user.DeletedAt.Valid {
-		return nil
-	}
-	return provisioner.RecordCreation(ctx, user)
+	return nil
 }
