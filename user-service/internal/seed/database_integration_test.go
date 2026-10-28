@@ -12,14 +12,15 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store/seedstore"
 	"gorm.io/gorm"
 )
 
 func testSeeder(db *gorm.DB) Seeder {
-	persistence := store.New(db)
+	persistence := seedstore.New(db)
 	return Seeder{WithTransaction: func(ctx context.Context, operation func(Transaction) error) error {
-		return persistence.WithFixtureTransaction(ctx, func(tx *store.Store) error {
-			return operation(Transaction{Users: tx.Users, Events: tx.UserCreatedOutbox, Fixtures: tx.Fixtures})
+		return persistence.WithTransaction(ctx, func(tx *store.Store, fixtures *seedstore.Store) error {
+			return operation(Transaction{Users: tx.Users, Events: tx.UserCreatedOutbox, Fixtures: fixtures})
 		})
 	}}
 }
