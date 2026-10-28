@@ -9,6 +9,7 @@
 	import { authService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
+	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 	let previousUser: string | undefined;
 	$effect(() => {
 		const currentUser = authService.user?.id;
@@ -81,12 +82,13 @@
 
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell">
+	<div class="snackbar-region"><SnackbarHost /></div>
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
 				<div class="primary-links">
-					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
+					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }, { name: 'Config', href: '/admin/config' }] : [])] as item}
 						<Button
 							variant="text"
 							href={item.href}

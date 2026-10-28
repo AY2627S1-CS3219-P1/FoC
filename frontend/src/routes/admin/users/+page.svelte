@@ -2,14 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
-	import {
-		Button,
-		Card,
-		Dialog,
-		SelectOutlined,
-		TextFieldOutlined,
-		TextFieldOutlinedMultiline
-	} from 'm3-svelte';
+	import { Button, Card, SelectOutlined, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
@@ -198,13 +192,6 @@
 	});
 </script>
 
-{#snippet dialogButtonSnippet()}
-	<Button type="button" variant="text" onclick={() => (confirmOpen = false)}>Cancel</Button>
-	<Button type="button" onclick={confirmChange} disabled={$changingRole}
-		>{$changingRole ? 'Updating…' : 'Confirm role change'}</Button
-	>
-{/snippet}
-
 <svelte:head><title>Manage users · Friend on Campus</title></svelte:head>
 
 <section class="page-content admin-page" aria-labelledby="admin-title">
@@ -320,12 +307,7 @@
 	{/if}
 </section>
 
-<Dialog
-	bind:open={confirmOpen}
-	headline="Confirm role change"
-	aria-label="Confirm role change"
-	buttons={dialogButtonSnippet}
->
+<ConfirmationDialog bind:open={confirmOpen} headline="Confirm role change" confirmLabel="Confirm role change" pending={$changingRole} pendingLabel="Updating…" onconfirm={confirmChange}>
 	{#if user}
 		<p>
 			Change <strong>{user.displayName}</strong> ({user.email}) from
@@ -334,4 +316,4 @@
 		</p>
 		{#if $roleForm.reason}<p>Reason: {$roleForm.reason}</p>{/if}
 	{/if}
-</Dialog>
+</ConfirmationDialog>
