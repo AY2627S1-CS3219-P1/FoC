@@ -173,6 +173,8 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 - User Service layers: `internal/handlers/<domain>` (Connect adapter) →
   `internal/<domain>` (business rules and the store interfaces they need) →
   `internal/store` (GORM persistence over `internal/models`).
+- Seed-only GORM persistence belongs under `internal/seed`; keep it out of the
+  application `internal/store.Store` and production service composition.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
 - Supplier and Order use domain packages with consumer-owned read/transaction

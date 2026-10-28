@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/seed/seedstore"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store/seedstore"
 	"gorm.io/gorm"
 )
 
