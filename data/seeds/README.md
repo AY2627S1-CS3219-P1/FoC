@@ -217,3 +217,32 @@ restore the fixed fixtures. Fixture definitions,
 including all simulated workflow states and relative dates, stay in this
 directory. The assignment CSV importer remains independent. Only use these
 fixtures with development databases; they are never startup migrations.
+
+## Browser smoke checks after seed changes
+
+Use a throwaway stack with fresh volumes and images built with
+`docker compose build --no-cache`. Wait for service startup, run `make seed-demo`
+twice and `make seed-demo-reset`, then check the actual application:
+
+Order checks also require the existing [Order Credit configuration](../../order-service/README.md):
+set `CREDIT_SERVICE_BASE_URL=http://credit-service:8081` and mount a readable
+workload credential at `CREDIT_WORKLOAD_TOKEN_FILE` inside Order's container.
+Seeding does not configure this connection or issue workload credentials.
+
+- Sign in as all six fixture users using real magic links in Mailpit. Check their
+  profiles and 100-credit balances. Admins can view seeded suppliers, addition
+  requests and user roles; the suspended user can read but cannot create orders.
+- As Student, create a three-credit order from HSSML TOMORO to Central Library.
+  Accept it as Other Student, then cancel as Student before pickup. Wait for the
+  Kafka refund and verify that Student has 100 available credits again.
+- Edit Student's profile through the form, providing a valid phone number when
+  saving. Ordinary reseeding preserves the edit; reset restores fixture fields.
+  Both operations preserve existing balances, ledger activity and creation events.
+- Register a new address at `demo.foc.test` through the normal registration form.
+  Verify that it also receives one 100-credit starting grant.
+
+Use the supported `localhost` frontend origin for these checks. Shared Linux
+hosts can exhaust Air's inotify quota when another stack is already running;
+see [the watcher landmine](../../LANDMINES/air-inotify-exhaustion.md) for the
+polling workaround. These checks exercise text-only orders; image uploads and
+Telegram bot delivery require their own verification.

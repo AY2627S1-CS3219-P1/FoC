@@ -16,7 +16,7 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	db, _ := testPostgres(t, ctx)
-	seeder := Seeder{DB: db}
+	seeder := testSeeder(db)
 	fixtures := testFixtures(t)
 	reset := func(t *testing.T) {
 		t.Helper()
@@ -30,6 +30,7 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		}
 	}
 	const snapshot = "SELECT jsonb_agg(to_jsonb(e) ORDER BY user_id)::text FROM user_created_outbox e"
+	const userSnapshot = "SELECT jsonb_agg(to_jsonb(u) ORDER BY id)::text FROM users u"
 
 	t.Run("fresh and concurrent reruns preserve delivery state", func(t *testing.T) {
 		reset(t)
@@ -58,6 +59,7 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 			fixtures.Users[2].ID,
 		)
 		original := scalar(t, db, snapshot)
+		originalUsers := scalar(t, db, userSnapshot)
 		var workers sync.WaitGroup
 		errors := make(chan error, 4)
 		for range 4 {
@@ -81,7 +83,18 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		if scalar(t, db, snapshot) != original {
 			t.Fatal("rerun changed event identity, payload, or delivery state")
 		}
+		if scalar(t, db, userSnapshot) != originalUsers {
+			t.Fatal("rerun changed user profiles or timestamps")
+		}
+		unrelated := models.User{Email: "unrelated@example.com", DisplayName: "Unrelated user"}
+		if err := db.Create(&unrelated).Error; err != nil {
+			t.Fatal(err)
+		}
+		originalUnrelated := scalar(t, db, "SELECT to_jsonb(u)::text FROM users u WHERE id=?", unrelated.ID)
 		seed(t, true)
+		if scalar(t, db, "SELECT to_jsonb(u)::text FROM users u WHERE id=?", unrelated.ID) != originalUnrelated {
+			t.Fatal("reset changed an unrelated user")
+		}
 		if scalar(t, db, snapshot) != original {
 			t.Fatal("reset changed event identity, payload, or delivery state")
 		}
@@ -97,7 +110,11 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		mustExec(t, db, "TRUNCATE user_created_outbox")
 		mustExec(t, db, "UPDATE users SET display_name='Existing edited name' WHERE id=?", fixtures.Users[0].ID)
 		mustExec(t, db, "UPDATE users SET deleted_at=now() WHERE id=?", fixtures.Users[1].ID)
+		originalUsers := scalar(t, db, userSnapshot)
 		seed(t, false)
+		if scalar(t, db, userSnapshot) != originalUsers {
+			t.Fatal("repair changed existing profiles or deletions")
+		}
 		requireCount(t, db, "user_created_outbox", 5)
 		if got := scalar(
 			t,
@@ -126,6 +143,20 @@ func TestSeedTransactionsAndRepair(t *testing.T) {
 		requireCount(t, db, "users", 1)
 		requireCount(t, db, "user_created_outbox", 0)
 		requireCount(t, db, "role_changes", 0)
+	})
+
+	t.Run("changed fixture email rejects reset without partial writes", func(t *testing.T) {
+		reset(t)
+		seed(t, false)
+		mustExec(t, db, "UPDATE users SET email='changed@example.com' WHERE id=?", fixtures.Users[5].ID)
+		originalUsers := scalar(t, db, userSnapshot)
+		originalEvents := scalar(t, db, snapshot)
+		if err := seeder.Run(ctx, fixtures, true); err == nil {
+			t.Fatal("reset accepted a changed fixture identity")
+		}
+		if scalar(t, db, userSnapshot) != originalUsers || scalar(t, db, snapshot) != originalEvents {
+			t.Fatal("identity conflict did not roll back users and events")
+		}
 	})
 
 	t.Run("event failure rolls back every fixture", func(t *testing.T) {

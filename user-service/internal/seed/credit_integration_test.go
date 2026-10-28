@@ -96,7 +96,7 @@ func TestSeedCreditProvisioning(t *testing.T) {
 		return "Bearer " + value
 	}
 	fixtures := testFixtures(t)
-	seeder := Seeder{DB: db}
+	seeder := testSeeder(db)
 	if err := seeder.Run(ctx, fixtures, false); err != nil {
 		t.Fatal(err)
 	}

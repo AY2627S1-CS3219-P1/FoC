@@ -28,6 +28,7 @@ type Store struct {
 	*AuthTokens
 	*Sessions
 	*UserCreatedOutbox
+	Fixtures *FixtureData
 
 	db *gorm.DB
 }
@@ -39,6 +40,7 @@ func New(db *gorm.DB) *Store {
 		AuthTokens:        NewAuthTokens(db),
 		Sessions:          NewSessions(db),
 		UserCreatedOutbox: NewUserCreatedOutbox(db),
+		Fixtures:          &FixtureData{db: db},
 		db:                db,
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/seed"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/joho/godotenv"
 )
 
@@ -53,7 +54,12 @@ func run(ctx context.Context, path string, reset bool) error {
 		return err
 	}
 	defer sqlDB.Close() //nolint:errcheck
-	seeder := seed.Seeder{DB: db}
+	persistence := store.New(db)
+	seeder := seed.Seeder{WithTransaction: func(ctx context.Context, operation func(seed.Transaction) error) error {
+		return persistence.WithFixtureTransaction(ctx, func(tx *store.Store) error {
+			return operation(seed.Transaction{Users: tx.Users, Events: tx.UserCreatedOutbox, Fixtures: tx.Fixtures})
+		})
+	}}
 	if err := seeder.Run(ctx, fixtures, reset); err != nil {
 		return err
 	}
