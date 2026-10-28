@@ -197,7 +197,5 @@ uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
 owns the 100-credit starting grant. Existing users are not backfilled, and
 bootstrap-created administrators do not emit registration events.
 
-Explicit demo fixtures use the same user/event provisioning operation as
-registration. `make seed-demo` invokes the User-owned command; only newly created
-fixture users emit creation events. Credit continues to own account and ledger
-creation; see [the seed instructions](../data/seeds/README.md).
+Demo seeding uses the same user/event provisioning logic as registration.
+See [seed commands and reset behavior](../data/seeds/README.md).

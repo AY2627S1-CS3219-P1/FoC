@@ -24,8 +24,7 @@ func testSeeder(db *gorm.DB) Seeder {
 	}}
 }
 
-// All integration databases are disposable containers. TEST_DATABASE_URL and
-// the developer's Compose databases are deliberately never used.
+// Use disposable databases: schema setup is destructive.
 func testPostgres(t *testing.T, ctx context.Context) (*gorm.DB, string) {
 	t.Helper()
 	container := testContainer(t, ctx, "postgres:18", []string{

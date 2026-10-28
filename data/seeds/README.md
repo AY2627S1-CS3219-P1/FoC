@@ -15,19 +15,10 @@ docker compose up -d postgres mailpit user-service supplier-service credit-servi
 make seed-demo
 ```
 
-Wait for User and Supplier migrations before seeding. The User container needs
-the read-only `/seed-data` mount from `compose.yaml`; recreate that container once
-when upgrading an existing checkout. Kafka and its topic initialization job are
-dependencies of Credit. On an existing Postgres volume, a newly added service's
-database may need to be created first; see [the database landmine](../../LANDMINES/new-service-database.md).
-
-The User-owned Go seeder creates fixture users and records their creation events
-in one transaction, through the same application operation used by registration.
-User's normal outbox relay publishes `users.create`; Credit's normal handler opens
-each account and grants 100 starting credits once. Allow a few seconds for delivery
-before reading accounts. Seeding reports queued events, not completed delivery;
-if User, Kafka or Credit is stopped, provisioning resumes when they are running.
-No Credit account or ledger rows are inserted by the seeder.
+Recreate an existing User container once to pick up the `/seed-data` mount.
+Wait for User and Supplier migrations before seeding. New users emit
+`users.create` through the registration provisioning logic; User, Kafka and Credit
+must be running for their 100-credit accounts to appear asynchronously.
 
 Open http://localhost:5173/login. Enter one of the emails below and open its
 magic link in [Mailpit](http://localhost:8025). No passwords or authentication
@@ -131,11 +122,8 @@ separate campus CSV dataset. Buildings and categories reuse matching records by
 name when the CSV importer has already created them; otherwise they receive fixed
 fixture IDs. Reset only updates reference records with fixture IDs.
 
-Only newly created fixture users emit creation events. Existing users and their
-event history are left as-is, including when no creation event exists.
-Soft-deleted fixture users stay deleted on an ordinary rerun; reset restores them.
-Neither rerun nor reset changes Credit balances, reservations or ledger history,
-and duplicate event delivery cannot grant credits again.
+Only newly created users emit creation events. Rerun/reset preserves Credit
+balances and event history. Reset restores soft-deleted fixture users.
 
 To refresh labels in databases seeded with the old names, run
 `make seed-demo-reset`. This also restores the fixture states described below.
@@ -150,11 +138,8 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-The root Make targets first invoke `user-service/cmd/seed` in the running User
-container. The command reads and validates `users.json`, requires `APP_ENV=local`,
-and applies the users, registration domain, suspension audit and creation events
-in one transaction. Conflicting identities abort the transaction. Fixture roles
-remain development data; normal registration still creates ordinary users.
+The Make targets run `user-service/cmd/seed` first. It requires `APP_ENV=local`
+and applies `users.json` in one transaction; conflicting user identities abort it.
 
 The targets then invoke the standalone SQL runner at `pkg/cmd/seed`.
 It reads `manifest.json` in array order and validates the entire SQL manifest and
@@ -193,10 +178,8 @@ go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
 The `--project-dir` option selects a Compose project directory (default `.`).
 Manifest file paths are relative to the manifest, independent of this option.
 
-Checks, including isolated seed/Postgres/Kafka/Credit/Order and real-psql tests
-requiring Docker. The seed integration suite runs the actual Credit and Order
-executables; Supplier location discovery and User's public-key endpoint are test
-servers. All databases and brokers are disposable, separate from Compose data.
+Seed integration tests require Docker and use disposable databases/brokers,
+real Credit/Order executables, and test servers for Supplier and public keys.
 
 ```sh
 (cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)
@@ -217,32 +200,3 @@ restore the fixed fixtures. Fixture definitions,
 including all simulated workflow states and relative dates, stay in this
 directory. The assignment CSV importer remains independent. Only use these
 fixtures with development databases; they are never startup migrations.
-
-## Browser smoke checks after seed changes
-
-Use a throwaway stack with fresh volumes and images built with
-`docker compose build --no-cache`. Wait for service startup, run `make seed-demo`
-twice and `make seed-demo-reset`, then check the actual application:
-
-Order checks also require the existing [Order Credit configuration](../../order-service/README.md):
-set `CREDIT_SERVICE_BASE_URL=http://credit-service:8081` and mount a readable
-workload credential at `CREDIT_WORKLOAD_TOKEN_FILE` inside Order's container.
-Seeding does not configure this connection or issue workload credentials.
-
-- Sign in as all six fixture users using real magic links in Mailpit. Check their
-  profiles and 100-credit balances. Admins can view seeded suppliers, addition
-  requests and user roles; the suspended user can read but cannot create orders.
-- As Student, create a three-credit order from HSSML TOMORO to Central Library.
-  Accept it as Other Student, then cancel as Student before pickup. Wait for the
-  Kafka refund and verify that Student has 100 available credits again.
-- Edit Student's profile through the form, providing a valid phone number when
-  saving. Ordinary reseeding preserves the edit; reset restores fixture fields.
-  Both operations preserve existing balances, ledger activity and creation events.
-- Register a new address at `demo.foc.test` through the normal registration form.
-  Verify that it also receives one 100-credit starting grant.
-
-Use the supported `localhost` frontend origin for these checks. Shared Linux
-hosts can exhaust Air's inotify quota when another stack is already running;
-see [the watcher landmine](../../LANDMINES/air-inotify-exhaustion.md) for the
-polling workaround. These checks exercise text-only orders; image uploads and
-Telegram bot delivery require their own verification.

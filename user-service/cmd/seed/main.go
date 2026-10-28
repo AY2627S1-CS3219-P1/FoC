@@ -1,5 +1,3 @@
-// Command seed applies explicit development users and records their creation
-// events through the same application operation used by registration.
 package main
 
 import (

@@ -12,8 +12,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// FixtureData owns development-only queries. The seed workflow uses these
-// alongside the ordinary user and outbox adapters in one transaction.
 type FixtureData struct {
 	db *gorm.DB
 }

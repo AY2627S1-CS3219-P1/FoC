@@ -17,7 +17,6 @@ type FixtureStore interface {
 	EnsureRoleChange(context.Context, models.RoleChange) error
 }
 
-// Transaction contains adapters bound to the same serialized fixture transaction.
 type Transaction struct {
 	Users    service.UserCreator
 	Events   service.UserCreatedEventStore

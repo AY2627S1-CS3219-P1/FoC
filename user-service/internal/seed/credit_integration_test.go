@@ -43,8 +43,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// This regression uses the real User relay, Kafka broker and Credit/Order
-// executables. Public keys and Supplier locations use test servers.
 func TestSeedCreditProvisioning(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
@@ -133,8 +131,7 @@ func TestSeedCreditProvisioning(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer creditSQL.Close() //nolint:errcheck
-	// Exercise a real hold before reseeding, so preserving financial history is
-	// checked against non-default state rather than only untouched accounts.
+	// Reseeding must preserve an active hold.
 	reservations := creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, "http://127.0.0.1:"+internal)
 	if _, err := reservations.Reserve(ctx, connect.NewRequest(&creditpb.ReserveRequest{
 		RequestId: uuid.NewString(), RequesterId: fixtures.Users[0].ID.String(), Amount: 7,
@@ -170,7 +167,6 @@ func TestSeedCreditProvisioning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Use a genuine persisted user/event as the sentinel, through the same logic.
 	sentinel := models.User{Email: "sentinel@demo.foc.test", DisplayName: "Delivery barrier"}
 	if err := persistence.WithTransaction(ctx, func(tx *store.Store) error {
 		return (service.UserProvisioner{Users: tx.Users, Events: tx.UserCreatedOutbox}).Create(ctx, &sentinel)
@@ -183,7 +179,6 @@ func TestSeedCreditProvisioning(t *testing.T) {
 	eventually(t, ctx, func() bool {
 		return scalar(t, creditDB, "SELECT count(*)::text FROM accounts WHERE user_id=?", sentinel.ID) == "1"
 	})
-	// Exclude the sentinel's legitimate account/grant from the original snapshot.
 	const fixtureFinances = `SELECT jsonb_build_object(
 		'accounts',(SELECT jsonb_agg(to_jsonb(a) ORDER BY user_id) FROM accounts a WHERE user_id<>?),
 		'ledger',(SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM ledger_entries l WHERE user_id<>?))::text`
