@@ -50,10 +50,12 @@ buf-generate-kafka: $(BUF)
 	$(BUF) generate --template buf.kafka.gen.yaml
 
 .PHONY: seed-demo seed-demo-reset
-# The manifest owns file order and database targets; SQL owns transactions.
+# User owns user/event transactions; the SQL manifest owns Supplier fixtures.
 seed-demo:
+	@docker compose exec -T user-service go run ./cmd/seed --fixtures - < data/seeds/users.json
 	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
 
 # Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
+	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
 	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset

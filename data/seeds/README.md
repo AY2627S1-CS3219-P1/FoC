@@ -1,19 +1,23 @@
 # Project-defined local seed data
 
-This directory contains all project-defined seed records: `users.sql` for
+This directory contains all project-defined seed records: `users.json` for
 accounts, roles and the registration domain; `suppliers.sql` for buildings,
 categories, locations, requests and closures. Assignment-provided CSVs live in
 [`../assignment/`](../assignment/README.md) and retain their existing Go importer.
 
-These SQL files populate existing tables. They are explicit development fixtures,
+These files populate existing tables. They are explicit development fixtures,
 not Goose schema migrations, and Compose startup does not execute them.
 
 Run after the Compose services have applied their migrations:
 
 ```sh
-docker compose up -d postgres mailpit user-service supplier-service frontend
+docker compose up -d postgres mailpit user-service supplier-service credit-service frontend
 make seed-demo
 ```
+
+Wait for User and Supplier migrations before seeding. New users emit
+`users.create` through the registration provisioning logic; User, Kafka and Credit
+must be running for their 100-credit accounts to appear asynchronously.
 
 Open http://localhost:5173/login. Enter one of the emails below and open its
 magic link in [Mailpit](http://localhost:8025). No passwords or authentication
@@ -117,6 +121,9 @@ separate campus CSV dataset. Buildings and categories reuse matching records by
 name when the CSV importer has already created them; otherwise they receive fixed
 fixture IDs. Reset only updates reference records with fixture IDs.
 
+Only newly created users emit creation events. Rerun/reset preserves Credit
+balances and event history. Reset restores soft-deleted fixture users.
+
 To refresh labels in databases seeded with the old names, run
 `make seed-demo-reset`. This also restores the fixture states described below.
 
@@ -130,8 +137,12 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-The root Make targets invoke the standalone Go command at `pkg/cmd/seed`.
-It reads `manifest.json` in array order and validates the entire manifest and
+The Make targets pass `users.json` over stdin to `user-service/cmd/seed` first.
+It requires `APP_ENV=local` and applies the fixtures in one transaction; conflicting
+user identities abort it.
+
+The targets then invoke the standalone SQL runner at `pkg/cmd/seed`.
+It reads `manifest.json` in array order and validates the entire SQL manifest and
 all referenced SQL files before starting. Paths must stay within this directory;
 unknown fields, unsupported versions, empty files and duplicate file/database
 entries are rejected.
@@ -140,7 +151,6 @@ entries are rejected.
 {
   "version": 1,
   "files": [
-    { "file": "users.sql", "database": "USER_DB" },
     { "file": "suppliers.sql", "database": "SUPPLIER_DB" }
   ]
 }
@@ -158,7 +168,7 @@ service migrations before seeding. The assignment CSV importer remains separate.
 To add a project-defined seed, put its SQL here and add an entry at the intended
 position in `manifest.json`; no Makefile or Go code change is needed.
 
-Run the command directly from the repository root:
+Run the SQL runner directly from the repository root for Supplier fixtures only:
 
 ```sh
 go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
@@ -168,21 +178,25 @@ go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
 The `--project-dir` option selects a Compose project directory (default `.`).
 Manifest file paths are relative to the manifest, independent of this option.
 
-Runner checks, including an isolated real-psql test requiring Docker:
+Seed integration tests require Docker and use disposable databases/brokers,
+the real Credit executable, and a test server for public keys.
 
 ```sh
 (cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)
 (cd pkg && GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m)
+(cd user-service && GOWORK=off go test -mod=readonly -tags=integration ./internal/seed -count=1 -timeout=8m)
 ```
 
-To run outside Compose, supply local connection URLs and invoke the same files:
+To run outside Compose, apply migrations and supply host-accessible connection
+URLs. From the repository root:
 
 ```sh
-psql "$USER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v reset_demo=false -f data/seeds/users.sql
+(cd user-service && APP_ENV=local DATABASE_URL="$USER_DATABASE_URL" go run ./cmd/seed --fixtures ../data/seeds/users.json)
 psql "$SUPPLIER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v reset_demo=false -f data/seeds/suppliers.sql
 ```
 
-Use `reset_demo=true` to restore the fixed fixtures. SQL fixture definitions,
+Pass `--reset` to the User command and use `reset_demo=true` for Supplier SQL to
+restore the fixed fixtures. Fixture definitions,
 including all simulated workflow states and relative dates, stay in this
 directory. The assignment CSV importer remains independent. Only use these
 fixtures with development databases; they are never startup migrations.
