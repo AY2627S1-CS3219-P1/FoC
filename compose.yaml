@@ -169,7 +169,6 @@ services:
       - ./user-service:/app
       - ./pkg:/pkg
       - ./.local/secrets/auth:/app/.local/secrets/auth
-      - ./data/seeds:/seed-data:ro
       - go-modules:/go/pkg/mod
       - /app/tmp
     depends_on:

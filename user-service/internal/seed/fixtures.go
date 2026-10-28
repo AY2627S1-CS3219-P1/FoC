@@ -51,9 +51,6 @@ func Load(reader io.Reader) (Fixtures, error) {
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return Fixtures{}, fmt.Errorf("user fixtures must contain one JSON object")
 	}
-	if err := fixtures.Validate(); err != nil {
-		return Fixtures{}, err
-	}
 	return fixtures, nil
 }
 

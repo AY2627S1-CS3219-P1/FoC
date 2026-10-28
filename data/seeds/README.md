@@ -15,7 +15,6 @@ docker compose up -d postgres mailpit user-service supplier-service credit-servi
 make seed-demo
 ```
 
-Recreate an existing User container once to pick up the `/seed-data` mount.
 Wait for User and Supplier migrations before seeding. New users emit
 `users.create` through the registration provisioning logic; User, Kafka and Credit
 must be running for their 100-credit accounts to appear asynchronously.
@@ -138,8 +137,9 @@ Manually created closure history on a fixture location may overlap the reset
 intervals. In that case the supplier transaction refuses to reset: resolve the
 conflicting intervals first. Cancelled intervals do not block a reset.
 
-The Make targets run `user-service/cmd/seed` first. It requires `APP_ENV=local`
-and applies `users.json` in one transaction; conflicting user identities abort it.
+The Make targets pass `users.json` over stdin to `user-service/cmd/seed` first.
+It requires `APP_ENV=local` and applies the fixtures in one transaction; conflicting
+user identities abort it.
 
 The targets then invoke the standalone SQL runner at `pkg/cmd/seed`.
 It reads `manifest.json` in array order and validates the entire SQL manifest and
@@ -179,7 +179,7 @@ The `--project-dir` option selects a Compose project directory (default `.`).
 Manifest file paths are relative to the manifest, independent of this option.
 
 Seed integration tests require Docker and use disposable databases/brokers,
-real Credit/Order executables, and test servers for Supplier and public keys.
+the real Credit executable, and a test server for public keys.
 
 ```sh
 (cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)

@@ -26,7 +26,6 @@ func TestLoadFixtures(t *testing.T) {
 		t.Fatalf("got %d users, want six demo accounts", len(fixtures.Users))
 	}
 	for _, input := range []string{
-		`{"version":2,"users":[]}`,
 		`{"version":1,"unknown":true}`,
 		`{} {}`,
 	} {
@@ -34,6 +33,14 @@ func TestLoadFixtures(t *testing.T) {
 			t.Fatalf("accepted invalid fixtures: %s", input)
 		}
 	}
+	if err := fixtures.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	fixtures.Version = 2
+	if err := fixtures.Validate(); err == nil {
+		t.Fatal("accepted unsupported fixture version")
+	}
+	fixtures.Version = 1
 	fixtures.Users[1].Email = fixtures.Users[0].Email
 	if err := fixtures.Validate(); err == nil {
 		t.Fatal("accepted duplicate fixture email")

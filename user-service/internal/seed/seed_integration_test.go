@@ -16,7 +16,7 @@ func TestSeedTransactions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	db, _ := testPostgres(t, ctx)
-	seeder := testSeeder(db)
+	seeder := Seeder{DB: db}
 	fixtures := testFixtures(t)
 	reset := func(t *testing.T) {
 		t.Helper()

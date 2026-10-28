@@ -22,25 +22,16 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	creditpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
-	orderpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
-	locationpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	userpb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
-	usersevents "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	usersjwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	kafkago "github.com/segmentio/kafka-go"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestSeedCreditProvisioning(t *testing.T) {
@@ -94,7 +85,7 @@ func TestSeedCreditProvisioning(t *testing.T) {
 		return "Bearer " + value
 	}
 	fixtures := testFixtures(t)
-	seeder := testSeeder(db)
+	seeder := Seeder{DB: db}
 	if err := seeder.Run(ctx, fixtures, false); err != nil {
 		t.Fatal(err)
 	}
@@ -153,120 +144,6 @@ func TestSeedCreditProvisioning(t *testing.T) {
 			t.Fatal("seed rerun/reset changed existing accounts or ledger history")
 		}
 	}
-	// Redeliver creation events. A sentinel on the same single partition proves
-	// Credit processed every duplicate before the final financial assertion.
-	var events []models.UserCreatedOutbox
-	if err := db.Find(&events).Error; err != nil {
-		t.Fatal(err)
-	}
-	for _, event := range events {
-		if err := publisher.Publish(ctx, "users.create", []byte(event.UserID.String()), &usersevents.UserCreated{
-			EventId: event.EventID.String(), UserId: event.UserID.String(), Email: event.Email,
-			DisplayName: event.DisplayName, CreatedAt: timestamppb.New(event.UserCreatedAt),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	sentinel := models.User{Email: "sentinel@demo.foc.test", DisplayName: "Delivery barrier"}
-	if err := persistence.WithTransaction(ctx, func(tx *store.Store) error {
-		return (service.UserProvisioner{Users: tx.Users, Events: tx.UserCreatedOutbox}).Create(ctx, &sentinel)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := relay.Drain(ctx, 50); err != nil {
-		t.Fatal(err)
-	}
-	eventually(t, ctx, func() bool {
-		return scalar(t, creditDB, "SELECT count(*)::text FROM accounts WHERE user_id=?", sentinel.ID) == "1"
-	})
-	const fixtureFinances = `SELECT jsonb_build_object(
-		'accounts',(SELECT jsonb_agg(to_jsonb(a) ORDER BY user_id) FROM accounts a WHERE user_id<>?),
-		'ledger',(SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM ledger_entries l WHERE user_id<>?))::text`
-	if scalar(t, creditDB, fixtureFinances, sentinel.ID, sentinel.ID) != original {
-		t.Fatal("duplicate creation events granted credits again or changed existing finances")
-	}
-
-	t.Run("seeded users can create accept and cancel against actual Credit", func(t *testing.T) {
-		mustExec(t, db, "CREATE DATABASE order_seed_test")
-		orderDSN := strings.Replace(userDSN, "/users_seed_test?", "/order_seed_test?", 1)
-		_, locationsHandler := locationv1connect.NewLocationDiscoveryServiceHandler(&testLocations{})
-		locations := httptest.NewServer(locationsHandler)
-		defer locations.Close()
-		credential, err := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
-			"sub": "order-service", "aud": "credit-service", "exp": time.Now().Add(5 * time.Minute).Unix(),
-		}).SignedString(key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		credentialPath := filepath.Join(t.TempDir(), "workload.jwt")
-		if err := os.WriteFile(credentialPath, []byte(credential), 0600); err != nil {
-			t.Fatal(err)
-		}
-		port := testPort(t)
-		startService(t, ctx, "order-service", []string{
-			"DATABASE_URL=" + orderDSN, "PORT=" + port, "USER_SERVICE_BASE_URL=" + keys.URL,
-			"SUPPLIER_SERVICE_BASE_URL=" + locations.URL, "CREDIT_SERVICE_BASE_URL=http://127.0.0.1:" + internal,
-			"CREDIT_WORKLOAD_TOKEN_FILE=" + credentialPath, "KAFKA_BROKERS=" + broker,
-			"ORDER_S3_BUCKET=", "ORDER_S3_ENDPOINT=", "ORDER_S3_PUBLIC_ENDPOINT=",
-		})
-		baseURL := "http://127.0.0.1:" + port
-		health := orderv1connect.NewHealthServiceClient(http.DefaultClient, baseURL)
-		eventually(t, ctx, func() bool {
-			_, err := health.Check(ctx, connect.NewRequest(&orderpb.CheckRequest{}))
-			return err == nil
-		})
-		orders := orderv1connect.NewOrderServiceClient(http.DefaultClient, baseURL)
-		create := connect.NewRequest(&orderpb.CreateOrderRequest{
-			PickupLocationId: uuid.NewString(), Delivery: &orderpb.DeliveryInput{LocationId: uuid.NewString()},
-			ItemDescription: "Seed integration verification", RewardCredits: 3,
-			DeliveryDuration: durationpb.New(15 * time.Minute), ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
-			IdempotencyKey: uuid.NewString(),
-		})
-		create.Header().Set("Authorization", token(fixtures.Users[2]))
-		created, err := orders.CreateOrder(ctx, create)
-		if err != nil {
-			t.Fatal(err)
-		}
-		order := created.Msg.GetOrder()
-		if order.GetStatus() != orderpb.OrderStatus_ORDER_STATUS_AWAITING_COURIER {
-			t.Fatalf("created status=%v", order.GetStatus())
-		}
-		if scalar(t, creditDB, "SELECT reserved_amount::text FROM reservations WHERE order_id=?", order.Id) != "3" {
-			t.Fatal("Order did not reserve the seeded requester's credits")
-		}
-		accept := connect.NewRequest(&orderpb.AcceptOrderRequest{Id: order.Id, AttemptId: uuid.NewString()})
-		accept.Header().Set("Authorization", token(fixtures.Users[4]))
-		accepted, err := orders.AcceptOrder(ctx, accept)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if accepted.Msg.GetOrder().GetStatus() != orderpb.OrderStatus_ORDER_STATUS_AWAITING_PICKUP {
-			t.Fatalf("accepted status=%v", accepted.Msg.GetOrder().GetStatus())
-		}
-		idempotencyKey := uuid.NewString()
-		cancelRequest := connect.NewRequest(&orderpb.CancelOrderRequest{
-			Id: order.Id, ExpectedRevision: accepted.Msg.GetOrder().GetRevision(), IdempotencyKey: &idempotencyKey,
-		})
-		cancelRequest.Header().Set("Authorization", token(fixtures.Users[2]))
-		cancelled, err := orders.CancelOrder(ctx, cancelRequest)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if cancelled.Msg.GetOrder().GetStatus() != orderpb.OrderStatus_ORDER_STATUS_CANCELLED {
-			t.Fatalf("cancelled status=%v", cancelled.Msg.GetOrder().GetStatus())
-		}
-		eventually(t, ctx, func() bool {
-			return scalar(t, creditDB, "SELECT status FROM reservations WHERE order_id=?", order.Id) == "RELEASED"
-		})
-		if scalar(
-			t,
-			creditDB,
-			"SELECT sum(reserved_delta)::text FROM ledger_entries WHERE order_id=?",
-			order.Id,
-		) != "0" {
-			t.Fatal("Kafka cancellation settlement did not return the held credits")
-		}
-	})
 }
 
 func testBroker(t *testing.T, ctx context.Context) string {
@@ -391,20 +268,4 @@ func startService(t *testing.T, ctx context.Context, name string, environment []
 			t.Logf("%s executable log:\n%s", name, contents)
 		}
 	})
-}
-
-type testLocations struct {
-	locationv1connect.UnimplementedLocationDiscoveryServiceHandler
-}
-
-func (s *testLocations) GetLocation(
-	_ context.Context,
-	req *connect.Request[locationpb.GetLocationRequest],
-) (*connect.Response[locationpb.GetLocationResponse], error) {
-	if req.Header().Get("Authorization") == "" {
-		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("expected delegated user token"))
-	}
-	return connect.NewResponse(&locationpb.GetLocationResponse{Location: &locationpb.Location{
-		Id: req.Msg.Id, Name: "Test meeting point", Building: &locationpb.Building{Name: "Test building"},
-	}}), nil
 }

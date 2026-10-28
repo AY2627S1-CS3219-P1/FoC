@@ -11,19 +11,8 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/seed/seedstore"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"gorm.io/gorm"
 )
-
-func testSeeder(db *gorm.DB) Seeder {
-	persistence := seedstore.New(db)
-	return Seeder{WithTransaction: func(ctx context.Context, operation func(Transaction) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store, fixtures *seedstore.Store) error {
-			return operation(Transaction{Users: tx.Users, Events: tx.UserCreatedOutbox, Fixtures: fixtures})
-		})
-	}}
-}
 
 // Use disposable databases: schema setup is destructive.
 func testPostgres(t *testing.T, ctx context.Context) (*gorm.DB, string) {

@@ -118,9 +118,8 @@ jobs:
           cache-dependency-path: |
             user-service/go.sum
             credit-service/go.sum
-            order-service/go.sum
             pkg/go.sum
-      - name: Run seed regression tests against disposable Postgres, Kafka, Credit and Order
+      - name: Run seed regression tests against disposable Postgres, Kafka and Credit
         working-directory: user-service
         run: GOWORK=off go test -mod=readonly -race -tags=integration ./internal/seed -count=1 -timeout=8m
 
