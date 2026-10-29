@@ -337,7 +337,9 @@ covered in the
 Credit-dependent Order operations can use the deployed Credit backend. The
 internal listener does not verify an application credential, so its Kubernetes
 reachability is limited by the Istio principal policy; see
-`LANDMINES/credit-internal-listener-unauthenticated.md`.
+`LANDMINES/credit-internal-listener-unauthenticated.md`. The `k8s-smoke` check
+confirms Order can reach it while default app, gateway and foreign mesh identities
+are denied.
 
 Linux and macOS hosts on amd64 or arm64 are supported. Docker Desktop must be
 running on macOS. Clear any `DOCKER_DEFAULT_PLATFORM` override left over from
@@ -345,3 +347,7 @@ the Compose Apple Silicon workaround before starting kind. Kubernetes uses a
 native multiarch PostGIS image; the Compose-specific Apple Silicon workaround
 does not apply to this deployment. The Go CLI reads root `.env`;
 explicitly exported values take precedence.
+
+With Go installed, `make k8s-storage-smoke` tests signed HTTPS uploads/downloads
+and rejection of unsigned/tampered requests. Its private operator forward is
+used only for object metadata and cleanup. No test object is retained on success.

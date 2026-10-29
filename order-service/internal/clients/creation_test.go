@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -90,5 +92,47 @@ func TestSupplierForwardsVerifiedUserBearer(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("calls=%d, want 1", calls)
+	}
+}
+
+type creditProbe struct {
+	creditv1connect.UnimplementedCreditReservationServiceHandler
+	mu      sync.Mutex
+	bearers []string
+}
+
+func (p *creditProbe) GetReservation(
+	_ context.Context,
+	req *connect.Request[pb.GetReservationRequest],
+) (*connect.Response[pb.GetReservationResponse], error) {
+	p.mu.Lock()
+	p.bearers = append(p.bearers, req.Header().Get("Authorization"))
+	p.mu.Unlock()
+	return connect.NewResponse(
+		&pb.GetReservationResponse{
+			Reservation: &pb.Reservation{
+				RequestId: req.Msg.RequestId,
+				Status:    pb.ReservationStatus_RESERVATION_STATUS_RELEASED,
+			},
+		},
+	), nil
+}
+
+func TestCreditDoesNotForwardUserBearer(t *testing.T) {
+	probe := new(creditProbe)
+	path, handler := creditv1connect.NewCreditReservationServiceHandler(probe)
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	client := &Credit{Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL)}
+	ctx := auth.WithUserBearer(context.Background(), "Bearer private-user-token")
+	if _, err := client.GetReservation(ctx, "order"); err != nil {
+		t.Fatal(err)
+	}
+	probe.mu.Lock()
+	defer probe.mu.Unlock()
+	if len(probe.bearers) != 1 || probe.bearers[0] != "" {
+		t.Fatalf("Credit request carried Authorization: %v", probe.bearers)
 	}
 }

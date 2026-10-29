@@ -126,7 +126,13 @@ func (o *operator) runCLI(args []string) error {
 	case "status":
 		return o.showStatus()
 	case "smoke":
-		return o.smokeGateway()
+		return o.meshSmoke()
+	case "persistence-smoke":
+		return o.persistenceSmoke()
+	case "proxy-startup-smoke":
+		return o.proxyStartupSmoke()
+	case "storage-smoke":
+		return o.storageSmoke()
 	case "demo":
 		return errors.New(
 			"D3 demo is unavailable: the integrated registration/credit/order workflow is not verified for this deployment",

@@ -19,7 +19,7 @@ func (r creationStartupRepository) HasPendingCreations(context.Context) (bool, e
 	return r.pending, nil
 }
 
-func TestCreationStartupRequiresRecoveryCredentialsButNotReachability(t *testing.T) {
+func TestCreationStartupRequiresRecoveryURLButNotReachability(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)

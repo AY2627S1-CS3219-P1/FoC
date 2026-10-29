@@ -114,3 +114,16 @@ seed-demo:
 # Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
 	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
+
+.PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
+k8s-test: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" K8S_RENDER_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./k8s
+
+k8s-persistence-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_CLI)" persistence-smoke
+
+k8s-proxy-startup-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_CLI)" proxy-startup-smoke
+
+k8s-storage-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_CLI)" storage-smoke
