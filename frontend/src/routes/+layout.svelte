@@ -88,7 +88,7 @@
 		{#if authService.user}
 			<nav class="site-nav" aria-label="Account navigation">
 				<div class="primary-links">
-					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }, { name: 'Config', href: '/admin/config' }] : [])] as item}
+					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
 						<Button
 							variant="text"
 							href={item.href}

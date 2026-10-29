@@ -194,7 +194,7 @@
 
 <svelte:head><title>Manage users · Friend on Campus</title></svelte:head>
 
-<section class="page-content admin-page" aria-labelledby="admin-title">
+<section class="page-content admin-content" aria-labelledby="admin-title">
 	<header class="page-heading">
 		<div>
 			<p class="eyebrow">Administration</p>
