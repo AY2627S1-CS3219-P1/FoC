@@ -25,8 +25,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -105,6 +107,7 @@ func main() {
 		}
 	}
 
+	allowedDomainLogic := newAllowedDomainService(sqlDB)
 	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{
 		Brokers: strings.Split(cfg.kafkaBrokers, ","),
 	})
@@ -117,7 +120,7 @@ func main() {
 		}
 	}()
 
-	auth, codec, persistence, err := newAuthServices(db, cfg)
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
@@ -138,10 +141,11 @@ func main() {
 		},
 	}
 	protected := router.ProtectedRoutes{
-		Profile:      &profilehandler.Handler{Logic: profileLogic},
-		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
-		Users:        persistence.Users,
+		Profile:        &profilehandler.Handler{Logic: profileLogic},
+		Admin:          &adminhandler.Handler{Logic: roleLogic},
+		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Users:          persistence.Users,
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
 	srv := newServer(":"+cfg.port, handler)
@@ -306,7 +310,32 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 	return d
 }
 
-func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
+	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
+	return allowedadmin.NewAllowedDomainService(repo)
+}
+
+func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
+	return service.Resources{
+		Users:             persistence.Users,
+		AuthTokens:        persistence.AuthTokens,
+		Sessions:          persistence.Sessions,
+		DomainPolicy:      policy,
+		UserCreatedEvents: persistence.UserCreatedOutbox,
+	}
+}
+
+func authTransactions(db *gorm.DB) service.WithTransaction {
+	return func(ctx context.Context, operation func(service.Resources) error) error {
+		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
+			policy := newAllowedDomainService(tx.Statement.ConnPool)
+			return operation(authResources(store.New(tx), policy))
+		})
+	}
+}
+
+func newAuthServices(db *gorm.DB, cfg config, domainPolicy service.EmailDomainPolicy) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
@@ -325,22 +354,9 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
 	persistence := store.New(db)
-	serviceStore := service.Store{
-		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
-		Sessions: persistence.Sessions, Domains: persistence.Admin,
-		UserCreatedEvents: persistence.UserCreatedOutbox,
-	}
-	withTransaction := func(ctx context.Context, operation func(service.Store) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return operation(service.Store{
-				Users: tx.Users, AuthTokens: tx.AuthTokens,
-				Sessions: tx.Sessions, Domains: tx.Admin,
-				UserCreatedEvents: tx.UserCreatedOutbox,
-			})
-		})
-	}
+
 	logic, err := service.NewService(service.Dependencies{
-		Store: serviceStore, WithTransaction: withTransaction,
+		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
 		TokenCodec: codec, EmailSender: cfg.smtp,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",

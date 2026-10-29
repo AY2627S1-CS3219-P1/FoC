@@ -30,44 +30,6 @@ func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, nil
 }
 
-func (s *Admin) ListDomains(ctx context.Context) ([]models.AllowedEmailDomain, error) {
-	var ds []models.AllowedEmailDomain
-	err := s.db.WithContext(ctx).Order("domain").Find(&ds).Error
-	return ds, err
-}
-
-// Allows reports whether domain is present in the registration allowlist.
-func (s *Admin) Allows(ctx context.Context, domain string) (bool, error) {
-	var count int64
-	err := s.db.WithContext(ctx).Model(&models.AllowedEmailDomain{}).
-		Where("domain = ?", domain).Count(&count).Error
-	return count > 0, err
-}
-
-// AddDomain inserts d, mapping GORM duplicate-key and check-constraint errors
-// to ErrDuplicate and ErrInvalidDomain. Other database errors are returned unchanged.
-func (s *Admin) AddDomain(ctx context.Context, d *models.AllowedEmailDomain) error {
-	err := s.db.WithContext(ctx).Create(d).Error
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return ErrDuplicate
-	}
-	if errors.Is(err, gorm.ErrCheckConstraintViolated) {
-		return ErrInvalidDomain
-	}
-	return err
-}
-
-func (s *Admin) DeleteDomain(ctx context.Context, id uuid.UUID) error {
-	res := s.db.WithContext(ctx).Delete(&models.AllowedEmailDomain{}, id)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
 // ChangeRole moves the user from c.FromRole to c.ToRole and records c in one
 // transaction, or returns ErrRoleConflict if the current role differs.
 // c.CreatedBy is the actor and is also stored as the user's updated_by.
