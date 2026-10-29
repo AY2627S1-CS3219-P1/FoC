@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import { Icon, SnackbarItem } from 'm3-svelte';
+	import { Button, Icon, SnackbarItem } from 'm3-svelte';
 	import iconCheck from '@ktibow/iconset-material-symbols/check-circle';
 	import iconError from '@ktibow/iconset-material-symbols/cancel';
 	import iconInfo from '@ktibow/iconset-material-symbols/info';
@@ -20,26 +20,29 @@
 					<Icon class="status-icon" icon={icons[$notice.severity]} size={24} aria-hidden="true" />
 					<p>{$notice.message}</p>
 					{#each Object.entries($notice.actions) as [label, action]}
-						<button
-							type="button"
-							class="action"
+						<Button
+							variant="text"
+							size="s"
 							onclick={() => {
 								snackbarService.dismiss();
 								action();
 							}}
 						>
 							{label}
-						</button>
+						</Button>
 					{/each}
-					<button
-						type="button"
-						class="close"
+					<Button
+						variant="text"
+						size="s"
+						square
+						iconType="full"
+						style="color: inherit"
 						title="Dismiss notification"
 						aria-label="Dismiss notification"
 						onclick={() => snackbarService.dismiss()}
 					>
 						<Icon icon={iconClose} size={24} aria-hidden="true" />
-					</button>
+					</Button>
 				</SnackbarItem>
 			{/key}
 		</div>
