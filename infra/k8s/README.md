@@ -64,7 +64,6 @@ delete `.local/k8s/secrets` while retaining a database volume.
 
 ```sh
 make k8s-status                         # pods, jobs, storage and warnings
-make k8s-smoke                          # mTLS, gateway routes and internal isolation
 make k8s-deploy service=user-service    # rebuild and update one service
 make k8s-kafka-ui                       # attach only the Kafka UI forward
 make k8s-mailpit                        # attach only the Mailpit forward
@@ -73,9 +72,8 @@ make k8s-mailpit                        # attach only the Mailpit forward
 `make k8s-access` similarly attaches only the HTTPS gateway forward. For the
 managed local cluster it rejects ports that differ from deployed browser origins;
 after changing `K8S_HTTPS_PORT`, run a full `make k8s-up` or `make k8s-deploy`
-to update application configuration first. These
-access commands stay attached until Ctrl+C. `make k8s-test` runs the local
-operator-script tests without creating a cluster.
+to update application configuration first. These access commands stay attached
+until Ctrl+C.
 
 For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the
@@ -97,22 +95,11 @@ token with another running poller.
 Credit-dependent Order operations can use the deployed Credit backend. The
 internal listener does not verify an application credential, so its Kubernetes
 reachability is limited by the Istio principal policy; see
-`LANDMINES/credit-internal-listener-unauthenticated.md`. The `k8s-smoke` check
-confirms Order can reach it while default app, gateway and foreign mesh identities
-are denied.
+`LANDMINES/credit-internal-listener-unauthenticated.md`.
 
 Linux and macOS hosts on amd64 or arm64 are supported. Docker Desktop must be
 running on macOS. Clear any `DOCKER_DEFAULT_PLATFORM` override left over from
-the Compose Apple Silicon workaround before starting kind. Kubernetes uses a native multiarch PostGIS image; the
-Compose-specific Apple Silicon workaround does not apply to this deployment.
-Only Linux amd64 has been exercised in the local verification record; CI adds
-native Linux arm64 deployment and macOS tooling/operator jobs.
-
-`make k8s-typecheck` checks the operator with locked TypeScript/Bun types.
-`make k8s-test` includes that check. The tooling package is independent of the
-frontend's npm package and lockfile. Bun automatically reads root `.env`;
+the Compose Apple Silicon workaround before starting kind. Kubernetes uses a
+native multiarch PostGIS image; the Compose-specific Apple Silicon workaround
+does not apply to this deployment. Bun automatically reads root `.env`;
 explicitly exported values take precedence.
-
-With Go installed, `make k8s-storage-smoke` tests signed HTTPS uploads/downloads
-and rejection of unsigned/tampered requests. Its private operator forward is
-used only for object metadata and cleanup. No test object is retained on success.

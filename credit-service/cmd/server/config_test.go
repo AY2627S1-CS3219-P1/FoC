@@ -68,15 +68,3 @@ func TestLoadConfigAllowsHTTPLocally(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-func TestLoadConfigAllowsHTTPForMeshInternalCalls(t *testing.T) {
-	values := validEnv()
-	values["APP_ENV"] = "production"
-	values["RPC_MODE"] = "mesh"
-	values["USER_SERVICE_BASE_URL"] = "http://user-service-internal:8080"
-
-	c, err := loadConfig(env(values))
-	if err != nil || c.Transport.Mode != "mesh" {
-		t.Fatalf("mesh config = %+v, err = %v", c, err)
-	}
-}

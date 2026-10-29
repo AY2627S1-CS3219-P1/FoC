@@ -89,19 +89,14 @@ func TestNotificationRetryDelay(t *testing.T) {
 func TestBotShutdownJoinsStartedWorkers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stopLongPoll := make(chan struct{})
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/bottest/getMe" {
 			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"foc_bot"}}`)
 			return
 		}
-		select {
-		case <-r.Context().Done():
-		case <-stopLongPoll:
-		}
+		<-r.Context().Done()
 	}))
 	defer api.Close()
-	defer close(stopLongPoll)
 
 	var workers sync.WaitGroup
 	var username atomic.Pointer[string]
