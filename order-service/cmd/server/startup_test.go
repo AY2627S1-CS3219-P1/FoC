@@ -133,3 +133,34 @@ func TestCreationConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPUserServiceOriginWorksOutsideLocalMode(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":          "postgresql://localhost/order_dev",
+		"USER_SERVICE_BASE_URL": "http://user-service:8081",
+		"APP_ENV":               "production", "RUN_MIGRATIONS": "false",
+	}
+	cfg, err := loadConfig(func(key string) string { return values[key] })
+	if err != nil || cfg.RunMigrations {
+		t.Fatalf("HTTP service configuration: %v", err)
+	}
+}
+
+func TestMeshInternalOriginsAndPublicStorageTLS(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":              "postgresql://localhost/order_test",
+		"USER_SERVICE_BASE_URL":     "http://user-service-internal:8080",
+		"SUPPLIER_SERVICE_BASE_URL": "http://supplier-service-internal:8080",
+		"ORDER_S3_ENDPOINT":         "http://floci:4566",
+		"ORDER_S3_PUBLIC_ENDPOINT":  "https://localhost:5173",
+		"ORDER_S3_BUCKET":           "order-images",
+		"APP_ENV":                   "production",
+	}
+	if _, err := loadConfig(func(key string) string { return values[key] }); err != nil {
+		t.Fatal(err)
+	}
+	values["ORDER_S3_PUBLIC_ENDPOINT"] = "http://localhost:5173"
+	if _, err := loadConfig(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("production allowed an unencrypted browser storage origin")
+	}
+}

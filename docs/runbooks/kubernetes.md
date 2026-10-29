@@ -3,21 +3,23 @@
 Kubernetes is an additional deployment option. `compose.yaml`, existing
 development Dockerfiles, Compose ports, source mounts and signing keys are
 unchanged. Credit is deployed with its own database and Istio-restricted internal
-listener; this does not claim the complete D3 business workflow.
+listener; this does not claim the complete D3 business workflow. See
+[verification results](kubernetes-verification.md).
 
 ## Start locally
 
 Prerequisites: Docker, make, curl, unzip, OpenSSL, tar, and approximately 4
 available CPUs / 8 GiB RAM. Bun 1.4.3 is used and cached in `.tools/k8s` if not
 already installed globally; Node.js is not required. Tool and image downloads
-require internet access. Kubernetes images include native arm64 variants; see
-the short setup guide for macOS prerequisites.
+require internet access. The locally validated environment is Linux amd64. Kubernetes images include
+native arm64 variants; see the short setup guide for macOS prerequisites.
 
 ```sh
 # First deployment: choose the first administrator explicitly.
 K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
 # `k8s-up` deploys, then stays attached to configured forwards; Ctrl+C closes
-# the forwards while keeping the cluster running.
+# the forwards while keeping the cluster running. Smoke from another terminal:
+K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-smoke
 ```
 
 Copy `.env.example` to `.env` first. `K8S_HTTPS_PORT`, `K8S_KAFKA_UI_PORT`, and
@@ -115,13 +117,13 @@ disabled. It uses `BOOTSTRAP_SUPERADMIN_EMAIL` and optional
 `K8S_BOOTSTRAP_*` bootstrap inputs. Its transactional singleton remains in
 PostgreSQL: restarts and concurrent replicas do not create duplicates, changing
 the configured email does not create a second first admin, and bootstrap does
-not undo a later role demotion. Do not delete the bootstrap row to restore
-access.
+not undo a later role demotion. Never delete the bootstrap row to make a test
+pass.
 
 Sign in through the normal magic-link flow. Mailpit receives local SMTP at
 `mailpit:1025`; its web UI is port-forwarded only. Production omits Mailpit and
 requires operator-provided SMTP credentials compatible with the existing sender.
-Local development email is available through Mailpit.
+No authentication test sends mail outside the local Mailpit setup.
 
 ## Mesh boundary and application behavior
 
@@ -194,17 +196,33 @@ they can access loopback endpoints directly and are not ordinary mesh traffic.
 Restrict their Kubernetes RBAC permissions in production. Use actual caller
 pods and the gateway, not operator shortcuts, to verify mesh isolation.
 
-## Updates and deletion
+## Updates, tests and deletion
 
 ```sh
+make k8s-test
 make k8s-deploy service=supplier-service
 # Full deploy reruns provisioning/migrations; required for schema changes:
 make k8s-deploy
+
+# Additional explicit local tests:
+make k8s-proxy-startup-smoke
+make k8s-persistence-smoke
 ```
+
+The persistence test briefly restarts local PostgreSQL/Kafka without deleting
+PVCs, then checks the bootstrap identity and a dedicated acknowledged Kafka
+record. It retains its uniquely named test topic. The proxy test uses an
+isolated disposable namespace to prove that an unavailable proxy cannot start
+the application. Neither test changes production security policies.
+
+With a gateway forward active, deployed Connect and native gRPC can also be
+checked from `pkg/` using `RPC_SMOKE_BASE_URL` and
+`RPC_SMOKE_CA_FILE`: see the [verification commands](kubernetes-verification.md).
 
 `K8S_SKIP_BUILD=1` reuses images already loaded/published. Use it only when
 their source is current. `K8S_IMAGE_PREFIX` and `K8S_IMAGE_TAG` change application
-and migration image references together.
+and migration image references together. For smoke port conflicts, set
+`K8S_SMOKE_HTTPS_PORT` (default 18443) and `K8S_SMOKE_MAILPIT_PORT` (19025).
 
 `make k8s-demo` deliberately fails rather than claiming the complete D3 business
 workflow works. `K8S_CONFIRM_DELETE=foc make k8s-delete-cluster`
@@ -258,7 +276,10 @@ local cluster before opening a forward.
 Floci is local-only, uses native sidecars and a PVC, and enforces S3 signatures.
 `order-storage-init` completes before application rollout. Object paths under
 `/order-images/` are forwarded unchanged through HTTPS; bucket initialization
-and deletion stay private.
+and deletion stay private. `make k8s-storage-smoke` requires Go and checks real
+signed uploads/downloads, tampering/unsigned and bucket-root rejection, and cleanup. Its
+optional ports are `K8S_STORAGE_SMOKE_HTTPS_PORT` (19443) and
+`K8S_STORAGE_SMOKE_S3_PORT` (19466).
 
 The production overlay also requires Secrets `credit-db`, `communication-db`
 and `telegram` (an empty `TELEGRAM_BOT_TOKEN` disables the bot). Configure real S3
@@ -284,13 +305,15 @@ then redeploy. This matches the other preserved local credentials.
 | Frontend runtime | [Official Node image](https://github.com/nodejs/docker-node) | amd64, arm64 |
 
 Application runtime images contain no Bun/compiler. The frontend runs Node;
-Go services use their compiled binaries. Host tooling uses the pinned Bun
-runtime. Linux amd64/arm64 and macOS hosts are supported; Docker Desktop is
-required on macOS.
+Go services use their compiled binaries. Host tooling uses the independent root
+Bun lockfile and `make k8s-typecheck`. CI runs deployments on native amd64/arm64
+Linux runners and installer/operator checks on macOS. Actual execution results,
+including platform gaps, belong in the verification record.
 
 Access logs intentionally omit query strings using Envoy's query-free path
 formatter. This keeps presigned URL signatures and login-link tokens out of
-collected logs without changing requests.
+collected logs without changing requests. The mesh smoke checks this with an
+innocuous query canary.
 
 Manifest application retries transient API timeouts up to three times with the
 same desired resources. Permanent validation/authorization errors stop promptly.

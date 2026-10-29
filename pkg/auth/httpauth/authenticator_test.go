@@ -88,7 +88,10 @@ func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
 }
 
 func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
+	testAuthenticatorVerifyTypedClaims(t)
+}
+
+func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -214,6 +217,25 @@ func TestNewAuthenticatorAllowsHTTPServiceURL(t *testing.T) {
 				t.Fatalf("HTTP service URL should be accepted: %v", err)
 			}
 		})
+	}
+}
+
+func TestAuthenticatorRejectsNonOriginURLs(t *testing.T) {
+	for _, rawURL := range []string{
+		"http://user-service:8081/api",
+		"http://user:password@user-service:8081",
+		"http://user-service:8081?query=1",
+		"http://user-service:8081#fragment",
+		"ftp://user-service:8081",
+		"://invalid",
+	} {
+		_, err := NewAuthenticator(context.Background(), AuthConfig{
+			UserServiceURL: rawURL,
+			Issuer:         TokenIssuer, Audience: TokenAudience,
+		})
+		if err == nil {
+			t.Fatal("invalid mode or origin accepted")
+		}
 	}
 }
 

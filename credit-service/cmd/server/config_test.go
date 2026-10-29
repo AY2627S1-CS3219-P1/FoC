@@ -71,3 +71,14 @@ func TestLoadConfigAllowsHTTPServiceURLs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoadConfigAllowsHTTPForInternalServiceCalls(t *testing.T) {
+	values := validEnv()
+	values["APP_ENV"] = "production"
+	values["USER_SERVICE_BASE_URL"] = "http://user-service-internal:8080"
+
+	c, err := loadConfig(env(values))
+	if err != nil || c.Transport.InternalPort != "8081" {
+		t.Fatalf("internal service config = %+v, err = %v", c, err)
+	}
+}

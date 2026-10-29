@@ -12,15 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
-type fakeSender struct{ sent []string }
+type fakeSender struct {
+	sent []string
+	err  error
+}
 
 func (f *fakeSender) SendMessage(_ context.Context, _ int64, text string) error {
 	f.sent = append(f.sent, text)
-	return nil
+	return f.err
 }
 
 type fakeLinker struct {
 	redeemErr     error
+	unlinkErr     error
 	redeemedCode  string
 	redeemedChat  linking.Chat
 	unlinkedChats []int64
@@ -36,7 +40,7 @@ func (f *fakeLinker) Redeem(_ context.Context, code string, chat linking.Chat) (
 
 func (f *fakeLinker) UnlinkChat(_ context.Context, chatID int64) error {
 	f.unlinkedChats = append(f.unlinkedChats, chatID)
-	return nil
+	return f.unlinkErr
 }
 
 // fakeChat records which relay entry point the handler used.
@@ -111,15 +115,25 @@ func TestStartWithBadCodeExplainsExpiry(t *testing.T) {
 	}
 }
 
-// The poller acknowledges the update either way, so the user is asked to retry;
-// the code stays unused because redemption rolled back.
-func TestStartAsksToRetryAfterStorageFailure(t *testing.T) {
-	h, sender := newHandler(&fakeLinker{redeemErr: errors.New("database down")})
-	if err := h.Handle(context.Background(), message("private", "/start code")); err != nil {
-		t.Fatal(err)
+func TestStartReturnsStorageFailureForPollingRetry(t *testing.T) {
+	failure := errors.New("database down")
+	h, sender := newHandler(&fakeLinker{redeemErr: failure})
+	if err := h.Handle(t.Context(), message("private", "/start code")); !errors.Is(err, failure) {
+		t.Fatalf("expected storage error, got %v", err)
 	}
-	if len(sender.sent) != 1 || sender.sent[0] != retryReply {
+	if len(sender.sent) != 0 {
 		t.Fatalf("sent = %v", sender.sent)
+	}
+}
+
+func TestReplyFailureDoesNotReplaySuccessfulRedemption(t *testing.T) {
+	h, sender := newHandler(&fakeLinker{})
+	sender.err = errors.New("sendMessage failed: 403 bot blocked")
+	if err := h.Handle(t.Context(), message("private", "/start code")); err != nil {
+		t.Fatalf("successful redemption must be acknowledged despite reply failure: %v", err)
+	}
+	if len(sender.sent) != 1 || sender.sent[0] != linkedReply {
+		t.Fatalf("sent=%v", sender.sent)
 	}
 }
 
@@ -159,6 +173,22 @@ func TestBlockingTheBotUnlinksChat(t *testing.T) {
 		if len(linker.unlinkedChats) != 0 {
 			t.Fatalf("unexpected unlink for %+v", update.MyChatMember)
 		}
+	}
+}
+
+func TestBlockingReturnsStorageFailureForPollingRetry(t *testing.T) {
+	failure := errors.New("database unavailable")
+	h, _ := newHandler(&fakeLinker{unlinkErr: failure})
+	if err := h.Handle(t.Context(), membership("private", "kicked")); !errors.Is(err, failure) {
+		t.Fatalf("expected unlink error, got %v", err)
+	}
+}
+
+func TestReplyStopsPollingWhenTokenRejected(t *testing.T) {
+	h, sender := newHandler(&fakeLinker{})
+	sender.err = telegram.ErrUnauthorized
+	if err := h.Handle(t.Context(), message("private", "/start")); !errors.Is(err, telegram.ErrUnauthorized) {
+		t.Fatalf("expected unauthorized, got %v", err)
 	}
 }
 
