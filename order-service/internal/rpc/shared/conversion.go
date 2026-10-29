@@ -77,11 +77,12 @@ func Order(o app.Order) *pb.Order {
 	}
 
 	return &pb.Order{
-		Id:          o.ID,
-		RequesterId: o.RequesterID,
-		CourierId:   o.CourierID,
-		Status:      status,
-		Pickup:      location(o.Pickup),
+		Id:                  o.ID,
+		CancellationPending: o.PendingCancellationID != nil,
+		RequesterId:         o.RequesterID,
+		CourierId:           o.CourierID,
+		Status:              status,
+		Pickup:              location(o.Pickup),
 		Delivery: &pb.DeliveryDetails{
 			Location:     location(o.Delivery),
 			Instructions: o.DeliveryInstructions,
@@ -181,7 +182,12 @@ func OrderView(ctx context.Context, caller app.Caller, o app.Order, images ItemI
 	return result, nil
 }
 
-func OrderViews(ctx context.Context, caller app.Caller, orders []app.Order, images ItemImageViews) ([]*pb.Order, error) {
+func OrderViews(
+	ctx context.Context,
+	caller app.Caller,
+	orders []app.Order,
+	images ItemImageViews,
+) ([]*pb.Order, error) {
 	result := make([]*pb.Order, 0, len(orders))
 	for _, o := range orders {
 		view, err := OrderView(ctx, caller, o, images)

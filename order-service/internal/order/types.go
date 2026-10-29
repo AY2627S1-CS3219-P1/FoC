@@ -25,7 +25,16 @@ const (
 // IsValid reports whether the status belongs to the order lifecycle.
 func (s Status) IsValid() bool {
 	switch s {
-	case PendingReservation, AwaitingCourier, AwaitingPickup, Delivering, Delivered, Completed, Cancelled, Expired, Failed, Rejected:
+	case PendingReservation,
+		AwaitingCourier,
+		AwaitingPickup,
+		Delivering,
+		Delivered,
+		Completed,
+		Cancelled,
+		Expired,
+		Failed,
+		Rejected:
 		return true
 	}
 
@@ -45,6 +54,7 @@ type LocationSnapshot struct {
 }
 
 type Order struct {
+	PendingCancellationID                                      *string
 	ID, RequesterID                                            string
 	CourierID                                                  *string
 	Status                                                     Status

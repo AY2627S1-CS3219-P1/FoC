@@ -158,28 +158,29 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 		err = t.q.InsertOrder(ctx, db.InsertOrderParams(row))
 	} else {
 		n, e := t.q.UpdateOrder(ctx, db.UpdateOrderParams{
-			ID:                   row.ID,
-			CourierID:            row.CourierID,
-			Status:               row.Status,
-			Pickup:               row.Pickup,
-			Delivery:             row.Delivery,
-			DeliveryInstructions: row.DeliveryInstructions,
-			ItemDescription:      row.ItemDescription,
-			RewardCredits:        row.RewardCredits,
-			ReservedCredits:      row.ReservedCredits,
-			DeliveryDurationNs:   row.DeliveryDurationNs,
-			ExpiresAt:            row.ExpiresAt,
-			AssignedAt:           row.AssignedAt,
-			PickedUpAt:           row.PickedUpAt,
-			DeliveredAt:          row.DeliveredAt,
-			CompletedAt:          row.CompletedAt,
-			ClosedAt:             row.ClosedAt,
-			CloseReason:          row.CloseReason,
-			ItemLocation:         row.ItemLocation,
-			UnattendedDelivery:   row.UnattendedDelivery,
-			Revision:             row.Revision,
-			UpdatedAt:            row.UpdatedAt,
-			ExpectedRevision:     c.ExpectedRevision,
+			ID:                    row.ID,
+			PendingCancellationID: row.PendingCancellationID,
+			CourierID:             row.CourierID,
+			Status:                row.Status,
+			Pickup:                row.Pickup,
+			Delivery:              row.Delivery,
+			DeliveryInstructions:  row.DeliveryInstructions,
+			ItemDescription:       row.ItemDescription,
+			RewardCredits:         row.RewardCredits,
+			ReservedCredits:       row.ReservedCredits,
+			DeliveryDurationNs:    row.DeliveryDurationNs,
+			ExpiresAt:             row.ExpiresAt,
+			AssignedAt:            row.AssignedAt,
+			PickedUpAt:            row.PickedUpAt,
+			DeliveredAt:           row.DeliveredAt,
+			CompletedAt:           row.CompletedAt,
+			ClosedAt:              row.ClosedAt,
+			CloseReason:           row.CloseReason,
+			ItemLocation:          row.ItemLocation,
+			UnattendedDelivery:    row.UnattendedDelivery,
+			Revision:              row.Revision,
+			UpdatedAt:             row.UpdatedAt,
+			ExpectedRevision:      c.ExpectedRevision,
 		})
 		err = e
 		if err == nil && n != 1 {
@@ -302,7 +303,10 @@ func validateChange(before *Order, c Change) error {
 	if err != nil {
 		return err
 	}
-	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus || expected.Audit.Status != c.Audit.Status || !expected.Audit.At.Equal(c.Audit.At) || len(expected.Facts) != len(c.Facts) {
+	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus ||
+		expected.Audit.Status != c.Audit.Status ||
+		!expected.Audit.At.Equal(c.Audit.At) ||
+		len(expected.Facts) != len(c.Facts) {
 		return ErrInvalid
 	}
 
@@ -315,7 +319,8 @@ func validateChange(before *Order, c Change) error {
 			return ErrInvalid
 		}
 		seen[f.ID] = true
-		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version || !jsonEqual(f.Payload, expected.Facts[i].Payload) {
+		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version ||
+			!jsonEqual(f.Payload, expected.Facts[i].Payload) {
 			return ErrInvalid
 		}
 	}

@@ -23,7 +23,10 @@ type Handler struct {
 	Logic Logic
 }
 
-func (h *Handler) GetUserByEmail(ctx context.Context, req *connect.Request[userv1.GetUserByEmailRequest]) (*connect.Response[userv1.GetUserByEmailResponse], error) {
+func (h *Handler) GetUserByEmail(
+	ctx context.Context,
+	req *connect.Request[userv1.GetUserByEmailRequest],
+) (*connect.Response[userv1.GetUserByEmailResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -37,7 +40,10 @@ func (h *Handler) GetUserByEmail(ctx context.Context, req *connect.Request[userv
 	return response, nil
 }
 
-func (h *Handler) ChangeUserRole(ctx context.Context, req *connect.Request[userv1.ChangeUserRoleRequest]) (*connect.Response[userv1.ChangeUserRoleResponse], error) {
+func (h *Handler) ChangeUserRole(
+	ctx context.Context,
+	req *connect.Request[userv1.ChangeUserRoleRequest],
+) (*connect.Response[userv1.ChangeUserRoleResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)

@@ -26,10 +26,10 @@ internal workload port 8081.
 Mandatory native proxies, bounded proxy startup probes, loopback bindings,
 explicit Istio ingress forwarding, fail-closed admission, STRICT mTLS and
 coarse namespace authentication prevent ordinary network bypass. Application
-workloads in the FoC namespace are currently trusted to call each other;
-fine-grained service authorization is deferred. User JWTs remain required only
-for user-context operations. Public-key fetching needs mesh authentication but
-no user JWT.
+workloads in the FoC namespace are broadly trusted, with one narrow exception:
+Credit's unauthenticated reservation listener accepts only the Order workload
+principal. User JWTs remain required only for user-context operations.
+Public-key fetching needs mesh authentication but no user JWT.
 
 ## Consequences
 
@@ -46,21 +46,21 @@ no user JWT.
 - Kafka UI uses separate operator login and private port-forward access.
   Mailpit is local only; production must provide SMTP.
 - Single PostgreSQL/Kafka instances simplify local verification and are not HA
-  or backup guarantees. Kafka ACLs, detailed service permissions, network egress
-  restrictions and production operations remain separate work.
-- The production overlay is a template. Credit and the complete asynchronous
-  D3 business workflow are not implemented by this infrastructure change.
+  or backup guarantees. Kafka ACLs, other detailed service permissions, network
+  egress restrictions and production operations remain separate work.
+- The production overlay is a template. Credit is deployed, but the complete
+  asynchronous D3 business workflow is not claimed by this infrastructure
+  change.
 
 See the [runbook](../runbooks/kubernetes.md) and
 [verification record](../runbooks/kubernetes-verification.md).
 
 ## Current-main deployment and developer portability
 
-The deployment includes Communication's optional Telegram linking API and
-Order's existing Kafka outbox workers and image storage. Credit has schema and
-contracts but no executable backend; creation/settlement remain unavailable.
-Browser RPC origins all use the TLS gateway. The reserved Credit route reports
-503 until its backend exists.
+The deployment includes Communication's optional Telegram linking API,
+Order's Kafka outbox workers and image storage, and Credit's ledger/reservation
+backend. Browser RPC origins all use the TLS gateway. The operator's `demo`
+command remains disabled until the integrated D3 business workflow is verified.
 
 Local object storage uses Floci 2.3.0 with S3 signature enforcement and a PVC.
 Its loopback listener is forwarded by Envoy. The gateway permits only object

@@ -2,8 +2,9 @@
 
 Kubernetes is an additional deployment option. `compose.yaml`, existing
 development Dockerfiles, Compose ports, source mounts and signing keys are
-unchanged. Credit is still a placeholder; this does not complete D3's integrated
-business workflow. See [verification results](kubernetes-verification.md).
+unchanged. Credit is deployed with its own database and Istio-restricted internal
+listener; this does not claim the complete D3 business workflow. See
+[verification results](kubernetes-verification.md).
 
 ## Start locally
 
@@ -48,6 +49,7 @@ Use a consistent `K8S_STATE_DIR` override if choosing another private location.
 | -- | -- | -- |
 | Browser | `https://localhost:5173` | TLS gateway; frontend and public RPCs share one origin |
 | Supplier calling User | `http://user-service-internal:8080` | Private Kubernetes DNS; Istio supplies network mTLS |
+| Order calling Credit | `http://credit-service-internal:8080` | Istio mTLS identifies Order's ServiceAccount; only Order is authorized on Credit's internal port |
 | Gateway calling User | `user-service-external:8080` | Private ClusterIP Service pointing only to public handlers |
 | Developer opening Kafka UI | `http://localhost:8080` | Private operator port-forward; login required |
 | Developer opening Mailpit | `http://localhost:8025` | Local/development mailbox port-forward |
@@ -102,8 +104,9 @@ does not gain authentication automatically.
 
 ## Superadmin and email
 
-Provisioning creates `user_db`, `supplier_db`, and `order_db`, each with a
-separate non-superuser role. The operator Job installs Supplier's PostGIS
+Provisioning creates `user_db`, `supplier_db`, `order_db`, `credit_db`, and
+`communication_db`, each with a separate non-superuser role. The operator Job
+installs Supplier's PostGIS
 extensions. Migration Jobs run before applications; Kubernetes sets
 `RUN_MIGRATIONS=false` on normal application containers.
 
@@ -140,7 +143,10 @@ networking, capture overrides and additional privileged initializers. Loopback
 listeners have explicit Istio ingress forwarding. Namespace-wide STRICT mTLS
 and a default-deny policy apply; authenticated app-namespace workloads are
 coarsely allowed, and gateway identity is explicitly denied internal port 8081.
-Detailed per-service authorization and Kafka ACLs are deferred.
+Credit's internal port 8081 has an additional DENY policy for every principal
+except `cluster.local/ns/foc/sa/order-service`. Credit's internal RPC handler does
+not verify application credentials; the Istio principal check is its Kubernetes
+boundary. Other fine-grained service authorization and Kafka ACLs are deferred.
 
 If a running proxy fails, the pod becomes unready and the proxy restarts;
 the application is not automatically killed. There is no direct-network
@@ -213,8 +219,8 @@ their source is current. `K8S_IMAGE_PREFIX` and `K8S_IMAGE_TAG` change applicati
 and migration image references together. For smoke port conflicts, set
 `K8S_SMOKE_HTTPS_PORT` (default 18443) and `K8S_SMOKE_MAILPIT_PORT` (19025).
 
-`make k8s-demo` deliberately fails rather than claiming the absent Credit/D3
-business workflow works. `K8S_CONFIRM_DELETE=foc make k8s-delete-cluster`
+`make k8s-demo` deliberately fails rather than claiming the complete D3 business
+workflow works. `K8S_CONFIRM_DELETE=foc make k8s-delete-cluster`
 explicitly deletes only the managed local cluster and its PVC data. It retains
 credential files. Do not run it when you need the data.
 
@@ -270,8 +276,8 @@ signed uploads/downloads, tampering/unsigned and bucket-root rejection, and clea
 optional ports are `K8S_STORAGE_SMOKE_HTTPS_PORT` (19443) and
 `K8S_STORAGE_SMOKE_S3_PORT` (19466).
 
-The production overlay also requires Secret `communication-db` and Secret
-`telegram` (an empty `TELEGRAM_BOT_TOKEN` disables the bot). Configure real S3
+The production overlay also requires Secrets `credit-db`, `communication-db`
+and `telegram` (an empty `TELEGRAM_BOT_TOKEN` disables the bot). Configure real S3
 bucket/endpoints, AWS credentials and HTTPS object access in that overlay;
 the local emulator and its test credentials are not included there.
 

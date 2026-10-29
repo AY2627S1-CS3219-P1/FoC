@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
@@ -60,7 +61,11 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	}
 
 	expires := s.cfg.Now().UTC().Add(MagicLinkLifetime)
-	challenge := models.AuthToken{TokenHash: append([]byte(nil), digest[:]...), Email: normalizedEmail, ExpiresAt: expires}
+	challenge := models.AuthToken{
+		TokenHash: append([]byte(nil), digest[:]...),
+		Email:     normalizedEmail,
+		ExpiresAt: expires,
+	}
 	if isLogin {
 		challenge.Purpose = models.TokenPurposeLogin
 		challenge.UserID = &user.ID
@@ -88,9 +93,11 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 
 func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string) error {
 	err := s.deps.EmailSender.Send(ctx, email.Email{
-		To:       []string{recipient},
-		Subject:  "Your sign-in link",
-		HTMLBody: "<p>Use this link to sign in or create an account:</p><p><a href=\"" + html.EscapeString(link) + "\">Continue</a></p>",
+		To:      []string{recipient},
+		Subject: "Your sign-in link",
+		HTMLBody: "<p>Use this link to sign in or create an account:</p><p><a href=\"" + html.EscapeString(
+			link,
+		) + "\">Continue</a></p>",
 		TextBody: "Use this link to sign in or create an account:\n" + link,
 	})
 	if err != nil {
@@ -135,7 +142,8 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		tokens = signed
 		return nil
 	})
-	if errors.Is(err, store.ErrChallengeRejected) || errors.Is(err, store.ErrNotFound) || errors.Is(err, jwt.ErrLoginFailed) {
+	if errors.Is(err, store.ErrChallengeRejected) || errors.Is(err, store.ErrNotFound) ||
+		errors.Is(err, jwt.ErrLoginFailed) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrLoginFailed
 	}
 	if err != nil {
@@ -144,7 +152,11 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 	return user, tokens, nil
 }
 
-func (s *Service) Register(ctx context.Context, registrationToken string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
+func (s *Service) Register(
+	ctx context.Context,
+	registrationToken string,
+	profile jwt.Profile,
+) (models.User, jwt.AuthTokens, error) {
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
 	if profile.DisplayName == "" || utf8.RuneCountInString(profile.DisplayName) > MaxDisplayNameLength {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrInvalidProfile
@@ -184,6 +196,12 @@ func (s *Service) Register(ctx context.Context, registrationToken string, profil
 				return jwt.ErrAlreadyRegistered
 			}
 			return err
+		}
+		if err := tx.UserCreatedEvents.Append(ctx, userdomain.CreatedEvent{
+			EventID: uuid.New(), UserID: user.ID, Email: user.Email,
+			DisplayName: user.DisplayName, CreatedAt: user.CreatedAt,
+		}); err != nil {
+			return fmt.Errorf("write user-created outbox event: %w", err)
 		}
 		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {
@@ -308,7 +326,12 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) createSession(ctx context.Context, tx Store, user models.User, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) createSession(
+	ctx context.Context,
+	tx Store,
+	user models.User,
+	now time.Time,
+) (jwt.AuthTokens, error) {
 	placeholderHash := make([]byte, sha256.Size)
 	if _, err := rand.Read(placeholderHash); err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("generate session placeholder: %w", err)

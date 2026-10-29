@@ -23,7 +23,12 @@ func (s *PostgresStore) queries() *db.Queries { return db.New(s.Pool) }
 
 // ReplaceCode implements Store. The partial unique index on unused codes
 // makes concurrent calls for one user leave a single unused code.
-func (s *PostgresStore) ReplaceCode(ctx context.Context, userID uuid.UUID, codeHash []byte, expiresAt, now time.Time) error {
+func (s *PostgresStore) ReplaceCode(
+	ctx context.Context,
+	userID uuid.UUID,
+	codeHash []byte,
+	expiresAt, now time.Time,
+) error {
 	if err := s.queries().ReplaceCode(ctx, db.ReplaceCodeParams{
 		CodeHash:  codeHash,
 		UserID:    userID,
@@ -80,6 +85,18 @@ func (s *PostgresStore) GetLink(ctx context.Context, userID uuid.UUID) (Link, er
 	}
 	if err != nil {
 		return Link{}, fmt.Errorf("get link: %w", err)
+	}
+	return fromRow(row), nil
+}
+
+// GetLinkByChat implements Store.
+func (s *PostgresStore) GetLinkByChat(ctx context.Context, chatID int64) (Link, error) {
+	row, err := s.queries().GetLinkByChat(ctx, chatID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Link{}, ErrNotLinked
+	}
+	if err != nil {
+		return Link{}, fmt.Errorf("get link by chat: %w", err)
 	}
 	return fromRow(row), nil
 }

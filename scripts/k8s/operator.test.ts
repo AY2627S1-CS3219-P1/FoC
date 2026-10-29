@@ -49,7 +49,8 @@ describe("Kubernetes operator configuration", () => {
 
 	test("service and kubectl target validation stays explicit", () => {
 		expect(() => validateService("user-service")).not.toThrow();
-		expect(() => validateService("credit-service")).toThrow(/Unknown service/);
+		expect(() => validateService("credit-service")).not.toThrow();
+		expect(() => validateService("missing-service")).toThrow(/Unknown service/);
 		if (K8S_EXISTING) {
 			expect(kubectlPrefix()).toEqual(["--context", K8S_CONTEXT]);
 		} else {
@@ -183,6 +184,7 @@ describe("operator safety guards", () => {
 
 				if (stage === "initialization" || stage === "applications") {
 					expect(result.output).toContain("image: registry.example/foc/user-service:unit-test");
+					expect(result.output).toContain("image: registry.example/foc/credit-service:unit-test");
 					expect(result.output).not.toContain("image: foc/");
 				}
 			}

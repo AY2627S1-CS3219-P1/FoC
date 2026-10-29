@@ -109,16 +109,18 @@ amd64/arm64 deployments and macOS installer/operator checks; these GitHub jobs
 have not been run as part of this local verification. macOS Docker deployment
 is not covered by the macOS tooling job.
 
-Detailed per-service Istio authorization is deliberately deferred; authenticated
-FoC namespace workloads communicate broadly. User-context JWT checks and the
-public/internal listener boundary remain enforced.
+At the implementation revision above, detailed per-service Istio authorization
+was deferred and authenticated FoC namespace workloads communicated broadly.
+User-context JWT checks and the public/internal listener boundary remained
+enforced.
 
-Credit has schema/contracts but no executable backend; its reserved public route
-returns 503. Credit-dependent creation/settlement and the complete asynchronous
-D3 business workflow are not verified or completed by these infrastructure
-changes. External Telegram polling was not tested. The production overlay is a
-template requiring real hostname, registry, TLS/SMTP/AWS credentials, storage
-and operational settings; it was rendered, not deployed to a production cluster.
+At that revision, Credit had schema/contracts but no executable backend; its
+reserved public route returned 503. Credit-dependent creation/settlement and the
+complete asynchronous D3 business workflow were not verified or completed by
+those infrastructure changes. External Telegram polling was not tested. The
+production overlay is a template requiring real hostname, registry,
+TLS/SMTP/AWS credentials, storage and operational settings; it was rendered, not
+deployed to a production cluster.
 
 ## Devin review follow-up
 
@@ -155,3 +157,21 @@ Telegram poller/bot race tests, Order aggregate tests, and frontend type check,
 External Telegram and interactive browser execution were not exercised for
 this follow-up; the original full mesh/bootstrap evidence above remains scoped
 to its recorded implementation revision.
+
+## D3 merge and Credit build verification
+
+On 2026-10-30, `origin/main` was merged into the Kubernetes branch and the
+previously reserved Credit backend was added to the Kubernetes manifests. The
+Credit service has its own database and migration Job, and Order-to-Credit
+internal RPC is restricted by Istio identity policy. This follow-up verified
+local buildability and rendered configuration; it did not deploy to a cluster
+or run a live `k8s-smoke` check.
+
+- All seven Kubernetes images built locally from their checked-in Dockerfiles:
+  User, Supplier, Order, Credit, Communication, frontend and `kafka-init`.
+  The frontend production build reports existing circular-dependency warnings.
+- `make k8s-test` passed with strict TypeScript checks and 26 operator/config
+  regression tests. `docker compose config --quiet` passed.
+- Communication's shutdown cleanup test passed ten consecutive focused runs
+  and its Go module suite passed after the test server gained an explicit
+  release signal for its long-poll handler.

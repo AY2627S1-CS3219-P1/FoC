@@ -67,18 +67,18 @@ lookups retrieve the delegated header through `auth.UserBearerFromContext`; RPC
 handlers do not copy credentials from incoming headers. The credential stays
 separate from `Caller`, is not persisted, and is never sent to Credit.
 
-TokenSource is the consuming Order adapter's workload-credential boundary. The
-file provider consumes externally issued JWTs, checks dispatch expiry/subject/
-audience, and rereads rotations; it does not authenticate the caller to Credit.
-The receiver's cryptographic verification and deployment issuance are #29 work.
+Supplier lookups forward the verified user's bearer token. Order's Credit client
+sends no application credential: in Kubernetes, Istio mTLS authenticates the
+Order ServiceAccount, and the Credit internal listener policy admits that
+principal alone. Credit's RPC handler still does not verify application
+credentials; see the tracked unauthenticated-listener landmine.
 
-Tests exercise PostgreSQL, private/signature-verifying Floci and real Kafka.
-Remote Credit and Supplier are scripted test endpoints. Terminal events are
-produced through the existing aggregate, since later lifecycle RPCs are outside
-this slice. Real Credit settlement, five-minute financial reconciliation, admin
-alerts, minimum courier rating, proof upload, later lifecycle operations and the
-browser flow remain explicit dependencies. NFR-20 is partial until the actual
-Credit consumer is verified.
+Tests exercise PostgreSQL, private/signature-verifying Floci, Kafka, and the
+Credit domain/event handlers. The integrated registration/credit/order browser
+flow remains outside this implementation verification, along with five-minute
+financial reconciliation, admin alerts, minimum courier rating, proof upload,
+and later lifecycle operations. NFR-20 requires end-to-end verification of the
+complete workflow.
 
 ## Browser logout and unresolved submissions
 

@@ -60,7 +60,7 @@ export async function generateLocalSecrets(): Promise<void> {
 	}
 
 	try {
-		for (const name of ["postgres-password", "user-password", "supplier-password", "order-password", "communication-password", "kafka-ui-password"]) {
+		for (const name of ["postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password"]) {
 			const password = await run("openssl", ["rand", "-hex", "32"], { capture: true });
 			await persistValue(name, password.stdout.trim());
 		}
@@ -111,7 +111,7 @@ export async function generateLocalSecrets(): Promise<void> {
 			die("Local TLS certificate and key do not match.");
 		}
 
-		for (const service of ["user", "supplier", "order", "communication"]) {
+		for (const service of ["user", "supplier", "order", "credit", "communication"]) {
 			await persistValue(service + "-db-user", service + "_app");
 			await persistValue(service + "-db-name", service + "_db");
 			const username = (await Bun.file(join(secretDirectory, service + "-db-user")).text()).trim();
@@ -125,7 +125,7 @@ export async function generateLocalSecrets(): Promise<void> {
 			"--from-file=POSTGRES_USER=" + join(secretDirectory, "postgres-user"),
 			"--from-file=POSTGRES_PASSWORD=" + join(secretDirectory, "postgres-password"),
 		]);
-		for (const service of ["user", "supplier", "order", "communication"]) {
+		for (const service of ["user", "supplier", "order", "credit", "communication"]) {
 			await applySecret("foc", service + "-db", [
 				"--from-file=DB_USER=" + join(secretDirectory, service + "-db-user"),
 				"--from-file=DB_NAME=" + join(secretDirectory, service + "-db-name"),

@@ -13,7 +13,8 @@ func CallerInterceptor(principal Principal, validator protovalidate.Validator) c
 }
 func authorizeCaller(c domain.Caller, procedure string) error {
 	switch procedure {
-	case locationv1connect.LocationAdditionRequestServiceApproveLocationAdditionRequestProcedure, locationv1connect.LocationAdditionRequestServiceRejectLocationAdditionRequestProcedure:
+	case locationv1connect.LocationAdditionRequestServiceApproveLocationAdditionRequestProcedure,
+		locationv1connect.LocationAdditionRequestServiceRejectLocationAdditionRequestProcedure:
 		if !c.IsAdmin() {
 			return domain.ErrAccessDenied
 		}

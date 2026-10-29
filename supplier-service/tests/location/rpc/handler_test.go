@@ -26,14 +26,45 @@ type applicationStub struct {
 	proposal additionrequest.Proposal
 }
 
-func (s *applicationStub) SubmitRequest(_ context.Context, c additionrequest.Caller, in additionrequest.SubmitRequest) (additionrequest.AdditionRequest, error) {
+func (s *applicationStub) SubmitRequest(
+	_ context.Context,
+	c additionrequest.Caller,
+	in additionrequest.SubmitRequest,
+) (additionrequest.AdditionRequest, error) {
 	s.proposal = in.Proposal
-	return additionrequest.AdditionRequest{ID: "b78b6aa8-510f-4e90-b77a-724cfb880e07", Proposal: in.Proposal, SubmittedBy: c.ID, Status: additionrequest.Pending, Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()}, s.err
+	return additionrequest.AdditionRequest{
+		ID:          "b78b6aa8-510f-4e90-b77a-724cfb880e07",
+		Proposal:    in.Proposal,
+		SubmittedBy: c.ID,
+		Status:      additionrequest.Pending,
+		Revision:    1,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}, s.err
 }
-func (s *applicationStub) CreateDisablement(_ context.Context, c additionrequest.Caller, in disablement.CreateDisablement) (disablement.Disablement, error) {
-	return disablement.Disablement{ID: "b78b6aa8-510f-4e90-b77a-724cfb880e07", LocationID: in.LocationID, StartsAt: time.Now(), Reason: in.Reason, CreatedBy: c.ID, Revision: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()}, s.err
+
+func (s *applicationStub) CreateDisablement(
+	_ context.Context,
+	c additionrequest.Caller,
+	in disablement.CreateDisablement,
+) (disablement.Disablement, error) {
+	return disablement.Disablement{
+		ID:         "b78b6aa8-510f-4e90-b77a-724cfb880e07",
+		LocationID: in.LocationID,
+		StartsAt:   time.Now(),
+		Reason:     in.Reason,
+		CreatedBy:  c.ID,
+		Revision:   1,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}, s.err
 }
-func (s *applicationStub) UpdateRequest(_ context.Context, c additionrequest.Caller, in additionrequest.UpdateRequest) (additionrequest.AdditionRequest, error) {
+
+func (s *applicationStub) UpdateRequest(
+	_ context.Context,
+	c additionrequest.Caller,
+	in additionrequest.UpdateRequest,
+) (additionrequest.AdditionRequest, error) {
 	return additionrequest.AdditionRequest{}, s.err
 }
 func fastRequest[T any](m *T, role string) *connect.Request[T] {
@@ -80,25 +111,45 @@ func fastClients(t *testing.T, s *applicationStub) (fastLocationClients, rpc.Loc
 	}
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return fastLocationClients{rpc.NewLocationDiscoveryServiceClient(server.Client(), server.URL), rpc.NewLocationAdminServiceClient(server.Client(), server.URL), rpc.NewLocationDisablementServiceClient(server.Client(), server.URL)}, rpc.NewLocationAdditionRequestServiceClient(server.Client(), server.URL)
+	return fastLocationClients{
+		rpc.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
+		rpc.NewLocationAdminServiceClient(server.Client(), server.URL),
+		rpc.NewLocationDisablementServiceClient(server.Client(), server.URL),
+	}, rpc.NewLocationAdditionRequestServiceClient(
+		server.Client(),
+		server.URL,
+	)
 }
 
 type fastPrincipalKey struct{}
 
 func fastProposal() *pb.LocationInput {
 	v := true
-	return &pb.LocationInput{Name: "Cafe", IsSupplier: &v, CategoryIds: []string{"63dc656d-4e7b-43ad-a0ba-325b44132766"}, BuildingId: "9dbda827-5a46-4089-9209-a2bde43f18a0", Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774}, OpensAt: &timeofday.TimeOfDay{Hours: 22, Minutes: 5}, ClosesAt: &timeofday.TimeOfDay{Hours: 2}}
+	return &pb.LocationInput{
+		Name:        "Cafe",
+		IsSupplier:  &v,
+		CategoryIds: []string{"63dc656d-4e7b-43ad-a0ba-325b44132766"},
+		BuildingId:  "9dbda827-5a46-4089-9209-a2bde43f18a0",
+		Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774},
+		OpensAt:     &timeofday.TimeOfDay{Hours: 22, Minutes: 5},
+		ClosesAt:    &timeofday.TimeOfDay{Hours: 2},
+	}
 }
 func TestHandlerTranslationAndSafeErrorMapping(t *testing.T) {
 	s := &applicationStub{}
 	_, client := fastClients(t, s)
 	ctx := context.Background()
-	input := &pb.SubmitLocationAdditionRequestRequest{Proposal: fastProposal(), IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}
+	input := &pb.SubmitLocationAdditionRequestRequest{
+		Proposal:       fastProposal(),
+		IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+	}
 	result, e := client.SubmitLocationAdditionRequest(ctx, fastRequest(input, "user"))
 	if e != nil {
 		t.Fatal(e)
 	}
-	if s.proposal.OpenFrom == nil || *s.proposal.OpenFrom != 79500000000 || result.Msg.Request.SubmittedBy != "test-caller" || result.Msg.Request.Proposal.OpensAt.Minutes != 5 {
+	if s.proposal.OpenFrom == nil || *s.proposal.OpenFrom != 79500000000 ||
+		result.Msg.Request.SubmittedBy != "test-caller" ||
+		result.Msg.Request.Proposal.OpensAt.Minutes != 5 {
 		t.Fatalf("translation: %+v %+v", s.proposal, result.Msg)
 	}
 	for _, row := range []struct {
@@ -117,7 +168,17 @@ func TestHandlerAuthorizationAndPresenceValidation(t *testing.T) {
 	locations, requests := fastClients(t, s)
 	ctx := context.Background()
 	for _, role := range []string{"", "user", "suspended_user", "admin", "super_admin"} {
-		_, e := locations.CreateDisablement(ctx, fastRequest(&pb.CreateDisablementRequest{LocationId: "8f383cca-1609-4326-8440-f75d943dc924", Reason: "closure", IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}, role))
+		_, e := locations.CreateDisablement(
+			ctx,
+			fastRequest(
+				&pb.CreateDisablementRequest{
+					LocationId:     "8f383cca-1609-4326-8440-f75d943dc924",
+					Reason:         "closure",
+					IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+				},
+				role,
+			),
+		)
 		want := connect.CodeUnknown
 		if role == "" {
 			want = connect.CodeUnauthenticated
@@ -131,7 +192,16 @@ func TestHandlerAuthorizationAndPresenceValidation(t *testing.T) {
 		} else if connect.CodeOf(e) != want {
 			t.Fatalf("role %s: %v", role, e)
 		}
-		_, e = requests.SubmitLocationAdditionRequest(ctx, fastRequest(&pb.SubmitLocationAdditionRequestRequest{Proposal: fastProposal(), IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}, role))
+		_, e = requests.SubmitLocationAdditionRequest(
+			ctx,
+			fastRequest(
+				&pb.SubmitLocationAdditionRequestRequest{
+					Proposal:       fastProposal(),
+					IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+				},
+				role,
+			),
+		)
 		want = connect.CodeUnknown
 		if role == "" {
 			want = connect.CodeUnauthenticated
@@ -147,7 +217,18 @@ func TestHandlerAuthorizationAndPresenceValidation(t *testing.T) {
 		}
 	}
 	for _, path := range []string{"coordinates", "is_supplier"} {
-		_, e := requests.UpdateLocationAdditionRequest(ctx, fastRequest(&pb.UpdateLocationAdditionRequestRequest{Id: "b78b6aa8-510f-4e90-b77a-724cfb880e07", Proposal: &pb.LocationInput{}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{path}}, ExpectedRevision: 1}, "user"))
+		_, e := requests.UpdateLocationAdditionRequest(
+			ctx,
+			fastRequest(
+				&pb.UpdateLocationAdditionRequestRequest{
+					Id:               "b78b6aa8-510f-4e90-b77a-724cfb880e07",
+					Proposal:         &pb.LocationInput{},
+					UpdateMask:       &fieldmaskpb.FieldMask{Paths: []string{path}},
+					ExpectedRevision: 1,
+				},
+				"user",
+			),
+		)
 		if connect.CodeOf(e) != connect.CodeInvalidArgument {
 			t.Fatalf("absent masked %s: %v", path, e)
 		}
@@ -172,11 +253,30 @@ func TestHandlerLengthLimitsApplyAfterTrimming(t *testing.T) {
 	p.Floor = &floor
 	p.Contact = &contact
 	p.Details = " " + strings.Repeat("x", 2000) + " "
-	_, e := requests.SubmitLocationAdditionRequest(ctx, fastRequest(&pb.SubmitLocationAdditionRequestRequest{Proposal: p, IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}, "user"))
+	_, e := requests.SubmitLocationAdditionRequest(
+		ctx,
+		fastRequest(
+			&pb.SubmitLocationAdditionRequestRequest{
+				Proposal:       p,
+				IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+			},
+			"user",
+		),
+	)
 	if e != nil {
 		t.Fatalf("valid trimmed proposal: %v", e)
 	}
-	_, e = locations.CreateDisablement(ctx, fastRequest(&pb.CreateDisablementRequest{LocationId: "8f383cca-1609-4326-8440-f75d943dc924", Reason: " " + strings.Repeat("x", 500) + " ", IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}, "admin"))
+	_, e = locations.CreateDisablement(
+		ctx,
+		fastRequest(
+			&pb.CreateDisablementRequest{
+				LocationId:     "8f383cca-1609-4326-8440-f75d943dc924",
+				Reason:         " " + strings.Repeat("x", 500) + " ",
+				IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+			},
+			"admin",
+		),
+	)
 	if e != nil {
 		t.Fatalf("valid trimmed reason: %v", e)
 	}

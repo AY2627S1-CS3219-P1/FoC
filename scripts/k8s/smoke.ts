@@ -175,6 +175,7 @@ export async function runSmoke(): Promise<void> {
 	const suffix = Date.now().toString(36) + "-" + Math.floor(Math.random() * 1_000_000).toString(36);
 	const outsiderNamespace = "foc-untrusted-" + suffix;
 	const client = "foc-smoke-" + suffix;
+	const orderClient = "foc-order-smoke-" + suffix;
 	let gatewayForward: Bun.Subprocess | undefined;
 	let mailpitForward: Bun.Subprocess | undefined;
 
@@ -196,6 +197,7 @@ export async function runSmoke(): Promise<void> {
 			await k(["apply", "-f", path]);
 		});
 		await makeClient("foc", client, "default", true, evidenceDir);
+		await makeClient("foc", orderClient, "order-service", true, evidenceDir);
 		await makeClient("istio-ingress", client, "istio-ingressgateway", true, evidenceDir);
 		await makeClient(outsiderNamespace, "meshed", "default", true, evidenceDir);
 		await makeClient(outsiderNamespace, "plaintext", "default", false, evidenceDir);
@@ -210,6 +212,11 @@ export async function runSmoke(): Promise<void> {
 		);
 		await assertRPC("istio-ingress", client, internal, 403, "Gateway identity denied internal RPC");
 		await assertRPC(outsiderNamespace, "meshed", internal, 403, "Foreign mesh namespace denied internal RPC");
+		const creditInternal = "http://credit-service-internal.foc.svc.cluster.local:8080/grpc.health.v1.Health/Check";
+		await assertRPC("foc", orderClient, creditInternal, 200, "Order workload identity reaches Credit internal listener");
+		await assertRPC("foc", client, creditInternal, 403, "Default app identity denied Credit internal listener");
+		await assertRPC("istio-ingress", client, creditInternal, 403, "Gateway identity denied Credit internal listener");
+		await assertRPC(outsiderNamespace, "meshed", creditInternal, 403, "Foreign mesh identity denied Credit internal listener");
 		const userPodResult = await k(["-n", "foc", "get", "pod", "-l", "app=user-service", "-o", "jsonpath={.items[0].metadata.name}"], { capture: true });
 		const userPod = userPodResult.stdout.trim();
 		const userIPResult = await k(["-n", "foc", "get", "pod", userPod, "-o", "jsonpath={.status.podIP}"], { capture: true });
@@ -245,11 +252,14 @@ export async function runSmoke(): Promise<void> {
 		const base = "https://localhost:" + httpsPort;
 		const frontend = await run("curl", ["--cacert", tlsCert, "-sS", "--max-time", "20", "-o", join(evidenceDir, "frontend.html"), "-w", "%{http_code}", base + "/"], { capture: true });
 		if (frontend.stdout.trim() !== "200") fail("Frontend HTTPS expected 200, got " + frontend.stdout.trim());
-		for (const namespace of ["user", "supplier", "order", "communication"]) {
+		for (const namespace of ["user", "supplier", "order", "credit", "communication"]) {
+			const healthProcedure = namespace === "credit"
+				? "/grpc.health.v1.Health/Check"
+				: "/" + namespace + ".v1.HealthService/Check";
 			const response = await run("curl", [
 				"--cacert", tlsCert, "-sS", "--max-time", "20", "-o", join(evidenceDir, namespace + "-health.json"), "-w", "%{http_code}",
 				"-H", "Content-Type: application/json", "-H", "Connect-Protocol-Version: 1", "-d", "{}",
-				base + "/" + namespace + ".v1.HealthService/Check" + (namespace === "user" ? "?foc-query-canary=" + suffix : ""),
+				base + healthProcedure + (namespace === "user" ? "?foc-query-canary=" + suffix : ""),
 			], { capture: true });
 			if (response.stdout.trim() !== "200") fail(namespace + " public health expected 200, got " + response.stdout.trim());
 		}

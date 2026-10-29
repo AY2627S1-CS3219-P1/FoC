@@ -5,6 +5,7 @@ resources:
   - user-service.yaml
   - supplier-service.yaml
   - order-service.yaml
+  - credit-service.yaml
   - frontend.yaml
   - gateway.yaml
   - communication-service.yaml

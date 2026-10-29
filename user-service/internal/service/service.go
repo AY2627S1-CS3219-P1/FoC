@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
@@ -39,11 +40,16 @@ type DomainStore interface {
 	Allows(context.Context, string) (bool, error)
 }
 
+type UserCreatedEventStore interface {
+	Append(context.Context, userdomain.CreatedEvent) error
+}
+
 type Store struct {
-	Users      UserStore
-	AuthTokens AuthTokenStore
-	Sessions   SessionStore
-	Domains    DomainStore
+	Users             UserStore
+	AuthTokens        AuthTokenStore
+	Sessions          SessionStore
+	Domains           DomainStore
+	UserCreatedEvents UserCreatedEventStore
 }
 
 type WithTransaction func(context.Context, func(Store) error) error

@@ -27,17 +27,19 @@ type Store struct {
 	*Admin
 	*AuthTokens
 	*Sessions
+	*UserCreatedOutbox
 
 	db *gorm.DB
 }
 
 func New(db *gorm.DB) *Store {
 	return &Store{
-		Users:      NewUsers(db),
-		Admin:      NewAdmin(db),
-		AuthTokens: NewAuthTokens(db),
-		Sessions:   NewSessions(db),
-		db:         db,
+		Users:             NewUsers(db),
+		Admin:             NewAdmin(db),
+		AuthTokens:        NewAuthTokens(db),
+		Sessions:          NewSessions(db),
+		UserCreatedOutbox: NewUserCreatedOutbox(db),
+		db:                db,
 	}
 }
 

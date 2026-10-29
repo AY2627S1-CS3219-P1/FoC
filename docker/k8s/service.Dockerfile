@@ -12,9 +12,10 @@ COPY user-service/go.mod user-service/go.sum ./user-service/
 COPY supplier-service/go.mod supplier-service/go.sum ./supplier-service/
 COPY order-service/go.mod order-service/go.sum ./order-service/
 COPY communication-service/go.mod communication-service/go.sum ./communication-service/
+COPY credit-service/go.mod credit-service/go.sum ./credit-service/
 RUN --mount=type=cache,target=/go/pkg/mod \
     case "$SERVICE" in \
-        user-service|supplier-service|order-service|communication-service) ;; \
+        user-service|supplier-service|order-service|credit-service|communication-service) ;; \
         *) echo "Unsupported Go SERVICE" >&2; exit 1 ;; \
     esac \
     && cd "$SERVICE" && go mod download
@@ -24,6 +25,7 @@ COPY user-service/ ./user-service/
 COPY supplier-service/ ./supplier-service/
 COPY order-service/ ./order-service/
 COPY communication-service/ ./communication-service/
+COPY credit-service/ ./credit-service/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     cd "$SERVICE" \

@@ -36,7 +36,11 @@ func TestRetryStoreRetainsLifecycleErrorMapping(t *testing.T) {
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			store := mappedIdempotencyStore{failingRetryStore{fmt.Errorf("shared store: %w", row.source)}}
-			scope := idempotency.Scope{Caller: "owner", Method: "CreateDisablement", Key: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}
+			scope := idempotency.Scope{
+				Caller: "owner",
+				Method: "CreateDisablement",
+				Key:    "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+			}
 			find := func() error { _, err := store.Find(context.Background(), scope, time.Now()); return err }
 			for name, call := range map[string]func() error{
 				"lock": func() error { return store.Lock(context.Background(), scope) },

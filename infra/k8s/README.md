@@ -83,17 +83,23 @@ clusters, and production-overlay setup, see the
 
 ## Current application coverage and platform support
 
-The stack includes User, Supplier, Order, Communication, frontend and the local
-Order image store. Communication starts with Telegram disabled unless a bot
-credential is configured. To configure it on first setup, set
+The stack includes User, Supplier, Order, Credit, Communication, frontend and
+the local Order image store. Credit has its own database, migration Job, public
+RPC Service and private reservation Service. Its internal listener is restricted
+by Istio to the `order-service` workload identity. The complete D3 business
+workflow is not claimed by this deployment. Communication starts with Telegram
+disabled unless a bot credential is configured. To configure it on first setup, set
 `K8S_TELEGRAM_BOT_TOKEN`; it is persisted in the private
 `.local/k8s/secrets/TELEGRAM_BOT_TOKEN` file. To change it later, edit that file
 and run a full deployment. An empty file disables Telegram. Never share a bot
 token with another running poller.
 
-Credit has contracts/schema but no backend. Its public route returns 503;
-Credit-dependent creation and settlement remain unavailable. Existing Order
-browse/read operations and image storage are deployed.
+Credit-dependent Order operations can use the deployed Credit backend. The
+internal listener does not verify an application credential, so its Kubernetes
+reachability is limited by the Istio principal policy; see
+`LANDMINES/credit-internal-listener-unauthenticated.md`. The `k8s-smoke` check
+confirms Order can reach it while default app, gateway and foreign mesh identities
+are denied.
 
 Linux and macOS hosts on amd64 or arm64 are supported. Docker Desktop must be
 running on macOS. Clear any `DOCKER_DEFAULT_PLATFORM` override left over from

@@ -27,6 +27,8 @@ type CourierWarningReason int32
 const (
 	CourierWarningReason_COURIER_WARNING_REASON_UNSPECIFIED            CourierWarningReason = 0
 	CourierWarningReason_COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP CourierWarningReason = 1
+	// Delivery timeout at twice the allowed duration makes payable reward zero.
+	CourierWarningReason_COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD CourierWarningReason = 2
 )
 
 // Enum value maps for CourierWarningReason.
@@ -34,10 +36,12 @@ var (
 	CourierWarningReason_name = map[int32]string{
 		0: "COURIER_WARNING_REASON_UNSPECIFIED",
 		1: "COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP",
+		2: "COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD",
 	}
 	CourierWarningReason_value = map[string]int32{
 		"COURIER_WARNING_REASON_UNSPECIFIED":            0,
 		"COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP": 1,
+		"COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD":    2,
 	}
 )
 
@@ -157,10 +161,11 @@ const file_order_events_v1_courier_warning_requested_proto_rawDesc = "" +
 	"courier_id\x18\x03 \x01(\tR\tcourierId\x12=\n" +
 	"\x06reason\x18\x04 \x01(\x0e2%.order.events.v1.CourierWarningReasonR\x06reason\x12;\n" +
 	"\voccurred_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"occurredAt*q\n" +
+	"occurredAt*\xa1\x01\n" +
 	"\x14CourierWarningReason\x12&\n" +
 	"\"COURIER_WARNING_REASON_UNSPECIFIED\x10\x00\x121\n" +
-	"-COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP\x10\x01B\xda\x01\n" +
+	"-COURIER_WARNING_REASON_CANCELLED_AFTER_PICKUP\x10\x01\x12.\n" +
+	"*COURIER_WARNING_REASON_ZERO_PAYABLE_REWARD\x10\x02B\xda\x01\n" +
 	"\x13com.order.events.v1B\x1cCourierWarningRequestedProtoP\x01ZGgithub.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1;eventsv1\xa2\x02\x03OEX\xaa\x02\x0fOrder.Events.V1\xca\x02\x0fOrder\\Events\\V1\xe2\x02\x1bOrder\\Events\\V1\\GPBMetadata\xea\x02\x11Order::Events::V1b\x06proto3"
 
 var (

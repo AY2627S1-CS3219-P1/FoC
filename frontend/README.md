@@ -1,36 +1,23 @@
 # Friend on Campus frontend
 
-This is the SvelteKit and TypeScript frontend for Friend on Campus. The current
-routes are a minimal scaffold; authentication and supplier data are not yet
-connected to the Go services.
+SvelteKit 2, Svelte 5, TypeScript, Svelte-M3 and Superforms. Authentication,
+profiles, user-role administration and supplier/location discovery and
+administration use generated Connect RPC clients.
 
 ## Run locally
 
-From the repository root, `docker compose up --build` starts the frontend at
-`http://localhost:5173` along with the backend services. Source edits reload through
-Vite. Compose runs `npm ci` on startup and keeps container dependencies and SvelteKit
-output in separate named volumes, leaving host dependencies separate. Restart the
-frontend after changing `package-lock.json`.
-
-Set `FRONTEND_PORT` in the root `.env` to change the host port, and update
-`FRONTEND_BASE_URL` to the same origin for authentication. `PUBLIC_USER_SERVICE_URL`
-must be reachable from the browser; it defaults to `http://localhost:${USER_PORT}`
-in Compose (port 8081 by default). `docker compose down` retains frontend volumes;
-`docker compose down -v` removes them along with the database data.
-
-To run the frontend outside Docker:
-
-Requires Node.js `>=22.12.0` and npm.
+Requires Node.js >=22.12.0 and npm. From this directory:
 
 ```sh
-cd frontend
 npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`). Run
-`npm run check` for Svelte and TypeScript checks, and `npm run build` to verify
-the production build. No backend is required to view the scaffold.
+From the repository root, `docker compose up --build` starts the frontend at
+`http://localhost:5173` and the backend services. Set `FRONTEND_PORT` and
+`FRONTEND_BASE_URL` consistently if changing the port. Compose uses named volumes
+for frontend dependencies and build output; restart the frontend after lockfile
+changes. `docker compose down -v` also deletes database data.
 
 ## Production container
 
@@ -77,10 +64,10 @@ repository root as context:
 docker build -f docker/k8s/service.Dockerfile --build-arg SERVICE=user-service -t foc-user-service:production .
 ```
 
-`SERVICE` must be `user-service`, `supplier-service`, or `order-service`. Each
-image builds with Go 1.27 and runs `/app/server` as UID/GID 65532 with system CA
-certificates. Local module replacements are included in the build context.
-Credit remains a placeholder and is not a supported image target.
+`SERVICE` must be `user-service`, `supplier-service`, `order-service`,
+`credit-service`, or `communication-service`. Each image builds with Go 1.27
+and runs `/app/server` as UID/GID 65532 with system CA certificates. Local
+module replacements are included in the build context.
 
 The Kafka initialization Job uses `docker/k8s/kafka-init.Dockerfile`:
 
@@ -94,16 +81,49 @@ at runtime; topic configuration and schemas do not need separate ConfigMaps.
 
 ## Ownership handoff
 
-- Florian: root layout/navigation, shared styles/components, auth and session
-  handling, common API client, `/login`, and user-domain pages.
-- Kevin: `/suppliers`, supplier detail and administration routes,
-  supplier-domain components/types/API calls, and later the supplier map.
-- Coordinate before changing root layout, shared API code or deployment config.
+Browser-reachable service URLs:
 
-The supplier API paths and query parameters are in the team's Google Doc:
-`GET /api/suppliers` and `GET /api/suppliers/{supplierID}`. Agree on example
-response bodies before adding frontend types. The existing Go services use a
-`{ status, data }` JSON response envelope.
+- `PUBLIC_USER_SERVICE_URL`: defaults to `http://localhost:8081`.
+- `PUBLIC_SUPPLIER_SERVICE_URL`: defaults to `http://localhost:8082`.
 
-The `/login` and `/suppliers` pages are placeholders. Replace each inside its
-owner's feature work; they do not imply an auth or supplier API implementation.
+## Routes
+
+- `/suppliers` and `/suppliers/[id]`: authenticated location discovery.
+- `/admin`: administration home; admin and super-admin roles only.
+- `/admin/users`: account-role management.
+- `/admin/suppliers`: location search, filters and archived views.
+- `/admin/suppliers/new`: create a supplier or facility.
+- `/admin/suppliers/[id]`: edit, archive/restore and manage closure history.
+- `/admin/supplier-requests`: status-filtered addition-request review queue.
+- `/admin/supplier-requests/[id]`: proposal details and approval/rejection.
+
+Location deletion is archival. Buildings and categories are read-only reference
+data. Opening hours and closure dates use Asia/Singapore regardless of the
+browser timezone. Temporary closures do not prevent location selection.
+
+Creates retain retry keys within the mounted editor after uncertain outcomes.
+Retry the same details; check the list/history before explicitly starting another
+creation. Update conflicts preserve drafts and require explicit reconciliation.
+Leaving an editor loses its in-memory retry key, so verify the list before
+resubmitting after a reload. Review decisions are final. Approval and rejection require the reviewed revision;
+the server checks it atomically before deciding. A stale review must be reloaded.
+
+## Development
+
+```sh
+npm run check
+npm test
+npm run build
+```
+
+Services and API adapters live by capability under `src/lib/services/`; the
+composition root injects transports and authentication. Generated protobuf types
+are under `src/lib/gen/` and must not be edited. Client singleton services are
+used only in browser lifecycle and event code. Authorization is enforced by the
+backend as well as guarded UI rendering.
+
+## Ownership
+
+Coordinate changes to root layout, shared styles, shared API code and deployment
+configuration. Supplier administration intentionally extends the shared navigation
+and accessibility styles while preserving the existing Material theme.

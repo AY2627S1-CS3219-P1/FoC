@@ -13,7 +13,7 @@ import (
 )
 
 func TestOriginalIdentitiesAndMutations(t *testing.T) {
-	for _, m := range []proto.Message{&order.AcceptOrderRequest{}, &order.AcceptOfferRequest{}, &order.CancelOrderRequest{}, &order.AdminCancelOrderRequest{}, &order.UnassignCourierRequest{}} {
+	for _, m := range []proto.Message{&order.AcceptOrderRequest{}, &order.AcceptOfferRequest{}, &order.AdminCancelOrderRequest{}, &order.UnassignCourierRequest{}} {
 		if m.ProtoReflect().Descriptor().Fields().ByName("idempotency_key") != nil {
 			t.Fatalf("unexpected new retry key: %T", m)
 		}
@@ -22,7 +22,7 @@ func TestOriginalIdentitiesAndMutations(t *testing.T) {
 		m      proto.Message
 		name   string
 		number protoreflect.FieldNumber
-	}{{&credit.ReserveRequest{}, "request_id", 1}, {&credit.AdjustReservationRequest{}, "offer_id", 2}, {&order.CreateOrderRequest{}, "idempotency_key", 8}} {
+	}{{&credit.ReserveRequest{}, "request_id", 1}, {&credit.AdjustReservationRequest{}, "offer_id", 2}, {&order.CreateOrderRequest{}, "idempotency_key", 8}, {&order.CancelOrderRequest{}, "idempotency_key", 3}} {
 		f := tc.m.ProtoReflect().Descriptor().Fields().ByName(protoreflect.Name(tc.name))
 		if f == nil || f.Number() != tc.number {
 			t.Fatalf("changed identity: %T %s", tc.m, tc.name)
@@ -33,13 +33,17 @@ func TestOriginalIdentitiesAndMutations(t *testing.T) {
 func TestUploadLimitsAndFormats(t *testing.T) {
 	for _, media := range []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"} {
 		for _, size := range []int64{1, 10000000} {
-			if err := protovalidate.Validate(&order.CreateItemImageUploadRequest{ContentType: media, SizeBytes: size}); err != nil {
+			if err := protovalidate.Validate(
+				&order.CreateItemImageUploadRequest{ContentType: media, SizeBytes: size},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	for _, size := range []int64{-1, 0, 10000001} {
-		if err := protovalidate.Validate(&order.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: size}); err == nil {
+		if err := protovalidate.Validate(
+			&order.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: size},
+		); err == nil {
 			t.Fatalf("accepted size %d", size)
 		}
 	}
@@ -57,7 +61,8 @@ func TestOutcomeKeepsOriginalWireFields(t *testing.T) {
 	if err := proto.Unmarshal(wire, &event); err != nil {
 		t.Fatal(err)
 	}
-	if event.EventId != "event" || event.OrderId != "order" || event.ReservedCredits != 13 || event.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED {
+	if event.EventId != "event" || event.OrderId != "order" || event.ReservedCredits != 13 ||
+		event.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED {
 		t.Fatal("outcome wire contract changed")
 	}
 }

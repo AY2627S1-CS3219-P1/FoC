@@ -59,6 +59,23 @@ spec:
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
+  name: credit-internal-order-only
+spec:
+  selector:
+    matchLabels:
+      app: credit-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/order-service]
+      to:
+        - operation:
+            ports: ["8081"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
   name: gateway-frontend
 spec:
   selector:

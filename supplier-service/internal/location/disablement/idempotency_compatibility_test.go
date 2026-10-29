@@ -19,7 +19,11 @@ func TestWorkflowCreationTimeAfterRetryLock(t *testing.T) {
 	repo.locations[locationID] = disablement.Location{ID: locationID}
 	repo.onRetryLock = func() { now = lockedAt }
 	app := newTestService(repo, func() time.Time { return now })
-	got, err := app.CreateDisablement(context.Background(), admin, disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key})
+	got, err := app.CreateDisablement(
+		context.Background(),
+		admin,
+		disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key},
+	)
 	if err != nil || !got.StartsAt.Equal(lockedAt) || !got.CreatedAt.Equal(lockedAt) {
 		t.Fatalf("callback timestamp: %+v %v", got, err)
 	}
@@ -40,7 +44,12 @@ func TestWorkflowRetrySaveFailureRollsBackResource(t *testing.T) {
 		t.Fatalf("save rollback error=%v resources=%d keys=%d", err, len(repo.disablements), len(repo.keys))
 	}
 	repo.failRetrySave = false
-	if _, err := app.CreateDisablement(context.Background(), admin, in); err != nil || len(repo.disablements) != 1 || len(repo.keys) != 1 {
+	if _, err := app.CreateDisablement(
+		context.Background(),
+		admin,
+		in,
+	); err != nil || len(repo.disablements) != 1 ||
+		len(repo.keys) != 1 {
 		t.Fatalf("retry error=%v resources=%d keys=%d", err, len(repo.disablements), len(repo.keys))
 	}
 }

@@ -84,34 +84,32 @@ export AWS_SECRET_ACCESS_KEY=test
 after signing. Compose uses `floci:4566` internally and `localhost:4566` publicly.
 HTTP service and storage URLs are accepted only in local mode.
 
-## Credit dependency and authentication
+## Credit dependency and service authentication
 
 Live creation additionally requires the actual Credit Reserve/GetReservation and
-creation-compensation backend, plus workload identity from #29:
+creation-compensation backend:
 
 ```sh
-export CREDIT_SERVICE_BASE_URL=https://credit.example
-export CREDIT_WORKLOAD_TOKEN_FILE=/run/workload/order-credit.jwt
+export CREDIT_SERVICE_BASE_URL=http://credit-service:8081
 ```
 
-A deployment-provided `TokenSource` supplies a short-lived bearer credential.
-The file adapter rereads atomically rotated credentials on every dispatch and
-requires a future expiry, subject `order-service` and audience `credit-service`.
-This sender-side inspection does not verify signatures: Credit must implement
-cryptographic verification, issuance/rotation/revocation remain #29's scope.
+In Kubernetes, Order calls Credit's internal ClusterIP Service. Istio mTLS
+authenticates the `order-service` Kubernetes ServiceAccount, and an
+AuthorizationPolicy rejects other callers on Credit's internal listener. The
+application does not send a workload bearer token. Compose keeps the internal
+listener off published host ports and relies on its private service network.
 User JWTs are used only for delegated Supplier reads and are never sent to Credit
-or persisted. No static token issuer or production fake is included.
-
-Mount the credential directory read-only through a local Compose override and set
-the container path in `CREDIT_WORKLOAD_TOKEN_FILE`. Keep actual credentials and
-local paths out of Git. A directory mount allows atomic file replacement to be
-observed; a single-file bind mount can retain an old inode.
+or persisted. Credit's internal RPC handler still has no application-level
+credential verification; see the tracked
+[unauthenticated-listener landmine](../LANDMINES/credit-internal-listener-unauthenticated.md).
 
 New creation is available when Supplier and Credit are configured; there is no
 admission feature flag. Reads and image uploads can run without Credit. An
 existing pending financial workflow requires Credit recovery configuration at
 startup. A configured Credit outage leaves durable Pending Reservation work.
-There is no claim of live integration until Credit/#29 implementations pass.
+The Kubernetes smoke check verifies that only the Order workload identity can
+reach Credit's internal listener; it does not claim the full D3 business flow
+has been exercised end to end.
 
 ## Test the API manually
 

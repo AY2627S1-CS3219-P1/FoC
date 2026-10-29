@@ -12,6 +12,10 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 		return "", false, ErrForbidden
 	}
 
+	if action == Pickup && o.PendingCancellationID != nil {
+		return "", false, ErrPrecondition
+	}
+
 	requester := actor.Kind == User && o.IsRequestedBy(actor.ID)
 	courier := actor.Kind == User && o.IsAssignedTo(actor.ID)
 	if action == Assign && actor.Kind == User && o.IsRequestedBy(actor.ID) {
@@ -41,6 +45,7 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 			ConfirmReservation: AwaitingCourier,
 			RefuseReservation:  Rejected,
 			Assign:             AwaitingPickup,
+			AcceptCounteroffer: AwaitingPickup,
 			Cancel:             Cancelled,
 			Expire:             Expired,
 			Pickup:             Delivering,
@@ -76,9 +81,12 @@ func isActionAllowed(s Status, a Action, k ActorKind, requester, courier bool) b
 	case PendingReservation:
 		return k == System && (a == ConfirmReservation || a == RefuseReservation)
 	case AwaitingCourier:
-		return (a == Assign && k == User && !requester) || (a == Cancel && (requester || k == Admin)) || (a == Expire && k == System)
+		return (a == Assign && k == User && !requester) || (a == AcceptCounteroffer && requester) ||
+			(a == Cancel && (requester || k == Admin)) ||
+			(a == Expire && k == System)
 	case AwaitingPickup:
-		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) || (a == Unassign && k == Admin)
+		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) ||
+			(a == Unassign && k == Admin)
 	case Delivering:
 		return (a == Deliver && courier) || (a == Cancel && (requester || courier)) || (a == Timeout && k == System)
 	case Delivered:

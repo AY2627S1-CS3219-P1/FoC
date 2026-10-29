@@ -108,7 +108,7 @@ func probe(ctx context.Context, client *http.Client, command Command, cfg Config
 	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&health); err != nil {
 		return fmt.Errorf("decode readiness: %w", err)
 	}
-	if health.Status != "ok" {
+	if health.Status != "ok" && health.Status != "SERVING" {
 		return errors.New("readiness RPC did not report ok")
 	}
 	return nil

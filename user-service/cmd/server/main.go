@@ -25,6 +25,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
@@ -33,6 +34,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -49,6 +51,7 @@ type config struct {
 	appEnv          string
 	frontendURL     string
 	privateKey      string
+	kafkaBrokers    string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
@@ -57,6 +60,7 @@ type config struct {
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
+	slog.SetDefault(log)
 	fatal := func(msg string, err error) {
 		log.Error(msg, "err", err)
 		os.Exit(1)
@@ -107,10 +111,29 @@ func main() {
 		}
 	}
 
+	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{
+		Brokers: strings.Split(cfg.kafkaBrokers, ","),
+	})
+	if err != nil {
+		fatal("initialize Kafka publisher", err)
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			log.Error("close Kafka publisher", "err", err)
+		}
+	}()
+
 	auth, codec, persistence, err := newAuthServices(db, cfg)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
+	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
+	relayDone := make(chan struct{})
+	go func() {
+		defer close(relayDone)
+		relay.Run(ctx)
+	}()
+
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
@@ -140,6 +163,8 @@ func main() {
 	if err := transport.Run(ctx, transport.ShutdownTimeout, cfg.transport.Servers(public, internal)...); err != nil {
 		fatal("serve", err)
 	}
+	stop()
+	<-relayDone
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -147,7 +172,7 @@ func newServer(addr string, handler http.Handler) *http.Server {
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
-// defaults and rejecting a missing DATABASE_URL or malformed values.
+// defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return config{}, fmt.Errorf("load .env: %w", err)
@@ -168,6 +193,7 @@ func loadConfig() (config, error) {
 		appEnv:          envString("APP_ENV", ""),
 		frontendURL:     envString("FRONTEND_BASE_URL", ""),
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
@@ -203,6 +229,16 @@ func loadConfig() (config, error) {
 	}
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
+	}
+	if cfg.kafkaBrokers == "" {
+		errs = append(errs, errors.New("KAFKA_BROKERS is not set"))
+	} else {
+		for _, broker := range strings.Split(cfg.kafkaBrokers, ",") {
+			if strings.TrimSpace(broker) == "" {
+				errs = append(errs, errors.New("KAFKA_BROKERS must contain comma-separated broker addresses"))
+				break
+			}
+		}
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
@@ -283,12 +319,14 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 	serviceStore := service.Store{
 		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
 		Sessions: persistence.Sessions, Domains: persistence.Admin,
+		UserCreatedEvents: persistence.UserCreatedOutbox,
 	}
 	withTransaction := func(ctx context.Context, operation func(service.Store) error) error {
 		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
 			return operation(service.Store{
 				Users: tx.Users, AuthTokens: tx.AuthTokens,
 				Sessions: tx.Sessions, Domains: tx.Admin,
+				UserCreatedEvents: tx.UserCreatedOutbox,
 			})
 		})
 	}

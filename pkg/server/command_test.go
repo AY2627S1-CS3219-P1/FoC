@@ -22,14 +22,15 @@ func TestProbeChecksOnlyRequiredDependencies(t *testing.T) {
 		command         Command
 		internalMissing bool
 		databaseDown    bool
+		healthProcedure string
 		wantPaths       string
 		wantError       bool
 	}{
 		{name: "single live", mode: Single, command: Live, databaseDown: true, wantPaths: "8080/livez"},
 		{name: "mesh live ignores dependencies", mode: Mesh, command: Live, internalMissing: true, databaseDown: true, wantPaths: "8080/livez"},
-		{name: "single ready", mode: Single, command: Ready, wantPaths: "8080/health/Check"},
-		{name: "mesh ready", mode: Mesh, command: Ready, wantPaths: "8081/livez,8080/health/Check"},
-		{name: "database failure", mode: Single, command: Ready, databaseDown: true, wantPaths: "8080/health/Check", wantError: true},
+		{name: "single ready", mode: Single, command: Ready, healthProcedure: "/health/Check", wantPaths: "8080/health/Check"},
+		{name: "mesh ready", mode: Mesh, command: Ready, healthProcedure: "/grpc.health.v1.Health/Check", wantPaths: "8081/livez,8080/grpc.health.v1.Health/Check"},
+		{name: "database failure", mode: Single, command: Ready, healthProcedure: "/health/Check", databaseDown: true, wantPaths: "8080/health/Check", wantError: true},
 		{name: "missing internal listener", mode: Mesh, command: Ready, internalMissing: true, wantPaths: "8081/livez", wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,6 +53,9 @@ func TestProbeChecksOnlyRequiredDependencies(t *testing.T) {
 						t.Fatalf("payload=%s err=%v", payload, err)
 					}
 					body = `{"status":"ok"}`
+					if tc.healthProcedure == "/grpc.health.v1.Health/Check" {
+						body = `{"status":"SERVING"}`
+					}
 					if tc.databaseDown {
 						status, body = http.StatusServiceUnavailable, `{"code":"unavailable"}`
 					}
@@ -60,7 +64,7 @@ func TestProbeChecksOnlyRequiredDependencies(t *testing.T) {
 				}
 				return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 			})}
-			err := probe(context.Background(), client, tc.command, Config{Mode: tc.mode, Port: "8080"}, "/health/Check")
+			err := probe(context.Background(), client, tc.command, Config{Mode: tc.mode, Port: "8080"}, tc.healthProcedure)
 			if (err != nil) != tc.wantError || strings.Join(requests, ",") != tc.wantPaths {
 				t.Fatalf("requests=%v err=%v", requests, err)
 			}

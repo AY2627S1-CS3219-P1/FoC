@@ -55,6 +55,22 @@ func (q *Queries) GetLink(ctx context.Context, userID uuid.UUID) (TelegramLink, 
 	return i, err
 }
 
+const getLinkByChat = `-- name: GetLinkByChat :one
+SELECT user_id, chat_id, telegram_username, linked_at FROM telegram_links WHERE chat_id = $1
+`
+
+func (q *Queries) GetLinkByChat(ctx context.Context, chatID int64) (TelegramLink, error) {
+	row := q.db.QueryRow(ctx, getLinkByChat, chatID)
+	var i TelegramLink
+	err := row.Scan(
+		&i.UserID,
+		&i.ChatID,
+		&i.TelegramUsername,
+		&i.LinkedAt,
+	)
+	return i, err
+}
+
 const lockChat = `-- name: LockChat :exec
 SELECT pg_advisory_xact_lock($1::bigint)
 `

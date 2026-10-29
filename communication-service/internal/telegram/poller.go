@@ -12,10 +12,21 @@ type UpdateSource interface {
 	GetUpdates(ctx context.Context, offset int64, timeout time.Duration) ([]Update, error)
 }
 
-// Handler processes one update. A returned error retries that update before
-// acknowledging it or processing later updates. Ignore unsupported/invalid
-// messages by returning nil; reply delivery should not replay committed changes.
+// Handler processes one update. RetryError delays acknowledgement until its
+// continuation succeeds; other errors are logged and acknowledged. Handlers
+// that mutate state must return a RetryError around the unfinished operation.
 type Handler func(ctx context.Context, update Update) error
+
+// RetryError retains the unfinished part of an update without repeating its
+// completed side effects. Retry must return another RetryError if it still fails.
+type RetryError struct {
+	Err   error
+	Retry func(context.Context) error
+}
+
+func (e *RetryError) Error() string { return e.Err.Error() }
+
+func (e *RetryError) Unwrap() error { return e.Err }
 
 // DefaultPollTimeout is how long each getUpdates call waits for updates.
 const DefaultPollTimeout = 30 * time.Second
@@ -62,23 +73,27 @@ func (p *Poller) Run(ctx context.Context) error {
 			continue
 		}
 		for _, update := range updates {
-			for {
-				if ctx.Err() != nil {
-					return nil
-				}
-				err := p.Handle(ctx, update)
-				if err == nil {
-					break
-				}
+			err := p.Handle(ctx, update)
+			for err != nil {
 				if errors.Is(err, ErrUnauthorized) {
 					return err
 				}
-				p.Log.Error("telegram update failed; retrying", "update_id", update.UpdateID, "err", err)
+				p.Log.Error("telegram update failed", "update_id", update.UpdateID, "err", err)
+				var retry *RetryError
+				if !errors.As(err, &retry) {
+					break
+				}
+				delay := backoff
+				var apiErr *APIError
+				if errors.As(err, &apiErr) && apiErr.RetryAfter > delay {
+					delay = apiErr.RetryAfter
+				}
 				select {
 				case <-ctx.Done():
 					return nil
-				case <-time.After(backoff):
+				case <-time.After(delay):
 				}
+				err = retry.Retry(ctx)
 			}
 			offset = update.UpdateID + 1
 		}

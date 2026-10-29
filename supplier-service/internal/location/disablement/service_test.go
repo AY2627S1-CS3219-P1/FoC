@@ -15,7 +15,16 @@ func TestScheduledDisablementCannotEndEarly(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = disablement.Location{ID: locationID}
 	app := newTestService(repo, func() time.Time { return now })
-	d, err := app.CreateDisablement(context.Background(), admin, disablement.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), Reason: "maintenance", Key: key})
+	d, err := app.CreateDisablement(
+		context.Background(),
+		admin,
+		disablement.CreateDisablement{
+			LocationID: locationID,
+			StartsAt:   ptr(now.Add(time.Hour)),
+			Reason:     "maintenance",
+			Key:        key,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +40,13 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = disablement.Location{ID: locationID}
 	app := newTestService(repo, func() time.Time { return now })
-	in := disablement.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), EndsAt: ptr(now.Add(3 * time.Hour)), Reason: " maintenance ", Key: key}
+	in := disablement.CreateDisablement{
+		LocationID: locationID,
+		StartsAt:   ptr(now.Add(time.Hour)),
+		EndsAt:     ptr(now.Add(3 * time.Hour)),
+		Reason:     " maintenance ",
+		Key:        key,
+	}
 	d, e := app.CreateDisablement(ctx, admin, in)
 	if e != nil {
 		t.Fatal(e)
@@ -49,11 +64,19 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	in.Key = "7ca52cce-643c-44c3-b0e4-1a998b4cbbca"
 	_, e = app.CreateDisablement(ctx, admin, in)
 	expectError(t, e, disablement.ErrAlreadyExists)
-	updated, e := app.UpdateDisablement(ctx, admin, disablement.UpdateDisablement{ID: d.ID, Reason: "changed", Paths: []string{"reason"}, ExpectedRevision: 1})
+	updated, e := app.UpdateDisablement(
+		ctx,
+		admin,
+		disablement.UpdateDisablement{ID: d.ID, Reason: "changed", Paths: []string{"reason"}, ExpectedRevision: 1},
+	)
 	if e != nil || updated.Revision != 2 || !updated.StartsAt.Equal(d.StartsAt) {
 		t.Fatalf("update: %+v %v", updated, e)
 	}
-	_, e = app.UpdateDisablement(ctx, admin, disablement.UpdateDisablement{ID: d.ID, Reason: "stale", Paths: []string{"reason"}, ExpectedRevision: 1})
+	_, e = app.UpdateDisablement(
+		ctx,
+		admin,
+		disablement.UpdateDisablement{ID: d.ID, Reason: "stale", Paths: []string{"reason"}, ExpectedRevision: 1},
+	)
 	expectError(t, e, disablement.ErrAborted)
 	cancelled, e := app.CancelDisablement(ctx, admin, d.ID)
 	if e != nil || cancelled.State(now) != disablement.Cancelled {
@@ -73,7 +96,16 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	now = now.Add(2 * time.Hour)
 	_, e = app.CancelDisablement(ctx, admin, created.ID)
 	expectError(t, e, disablement.ErrFailedPrecondition)
-	_, e = app.UpdateDisablement(ctx, admin, disablement.UpdateDisablement{ID: created.ID, Reason: "too late", Paths: []string{"reason"}, ExpectedRevision: 1})
+	_, e = app.UpdateDisablement(
+		ctx,
+		admin,
+		disablement.UpdateDisablement{
+			ID:               created.ID,
+			Reason:           "too late",
+			Paths:            []string{"reason"},
+			ExpectedRevision: 1,
+		},
+	)
 	expectError(t, e, disablement.ErrFailedPrecondition)
 	ended, e := app.EndDisablement(ctx, admin, created.ID)
 	if e != nil || ended.EndedAt == nil || ended.State(now) != disablement.Ended {
@@ -86,7 +118,16 @@ func TestDisablementLifecycleRetriesRevisionsAndOverlap(t *testing.T) {
 	_, e = app.CancelDisablement(ctx, admin, created.ID)
 	expectError(t, e, disablement.ErrFailedPrecondition)
 	// Adjacent intervals do not overlap. The ended historical portion still does.
-	_, e = app.CreateDisablement(ctx, admin, disablement.CreateDisablement{LocationID: locationID, StartsAt: ptr(now), Reason: "next", Key: "d27f9a93-b9fc-4dd4-9d2d-abd297866dba"})
+	_, e = app.CreateDisablement(
+		ctx,
+		admin,
+		disablement.CreateDisablement{
+			LocationID: locationID,
+			StartsAt:   ptr(now),
+			Reason:     "next",
+			Key:        "d27f9a93-b9fc-4dd4-9d2d-abd297866dba",
+		},
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -102,11 +143,24 @@ func TestScheduledUpdateMayStartNow(t *testing.T) {
 	repo := newTestRepository()
 	repo.locations[locationID] = disablement.Location{ID: locationID}
 	app := newTestService(repo, func() time.Time { return now })
-	d, e := app.CreateDisablement(ctx, admin, disablement.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Hour)), Reason: "maintenance", Key: key})
+	d, e := app.CreateDisablement(
+		ctx,
+		admin,
+		disablement.CreateDisablement{
+			LocationID: locationID,
+			StartsAt:   ptr(now.Add(time.Hour)),
+			Reason:     "maintenance",
+			Key:        key,
+		},
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	updated, e := app.UpdateDisablement(ctx, admin, disablement.UpdateDisablement{ID: d.ID, StartsAt: &now, Paths: []string{"starts_at"}, ExpectedRevision: 1})
+	updated, e := app.UpdateDisablement(
+		ctx,
+		admin,
+		disablement.UpdateDisablement{ID: d.ID, StartsAt: &now, Paths: []string{"starts_at"}, ExpectedRevision: 1},
+	)
 	if e != nil || updated.State(now) != disablement.Active {
 		t.Fatalf("start now: %+v %v", updated, e)
 	}

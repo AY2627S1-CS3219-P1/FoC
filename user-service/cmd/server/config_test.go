@@ -9,7 +9,7 @@ import (
 func TestTransportConfigurationPreservesComposeDefaults(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for key, value := range map[string]string{
-		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test",
+		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
 		"PORT": "", "RPC_MODE": "", "RUN_MIGRATIONS": "",
 		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "",
 		"SMTP_ADDR": "", "SMTP_FROM": "",

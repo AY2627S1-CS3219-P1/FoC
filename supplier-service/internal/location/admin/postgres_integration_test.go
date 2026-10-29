@@ -49,7 +49,13 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			input := adminInput()
 			tc.edit(&input)
-			if _, err := svc.Create(auth.WithCaller(ctx, admin), CreateRequest{Key: uuid.NewString(), Input: input}); !errors.Is(err, tc.want) {
+			if _, err := svc.Create(
+				auth.WithCaller(ctx, admin),
+				CreateRequest{Key: uuid.NewString(), Input: input},
+			); !errors.Is(
+				err,
+				tc.want,
+			) {
 				t.Fatalf("create error = %v, want %v", err, tc.want)
 			}
 		})
@@ -73,14 +79,17 @@ func TestPostgresAdminReferenceFailuresAndRollback(t *testing.T) {
 	}
 	var name string
 	var revision int64
-	if err := pool.QueryRow(ctx, "SELECT name, revision FROM locations WHERE id = $1", coopID).Scan(&name, &revision); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT name, revision FROM locations WHERE id = $1", coopID).
+		Scan(&name, &revision); err != nil {
 		t.Fatal(err)
 	}
 	if name != "NUS Co-op" || revision != 1 {
 		t.Fatalf("rollback left name %q, revision %d", name, revision)
 	}
 	var category string
-	if err := pool.QueryRow(ctx, "SELECT category_id::text FROM location_categories WHERE location_id = $1", coopID).Scan(&category); err != nil || category != foodID {
+	if err := pool.QueryRow(ctx, "SELECT category_id::text FROM location_categories WHERE location_id = $1", coopID).
+		Scan(&category); err != nil ||
+		category != foodID {
 		t.Fatalf("rollback left category %q, %v", category, err)
 	}
 }
@@ -99,7 +108,12 @@ func TestPostgresAdminLockedRelationshipIsFresh(t *testing.T) {
 	if _, err := first.Exec(ctx, "DELETE FROM location_categories WHERE location_id = $1", coopID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.Exec(ctx, "INSERT INTO location_categories (location_id, category_id) VALUES ($1, $2)", coopID, coffeeID); err != nil {
+	if _, err := first.Exec(
+		ctx,
+		"INSERT INTO location_categories (location_id, category_id) VALUES ($1, $2)",
+		coopID,
+		coffeeID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	result := make(chan shared.Location, 1)

@@ -60,7 +60,11 @@ func (f *fakeLocationReader) ListCategories(context.Context) ([]location.Categor
 // newLocationClient serves the Location handler behind the real auth
 // middleware and returns a client calling as role, or without a token if
 // role is empty.
-func newLocationClient(t *testing.T, reader location.Reader, role string) locationv1connect.LocationDiscoveryServiceClient {
+func newLocationClient(
+	t *testing.T,
+	reader location.Reader,
+	role string,
+) locationv1connect.LocationDiscoveryServiceClient {
 	t.Helper()
 	auth := rpcauth.New(t)
 	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
@@ -101,7 +105,10 @@ func TestGetLocationReturnsLocation(t *testing.T) {
 		},
 	}}, "user")
 
-	res, err := client.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
+	res, err := client.GetLocation(
+		context.Background(),
+		connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +145,10 @@ func TestLocationErrors(t *testing.T) {
 			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.GetLocation(context.Background(), connect.NewRequest(&locationv1.GetLocationRequest{Id: "nope"}))
+				_, err := c.GetLocation(
+					context.Background(),
+					connect.NewRequest(&locationv1.GetLocationRequest{Id: "nope"}),
+				)
 				return err
 			},
 			want: connect.CodeInvalidArgument,
@@ -148,7 +158,10 @@ func TestLocationErrors(t *testing.T) {
 			role:   "user",
 			reader: &fakeLocationReader{},
 			call: func(c locationv1connect.LocationDiscoveryServiceClient) error {
-				_, err := c.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{PageSize: 101}))
+				_, err := c.ListLocations(
+					context.Background(),
+					connect.NewRequest(&locationv1.ListLocationsRequest{PageSize: 101}),
+				)
 				return err
 			},
 			want: connect.CodeInvalidArgument,
@@ -187,7 +200,10 @@ func TestListReferenceData(t *testing.T) {
 	if err != nil || len(buildings.Msg.Buildings) != 1 || buildings.Msg.Buildings[0].Name != "COM2" {
 		t.Fatalf("buildings = %v, err %v", buildings, err)
 	}
-	categories, err := client.ListCategories(context.Background(), connect.NewRequest(&locationv1.ListCategoriesRequest{}))
+	categories, err := client.ListCategories(
+		context.Background(),
+		connect.NewRequest(&locationv1.ListCategoriesRequest{}),
+	)
 	if err != nil || len(categories.Msg.Categories) != 1 || categories.Msg.Categories[0].Name != "Food" {
 		t.Fatalf("categories = %v, err %v", categories, err)
 	}
@@ -220,7 +236,10 @@ func TestEveryRoleCanBrowse(t *testing.T) {
 	for _, role := range []string{"super_admin", "admin", "user", "suspended_user"} {
 		t.Run(role, func(t *testing.T) {
 			client := newLocationClient(t, &fakeLocationReader{}, role)
-			if _, err := client.ListLocations(context.Background(), connect.NewRequest(&locationv1.ListLocationsRequest{})); err != nil {
+			if _, err := client.ListLocations(
+				context.Background(),
+				connect.NewRequest(&locationv1.ListLocationsRequest{}),
+			); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -230,7 +249,9 @@ func TestEveryRoleCanBrowse(t *testing.T) {
 func TestInvalidTokenIsRejected(t *testing.T) {
 	auth := rpcauth.New(t)
 	other := rpcauth.New(t)
-	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(NewServer(location.NewService(&fakeLocationReader{})))
+	path, handler := locationv1connect.NewLocationDiscoveryServiceHandler(
+		NewServer(location.NewService(&fakeLocationReader{})),
+	)
 	router := chi.NewRouter()
 	router.Mount(path, auth.Authenticator.Authenticate(handler))
 	server := httptest.NewServer(router)
@@ -274,7 +295,10 @@ func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
 				call func() error
 			}{
 				{"get", func() error {
-					_, err := client.GetLocation(ctx, connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}))
+					_, err := client.GetLocation(
+						ctx,
+						connect.NewRequest(&locationv1.GetLocationRequest{Id: locationID}),
+					)
 					return err
 				}},
 				{"list", func() error {
@@ -295,7 +319,8 @@ func TestDiscoveryRPCPreservesSharedErrorResponses(t *testing.T) {
 				t.Run(call.name, func(t *testing.T) {
 					err := call.call()
 					var transportError *connect.Error
-					if !errors.As(err, &transportError) || transportError.Code() != row.code || transportError.Message() != row.message {
+					if !errors.As(err, &transportError) || transportError.Code() != row.code ||
+						transportError.Message() != row.message {
 						t.Fatalf("error = %v, want %v: %s", err, row.code, row.message)
 					}
 				})

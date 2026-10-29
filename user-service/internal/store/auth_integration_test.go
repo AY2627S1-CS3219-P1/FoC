@@ -38,6 +38,9 @@ func setupAuthStore(t *testing.T) (*Store, *gorm.DB) {
 	if err := db.Exec("TRUNCATE users CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
+		t.Fatal(err)
+	}
 	return New(db), db
 }
 
@@ -87,14 +90,30 @@ func TestAuthTokensPersistence(t *testing.T) {
 	if err := store.AuthTokens.Create(ctx, &login); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeRegister, now); !errors.Is(err, ErrChallengeRejected) {
+	if _, err := store.AuthTokens.Consume(
+		ctx,
+		loginHash,
+		models.TokenPurposeRegister,
+		now,
+	); !errors.Is(
+		err,
+		ErrChallengeRejected,
+	) {
 		t.Fatalf("wrong token purpose: %v", err)
 	}
 	consumed, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeLogin, now)
 	if err != nil || consumed.ID != login.ID {
 		t.Fatalf("consume token: %+v, %v", consumed, err)
 	}
-	if _, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeLogin, now); !errors.Is(err, ErrChallengeRejected) {
+	if _, err := store.AuthTokens.Consume(
+		ctx,
+		loginHash,
+		models.TokenPurposeLogin,
+		now,
+	); !errors.Is(
+		err,
+		ErrChallengeRejected,
+	) {
 		t.Fatalf("reused token: %v", err)
 	}
 
@@ -133,7 +152,15 @@ func TestAuthTokensRejectDeletedUser(t *testing.T) {
 	if err := store.Users.Delete(ctx, user.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AuthTokens.Consume(ctx, loginHash, models.TokenPurposeLogin, now); !errors.Is(err, ErrChallengeRejected) {
+	if _, err := store.AuthTokens.Consume(
+		ctx,
+		loginHash,
+		models.TokenPurposeLogin,
+		now,
+	); !errors.Is(
+		err,
+		ErrChallengeRejected,
+	) {
 		t.Fatalf("deleted user's token: %v", err)
 	}
 }
@@ -170,7 +197,11 @@ func TestStoreTransactionRollback(t *testing.T) {
 		t.Fatalf("rollback left token consumed: %v", err)
 	}
 	var count int64
-	if err := db.Model(&models.Session{}).Where("id = ?", rollbackSession.ID).Count(&count).Error; err != nil || count != 0 {
+	if err := db.Model(&models.Session{}).
+		Where("id = ?", rollbackSession.ID).
+		Count(&count).
+		Error; err != nil ||
+		count != 0 {
 		t.Fatalf("rollback left session: count=%d err=%v", count, err)
 	}
 }
@@ -187,7 +218,15 @@ func TestSessionsPersistence(t *testing.T) {
 	if err := store.Sessions.Create(ctx, &session); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Sessions.Revoke(ctx, session.ID, testDigest("stale-session"), now); !errors.Is(err, ErrSessionRejected) {
+	if err := store.Sessions.Revoke(
+		ctx,
+		session.ID,
+		testDigest("stale-session"),
+		now,
+	); !errors.Is(
+		err,
+		ErrSessionRejected,
+	) {
 		t.Fatalf("stale session hash: %v", err)
 	}
 	if err := store.Sessions.Revoke(ctx, session.ID, sessionHash, now); err != nil {
@@ -227,7 +266,11 @@ func TestSessionsRevokeAllForUser(t *testing.T) {
 		t.Fatalf("revoke all: count=%d err=%v", count, err)
 	}
 	var live int64
-	if err := db.Model(&models.Session{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).Count(&live).Error; err != nil || live != 0 {
+	if err := db.Model(&models.Session{}).
+		Where("user_id = ? AND revoked_at IS NULL", user.ID).
+		Count(&live).
+		Error; err != nil ||
+		live != 0 {
 		t.Fatalf("user still has live sessions: count=%d err=%v", live, err)
 	}
 	if err := store.Sessions.Revoke(ctx, otherSession.ID, testDigest("other"), now); err != nil {

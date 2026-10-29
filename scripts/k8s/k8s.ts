@@ -197,7 +197,7 @@ async function deployAll(): Promise<void> {
 	if (isLocalOverlay()) {
 		await generateLocalSecrets();
 	} else {
-		for (const secret of ["postgres-admin", "user-db", "supplier-db", "order-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"]) {
+		for (const secret of ["postgres-admin", "user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"]) {
 			await k(["-n", "foc", "get", "secret", secret], { capture: true });
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.");
@@ -225,7 +225,7 @@ async function deployAll(): Promise<void> {
 		await k(["-n", "foc", "rollout", "restart", "deployment/" + app]);
 		await k(["-n", "foc", "rollout", "status", "deployment/" + app, "--timeout=" + K8S_TIMEOUT]);
 	}
-	note("Bootstrap coverage: User, Supplier, Order, Communication, frontend, PostgreSQL, Kafka, Kafka UI; local overlay also Mailpit and Floci. Credit and the complete D3 business workflow are absent.");
+	note("Bootstrap coverage: User, Supplier, Order, Credit, Communication, frontend, PostgreSQL, Kafka, Kafka UI; local overlay also Mailpit and Floci. The complete D3 business workflow is not claimed.");
 }
 
 async function deployOne(service: string): Promise<void> {
@@ -457,7 +457,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 			await runProxyStartupSmoke();
 			return;
 		case "demo":
-			die("D3 demo is unavailable: Credit and the integrated registration/credit/order workflow are not implemented. Use make k8s-smoke for infrastructure checks.");
+			die("D3 demo is unavailable: the integrated registration/credit/order workflow is not verified for this deployment. Use make k8s-smoke for infrastructure and service-boundary checks.");
 		case "delete-cluster":
 			await deleteCluster();
 			return;

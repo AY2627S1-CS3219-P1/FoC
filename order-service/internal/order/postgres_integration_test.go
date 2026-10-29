@@ -35,7 +35,14 @@ func setup(t *testing.T) *fixture {
 	t.Cleanup(cancel)
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
-		container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("order_test"), postgres.WithUsername("order"), postgres.WithPassword("order"), postgres.BasicWaitStrategies())
+		container, err := postgres.Run(
+			ctx,
+			"postgres:18",
+			postgres.WithDatabase("order_test"),
+			postgres.WithUsername("order"),
+			postgres.WithPassword("order"),
+			postgres.BasicWaitStrategies(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +62,9 @@ func setup(t *testing.T) *fixture {
 	}
 	t.Cleanup(pool.Close)
 	var version int
-	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").Scan(&version); err != nil || version < 180000 || version >= 190000 {
+	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").
+		Scan(&version); err != nil || version < 180000 ||
+		version >= 190000 {
 		t.Fatalf("requires disposable PostgreSQL 18: %d %v", version, err)
 	}
 	// TEST_DATABASE_URL must point at a throwaway database: this resets its schema.
@@ -92,7 +101,27 @@ func sampleOrder() Order {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	instructions := "Room 7: call on arrival"
 	floor := "2"
-	return Order{ID: uuid.NewString(), RequesterID: uuid.NewString(), Status: PendingReservation, Pickup: LocationSnapshot{LocationID: uuid.NewString(), Name: "Café", BuildingName: "COM2", Floor: &floor}, Delivery: LocationSnapshot{LocationID: uuid.NewString(), Name: "Lobby", BuildingName: "PGP"}, DeliveryInstructions: &instructions, ItemDescription: "Lunch", RewardCredits: 15, ReservedCredits: 15, DeliveryDuration: 15*time.Minute + 1234, ExpiresAt: now.Add(time.Hour), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	return Order{
+		ID:          uuid.NewString(),
+		RequesterID: uuid.NewString(),
+		Status:      PendingReservation,
+		Pickup: LocationSnapshot{
+			LocationID:   uuid.NewString(),
+			Name:         "Café",
+			BuildingName: "COM2",
+			Floor:        &floor,
+		},
+		Delivery:             LocationSnapshot{LocationID: uuid.NewString(), Name: "Lobby", BuildingName: "PGP"},
+		DeliveryInstructions: &instructions,
+		ItemDescription:      "Lunch",
+		RewardCredits:        15,
+		ReservedCredits:      15,
+		DeliveryDuration:     15*time.Minute + 1234,
+		ExpiresAt:            now.Add(time.Hour),
+		Revision:             1,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 }
 func (f *fixture) create(t *testing.T) Order {
 	t.Helper()
@@ -152,7 +181,8 @@ func (f *fixture) counts(t *testing.T, id string) (audit, outbox, offers int) {
 		table  string
 		target *int
 	}{{"order_audit", &audit}, {"order_outbox", &outbox}, {"offers", &offers}} {
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM "+v.table+" WHERE order_id=$1", id).Scan(v.target); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM "+v.table+" WHERE order_id=$1", id).
+			Scan(v.target); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -175,11 +205,16 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(a, n)
 		}
 		var payload []byte
-		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1", o.ID).Scan(&payload); err != nil {
+		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1", o.ID).
+			Scan(&payload); err != nil {
 			t.Fatal(err)
 		}
 		var fact FactsPayload
-		if err = json.Unmarshal(payload, &fact); err != nil || fact.Status != PendingReservation || fact.ReservedCredits != 15 {
+		if err = json.Unmarshal(
+			payload,
+			&fact,
+		); err != nil || fact.Status != PendingReservation ||
+			fact.ReservedCredits != 15 {
 			t.Fatal(string(payload), err)
 		}
 	})
@@ -209,17 +244,27 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(a, n)
 		}
 		var payload []byte
-		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&payload); err != nil {
+		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+			Scan(&payload); err != nil {
 			t.Fatal(err)
 		}
 		var outcome FactsPayload
 		if err = json.Unmarshal(payload, &outcome); err != nil {
 			t.Fatal(err)
 		}
-		if outcome.RequesterID != o.RequesterID || outcome.CourierID == nil || *outcome.CourierID != courier.ID || !outcome.AfterPickup || outcome.PickedUpAt == nil || outcome.DeliveredAt == nil || outcome.ReservedCredits != 15 || outcome.DeliveryDurationNS != int64(o.DeliveryDuration) {
+		if outcome.RequesterID != o.RequesterID || outcome.CourierID == nil || *outcome.CourierID != courier.ID ||
+			!outcome.AfterPickup ||
+			outcome.PickedUpAt == nil ||
+			outcome.DeliveredAt == nil ||
+			outcome.ReservedCredits != 15 ||
+			outcome.DeliveryDurationNS != int64(o.DeliveryDuration) {
 			t.Fatalf("incomplete facts: %+v", outcome)
 		}
-		rows, err := f.pool.Query(f.ctx, "SELECT revision,ordinal,kind FROM order_outbox WHERE order_id=$1 ORDER BY revision,ordinal", o.ID)
+		rows, err := f.pool.Query(
+			f.ctx,
+			"SELECT revision,ordinal,kind FROM order_outbox WHERE order_id=$1 ORDER BY revision,ordinal",
+			o.ID,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +311,8 @@ func TestPostgresFoundation(t *testing.T) {
 				}
 				f.mustTransition(t, o.ID, Cancel, actor)
 				var payload []byte
-				if err := f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&payload); err != nil {
+				if err := f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+					Scan(&payload); err != nil {
 					t.Fatal(err)
 				}
 				var fact FactsPayload
@@ -277,7 +323,8 @@ func TestPostgresFoundation(t *testing.T) {
 					t.Fatal(string(payload))
 				}
 				var warnings int
-				if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.courier_warning_requested'", o.ID).Scan(&warnings); err != nil {
+				if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.courier_warning_requested'", o.ID).
+					Scan(&warnings); err != nil {
 					t.Fatal(err)
 				}
 				if (warnings == 1) != byCourier {
@@ -360,7 +407,8 @@ func TestPostgresFoundation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n, err := db.New(f.pool).UpdateOrder(f.ctx, db.UpdateOrderParams{ID: row.ID, CourierID: row.CourierID, Status: row.Status, Pickup: row.Pickup, Delivery: row.Delivery, DeliveryInstructions: row.DeliveryInstructions, ItemDescription: row.ItemDescription, RewardCredits: row.RewardCredits, ReservedCredits: row.ReservedCredits, DeliveryDurationNs: row.DeliveryDurationNs, ExpiresAt: row.ExpiresAt, Revision: 2, UpdatedAt: row.UpdatedAt, ExpectedRevision: 99})
+		n, err := db.New(f.pool).
+			UpdateOrder(f.ctx, db.UpdateOrderParams{ID: row.ID, CourierID: row.CourierID, Status: row.Status, Pickup: row.Pickup, Delivery: row.Delivery, DeliveryInstructions: row.DeliveryInstructions, ItemDescription: row.ItemDescription, RewardCredits: row.RewardCredits, ReservedCredits: row.ReservedCredits, DeliveryDurationNs: row.DeliveryDurationNs, ExpiresAt: row.ExpiresAt, Revision: 2, UpdatedAt: row.UpdatedAt, ExpectedRevision: 99})
 		if err != nil || n != 0 {
 			t.Fatal(n, err)
 		}
@@ -386,7 +434,19 @@ func TestPostgresFoundation(t *testing.T) {
 				return nil, e
 			}
 			c.Facts[1].ID = existing
-			c.Offers = []OfferChange{{Offer: Offer{ID: uuid.NewString(), OrderID: o.ID, CourierID: uuid.NewString(), Credits: 20, Status: OfferOpen, CreatedAt: after.UpdatedAt, UpdatedAt: after.UpdatedAt}}}
+			c.Offers = []OfferChange{
+				{
+					Offer: Offer{
+						ID:        uuid.NewString(),
+						OrderID:   o.ID,
+						CourierID: uuid.NewString(),
+						Credits:   20,
+						Status:    OfferOpen,
+						CreatedAt: after.UpdatedAt,
+						UpdatedAt: after.UpdatedAt,
+					},
+				},
+			}
 			return &c, nil
 		})
 		if !errors.Is(err, ErrConflict) {
@@ -456,7 +516,13 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(err)
 		}
 		offerID := uuid.NewString()
-		if _, err = tx.Exec(f.ctx, "INSERT INTO offers VALUES($1,$2,$3,20,'open',now(),now())", offerID, o.ID, uuid.NewString()); err != nil {
+		if _, err = tx.Exec(
+			f.ctx,
+			"INSERT INTO offers VALUES($1,$2,$3,20,'open',now(),now())",
+			offerID,
+			o.ID,
+			uuid.NewString(),
+		); err != nil {
 			t.Fatal(err)
 		}
 		result := make(chan error, 1)
@@ -479,7 +545,8 @@ func TestPostgresFoundation(t *testing.T) {
 		deadline := time.Now().Add(5 * time.Second)
 		blocked := false
 		for time.Now().Before(deadline) {
-			if err = f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%FROM orders%FOR UPDATE%')").Scan(&blocked); err != nil {
+			if err = f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%FROM orders%FOR UPDATE%')").
+				Scan(&blocked); err != nil {
 				t.Fatal(err)
 			}
 			if blocked {
@@ -514,7 +581,13 @@ func TestPostgresFoundation(t *testing.T) {
 		}
 		// Historical accepted offers can coexist through reassignment.
 		for range 2 {
-			if _, err := f.pool.Exec(f.ctx, "INSERT INTO offers VALUES($1,$2,$3,20,'accepted',now(),now())", uuid.NewString(), o.ID, uuid.NewString()); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"INSERT INTO offers VALUES($1,$2,$3,20,'accepted',now(),now())",
+				uuid.NewString(),
+				o.ID,
+				uuid.NewString(),
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

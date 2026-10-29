@@ -20,8 +20,8 @@ export const K8S_IMAGE_PREFIX = process.env.K8S_IMAGE_PREFIX || "foc";
 export const K8S_ISTIO_VERSION = "1.31.2";
 export const K8S_NODE_IMAGE = process.env.K8S_NODE_IMAGE ||
 	"kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f";
-export const K8S_APPS = ["user-service", "supplier-service", "order-service", "communication-service", "frontend"] as const;
-export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "communication-migrate", "kafka-init"] as const;
+export const K8S_APPS = ["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend"] as const;
+export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "credit-migrate", "communication-migrate", "kafka-init"] as const;
 
 export class OperatorError extends Error {}
 

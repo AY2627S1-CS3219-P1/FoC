@@ -11,7 +11,11 @@ import (
 
 type Principal func(context.Context) app.Caller
 
-func CallerInterceptor(principal Principal, validator protovalidate.Validator, authorize func(app.Caller, string) error) connect.Interceptor {
+func CallerInterceptor(
+	principal Principal,
+	validator protovalidate.Validator,
+	authorize func(app.Caller, string) error,
+) connect.Interceptor {
 	if principal == nil || validator == nil || authorize == nil {
 		panic("caller interceptor dependencies are required")
 	}

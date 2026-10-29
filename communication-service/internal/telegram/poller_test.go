@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -42,50 +43,6 @@ func (f *fakeSource) seenOffsets() []int64 {
 
 func quietLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-func TestPollerRetriesFailedUpdateBeforeAcknowledgingBatch(t *testing.T) {
-	source := &fakeSource{results: []func() ([]Update, error){
-		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
-		func() ([]Update, error) { return nil, errors.New("temporary network error") },
-		func() ([]Update, error) { return []Update{{UpdateID: 12}}, nil },
-	}}
-	var mu sync.Mutex
-	var handled []int64
-	ctx, cancel := context.WithCancel(context.Background())
-	poller := &Poller{
-		Source:  source,
-		Log:     quietLog(),
-		Backoff: time.Millisecond,
-		Handle: func(_ context.Context, u Update) error {
-			mu.Lock()
-			defer mu.Unlock()
-			handled = append(handled, u.UpdateID)
-			if u.UpdateID == 12 {
-				cancel()
-			}
-			if len(handled) == 1 {
-				return errors.New("handler failed")
-			}
-			return nil
-		},
-	}
-
-	if err := poller.Run(ctx); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if !reflect.DeepEqual(handled, []int64{10, 10, 11, 12}) {
-		t.Fatalf("handled = %v", handled)
-	}
-	// Retry failed handling before processing later updates or acknowledging
-	// the batch. Failed polls retain the last successful offset.
-	want := []int64{0, 12, 12, 13}
-	got := source.seenOffsets()
-	for i, w := range want {
-		if i >= len(got) || got[i] != w {
-			t.Fatalf("offsets = %v, want prefix %v", got, want)
-		}
-	}
-}
-
 func TestPollerStopsOnRejectedToken(t *testing.T) {
 	source := &fakeSource{results: []func() ([]Update, error){
 		func() ([]Update, error) { return nil, ErrUnauthorized },
@@ -97,10 +54,78 @@ func TestPollerStopsOnRejectedToken(t *testing.T) {
 	}
 }
 
+func TestPollerRetriesContinuationBeforeLaterUpdates(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
+		func() ([]Update, error) { cancel(); return nil, nil },
+	}}
+	var steps []string
+	attempts := 0
+	var resume func(context.Context) error
+	resume = func(context.Context) error {
+		attempts++
+		steps = append(steps, "resume")
+		if attempts == 1 {
+			return &RetryError{Err: errors.New("still unavailable"), Retry: resume}
+		}
+		return nil
+	}
+	poller := &Poller{
+		Source:  source,
+		Log:     quietLog(),
+		Backoff: time.Millisecond,
+		Handle: func(_ context.Context, u Update) error {
+			if u.UpdateID == 10 {
+				steps = append(steps, "first")
+				return &RetryError{Err: errors.New("unavailable"), Retry: resume}
+			}
+			steps = append(steps, "second")
+			return nil
+		},
+	}
+	if err := poller.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(steps, ","); got != "first,resume,resume,second" {
+		t.Fatalf("steps = %s", got)
+	}
+	if offsets := source.seenOffsets(); len(offsets) != 2 || offsets[1] != 12 {
+		t.Fatalf("offsets = %v", offsets)
+	}
+}
+
+func TestPollerCancellationStopsPendingRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	source := &fakeSource{results: []func() ([]Update, error){
+		func() ([]Update, error) { return []Update{{UpdateID: 10}, {UpdateID: 11}}, nil },
+	}}
+	handled := 0
+	poller := &Poller{Source: source, Log: quietLog(), Handle: func(context.Context, Update) error {
+		handled++
+		cancel()
+		return &RetryError{Err: errors.New("unavailable"), Retry: func(context.Context) error {
+			t.Fatal("retried after cancellation")
+			return nil
+		}}
+	}}
+	if err := poller.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if handled != 1 || len(source.seenOffsets()) != 1 {
+		t.Fatalf("handled=%d offsets=%v", handled, source.seenOffsets())
+	}
+}
+
 func TestPollerStopsWhenContextEnds(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	poller := &Poller{Source: &fakeSource{}, Log: quietLog(), Handle: func(context.Context, Update) error { return nil }}
+	poller := &Poller{
+		Source: &fakeSource{},
+		Log:    quietLog(),
+		Handle: func(context.Context, Update) error { return nil },
+	}
 	go func() { done <- poller.Run(ctx) }()
 
 	cancel()
@@ -144,7 +169,13 @@ func TestPollerCancelsDuringFailedUpdateBackoff(t *testing.T) {
 		Handle: func(_ context.Context, update Update) error {
 			handled = append(handled, update.UpdateID)
 			cancel()
-			return errors.New("database unavailable")
+			return &RetryError{
+				Err: errors.New("database unavailable"),
+				Retry: func(context.Context) error {
+					t.Error("retry continuation ran after cancellation")
+					return nil
+				},
+			}
 		},
 	}
 	if err := poller.Run(ctx); err != nil {
