@@ -54,7 +54,8 @@ mesh authentication but no user JWT.
   asynchronous D3 business workflow is not claimed by this infrastructure
   change.
 
-See the [runbook](../runbooks/kubernetes.md).
+See the [runbook](../runbooks/kubernetes.md) and
+[verification record](../runbooks/kubernetes-verification.md).
 
 ## Current-main deployment and developer portability
 
@@ -80,10 +81,12 @@ It preserves PostgreSQL 18.6, PostGIS 3.6.4, UID 999 and the existing data path,
 while adding native arm64 support. This dependency image is independent of
 Compose's image selection and persistence.
 
-Bun remains host tooling and is pinned independently of the frontend runtime.
-Chart validation checks the three actual Chart.yaml files; a verified complete
-tool cache can be reused offline. TLS generation uses an OpenSSL configuration
-file for compatibility with macOS's system implementation.
+Bun remains host tooling. A private root package locks TypeScript and Bun types;
+`make k8s-typecheck` enforces strict checks without emitting files. The compiler
+runs through Bun, so Node is needed only by the frontend runtime/build. Chart
+validation checks the three actual Chart.yaml files; a verified complete tool
+cache can be reused offline. TLS generation uses an OpenSSL configuration file
+for compatibility with macOS's system implementation.
 
 Envoy access logs use the
 [query-free path formatter](https://www.envoyproxy.io/docs/envoy/v1.36.0/configuration/observability/access_log/usage)

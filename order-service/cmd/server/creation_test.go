@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -21,17 +19,13 @@ func (r creationStartupRepository) HasPendingCreations(context.Context) (bool, e
 	return r.pending, nil
 }
 
-func TestCreationStartupRequiresRecoveryCredentialsButNotReachability(t *testing.T) {
+func TestCreationStartupRequiresRecoveryURLButNotReachability(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		http.Error(w, "down", http.StatusServiceUnavailable)
 	}))
 	defer server.Close()
-	file := filepath.Join(t.TempDir(), "service-token")
-	if err := os.WriteFile(file, []byte("dedicated-token"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	for _, tc := range []struct {
 		name           string
 		pending        bool
@@ -40,9 +34,8 @@ func TestCreationStartupRequiresRecoveryCredentialsButNotReachability(t *testing
 	}{
 		{"read-only first deployment", false, config{}, true, false},
 		{"cannot strand pending workflows", true, config{}, false, false},
-		{"admissions disabled but recovery configured", true, config{CreditServiceURL: server.URL, CreditTokenFile: file}, true, true},
-		{"configured outage with no pending work", false, config{CreditServiceURL: server.URL, CreditTokenFile: file}, true, true},
-		{"unreadable credential", true, config{CreditServiceURL: server.URL, CreditTokenFile: file + "-missing"}, false, false},
+		{"admissions disabled but recovery URL configured", true, config{CreditServiceURL: server.URL}, true, true},
+		{"configured outage with no pending work", false, config{CreditServiceURL: server.URL}, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			creator, recover, err := newCreator(

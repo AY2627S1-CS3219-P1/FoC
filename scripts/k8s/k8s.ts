@@ -42,6 +42,10 @@ import {
 } from "./common";
 import { generateLocalSecrets } from "./secrets";
 import { installTools } from "./tools";
+import { runStorageSmoke } from "./storage-smoke";
+import { runSmoke } from "./smoke";
+import { runPersistenceSmoke } from "./persistence-smoke";
+import { runProxyStartupSmoke } from "./proxy-startup-smoke";
 
 async function createLocalCluster(): Promise<void> {
 	await requireCommands("kind");
@@ -440,13 +444,25 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 		case "status":
 			await showStatus();
 			return;
+		case "smoke":
+			await runSmoke();
+			return;
+		case "storage-smoke":
+			await runStorageSmoke();
+			return;
+		case "persistence-smoke":
+			await runPersistenceSmoke();
+			return;
+		case "proxy-startup-smoke":
+			await runProxyStartupSmoke();
+			return;
 		case "demo":
-			die("D3 demo is unavailable: the integrated registration/credit/order workflow is not verified for this deployment.");
+			die("D3 demo is unavailable: the integrated registration/credit/order workflow is not verified for this deployment. Use make k8s-smoke for infrastructure and service-boundary checks.");
 		case "delete-cluster":
 			await deleteCluster();
 			return;
 		default:
-			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|demo|delete-cluster|kafka-ui|mailpit");
+			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|smoke|storage-smoke|persistence-smoke|proxy-startup-smoke|demo|delete-cluster|kafka-ui|mailpit");
 			process.exitCode = 2;
 	}
 }
