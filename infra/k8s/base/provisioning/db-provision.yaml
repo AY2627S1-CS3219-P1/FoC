@@ -34,6 +34,7 @@ spec:
             - {name: user, mountPath: /secrets/user, readOnly: true}
             - {name: supplier, mountPath: /secrets/supplier, readOnly: true}
             - {name: order, mountPath: /secrets/order, readOnly: true}
+            - {name: credit, mountPath: /secrets/credit, readOnly: true}
             - {name: communication, mountPath: /secrets/communication, readOnly: true}
       volumes:
         - name: script
@@ -48,7 +49,9 @@ spec:
         - name: order
           secret:
             secretName: order-db
-
+        - name: credit
+          secret:
+            secretName: credit-db
         - name: communication
           secret:
             secretName: communication-db

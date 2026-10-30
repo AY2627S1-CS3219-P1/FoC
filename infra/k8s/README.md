@@ -82,7 +82,7 @@ delete `.local/k8s/secrets` while retaining a database volume.
 
 ```sh
 make k8s-status                         # pods, jobs, storage and warnings
-make k8s-smoke                          # HTTPS and public User Health RPC through the gateway
+make k8s-smoke                          # frontend, public health RPCs, private-route boundary, listener ports
 make k8s-deploy service=user-service    # rebuild and update one service
 make k8s-kafka-ui                       # attach only the Kafka UI forward
 make k8s-mailpit                        # attach only the Mailpit forward

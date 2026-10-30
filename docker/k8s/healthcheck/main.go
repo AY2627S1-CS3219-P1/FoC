@@ -62,8 +62,12 @@ func run(args []string) error {
 	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&health); err != nil {
 		return err
 	}
-	if health.Status != "ok" && health.Status != "SERVING" {
+	if !isServingStatus(health.Status) {
 		return errors.New("health RPC is not serving")
 	}
 	return nil
+}
+
+func isServingStatus(status string) bool {
+	return status == "ok" || status == "SERVING" || status == "SERVING_STATUS_SERVING"
 }

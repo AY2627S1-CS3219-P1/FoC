@@ -27,6 +27,8 @@ COPY order-service/ ./order-service/
 COPY communication-service/ ./communication-service/
 COPY credit-service/ ./credit-service/
 COPY docker/k8s/healthcheck/ ./docker/k8s/healthcheck/
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    GO111MODULE=off go test ./docker/k8s/healthcheck
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     cd "$SERVICE" \

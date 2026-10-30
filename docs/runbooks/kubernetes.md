@@ -51,7 +51,8 @@ initialization Jobs; databases and PVCs are not reset.
 The private kubeconfig is `.local/k8s/clusters/foc.config`; your current global
 Kubernetes context is not changed. Namespace `foc` holds application resources.
 Run `make k8s-status` to inspect readiness and warnings. Run `make k8s-smoke`
-to check HTTPS and the public User Health RPC through the gateway.
+to check the frontend, every public health RPC, the public/private endpoint
+boundary, and the User and Credit Service target ports through the Gateway.
 
 If Compose created a root-owned `.local`, follow the
 [directory ownership recovery](../../LANDMINES/compose-owned-local-directory.md).

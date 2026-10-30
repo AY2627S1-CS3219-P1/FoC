@@ -84,7 +84,7 @@ spec:
   rules:
     - matches:
         - path: {type: PathPrefix, value: /credit.v1.CreditAccountService}
-        - path: {type: PathPrefix, value: /credit.v1.HealthService}
+        - path: {type: PathPrefix, value: /grpc.health.v1.Health}
       backendRefs:
         - name: credit-service-external
           port: 8080
