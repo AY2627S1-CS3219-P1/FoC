@@ -37,7 +37,7 @@ spec:
   rules:
     - from:
         - source:
-            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
       to:
         - operation:
             ports: ["8080"]
@@ -51,24 +51,7 @@ spec:
   rules:
     - from:
         - source:
-            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
-      to:
-        - operation:
-            ports: ["8081"]
----
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: credit-internal-order-only
-spec:
-  selector:
-    matchLabels:
-      app: credit-service
-  action: DENY
-  rules:
-    - from:
-        - source:
-            notPrincipals: [cluster.local/ns/foc/sa/order-service]
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
       to:
         - operation:
             ports: ["8081"]
@@ -84,7 +67,7 @@ spec:
   rules:
     - from:
         - source:
-            principals: [cluster.local/ns/istio-ingress/sa/istio-ingressgateway]
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
       to:
         - operation:
             ports: ["3000"]

@@ -160,7 +160,7 @@ export async function checkOverlay(): Promise<void> {
 	if (K8S_EXISTING && !K8S_OVERLAY_EXPLICIT) {
 		die("An existing cluster requires explicit K8S_CONTEXT and K8S_OVERLAY.");
 	}
-	for (const stage of ["dependencies", "provisioning", "initialization", "applications"]) {
+	for (const stage of ["gateway", "dependencies", "provisioning", "initialization", "applications"]) {
 		const path = join(K8S_OVERLAY, stage, "kustomization.yaml");
 		if (!(await Bun.file(path).exists())) die("Missing " + path);
 	}
@@ -235,7 +235,7 @@ export function parsePort(name: string, value: string | undefined): number | nul
 
 export function configuredForwards(env: Record<string, string | undefined> = process.env): ForwardSpec[] {
 	const values = [
-		{ key: "K8S_HTTPS_PORT", name: "HTTPS gateway", namespace: "istio-ingress", service: "istio-ingressgateway", remotePort: 443, scheme: "https" as const },
+		{ key: "K8S_HTTPS_PORT", name: "HTTPS gateway", namespace: "istio-ingress", service: "foc-public-istio", remotePort: 443, scheme: "https" as const },
 		{ key: "K8S_KAFKA_UI_PORT", name: "Kafka UI", namespace: "foc", service: "kafka-ui", remotePort: 8080, scheme: "http" as const },
 		{ key: "K8S_MAILPIT_PORT", name: "Mailpit", namespace: "foc", service: "mailpit", remotePort: 8025, scheme: "http" as const },
 	];
@@ -276,7 +276,7 @@ export async function preflightForwards(forwards: ForwardSpec[]): Promise<void> 
 
 // Check chart files: Bun.file(directory).exists() is false even for directories.
 export async function hasIstioCharts(chartsDirectory: string): Promise<boolean> {
-	const charts = ["base", "istio-control/istio-discovery", "gateway"];
+	const charts = ["base", "istio-control/istio-discovery"];
 	return (await Promise.all(charts.map(chart => Bun.file(join(chartsDirectory, chart, "Chart.yaml")).exists()))).every(Boolean);
 }
 

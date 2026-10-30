@@ -25,13 +25,18 @@ To update a tool pin, edit `aqua.yaml`, `.bun-version`, or `.istio-version`,
 then refresh `aqua-checksums.json` with
 `AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
 
+The managed local cluster installs the vendored Gateway API v1.6.0 Standard
+CRDs before Istio. External clusters must already serve Gateway API v1 CRDs and
+have Istio installed as the `istio` GatewayClass controller.
+
 ```sh
 cp .env.example .env
 # Bootstrap the first FoC administrator, then start/deploy the stack.
 K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
 ```
 
-The first run creates a local `kind` cluster, installs Istio, builds and deploys
+The first run creates a local `kind` cluster, installs Gateway API Standard
+CRDs and Istio, builds and deploys
 the application and dependencies, provisions the databases, and runs database
 migrations. It may take several minutes. It does not erase data on later runs.
 The first administrator signs in through the magic-link flow; local email is
@@ -77,6 +82,7 @@ delete `.local/k8s/secrets` while retaining a database volume.
 
 ```sh
 make k8s-status                         # pods, jobs, storage and warnings
+make k8s-smoke                          # HTTPS and public User Health RPC through the gateway
 make k8s-deploy service=user-service    # rebuild and update one service
 make k8s-kafka-ui                       # attach only the Kafka UI forward
 make k8s-mailpit                        # attach only the Mailpit forward

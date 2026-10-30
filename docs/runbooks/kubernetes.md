@@ -41,16 +41,17 @@ ports to run Compose and Kubernetes simultaneously. The developer-facing
 [Kubernetes setup](../../infra/k8s/README.md) has the short version.
 
 `k8s-up` installs the pinned, checksum-verified tools into `.tools/aqua`,
-creates/reuses kind cluster `foc`, installs pinned Istio charts from the
-verified Istio release archive, builds/loads images, and deploys four stages:
-dependencies, database provisioning, migrations/topics, applications. Failed
-Jobs stop rollout.
+creates/reuses kind cluster `foc`, installs the pinned Gateway API Standard
+CRDs and Istio charts, builds/loads images, and deploys the gateway,
+dependencies, database provisioning, migrations/topics and applications.
+Failed Jobs stop rollout.
 Existing running Jobs are not deleted. Retrying replaces only the exact terminal
 initialization Jobs; databases and PVCs are not reset.
 
 The private kubeconfig is `.local/k8s/clusters/foc.config`; your current global
 Kubernetes context is not changed. Namespace `foc` holds application resources.
-Run `make k8s-status` to inspect readiness and warnings.
+Run `make k8s-status` to inspect readiness and warnings. Run `make k8s-smoke`
+to check HTTPS and the public User Health RPC through the gateway.
 
 If Compose created a root-owned `.local`, follow the
 [directory ownership recovery](../../LANDMINES/compose-owned-local-directory.md).
@@ -87,9 +88,17 @@ command stops access; restart a forward if its selected pod is replaced.
 Browser URLs (`PUBLIC_USER_SERVICE_URL`, `PUBLIC_SUPPLIER_SERVICE_URL`),
 `ORIGIN`, and User's `FRONTEND_BASE_URL` all use the browser gateway origin.
 These are runtime settings in `foc-config`, not Kubernetes DNS names.
-The local gateway uses wildcard host matching because Istio expands a short
-VirtualService host such as `localhost` into cluster DNS. Its local TLS
-certificate has localhost SANs; production replaces both hosts with a real FQDN.
+Ingress uses Kubernetes `Gateway` and `HTTPRoute` resources with Istio as the
+Gateway API controller. The managed local install vendors Gateway API v1.6.0
+Standard CRDs. External clusters must already serve Gateway API v1 and have
+Istio installed as the `istio` GatewayClass controller; bootstrap checks for
+the CRDs but does not replace them. Routes list full protobuf service paths
+because standard `PathPrefix` matching is segment based. Add a route when a new
+protobuf service is added. Mesh mTLS and workload authorization remain
+Istio-specific.
+
+The local Gateway and routes omit hostnames so the local TLS certificate can
+serve `localhost`; production sets the listener and routes to a real FQDN.
 
 ## TLS, identities and secrets
 

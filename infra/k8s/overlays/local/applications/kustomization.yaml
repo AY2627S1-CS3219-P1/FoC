@@ -12,18 +12,3 @@ patches:
         value:
           secretRef:
             name: object-storage
-  - target:
-      kind: VirtualService
-      name: foc
-    patch: |-
-      - op: add
-        path: /spec/http/0
-        value:
-          match:
-            - uri:
-                prefix: /order-images/
-          route:
-            - destination:
-                host: floci.foc.svc.cluster.local
-                port:
-                  number: 4566

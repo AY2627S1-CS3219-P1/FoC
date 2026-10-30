@@ -4,19 +4,8 @@ resources:
   - ../../../base/applications
 patches:
   - target:
-      kind: Gateway
-      name: foc
+      kind: HTTPRoute
     patch: |-
-      - op: replace
-        path: /spec/servers/0/hosts/0
-        value: foc.example.invalid
-      - op: replace
-        path: /spec/servers/0/tls/credentialName
-        value: foc-public-tls
-  - target:
-      kind: VirtualService
-      name: foc
-    patch: |-
-      - op: replace
-        path: /spec/hosts/0
-        value: foc.example.invalid
+      - op: add
+        path: /spec/hostnames
+        value: [foc.example.invalid]

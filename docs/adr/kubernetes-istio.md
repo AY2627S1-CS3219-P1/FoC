@@ -21,9 +21,12 @@ aliases target that same listener.
 The public ClusterIP Services expose port 8080 and target `EXTERNAL_PORT`.
 User and Credit internal Services expose port 8080 and target `INTERNAL_PORT`;
 the other internal aliases target `EXTERNAL_PORT`. Backend callers use one
-internal base URL per destination. Gateway routing is by protobuf namespace,
-never a duplicate list of individual methods. Gateway identity is explicitly
-denied internal workload port 8081.
+internal base URL per destination. Ingress uses Kubernetes Gateway API
+resources. Since standard `PathPrefix` matches complete slash-separated path
+elements, handwritten `HTTPRoute` resources match full protobuf service paths
+(for example `/user.v1.AuthService`). Add a route when adding a protobuf
+service; methods within an existing service need no route change. Gateway
+identity is explicitly denied internal workload port 8081.
 
 Mandatory native proxies, bounded proxy startup probes, explicit Istio ingress
 forwarding, fail-closed admission, STRICT mTLS and coarse namespace

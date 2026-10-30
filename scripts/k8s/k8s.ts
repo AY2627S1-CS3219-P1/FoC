@@ -68,14 +68,24 @@ async function installMesh(): Promise<void> {
 	if (!(await hasIstioCharts(charts))) die("Pinned Istio charts missing; run make k8s-tools.");
 	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/namespaces.yaml"));
 	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/admission.yaml"));
+	const gatewayCRDs = join(K8S_ROOT, "infra/k8s/platform/gateway-api/standard-install.yaml");
+	if (K8S_EXISTING) {
+		for (const name of ["gatewayclasses.gateway.networking.k8s.io", "gateways.gateway.networking.k8s.io", "httproutes.gateway.networking.k8s.io"]) {
+			const result = await k(["get", "crd", name, "-o", "jsonpath={.status.conditions[?(@.type==\"Established\")].status}:{.spec.versions[?(@.name==\"v1\")].served}"], { capture: true, allowFailure: true });
+			if (result.exitCode !== 0 || result.stdout.trim() !== "True:true") {
+				die("External cluster must already serve Gateway API v1 Standard resources, including " + name + "; install a compatible Gateway API release before deployment.");
+			}
+		}
+	} else {
+		await applyManifest(gatewayCRDs);
+		for (const name of ["gatewayclasses.gateway.networking.k8s.io", "gateways.gateway.networking.k8s.io", "httproutes.gateway.networking.k8s.io"]) {
+			await k(["wait", "--for=condition=Established", "crd/" + name, "--timeout=" + K8S_TIMEOUT]);
+		}
+	}
 	await h(["upgrade", "--install", "istio-base", join(charts, "base"), "-n", "istio-system", "--wait", "--timeout", K8S_TIMEOUT]);
 	await h([
 		"upgrade", "--install", "istiod", join(charts, "istio-control/istio-discovery"), "-n", "istio-system",
 		"-f", join(K8S_ROOT, "infra/k8s/platform/istiod-values.yaml"), "--wait", "--timeout", K8S_TIMEOUT,
-	]);
-	await h([
-		"upgrade", "--install", "istio-ingressgateway", join(charts, "gateway"), "-n", "istio-ingress",
-		"-f", join(K8S_ROOT, "infra/k8s/platform/gateway-values.yaml"), "--wait", "--timeout", K8S_TIMEOUT,
 	]);
 }
 
@@ -195,8 +205,10 @@ async function deployAll(): Promise<void> {
 		for (const secret of ["postgres-admin", "user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"]) {
 			await k(["-n", "foc", "get", "secret", secret], { capture: true });
 		}
+		await k(["-n", "istio-ingress", "get", "secret", "foc-public-tls"], { capture: true });
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.");
 	}
+	await applyStage("gateway");
 	await applyStage("dependencies");
 	await patchLocalConfig();
 	await patchBootstrap();
@@ -216,11 +228,47 @@ async function deployAll(): Promise<void> {
 	for (const job of K8S_JOBS) await waitJob(job);
 	if (isLocalOverlay()) await waitJob("order-storage-init");
 	await applyStage("applications");
+	await waitForGateway();
 	for (const app of K8S_APPS) {
 		await k(["-n", "foc", "rollout", "restart", "deployment/" + app]);
 		await k(["-n", "foc", "rollout", "status", "deployment/" + app, "--timeout=" + K8S_TIMEOUT]);
 	}
 	note("Bootstrap coverage: User, Supplier, Order, Credit, Communication, frontend, PostgreSQL, Kafka, Kafka UI; local overlay also Mailpit and Floci. The complete D3 business workflow is not claimed.");
+}
+
+async function waitForGateway(): Promise<void> {
+	await k(["wait", "--for=condition=Accepted", "gatewayclass/istio", "--timeout=" + K8S_TIMEOUT]);
+	await k(["-n", "istio-ingress", "wait", "--for=condition=Programmed", "gateway/foc-public", "--timeout=" + K8S_TIMEOUT]);
+	const routes = ["user-service", "supplier-service", "order-service", "communication-service", "credit-service", "frontend"];
+	if (isLocalOverlay()) routes.push("floci-images");
+	for (const route of routes) {
+		await waitForHTTPRoute(route);
+	}
+	await k(["-n", "istio-ingress", "rollout", "status", "deployment/foc-public-istio", "--timeout=" + K8S_TIMEOUT]);
+}
+
+async function waitForHTTPRoute(name: string): Promise<void> {
+	const timeout = /^(\d+)(s|m|h)$/.exec(K8S_TIMEOUT);
+	if (!timeout) die("K8S_TIMEOUT must be an integer duration such as 600s or 10m.");
+	const multiplier = timeout[2] === "h" ? 3_600_000 : timeout[2] === "m" ? 60_000 : 1_000;
+	const deadline = Date.now() + Number(timeout[1]) * multiplier;
+	while (Date.now() < deadline) {
+		const result = await k(["-n", "foc", "get", "httproute", name, "-o", "json"], { capture: true });
+		const route = JSON.parse(result.stdout);
+		const parent = route.status?.parents?.find((item: { parentRef?: { name?: string }; controllerName?: string }) =>
+			item.parentRef?.name === "foc-public" && item.controllerName === "istio.io/gateway-controller",
+		);
+		const conditions = parent?.conditions ?? [];
+		const accepted = conditions.find((item: { type: string }) => item.type === "Accepted");
+		const resolved = conditions.find((item: { type: string }) => item.type === "ResolvedRefs");
+		if (accepted?.status === "True" && resolved?.status === "True") return;
+		const rejected = [accepted, resolved].find((item) => item?.status === "False");
+		if (rejected) {
+			die("HTTPRoute " + name + " was rejected: " + rejected.reason + " — " + rejected.message);
+		}
+		await Bun.sleep(1000);
+	}
+	die("Timed out waiting for HTTPRoute " + name + " to be accepted with resolved backend references.");
 }
 
 async function deployOne(service: string): Promise<void> {
@@ -359,6 +407,8 @@ async function showStatus(): Promise<void> {
 	await k(["-n", "foc", "get", "pods,jobs,pvc,services", "-o", "wide"]);
 	await k(["-n", "istio-system", "get", "pods"]);
 	await k(["-n", "istio-ingress", "get", "pods,services"]);
+	await k(["get", "gatewayclass/istio"]);
+	await k(["-A", "get", "gateways,httproutes"]);
 	await k(["-n", "foc", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"]);
 	if (await commandExists("istioctl")) {
 		await run("istioctl", [
@@ -382,6 +432,31 @@ async function deleteCluster(): Promise<void> {
 	note("Deleted local cluster " + K8S_CLUSTER + " and cluster data. Credentials remain in " + K8S_STATE_DIR + ".");
 }
 
+async function smokeGateway(): Promise<void> {
+	if (!isLocalOverlay()) die("The Gateway smoke command currently supports the local overlay only.");
+	await checkContext();
+	await waitForGateway();
+	await requireCommands("curl");
+	const forward = configuredForwards().find((item) => item.name === "HTTPS gateway");
+	if (!forward) die("Set K8S_HTTPS_PORT to run the Gateway smoke check.");
+	await preflightForwards([forward]);
+	const children: Bun.Subprocess[] = [];
+	try {
+		await startForward(forward, children);
+		await run("curl", [
+			"--fail", "--silent", "--show-error", "--max-time", "10",
+			"--cacert", join(K8S_STATE_DIR, "secrets/tls.crt"),
+			"--header", "Content-Type: application/json",
+			"--header", "Connect-Protocol-Version: 1",
+			"--data", "{}",
+			"https://localhost:" + forward.localPort + "/user.v1.HealthService/Check",
+		]);
+		note("Gateway smoke check passed: HTTPS reached User HealthService through the Gateway API route.");
+	} finally {
+		await stopForwards(children);
+	}
+}
+
 async function up(): Promise<void> {
 	await checkOverlay();
 	const forwards = isLocalOverlay() ? configuredForwards() : [];
@@ -399,8 +474,8 @@ async function up(): Promise<void> {
 
 async function render(stage: string): Promise<void> {
 	await checkOverlay();
-	if (!["dependencies", "provisioning", "initialization", "applications"].includes(stage)) {
-		die("render requires dependencies, provisioning, initialization, or applications.");
+	if (!["gateway", "dependencies", "provisioning", "initialization", "applications"].includes(stage)) {
+		die("render requires gateway, dependencies, provisioning, initialization, or applications.");
 	}
 	process.stdout.write(await renderStage(stage));
 }
@@ -439,13 +514,16 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 		case "status":
 			await showStatus();
 			return;
+		case "smoke":
+			await smokeGateway();
+			return;
 		case "demo":
 			die("D3 demo is unavailable: the integrated registration/credit/order workflow is not verified for this deployment.");
 		case "delete-cluster":
 			await deleteCluster();
 			return;
 		default:
-			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|demo|delete-cluster|kafka-ui|mailpit");
+			note("Usage: k8s.ts up|deploy [service]|render <stage>|access|status|smoke|demo|delete-cluster|kafka-ui|mailpit");
 			process.exitCode = 2;
 	}
 }

@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: foc
 resources:
   - floci.yaml
+  - gateway-route.yaml
