@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/registry.json
+packages:
+  - name: oven-sh/bun
+    type: github_release
+    repo_owner: oven-sh
+    repo_name: bun
+    version_prefix: bun-v
+    version_constraint: "false"
+    version_overrides:
+      - version_constraint: "true"
+        asset: bun-{{.OS}}-{{.Arch}}-baseline.zip
+        format: zip
+        replacements:
+          amd64: x64
+          arm64: aarch64
+        overrides:
+          - goarch: arm64
+            asset: bun-{{.OS}}-{{.Arch}}.zip
+        files:
+          - name: bun
+            src: "{{.AssetWithoutExt}}/bun"
+        checksum:
+          type: github_release
+          asset: SHASUMS256.txt
+          algorithm: sha256
+        supported_envs:
+          - linux
+          - darwin
+          - amd64
+          - arm64
+  - name: istio/istio
+    type: github_release
+    repo_owner: istio
+    repo_name: istio
+    asset: istio-{{.Version}}-{{.OS}}-{{.Arch}}.tar.gz
+    format: tar.gz
+    replacements:
+      darwin: osx
+    files:
+      - name: istioctl
+        src: istio-{{.Version}}/bin/istioctl
+    checksum:
+      type: github_release
+      asset: "{{.Asset}}.sha256"
+      algorithm: sha256
+    supported_envs:
+      - linux
+      - darwin
+      - amd64
+      - arm64

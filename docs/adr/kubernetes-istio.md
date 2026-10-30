@@ -80,10 +80,13 @@ It preserves PostgreSQL 18.6, PostGIS 3.6.4, UID 999 and the existing data path,
 while adding native arm64 support. This dependency image is independent of
 Compose's image selection and persistence.
 
-Bun remains host tooling and is pinned independently of the frontend runtime.
-Chart validation checks the three actual Chart.yaml files; a verified complete
-tool cache can be reused offline. TLS generation uses an OpenSSL configuration
-file for compatibility with macOS's system implementation.
+Kubernetes CLI tools are pinned in the root aqua configuration and installed
+under `.tools/aqua`; checksum verification is required. Aqua's standard
+registry supplies kind, kubectl, and Helm. Small local registry entries retain
+Bun's baseline Intel binary and the complete Istio distribution, whose archive
+also supplies Helm charts. Chart validation checks the three actual Chart.yaml
+files. TLS generation uses an OpenSSL configuration file for compatibility
+with macOS's system implementation.
 
 Envoy access logs use the
 [query-free path formatter](https://www.envoyproxy.io/docs/envoy/v1.36.0/configuration/observability/access_log/usage)

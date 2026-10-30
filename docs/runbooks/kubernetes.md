@@ -7,11 +7,25 @@ listener; this does not claim the complete D3 business workflow.
 
 ## Start locally
 
-Prerequisites: Docker, make, curl, unzip, OpenSSL, tar, and approximately 4
-available CPUs / 8 GiB RAM. Bun 1.4.3 is used and cached in `.tools/k8s` if not
-already installed globally; Node.js is not required. Tool and image downloads
-require internet access. Kubernetes images include native arm64 variants; see
-the short setup guide for macOS prerequisites.
+Prerequisites: Docker, make, [aqua v2.65.2 or newer](https://aquaproj.github.io/docs/install/),
+OpenSSL, and approximately 4 available CPUs / 8 GiB RAM. Bun 1.4.3 is installed
+by aqua; Node.js is not required. Tool and image downloads require internet
+access. Kubernetes images include native arm64 variants; see the short setup
+guide for macOS prerequisites.
+
+Before the first deployment, approve this repository's aqua policy once:
+
+```sh
+AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua policy allow "$PWD/aqua-policy.yaml"
+```
+
+If you use a custom `AQUA_ROOT_DIR`, use it for both this command and the
+`make k8s-*` commands.
+Run the allow command again if `aqua-policy.yaml` changes.
+
+To update a pinned tool, change its version in `aqua.yaml`, `.bun-version`, or
+`.istio-version`, then refresh the committed checksums with
+`AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
 
 ```sh
 # First deployment: choose the first administrator explicitly.
@@ -26,10 +40,11 @@ Compose's browser/Mailpit ports and Kafka UI's local port. Choose distinct host
 ports to run Compose and Kubernetes simultaneously. The developer-facing
 [Kubernetes setup](../../infra/k8s/README.md) has the short version.
 
-`k8s-up` installs checksum-verified tools into `.tools/k8s`, creates/reuses
-kind cluster `foc`, installs pinned Istio charts from its verified release
-archive, builds/loads images, and deploys four stages: dependencies, database
-provisioning, migrations/topics, applications. Failed Jobs stop rollout.
+`k8s-up` installs the pinned, checksum-verified tools into `.tools/aqua`,
+creates/reuses kind cluster `foc`, installs pinned Istio charts from the
+verified Istio release archive, builds/loads images, and deploys four stages:
+dependencies, database provisioning, migrations/topics, applications. Failed
+Jobs stop rollout.
 Existing running Jobs are not deleted. Retrying replaces only the exact terminal
 initialization Jobs; databases and PVCs are not reset.
 

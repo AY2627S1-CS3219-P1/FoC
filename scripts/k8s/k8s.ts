@@ -8,19 +8,18 @@ import {
 	K8S_EXISTING,
 	K8S_IMAGE_PREFIX,
 	K8S_IMAGE_TAG,
-	K8S_ISTIO_VERSION,
 	K8S_JOBS,
 	K8S_NODE_IMAGE,
 	K8S_OVERLAY,
 	K8S_ROOT,
 	K8S_STATE_DIR,
 	K8S_TIMEOUT,
-	K8S_TOOLS_DIR,
 	ForwardSpec,
 	OperatorError,
 	applyManifest,
 	checkContext,
 	checkOverlay,
+	commandExists,
 	configuredForwards,
 	die,
 	h,
@@ -30,6 +29,7 @@ import {
 	kubectlBinary,
 	kubectlPrefix,
 	hasIstioCharts,
+	istioChartsDirectory,
 	localOrigin,
 	note,
 	prepareJob,
@@ -41,7 +41,6 @@ import {
 	waitJob,
 } from "./common";
 import { generateLocalSecrets } from "./secrets";
-import { installTools } from "./tools";
 
 async function createLocalCluster(): Promise<void> {
 	await requireCommands("kind");
@@ -65,8 +64,8 @@ async function createLocalCluster(): Promise<void> {
 
 async function installMesh(): Promise<void> {
 	await requireCommands("helm");
-	const charts = join(K8S_TOOLS_DIR, "istio-" + K8S_ISTIO_VERSION, "manifests/charts");
-	if (!(await hasIstioCharts())) die("Pinned Istio charts missing; run make k8s-tools.");
+	const charts = await istioChartsDirectory();
+	if (!(await hasIstioCharts(charts))) die("Pinned Istio charts missing; run make k8s-tools.");
 	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/namespaces.yaml"));
 	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/admission.yaml"));
 	await h(["upgrade", "--install", "istio-base", join(charts, "base"), "-n", "istio-system", "--wait", "--timeout", K8S_TIMEOUT]);
@@ -255,8 +254,9 @@ function waitForLocalListener(port: number): Promise<boolean> {
 }
 
 async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
+	const kubectl = await kubectlBinary();
 	const child = Bun.spawn([
-		kubectlBinary(),
+		kubectl,
 		...kubectlPrefix(),
 		"-n", forward.namespace,
 		"port-forward", "--address", "127.0.0.1",
@@ -360,7 +360,7 @@ async function showStatus(): Promise<void> {
 	await k(["-n", "istio-system", "get", "pods"]);
 	await k(["-n", "istio-ingress", "get", "pods,services"]);
 	await k(["-n", "foc", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"]);
-	if (await Bun.file(join(K8S_TOOLS_DIR, "istioctl")).exists()) {
+	if (await commandExists("istioctl")) {
 		await run("istioctl", [
 			...(K8S_EXISTING ? ["--context", K8S_CONTEXT] : [
 				"--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"),
@@ -386,7 +386,6 @@ async function up(): Promise<void> {
 	await checkOverlay();
 	const forwards = isLocalOverlay() ? configuredForwards() : [];
 	await preflightForwards(forwards);
-	await installTools();
 	if (!K8S_EXISTING) await createLocalCluster();
 	await checkContext();
 	await installMesh();

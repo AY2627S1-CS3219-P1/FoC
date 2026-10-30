@@ -1,0 +1,30 @@
+# aqua - Declarative CLI Version Manager
+# https://aquaproj.github.io/
+checksum:
+  enabled: true
+  require_checksum: true
+  supported_envs:
+    - linux/amd64
+    - linux/arm64
+    - darwin/amd64
+    - darwin/arm64
+registries:
+  - type: standard
+    ref: v4.579.0 # renovate: depName=aquaproj/aqua-registry
+  - name: local
+    type: local
+    path: .aqua/registry.yaml
+packages:
+  - name: oven-sh/bun
+    registry: local
+    version_expr: readFile(".bun-version")
+    version_expr_prefix: bun-v
+  - name: kubernetes-sigs/kind
+    version: v0.33.0
+  - name: kubernetes/kubernetes/kubectl
+    version: v1.35.0
+  - name: helm/helm
+    version: v3.20.1
+  - name: istio/istio
+    registry: local
+    version_expr: readFile(".istio-version")

@@ -6,11 +6,24 @@ overlap.
 
 ## First run
 
-Prerequisites: Docker, `make`, `curl`, `unzip`, OpenSSL and `tar`, plus about
-4 CPUs and 8 GiB of memory. Internet access is needed for the pinned local
-Kubernetes tools and container images. Bun 1.4.3 is used; if you do not already
-have that exact version, it is fetched and cached under the ignored
-`.tools/k8s/` directory. You do not need to install Node.js or Bun globally.
+Prerequisites: Docker, `make`, [aqua v2.65.2 or newer](https://aquaproj.github.io/docs/install/),
+and OpenSSL, plus about 4 CPUs and 8 GiB of memory. Internet access is needed
+for pinned Kubernetes tools and container images. Bun 1.4.3 is installed by
+aqua under the ignored `.tools/aqua/` directory. You do not need Node.js or Bun
+globally.
+
+Before the first deployment, approve this repository's aqua policy once:
+
+```sh
+AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua policy allow "$PWD/aqua-policy.yaml"
+```
+
+Use the same `AQUA_ROOT_DIR` for `make k8s-*` if you choose a different path.
+Run the allow command again if `aqua-policy.yaml` changes.
+
+To update a tool pin, edit `aqua.yaml`, `.bun-version`, or `.istio-version`,
+then refresh `aqua-checksums.json` with
+`AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
 
 ```sh
 cp .env.example .env
