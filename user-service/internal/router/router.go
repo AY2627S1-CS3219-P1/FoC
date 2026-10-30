@@ -31,15 +31,21 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 	return setup(health, auth, true, protected...)
 }
 
-// SetupMesh constructs public services once and delegates to them from the
-// internal superset. Public key distribution is only reachable internally.
-func SetupMesh(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) (http.Handler, http.Handler) {
-	public := setup(health, auth, false, protected...)
-	internal := http.NewServeMux()
+// SetupRoutes groups handlers by route exposure. The caller chooses whether to
+// bind the internal routes separately; allRoutes preserves single-listener use.
+func SetupRoutes(
+	health *healthhandler.Handler,
+	auth *authhandler.Handler,
+	protected ...ProtectedRoutes,
+) (public, internal, allRoutes http.Handler) {
+	public = setup(health, auth, false, protected...)
+	internalMux := http.NewServeMux()
 	keysPath, keysService := publicKeyHandler(auth)
-	internal.Handle(keysPath, keysService)
-	internal.Handle("/", public)
-	return public, internal
+	internalMux.Handle(keysPath, keysService)
+	internalMux.Handle("/", public)
+	internal = internalMux
+	allRoutes = setup(health, auth, true, protected...)
+	return public, internal, allRoutes
 }
 
 func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {
@@ -50,7 +56,12 @@ func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {
 	)
 }
 
-func setup(health *healthhandler.Handler, auth *authhandler.Handler, includeKeys bool, protected ...ProtectedRoutes) *chi.Mux {
+func setup(
+	health *healthhandler.Handler,
+	auth *authhandler.Handler,
+	includeKeys bool,
+	protected ...ProtectedRoutes,
+) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)

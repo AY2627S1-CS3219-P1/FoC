@@ -69,7 +69,7 @@ func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 func setValidConfigEnv(t *testing.T) {
 	t.Helper()
 	for key, value := range map[string]string{
-		"PORT":                              "8080",
+		"EXTERNAL_PORT":                     "8080",
 		"DATABASE_URL":                      "postgres://user:password@localhost:5432/user_service",
 		"DB_MAX_OPEN":                       "10",
 		"DB_MAX_IDLE":                       "5",

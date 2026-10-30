@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,17 +106,17 @@ func run(ctx context.Context) error {
 
 	publicHandler := getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate))
 	internalHandler := router.Internal(services.rpc)
-	if config.Transport.Mode == transport.Mesh {
-		return transport.Run(ctx, transport.ShutdownTimeout, config.Transport.Servers(publicHandler, internalHandler)...)
+	servers, err := config.Transport.Servers(transport.Handlers{
+		Public:   publicHandler,
+		Internal: internalHandler,
+	})
+	if err != nil {
+		return err
 	}
-
-	public := newServer(":"+config.Port, publicHandler)
-	internal := newServer(":"+config.InternalPort, internalHandler)
-	for _, server := range []*http.Server{public, internal} {
-		server.BaseContext = func(net.Listener) context.Context { return ctx }
+	for _, server := range servers {
+		server.IdleTimeout = time.Minute
 	}
-
-	return serve(ctx, public, internal)
+	return transport.Run(ctx, transport.ShutdownTimeout, servers...)
 }
 
 func getCorsConfig() *cors.Cors {
@@ -145,60 +144,6 @@ func getCorsConfig() *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
-}
-
-func newServer(addr string, handler http.Handler) *http.Server {
-	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	return &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       time.Minute,
-		Protocols:         protocols,
-	}
-}
-
-// serve runs every server until ctx ends or one of them stops, then shuts
-// them all down.
-func serve(ctx context.Context, servers ...*http.Server) error {
-	stopped := make(chan error, len(servers))
-	for _, server := range servers {
-		go func() { stopped <- server.ListenAndServe() }()
-		slog.InfoContext(ctx, "Listening", "address", server.Addr)
-	}
-
-	running := len(servers)
-	var errs []error
-	select {
-	case err := <-stopped:
-		running--
-		errs = append(errs, err)
-	case <-ctx.Done():
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	for _, server := range servers {
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
-			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
-		}
-	}
-	for range running {
-		errs = append(errs, <-stopped)
-	}
-
-	var failures []error
-	for _, err := range errs {
-		if !errors.Is(err, http.ErrServerClosed) {
-			failures = append(failures, err)
-		}
-	}
-	return errors.Join(failures...)
 }
 
 // newAuthenticator bounds both network attempts and waits by the caller's

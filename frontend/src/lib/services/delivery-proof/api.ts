@@ -26,3 +26,4 @@ export interface DeliveryProofAPI {
 		withoutProof: boolean;
 	}, signal: AbortSignal): Promise<void>;
 }
+

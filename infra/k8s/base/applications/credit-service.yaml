@@ -36,7 +36,7 @@ spec:
             - secretRef:
                 name: credit-db
           env:
-            - {name: RPC_MODE, value: mesh}
+            - {name: INTERNAL_PORT, value: "8081"}
           ports:
             - {name: http2-public, containerPort: 8080}
             - {name: http2-internal, containerPort: 8081}

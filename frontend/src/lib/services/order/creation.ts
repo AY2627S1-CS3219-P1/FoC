@@ -41,9 +41,6 @@ const savedSchema = z.object({
 	orderId: z.string().uuid().optional()
 });
 
-// Logout keeps only this identity, never the location/instruction/image payload.
-const identitySchema = savedSchema.omit({ input: true });
-
 export type RecoveredSubmission =
 	{ state: 'none' } | { state: 'ready'; submission: SubmittedCreation } | { state: 'blocked'; message: string };
 
@@ -52,11 +49,7 @@ export function recoverSubmission(storage: Storage, callerId: string, now = Date
 	try {
 		const raw = storage.getItem(submissionStoragePrefix + callerId);
 		if (!raw) return { state: 'none' };
-		const value = JSON.parse(raw);
-		if (value?.redacted === true) {
-			return { state: 'blocked', message: 'A previous submission was unresolved when you signed out. Check My Orders before starting another order.' };
-		}
-		const result = savedSchema.safeParse(value);
+		const result = savedSchema.safeParse(JSON.parse(raw));
 		if (!result.success || result.data.callerId !== callerId) {
 			return { state: 'blocked', message: 'Could not restore your last order. Check My Orders before creating another order.' };
 		}
@@ -77,17 +70,10 @@ export function removeSubmission(storage: Storage, callerId: string): void {
 	storage.removeItem(submissionStoragePrefix + callerId);
 }
 
-/** Clear sensitive values on logout while retaining an unresolved-submission guard. */
 export function clearSubmittedOrders(storage: Storage): void {
 	for (let i = storage.length - 1; i >= 0; i--) {
 		const key = storage.key(i);
-		if (!key?.startsWith(submissionStoragePrefix)) continue;
-		let identity = {};
-		try {
-			const result = identitySchema.safeParse(JSON.parse(storage.getItem(key) ?? 'null'));
-			if (result.success) identity = result.data;
-		} catch { /* An unreadable identity must still block a fresh submission. */ }
-		storage.setItem(key, JSON.stringify({ ...identity, redacted: true }));
+		if (key?.startsWith(submissionStoragePrefix)) storage.removeItem(key);
 	}
 }
 

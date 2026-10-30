@@ -28,8 +28,6 @@ spec:
       message: "FoC pods cannot override injection, traffic capture or proxy configuration."
     - expression: "object.spec.containers.all(c, has(c.securityContext) && c.securityContext.runAsNonRoot == true && c.securityContext.allowPrivilegeEscalation == false && (!has(c.securityContext.privileged) || !c.securityContext.privileged) && has(c.securityContext.runAsUser) && c.securityContext.runAsUser != 1337 && has(c.securityContext.capabilities) && c.securityContext.capabilities.drop.exists(x, x == 'ALL') && (!has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0) && (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0)))"
       message: "Application containers must be non-root, must not impersonate the proxy UID, and cannot bypass capture with privileges."
-    - expression: "!has(object.metadata.labels) || !('foc.dev/rpc' in object.metadata.labels) || object.spec.containers.exists(c, has(c.env) && c.env.exists(e, e.name == 'RPC_MODE' && e.value == 'mesh'))"
-      message: "RPC workloads must explicitly use RPC_MODE=mesh."
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

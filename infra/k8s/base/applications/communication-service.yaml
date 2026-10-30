@@ -37,11 +37,8 @@ spec:
                 name: communication-db
             - secretRef:
                 name: telegram
-          env:
-            - {name: RPC_MODE, value: mesh}
           ports:
             - {name: http2-public, containerPort: 8080}
-            - {name: http2-internal, containerPort: 8081}
           startupProbe:
             exec:
               command: ["/app/server", "probe", "live"]
@@ -81,7 +78,7 @@ spec:
   selector:
     app: communication-service
   ports:
-    - {name: http2-internal, port: 8080, targetPort: 8081, appProtocol: kubernetes.io/h2c}
+    - {name: http2-internal, port: 8080, targetPort: http2-public, appProtocol: kubernetes.io/h2c}
 ---
 apiVersion: networking.istio.io/v1
 kind: Sidecar
@@ -97,10 +94,5 @@ spec:
         name: http2-public
         protocol: HTTP2
       defaultEndpoint: 127.0.0.1:8080
-    - port:
-        number: 8081
-        name: http2-internal
-        protocol: HTTP2
-      defaultEndpoint: 127.0.0.1:8081
   egress:
     - hosts: ["./*", "istio-system/*"]

@@ -38,7 +38,13 @@ func ParseCommand(args []string) (Command, error) {
 
 // ExecuteCommand handles one-shot commands before normal application config
 // and dependencies are loaded. A false result means the caller should serve.
-func ExecuteCommand(ctx context.Context, args []string, getenv func(string) string, healthProcedure string, migrate func(context.Context, string) error) (bool, error) {
+func ExecuteCommand(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	healthProcedure string,
+	migrate func(context.Context, string) error,
+) (bool, error) {
 	command, err := ParseCommand(args)
 	if err != nil {
 		return true, err
@@ -61,8 +67,8 @@ func ExecuteCommand(ctx context.Context, args []string, getenv func(string) stri
 }
 
 // Probe calls the local process directly, never through a sidecar or a Service.
-// Ready uses the service's Connect health RPC and also checks the second mesh
-// listener. It needs no database credentials, authentication keys or mail config.
+// Ready uses the service's Connect health RPC and checks an internal listener
+// when configured. It needs no database credentials, authentication keys or mail config.
 func Probe(ctx context.Context, command Command, cfg Config, healthProcedure string) error {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
@@ -78,17 +84,22 @@ func Probe(ctx context.Context, command Command, cfg Config, healthProcedure str
 
 func probe(ctx context.Context, client *http.Client, command Command, cfg Config, healthProcedure string) error {
 	if command == Live {
-		return probeLive(ctx, client, cfg.ProbeURL())
+		return probeLive(ctx, client, cfg.ExternalProbeURL())
 	}
 	if command != Ready {
 		return errors.New("probe must be live or ready")
 	}
-	if cfg.Mode == Mesh {
-		if err := probeLive(ctx, client, "http://127.0.0.1:8081"); err != nil {
+	if cfg.InternalPort != "" {
+		if err := probeLive(ctx, client, cfg.InternalProbeURL()); err != nil {
 			return fmt.Errorf("internal listener: %w", err)
 		}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.ProbeURL()+healthProcedure, strings.NewReader("{}"))
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		cfg.ExternalProbeURL()+healthProcedure,
+		strings.NewReader("{}"),
+	)
 	if err != nil {
 		return err
 	}

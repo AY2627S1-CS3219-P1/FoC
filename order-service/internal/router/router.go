@@ -38,18 +38,3 @@ func Setup(services RPCServices, authenticate func(http.Handler) http.Handler) *
 
 	return mux
 }
-
-// SetupMesh leaves the participant API on the internal listener only. Its
-// implementation remains deferred; generated unimplemented methods preserve
-// the existing contract without inventing participant access policy here.
-func SetupMesh(services RPCServices, authenticate func(http.Handler) http.Handler) (http.Handler, http.Handler) {
-	public := Setup(services, authenticate)
-	internal := http.NewServeMux()
-	path, handler := orderv1connect.NewOrderInternalServiceHandler(
-		&orderv1connect.UnimplementedOrderInternalServiceHandler{},
-		connect.WithInterceptors(validate.NewInterceptor()),
-	)
-	internal.Handle(path, handler)
-	internal.Handle("/", public)
-	return public, internal
-}

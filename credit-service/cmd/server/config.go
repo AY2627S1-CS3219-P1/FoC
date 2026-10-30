@@ -12,10 +12,7 @@ import (
 )
 
 type config struct {
-	Transport transport.Config
-	// Port serves users; InternalPort serves Order and must not be published.
-	Port           string
-	InternalPort   string
+	Transport      transport.Config
 	DatabaseURL    string
 	UserServiceURL string
 	RunMigrations  bool
@@ -30,28 +27,13 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c := config{
 		Transport:      serverConfig,
-		Port:           serverConfig.Port,
-		InternalPort:   strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:  true,
 	}
 
-	// Listeners
-	if c.Port == "" {
-		c.Port = "8080"
-	}
-	if c.InternalPort == "" {
-		c.InternalPort = "8081"
-	}
-	for name, value := range map[string]string{"PORT": c.Port, "INTERNAL_PORT": c.InternalPort} {
-		port, err := strconv.Atoi(value)
-		if err != nil || port < 1 || port > 65535 {
-			return config{}, fmt.Errorf("%s must be between 1 and 65535", name)
-		}
-	}
-	if c.Port == c.InternalPort {
-		return config{}, errors.New("PORT and INTERNAL_PORT must differ")
+	if c.Transport.InternalPort == "" {
+		return config{}, errors.New("INTERNAL_PORT is required for Credit reservation routes")
 	}
 
 	// Dependencies
@@ -69,10 +51,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" && c.Transport.Mode != transport.Mesh {
-		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
-	}
-
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {
 		c.RunMigrations, err = strconv.ParseBool(value)
 		if err != nil {

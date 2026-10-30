@@ -4,32 +4,34 @@ Status: accepted for the implemented deployment foundation.
 
 ## Decision
 
-Keep Docker Compose unchanged and add independent production images, Kustomize
-workloads/overlays, and a kind/Helm bootstrap. Kubernetes DNS owns service
-discovery; Istio owns workload certificates, rotation and network mTLS.
-Application code retains JWT, role and ownership checks, without managing mesh
-certificates or discovery.
+Keep Docker Compose and application routes independent of the Kubernetes
+deployment. Kubernetes DNS owns service discovery; Istio owns workload
+certificates, rotation and network mTLS. Application code retains JWT, role and
+ownership checks, without managing mesh certificates or discovery.
 
-Go defaults to the existing single combined router. Explicit mesh mode binds
-public and internal routers to loopback ports 8080 and 8081. Public generated
-handlers are registered once; the internal router delegates to them as a
-fallback. Internal-only generated services are not mounted publicly. This avoids
-a per-procedure ingress allowlist or separate public/private client adapters.
+Each application router declares its public routes, private routes and the
+complete route set. `EXTERNAL_PORT` defaults to 8080. An optional
+`INTERNAL_PORT` serves private routes separately; when it is absent, the
+complete route set is served externally. User's public-key RPC is private in
+Kubernetes and public in a one-listener deployment. Credit requires an internal
+port because its reservation handlers do not verify an application credential.
+Services with no private routes run one listener; their internal ClusterIP
+aliases target that same listener.
 
-Both private ClusterIP Services expose port 8080:
-`<service>-external` maps to workload port 8080 and
-`<service>-internal` maps to workload port 8081. Backend callers use one internal
-base URL per destination. Gateway routing is by protobuf namespace, never a
-duplicate list of individual methods. Gateway identity is explicitly denied
-internal workload port 8081.
+The public ClusterIP Services expose port 8080 and target `EXTERNAL_PORT`.
+User and Credit internal Services expose port 8080 and target `INTERNAL_PORT`;
+the other internal aliases target `EXTERNAL_PORT`. Backend callers use one
+internal base URL per destination. Gateway routing is by protobuf namespace,
+never a duplicate list of individual methods. Gateway identity is explicitly
+denied internal workload port 8081.
 
-Mandatory native proxies, bounded proxy startup probes, loopback bindings,
-explicit Istio ingress forwarding, fail-closed admission, STRICT mTLS and
-coarse namespace authentication prevent ordinary network bypass. Application
-workloads in the FoC namespace are broadly trusted, with one narrow exception:
-Credit's unauthenticated reservation listener accepts only the Order workload
-principal. User JWTs remain required only for user-context operations.
-Public-key fetching needs mesh authentication but no user JWT.
+Mandatory native proxies, bounded proxy startup probes, explicit Istio ingress
+forwarding, fail-closed admission, STRICT mTLS and coarse namespace
+authentication prevent ordinary network bypass. Application workloads in the
+FoC namespace are broadly trusted, with one narrow exception: Credit's
+reservation listener accepts only the Order workload principal. User JWTs
+remain required only for user-context operations. Public-key fetching needs
+mesh authentication but no user JWT.
 
 ## Consequences
 

@@ -37,7 +37,6 @@ import (
 )
 
 const (
-	shutdownTimeout = 10 * time.Second
 	// Long-poll wait per getUpdates call; the HTTP timeout must exceed it.
 	pollTimeout = telegram.DefaultPollTimeout
 	// User Service may still be starting; its public keys are fetched at startup.
@@ -58,7 +57,6 @@ const (
 
 type config struct {
 	transport     transport.Config
-	port          string
 	databaseURL   string
 	runMigrations bool
 	telegramToken string
@@ -73,7 +71,6 @@ func loadConfig() (config, error) {
 	}
 	cfg := config{
 		transport:     serverConfig,
-		port:          serverConfig.Port,
 		databaseURL:   os.Getenv("DATABASE_URL"),
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
@@ -83,9 +80,6 @@ func loadConfig() (config, error) {
 		if broker = strings.TrimSpace(broker); broker != "" {
 			cfg.kafkaBrokers = append(cfg.kafkaBrokers, broker)
 		}
-	}
-	if cfg.port == "" {
-		cfg.port = "8080"
 	}
 	if cfg.databaseURL == "" {
 		return cfg, errors.New("DATABASE_URL is required")
@@ -102,7 +96,13 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if handled, err := transport.ExecuteCommand(ctx, os.Args[1:], os.Getenv, communicationv1connect.HealthServiceCheckProcedure, database.MigrateURL); handled {
+	if handled, err := transport.ExecuteCommand(
+		ctx,
+		os.Args[1:],
+		os.Getenv,
+		communicationv1connect.HealthServiceCheckProcedure,
+		database.MigrateURL,
+	); handled {
 		if err != nil {
 			fatal("command failed", err)
 		}
@@ -154,7 +154,15 @@ func main() {
 		Health:       &health.Handler{DB: pool, TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 	}, authenticator.Authenticate)
-	if err := transport.Run(ctx, shutdownTimeout, cfg.transport.Servers(corsConfig().Handler(handler), nil)...); err != nil {
+	allRoutes := corsConfig().Handler(handler)
+	servers, err := cfg.transport.Servers(transport.Handlers{
+		Public: allRoutes,
+		All:    allRoutes,
+	})
+	if err != nil {
+		fatal("configure listeners", err)
+	}
+	if err := transport.Run(ctx, transport.ShutdownTimeout, servers...); err != nil {
 		fatal("serve", err)
 	}
 	// The bot may start the consumer, so join both before closing the pool.

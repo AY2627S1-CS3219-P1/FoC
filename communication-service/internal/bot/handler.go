@@ -44,6 +44,7 @@ const (
 	helpReply    = "Send a message to chat with the other person on your order. Reply to a message about an order to answer about that order, or use /chat to choose one."
 	linkedReply  = "Connected. You'll get FoC order updates here. You can disconnect anytime from your FoC profile."
 	invalidReply = "This link has expired or was already used. Choose Connect Telegram in the FoC app to get a new one."
+	retryReply   = "Something went wrong connecting your account. Please press Start again."
 )
 
 // Handle processes one update. Only private chats are handled.
@@ -77,7 +78,7 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 	}
 	code = strings.TrimSpace(code)
 	if code == "" {
-		return h.reply(ctx, msg.Chat.ID, startReply)
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, startReply)
 	}
 
 	chat := linking.Chat{ID: msg.Chat.ID}
@@ -87,13 +88,16 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 	link, err := h.Linker.Redeem(ctx, code, chat)
 	if errors.Is(err, linking.ErrInvalidCode) {
 		h.Log.Info("telegram link code rejected", "chat_id", msg.Chat.ID)
-		return h.reply(ctx, msg.Chat.ID, invalidReply)
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, invalidReply)
 	}
 	if err != nil {
-		return fmt.Errorf("redeem telegram link: %w", err)
+		// The poller acknowledges this update anyway, but the code is still
+		// unused, so the user can retry.
+		h.Log.Error("telegram link failed", "chat_id", msg.Chat.ID, "err", err)
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, retryReply)
 	}
 	h.Log.Info("telegram linked", "user_id", link.UserID, "chat_id", link.ChatID)
-	return h.reply(ctx, msg.Chat.ID, linkedReply)
+	return h.Sender.SendMessage(ctx, msg.Chat.ID, linkedReply)
 }
 
 func (h *Handler) handleMembership(ctx context.Context, change *telegram.ChatMemberUpdated) error {
@@ -104,18 +108,5 @@ func (h *Handler) handleMembership(ctx context.Context, change *telegram.ChatMem
 		return fmt.Errorf("unlink blocked chat: %w", err)
 	}
 	h.Log.Info("telegram unlinked after block", "chat_id", change.Chat.ID)
-	return nil
-}
-
-// Replies are best effort: a blocked chat or failed send must not replay a
-// committed one-time redemption or prevent subsequent unlink updates.
-func (h *Handler) reply(ctx context.Context, chatID int64, text string) error {
-	err := h.Sender.SendMessage(ctx, chatID, text)
-	if errors.Is(err, telegram.ErrUnauthorized) {
-		return err
-	}
-	if err != nil {
-		h.Log.Warn("telegram reply failed", "chat_id", chatID, "err", err)
-	}
 	return nil
 }

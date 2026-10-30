@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/mail"
 	"net/url"
 	"os"
@@ -43,7 +42,6 @@ import (
 
 type config struct {
 	transport       transport.Config
-	port            string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -70,7 +68,13 @@ func main() {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		fatal("load environment", err)
 	}
-	if handled, err := transport.ExecuteCommand(ctx, os.Args[1:], os.Getenv, userv1connect.HealthServiceCheckProcedure, database.MigrateURL); handled {
+	if handled, err := transport.ExecuteCommand(
+		ctx,
+		os.Args[1:],
+		os.Getenv,
+		userv1connect.HealthServiceCheckProcedure,
+		database.MigrateURL,
+	); handled {
 		if err != nil {
 			fatal("command failed", err)
 		}
@@ -149,26 +153,24 @@ func main() {
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
-	var public, internal http.Handler
-	if cfg.transport.Mode == transport.Mesh {
-		public, internal = router.SetupMesh(&health.Handler{DB: sqlDB}, auth, protected)
-	} else {
-		public = router.Setup(&health.Handler{DB: sqlDB}, auth, protected)
-	}
+	public, internal, allRoutes := router.SetupRoutes(&health.Handler{DB: sqlDB}, auth, protected)
 	cors := getCorsConfig(auth.AllowedOrigin)
 	public = cors.Handler(public)
-	if internal != nil {
-		internal = cors.Handler(internal)
+	internal = cors.Handler(internal)
+	allRoutes = cors.Handler(allRoutes)
+	servers, err := cfg.transport.Servers(transport.Handlers{
+		Public:   public,
+		Internal: internal,
+		All:      allRoutes,
+	})
+	if err != nil {
+		fatal("configure listeners", err)
 	}
-	if err := transport.Run(ctx, transport.ShutdownTimeout, cfg.transport.Servers(public, internal)...); err != nil {
+	if err := transport.Run(ctx, transport.ShutdownTimeout, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	<-relayDone
-}
-
-func newServer(addr string, handler http.Handler) *http.Server {
-	return transport.New(addr, handler)
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -185,7 +187,6 @@ func loadConfig() (config, error) {
 	}
 	cfg := config{
 		transport:       transportConfig,
-		port:            transportConfig.Port,
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),

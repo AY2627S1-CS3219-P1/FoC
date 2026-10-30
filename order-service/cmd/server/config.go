@@ -13,7 +13,6 @@ import (
 
 type config struct {
 	Transport          server.Config
-	Port               string
 	DatabaseURL        string
 	UserServiceURL     string
 	RunMigrations      bool
@@ -33,7 +32,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c := config{
 		Transport:          transport,
-		Port:               transport.Port,
 		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:      true,
@@ -60,10 +58,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" && c.Transport.Mode != server.Mesh {
-		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
-	}
-
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {
 		c.RunMigrations, err = strconv.ParseBool(value)
 		if err != nil {
@@ -81,14 +75,17 @@ func loadConfig(getenv func(string) string) (config, error) {
 			continue
 		}
 		parsed, err := url.Parse(value)
-		meshInternal := c.Transport.Mode == server.Mesh && name != "ORDER_S3_PUBLIC_ENDPOINT"
+		publicEndpoint := name == "ORDER_S3_PUBLIC_ENDPOINT"
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
 			parsed.User != nil ||
 			parsed.RawQuery != "" ||
 			parsed.Fragment != "" ||
 			(parsed.Path != "" && parsed.Path != "/") ||
-			(parsed.Scheme != "https" && getenv("APP_ENV") != "local" && !meshInternal) {
-			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
+			(publicEndpoint && parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+			return config{}, fmt.Errorf(
+				"%s must be an HTTP(S) origin; public URLs require HTTPS outside local mode",
+				name,
+			)
 		}
 	}
 	if c.S3Bucket == "" && (c.S3Endpoint != "" || c.S3PublicEndpoint != "") {

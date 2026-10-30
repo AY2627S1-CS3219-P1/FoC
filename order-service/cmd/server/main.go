@@ -45,7 +45,13 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	if handled, err := transport.ExecuteCommand(ctx, os.Args[1:], os.Getenv, orderv1connect.HealthServiceCheckProcedure, database.Migrate); handled {
+	if handled, err := transport.ExecuteCommand(
+		ctx,
+		os.Args[1:],
+		os.Getenv,
+		orderv1connect.HealthServiceCheckProcedure,
+		database.Migrate,
+	); handled {
 		return err
 	}
 	config, err := loadConfig(os.Getenv)
@@ -148,18 +154,12 @@ func run(ctx context.Context) error {
 
 	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
-	var public, internal http.Handler
-	if config.Transport.Mode == transport.Mesh {
-		public, internal = router.SetupMesh(services, authenticator.Authenticate)
-	} else {
-		public = router.Setup(services, authenticator.Authenticate)
+	public := router.Setup(services, authenticator.Authenticate)
+	handler := getCorsConfig().Handler(public)
+	servers, err := config.Transport.Servers(transport.Handlers{Public: handler, All: handler})
+	if err != nil {
+		return err
 	}
-	cors := getCorsConfig()
-	public = cors.Handler(public)
-	if internal != nil {
-		internal = cors.Handler(internal)
-	}
-	servers := config.Transport.Servers(public, internal)
 	for _, server := range servers {
 		server.IdleTimeout = time.Minute
 	}
@@ -191,12 +191,6 @@ func getCorsConfig() *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
-}
-
-func newServer(addr string, handler http.Handler) *http.Server {
-	server := transport.New(addr, handler)
-	server.IdleTimeout = time.Minute
-	return server
 }
 
 // newAuthenticator bounds both network attempts and waits by the caller's

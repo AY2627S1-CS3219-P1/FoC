@@ -44,6 +44,11 @@ func Run(ctx context.Context, timeout time.Duration, servers ...*http.Server) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	for _, srv := range servers {
+		if srv.BaseContext == nil {
+			srv.BaseContext = func(net.Listener) context.Context { return ctx }
+		}
+	}
 	listeners := make([]net.Listener, 0, len(servers))
 	for _, srv := range servers {
 		listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", srv.Addr)

@@ -53,10 +53,11 @@ Use a consistent `K8S_STATE_DIR` override if choosing another private location.
 | Developer opening Mailpit | `http://localhost:8025` | Local/development mailbox port-forward |
 
 Both `-external` and `-internal` are ClusterIP Services: private addresses, not
-internet listeners. Both expose Service port 8080. Kubernetes maps the external
-Service to the public application listener at `127.0.0.1:8080`, and the internal
-Service to the combined listener at `127.0.0.1:8081`, through the destination
-proxy. Names alone are not the security boundary.
+internet listeners. Both expose Service port 8080. The external Service targets
+`EXTERNAL_PORT`; User and Credit internal Services target `INTERNAL_PORT`, while
+the other internal aliases target the external listener. Istio forwards inbound
+traffic from its pod listener to the app on loopback. Names alone are not the
+security boundary.
 
 A backend uses one internal base URL per destination for both public and
 internal procedures. Do not use raw pod IPs: they are unstable, and Istio cannot
@@ -124,10 +125,14 @@ Local development email is available through Mailpit.
 
 ## Mesh boundary and application behavior
 
-`RPC_MODE=single` is the default, preserving Compose's combined router and
-listener. `RPC_MODE=mesh` explicitly selects the two loopback listeners and
-permits HTTP service URLs because Istio encrypts the network hop. Invalid modes
-fail startup. JWT verification, roles and ownership checks remain enabled.
+Applications do not have a `single` or `mesh` mode. `EXTERNAL_PORT` defaults to
+8080 and `INTERNAL_PORT` is optional. With only an external port, the complete
+route set is served externally. With both ports, each service serves its public
+and private route groups separately. Kubernetes configures the User key route
+on its private listener and requires Credit's private listener for reservation
+RPCs. Other services use one app listener. Internal service URLs may use HTTP;
+Istio STRICT mTLS encrypts the Kubernetes network hop. JWT verification, roles
+and ownership checks remain enabled.
 
 Internal User public keys require no user JWT, but do require mesh
 authentication. They are absent from the public router (404). Protected APIs
@@ -137,7 +142,7 @@ without user context do not invent a JWT.
 
 A native proxy and its bounded startup probe must be ready before an application
 starts. Admission rejects missing/forged proxy setup, injection opt-outs, host
-networking, capture overrides and additional privileged initializers. Loopback
+networking, capture overrides and additional privileged initializers. App port
 listeners have explicit Istio ingress forwarding. Namespace-wide STRICT mTLS
 and a default-deny policy apply; authenticated app-namespace workloads are
 coarsely allowed, and gateway identity is explicitly denied internal port 8081.

@@ -13,6 +13,7 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL":          "postgres://credit:credit@localhost:5432/credit_dev",
 		"USER_SERVICE_BASE_URL": "https://user.example",
+		"INTERNAL_PORT":         "8081",
 	}
 }
 
@@ -21,7 +22,8 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Port != "8080" || c.InternalPort != "8081" || !c.RunMigrations || c.KafkaBrokers != nil {
+	if c.Transport.ExternalPort != "8080" || c.Transport.InternalPort != "8081" ||
+		!c.RunMigrations || c.KafkaBrokers != nil {
 		t.Fatalf("config %+v", c)
 	}
 }
@@ -38,11 +40,12 @@ func TestLoadConfigReadsKafkaBrokers(t *testing.T) {
 
 func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	tests := map[string]map[string]string{
-		"shared port":       {"PORT": "9000", "INTERNAL_PORT": "9000"},
-		"default port":      {"INTERNAL_PORT": "8080"},
+		"shared port":       {"EXTERNAL_PORT": "9000", "INTERNAL_PORT": "9000"},
+		"missing internal":  {"INTERNAL_PORT": ""},
+		"bad external port": {"EXTERNAL_PORT": "70000"},
 		"bad internal port": {"INTERNAL_PORT": "70000"},
 		"missing database":  {"DATABASE_URL": ""},
-		"http user service": {"USER_SERVICE_BASE_URL": "http://user-service:8080"},
+		"bad user scheme":   {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},
 		"user service path": {"USER_SERVICE_BASE_URL": "https://user.example/api"},
 		"migrations flag":   {"RUN_MIGRATIONS": "sometimes"},
 	}
@@ -59,9 +62,9 @@ func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	}
 }
 
-func TestLoadConfigAllowsHTTPLocally(t *testing.T) {
+func TestLoadConfigAllowsHTTPServiceURLs(t *testing.T) {
 	values := validEnv()
-	values["APP_ENV"] = "local"
+	values["APP_ENV"] = "production"
 	values["USER_SERVICE_BASE_URL"] = "http://user-service:8080"
 
 	if _, err := loadConfig(env(values)); err != nil {

@@ -72,8 +72,8 @@ func TestConfiguration(t *testing.T) {
 		{"missing auth", "USER_SERVICE_BASE_URL", ""},
 		{"auth path", "USER_SERVICE_BASE_URL", "http://localhost/api"},
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
-		{"unsafe production auth", "APP_ENV", "production"},
-		{"invalid port", "PORT", "-1"},
+		{"unsupported auth scheme", "USER_SERVICE_BASE_URL", "ftp://localhost"},
+		{"invalid port", "EXTERNAL_PORT", "-1"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestConfiguration(t *testing.T) {
 		})
 	}
 	c, err := loadConfig(func(key string) string { return valid[key] })
-	if err != nil || c.Port != "8080" || !c.RunMigrations {
+	if err != nil || c.Transport.ExternalPort != "8080" || !c.RunMigrations {
 		t.Fatalf("config=%+v, err=%v", c, err)
 	}
 	c, err = loadConfig(func(key string) string {
@@ -110,13 +110,12 @@ func TestCreationConfiguration(t *testing.T) {
 		valid  bool
 	}{
 		{"disabled without dependencies", map[string]string{}, true},
-		{"URL without token", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080"}, false},
-		{"token without URL", map[string]string{"CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
-		{"enabled local", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit", "SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080"}, true},
-		{"recovery with admission disabled", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, true},
-		{"no credential URL", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://user:secret@credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"URL without application token", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080"}, true},
+		{"enabled local", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080"}, true},
+		{"recovery with admission disabled", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080"}, true},
+		{"no credential URL", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://user:secret@credit:8080"}, false},
 		{"no service path", map[string]string{"SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080/rpc"}, false},
-		{"HTTPS outside local", map[string]string{"APP_ENV": "production", "USER_SERVICE_BASE_URL": "https://user.example", "CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"HTTP public endpoint outside local", map[string]string{"APP_ENV": "production", "ORDER_S3_BUCKET": "images", "ORDER_S3_PUBLIC_ENDPOINT": "http://floci:4566"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := map[string]string{

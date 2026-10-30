@@ -13,8 +13,7 @@ type UpdateSource interface {
 }
 
 // Handler processes one update. RetryError delays acknowledgement until its
-// continuation succeeds; other errors are logged and acknowledged. Handlers
-// that mutate state must return a RetryError around the unfinished operation.
+// continuation succeeds; other errors are logged and acknowledged.
 type Handler func(ctx context.Context, update Update) error
 
 // RetryError retains the unfinished part of an update without repeating its
@@ -39,7 +38,7 @@ type Poller struct {
 	Log    *slog.Logger
 	// Timeout is the long-poll wait. Zero means DefaultPollTimeout.
 	Timeout time.Duration
-	// Backoff is the wait after a failed poll or handler. Zero means one second.
+	// Backoff is the wait after a failed poll. Zero means one second.
 	Backoff time.Duration
 }
 
@@ -75,9 +74,6 @@ func (p *Poller) Run(ctx context.Context) error {
 		for _, update := range updates {
 			err := p.Handle(ctx, update)
 			for err != nil {
-				if errors.Is(err, ErrUnauthorized) {
-					return err
-				}
 				p.Log.Error("telegram update failed", "update_id", update.UpdateID, "err", err)
 				var retry *RetryError
 				if !errors.As(err, &retry) {

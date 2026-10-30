@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -43,7 +42,13 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if handled, err := transport.ExecuteCommand(ctx, args, os.Getenv, supplierv1connect.HealthServiceCheckProcedure, migrations.Migrate); handled {
+	if handled, err := transport.ExecuteCommand(
+		ctx,
+		args,
+		os.Getenv,
+		supplierv1connect.HealthServiceCheckProcedure,
+		migrations.Migrate,
+	); handled {
 		return err
 	}
 	transportConfig, err := transport.LoadConfig(os.Getenv)
@@ -68,11 +73,14 @@ func run(ctx context.Context, args []string) error {
 	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 
-	return transport.Run(ctx, transport.ShutdownTimeout, transportConfig.Servers(cors, nil)...)
-}
-
-func newServer(addr string, handler http.Handler) *http.Server {
-	return transport.New(addr, handler)
+	servers, err := transportConfig.Servers(transport.Handlers{
+		Public: cors,
+		All:    cors,
+	})
+	if err != nil {
+		return err
+	}
+	return transport.Run(ctx, transport.ShutdownTimeout, servers...)
 }
 
 // getCorsConfig allows credentialed cross-origin requests from HTTP localhost
@@ -117,7 +125,11 @@ func newAuthenticator(ctx context.Context) (*httpauth.Authenticator, error) {
 	return retryAuthenticator(ctx, AUTH_RETRY_INTERVAL, httpauth.NewUserServiceAuthenticator)
 }
 
-func retryAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+func retryAuthenticator(
+	ctx context.Context,
+	interval time.Duration,
+	build func(context.Context) (*httpauth.Authenticator, error),
+) (*httpauth.Authenticator, error) {
 	ctx, cancel := context.WithTimeout(ctx, AUTH_STARTUP_TIMEOUT)
 	defer cancel()
 	for {

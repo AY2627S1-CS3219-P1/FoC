@@ -56,7 +56,7 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `8080` | HTTP port inside the container. Compose maps it to `COMMUNICATION_PORT` (`8084`). |
+| `EXTERNAL_PORT` | `8080` | Public HTTP port inside the container. Compose maps it to `COMMUNICATION_PORT` (`8084`). |
 | `DATABASE_URL` | required | Postgres URL. Compose sets it from `COMMUNICATION_DATABASE_URL`. |
 | `USER_SERVICE_BASE_URL` | required | User Service URL, for verifying access tokens. |
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |
@@ -101,18 +101,6 @@ docker run -d --rm --name communication-test-db -p 55432:5432 -e POSTGRES_PASSWO
 TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' go test ./internal/linking/ ./internal/chat/
 docker rm -f communication-test-db
 ```
-
-## Telegram processing failures
-
-The poller retries a failed linking/unlinking operation with backoff before
-advancing its acknowledgement offset or handling later updates. Cancellation
-interrupts the wait, and a rejected bot token stops polling. Unsupported messages
-are ignored. Bot replies are best effort after the operation completes, so a
-failed reply cannot replay a one-time code or block a later unlink event.
-
-Acknowledgements follow [Telegram's getUpdates offset semantics](https://core.telegram.org/bots/api#getupdates).
-The offset is in memory; restart can replay an unacknowledged batch, so this is
-not an exactly-once processing guarantee.
 
 The notifications test also needs a broker with the `order.status_changed` topic. It runs the consumer against a fake Telegram API that fails the first send, then checks the replay sends once:
 
