@@ -18,9 +18,9 @@ spec:
       restartPolicy: Never
       containers:
         - name: credit-migrate
-          image: foc/credit-service:local
+          image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["migrate"]
+          args: ["-dir", "/migrations/credit", "postgres", "$(DATABASE_URL)", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

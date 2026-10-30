@@ -18,9 +18,9 @@ spec:
       restartPolicy: Never
       containers:
         - name: order-migrate
-          image: foc/order-service:local
+          image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["migrate"]
+          args: ["-dir", "/migrations/order", "postgres", "$(DATABASE_URL)", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

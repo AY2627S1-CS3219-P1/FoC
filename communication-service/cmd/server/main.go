@@ -28,7 +28,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1/communicationv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
@@ -96,18 +95,6 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if handled, err := transport.ExecuteCommand(
-		ctx,
-		os.Args[1:],
-		os.Getenv,
-		communicationv1connect.HealthServiceCheckProcedure,
-		database.MigrateURL,
-	); handled {
-		if err != nil {
-			fatal("command failed", err)
-		}
-		return
-	}
 	cfg, err := loadConfig()
 	if err != nil {
 		fatal("invalid config", err)
@@ -156,8 +143,8 @@ func main() {
 	}, authenticator.Authenticate)
 	allRoutes := corsConfig().Handler(handler)
 	servers, err := cfg.transport.Servers(transport.Handlers{
-		Public: allRoutes,
-		All:    allRoutes,
+		Public:   allRoutes,
+		Internal: router.Internal(),
 	})
 	if err != nil {
 		fatal("configure listeners", err)

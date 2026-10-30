@@ -38,13 +38,3 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	return nil
 }
-
-// MigrateURL is the one-shot deployment entrypoint and needs no bot or auth configuration.
-func MigrateURL(ctx context.Context, url string) error {
-	pool, err := Open(ctx, url)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	return Migrate(ctx, pool)
-}

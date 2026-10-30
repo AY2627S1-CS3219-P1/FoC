@@ -39,16 +39,16 @@ spec:
             - {name: http2-public, containerPort: 8080}
           startupProbe:
             exec:
-              command: ["/app/server", "probe", "live"]
+              command: ["/app/healthcheck", "live", "8080,8081"]
             failureThreshold: 40
             periodSeconds: 3
           livenessProbe:
             exec:
-              command: ["/app/server", "probe", "live"]
+              command: ["/app/healthcheck", "live", "8080,8081"]
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["/app/server", "probe", "ready"]
+              command: ["/app/healthcheck", "ready", "8080", "/supplier.v1.HealthService/Check"]
             periodSeconds: 5
             timeoutSeconds: 4
           resources:

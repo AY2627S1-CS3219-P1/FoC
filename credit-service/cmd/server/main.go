@@ -39,15 +39,6 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	if handled, err := transport.ExecuteCommand(
-		ctx,
-		os.Args[1:],
-		os.Getenv,
-		"/grpc.health.v1.Health/Check",
-		database.Migrate,
-	); handled {
-		return err
-	}
 
 	config, err := loadConfig(os.Getenv)
 	if err != nil {

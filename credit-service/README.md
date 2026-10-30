@@ -12,7 +12,7 @@ Kafka consumers.
 
 | Listener | Default port | Serves | Authentication |
 | --- | --- | --- | --- |
-| Public | `EXTERNAL_PORT` (8080) | `credit.v1.CreditAccountService`, `grpc.health.v1.Health` | User Service JWT |
+| Public | `PORT` (8080) | `credit.v1.CreditAccountService`, `grpc.health.v1.Health` | User Service JWT |
 | Internal | `INTERNAL_PORT` (8081) | `credit.v1.CreditReservationService`, `grpc.health.v1.Health` | Istio workload principal in Kubernetes; no app credential |
 
 The internal listener serves Order's reservation calls and does not verify an
@@ -40,8 +40,8 @@ which restarts with backoff and redelivers the uncommitted event.
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Credit's PostgreSQL database. |
 | `USER_SERVICE_BASE_URL` | Yes | Origin used to fetch JWT keys; may use HTTP for internal service discovery. |
-| `EXTERNAL_PORT` | No | Public listener port; defaults to 8080. |
-| `INTERNAL_PORT` | Yes | Private reservation listener; required and must differ from `EXTERNAL_PORT`. |
+| `PORT` | No | Public listener port; defaults to 8080. |
+| `INTERNAL_PORT` | Yes | Private reservation listener; required and must differ from `PORT`. |
 | `RUN_MIGRATIONS` | No | `true` by default. |
 | `KAFKA_BROKERS` | No | Comma-separated. Without it nothing is consumed, and reservations stay held until it is set. |
 

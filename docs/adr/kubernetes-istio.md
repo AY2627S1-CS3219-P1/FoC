@@ -9,23 +9,24 @@ deployment. Kubernetes DNS owns service discovery; Istio owns workload
 certificates, rotation and network mTLS. Application code retains JWT, role and
 ownership checks, without managing mesh certificates or discovery.
 
-Each application router declares its public routes, private routes and the
-complete route set. `EXTERNAL_PORT` defaults to 8080. An optional
-`INTERNAL_PORT` serves private routes separately; when it is absent, the
-complete route set is served externally. User's public-key RPC is private in
-Kubernetes and public in a one-listener deployment. Credit requires an internal
-port because its reservation handlers do not verify an application credential.
-Services with no private routes run one listener; their internal ClusterIP
-aliases target that same listener.
+Each application owns its public and internal routers. `PORT` defaults to 8080;
+`INTERNAL_PORT` configures the second listener in both Compose and Kubernetes.
+The application does not select a deployment mode. User serves its public-key
+RPC only on the internal listener. Credit keeps reservation RPCs on the
+Order-only internal listener because those handlers do not verify an
+application credential. Other services mount their complete current API on the
+public router and leave the internal router empty as a placeholder.
 
-The public ClusterIP Services expose port 8080 and target `EXTERNAL_PORT`.
+The public ClusterIP Services expose port 8080 and target `PORT`.
 User and Credit internal Services expose port 8080 and target `INTERNAL_PORT`;
-the other internal aliases target `EXTERNAL_PORT`. Backend callers use one
-internal base URL per destination. Ingress uses Kubernetes Gateway API
+other internal aliases point to their public listener because those services
+currently expose every route publicly. Backend callers use one internal base
+URL per destination. Ingress uses Kubernetes Gateway API
 resources. Since standard `PathPrefix` matches complete slash-separated path
-elements, handwritten `HTTPRoute` resources match full protobuf service paths
-(for example `/user.v1.AuthService`). Add a route when adding a protobuf
-service; methods within an existing service need no route change. Gateway
+elements, handwritten `HTTPRoute` resources match full public protobuf service
+paths (for example `/user.v1.AuthService`). Add a route for each new public
+protobuf service; methods within an existing service need no route change.
+User's internal-only public-key service is omitted from Gateway routes. Gateway
 identity is explicitly denied internal workload port 8081.
 
 Mandatory native proxies, bounded proxy startup probes, explicit Istio ingress
@@ -33,7 +34,7 @@ forwarding, fail-closed admission, STRICT mTLS and coarse namespace
 authentication prevent ordinary network bypass. Application workloads in the
 FoC namespace are broadly trusted, with one narrow exception: Credit's
 reservation listener accepts only the Order workload principal. User JWTs
-remain required only for user-context operations. Public-key fetching needs
+remain required for user-context operations. User public-key fetching needs
 mesh authentication but no user JWT.
 
 ## Consequences

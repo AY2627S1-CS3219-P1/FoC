@@ -26,3 +26,7 @@ func New(services Services, authenticate func(http.Handler) http.Handler) http.H
 	mux.Handle(linkPath, authenticate(linkHandler))
 	return mux
 }
+
+// Internal returns the reserved internal route table. Routes will be moved
+// here when the service needs private endpoints.
+func Internal() http.Handler { return http.NewServeMux() }

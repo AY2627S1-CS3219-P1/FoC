@@ -56,7 +56,7 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `EXTERNAL_PORT` | `8080` | Public HTTP port inside the container. Compose maps it to `COMMUNICATION_PORT` (`8084`). |
+| `PORT` | `8080` | Public HTTP port inside the container. Compose maps it to `COMMUNICATION_PORT` (`8084`). |
 | `DATABASE_URL` | required | Postgres URL. Compose sets it from `COMMUNICATION_DATABASE_URL`. |
 | `USER_SERVICE_BASE_URL` | required | User Service URL, for verifying access tokens. |
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |

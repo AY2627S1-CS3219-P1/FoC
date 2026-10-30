@@ -90,7 +90,7 @@ async function installMesh(): Promise<void> {
 }
 
 async function buildImage(name: string): Promise<void> {
-	const dockerfile = name === "frontend" || name === "kafka-init" ? name : "service";
+	const dockerfile = name === "frontend" || name === "kafka-init" || name === "migrations" ? name : "service";
 	await run("docker", [
 		"build", "--file", join(K8S_ROOT, "docker/k8s", dockerfile + ".Dockerfile"),
 		"--build-arg", "SERVICE=" + name,
@@ -125,7 +125,7 @@ async function renderStage(stage: string): Promise<string> {
 	const directory = await mkdtemp(join(K8S_STATE_DIR, ".render-"));
 	try {
 		await writeFile(join(directory, "resources.yaml"), stageOutput.stdout, { mode: 0o600 });
-		const imageLines = [...K8S_APPS, "kafka-init"].map((name) =>
+		const imageLines = [...K8S_APPS, "kafka-init", "migrations"].map((name) =>
 			"  - name: foc/" + name + "\n    newName: " + K8S_IMAGE_PREFIX + "/" + name + "\n    newTag: \"" + K8S_IMAGE_TAG + "\"",
 		);
 		const config = [
@@ -198,7 +198,7 @@ async function deployAll(): Promise<void> {
 			die("Production deployment requires a registry K8S_IMAGE_PREFIX and an immutable K8S_IMAGE_TAG.");
 		}
 	}
-	await buildImages([...K8S_APPS, "kafka-init"]);
+	await buildImages([...K8S_APPS, "kafka-init", "migrations"]);
 	if (isLocalOverlay()) {
 		await generateLocalSecrets();
 	} else {

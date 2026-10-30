@@ -40,9 +40,9 @@ func TestLoadConfigReadsKafkaBrokers(t *testing.T) {
 
 func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	tests := map[string]map[string]string{
-		"shared port":       {"EXTERNAL_PORT": "9000", "INTERNAL_PORT": "9000"},
+		"shared port":       {"PORT": "9000", "INTERNAL_PORT": "9000"},
 		"missing internal":  {"INTERNAL_PORT": ""},
-		"bad external port": {"EXTERNAL_PORT": "70000"},
+		"bad external port": {"PORT": "70000"},
 		"bad internal port": {"INTERNAL_PORT": "70000"},
 		"missing database":  {"DATABASE_URL": ""},
 		"bad user scheme":   {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},

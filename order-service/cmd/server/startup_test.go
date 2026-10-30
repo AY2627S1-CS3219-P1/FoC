@@ -73,7 +73,7 @@ func TestConfiguration(t *testing.T) {
 		{"auth path", "USER_SERVICE_BASE_URL", "http://localhost/api"},
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
 		{"unsupported auth scheme", "USER_SERVICE_BASE_URL", "ftp://localhost"},
-		{"invalid port", "EXTERNAL_PORT", "-1"},
+		{"invalid port", "PORT", "-1"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -56,6 +56,25 @@ spec:
         - operation:
             ports: ["8081"]
 ---
+# Credit's reservation methods do not authenticate application callers.
+# Keep their internal listener reachable only by Order's workload identity.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: credit-internal-order-only
+spec:
+  selector:
+    matchLabels:
+      app: credit-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/order-service]
+      to:
+        - operation:
+            ports: ["8081"]
+---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

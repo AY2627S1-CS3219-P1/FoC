@@ -26,10 +26,12 @@ COPY supplier-service/ ./supplier-service/
 COPY order-service/ ./order-service/
 COPY communication-service/ ./communication-service/
 COPY credit-service/ ./credit-service/
+COPY docker/k8s/healthcheck/ ./docker/k8s/healthcheck/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     cd "$SERVICE" \
     && go build -mod=readonly -trimpath -ldflags="-s -w" -o /out/server ./cmd/server \
+    && go build -trimpath -ldflags="-s -w" -o /out/healthcheck /src/docker/k8s/healthcheck/main.go \
     && if [ "$SERVICE" = order-service ]; then go build -mod=readonly -trimpath -o /out/storage-init ./cmd/storage-init; fi
 
 # Distroless static includes system CA certificates and no compiler or shell.

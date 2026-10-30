@@ -19,7 +19,7 @@ import (
 
 const maxRPCMessageBytes = 1 << 20
 
-// Setup mounts the Connect handlers built in main with their dependencies set.
+// Setup mounts every user RPC. It remains useful to single-router tests.
 type ProtectedRoutes struct {
 	Profile      *profilehandler.Handler
 	Admin        *adminhandler.Handler
@@ -31,21 +31,21 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 	return setup(health, auth, true, protected...)
 }
 
-// SetupRoutes groups handlers by route exposure. The caller chooses whether to
-// bind the internal routes separately; allRoutes preserves single-listener use.
-func SetupRoutes(
+// Public mounts user RPCs except public-key retrieval.
+func Public(
 	health *healthhandler.Handler,
 	auth *authhandler.Handler,
 	protected ...ProtectedRoutes,
-) (public, internal, allRoutes http.Handler) {
-	public = setup(health, auth, false, protected...)
-	internalMux := http.NewServeMux()
+) http.Handler {
+	return setup(health, auth, false, protected...)
+}
+
+// Internal exposes only the User Service public-key RPC.
+func Internal(auth *authhandler.Handler) http.Handler {
+	mux := http.NewServeMux()
 	keysPath, keysService := publicKeyHandler(auth)
-	internalMux.Handle(keysPath, keysService)
-	internalMux.Handle("/", public)
-	internal = internalMux
-	allRoutes = setup(health, auth, true, protected...)
-	return public, internal, allRoutes
+	mux.Handle(keysPath, keysService)
+	return mux
 }
 
 func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {

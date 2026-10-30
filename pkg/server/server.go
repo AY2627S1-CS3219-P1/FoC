@@ -25,16 +25,6 @@ func New(address string, handler http.Handler) *http.Server {
 	}
 }
 
-// WithLiveness checks only this listener, without touching dependencies.
-func WithLiveness(next http.Handler) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	mux.Handle("/", next)
-	return mux
-}
-
 // Run binds every listener before serving. Any bind/serve failure shuts down
 // the group and returns an error to the executable's exit path.
 func Run(ctx context.Context, timeout time.Duration, servers ...*http.Server) error {

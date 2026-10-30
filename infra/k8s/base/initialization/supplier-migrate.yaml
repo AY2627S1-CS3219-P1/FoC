@@ -18,9 +18,9 @@ spec:
       restartPolicy: Never
       containers:
         - name: supplier-migrate
-          image: foc/supplier-service:local
+          image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["migrate"]
+          args: ["-dir", "/migrations/supplier", "postgres", "$(DATABASE_URL)", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

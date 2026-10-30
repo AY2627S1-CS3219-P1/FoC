@@ -25,15 +25,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if err != nil {
 		return config{}, err
 	}
+	if serverConfig.InternalPort == "" {
+		return config{}, errors.New("INTERNAL_PORT is required for Credit reservation routes")
+	}
 	c := config{
 		Transport:      serverConfig,
 		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:  true,
-	}
-
-	if c.Transport.InternalPort == "" {
-		return config{}, errors.New("INTERNAL_PORT is required for Credit reservation routes")
 	}
 
 	// Dependencies

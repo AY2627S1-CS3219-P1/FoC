@@ -11,9 +11,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/v1/supplierv1connect"
 	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
-	migrations "github.com/AY2627S1-CS3219-P1/FoC/supplier-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/router"
@@ -35,22 +33,13 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Args[1:]); err != nil {
+	if err := run(ctx); err != nil {
 		slog.Error("Supplier service stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
-	if handled, err := transport.ExecuteCommand(
-		ctx,
-		args,
-		os.Getenv,
-		supplierv1connect.HealthServiceCheckProcedure,
-		migrations.Migrate,
-	); handled {
-		return err
-	}
+func run(ctx context.Context) error {
 	transportConfig, err := transport.LoadConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -74,8 +63,8 @@ func run(ctx context.Context, args []string) error {
 	cors := getCorsConfig().Handler(r)
 
 	servers, err := transportConfig.Servers(transport.Handlers{
-		Public: cors,
-		All:    cors,
+		Public:   cors,
+		Internal: router.Internal(),
 	})
 	if err != nil {
 		return err

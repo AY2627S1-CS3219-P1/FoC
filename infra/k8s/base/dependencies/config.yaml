@@ -6,7 +6,8 @@ metadata:
     foc.dev/stage: dependencies
 data:
   APP_ENV: production
-  EXTERNAL_PORT: "8080"
+  PORT: "8080"
+  INTERNAL_PORT: "8081"
   RUN_MIGRATIONS: "false"
   FRONTEND_BASE_URL: https://localhost:5173
   ORIGIN: https://localhost:5173

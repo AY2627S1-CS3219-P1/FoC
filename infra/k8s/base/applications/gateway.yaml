@@ -12,7 +12,6 @@ spec:
         - path: {type: PathPrefix, value: /user.v1.AuthService}
         - path: {type: PathPrefix, value: /user.v1.HealthService}
         - path: {type: PathPrefix, value: /user.v1.ProfileService}
-        - path: {type: PathPrefix, value: /user.v1.PublicKeyService}
         - path: {type: PathPrefix, value: /user.v1.UserAdminService}
       backendRefs:
         - name: user-service-external

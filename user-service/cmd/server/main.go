@@ -23,7 +23,6 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
@@ -68,18 +67,6 @@ func main() {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		fatal("load environment", err)
 	}
-	if handled, err := transport.ExecuteCommand(
-		ctx,
-		os.Args[1:],
-		os.Getenv,
-		userv1connect.HealthServiceCheckProcedure,
-		database.MigrateURL,
-	); handled {
-		if err != nil {
-			fatal("command failed", err)
-		}
-		return
-	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -97,7 +84,7 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	if cfg.runMigrations {
-		if err := database.MigrateContext(ctx, db); err != nil {
+		if err := database.Migrate(db); err != nil {
 			fatal("migrate", err)
 		}
 		log.Info("migrations applied")
@@ -153,15 +140,14 @@ func main() {
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
-	public, internal, allRoutes := router.SetupRoutes(&health.Handler{DB: sqlDB}, auth, protected)
+	public := router.Public(&health.Handler{DB: sqlDB}, auth, protected)
+	internal := router.Internal(auth)
 	cors := getCorsConfig(auth.AllowedOrigin)
 	public = cors.Handler(public)
 	internal = cors.Handler(internal)
-	allRoutes = cors.Handler(allRoutes)
 	servers, err := cfg.transport.Servers(transport.Handlers{
 		Public:   public,
 		Internal: internal,
-		All:      allRoutes,
 	})
 	if err != nil {
 		fatal("configure listeners", err)

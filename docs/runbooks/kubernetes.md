@@ -70,10 +70,10 @@ Use a consistent `K8S_STATE_DIR` override if choosing another private location.
 
 Both `-external` and `-internal` are ClusterIP Services: private addresses, not
 internet listeners. Both expose Service port 8080. The external Service targets
-`EXTERNAL_PORT`; User and Credit internal Services target `INTERNAL_PORT`, while
-the other internal aliases target the external listener. Istio forwards inbound
-traffic from its pod listener to the app on loopback. Names alone are not the
-security boundary.
+`PORT`; User and Credit internal Services target `INTERNAL_PORT`, while other
+internal aliases target the public listener. Istio forwards inbound traffic
+from its pod listener to the app on loopback. Names alone are not the security
+boundary.
 
 A backend uses one internal base URL per destination for both public and
 internal procedures. Do not use raw pod IPs: they are unstable, and Istio cannot
@@ -92,9 +92,10 @@ Ingress uses Kubernetes `Gateway` and `HTTPRoute` resources with Istio as the
 Gateway API controller. The managed local install vendors Gateway API v1.6.0
 Standard CRDs. External clusters must already serve Gateway API v1 and have
 Istio installed as the `istio` GatewayClass controller; bootstrap checks for
-the CRDs but does not replace them. Routes list full protobuf service paths
-because standard `PathPrefix` matching is segment based. Add a route when a new
-protobuf service is added. Mesh mTLS and workload authorization remain
+the CRDs but does not replace them. Routes list full public protobuf service
+paths because standard `PathPrefix` matching is segment based. Add a route for
+each new public protobuf service. User's public-key service is internal-only
+and has no Gateway route. Mesh mTLS and workload authorization remain
 Istio-specific.
 
 The local Gateway and routes omit hostnames so the local TLS certificate can
@@ -149,20 +150,22 @@ Local development email is available through Mailpit.
 
 ## Mesh boundary and application behavior
 
-Applications do not have a `single` or `mesh` mode. `EXTERNAL_PORT` defaults to
-8080 and `INTERNAL_PORT` is optional. With only an external port, the complete
-route set is served externally. With both ports, each service serves its public
-and private route groups separately. Kubernetes configures the User key route
-on its private listener and requires Credit's private listener for reservation
-RPCs. Other services use one app listener. Internal service URLs may use HTTP;
-Istio STRICT mTLS encrypts the Kubernetes network hop. JWT verification, roles
-and ownership checks remain enabled.
+Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080 and
+`INTERNAL_PORT` is configured in both Compose and Kubernetes. User exposes its
+public-key RPC only on the internal listener. Credit keeps reservation RPCs on
+the Order-only internal listener. Other services mount their current routes on
+the public listener and keep an empty internal router as a placeholder; their
+internal Service aliases currently target the public listener. Internal service
+URLs may use HTTP; Istio STRICT mTLS encrypts the Kubernetes network hop.
+JWT verification, roles and ownership checks remain enabled.
 
 Internal User public keys require no user JWT, but do require mesh
-authentication. They are absent from the public router (404). Protected APIs
-still require a valid user JWT on either listener. Forward the user's bearer
-token for operations performed on their behalf; background/key/health operations
-without user context do not invent a JWT.
+authentication. They are absent from the public router (404). User APIs that
+act on a user's behalf require a valid JWT on the public listener. Credit
+account APIs require a user JWT; reservation calls stay on the internal
+listener and are restricted to Order's mesh identity. Forward the user's bearer
+token for operations performed on their behalf; background, key and health
+operations without user context do not invent a JWT.
 
 A native proxy and its bounded startup probe must be ready before an application
 starts. Admission rejects missing/forged proxy setup, injection opt-outs, host
@@ -201,7 +204,7 @@ kubectl -n foc logs <pod-name> -c istio-proxy --tail=100
 no shell or psql. Execute an installed command, for example a local probe:
 
 ```sh
-kubectl -n foc exec deployment/user-service -c user-service -- /app/server probe ready
+kubectl -n foc exec deployment/user-service -c user-service -- /app/healthcheck ready 8080 /user.v1.HealthService/Check
 
 # psql is installed in PostgreSQL, not User Service:
 kubectl -n foc exec -it statefulset/postgres -c postgres -- psql -U foc -d user_db

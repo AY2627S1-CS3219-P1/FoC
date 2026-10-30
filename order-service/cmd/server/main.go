@@ -20,7 +20,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -45,15 +44,6 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	if handled, err := transport.ExecuteCommand(
-		ctx,
-		os.Args[1:],
-		os.Getenv,
-		orderv1connect.HealthServiceCheckProcedure,
-		database.Migrate,
-	); handled {
-		return err
-	}
 	config, err := loadConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -156,7 +146,7 @@ func run(ctx context.Context) error {
 
 	public := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(public)
-	servers, err := config.Transport.Servers(transport.Handlers{Public: handler, All: handler})
+	servers, err := config.Transport.Servers(transport.Handlers{Public: handler, Internal: router.Internal()})
 	if err != nil {
 		return err
 	}

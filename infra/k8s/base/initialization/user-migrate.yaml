@@ -18,9 +18,9 @@ spec:
       restartPolicy: Never
       containers:
         - name: user-migrate
-          image: foc/user-service:local
+          image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["migrate"]
+          args: ["-dir", "/migrations/user", "postgres", "$(DATABASE_URL)", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
