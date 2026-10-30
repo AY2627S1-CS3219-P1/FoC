@@ -98,6 +98,76 @@ For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the
 [Kubernetes operations runbook](../../docs/runbooks/kubernetes.md).
 
+## Request path and router boundaries
+
+The same application binaries run in Compose and Kubernetes. Applications
+listen on `PORT` and, where needed, `INTERNAL_PORT`; they do not detect a mesh
+or select a deployment mode. Kubernetes adds the Gateway API resources and
+Istio workload networking around those listeners.
+
+```mermaid
+flowchart LR
+    B[Browser]
+    PF[Local kubectl port-forward<br/>localhost:5173 to Gateway Service:443]
+    EXT[Production entry point<br/>operator supplied]
+    G[Gateway API Gateway<br/>Istio controller, HTTPS termination]
+    R[HTTPRoute<br/>host and path prefix]
+    F[Frontend Service<br/>/]
+    S[Public ClusterIP Service<br/>/service paths]
+    E[Pod Envoy sidecar<br/>STRICT mTLS and workload policy]
+    A[Application PORT<br/>public router]
+    I[User/Credit INTERNAL_PORT<br/>private router]
+    C[Backend workload]
+    D[Internal Service DNS alias]
+    O[Local Floci route<br/>signed object paths]
+
+    B -->|local| PF --> G
+    B -->|production| EXT --> G
+    G --> R
+    R -->|/| F
+    R -->|public RPC path| S --> E --> A
+    C --> D --> E --> I
+    R -. local only .-> O
+```
+
+For local development, the browser opens `https://localhost:5173`; the
+foreground port-forward sends that traffic to the Gateway Service in
+`istio-ingress`. The Gateway terminates browser TLS. Gateway API `HTTPRoute`
+resources select a backend by hostname and URL path prefix: `/` goes to the
+frontend, while listed protobuf service paths go to a service's public
+ClusterIP Service. A Connect request path has the form
+`/<package>.<service>/<method>`. The route does not authenticate a user or
+authorize an RPC method. The backend Envoy sidecar carries the mesh connection
+to the pod, and the application router dispatches the Connect method. The
+response follows the same path back to the browser. The local overlay also
+routes signed Order image paths to Floci; that route carries objects, not
+service RPCs.
+
+The browser's initial `GET /` reaches the frontend, which renders its loading
+shell. After hydration, the browser restores the session and requests Connect
+RPCs from the same HTTPS origin. Its service URLs point to the Gateway origin;
+the auth interceptor adds a bearer token to protected calls, which the
+application validates. Istio STRICT mTLS and `AuthorizationPolicy` check the
+calling workload identity at the network boundary. They do not replace
+application JWT, role, or ownership checks.
+
+| Service | Public listener (`PORT`) | Internal listener (`INTERNAL_PORT`) |
+| -- | -- | -- |
+| User | Health, Auth, Profile, and User Admin RPCs | Public-key RPC only; no Gateway route |
+| Credit | Health and Credit Account RPCs | Reservation RPCs; kept private to Order in Kubernetes |
+| Supplier, Order, Communication | All currently mounted RPCs | Empty router for now; Kubernetes internal aliases target the public listener |
+
+For User and Credit, the internal Service targets `INTERNAL_PORT`. Supplier,
+Order, and Communication keep their internal routers empty for now, so those
+internal aliases target the public listener as noted in the table.
+
+The public and internal Kubernetes Service names both resolve only inside the
+cluster. `-external` means “targets the public application listener,” not
+internet exposure. Application RPC routes point only to public Services, and
+the Gateway workload identity is explicitly denied access to port 8081. See the
+[operations runbook](../../docs/runbooks/kubernetes.md) for service DNS,
+policies, jobs, secrets, and production requirements.
+
 ## Current application coverage and platform support
 
 The stack includes User, Supplier, Order, Credit, Communication, frontend and

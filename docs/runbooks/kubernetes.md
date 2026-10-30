@@ -75,6 +75,24 @@ internal aliases target the public listener. Istio forwards inbound traffic
 from its pod listener to the app on loopback. Names alone are not the security
 boundary.
 
+Kubernetes resolves a Service by its name inside the same namespace, or by its
+full name such as `user-service-internal.foc.svc.cluster.local` across
+namespaces. The app configuration uses those Service names for backend calls;
+Kafka advertises `kafka.foc.svc.cluster.local`. Docker Compose provides its own
+DNS for Compose service names such as `user-service`. This is standard platform
+service discovery: application code receives its destinations from
+configuration and does not detect Kubernetes, Compose, or a service mesh.
+
+The browser does not resolve these cluster-only names. Its public service URLs
+all use the Gateway origin, so the frontend and browser RPCs share one origin.
+Locally, `kubectl port-forward` makes that origin `https://localhost:<port>`;
+in an external deployment, the operator supplies the public network path and
+DNS for the configured Gateway hostname. The production overlay sets an example
+hostname and TLS Secret name, but this repository does not create a DNS record
+or an external load balancer. The Gateway-generated Service is `ClusterIP`, so
+an operator must expose it through the environment's ingress/load-balancer
+setup and point DNS at that entry point.
+
 A backend uses one internal base URL per destination for both public and
 internal procedures. Do not use raw pod IPs: they are unstable, and Istio cannot
 automatically choose the correct mTLS upstream for an arbitrary pod-IP request.
@@ -112,6 +130,23 @@ Do not delete that directory while retaining PostgreSQL data. The generator does
 not silently rotate database passwords or JWT keys. Credential files must never
 be committed or printed into logs.
 
+For the local overlay, `make k8s-up` creates and applies Kubernetes Secrets from
+that private directory. External-cluster deployments require the operator to
+create the listed Secrets before deployment; the production template does not
+generate or rotate credentials.
+
+| Kubernetes Secret | Purpose |
+| -- | -- |
+| `postgres-admin`, `user-db`, `supplier-db`, `order-db`, `credit-db`, `communication-db` (`foc`) | PostgreSQL administrator and per-service database credentials |
+| `jwt-signing` (`foc`) | User Service's JWT signing private key; mounted read-only only in User Service |
+| `smtp`, `telegram`, `kafka-ui-auth`, `object-storage` (`foc`) | Mail sender, optional Telegram bot, Kafka UI login, and S3 credentials |
+| `foc-local-tls` / `foc-public-tls` (`istio-ingress`) | Gateway TLS certificate and key for the local / production hostname |
+
+The JWT public key is served by User Service's internal public-key RPC for
+other services to verify tokens; they do not receive the signing private key.
+Kubernetes Secret objects are the deployment input, while `.local/k8s/secrets`
+is the local source of truth across retries.
+
 These are separate identities:
 
 - FoC superadmin: application account, signs in using a Mailpit magic link.
@@ -147,6 +182,30 @@ Sign in through the normal magic-link flow. Mailpit receives local SMTP at
 `mailpit:1025`; its web UI is port-forwarded only. Production omits Mailpit and
 requires operator-provided SMTP credentials compatible with the existing sender.
 Local development email is available through Mailpit.
+
+## Initialization jobs and demo data
+
+`make k8s-up` and a full `make k8s-deploy` prepare the database, schema, and
+Kafka before rolling out applications. These Jobs do setup work; they do not
+load demo users or supplier records.
+
+| Job | Work performed |
+| -- | -- |
+| `db-provision` | Creates the five service databases and non-superuser roles if they are missing, grants database access, and installs Supplier's PostGIS and `pg_trgm` extensions. It does not drop existing data. |
+| `user-migrate`, `supplier-migrate`, `order-migrate`, `credit-migrate`, `communication-migrate` | Apply each service's Goose migrations before application rollout. Normal app containers have `RUN_MIGRATIONS=false`. |
+| `kafka-init` | Creates the topics declared in `infra/kafka/topics.conf`; topic auto-creation is disabled on the broker. |
+| `order-storage-init` (local overlay only) | Creates the Order image bucket and browser CORS configuration in local Floci. External deployments supply their own object storage. |
+
+The first superadmin is not a Kubernetes Job. User Service performs its
+existing transactional bootstrap on startup using the configured bootstrap
+email; the state is stored in PostgreSQL and survives restarts.
+
+Demo fixtures are separate from deployment initialization. `make seed-demo`
+and `make seed-demo-reset` run the Go seed command through `docker compose exec`
+against the Compose PostgreSQL container. The manifest currently seeds
+only `users.sql` and `suppliers.sql`. These targets are not Kubernetes Jobs and
+are not run by `make k8s-up`; the repository has no Kubernetes demo-seeding
+target.
 
 ## Mesh boundary and application behavior
 
