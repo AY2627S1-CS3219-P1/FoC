@@ -1,3 +1,14 @@
+// Command healthcheck is the Kubernetes probe binary baked into every service
+// image. The runtime image is distroless — no shell, curl or wget — so the
+// exec-based probes in infra/k8s need a self-contained program to run:
+//
+//	healthcheck live <ports>            TCP-dial each loopback port (liveness)
+//	healthcheck ready <port> <procedure>  issue the real Connect health RPC
+//	                                      (readiness)
+//
+// "live" proves the process is listening; "ready" proves the service answers
+// correctly, so readiness is only reported once the application can serve.
+// Built with GO111MODULE=off during image builds; standard library only.
 package main
 
 import (
@@ -42,10 +53,13 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Connect RPCs are POSTs with this content type; the empty request body
+	// is valid for every Health/Check procedure.
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Connect-Protocol-Version", "1")
 	client := &http.Client{
-		Timeout:   3 * time.Second,
+		Timeout: 3 * time.Second,
+		// Loopback to our own process; never honor ambient proxy variables.
 		Transport: &http.Transport{Proxy: nil},
 	}
 	response, err := client.Do(request)
