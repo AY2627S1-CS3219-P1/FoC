@@ -463,10 +463,10 @@ export function waitForLocalListener(port: number): Promise<boolean> {
 	});
 }
 
-// kubectl binds the local listener before the tunnel is usable and can also
-// exit early; consider the forward ready only when the port accepts a TCP
-// connection.
-export async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
+// Spawn a kubectl port-forward and wait until it is actually usable; returns
+// the running child. On failure the child is already terminated — the caller
+// tracks only successfully attached forwards.
+export async function startForward(forward: ForwardSpec): Promise<Bun.Subprocess> {
 	const kubectl = await aquaWhich("kubectl");
 	const child = Bun.spawn(
 		[
@@ -482,7 +482,6 @@ export async function startForward(forward: ForwardSpec, children: Bun.Subproces
 		],
 		{ stdout: "inherit", stderr: "inherit", stdin: "ignore" },
 	);
-	children.push(child);
 	const exited = child.exited.then((code) => ({ code }));
 	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
@@ -492,7 +491,7 @@ export async function startForward(forward: ForwardSpec, children: Bun.Subproces
 		}
 		if (result.ready) {
 			note(forward.name + ": " + forward.scheme + "://localhost:" + forward.localPort);
-			return;
+			return child;
 		}
 		await Bun.sleep(100);
 	}

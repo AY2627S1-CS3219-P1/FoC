@@ -92,7 +92,7 @@ export async function smokeGateway(): Promise<void> {
 			note("Reusing the gateway forward already attached on localhost:" + forward.localPort + ".");
 		} else {
 			await preflightForwards([forward]);
-			await startForward(forward, children);
+			children.push(await startForward(forward));
 		}
 		await gatewaySmokeRequest(forward, "/", 200);
 		for (const path of [

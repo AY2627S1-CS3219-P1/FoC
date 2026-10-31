@@ -417,7 +417,7 @@ async function superviseForwards(
 			if (signal) break;
 			try {
 				await assertPortAvailable(forward.localPort);
-				await startForward(forward, children);
+				children.push(await startForward(forward));
 			} catch (error) {
 				if (signal) break;
 				if (!options.tolerateFailures) throw error;
