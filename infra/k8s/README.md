@@ -133,6 +133,42 @@ rewrites image registry and tag, so image references are decided in exactly
 one place. Inspect the rendered YAML of a stage with
 `bun run scripts/k8s/k8s.ts render <stage>`.
 
+## Moving to a managed cluster (for example Amazon EKS)
+
+1. Create the EKS cluster; install a compatible Istio — Gateway API v1 CRDs
+   must already exist (the bootstrap only verifies them). See the runbook for
+   CNI and Pod Security notes.
+2. Push images: `K8S_IMAGE_PREFIX=<account>.dkr.ecr.<region>.amazonaws.com/foc
+   K8S_IMAGE_TAG=<immutable> K8S_PUSH_IMAGES=1`.
+3. Complete `overlays/production/`: real hostname and `foc-public-tls`
+   (`gateway/`), real browser origins in `foc-config` (`dependencies/`),
+   remove the template warning.
+4. Create every Secret from the runbook table; prefer RDS/MSK over the
+   in-cluster single-node PostgreSQL/Kafka; replace Floci with real S3.
+5. Deploy and verify: `K8S_CONTEXT=<cluster>
+   K8S_OVERLAY=infra/k8s/overlays/production K8S_IMAGE_PREFIX=…
+   K8S_PUSH_IMAGES=1 make k8s-deploy`, then `make k8s-smoke`.
+
+Exposing the gateway: local development uses `kubectl port-forward`; on EKS
+install the AWS Load Balancer Controller and patch the
+`foc-public-infrastructure` ConfigMap (the Gateway's `parametersRef`, see
+`base/gateway/gateway.yaml`) in the production overlay:
+
+```yaml
+service: |
+  spec:
+    type: LoadBalancer
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "external"
+        service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+```
+
+The NLB passes TCP 443 through — TLS still terminates at the Envoy gateway
+with `foc-public-tls`; point a Route 53 alias at the NLB hostname. No
+application manifests change.
+
 ## Container images
 
 Every image builds from the repository root as context. The Go services share
@@ -193,6 +229,26 @@ flowchart LR
     C --> D --> E --> I
     R -. local only .-> O
 ```
+Follow one browser request end to end (letters match the diagram):
+
+1. **Browser → Gateway** (`PF`/`EXT` → `G`): the origin resolves to the local
+   port-forward or the operator's entry point; the `foc-public` listener
+   terminates TLS.
+2. **Gateway → Service** (`R` → `S`): the matched `HTTPRoute` names a backend
+   Service (`user-service-external:8080`); Istio's controller has translated
+   that reference into the Service's ready pod endpoints, and the gateway proxy
+   load-balances across them — one pod of the Deployment.
+3. **Pod → sidecar** (`E`): the capture rules installed by `istio-init`
+   redirect the connection to the pod's Envoy, which terminates the mesh mTLS
+   hop and evaluates the namespace policies (source principal, destination
+   port) before forwarding anything.
+4. **Sidecar → app** (`A`): admitted traffic is forwarded as plaintext over the
+   pod's loopback to `127.0.0.1:<PORT>` — the public listener — where the
+   application router dispatches the Connect method. Readiness probes decide
+   whether the pod stays in the Service's endpoint list from step 2.
+5. **In-cluster callers** (`C` → `D` → `E` → `I`) take the same steps with the
+   `-internal` Service DNS and their own outgoing sidecar; the gateway is not
+   involved.
 
 For local development, the browser opens `https://localhost:5173`; the
 foreground port-forward sends that traffic to the Gateway Service in
