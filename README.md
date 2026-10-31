@@ -84,3 +84,27 @@ Tear down (containers + images + DB data):
 ```bash
 docker compose down -v --rmi all
 ```
+
+---
+
+## Kubernetes Deployment (Optional)
+
+Besides Docker Compose, the full stack can run on a local Kubernetes cluster
+(kind) with an Istio service mesh. Compose remains the default for
+development; the two stacks share default host ports, so run only one at a
+time.
+
+```bash
+cp .env.example .env
+K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
+```
+
+The first run creates the local `kind` cluster, installs Istio and the Gateway
+API, builds and deploys every service, and serves the app at
+`https://localhost:5173` (self-signed local certificate). Prerequisites,
+day-to-day commands (`make k8s-status` / `k8s-smoke` / `k8s-deploy`), and
+teardown are documented in [`infra/k8s/README.md`](infra/k8s/README.md).
+Operations, security boundaries, and production guidance live in
+[`docs/runbooks/kubernetes.md`](docs/runbooks/kubernetes.md); the design
+decision is recorded in
+[`docs/adr/kubernetes-istio.md`](docs/adr/kubernetes-istio.md).
