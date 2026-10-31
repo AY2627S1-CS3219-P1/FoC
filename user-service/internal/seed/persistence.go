@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"gorm.io/gorm"
 )
 
@@ -31,5 +30,5 @@ func ensureDomain(ctx context.Context, db *gorm.DB, fixture models.AllowedEmailD
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	return store.NewAdmin(db).AddDomain(ctx, &fixture)
+	return db.Create(&fixture).Error
 }
