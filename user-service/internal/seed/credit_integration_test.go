@@ -162,7 +162,8 @@ func testBroker(t *testing.T, ctx context.Context) string {
 		"export KAFKA_ADVERTISED_LISTENERS='BROKER://localhost:9092,EXTERNAL://%s'\nexec /etc/kafka/docker/run\n",
 		address,
 	)
-	command := exec.CommandContext(ctx, "docker", "exec", "-i", container, "sh", "-c", "cat > /tmp/start-seed-kafka")
+	command := exec.CommandContext(ctx, "docker", "exec", "-i", container, "sh", "-c",
+		"cat > /tmp/start-seed-kafka.tmp && mv /tmp/start-seed-kafka.tmp /tmp/start-seed-kafka")
 	command.Stdin = strings.NewReader(script)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("configure test broker: %v: %s", err, output)
