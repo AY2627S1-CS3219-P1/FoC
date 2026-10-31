@@ -96,15 +96,19 @@ delete `.local/k8s/secrets` while retaining a database volume.
 make k8s-status                         # pods, jobs, storage and warnings
 make k8s-smoke                          # frontend, public health RPCs, private-route boundary, listener ports
 make k8s-deploy service=user-service    # rebuild and update one service
+make k8s-access                         # attach every configured forward, skipping occupied ports
 make k8s-kafka-ui                       # attach only the Kafka UI forward
 make k8s-mailpit                        # attach only the Mailpit forward
 ```
 
-`make k8s-access` similarly attaches only the HTTPS gateway forward. For the
-managed local cluster it rejects ports that differ from deployed browser origins;
-after changing `K8S_HTTPS_PORT`, run a full `make k8s-up` or `make k8s-deploy`
-to update application configuration first. These access commands stay attached
-until Ctrl+C.
+`make k8s-access` attaches every forward configured in `.env` — the HTTPS
+gateway, Kafka UI and Mailpit — in one command. A forward whose port cannot be
+bound (for example, a local tool already listening) is skipped with a note
+while the rest stay attached; if none can be attached, the command fails.
+For the managed local cluster it rejects gateway ports that differ from
+deployed browser origins; after changing `K8S_HTTPS_PORT`, run a full
+`make k8s-up` or `make k8s-deploy` to update application configuration first.
+These access commands stay attached until Ctrl+C.
 
 For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the

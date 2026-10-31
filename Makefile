@@ -71,7 +71,8 @@ k8s-up: k8s-tools
 k8s-deploy: k8s-tools
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts deploy "$(service)"
 
-# Supervise only the HTTPS gateway forward (https://localhost:$(K8S_HTTPS_PORT)).
+# Attach every configured forward (gateway, Kafka UI, Mailpit), skipping any
+# whose port cannot be bound.
 k8s-access: k8s-tools
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts access
 

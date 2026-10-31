@@ -19,6 +19,7 @@ import {
 	ForwardSpec,
 	OperatorError,
 	applyManifest,
+	assertPortAvailable,
 	checkContext,
 	checkOverlay,
 	commandExists,
@@ -380,14 +381,20 @@ async function checkGatewayOrigin(forwards: ForwardSpec[]): Promise<void> {
 
 // Attach the given port-forwards until Ctrl+C or one of them dies; always
 // terminates the kubectl children and maps interruption to 130/143 exit codes.
-async function superviseForwards(forwards: ForwardSpec[]): Promise<void> {
+// Attach the given port-forwards until Ctrl+C or one of them dies; always
+// terminates the kubectl children and maps interruption to 130/143 exit codes.
+// With tolerateFailures, a forward whose port cannot be bound is skipped and
+// the remaining ones stay attached — for the attach-everything command.
+async function superviseForwards(
+	forwards: ForwardSpec[],
+	options: { tolerateFailures?: boolean } = {},
+): Promise<void> {
 	if (forwards.length === 0) {
 		note("No Kubernetes port-forwards configured; deployment is ready.");
 		return;
 	}
 	await checkContext();
 	await checkGatewayOrigin(forwards);
-	await preflightForwards(forwards);
 	const children: Bun.Subprocess[] = [];
 	let signal: NodeJS.Signals | undefined;
 	let signalReceived!: () => void;
@@ -404,12 +411,27 @@ async function superviseForwards(forwards: ForwardSpec[]): Promise<void> {
 	// Install handlers before spawning: Ctrl+C during startup must close children too.
 	process.once("SIGINT", onSignal);
 	process.once("SIGTERM", onSignal);
+	const failures: string[] = [];
 	try {
 		for (const forward of forwards) {
-			await startForward(forward, children);
+			if (signal) break;
+			try {
+				await assertPortAvailable(forward.localPort);
+				await startForward(forward, children);
+			} catch (error) {
+				if (signal) break;
+				if (!options.tolerateFailures) throw error;
+				const detail = error instanceof Error ? error.message : String(error);
+				failures.push(forward.name + ": " + detail);
+				note("Skipping " + forward.name + ": " + detail);
+				continue;
+			}
 			if (signal) break;
 		}
 		if (!signal) {
+			if (children.length === 0) {
+				die("No forwards could be attached." + (failures.length ? " " + failures.join(" ") : ""));
+			}
 			note(
 				"Kubernetes forwards are attached. Press Ctrl+C to stop the forwards; the cluster and its data will remain running.",
 			);
@@ -505,9 +527,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)): Promise<vo
 			await render(args[1] || "");
 			return;
 		case "access": {
-			const port = configuredForwards().find((forward) => forward.name === "HTTPS gateway");
-			if (!port) die("Set K8S_HTTPS_PORT to enable the gateway forward.");
-			await superviseForwards([port]);
+			await superviseForwards(configuredForwards(), { tolerateFailures: true });
 			return;
 		}
 		case "kafka-ui": {
