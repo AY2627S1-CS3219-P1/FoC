@@ -1,8 +1,10 @@
 # Kubernetes development and deployment
 
-Kubernetes is an additional deployment option. `compose.yaml`, existing
-development Dockerfiles, Compose ports, source mounts and signing keys are
-unchanged. Credit is deployed with its own database and Istio-restricted internal
+Kubernetes is an additional deployment option. The Compose development
+workflow, ports, source mounts and signing keys are unchanged; Compose only
+gains `INTERNAL_PORT` wiring for User and Credit, and Order's
+`CREDIT_SERVICE_BASE_URL` now defaults to Credit's internal listener. Credit is
+deployed with its own database and Istio-restricted internal
 listener; this does not claim the complete D3 business workflow.
 
 ## Start locally
@@ -216,7 +218,9 @@ Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080.
 A service with private routes sets `INTERNAL_PORT` and serves them on a second
 listener; without `INTERNAL_PORT`, every route shares the public listener.
 User exposes its
-public-key RPC only on the internal listener. Credit keeps reservation RPCs on
+public-key RPC only on the internal listener when `INTERNAL_PORT` is set; in
+single-listener mode the shared public listener also serves key retrieval.
+Credit keeps reservation RPCs on
 the Order-only internal listener. Other services currently expose every route
 on the public listener and run a single listener. Internal service
 URLs may use HTTP; Istio STRICT mTLS encrypts the Kubernetes network hop.

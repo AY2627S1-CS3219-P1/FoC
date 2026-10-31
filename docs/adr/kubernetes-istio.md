@@ -13,8 +13,10 @@ Each application owns its routes. `PORT` defaults to 8080. A service with
 private routes also sets `INTERNAL_PORT`, which starts a second listener; when
 `INTERNAL_PORT` is unset, every route shares the public listener, which keeps
 single-port local development simple. The application does not select a
-deployment mode. User serves its public-key RPC only on the internal listener.
-Credit keeps reservation RPCs on the Order-only internal listener because those
+deployment mode. When `INTERNAL_PORT` is set, User serves its public-key RPC
+only on the internal listener; without it, the single shared listener also
+serves key retrieval (the local single-port mode). Credit keeps reservation
+RPCs on the Order-only internal listener regardless, because those
 handlers do not verify an application credential. Other services currently
 expose every route publicly and run a single listener; they copy the User
 Service pattern when they gain private routes.
@@ -89,9 +91,9 @@ Kubernetes CLI tools are pinned in the root aqua configuration and installed
 under `.tools/aqua`; checksum verification is required. Aqua's standard
 registry supplies kind, kubectl, and Helm. Small local registry entries retain
 Bun's baseline Intel binary and the complete Istio distribution, whose archive
-also supplies Helm charts. Chart validation checks the three actual Chart.yaml
-files. TLS generation uses an OpenSSL configuration file for compatibility
-with macOS's system implementation.
+also supplies Helm charts. Chart validation checks the base and istiod charts
+that the install actually uses. TLS generation uses an OpenSSL configuration
+file for compatibility with macOS's system implementation.
 
 Envoy access logs use the
 [query-free path formatter](https://www.envoyproxy.io/docs/envoy/v1.36.0/configuration/observability/access_log/usage)
