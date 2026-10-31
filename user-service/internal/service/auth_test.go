@@ -716,7 +716,14 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	ctx := context.Background()
 	token := addRegistrationChallenge(t, store, now)
 
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, ErrEmailDomainNotAllowed) {
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		ErrEmailDomainNotAllowed,
+	) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
 	if len(store.users) != 0 {

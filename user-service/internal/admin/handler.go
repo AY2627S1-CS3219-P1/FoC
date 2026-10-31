@@ -25,7 +25,10 @@ type AllowedDomainHandler struct {
 
 var _ userv1connect.AllowedDomainAdminServiceHandler = (*AllowedDomainHandler)(nil)
 
-func (h *AllowedDomainHandler) ListAllowedDomains(ctx context.Context, _ *connect.Request[userv1.ListAllowedDomainsRequest]) (*connect.Response[userv1.ListAllowedDomainsResponse], error) {
+func (h *AllowedDomainHandler) ListAllowedDomains(
+	ctx context.Context,
+	_ *connect.Request[userv1.ListAllowedDomainsRequest],
+) (*connect.Response[userv1.ListAllowedDomainsResponse], error) {
 	if _, err := userdto.ActorID(ctx); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -42,7 +45,10 @@ func (h *AllowedDomainHandler) ListAllowedDomains(ctx context.Context, _ *connec
 	return response, nil
 }
 
-func (h *AllowedDomainHandler) AllowDomain(ctx context.Context, req *connect.Request[userv1.AllowDomainRequest]) (*connect.Response[userv1.AllowDomainResponse], error) {
+func (h *AllowedDomainHandler) AllowDomain(
+	ctx context.Context,
+	req *connect.Request[userv1.AllowDomainRequest],
+) (*connect.Response[userv1.AllowDomainResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -55,7 +61,10 @@ func (h *AllowedDomainHandler) AllowDomain(ctx context.Context, req *connect.Req
 	return response, nil
 }
 
-func (h *AllowedDomainHandler) RemoveAllowedDomain(ctx context.Context, req *connect.Request[userv1.RemoveAllowedDomainRequest]) (*connect.Response[userv1.RemoveAllowedDomainResponse], error) {
+func (h *AllowedDomainHandler) RemoveAllowedDomain(
+	ctx context.Context,
+	req *connect.Request[userv1.RemoveAllowedDomainRequest],
+) (*connect.Response[userv1.RemoveAllowedDomainResponse], error) {
 	if _, err := userdto.ActorID(ctx); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

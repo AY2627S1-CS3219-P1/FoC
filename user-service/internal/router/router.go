@@ -78,7 +78,8 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 				normalizeRPCError(),
 			),
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
-		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(allowedDomainsPath, allowedDomainsService)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(allowedDomainsPath, allowedDomainsService)
 	}
 	return r
 }

@@ -335,7 +335,11 @@ func authTransactions(db *gorm.DB) service.WithTransaction {
 	}
 }
 
-func newAuthServices(db *gorm.DB, cfg config, domainPolicy service.EmailDomainPolicy) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+func newAuthServices(
+	db *gorm.DB,
+	cfg config,
+	domainPolicy service.EmailDomainPolicy,
+) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)

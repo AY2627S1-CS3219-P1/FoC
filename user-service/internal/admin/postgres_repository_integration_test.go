@@ -43,7 +43,12 @@ func TestAllowedDomainErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	actorID := uuid.New()
-	if _, err := tx.ExecContext(ctx, "INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Admin')", actorID, actorID.String()+"@example.com"); err != nil {
+	if _, err := tx.ExecContext(
+		ctx,
+		"INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Admin')",
+		actorID,
+		actorID.String()+"@example.com",
+	); err != nil {
 		t.Fatal(err)
 	}
 	var repo AllowedDomainRepository = NewPostgresAllowedAdminRepository(alloweddomaindb.New(tx))

@@ -253,7 +253,12 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 		t.Fatalf("unavailable auth returned %v", err)
 	}
 	logic.requestErr = service.ErrEmailDomainNotAllowed
-	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodePermissionDenied {
+	if _, err := client.RequestLink(
+		ctx,
+		connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodePermissionDenied {
 		t.Fatalf("disallowed domain returned %v", err)
 	}
 	logic.requestErr = errors.New("database password details")
@@ -308,7 +313,9 @@ func TestAuthDomainDenialReturnsPermissionDenied(t *testing.T) {
 		registerErr: denied,
 		refreshErr:  denied,
 	}
-	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	server := httptest.NewServer(
+		router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}),
+	)
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
 	ctx := context.Background()

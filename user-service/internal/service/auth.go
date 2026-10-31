@@ -326,7 +326,12 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
-func (s *Service) createSession(ctx context.Context, tx Resources, user models.User, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) createSession(
+	ctx context.Context,
+	tx Resources,
+	user models.User,
+	now time.Time,
+) (jwt.AuthTokens, error) {
 	placeholderHash := make([]byte, sha256.Size)
 	if _, err := rand.Read(placeholderHash); err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("generate session placeholder: %w", err)
@@ -407,7 +412,12 @@ func NormalizeEmail(input string) (string, error) {
 	return email, nil
 }
 
-func requireAllowedEmailDomain(ctx context.Context, policy EmailDomainPolicy, input string, role models.RoleName) error {
+func requireAllowedEmailDomain(
+	ctx context.Context,
+	policy EmailDomainPolicy,
+	input string,
+	role models.RoleName,
+) error {
 	if role == models.RoleSuperAdmin {
 		return nil
 	}
