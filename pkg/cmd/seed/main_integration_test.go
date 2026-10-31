@@ -70,7 +70,14 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("PostgreSQL did not become ready")
+			// The poll loop discards psql errors while PostgreSQL is starting,
+			// so report the container state and logs on timeout.
+			inspect := exec.Command("docker", "inspect", "-f",
+				"{{.State.Status}} exit={{.State.ExitCode}}", container)
+			state, inspectErr := inspect.CombinedOutput()
+			logs, logsErr := exec.Command("docker", "logs", "--tail", "100", container).CombinedOutput()
+			t.Fatalf("PostgreSQL did not become ready: state %v: %s; logs %v:\n%s",
+				inspectErr, state, logsErr, logs)
 		}
 		select {
 		case <-ctx.Done():
