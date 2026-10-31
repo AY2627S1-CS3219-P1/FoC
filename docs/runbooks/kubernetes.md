@@ -9,56 +9,29 @@ listener; this does not claim the complete D3 business workflow.
 
 ## Start locally
 
-Prerequisites: Docker, make, [aqua v2.65.2 or newer](https://aquaproj.github.io/docs/install/),
-OpenSSL, and approximately 4 available CPUs / 8 GiB RAM. Bun 1.4.3 is installed
-by aqua; Node.js is not required. Tool and image downloads require internet
-access. Kubernetes images include native arm64 variants; see the short setup
-guide for macOS prerequisites.
+Setup prerequisites, the one-time aqua policy approval, tool pinning, and the
+quick start command are documented in the
+[Kubernetes setup guide](../../infra/k8s/README.md).
 
-Before the first deployment, approve this repository's aqua policy once:
+Operational behavior worth knowing once the stack is deployed:
 
-```sh
-AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua policy allow "$PWD/aqua-policy.yaml"
-```
-
-If you use a custom `AQUA_ROOT_DIR`, use it for both this command and the
-`make k8s-*` commands.
-Run the allow command again if `aqua-policy.yaml` changes.
-
-To update a pinned tool, change its version in `aqua.yaml`, then refresh the
-committed checksums with
-`AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
-
-```sh
-# First deployment: choose the first administrator explicitly.
-K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
-# `k8s-up` deploys, then stays attached to configured forwards; Ctrl+C closes
-# the forwards while keeping the cluster running.
-```
-
-Copy `.env.example` to `.env` first. `K8S_HTTPS_PORT`, `K8S_KAFKA_UI_PORT`, and
-`K8S_MAILPIT_PORT` configure local forwards; blank disables one. Defaults match
-Compose's browser/Mailpit ports and Kafka UI's local port. Choose distinct host
-ports to run Compose and Kubernetes simultaneously. The developer-facing
-[Kubernetes setup](../../infra/k8s/README.md) has the short version.
-
-`k8s-up` installs the pinned, checksum-verified tools into `.tools/aqua`,
-creates/reuses kind cluster `foc`, installs the pinned Gateway API Standard
-CRDs and Istio charts, builds/loads images, and deploys the gateway,
-dependencies, database provisioning, migrations/topics and applications.
-Failed Jobs stop rollout.
-Existing running Jobs are not deleted. Retrying replaces only the exact terminal
-initialization Jobs; databases and PVCs are not reset.
-
-The private kubeconfig is `.local/k8s/clusters/foc.config`; your current global
-Kubernetes context is not changed. Namespace `foc` holds application resources.
-Run `make k8s-status` to inspect readiness and warnings. Run `make k8s-smoke`
-to check the frontend, every public health RPC, the public/private endpoint
-boundary, and the User and Credit Service target ports through the Gateway.
-
-If Compose created a root-owned `.local`, follow the
-[directory ownership recovery](../../LANDMINES/compose-owned-local-directory.md).
-Use a consistent `K8S_STATE_DIR` override if choosing another private location.
+- `k8s-up` installs the pinned, checksum-verified tools into `.tools/aqua`,
+  creates/reuses kind cluster `foc`, installs the pinned Gateway API Standard
+  CRDs and Istio charts, builds/loads images, and deploys the gateway,
+  dependencies, database provisioning, migrations/topics and applications.
+  Failed Jobs stop rollout. Existing running Jobs are not deleted. Retrying
+  replaces only the exact terminal initialization Jobs; databases and PVCs are
+  not reset.
+- The private kubeconfig is `.local/k8s/clusters/foc.config`; your current
+  global Kubernetes context is not changed. Namespace `foc` holds application
+  resources.
+- Run `make k8s-status` to inspect readiness and warnings. Run `make k8s-smoke`
+  to check the frontend, every public health RPC, the public/private endpoint
+  boundary, and the User and Credit Service target ports through the Gateway.
+- If Compose created a root-owned `.local`, follow the
+  [directory ownership recovery](../../LANDMINES/compose-owned-local-directory.md).
+  Use a consistent `K8S_STATE_DIR` override if choosing another private
+  location.
 
 ## Which address belongs where?
 
@@ -362,7 +335,9 @@ the local emulator and its test credentials are not included there.
 For local Telegram configuration, first setup accepts
 `K8S_TELEGRAM_BOT_TOKEN`. Later deployments preserve the credential file;
 edit `.local/k8s/secrets/TELEGRAM_BOT_TOKEN` explicitly to rotate or clear it,
-then redeploy. This matches the other preserved local credentials.
+then redeploy. An empty file disables the bot. Telegram allows only one poller
+per bot, so never share a token with another running poller. This matches the
+other preserved local credentials.
 
 ### Image sources
 

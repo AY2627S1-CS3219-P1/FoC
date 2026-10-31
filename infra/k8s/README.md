@@ -203,11 +203,9 @@ the local Order image store. Credit has its own database, migration Job, public
 RPC Service and private reservation Service. Its internal listener is restricted
 by Istio to the `order-service` workload identity. The complete D3 business
 workflow is not claimed by this deployment. Communication starts with Telegram
-disabled unless a bot credential is configured. To configure it on first setup, set
-`K8S_TELEGRAM_BOT_TOKEN`; it is persisted in the private
-`.local/k8s/secrets/TELEGRAM_BOT_TOKEN` file. To change it later, edit that file
-and run a full deployment. An empty file disables Telegram. Never share a bot
-token with another running poller.
+disabled unless a bot credential is configured; configuration and rotation are
+covered in the
+[operations runbook](../../docs/runbooks/kubernetes.md#current-main-updates).
 
 Credit-dependent Order operations can use the deployed Credit backend. The
 internal listener does not verify an application credential, so its Kubernetes
