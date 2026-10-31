@@ -23,11 +23,17 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	start := exec.CommandContext(ctx, "docker", "run", "--rm", "-d",
 		"-e", "POSTGRES_USER=foc", "-e", "POSTGRES_PASSWORD=fixture-test-only",
 		"-e", "USER_DB=user_seed_test", "-e", "SUPPLIER_DB=supplier_seed_test", "postgis/postgis:18-3.6")
-	output, err := start.CombinedOutput()
-	if err != nil {
-		t.Fatalf("start PostgreSQL: %v: %s", err, output)
+	var stdout, stderr bytes.Buffer
+	start.Stdout, start.Stderr = &stdout, &stderr
+	if err := start.Run(); err != nil {
+		t.Fatalf("start PostgreSQL: %v: %s", err, stderr.String())
 	}
-	container := strings.TrimSpace(string(output))
+	// With a cold image cache, docker run streams the pull progress to stderr
+	// and prints the container ID as the last stdout line.
+	container := strings.TrimSpace(stdout.String())
+	if line := strings.LastIndexByte(container, '\n'); line >= 0 {
+		container = strings.TrimSpace(container[line+1:])
+	}
 	t.Cleanup(func() {
 		cleanupCtx, stop := context.WithTimeout(context.Background(), 20*time.Second)
 		defer stop()
@@ -61,13 +67,23 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	}
 	// The image initializes through a temporary socket-only server, then
 	// restarts. TCP readiness selects the final server and avoids that restart.
-	deadline := time.Now().Add(time.Minute)
+	// A cold runner also has to pull the image first, so allow the same
+	// three-minute budget the rest of the integration suite uses; slow pulls
+	// degrade to a slower pass instead of a failure.
+	deadline := time.Now().Add(3 * time.Minute)
 	for {
 		if _, err := psql("postgres", "SELECT 1"); err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("PostgreSQL did not become ready")
+			// The poll loop discards psql errors while PostgreSQL is starting,
+			// so report the container state and logs on timeout.
+			inspect := exec.Command("docker", "inspect", "-f",
+				"{{.State.Status}} exit={{.State.ExitCode}}", container)
+			state, inspectErr := inspect.CombinedOutput()
+			logs, logsErr := exec.Command("docker", "logs", "--tail", "100", container).CombinedOutput()
+			t.Fatalf("PostgreSQL did not become ready: state %v: %s; logs %v:\n%s",
+				inspectErr, state, logsErr, logs)
 		}
 		select {
 		case <-ctx.Done():
@@ -104,14 +120,14 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 			mustSQL(target.database, strings.Split(string(contents), "-- +goose Down")[0])
 		}
 	}
-	var stderr bytes.Buffer
-	execute := psqlExecutor([]string{"docker", "exec", "-i", container}, io.Discard, &stderr)
+	var seedStderr bytes.Buffer
+	execute := psqlExecutor([]string{"docker", "exec", "-i", container}, io.Discard, &seedStderr)
 	path := filepath.Join(root, "data", "seeds", "manifest.json")
 	seed := func(reset bool) {
 		t.Helper()
-		stderr.Reset()
+		seedStderr.Reset()
 		if err := run(ctx, path, reset, execute, io.Discard); err != nil {
-			t.Fatalf("seed: %v: %s", err, stderr.String())
+			t.Fatalf("seed: %v: %s", err, seedStderr.String())
 		}
 	}
 	// Existing CSV reference records must be reused without changing their data.
