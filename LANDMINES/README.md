@@ -4,7 +4,6 @@ This directory records non-obvious failures that can affect future work. Each en
 
 | Entry | Applies when |
 | -- | -- |
-| [Communication shutdown test can hang during cleanup](communication-shutdown-test.md) | Running Communication's Go tests, especially `TestBotShutdownJoinsStartedWorkers`. |
 | [Go line formatting can need multiple passes](golines-multiple-passes.md) | `golangci-lint` v2.14.0 runs `golines` at 120 characters on long boolean expressions. |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
 | [Recreated services rebuild Go dependencies](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |

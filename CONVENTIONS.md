@@ -109,9 +109,10 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   Mount the generated handler in the service router.
   - supplier-service: implementations live under `internal/rpc`. Pass
     application dependencies to each RPC service constructor.
-  - user-service: handlers live in `internal/handlers/<domain>`. A handler is
-    a struct that holds its dependencies as fields (see "Dependencies and
-    interfaces").
+  - user-service: handlers live in `internal/handlers/<domain>` and are structs
+    that hold dependencies as fields (see "Dependencies and interfaces"). The
+    allowed-domain admin feature is grouped by domain under `internal/admin`,
+    with its Connect handler, service, and PostgreSQL repository together.
   - credit-service: handlers live under `internal/rpc/<domain>`, with error
     and message conversion in `internal/rpc/shared`. Kafka handlers live in
     `internal/events`.
@@ -124,6 +125,14 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   authentication at the HTTP middleware boundary and method-level
   authorization through Connect interceptors. Generated RPC paths do not
   inherit REST middleware mounted under `/api`.
+- Treat stale authorization claims after a token-backed user attribute changes
+  as an access-token lifecycle concern, not as a page-specific error-recovery
+  concern. Do not refresh authentication or clear page state in response to a
+  `PermissionDenied` solely to compensate for a role change. Until centralized
+  revocation is implemented, changes such as administrator demotion may leave
+  the UI's token-derived state stale until the access token expires. The planned
+  solution is Redis-backed access-token revocation whenever any user attribute
+  stored in the token changes.
 - Use Connect interceptors for RPC-wide validation, authorization, logging,
   tracing, and error normalization. Keep business logic in shared operations
   when REST and RPC adapters expose the same behavior.
@@ -170,9 +179,12 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   the methods it calls (e.g. a handler's `Logic`, a logic package's
   `UserStore`). Implementations return concrete types; never return an
   interface from a constructor.
-- User Service layers: `internal/handlers/<domain>` (Connect adapter) →
-  `internal/<domain>` (business rules and the store interfaces they need) →
-  `internal/store` (GORM persistence over `internal/models`).
+- Existing GORM-backed User Service domains use these layers:
+  `internal/handlers/<domain>` (Connect adapter) → `internal/<domain>`
+  (business rules and the store interfaces they need) → `internal/store`
+  (GORM persistence over `internal/models`). New sqlc-backed domains may keep
+  their repository with the domain package when that keeps the feature
+  cohesive.
 - Seed-only GORM persistence belongs under `internal/seed`; keep it out of the
   application `internal/store.Store` and production service composition.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
@@ -182,6 +194,11 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   `internal/order` package; see `docs/adr/order-aggregate-foundation.md`.
 
 ## Database
+
+Use sqlc for new backend services and newly introduced persistence domains.
+Existing GORM-backed domains remain on GORM unless an intentional migration is
+part of the change; extending one should follow its current persistence
+approach.
 
 Supplier, Order and Credit Services use sqlc:
 
@@ -215,22 +232,38 @@ root, reads `migrations` and `queries`, and generates
 - Use mutable singletons only in browser lifecycle and event code, never in
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
+- Handle unauthenticated access to protected RPCs at the transport layer: the
+  auth interceptor refreshes and retries, then the redirect interceptor sends
+  the user to `/login`. Pages never check authentication; they redirect only
+  for authorization failures (role checks).
 
 ## Frontend UI
 - Use Superforms to validate and manage form
 - Use Svelte-M3 UI components
+- Style M3 components through public props, CSS variables, or application-owned
+  wrappers and data attributes. Avoid selectors that depend on internal library
+  classes (such as `.m3-container`) or the component's internal DOM structure.
+- Place components used by a single route next to that page (for example
+  `routes/admin/config/AllowedDomainsCard.svelte`). Promote a component to
+  `frontend/src/lib/components/<domain>/` only when a second route consumes it
+  or it has an app-wide role (layout-level components such as `SnackbarHost`).
+  When no page is left in a `lib/components/<domain>/` group, delete the folder.
 
-User Service uses GORM:
+User Service has legacy GORM-backed domains and may use sqlc for new domains:
 
 - `migrations/`: goose migrations, one `0000N_name.sql` per change with
   `-- +goose Up` / `-- +goose Down`. They are embedded in the binary and
   applied on startup unless `RUN_MIGRATIONS=false`. Never edit an applied
   migration. `make migrate-up/down`, `make goose-create name=...`.
-- `internal/models`: GORM structs whose tags mirror the SQL. The migrations
-  own the schema; do not use `AutoMigrate`.
-- `internal/store`: GORM queries. Translate GORM errors (`gorm.ErrRecordNotFound`,
-  `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
-  become a 500.
+- Existing GORM domains use `internal/models` structs whose tags mirror the
+  SQL. The migrations own the schema; do not use `AutoMigrate`.
+- Existing GORM domains use `internal/store` for queries. Translate GORM errors
+  (`gorm.ErrRecordNotFound`, `gorm.ErrDuplicatedKey`, ...) to `store`
+  sentinels; never let a missing row become a 500.
+- New sqlc domains keep queries under `database/query`, generated packages
+  under `internal/database`, and repositories in their owning domain package.
+  Run `make sqlc` after changing queries or the sqlc configuration, and never
+  edit generated files.
 - `internal/models/schema_integration_test.go` runs every migration up, down
   and up again and checks the constraints. It runs only when
   `TEST_DATABASE_URL` points at a throwaway database, because it wipes the schema.

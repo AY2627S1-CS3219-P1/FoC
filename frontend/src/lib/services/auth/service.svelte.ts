@@ -29,7 +29,10 @@ export class AuthService {
 
 				try {
 					await this.refresh();
-				} catch {
+				} catch (refreshError) {
+					if (refreshError instanceof ConnectError && refreshError.code === Code.PermissionDenied) {
+						throw refreshError;
+					}
 					throw error;
 				}
 
@@ -153,7 +156,7 @@ export class AuthService {
 					clearOnFailure &&
 					revision === this.#sessionRevision &&
 					error instanceof ConnectError &&
-					error.code === Code.Unauthenticated
+					(error.code === Code.Unauthenticated || error.code === Code.PermissionDenied)
 				) {
 					this.#clearSession();
 				}

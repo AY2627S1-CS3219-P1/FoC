@@ -14,12 +14,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
 )
+
+var ErrEmailDomainNotAllowed = errs.NewForbiddenError("email domain is not allowed")
 
 const (
 	MagicLinkLifetime = 10 * time.Minute
@@ -35,7 +38,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 		return err
 	}
 
-	user, err := s.deps.Store.Users.GetByEmail(ctx, normalizedEmail)
+	user, err := s.deps.Resources.Users.GetByEmail(ctx, normalizedEmail)
 	isLogin := err == nil
 	if isLogin {
 		if user.ID == uuid.Nil {
@@ -44,14 +47,12 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return fmt.Errorf("find user by email: %w", err)
 	}
-	if !isLogin {
-		allowed, err := registrationEmailAllowed(ctx, s.deps.Store.Domains, normalizedEmail)
-		if err != nil {
-			return fmt.Errorf("check registration domain: %w", err)
-		}
-		if !allowed {
-			return jwt.ErrRegistrationFailed
-		}
+	role := models.RoleUser
+	if isLogin {
+		role = user.Role
+	}
+	if err := requireAllowedEmailDomain(ctx, s.deps.Resources.DomainPolicy, normalizedEmail, role); err != nil {
+		return err
 	}
 
 	token, digest, err := randomToken(32)
@@ -71,7 +72,7 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	} else {
 		challenge.Purpose = models.TokenPurposeRegister
 	}
-	if err := s.deps.Store.AuthTokens.Create(ctx, &challenge); err != nil {
+	if err := s.deps.Resources.AuthTokens.Create(ctx, &challenge); err != nil {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 
@@ -118,7 +119,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeLogin, now)
 		if err != nil {
 			return err
@@ -132,6 +133,9 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		}
 		if storedUser.ID == uuid.Nil || !storedUser.Role.Valid() {
 			return jwt.ErrLoginFailed
+		}
+		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, storedUser.Email, storedUser.Role); err != nil {
+			return err
 		}
 		user = *storedUser
 		signed, err := s.createSession(ctx, tx, user, now)
@@ -173,20 +177,13 @@ func (s *Service) Register(
 		user   models.User
 		tokens jwt.AuthTokens
 	)
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		challenge, err := tx.AuthTokens.Consume(ctx, digest, models.TokenPurposeRegister, now)
 		if err != nil {
 			return err
 		}
-		allowed, err := registrationEmailAllowed(ctx, tx.Domains, challenge.Email)
-		if errors.Is(err, jwt.ErrInvalidEmail) {
-			return jwt.ErrRegistrationFailed
-		}
-		if err != nil {
-			return fmt.Errorf("check registration domain: %w", err)
-		}
-		if !allowed {
-			return jwt.ErrRegistrationFailed
+		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, challenge.Email, models.RoleUser); err != nil {
+			return err
 		}
 		user = models.User{Email: challenge.Email, DisplayName: profile.DisplayName,
 			PhoneNumber: &phone, Role: models.RoleUser}
@@ -233,7 +230,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	user, err := s.deps.Store.Users.GetByID(ctx, userID)
+	user, err := s.deps.Resources.Users.GetByID(ctx, userID)
 	if errors.Is(err, store.ErrNotFound) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
@@ -244,7 +241,10 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	var tokens jwt.AuthTokens
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
+		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, user.Email, user.Role); err != nil {
+			return err
+		}
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
@@ -273,7 +273,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return nil
 	}
-	err = s.deps.Store.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
+	err = s.deps.Resources.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now)
 	if errors.Is(err, store.ErrSessionRejected) {
 		return nil
 	}
@@ -300,7 +300,7 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return jwt.ErrRefreshFailed
 	}
-	err = s.deps.WithTransaction(ctx, func(tx Store) error {
+	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
@@ -322,7 +322,7 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 
 func (s *Service) createSession(
 	ctx context.Context,
-	tx Store,
+	tx Resources,
 	user models.User,
 	now time.Time,
 ) (jwt.AuthTokens, error) {
@@ -406,16 +406,31 @@ func NormalizeEmail(input string) (string, error) {
 	return email, nil
 }
 
-func registrationEmailAllowed(ctx context.Context, domains DomainStore, input string) (bool, error) {
+func requireAllowedEmailDomain(
+	ctx context.Context,
+	policy EmailDomainPolicy,
+	input string,
+	role models.RoleName,
+) error {
+	if role == models.RoleSuperAdmin {
+		return nil
+	}
 	email, err := NormalizeEmail(input)
 	if err != nil {
-		return false, err
+		return ErrEmailDomainNotAllowed
 	}
 	separator := strings.LastIndexByte(email, '@')
 	if separator <= 0 || separator == len(email)-1 {
-		return false, jwt.ErrInvalidEmail
+		return ErrEmailDomainNotAllowed
 	}
-	return domains.Allows(ctx, email[separator+1:])
+	allowed, err := policy.IsDomainAllowed(ctx, email[separator+1:])
+	if err != nil {
+		return fmt.Errorf("check email domain: %w", err)
+	}
+	if !allowed {
+		return ErrEmailDomainNotAllowed
+	}
+	return nil
 }
 
 func randomToken(size int) (string, [32]byte, error) {
