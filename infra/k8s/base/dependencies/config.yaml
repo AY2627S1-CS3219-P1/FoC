@@ -34,7 +34,9 @@ data:
   SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
   CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080
 
-  # Secret locations and one-time bootstrap inputs.
+  # Secret locations and one-time bootstrap inputs. An empty
+  # BOOTSTRAP_SUPERADMIN_EMAIL skips superadmin creation; deployments set it
+  # via K8S_BOOTSTRAP_SUPERADMIN_EMAIL, which patchBootstrap() merges here.
   JWT_PRIVATE_KEY_FILE: /var/run/foc/auth/jwt-signing-private.pem
   BOOTSTRAP_SUPERADMIN_EMAIL: ""
   BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: Admin
