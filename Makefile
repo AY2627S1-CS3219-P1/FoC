@@ -52,19 +52,15 @@ buf-generate-kafka: $(BUF)
 # Local Kubernetes operators; see docs/runbooks/kubernetes.md.
 AQUA ?= aqua
 AQUA_ROOT_DIR ?= $(CURDIR)/.tools/aqua
-K8S_BUN_VERSION := $(shell cat .bun-version)
 K8S_BUN := $(AQUA_ROOT_DIR)/bin/bun
 
-.PHONY: k8s-bun k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
-
-k8s-bun: k8s-tools
-	@test "$$(AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" --version)" = "$(K8S_BUN_VERSION)"
+.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
 
 k8s-tools:
 	@command -v "$(AQUA)" >/dev/null 2>&1 || { echo "Install aqua v2.65.2 or newer; see docs/runbooks/kubernetes.md." >&2; exit 1; }
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(AQUA)" install
 
-k8s-up: k8s-bun
+k8s-up: k8s-tools
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts up
 
 k8s-deploy: k8s-tools

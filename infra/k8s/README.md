@@ -21,8 +21,7 @@ AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua policy allow "$PWD/aqua-policy.yaml"
 Use the same `AQUA_ROOT_DIR` for `make k8s-*` if you choose a different path.
 Run the allow command again if `aqua-policy.yaml` changes.
 
-To update a tool pin, edit `aqua.yaml`, `.bun-version`, or `.istio-version`,
-then refresh `aqua-checksums.json` with
+To update a tool pin, edit `aqua.yaml`, then refresh `aqua-checksums.json` with
 `AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
 
 The managed local cluster installs the vendored Gateway API v1.6.0 Standard

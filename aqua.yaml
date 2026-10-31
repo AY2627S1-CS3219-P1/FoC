@@ -15,10 +15,12 @@ registries:
     type: local
     path: .aqua/registry.yaml
 packages:
+  # Bun and Istio come from the local registry (.aqua/registry.yaml): Bun keeps
+  # the baseline-Intel binary for older Intel Macs, and the Istio archive also
+  # supplies the Helm charts that installMesh() deploys.
   - name: oven-sh/bun
     registry: local
-    version_expr: readFile(".bun-version")
-    version_expr_prefix: bun-v
+    version: bun-v1.4.3 # release tags carry the bun- prefix
   - name: kubernetes-sigs/kind
     version: v0.33.0
   - name: kubernetes/kubernetes/kubectl
@@ -27,4 +29,4 @@ packages:
     version: v3.20.1
   - name: istio/istio
     registry: local
-    version_expr: readFile(".istio-version")
+    version: "1.31.2" # Istio release tags carry no v prefix.

@@ -23,8 +23,8 @@ If you use a custom `AQUA_ROOT_DIR`, use it for both this command and the
 `make k8s-*` commands.
 Run the allow command again if `aqua-policy.yaml` changes.
 
-To update a pinned tool, change its version in `aqua.yaml`, `.bun-version`, or
-`.istio-version`, then refresh the committed checksums with
+To update a pinned tool, change its version in `aqua.yaml`, then refresh the
+committed checksums with
 `AQUA_ROOT_DIR="$PWD/.tools/aqua" aqua update-checksum`.
 
 ```sh
