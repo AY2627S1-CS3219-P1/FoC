@@ -1,3 +1,5 @@
+// Shared CLI/config plumbing for the Kubernetes operator scripts. See
+// docs/runbooks/kubernetes.md for the operator model.
 import { $ } from "bun";
 import { access, chmod, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -48,6 +50,8 @@ export interface CommandResult {
 	exitCode: number;
 }
 
+// Every external command goes through here: Bun shell with escaped arguments,
+// inherited env, and a die() on nonzero exit unless the caller opts out.
 export async function run(
 	program: string,
 	args: string[] = [],
@@ -76,6 +80,8 @@ export async function run(
 	return { stdout, stderr, exitCode };
 }
 
+// kind's kubeconfig stays in the state directory; the developer's global
+// kubeconfig is never written to.
 export function kubectlPrefix(): string[] {
 	return K8S_EXISTING
 		? ["--context", K8S_CONTEXT]
@@ -199,6 +205,8 @@ export async function waitJob(name: string): Promise<void> {
 	die("Timed out waiting for Job " + name + ". Existing running Jobs are preserved.");
 }
 
+// Kubernetes Jobs are immutable: only completed or failed Jobs may be deleted
+// so the next apply recreates them. A running Job must never be touched.
 export async function prepareJob(name: string): Promise<void> {
 	const result = await k([
 		"-n", "foc", "get", "job", name, "--ignore-not-found", "-o",

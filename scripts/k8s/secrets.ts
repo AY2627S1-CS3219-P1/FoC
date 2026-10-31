@@ -1,3 +1,5 @@
+// Generate and persist local-only credentials in .local/k8s/secrets, then
+// mirror them into cluster Secrets. Existing credentials are never rotated.
 import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -15,6 +17,8 @@ import {
 const secretDirectory = join(K8S_STATE_DIR, "secrets");
 const lockDirectory = join(secretDirectory, ".generating");
 
+// Write-once: an existing credential file is never overwritten, so reruns
+// never rotate database passwords or keys.
 async function persistValue(name: string, value: string, allowEmpty = false): Promise<void> {
 	const path = join(secretDirectory, name);
 	if (await Bun.file(path).exists()) {
@@ -54,6 +58,7 @@ export async function generateLocalSecrets(): Promise<void> {
 	await chmod(K8S_STATE_DIR, 0o700);
 	await chmod(secretDirectory, 0o700);
 	try {
+		// mkdir-as-mutex: concurrent generator runs would race on file creation.
 		await mkdir(lockDirectory, { mode: 0o700 });
 	} catch {
 		die("Another secret generator holds " + lockDirectory + "; inspect before removing a stale lock.");
@@ -86,6 +91,8 @@ export async function generateLocalSecrets(): Promise<void> {
 		}
 		await run("openssl", ["pkey", "-in", privateKey, "-check", "-noout"], { capture: true });
 
+		// Self-signed certificate for the local gateway origin; the operator
+		// must trust tls.crt for https://localhost:<port>.
 		const tlsKey = join(secretDirectory, "tls.key");
 		const tlsCert = join(secretDirectory, "tls.crt");
 		if (!(await Bun.file(tlsKey).exists()) && !(await Bun.file(tlsCert).exists())) {

@@ -1,3 +1,6 @@
+// Operator CLI for the local Kubernetes deployment: cluster/mesh bootstrap,
+// deploy, render, verification, and port-forward supervision. Commands are
+// wrapped by the make k8s-* targets.
 import { connect } from "node:net";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -62,6 +65,9 @@ async function createLocalCluster(): Promise<void> {
 	}
 }
 
+// Install Istio from the pinned distribution's Helm charts (istioctl and the
+// charts come from the same archive). External clusters must already serve
+// Gateway API; only kind clusters get the CRDs installed here.
 async function installMesh(): Promise<void> {
 	await requireCommands("helm");
 	const charts = await istioChartsDirectory();
@@ -116,6 +122,8 @@ async function buildImages(names: readonly string[]): Promise<void> {
 	for (const name of names) await buildImage(name);
 }
 
+// Two-stage render: kustomize the overlay, then override image name/tag in a
+// temporary kustomization so image refs are decided in exactly one place.
 async function renderStage(stage: string): Promise<string> {
 	await prepareState();
 	if (!/^[a-zA-Z0-9._:/-]+$/.test(K8S_IMAGE_PREFIX) || !/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(K8S_IMAGE_TAG)) {
@@ -186,6 +194,9 @@ async function patchBootstrap(): Promise<void> {
 	await k(["-n", "foc", "patch", "configmap", "foc-config", "--type=merge", "--patch", patch]);
 }
 
+// Deploy stages run in dependency order: gateway, dependencies (Postgres,
+// Kafka), config patches, provisioning, schema migrations, applications.
+// Jobs are deleted only once terminal (prepareJob) so reruns are idempotent.
 async function deployAll(): Promise<void> {
 	await checkOverlay();
 	await checkContext();
@@ -301,6 +312,9 @@ function waitForLocalListener(port: number): Promise<boolean> {
 	});
 }
 
+// kubectl binds the local listener before the tunnel is usable and can also
+// exit early; consider the forward ready only when the port accepts a TCP
+// connection.
 async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
 	const kubectl = await kubectlBinary();
 	const child = Bun.spawn([
@@ -332,6 +346,7 @@ async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): P
 	die(forward.name + " port-forward did not become ready on host port " + forward.localPort + ".");
 }
 
+// SIGTERM first, SIGKILL after a grace period, so Ctrl+C never leaks a forward.
 async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
 	for (const child of children) {
 		if (child.exitCode === null) child.kill("SIGTERM");
@@ -345,6 +360,8 @@ async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
 	}
 }
 
+// Browser origins are baked into foc-config at deploy time; a changed forward
+// port would break CORS and sessions, so verify before attaching.
 async function checkGatewayOrigin(forwards: ForwardSpec[]): Promise<void> {
 	if (K8S_EXISTING || !isLocalOverlay()) return;
 	const gateway = forwards.find(forward => forward.name === "HTTPS gateway");
@@ -484,6 +501,9 @@ async function assertServiceTarget(name: string, targetPort: number): Promise<vo
 	}
 }
 
+// Public contract check: frontend and every public health RPC return 200
+// through the gateway; internal-only RPCs (user keys, credit reservations)
+// return 404; Service port wiring matches the listener split.
 async function smokeGateway(): Promise<void> {
 	if (!isLocalOverlay()) die("The Gateway smoke command currently supports the local overlay only.");
 	await checkContext();
