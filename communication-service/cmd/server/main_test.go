@@ -89,14 +89,21 @@ func TestNotificationRetryDelay(t *testing.T) {
 func TestBotShutdownJoinsStartedWorkers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// The server may not notice the client abandoning a long poll, so Close
+	// would wait on that handler. Cleanup releases it explicitly.
+	stopped := make(chan struct{})
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/bottest/getMe" {
 			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"foc_bot"}}`)
 			return
 		}
-		<-r.Context().Done()
+		select {
+		case <-r.Context().Done():
+		case <-stopped:
+		}
 	}))
 	defer api.Close()
+	defer close(stopped)
 
 	var workers sync.WaitGroup
 	var username atomic.Pointer[string]
