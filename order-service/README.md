@@ -82,7 +82,8 @@ export AWS_SECRET_ACCESS_KEY=test
 `ORDER_S3_PUBLIC_ENDPOINT` controls the hostname in browser upload/download URLs;
 `ORDER_S3_ENDPOINT` is the server-side endpoint. Signed hosts cannot be rewritten
 after signing. Compose uses `floci:4566` internally and `localhost:4566` publicly.
-HTTP service and storage URLs are accepted only in local mode.
+Service URLs may use HTTP for internal discovery; public S3 URLs require HTTPS
+outside local mode.
 
 ## Credit dependency and service authentication
 

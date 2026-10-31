@@ -155,11 +155,11 @@ application JWT, role, or ownership checks.
 | -- | -- | -- |
 | User | Health, Auth, Profile, and User Admin RPCs | Public-key RPC only; no Gateway route |
 | Credit | Health and Credit Account RPCs | Reservation RPCs; kept private to Order in Kubernetes |
-| Supplier, Order, Communication | All currently mounted RPCs | Empty router for now; Kubernetes internal aliases target the public listener |
+| Supplier, Order, Communication | All currently mounted RPCs | None; single public listener |
 
-For User and Credit, the internal Service targets `INTERNAL_PORT`. Supplier,
-Order, and Communication keep their internal routers empty for now, so those
-internal aliases target the public listener as noted in the table.
+Only User and Credit run internal listeners, so only they have internal
+Services targeting `INTERNAL_PORT`. Supplier, Order, and Communication expose
+every route on the public listener and run a single listener.
 
 The public and internal Kubernetes Service names both resolve only inside the
 cluster. `-external` means “targets the public application listener,” not
