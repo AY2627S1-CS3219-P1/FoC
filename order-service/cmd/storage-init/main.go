@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/images"
@@ -29,8 +30,12 @@ func main() {
 		slog.Error("invalid local storage configuration")
 		os.Exit(1)
 	}
+	var origins []string
+	if origin := strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")), "/"); origin != "" {
+		origins = append(origins, origin)
+	}
 	for {
-		if err := storage.InitializeLocalBucket(ctx); err == nil {
+		if err := storage.InitializeLocalBucket(ctx, origins...); err == nil {
 			slog.Info("Local image bucket and CORS initialized")
 			return
 		}
