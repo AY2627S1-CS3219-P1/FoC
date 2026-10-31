@@ -124,6 +124,15 @@ clusters, and production-overlay setup, see the
 | `base/mailpit/`, `base/floci/` | Local-only dev mailbox and S3-compatible image store (Floci adds its own gateway route). |
 | `overlays/local/`, `overlays/production/` | Kustomize patches: local forwards and storage; production hostname, certificate, and origins (template). |
 
+Environments are layered with Kustomize: `base/` is a complete, valid
+deployment by itself, and each `overlays/<environment>/<stage>/` directory
+applies small declarative patches on top of it. The operator script renders
+every stage with `kubectl kustomize` (built into kubectl — no separate tool)
+and, before applying, wraps the output in a generated kustomization that
+rewrites image registry and tag, so image references are decided in exactly
+one place. Inspect the rendered YAML of a stage with
+`bun run scripts/k8s/k8s.ts render <stage>`.
+
 ## Container images
 
 Every image builds from the repository root as context. The Go services share
