@@ -100,6 +100,30 @@ For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the
 [Kubernetes operations runbook](../../docs/runbooks/kubernetes.md).
 
+## Manifest layout
+
+| File | Purpose |
+| -- | -- |
+| `platform/namespaces.yaml` | Creates `foc` (apps, sidecar injection), `istio-system`, and `istio-ingress`. |
+| `platform/admission.yaml` | API-server policy: `foc` pods must carry the pinned Istio sidecar; rejects injection opt-outs, host networking, and capture overrides. |
+| `platform/istiod-values.yaml` | Helm values for the Istio control plane: native sidecars, proxy resources, access logs with query strings stripped. |
+| `platform/gateway-api/standard-install.yaml` | Vendored Gateway API v1.6.0 CRDs. |
+| `platform/gateway-api/README.md` | Provenance and pin of the vendored CRDs. |
+| `base/dependencies/accounts.yaml` | One ServiceAccount per workload — the identities Istio principals refer to. |
+| `base/dependencies/config.yaml` | `foc-config`: shared runtime settings, browser-facing origins, internal service URLs. |
+| `base/dependencies/postgres.yaml` | PostgreSQL/PostGIS StatefulSet with its PVC. |
+| `base/dependencies/kafka.yaml` | Kafka broker StatefulSet, advertising its in-cluster FQDN. |
+| `base/dependencies/kafka-ui.yaml` | Kafka operator UI; private port-forward access with its own login. |
+| `base/dependencies/security.yaml` | STRICT mTLS, default-deny, and the per-caller authorization policies. |
+| `base/gateway/gateway.yaml` | The `foc-public` Gateway: HTTPS listener, local TLS Secret, route attachment rules. |
+| `base/applications/gateway.yaml` | The public HTTPRoute allowlist: one route per public protobuf service plus the frontend. |
+| `base/applications/<service>.yaml` | Deployment and Service(s) per app (User/Credit also have internal Services); probes use the image's healthcheck binary. |
+| `base/initialization/*-migrate.yaml` | Per-service Goose migration Jobs. |
+| `base/initialization/kafka-init.yaml` | Topic-creation Job driven by `infra/kafka/topics.conf`. |
+| `base/provisioning/db-provision.yaml` + `provision.sh` | Job creating per-service database roles and installing PostGIS extensions. |
+| `base/mailpit/`, `base/floci/` | Local-only dev mailbox and S3-compatible image store (Floci adds its own gateway route). |
+| `overlays/local/`, `overlays/production/` | Kustomize patches: local forwards and storage; production hostname, certificate, and origins (template). |
+
 ## Container images
 
 Every image builds from the repository root as context. The Go services share
