@@ -21,33 +21,58 @@ export const AQUA_BIN_DIR = join(AQUA_ROOT_DIR, "bin");
 
 // kubeconfigs, generated secrets and temporary render directories.
 export const K8S_STATE_DIR = resolve(process.env.K8S_STATE_DIR ?? join(REPO_ROOT, ".local/k8s"));
+
+// Make the pinned tools resolvable for every spawned command.
 process.env.AQUA_ROOT_DIR = AQUA_ROOT_DIR;
 process.env.PATH = AQUA_BIN_DIR + (process.platform === "win32" ? ";" : ":") + (process.env.PATH ?? "");
 
 // Managed local kind cluster name.
 export const K8S_CLUSTER = process.env.K8S_CLUSTER || "foc";
+
 // kubectl context: "kind-<cluster>" for the managed cluster, or an explicit
 // context when targeting a pre-existing cluster.
 export const K8S_CONTEXT = process.env.K8S_CONTEXT || "kind-" + K8S_CLUSTER;
+
 // True when K8S_CONTEXT targets a pre-existing (external) cluster instead of
 // the managed local one; gates kind lifecycle, image pushing and delete guards.
 export const USING_EXISTING_CLUSTER = Boolean(process.env.K8S_CONTEXT);
+
 // Manifest overlay: the local one by default; external clusters must set
 // K8S_OVERLAY explicitly.
 export const K8S_OVERLAY_EXPLICIT = Boolean(process.env.K8S_OVERLAY);
 export const K8S_OVERLAY = resolve(REPO_ROOT, process.env.K8S_OVERLAY || "infra/k8s/overlays/local");
+
 // Default duration for kubectl --timeout waits and rollout statuses.
 export const K8S_TIMEOUT = process.env.K8S_TIMEOUT || "600s";
+
 // Registry prefix and tag for built application images.
 export const K8S_IMAGE_TAG = process.env.K8S_IMAGE_TAG || "local";
 export const K8S_IMAGE_PREFIX = process.env.K8S_IMAGE_PREFIX || "foc";
+
 // Container image for the kind control-plane node — the local Kubernetes version.
-export const K8S_NODE_IMAGE = process.env.K8S_NODE_IMAGE ||
+export const K8S_NODE_IMAGE =
+	process.env.K8S_NODE_IMAGE ||
 	"kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f";
+
 // Application Deployment names, in deploy order.
-export const K8S_APPS = ["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend"] as const;
+export const K8S_APPS = [
+	"user-service",
+	"supplier-service",
+	"order-service",
+	"credit-service",
+	"communication-service",
+	"frontend",
+] as const;
+
 // Initialization Jobs (run to completion before applications start).
-export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "credit-migrate", "communication-migrate", "kafka-init"] as const;
+export const K8S_JOBS = [
+	"user-migrate",
+	"supplier-migrate",
+	"order-migrate",
+	"credit-migrate",
+	"communication-migrate",
+	"kafka-init",
+] as const;
 
 export class OperatorError extends Error {}
 
@@ -75,11 +100,7 @@ export interface CommandResult {
 
 // Every external command goes through here: Bun shell with escaped arguments,
 // inherited env, and a die() on nonzero exit unless the caller opts out.
-export async function run(
-	program: string,
-	args: string[] = [],
-	options: CommandOptions = {},
-): Promise<CommandResult> {
+export async function run(program: string, args: string[] = [], options: CommandOptions = {}): Promise<CommandResult> {
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries({ ...process.env, ...options.env })) {
 		if (value !== undefined) env[key] = value;
@@ -87,7 +108,10 @@ export async function run(
 	const capture = Boolean(options.capture);
 	const command = [program, ...args].map((argument) => $.escape(argument)).join(" ");
 	const stdin = options.stdinFile ? " < " + $.escape(options.stdinFile) : "";
-	let task = $`${{ raw: command + stdin }}`.cwd(options.cwd ?? REPO_ROOT).env(env).nothrow();
+	let task = $`${{ raw: command + stdin }}`
+		.cwd(options.cwd ?? REPO_ROOT)
+		.env(env)
+		.nothrow();
 	if (capture) task = task.quiet();
 	const result = await task;
 	const stdout = capture ? result.stdout.toString() : "";
@@ -95,10 +119,7 @@ export async function run(
 	const exitCode = result.exitCode;
 	if (exitCode !== 0 && !options.allowFailure) {
 		const detail = stderr.trim();
-		die(
-			program + " " + args.join(" ") + " failed with exit code " + exitCode +
-				(detail ? ": " + detail : ""),
-		);
+		die(program + " " + args.join(" ") + " failed with exit code " + exitCode + (detail ? ": " + detail : ""));
 	}
 	return { stdout, stderr, exitCode };
 }
@@ -122,6 +143,7 @@ export async function kubectlBinary(): Promise<string> {
 	return aquaWhich("kubectl");
 }
 
+// The Helm charts ship inside the Istio archive, next to the istioctl binary.
 export async function istioChartsDirectory(): Promise<string> {
 	const installedIstioctl = await aquaWhich("istioctl");
 	return join(dirname(dirname(installedIstioctl)), "manifests/charts");
@@ -169,9 +191,11 @@ export async function prepareState(): Promise<void> {
 		await chmod(join(K8S_STATE_DIR, "clusters"), 0o700);
 	} catch {
 		die(
-			"Cannot create " + K8S_STATE_DIR +
+			"Cannot create " +
+				K8S_STATE_DIR +
 				". If Compose created a root-owned .local, create only this directory with: sudo install -d -o $(id -u) -g $(id -g) -m 700 '" +
-				K8S_STATE_DIR + "'; or set K8S_STATE_DIR to a writable private directory.",
+				K8S_STATE_DIR +
+				"'; or set K8S_STATE_DIR to a writable private directory.",
 		);
 	}
 }
@@ -209,13 +233,22 @@ export function imageFor(name: string): string {
 	return K8S_IMAGE_PREFIX + "/" + name + ":" + K8S_IMAGE_TAG;
 }
 
+// Block until the Job reports success; dump its logs and die on failure or timeout.
 export async function waitJob(name: string): Promise<void> {
 	const deadline = Date.now() + Number(process.env.K8S_JOB_TIMEOUT_SECONDS || 600) * 1000;
 	while (Date.now() < deadline) {
-		const result = await k([
-			"-n", "foc", "get", "job", name, "-o",
-			'jsonpath={.status.succeeded}:{.status.conditions[?(@.type=="Failed")].status}',
-		], { capture: true });
+		const result = await k(
+			[
+				"-n",
+				"foc",
+				"get",
+				"job",
+				name,
+				"-o",
+				'jsonpath={.status.succeeded}:{.status.conditions[?(@.type=="Failed")].status}',
+			],
+			{ capture: true },
+		);
 		const status = result.stdout.trim();
 		if (/^[1-9][0-9]*:/.test(status)) return;
 		if (status.endsWith(":True")) {
@@ -231,10 +264,19 @@ export async function waitJob(name: string): Promise<void> {
 // Kubernetes Jobs are immutable: only completed or failed Jobs may be deleted
 // so the next apply recreates them. A running Job must never be touched.
 export async function prepareJob(name: string): Promise<void> {
-	const result = await k([
-		"-n", "foc", "get", "job", name, "--ignore-not-found", "-o",
-		'jsonpath={.metadata.name}:{.status.succeeded}:{.status.conditions[?(@.type=="Failed")].status}',
-	], { capture: true });
+	const result = await k(
+		[
+			"-n",
+			"foc",
+			"get",
+			"job",
+			name,
+			"--ignore-not-found",
+			"-o",
+			'jsonpath={.metadata.name}:{.status.succeeded}:{.status.conditions[?(@.type=="Failed")].status}',
+		],
+		{ capture: true },
+	);
 	const status = result.stdout.trim();
 	if (!status) return;
 	const remainder = status.slice(name.length + 1);
@@ -264,11 +306,33 @@ export function parsePort(name: string, value: string | undefined): number | nul
 	return port;
 }
 
+// Build the forward list from the K8S_*_PORT inputs; a blank value disables its forward.
 export function configuredForwards(env: Record<string, string | undefined> = process.env): ForwardSpec[] {
 	const values = [
-		{ key: "K8S_HTTPS_PORT", name: "HTTPS gateway", namespace: "istio-ingress", service: "foc-public-istio", remotePort: 443, scheme: "https" as const },
-		{ key: "K8S_KAFKA_UI_PORT", name: "Kafka UI", namespace: "foc", service: "kafka-ui", remotePort: 8080, scheme: "http" as const },
-		{ key: "K8S_MAILPIT_PORT", name: "Mailpit", namespace: "foc", service: "mailpit", remotePort: 8025, scheme: "http" as const },
+		{
+			key: "K8S_HTTPS_PORT",
+			name: "HTTPS gateway",
+			namespace: "istio-ingress",
+			service: "foc-public-istio",
+			remotePort: 443,
+			scheme: "https" as const,
+		},
+		{
+			key: "K8S_KAFKA_UI_PORT",
+			name: "Kafka UI",
+			namespace: "foc",
+			service: "kafka-ui",
+			remotePort: 8080,
+			scheme: "http" as const,
+		},
+		{
+			key: "K8S_MAILPIT_PORT",
+			name: "Mailpit",
+			namespace: "foc",
+			service: "mailpit",
+			remotePort: 8025,
+			scheme: "http" as const,
+		},
 	];
 	const forwards: ForwardSpec[] = [];
 	const seenPorts = new Set<number>();
@@ -284,6 +348,7 @@ export function configuredForwards(env: Record<string, string | undefined> = pro
 	return forwards;
 }
 
+// The browser origin implied by the gateway forward (5173 when no port is configured).
 export function localOrigin(env: Record<string, string | undefined> = process.env): string {
 	return "https://localhost:" + (parsePort("K8S_HTTPS_PORT", env.K8S_HTTPS_PORT) ?? 5173);
 }
@@ -291,13 +356,14 @@ export function localOrigin(env: Record<string, string | undefined> = process.en
 export async function assertPortAvailable(port: number): Promise<void> {
 	await new Promise<void>((resolvePromise, reject) => {
 		const server = createServer();
-		server.once("error", () => reject(
-			new OperatorError(
-				"Host port " + port +
-					" is already in use. Stop Compose or the other listener, or choose another K8S_*_PORT.",
+		server.once("error", () =>
+			reject(
+				new OperatorError(
+					"Host port " + port + " is already in use. Stop Compose or the other listener, or choose another K8S_*_PORT.",
+				),
 			),
-		));
-		server.listen(port, "127.0.0.1", () => server.close((error) => error ? reject(error) : resolvePromise()));
+		);
+		server.listen(port, "127.0.0.1", () => server.close((error) => (error ? reject(error) : resolvePromise())));
 	});
 }
 
@@ -308,7 +374,9 @@ export async function preflightForwards(forwards: ForwardSpec[]): Promise<void> 
 // Check chart files: Bun.file(directory).exists() is false even for directories.
 export async function hasIstioCharts(chartsDirectory: string): Promise<boolean> {
 	const charts = ["base", "istio-control/istio-discovery"];
-	return (await Promise.all(charts.map(chart => Bun.file(join(chartsDirectory, chart, "Chart.yaml")).exists()))).every(Boolean);
+	return (
+		await Promise.all(charts.map((chart) => Bun.file(join(chartsDirectory, chart, "Chart.yaml")).exists()))
+	).every(Boolean);
 }
 
 // An API timeout can follow a partially successful apply. Reapply the exact same
@@ -318,7 +386,10 @@ export async function applyManifest(path: string): Promise<void> {
 		const result = await k(["apply", "-f", path], { capture: true, allowFailure: true });
 		if (result.stdout) process.stdout.write(result.stdout);
 		if (result.exitCode === 0) return;
-		const transient = /etcdserver: request timed out|context deadline exceeded|i\/o timeout|TLS handshake timeout|unexpected EOF|ServiceUnavailable|TooManyRequests/.test(result.stderr);
+		const transient =
+			/etcdserver: request timed out|context deadline exceeded|i\/o timeout|TLS handshake timeout|unexpected EOF|ServiceUnavailable|TooManyRequests/.test(
+				result.stderr,
+			);
 		if (!transient || attempt === 2) die("kubectl apply failed: " + result.stderr.trim());
 		note("Transient Kubernetes API failure; retrying the same manifest (attempt " + (attempt + 2) + "/3).");
 		await Bun.sleep(1000 * 2 ** attempt);

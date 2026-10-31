@@ -30,15 +30,23 @@ async function persistValue(name: string, value: string, allowEmpty = false): Pr
 	await writeFile(path, value, { mode: 0o600, flag: "wx" });
 }
 
+// Create-or-update a Secret: render it with kubectl --dry-run=client, then
+// apply through the retrying applier instead of a bare create.
 async function applySecret(namespace: string, name: string, options: string[]): Promise<void> {
 	const manifest = await run(
 		"kubectl",
 		[
 			...kubectlPrefix(),
-			"-n", namespace,
-			"create", "secret", "generic", name,
+			"-n",
+			namespace,
+			"create",
+			"secret",
+			"generic",
+			name,
 			...options,
-			"--dry-run=client", "-o", "yaml",
+			"--dry-run=client",
+			"-o",
+			"yaml",
 		],
 		{ capture: true },
 	);
@@ -65,7 +73,15 @@ export async function generateLocalSecrets(): Promise<void> {
 	}
 
 	try {
-		for (const name of ["postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password"]) {
+		for (const name of [
+			"postgres-password",
+			"user-password",
+			"supplier-password",
+			"order-password",
+			"credit-password",
+			"communication-password",
+			"kafka-ui-password",
+		]) {
 			const password = await run("openssl", ["rand", "-hex", "32"], { capture: true });
 			await persistValue(name, password.stdout.trim());
 		}
@@ -85,7 +101,13 @@ export async function generateLocalSecrets(): Promise<void> {
 		if (!(await Bun.file(privateKey).exists())) {
 			const temporaryKey = join(lockDirectory, "jwt.pem");
 			await run("openssl", [
-				"genpkey", "-algorithm", "EC", "-pkeyopt", "ec_paramgen_curve:P-256", "-out", temporaryKey,
+				"genpkey",
+				"-algorithm",
+				"EC",
+				"-pkeyopt",
+				"ec_paramgen_curve:P-256",
+				"-out",
+				temporaryKey,
 			]);
 			await rename(temporaryKey, privateKey);
 		}
@@ -99,12 +121,31 @@ export async function generateLocalSecrets(): Promise<void> {
 			const temporaryKey = join(lockDirectory, "tls.key");
 			const temporaryCert = join(lockDirectory, "tls.crt");
 			const config = join(lockDirectory, "tls.cnf");
-			await writeFile(config, "[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nbasicConstraints=critical,CA:TRUE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n", { mode: 0o600 });
-			await run("openssl", [
-				"req", "-x509", "-newkey", "rsa:3072", "-sha256", "-nodes", "-days", "365",
-				"-config", config,
-				"-keyout", temporaryKey, "-out", temporaryCert,
-			], { capture: true });
+			await writeFile(
+				config,
+				"[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nbasicConstraints=critical,CA:TRUE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n",
+				{ mode: 0o600 },
+			);
+			await run(
+				"openssl",
+				[
+					"req",
+					"-x509",
+					"-newkey",
+					"rsa:3072",
+					"-sha256",
+					"-nodes",
+					"-days",
+					"365",
+					"-config",
+					config,
+					"-keyout",
+					temporaryKey,
+					"-out",
+					temporaryCert,
+				],
+				{ capture: true },
+			);
 			await rename(temporaryKey, tlsKey);
 			await rename(temporaryCert, tlsCert);
 		}
@@ -140,9 +181,7 @@ export async function generateLocalSecrets(): Promise<void> {
 				"--from-file=DATABASE_URL=" + join(secretDirectory, service + "-database-url"),
 			]);
 		}
-		await applySecret("foc", "jwt-signing", [
-			"--from-file=jwt-signing-private.pem=" + privateKey,
-		]);
+		await applySecret("foc", "jwt-signing", ["--from-file=jwt-signing-private.pem=" + privateKey]);
 		await applySecret("foc", "smtp", [
 			"--from-file=" + join(secretDirectory, "SMTP_ADDR"),
 			"--from-file=" + join(secretDirectory, "SMTP_FROM"),
@@ -150,7 +189,10 @@ export async function generateLocalSecrets(): Promise<void> {
 			"--from-file=" + join(secretDirectory, "SMTP_PASSWORD"),
 		]);
 		await applySecret("foc", "telegram", ["--from-file=" + join(secretDirectory, "TELEGRAM_BOT_TOKEN")]);
-		await applySecret("foc", "object-storage", ["--from-literal=AWS_ACCESS_KEY_ID=test", "--from-literal=AWS_SECRET_ACCESS_KEY=test"]);
+		await applySecret("foc", "object-storage", [
+			"--from-literal=AWS_ACCESS_KEY_ID=test",
+			"--from-literal=AWS_SECRET_ACCESS_KEY=test",
+		]);
 		await applySecret("foc", "kafka-ui-auth", [
 			"--from-file=SPRING_SECURITY_USER_NAME=" + join(secretDirectory, "kafka-ui-user"),
 			"--from-file=SPRING_SECURITY_USER_PASSWORD=" + join(secretDirectory, "kafka-ui-password"),
