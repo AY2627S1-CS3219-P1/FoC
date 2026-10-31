@@ -73,6 +73,17 @@ func (f *fakeLinks) UnlinkChat(_ context.Context, chatID int64) error {
 	return nil
 }
 
+// fakeOrders holds each order's latest applied revision.
+type fakeOrders struct {
+	revisions map[string]int64
+	err       error
+}
+
+func (f *fakeOrders) Revision(_ context.Context, id uuid.UUID) (int64, bool, error) {
+	revision, ok := f.revisions[id.String()]
+	return revision, ok, f.err
+}
+
 type fakeDeliveries map[[2]uuid.UUID]bool
 
 func (f fakeDeliveries) HasBeenSent(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
@@ -88,8 +99,9 @@ func newHandler() (*Handler, *fakeSender, *fakeLinks, fakeDeliveries) {
 	sender := &fakeSender{errs: map[int64]error{}}
 	links := &fakeLinks{chats: map[uuid.UUID]int64{requesterID: 1, courierID: 2}}
 	deliveries := fakeDeliveries{}
-	h := &Handler{Sender: sender, Links: links, Deliveries: deliveries,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }}
+	h := &Handler{Sender: sender, Links: links, Deliveries: deliveries, Orders: &fakeOrders{},
+		Since: now.Add(-30 * 24 * time.Hour),
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }}
 	return h, sender, links, deliveries
 }
 
@@ -207,8 +219,8 @@ func TestHandleSendFailures(t *testing.T) {
 func TestHandleSkipsWithoutSending(t *testing.T) {
 	cases := map[string]func(*eventsv1.OrderStatusChanged, *fakeLinks){
 		"unlinked recipient": func(_ *eventsv1.OrderStatusChanged, l *fakeLinks) { delete(l.chats, requesterID) },
-		"stale event": func(e *eventsv1.OrderStatusChanged, _ *fakeLinks) {
-			e.OccurredAt = timestamppb.New(now.Add(-MaxAge - time.Second))
+		"late event": func(e *eventsv1.OrderStatusChanged, _ *fakeLinks) {
+			e.OccurredAt = timestamppb.New(now.Add(-LateWindow - time.Second))
 		},
 		"malformed event ID":  func(e *eventsv1.OrderStatusChanged, _ *fakeLinks) { e.EventId = "not-a-uuid" },
 		"malformed recipient": func(e *eventsv1.OrderStatusChanged, _ *fakeLinks) { e.RequesterId = "not-a-uuid" },
@@ -246,5 +258,76 @@ func TestHandleMakesNotificationsRepliable(t *testing.T) {
 	}
 	if got := targets[[2]int64{1, 101}]; got.String() != e.GetOrderId() {
 		t.Fatalf("reply targets = %v", targets)
+	}
+}
+
+func TestHandleSendsOutcomesHoweverLate(t *testing.T) {
+	h, sender, _, _ := newHandler()
+	e := event(eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, eventsv1.OrderStatus_ORDER_STATUS_FAILED, system)
+	e.OccurredAt = timestamppb.New(now.Add(-6 * 24 * time.Hour))
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.sent) != 2 {
+		t.Fatalf("sent = %+v", sender.sent)
+	}
+}
+
+func TestHandleSkipsEventsBeforeNotificationsStarted(t *testing.T) {
+	h, sender, _, _ := newHandler()
+	h.Since = now
+	e := event(eventsv1.OrderStatus_ORDER_STATUS_DELIVERING, eventsv1.OrderStatus_ORDER_STATUS_FAILED, system)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.sent) != 0 {
+		t.Fatalf("sent = %+v", sender.sent)
+	}
+}
+
+func TestHandleSendsAcceptanceOnlyWhileCurrent(t *testing.T) {
+	cases := []struct {
+		name      string
+		revisions func(orderID string) map[string]int64
+		wantSent  bool
+	}{
+		{"current", func(id string) map[string]int64 { return map[string]int64{id: 4} }, true},
+		{"superseded", func(id string) map[string]int64 { return map[string]int64{id: 5} }, false},
+		{"order unknown", func(string) map[string]int64 { return nil }, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sender, _, _ := newHandler()
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				user(requesterID),
+			)
+			// Still-current notifications have no late window.
+			e.OccurredAt = timestamppb.New(now.Add(-2 * time.Hour))
+			h.Orders = &fakeOrders{revisions: tc.revisions(e.GetOrderId())}
+			if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+				t.Fatal(err)
+			}
+			if (len(sender.sent) == 1) != tc.wantSent || (tc.wantSent && sender.sent[0].chatID != 2) {
+				t.Fatalf("sent = %+v", sender.sent)
+			}
+		})
+	}
+}
+
+func TestHandleReplaysWhenRevisionUnreadable(t *testing.T) {
+	h, sender, _, _ := newHandler()
+	h.Orders = &fakeOrders{err: errors.New("connection refused")}
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		user(requesterID),
+	)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err == nil {
+		t.Fatal("revision failure was not returned for replay")
+	}
+	if len(sender.sent) != 0 {
+		t.Fatalf("sent = %+v", sender.sent)
 	}
 }

@@ -32,6 +32,11 @@ type ChatSelection struct {
 	SelectedAt time.Time
 }
 
+type NotificationsStart struct {
+	Singleton bool
+	StartedAt time.Time
+}
+
 type OrderNotificationsSent struct {
 	EventID uuid.UUID
 	UserID  uuid.UUID

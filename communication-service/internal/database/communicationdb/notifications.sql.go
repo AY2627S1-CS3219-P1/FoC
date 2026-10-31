@@ -30,6 +30,17 @@ func (q *Queries) NotificationSent(ctx context.Context, arg NotificationSentPara
 	return exists, err
 }
 
+const notificationsStart = `-- name: NotificationsStart :one
+SELECT started_at FROM notifications_start
+`
+
+func (q *Queries) NotificationsStart(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRow(ctx, notificationsStart)
+	var started_at time.Time
+	err := row.Scan(&started_at)
+	return started_at, err
+}
+
 const recordNotificationSent = `-- name: RecordNotificationSent :exec
 INSERT INTO order_notifications_sent (event_id, user_id, sent_at)
 VALUES ($1, $2, $3)
@@ -45,5 +56,16 @@ type RecordNotificationSentParams struct {
 // Recording twice is harmless.
 func (q *Queries) RecordNotificationSent(ctx context.Context, arg RecordNotificationSentParams) error {
 	_, err := q.db.Exec(ctx, recordNotificationSent, arg.EventID, arg.UserID, arg.SentAt)
+	return err
+}
+
+const recordNotificationsStart = `-- name: RecordNotificationsStart :exec
+INSERT INTO notifications_start (started_at) VALUES ($1)
+ON CONFLICT DO NOTHING
+`
+
+// Only the first call sets the start time.
+func (q *Queries) RecordNotificationsStart(ctx context.Context, startedAt time.Time) error {
+	_, err := q.db.Exec(ctx, recordNotificationsStart, startedAt)
 	return err
 }
