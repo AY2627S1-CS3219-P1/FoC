@@ -143,6 +143,16 @@ rewrites image registry and tag, so image references are decided in exactly
 one place. Inspect the rendered YAML of a stage with
 `bun run scripts/k8s/k8s.ts render <stage>`.
 
+## Deployment stages
+
+The deploy applies five ordered stages — `gateway`, `dependencies`,
+`provisioning`, `initialization`, `applications` — each a directory under both
+`base/` and `overlays/<environment>/`. Stages run in dependency order, and each
+is verified before the next: a failed Job (for example, a migration) stops the
+deploy, so an application never starts before its database exists and its
+schema is current. Every object also carries a `foc.dev/stage` label naming its
+stage, e.g. `kubectl -n foc get jobs -l foc.dev/stage=initialization`.
+
 ## Moving to a managed cluster (for example Amazon EKS)
 
 1. Create the EKS cluster; install a compatible Istio — Gateway API v1 CRDs
