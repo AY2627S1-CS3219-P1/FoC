@@ -5,7 +5,10 @@
 	import { telegramLinkApi } from '$lib/services';
 	import { pollUntilLinked, type TelegramLinkCode, type TelegramLinkStatus } from '$lib/services/telegram';
 
-	let { onLinked }: { onLinked?: (status: TelegramLinkStatus) => void } = $props();
+	// autoConnect creates the link as soon as the user is known to be unlinked,
+	// so the first tap opens Telegram.
+	let { onLinked, autoConnect = false }: { onLinked?: (status: TelegramLinkStatus) => void; autoConnect?: boolean } =
+		$props();
 
 	type State =
 		| { kind: 'loading' }
@@ -35,7 +38,9 @@
 		message = '';
 		try {
 			const status = await telegramLinkApi.getStatus();
-			view = status.linked ? { kind: 'linked', status } : { kind: 'unlinked' };
+			if (status.linked) view = { kind: 'linked', status };
+			else if (autoConnect) await connect();
+			else view = { kind: 'unlinked' };
 		} catch (cause) {
 			view = { kind: 'unlinked' };
 			message = describe(cause);
@@ -51,6 +56,7 @@
 			view = { kind: 'waiting', link };
 			void waitForLink(link);
 		} catch (cause) {
+			view = { kind: 'unlinked' };
 			message = describe(cause);
 		} finally {
 			busy = false;
