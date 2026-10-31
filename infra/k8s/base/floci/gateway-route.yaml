@@ -1,0 +1,22 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: floci-images
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /order-images/}
+          method: GET
+        - path: {type: PathPrefix, value: /order-images/}
+          method: HEAD
+        - path: {type: PathPrefix, value: /order-images/}
+          method: PUT
+        - path: {type: PathPrefix, value: /order-images/}
+          method: OPTIONS
+      backendRefs:
+        - name: floci
+          port: 4566

@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    foc.dev/stage: applications
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 180
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        foc.dev/rpc: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: order-service
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: order-service
+          image: foc/order-service:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: foc-config
+            - secretRef:
+                name: order-db
+          ports:
+            - {name: http2-public, containerPort: 8080}
+          startupProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080"]
+            failureThreshold: 40
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080"]
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["/app/healthcheck", "ready", "8080", "/order.v1.HealthService/Check"]
+            periodSeconds: 5
+            timeoutSeconds: 4
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service-external
+spec:
+  selector:
+    app: order-service
+  ports:
+    - {name: http2-public, port: 8080, targetPort: 8080, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: order-service
+spec:
+  workloadSelector:
+    labels:
+      app: order-service
+  ingress:
+    - port:
+        number: 8080
+        name: http2-public
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8080
+  egress:
+    - hosts: ["./*", "istio-system/*"]

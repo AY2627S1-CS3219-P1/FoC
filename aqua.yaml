@@ -1,0 +1,32 @@
+# aqua - Declarative CLI Version Manager
+# https://aquaproj.github.io/
+checksum:
+  enabled: true
+  require_checksum: true
+  supported_envs:
+    - linux/amd64
+    - linux/arm64
+    - darwin/amd64
+    - darwin/arm64
+registries:
+  - type: standard
+    ref: v4.579.0 # renovate: depName=aquaproj/aqua-registry
+  - name: local
+    type: local
+    path: .aqua/registry.yaml
+packages:
+  # Bun and Istio come from the local registry (.aqua/registry.yaml): Bun keeps
+  # the baseline-Intel binary for older Intel Macs, and the Istio archive also
+  # supplies the Helm charts that installMesh() deploys.
+  - name: oven-sh/bun
+    registry: local
+    version: bun-v1.4.3 # release tags carry the bun- prefix
+  - name: kubernetes-sigs/kind
+    version: v0.33.0
+  - name: kubernetes/kubernetes/kubectl
+    version: v1.35.0
+  - name: helm/helm
+    version: v3.20.1
+  - name: istio/istio
+    registry: local
+    version: "1.31.2" # Istio release tags carry no v prefix.

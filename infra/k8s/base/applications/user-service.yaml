@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    foc.dev/stage: applications
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 180
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+        foc.dev/rpc: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: user-service
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: user-service
+          image: foc/user-service:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: foc-config
+            - secretRef:
+                name: user-db
+            - secretRef:
+                name: smtp
+          ports:
+            - {name: http2-public, containerPort: 8080}
+            - {name: http2-internal, containerPort: 8081}
+          startupProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            failureThreshold: 40
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["/app/healthcheck", "ready", "8080", "/user.v1.HealthService/Check"]
+            periodSeconds: 5
+            timeoutSeconds: 4
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - {name: jwt-signing, mountPath: /var/run/foc/auth, readOnly: true}
+      volumes:
+        - name: jwt-signing
+          secret:
+            secretName: jwt-signing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-external
+spec:
+  selector:
+    app: user-service
+  ports:
+    - {name: http2-public, port: 8080, targetPort: 8080, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-internal
+spec:
+  selector:
+    app: user-service
+  ports:
+    - {name: http2-internal, port: 8080, targetPort: 8081, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: user-service
+spec:
+  workloadSelector:
+    labels:
+      app: user-service
+  ingress:
+    - port:
+        number: 8080
+        name: http2-public
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8080
+    - port:
+        number: 8081
+        name: http2-internal
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8081
+  egress:
+    - hosts: ["./*", "istio-system/*"]

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: foc
+resources:
+  - user-service.yaml
+  - supplier-service.yaml
+  - order-service.yaml
+  - credit-service.yaml
+  - frontend.yaml
+  - gateway.yaml
+  - communication-service.yaml

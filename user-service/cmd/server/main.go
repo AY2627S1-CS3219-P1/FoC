@@ -46,6 +46,7 @@ const (
 
 type config struct {
 	port            string
+	internalPort    string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -143,34 +144,64 @@ func main() {
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	var servers []*http.Server
+	if cfg.internalPort == "" {
+		// Without an internal port, every route (public-key included) shares
+		// the public listener; local development does not need the split.
+		handler := cors.Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
+		servers = []*http.Server{newServer(":"+cfg.port, handler)}
+	} else {
+		public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+		internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+		servers = []*http.Server{public, internal}
+	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
+	if err := serve(ctx, servers...); err != nil {
+		fatal("serve", err)
+	}
+	stop()
+	<-relayDone
+}
 
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
 	select {
-	case err := <-errCh:
-		if err != nil {
-			fatal("serve", err)
-		}
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
 	}
-	stop()
-	<-relayDone
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -195,6 +226,7 @@ func loadConfig() (config, error) {
 	var errs []error
 	cfg := config{
 		port:            envString("PORT", "8080"),
+		internalPort:    envString("INTERNAL_PORT", ""),
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
@@ -251,6 +283,14 @@ func loadConfig() (config, error) {
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.internalPort != "" {
+		port, err := strconv.Atoi(cfg.internalPort)
+		if err != nil || port < 1 || port > 65535 {
+			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))
+		} else if cfg.internalPort == cfg.port {
+			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
+		}
 	}
 	if cfg.smtp.From == "" {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))

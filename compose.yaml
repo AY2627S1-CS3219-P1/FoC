@@ -149,9 +149,10 @@ services:
       dockerfile: user-service/Dockerfile.dev
     container_name: foc-user-service
     ports:
-      - "${USER_PORT:-8081}:8080"
+      - "${USER_PORT:-8081}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
@@ -184,12 +185,12 @@ services:
       dockerfile: supplier-service/Dockerfile.dev
     container_name: foc-supplier-service
     ports:
-      - "${SUPPLIER_PORT:-8082}:8080"
+      - "${SUPPLIER_PORT:-8082}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
@@ -213,16 +214,15 @@ services:
     cpus: 2.0
     pids_limit: 128
     ports:
-      - "${ORDER_PORT:-8083}:8080"
+      - "${ORDER_PORT:-8083}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
-      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL:-}
-      CREDIT_WORKLOAD_TOKEN_FILE: ${CREDIT_WORKLOAD_TOKEN_FILE:-}
+      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL-http://credit-service:8081}
       KAFKA_BROKERS: kafka:9092
       ORDER_S3_BUCKET: ${ORDER_S3_BUCKET:-order-images}
       ORDER_S3_ENDPOINT: http://floci:4566
@@ -248,13 +248,13 @@ services:
       dockerfile: communication-service/Dockerfile.dev
     container_name: foc-communication-service
     ports:
-      - "${COMMUNICATION_PORT:-8084}:8080"
+      - "${COMMUNICATION_PORT:-8084}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -281,18 +281,17 @@ services:
       context: .
       dockerfile: credit-service/Dockerfile.dev
     container_name: foc-credit-service
-    # Only the public listener is published. The internal listener (8081)
-    # serves Order's reservation RPCs without authentication until #29 and is
-    # reachable only on the Compose network as http://credit-service:8081.
+    # Only the public listener is published. Order's reservation RPCs use the
+    # internal listener, reachable only on the Compose network.
     ports:
-      - "${CREDIT_PORT:-8085}:8080"
+      - "${CREDIT_PORT:-8085}:${PORT:-8080}"
     environment:
-      PORT: "8080"
-      INTERNAL_PORT: "8081"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${CREDIT_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CREDIT_DB:-credit_dev}?sslmode=disable}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
     volumes:

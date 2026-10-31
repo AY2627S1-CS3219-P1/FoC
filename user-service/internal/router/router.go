@@ -19,7 +19,8 @@ import (
 
 const maxRPCMessageBytes = 1 << 20
 
-// Setup mounts the Connect handlers built in main with their dependencies set.
+// Setup mounts every user RPC on one router. It serves the single-listener
+// mode, when no internal port is configured, and single-router tests.
 type ProtectedRoutes struct {
 	Profile      *profilehandler.Handler
 	Admin        *adminhandler.Handler
@@ -28,6 +29,40 @@ type ProtectedRoutes struct {
 }
 
 func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) *chi.Mux {
+	return setup(health, auth, true, protected...)
+}
+
+// Public mounts user RPCs except the internal-only services.
+func Public(
+	health *healthhandler.Handler,
+	auth *authhandler.Handler,
+	protected ...ProtectedRoutes,
+) http.Handler {
+	return setup(health, auth, false, protected...)
+}
+
+// Internal mounts the internal-only RPCs.
+func Internal(auth *authhandler.Handler) http.Handler {
+	mux := http.NewServeMux()
+	keysPath, keysService := publicKeyHandler(auth)
+	mux.Handle(keysPath, keysService)
+	return mux
+}
+
+func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {
+	return userv1connect.NewPublicKeyServiceHandler(
+		auth,
+		connect.WithInterceptors(normalizeRPCError()),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
+	)
+}
+
+func setup(
+	health *healthhandler.Handler,
+	auth *authhandler.Handler,
+	mountInternalServices bool,
+	protected ...ProtectedRoutes,
+) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
@@ -47,12 +82,11 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 	)
 	r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
 
-	keysPath, keysService := userv1connect.NewPublicKeyServiceHandler(
-		auth,
-		connect.WithInterceptors(normalizeRPCError()),
-		connect.WithReadMaxBytes(maxRPCMessageBytes),
-	)
-	r.Mount(keysPath, keysService)
+	if mountInternalServices {
+		// Internal-only RPCs; future private endpoints mount here.
+		keysPath, keysService := publicKeyHandler(auth)
+		r.Mount(keysPath, keysService)
+	}
 
 	if len(protected) > 0 {
 		p := protected[0]

@@ -55,19 +55,13 @@ func newCreator(
 		return nil, false, err
 	}
 	if pending && c.CreditServiceURL == "" {
-		return nil, false, errors.New("outstanding creation workflows require Credit URL and token file for recovery")
+		return nil, false, errors.New("outstanding creation workflows require Credit URL for recovery")
 	}
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: clients.NoRedirect}
 	var credit order.CreationCredit
 	if c.CreditServiceURL != "" {
-		if _, err := clients.ReadServiceToken(c.CreditTokenFile); err != nil {
-			return nil, false, errors.New(
-				"CREDIT_WORKLOAD_TOKEN_FILE must contain a readable nonempty bearer credential",
-			)
-		}
 		credit = &clients.Credit{
 			Client: creditv1connect.NewCreditReservationServiceClient(client, c.CreditServiceURL),
-			Tokens: clients.FileTokens{Path: c.CreditTokenFile},
 		}
 	}
 	var locations order.CreationLocations

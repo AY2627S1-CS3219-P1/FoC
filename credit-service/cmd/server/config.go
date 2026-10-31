@@ -62,10 +62,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {
-		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
-	}
-
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {
 		c.RunMigrations, err = strconv.ParseBool(value)
 		if err != nil {
