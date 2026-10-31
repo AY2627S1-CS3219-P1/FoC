@@ -122,22 +122,30 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: communication-service
+  labels:
+    foc.dev/stage: dependencies
 automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: communication-migrate
+  labels:
+    foc.dev/stage: dependencies
 automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: order-storage-init
+  labels:
+    foc.dev/stage: dependencies
 automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: floci
+  labels:
+    foc.dev/stage: dependencies
 automountServiceAccountToken: false
