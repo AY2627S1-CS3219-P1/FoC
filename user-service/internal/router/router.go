@@ -32,7 +32,7 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 	return setup(health, auth, true, protected...)
 }
 
-// Public mounts user RPCs except public-key retrieval.
+// Public mounts user RPCs except the internal-only services.
 func Public(
 	health *healthhandler.Handler,
 	auth *authhandler.Handler,
@@ -41,7 +41,7 @@ func Public(
 	return setup(health, auth, false, protected...)
 }
 
-// Internal exposes only the User Service public-key RPC.
+// Internal mounts the internal-only RPCs.
 func Internal(auth *authhandler.Handler) http.Handler {
 	mux := http.NewServeMux()
 	keysPath, keysService := publicKeyHandler(auth)
@@ -60,7 +60,7 @@ func publicKeyHandler(auth *authhandler.Handler) (string, http.Handler) {
 func setup(
 	health *healthhandler.Handler,
 	auth *authhandler.Handler,
-	includeKeys bool,
+	mountInternalServices bool,
 	protected ...ProtectedRoutes,
 ) *chi.Mux {
 	r := chi.NewRouter()
@@ -82,7 +82,8 @@ func setup(
 	)
 	r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin)).Mount(authPath, authService)
 
-	if includeKeys {
+	if mountInternalServices {
+		// Internal-only RPCs; future private endpoints mount here.
 		keysPath, keysService := publicKeyHandler(auth)
 		r.Mount(keysPath, keysService)
 	}
