@@ -104,7 +104,12 @@ For curl use `--cacert .local/k8s/secrets/tls.crt`; do not disable verification.
 Local credentials and signing keys remain in `.local/k8s/secrets` across retries.
 Do not delete that directory while retaining PostgreSQL data. The generator does
 not silently rotate database passwords or JWT keys. Credential files must never
-be committed or printed into logs.
+be committed or printed into logs. Local values follow three patterns:
+machine-generated (database passwords, the JWT key, the TLS pair, the Kafka UI
+password — read them back from that directory), operator inputs for values a
+machine cannot choose (`K8S_TELEGRAM_BOT_TOKEN`,
+`K8S_BOOTSTRAP_SUPERADMIN_EMAIL`), and fixed non-secret constants (the Kafka UI
+username, local object-storage test credentials).
 
 For the local overlay, `make k8s-up` creates and applies Kubernetes Secrets from
 that private directory. External-cluster deployments require the operator to
