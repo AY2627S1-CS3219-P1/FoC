@@ -12,6 +12,16 @@ for pinned Kubernetes tools and container images. Bun 1.4.3 is installed by
 aqua under the ignored `.tools/aqua/` directory. You do not need Node.js or Bun
 globally.
 
+Install aqua itself (the only manual tool prerequisite):
+
+```sh
+brew install aquaproj/aqua/aqua        # with Homebrew
+# or without Homebrew:
+curl -sSfL "https://raw.githubusercontent.com/aquaproj/aqua-installer/v3.1.0/aqua-installer" \
+  | bash -s -- "-v v2.65.2"
+mkdir -p ~/.local/bin && mv ./aqua ~/.local/bin/ && export PATH="$HOME/.local/bin:$PATH"
+```
+
 Before the first deployment, approve this repository's aqua policy once:
 
 ```sh
