@@ -30,8 +30,9 @@ type fakeStore struct {
 	sessions         map[uuid.UUID]models.Session
 	createdEvents    []userdomain.CreatedEvent
 	allowedDomains   map[string]struct{}
-	failSession      bool
+	domainErr        error
 	failCreatedEvent error
+	failSession      bool
 }
 
 func newFakeStore() *fakeStore {
@@ -213,7 +214,10 @@ func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, no
 
 type fakeDomains struct{ *fakeStore }
 
-func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
+func (f fakeDomains) IsDomainAllowed(_ context.Context, domain string) (bool, error) {
+	if f.domainErr != nil {
+		return false, f.domainErr
+	}
 	_, ok := f.allowedDomains[strings.ToLower(domain)]
 	return ok, nil
 }
@@ -228,17 +232,17 @@ func (f fakeUserCreatedEvents) Append(_ context.Context, event userdomain.Create
 	return nil
 }
 
-func (f *fakeStore) stores() Store {
-	return Store{
+func (f *fakeStore) resources() Resources {
+	return Resources{
 		Users:             fakeUsers{f},
 		AuthTokens:        fakeAuthTokens{f},
 		Sessions:          fakeSessions{f},
-		Domains:           fakeDomains{f},
+		DomainPolicy:      fakeDomains{f},
 		UserCreatedEvents: fakeUserCreatedEvents{f},
 	}
 }
 
-func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) error) error {
+func (f *fakeStore) withTransaction(ctx context.Context, operation func(Resources) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
@@ -248,10 +252,11 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) e
 		sessions:         cloneMap(f.sessions),
 		createdEvents:    append([]userdomain.CreatedEvent(nil), f.createdEvents...),
 		allowedDomains:   cloneMap(f.allowedDomains),
-		failSession:      f.failSession,
+		domainErr:        f.domainErr,
 		failCreatedEvent: f.failCreatedEvent,
+		failSession:      f.failSession,
 	}
-	if err := operation(tx.stores()); err != nil {
+	if err := operation(tx.resources()); err != nil {
 		return err
 	}
 	f.users = tx.users
@@ -306,7 +311,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Store: store.stores(), WithTransaction: store.withTransaction,
+	service, err := NewService(Dependencies{Resources: store.resources(), WithTransaction: store.withTransaction,
 		TokenCodec: codec, EmailSender: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
@@ -717,7 +722,7 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
 	); !errors.Is(
 		err,
-		jwt.ErrRegistrationFailed,
+		ErrEmailDomainNotAllowed,
 	) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
@@ -829,7 +834,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while requesting link", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("transaction runner while completing login", func(t *testing.T) {
@@ -871,7 +876,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
@@ -886,7 +891,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while logging out", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Sessions = nil
+		service.deps.Resources.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while logging out everywhere", func(t *testing.T) {

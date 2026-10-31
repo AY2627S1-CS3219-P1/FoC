@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -23,11 +24,12 @@ const maxRPCMessageBytes = 1 << 20
 
 // Setup mounts the Connect handlers built in main with their dependencies set.
 type ProtectedRoutes struct {
-	Profile      *profilehandler.Handler
-	Admin        *adminhandler.Handler
-	Review       *review.Handler
-	Authenticate func(http.Handler) http.Handler
-	Users        ActorReader
+	Profile        *profilehandler.Handler
+	Admin          *adminhandler.Handler
+	AllowedDomains *allowedadmin.AllowedDomainHandler
+	Review         *review.Handler
+	Authenticate   func(http.Handler) http.Handler
+	Users          ActorReader
 }
 
 func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected ...ProtectedRoutes) *chi.Mux {
@@ -75,6 +77,17 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 			connect.WithInterceptors(validate.NewInterceptor(), review.AuthorizeInterceptor(), normalizeRPCError()),
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(reviewPath, reviewService)
+		allowedDomainsPath, allowedDomainsService := userv1connect.NewAllowedDomainAdminServiceHandler(
+			p.AllowedDomains,
+			connect.WithInterceptors(
+				allowedadmin.NormalizeAllowedDomainInput(),
+				validate.NewInterceptor(),
+				authorizeProtected(p.Users),
+				normalizeRPCError(),
+			),
+			connect.WithReadMaxBytes(maxRPCMessageBytes))
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(allowedDomainsPath, allowedDomainsService)
 	}
 	return r
 }

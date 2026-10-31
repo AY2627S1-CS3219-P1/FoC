@@ -1,5 +1,20 @@
 version: "2"
 sql:
+  - name: "allowed_domains"
+    engine: "postgresql"
+    queries: "query/allowed_domains.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "alloweddomaindb"
+        out: "../internal/database/alloweddomaindb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "citext"
+            go_type: "string"
   - name: "review"
     engine: "postgresql"
     queries: "query/reviews.sql"
