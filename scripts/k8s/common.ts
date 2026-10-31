@@ -33,8 +33,10 @@ export const K8S_CLUSTER = process.env.K8S_CLUSTER || "foc";
 // context when targeting a pre-existing cluster.
 export const K8S_CONTEXT = process.env.K8S_CONTEXT || "kind-" + K8S_CLUSTER;
 
-// True when K8S_CONTEXT targets a pre-existing (external) cluster instead of
-// the managed local one; gates kind lifecycle, image pushing and delete guards.
+// True when the raw environment variable K8S_CONTEXT is set (before any
+// defaulting): the operator is targeting a pre-existing (external) cluster
+// instead of the managed local one. Reads the env var, never the derived
+// K8S_CONTEXT constant — which is always non-empty.
 export const USING_EXISTING_CLUSTER = Boolean(process.env.K8S_CONTEXT);
 
 // Manifest overlay: the local one by default; external clusters must set
