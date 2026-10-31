@@ -87,8 +87,8 @@ outside local mode.
 
 ## Credit dependency and service authentication
 
-Live creation additionally requires the actual Credit Reserve/GetReservation and
-creation-compensation backend:
+Live creation uses the Credit Reserve/GetReservation and creation-compensation
+backend. Compose and Kubernetes both configure it by default:
 
 ```sh
 export CREDIT_SERVICE_BASE_URL=http://credit-service:8081
@@ -105,7 +105,9 @@ credential verification; see the tracked
 [unauthenticated-listener landmine](../LANDMINES/credit-internal-listener-unauthenticated.md).
 
 New creation is available when Supplier and Credit are configured; there is no
-admission feature flag. Reads and image uploads can run without Credit. An
+admission feature flag. Compose wires Credit by default; setting
+`CREDIT_SERVICE_BASE_URL` empty disables order creation, while reads and image
+uploads keep working. An
 existing pending financial workflow requires Credit recovery configuration at
 startup. A configured Credit outage leaves durable Pending Reservation work.
 The Kubernetes smoke check verifies that only the Order workload identity can
