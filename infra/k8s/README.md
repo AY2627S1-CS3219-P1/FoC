@@ -56,7 +56,10 @@ operator login; credentials are in `.local/k8s/secrets/kafka-ui-user` and
 ## Ports and stopping
 
 Edit `K8S_HTTPS_PORT`, `K8S_KAFKA_UI_PORT`, and `K8S_MAILPIT_PORT` in `.env` to
-choose host ports. Leave any value blank to disable just that forward. A
+choose host ports. They may also be exported for a single invocation
+(`K8S_HTTPS_PORT=9443 make k8s-up`); passing them as make arguments
+(`make k8s-up K8S_HTTPS_PORT=9443`) does not reach the operator script. Leave
+any value blank to disable just that forward. A
 conflicting port is reported before deployment, so stop Compose first or pick
 another port.
 
