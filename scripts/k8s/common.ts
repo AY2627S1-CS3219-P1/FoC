@@ -4,7 +4,7 @@ import { $ } from "bun";
 import { access, chmod, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 
 // Operator inputs and defaults. Constants that mirror an environment variable
 // (K8S_CLUSTER, K8S_CONTEXT, K8S_OVERLAY, K8S_IMAGE_*, K8S_TIMEOUT,
@@ -393,5 +393,124 @@ export async function applyManifest(path: string): Promise<void> {
 		if (!transient || attempt === 2) die("kubectl apply failed: " + result.stderr.trim());
 		note("Transient Kubernetes API failure; retrying the same manifest (attempt " + (attempt + 2) + "/3).");
 		await Bun.sleep(1000 * 2 ** attempt);
+	}
+}
+
+export async function waitForGateway(): Promise<void> {
+	await k(["wait", "--for=condition=Accepted", "gatewayclass/istio", "--timeout=" + K8S_TIMEOUT]);
+	await k([
+		"-n",
+		"istio-ingress",
+		"wait",
+		"--for=condition=Programmed",
+		"gateway/foc-public",
+		"--timeout=" + K8S_TIMEOUT,
+	]);
+	const routes = [
+		"user-service",
+		"supplier-service",
+		"order-service",
+		"communication-service",
+		"credit-service",
+		"frontend",
+	];
+	if (isLocalOverlay()) routes.push("floci-images");
+	for (const route of routes) {
+		await waitForHTTPRoute(route);
+	}
+	await k(["-n", "istio-ingress", "rollout", "status", "deployment/foc-public-istio", "--timeout=" + K8S_TIMEOUT]);
+}
+
+// Wait until the Gateway controller accepts the route and resolves its
+// backends; die with the controller's rejection reason otherwise.
+async function waitForHTTPRoute(name: string): Promise<void> {
+	const timeout = /^(\d+)(s|m|h)$/.exec(K8S_TIMEOUT);
+	if (!timeout) die("K8S_TIMEOUT must be an integer duration such as 600s or 10m.");
+	const multiplier = timeout[2] === "h" ? 3_600_000 : timeout[2] === "m" ? 60_000 : 1_000;
+	const deadline = Date.now() + Number(timeout[1]) * multiplier;
+	while (Date.now() < deadline) {
+		const result = await k(["-n", "foc", "get", "httproute", name, "-o", "json"], { capture: true });
+		const route = JSON.parse(result.stdout);
+		const parent = route.status?.parents?.find(
+			(item: { parentRef?: { name?: string }; controllerName?: string }) =>
+				item.parentRef?.name === "foc-public" && item.controllerName === "istio.io/gateway-controller",
+		);
+		const conditions = parent?.conditions ?? [];
+		const accepted = conditions.find((item: { type: string }) => item.type === "Accepted");
+		const resolved = conditions.find((item: { type: string }) => item.type === "ResolvedRefs");
+		if (accepted?.status === "True" && resolved?.status === "True") return;
+		const rejected = [accepted, resolved].find((item) => item?.status === "False");
+		if (rejected) {
+			die("HTTPRoute " + name + " was rejected: " + rejected.reason + " — " + rejected.message);
+		}
+		await Bun.sleep(1000);
+	}
+	die("Timed out waiting for HTTPRoute " + name + " to be accepted with resolved backend references.");
+}
+
+function waitForLocalListener(port: number): Promise<boolean> {
+	return new Promise((resolvePromise) => {
+		const socket = connect({ host: "127.0.0.1", port });
+		const timer = setTimeout(() => {
+			socket.destroy();
+			resolvePromise(false);
+		}, 250);
+		socket.once("connect", () => {
+			clearTimeout(timer);
+			socket.destroy();
+			resolvePromise(true);
+		});
+		socket.once("error", () => {
+			clearTimeout(timer);
+			resolvePromise(false);
+		});
+	});
+}
+
+// kubectl binds the local listener before the tunnel is usable and can also
+// exit early; consider the forward ready only when the port accepts a TCP
+// connection.
+export async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
+	const kubectl = await kubectlBinary();
+	const child = Bun.spawn(
+		[
+			kubectl,
+			...kubectlPrefix(),
+			"-n",
+			forward.namespace,
+			"port-forward",
+			"--address",
+			"127.0.0.1",
+			"service/" + forward.service,
+			forward.localPort + ":" + forward.remotePort,
+		],
+		{ stdout: "inherit", stderr: "inherit", stdin: "ignore" },
+	);
+	children.push(child);
+	const exited = child.exited.then((code) => ({ code }));
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		const result = await Promise.race([waitForLocalListener(forward.localPort).then((ready) => ({ ready })), exited]);
+		if ("code" in result) {
+			die(forward.name + " port-forward exited before becoming ready (code " + result.code + ").");
+		}
+		if (result.ready) {
+			note(forward.name + ": " + forward.scheme + "://localhost:" + forward.localPort);
+			return;
+		}
+		await Bun.sleep(100);
+	}
+	child.kill("SIGTERM");
+	die(forward.name + " port-forward did not become ready on host port " + forward.localPort + ".");
+}
+
+// SIGTERM first, SIGKILL after a grace period, so Ctrl+C never leaks a forward.
+export async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
+	for (const child of children) {
+		if (child.exitCode === null) child.kill("SIGTERM");
+	}
+	await Promise.race([Promise.all(children.map((child) => child.exited)), Bun.sleep(3000)]);
+	for (const child of children) {
+		if (child.exitCode === null) child.kill("SIGKILL");
 	}
 }

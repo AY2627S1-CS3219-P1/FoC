@@ -1,7 +1,6 @@
 // Operator CLI for the local Kubernetes deployment: cluster/mesh bootstrap,
 // deploy, render, verification, and port-forward supervision. Commands are
 // wrapped by the make k8s-* targets.
-import { connect } from "node:net";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -29,7 +28,6 @@ import {
 	imageFor,
 	isLocalOverlay,
 	k,
-	kubectlBinary,
 	kubectlPrefix,
 	hasIstioCharts,
 	istioChartsDirectory,
@@ -38,11 +36,15 @@ import {
 	prepareJob,
 	prepareState,
 	preflightForwards,
+	startForward,
+	stopForwards,
 	requireCommands,
 	run,
 	validateService,
 	waitJob,
+	waitForGateway,
 } from "./common";
+import { smokeGateway } from "./smoke";
 import { generateLocalSecrets } from "./secrets";
 
 // Create the kind cluster if missing; its kubeconfig stays in the state directory.
@@ -334,58 +336,6 @@ async function deployAll(): Promise<void> {
 	);
 }
 
-async function waitForGateway(): Promise<void> {
-	await k(["wait", "--for=condition=Accepted", "gatewayclass/istio", "--timeout=" + K8S_TIMEOUT]);
-	await k([
-		"-n",
-		"istio-ingress",
-		"wait",
-		"--for=condition=Programmed",
-		"gateway/foc-public",
-		"--timeout=" + K8S_TIMEOUT,
-	]);
-	const routes = [
-		"user-service",
-		"supplier-service",
-		"order-service",
-		"communication-service",
-		"credit-service",
-		"frontend",
-	];
-	if (isLocalOverlay()) routes.push("floci-images");
-	for (const route of routes) {
-		await waitForHTTPRoute(route);
-	}
-	await k(["-n", "istio-ingress", "rollout", "status", "deployment/foc-public-istio", "--timeout=" + K8S_TIMEOUT]);
-}
-
-// Wait until the Gateway controller accepts the route and resolves its
-// backends; die with the controller's rejection reason otherwise.
-async function waitForHTTPRoute(name: string): Promise<void> {
-	const timeout = /^(\d+)(s|m|h)$/.exec(K8S_TIMEOUT);
-	if (!timeout) die("K8S_TIMEOUT must be an integer duration such as 600s or 10m.");
-	const multiplier = timeout[2] === "h" ? 3_600_000 : timeout[2] === "m" ? 60_000 : 1_000;
-	const deadline = Date.now() + Number(timeout[1]) * multiplier;
-	while (Date.now() < deadline) {
-		const result = await k(["-n", "foc", "get", "httproute", name, "-o", "json"], { capture: true });
-		const route = JSON.parse(result.stdout);
-		const parent = route.status?.parents?.find(
-			(item: { parentRef?: { name?: string }; controllerName?: string }) =>
-				item.parentRef?.name === "foc-public" && item.controllerName === "istio.io/gateway-controller",
-		);
-		const conditions = parent?.conditions ?? [];
-		const accepted = conditions.find((item: { type: string }) => item.type === "Accepted");
-		const resolved = conditions.find((item: { type: string }) => item.type === "ResolvedRefs");
-		if (accepted?.status === "True" && resolved?.status === "True") return;
-		const rejected = [accepted, resolved].find((item) => item?.status === "False");
-		if (rejected) {
-			die("HTTPRoute " + name + " was rejected: " + rejected.reason + " — " + rejected.message);
-		}
-		await Bun.sleep(1000);
-	}
-	die("Timed out waiting for HTTPRoute " + name + " to be accepted with resolved backend references.");
-}
-
 async function deployOne(service: string): Promise<void> {
 	validateService(service);
 	await checkOverlay();
@@ -395,73 +345,6 @@ async function deployOne(service: string): Promise<void> {
 	await k(["-n", "foc", "rollout", "restart", "deployment/" + service]);
 	await k(["-n", "foc", "rollout", "status", "deployment/" + service, "--timeout=" + K8S_TIMEOUT]);
 	note("Application updated. Schema changes require a full make k8s-deploy first.");
-}
-
-function waitForLocalListener(port: number): Promise<boolean> {
-	return new Promise((resolvePromise) => {
-		const socket = connect({ host: "127.0.0.1", port });
-		const timer = setTimeout(() => {
-			socket.destroy();
-			resolvePromise(false);
-		}, 250);
-		socket.once("connect", () => {
-			clearTimeout(timer);
-			socket.destroy();
-			resolvePromise(true);
-		});
-		socket.once("error", () => {
-			clearTimeout(timer);
-			resolvePromise(false);
-		});
-	});
-}
-
-// kubectl binds the local listener before the tunnel is usable and can also
-// exit early; consider the forward ready only when the port accepts a TCP
-// connection.
-async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
-	const kubectl = await kubectlBinary();
-	const child = Bun.spawn(
-		[
-			kubectl,
-			...kubectlPrefix(),
-			"-n",
-			forward.namespace,
-			"port-forward",
-			"--address",
-			"127.0.0.1",
-			"service/" + forward.service,
-			forward.localPort + ":" + forward.remotePort,
-		],
-		{ stdout: "inherit", stderr: "inherit", stdin: "ignore" },
-	);
-	children.push(child);
-	const exited = child.exited.then((code) => ({ code }));
-	const deadline = Date.now() + 30_000;
-	while (Date.now() < deadline) {
-		const result = await Promise.race([waitForLocalListener(forward.localPort).then((ready) => ({ ready })), exited]);
-		if ("code" in result) {
-			die(forward.name + " port-forward exited before becoming ready (code " + result.code + ").");
-		}
-		if (result.ready) {
-			note(forward.name + ": " + forward.scheme + "://localhost:" + forward.localPort);
-			return;
-		}
-		await Bun.sleep(100);
-	}
-	child.kill("SIGTERM");
-	die(forward.name + " port-forward did not become ready on host port " + forward.localPort + ".");
-}
-
-// SIGTERM first, SIGKILL after a grace period, so Ctrl+C never leaks a forward.
-async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
-	for (const child of children) {
-		if (child.exitCode === null) child.kill("SIGTERM");
-	}
-	await Promise.race([Promise.all(children.map((child) => child.exited)), Bun.sleep(3000)]);
-	for (const child of children) {
-		if (child.exitCode === null) child.kill("SIGKILL");
-	}
 }
 
 // Browser origins are baked into foc-config at deploy time; a changed forward
@@ -585,97 +468,6 @@ async function deleteCluster(): Promise<void> {
 
 // One request through the gateway using the pinned CA (never -k); returns the
 // body and asserts the expected status. connectRequest adds the Connect headers.
-async function gatewaySmokeRequest(
-	forward: ForwardSpec,
-	path: string,
-	expectedStatus: number,
-	connectRequest = false,
-): Promise<string> {
-	const args = [
-		"--silent",
-		"--show-error",
-		"--max-time",
-		"10",
-		"--write-out",
-		"\\n%{http_code}",
-		"--cacert",
-		join(K8S_STATE_DIR, "secrets/tls.crt"),
-	];
-	if (connectRequest) {
-		args.push("--header", "Content-Type: application/json", "--header", "Connect-Protocol-Version: 1", "--data", "{}");
-	}
-	args.push("https://localhost:" + forward.localPort + path);
-
-	const result = await run("curl", args, { capture: true });
-	const statusLine = result.stdout.lastIndexOf("\n");
-	if (statusLine < 0) die("Gateway smoke request did not return an HTTP status for " + path + ".");
-	const status = Number(result.stdout.slice(statusLine + 1).trim());
-	if (status !== expectedStatus) {
-		die("Gateway smoke request " + path + " returned HTTP " + status + "; expected " + expectedStatus + ".");
-	}
-	return result.stdout.slice(0, statusLine);
-}
-
-async function assertPublicHealth(forward: ForwardSpec, path: string): Promise<void> {
-	const body = await gatewaySmokeRequest(forward, path, 200, true);
-	let response: { status?: string };
-	try {
-		response = JSON.parse(body);
-	} catch {
-		die("Gateway health RPC " + path + " did not return JSON.");
-	}
-	if (!response.status || !["ok", "SERVING", "SERVING_STATUS_SERVING"].includes(response.status)) {
-		die("Gateway health RPC " + path + " did not report serving.");
-	}
-}
-
-async function assertServiceTarget(name: string, targetPort: number): Promise<void> {
-	const result = await k(["-n", "foc", "get", "service", name, "-o", "json"], { capture: true });
-	const service = JSON.parse(result.stdout);
-	const port = service.spec.ports.find((item: { port: number }) => item.port === 8080);
-	if (port?.targetPort !== targetPort) {
-		die("Service " + name + " targets " + port?.targetPort + "; expected application port " + targetPort + ".");
-	}
-}
-
-// Public contract check: frontend and every public health RPC return 200
-// through the gateway; internal-only RPCs (user keys, credit reservations)
-// return 404; Service port wiring matches the listener split.
-async function smokeGateway(): Promise<void> {
-	if (!isLocalOverlay()) die("The Gateway smoke command currently supports the local overlay only.");
-	await checkContext();
-	await waitForGateway();
-	await requireCommands("curl");
-	const forward = configuredForwards().find((item) => item.name === "HTTPS gateway");
-	if (!forward) die("Set K8S_HTTPS_PORT to run the Gateway smoke check.");
-	await preflightForwards([forward]);
-	const children: Bun.Subprocess[] = [];
-	try {
-		await startForward(forward, children);
-		await gatewaySmokeRequest(forward, "/", 200);
-		for (const path of [
-			"/user.v1.HealthService/Check",
-			"/supplier.v1.HealthService/Check",
-			"/order.v1.HealthService/Check",
-			"/communication.v1.HealthService/Check",
-			"/grpc.health.v1.Health/Check",
-		]) {
-			await assertPublicHealth(forward, path);
-		}
-		await gatewaySmokeRequest(forward, "/user.v1.PublicKeyService/GetPublicKeys", 404, true);
-		await gatewaySmokeRequest(forward, "/credit.v1.CreditReservationService/Reserve", 404, true);
-		await assertServiceTarget("user-service-external", 8080);
-		await assertServiceTarget("user-service-internal", 8081);
-		await assertServiceTarget("credit-service-external", 8080);
-		await assertServiceTarget("credit-service-internal", 8081);
-		note(
-			"Gateway smoke passed: frontend and all public health RPCs respond; User keys and Credit reservations are not public; User and Credit Services target separate public/internal ports.",
-		);
-	} finally {
-		await stopForwards(children);
-	}
-}
-
 async function up(): Promise<void> {
 	await checkOverlay();
 	const forwards = isLocalOverlay() ? configuredForwards() : [];
