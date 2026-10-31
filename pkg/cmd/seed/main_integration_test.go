@@ -61,7 +61,10 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	}
 	// The image initializes through a temporary socket-only server, then
 	// restarts. TCP readiness selects the final server and avoids that restart.
-	deadline := time.Now().Add(time.Minute)
+	// A cold runner also has to pull the image first, so allow the same
+	// three-minute budget the rest of the integration suite uses; slow pulls
+	// degrade to a slower pass instead of a failure.
+	deadline := time.Now().Add(3 * time.Minute)
 	for {
 		if _, err := psql("postgres", "SELECT 1"); err == nil {
 			break
