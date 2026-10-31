@@ -15,6 +15,8 @@ registries:
     type: local
     path: .aqua/registry.yaml
 packages:
+  # CLI tools used only by the Kubernetes operator scripts (make k8s-*).
+  #
   # Bun and Istio come from the local registry (.aqua/registry.yaml): Bun keeps
   # the baseline-Intel binary for older Intel Macs, and the Istio archive also
   # supplies the Helm charts that installMesh() deploys.
@@ -22,11 +24,15 @@ packages:
     registry: local
     version: bun-v1.4.3 # release tags carry the bun- prefix
   - name: kubernetes-sigs/kind
+    # Creates and deletes the local kind cluster; loads built images into it.
     version: v0.33.0
   - name: kubernetes/kubernetes/kubectl
+    # Every cluster read and write the operator performs (apply, patch, rollout, port-forward, logs).
     version: v1.35.0
   - name: helm/helm
+    # Installs and upgrades istio-base and istiod from the charts shipped in the Istio archive.
     version: v3.20.1
   - name: istio/istio
     registry: local
+    # istioctl for diagnostics (proxy-status); its archive also carries the Helm charts.
     version: "1.31.2" # Istio release tags carry no v prefix.
