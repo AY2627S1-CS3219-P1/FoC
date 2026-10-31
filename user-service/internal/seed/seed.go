@@ -16,6 +16,14 @@ type Seeder struct {
 	DB *gorm.DB
 }
 
+// Concurrent seed invocations against one database are serialized with a
+// Postgres transaction advisory lock. The two int32 parts form a key that is
+// unique to this service so unrelated locks cannot stall the seed.
+const (
+	seedAdvisoryLockClass int32 = 18003219
+	seedAdvisoryLockID    int32 = 1
+)
+
 func (s Seeder) Run(ctx context.Context, fixtures Fixtures, reset bool) error {
 	if err := fixtures.Validate(); err != nil {
 		return err
@@ -25,7 +33,9 @@ func (s Seeder) Run(ctx context.Context, fixtures Fixtures, reset bool) error {
 			return err
 		}
 		// Serialize concurrent seed invocations.
-		if err := tx.Exec("SELECT pg_advisory_xact_lock(18003219, 1)").Error; err != nil {
+		if err := tx.Exec(fmt.Sprintf(
+			"SELECT pg_advisory_xact_lock(%d, %d)", seedAdvisoryLockClass, seedAdvisoryLockID,
+		)).Error; err != nil {
 			return err
 		}
 		provisioner := service.UserProvisioner{Users: store.NewUsers(tx), Events: store.NewUserCreatedOutbox(tx)}
