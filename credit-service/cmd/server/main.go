@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -39,7 +39,6 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-
 	config, err := loadConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -95,19 +94,16 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	publicHandler := getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate))
-	internalHandler := router.Internal(services.rpc)
-	servers, err := config.Transport.Servers(transport.Handlers{
-		Public:   publicHandler,
-		Internal: internalHandler,
-	})
-	if err != nil {
-		return err
+	public := newServer(
+		":"+config.Port,
+		getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate)),
+	)
+	internal := newServer(":"+config.InternalPort, router.Internal(services.rpc))
+	for _, server := range []*http.Server{public, internal} {
+		server.BaseContext = func(net.Listener) context.Context { return ctx }
 	}
-	for _, server := range servers {
-		server.IdleTimeout = time.Minute
-	}
-	return transport.Run(ctx, transport.ShutdownTimeout, servers...)
+
+	return serve(ctx, public, internal)
 }
 
 func getCorsConfig() *cors.Cors {
@@ -135,6 +131,60 @@ func getCorsConfig() *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       time.Minute,
+		Protocols:         protocols,
+	}
+}
+
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.InfoContext(ctx, "Listening", "address", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
+	select {
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
+	}
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 // newAuthenticator bounds both network attempts and waits by the caller's

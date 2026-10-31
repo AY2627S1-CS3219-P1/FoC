@@ -71,8 +71,8 @@ Use a consistent `K8S_STATE_DIR` override if choosing another private location.
 
 Both `-external` and `-internal` are ClusterIP Services: private addresses, not
 internet listeners. Both expose Service port 8080. The external Service targets
-`PORT`; User and Credit internal Services target `INTERNAL_PORT`, while other
-internal aliases target the public listener. Istio forwards inbound traffic
+`PORT`; User and Credit also have internal Services that target `INTERNAL_PORT`.
+Istio forwards inbound traffic
 from its pod listener to the app on loopback. Names alone are not the security
 boundary.
 
@@ -210,12 +210,13 @@ target.
 
 ## Mesh boundary and application behavior
 
-Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080 and
-`INTERNAL_PORT` is configured in both Compose and Kubernetes. User exposes its
+Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080.
+A service with private routes sets `INTERNAL_PORT` and serves them on a second
+listener; without `INTERNAL_PORT`, every route shares the public listener.
+User exposes its
 public-key RPC only on the internal listener. Credit keeps reservation RPCs on
-the Order-only internal listener. Other services mount their current routes on
-the public listener and keep an empty internal router as a placeholder; their
-internal Service aliases currently target the public listener. Internal service
+the Order-only internal listener. Other services currently expose every route
+on the public listener and run a single listener. Internal service
 URLs may use HTTP; Istio STRICT mTLS encrypts the Kubernetes network hop.
 JWT verification, roles and ownership checks remain enabled.
 

@@ -52,7 +52,7 @@ func newRPCServices(pool *pgxpool.Pool, clock func() time.Time) (router.RPCServi
 	disablementHandler := disablementrpc.NewServer(services.disablement, principal, clock)
 	additionRequestHandler := additionrequestrpc.NewServer(services.additionRequest, principal, clock)
 	return router.RPCServices{
-		Health:      healthrpc.NewServer(pool),
+		Health:      healthrpc.NewServer(),
 		Discovery:   discoveryrpc.NewServer(services.discovery),
 		Admin:       adminrpc.NewServer(services.admin),
 		Disablement: disablementHandler, AdditionRequest: additionRequestHandler,

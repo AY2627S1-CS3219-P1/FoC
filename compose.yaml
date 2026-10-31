@@ -188,7 +188,6 @@ services:
       - "${SUPPLIER_PORT:-8082}:${PORT:-8080}"
     environment:
       PORT: ${PORT:-8080}
-      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
@@ -218,7 +217,6 @@ services:
       - "${ORDER_PORT:-8083}:${PORT:-8080}"
     environment:
       PORT: ${PORT:-8080}
-      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
@@ -253,7 +251,6 @@ services:
       - "${COMMUNICATION_PORT:-8084}:${PORT:-8080}"
     environment:
       PORT: ${PORT:-8080}
-      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}

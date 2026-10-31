@@ -13,7 +13,6 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL":          "postgres://credit:credit@localhost:5432/credit_dev",
 		"USER_SERVICE_BASE_URL": "https://user.example",
-		"INTERNAL_PORT":         "8081",
 	}
 }
 
@@ -22,8 +21,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Transport.ExternalPort != "8080" || c.Transport.InternalPort != "8081" ||
-		!c.RunMigrations || c.KafkaBrokers != nil {
+	if c.Port != "8080" || c.InternalPort != "8081" || !c.RunMigrations || c.KafkaBrokers != nil {
 		t.Fatalf("config %+v", c)
 	}
 }
@@ -41,8 +39,7 @@ func TestLoadConfigReadsKafkaBrokers(t *testing.T) {
 func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	tests := map[string]map[string]string{
 		"shared port":       {"PORT": "9000", "INTERNAL_PORT": "9000"},
-		"missing internal":  {"INTERNAL_PORT": ""},
-		"bad external port": {"PORT": "70000"},
+		"default port":      {"INTERNAL_PORT": "8080"},
 		"bad internal port": {"INTERNAL_PORT": "70000"},
 		"missing database":  {"DATABASE_URL": ""},
 		"bad user scheme":   {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},

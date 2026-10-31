@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/mail"
 	"net/url"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
-	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -39,8 +39,14 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
+	SHUTDOWN_TIMEOUT_SEC    = 10
+)
+
 type config struct {
-	transport       transport.Config
+	port            string
+	internalPort    string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -62,16 +68,14 @@ func main() {
 		log.Error(msg, "err", err)
 		os.Exit(1)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
-		fatal("load environment", err)
-	}
 
 	cfg, err := loadConfig()
 	if err != nil {
 		fatal("invalid config", err)
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -140,23 +144,76 @@ func main() {
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:        persistence.Users,
 	}
-	public := router.Public(&health.Handler{DB: sqlDB}, auth, protected)
-	internal := router.Internal(auth)
 	cors := getCorsConfig(auth.AllowedOrigin)
-	public = cors.Handler(public)
-	internal = cors.Handler(internal)
-	servers, err := cfg.transport.Servers(transport.Handlers{
-		Public:   public,
-		Internal: internal,
-	})
-	if err != nil {
-		fatal("configure listeners", err)
+	var servers []*http.Server
+	if cfg.internalPort == "" {
+		// Without an internal port, every route (public-key included) shares
+		// the public listener; local development does not need the split.
+		handler := cors.Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
+		servers = []*http.Server{newServer(":"+cfg.port, handler)}
+	} else {
+		public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+		internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+		servers = []*http.Server{public, internal}
 	}
-	if err := transport.Run(ctx, transport.ShutdownTimeout, servers...); err != nil {
+
+	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	<-relayDone
+}
+
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
+	select {
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
+	defer cancel()
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
+	}
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
+		Protocols:         protocols,
+	}
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -167,12 +224,9 @@ func loadConfig() (config, error) {
 	}
 
 	var errs []error
-	transportConfig, err := transport.LoadConfig(os.Getenv)
-	if err != nil {
-		errs = append(errs, err)
-	}
 	cfg := config{
-		transport:       transportConfig,
+		port:            envString("PORT", "8080"),
+		internalPort:    envString("INTERNAL_PORT", ""),
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
@@ -229,6 +283,14 @@ func loadConfig() (config, error) {
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.internalPort != "" {
+		port, err := strconv.Atoi(cfg.internalPort)
+		if err != nil || port < 1 || port > 65535 {
+			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))
+		} else if cfg.internalPort == cfg.port {
+			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
+		}
 	}
 	if cfg.smtp.From == "" {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))

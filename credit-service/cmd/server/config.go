@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type config struct {
-	Transport      transport.Config
+	// Port serves users; InternalPort serves Order and must not be published.
+	Port           string
+	InternalPort   string
 	DatabaseURL    string
 	UserServiceURL string
 	RunMigrations  bool
@@ -21,18 +22,29 @@ type config struct {
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
-	serverConfig, err := transport.LoadConfig(getenv)
-	if err != nil {
-		return config{}, err
-	}
-	if serverConfig.InternalPort == "" {
-		return config{}, errors.New("INTERNAL_PORT is required for Credit reservation routes")
-	}
 	c := config{
-		Transport:      serverConfig,
+		Port:           strings.TrimSpace(getenv("PORT")),
+		InternalPort:   strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:  true,
+	}
+
+	// Listeners
+	if c.Port == "" {
+		c.Port = "8080"
+	}
+	if c.InternalPort == "" {
+		c.InternalPort = "8081"
+	}
+	for name, value := range map[string]string{"PORT": c.Port, "INTERNAL_PORT": c.InternalPort} {
+		port, err := strconv.Atoi(value)
+		if err != nil || port < 1 || port > 65535 {
+			return config{}, fmt.Errorf("%s must be between 1 and 65535", name)
+		}
+	}
+	if c.Port == c.InternalPort {
+		return config{}, errors.New("PORT and INTERNAL_PORT must differ")
 	}
 
 	// Dependencies

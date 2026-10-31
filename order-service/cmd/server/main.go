@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,7 +22,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
-	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -144,16 +144,13 @@ func run(ctx context.Context) error {
 
 	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
-	public := router.Setup(services, authenticator.Authenticate)
-	handler := getCorsConfig().Handler(public)
-	servers, err := config.Transport.Servers(transport.Handlers{Public: handler, Internal: router.Internal()})
-	if err != nil {
-		return err
-	}
-	for _, server := range servers {
-		server.IdleTimeout = time.Minute
-	}
-	return transport.Run(ctx, transport.ShutdownTimeout, servers...)
+	routes := router.Setup(services, authenticator.Authenticate)
+	handler := getCorsConfig().Handler(routes)
+
+	server := newServer(":"+config.Port, handler)
+	server.BaseContext = func(net.Listener) context.Context { return ctx }
+
+	return serve(ctx, server)
 }
 
 func getCorsConfig() *cors.Cors {
@@ -181,6 +178,50 @@ func getCorsConfig() *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
+}
+
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       time.Minute,
+		Protocols:         protocols,
+	}
+}
+
+func serve(ctx context.Context, server *http.Server) error {
+	stopped := make(chan error, 1)
+	go func() { stopped <- server.ListenAndServe() }()
+	slog.InfoContext(ctx, "Listening", "address", server.Addr)
+
+	select {
+	case err := <-stopped:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+
+		return err
+
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			return fmt.Errorf("shutdown server: %w", err)
+		}
+
+		if err := <-stopped; !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+
+		return nil
+	}
 }
 
 // newAuthenticator bounds both network attempts and waits by the caller's

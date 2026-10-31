@@ -38,7 +38,3 @@ func Setup(services RPCServices, authenticate func(http.Handler) http.Handler) *
 
 	return mux
 }
-
-// Internal returns the reserved internal route table. Routes will be moved
-// here when the service needs private endpoints.
-func Internal() http.Handler { return http.NewServeMux() }

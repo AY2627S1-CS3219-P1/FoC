@@ -7,12 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type config struct {
-	Transport          server.Config
+	Port               string
 	DatabaseURL        string
 	UserServiceURL     string
 	RunMigrations      bool
@@ -26,12 +25,8 @@ type config struct {
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
-	transport, err := server.LoadConfig(getenv)
-	if err != nil {
-		return config{}, err
-	}
 	c := config{
-		Transport:          transport,
+		Port:               strings.TrimSpace(getenv("PORT")),
 		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:      true,
@@ -42,6 +37,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 		S3Endpoint:         strings.TrimSpace(getenv("ORDER_S3_ENDPOINT")),
 		S3PublicEndpoint:   strings.TrimSpace(getenv("ORDER_S3_PUBLIC_ENDPOINT")),
 		AWSRegion:          strings.TrimSpace(getenv("AWS_REGION")),
+	}
+
+	if c.Port == "" {
+		c.Port = "8080"
+	}
+	port, err := strconv.Atoi(c.Port)
+	if err != nil || port < 1 || port > 65535 {
+		return config{}, errors.New("PORT must be between 1 and 65535")
 	}
 
 	if c.DatabaseURL == "" {

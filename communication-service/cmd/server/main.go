@@ -30,12 +30,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
-	transport "github.com/AY2627S1-CS3219-P1/FoC/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/cors"
 )
 
 const (
+	readHeaderTimeout = 5 * time.Second
+	shutdownTimeout   = 10 * time.Second
 	// Long-poll wait per getUpdates call; the HTTP timeout must exceed it.
 	pollTimeout = telegram.DefaultPollTimeout
 	// User Service may still be starting; its public keys are fetched at startup.
@@ -55,7 +56,7 @@ const (
 )
 
 type config struct {
-	transport     transport.Config
+	port          string
 	databaseURL   string
 	runMigrations bool
 	telegramToken string
@@ -64,12 +65,8 @@ type config struct {
 }
 
 func loadConfig() (config, error) {
-	serverConfig, err := transport.LoadConfig(os.Getenv)
-	if err != nil {
-		return config{}, err
-	}
 	cfg := config{
-		transport:     serverConfig,
+		port:          os.Getenv("PORT"),
 		databaseURL:   os.Getenv("DATABASE_URL"),
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
@@ -79,6 +76,9 @@ func loadConfig() (config, error) {
 		if broker = strings.TrimSpace(broker); broker != "" {
 			cfg.kafkaBrokers = append(cfg.kafkaBrokers, broker)
 		}
+	}
+	if cfg.port == "" {
+		cfg.port = "8080"
 	}
 	if cfg.databaseURL == "" {
 		return cfg, errors.New("DATABASE_URL is required")
@@ -93,12 +93,13 @@ func main() {
 		log.Error(msg, "err", err)
 		os.Exit(1)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	cfg, err := loadConfig()
 	if err != nil {
 		fatal("invalid config", err)
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	pool, err := database.Open(ctx, cfg.databaseURL)
 	if err != nil {
@@ -138,19 +139,27 @@ func main() {
 	}
 
 	handler := router.New(router.Services{
-		Health:       &health.Handler{DB: pool, TelegramEnabled: func() bool { return currentBot() != "" }},
+		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 	}, authenticator.Authenticate)
-	allRoutes := corsConfig().Handler(handler)
-	servers, err := cfg.transport.Servers(transport.Handlers{
-		Public:   allRoutes,
-		Internal: router.Internal(),
-	})
-	if err != nil {
-		fatal("configure listeners", err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.port,
+		Handler:           corsConfig().Handler(handler),
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
-	if err := transport.Run(ctx, transport.ShutdownTimeout, servers...); err != nil {
-		fatal("serve", err)
+	go func() {
+		log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("serve", "err", err)
+			stop()
+		}
+	}()
+
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("shutdown", "err", err)
 	}
 	// The bot may start the consumer, so join both before closing the pool.
 	workers.Wait()

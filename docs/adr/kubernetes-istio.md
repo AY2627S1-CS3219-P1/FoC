@@ -9,19 +9,20 @@ deployment. Kubernetes DNS owns service discovery; Istio owns workload
 certificates, rotation and network mTLS. Application code retains JWT, role and
 ownership checks, without managing mesh certificates or discovery.
 
-Each application owns its public and internal routers. `PORT` defaults to 8080;
-`INTERNAL_PORT` configures the second listener in both Compose and Kubernetes.
-The application does not select a deployment mode. User serves its public-key
-RPC only on the internal listener. Credit keeps reservation RPCs on the
-Order-only internal listener because those handlers do not verify an
-application credential. Other services mount their complete current API on the
-public router and leave the internal router empty as a placeholder.
+Each application owns its routes. `PORT` defaults to 8080. A service with
+private routes also sets `INTERNAL_PORT`, which starts a second listener; when
+`INTERNAL_PORT` is unset, every route shares the public listener, which keeps
+single-port local development simple. The application does not select a
+deployment mode. User serves its public-key RPC only on the internal listener.
+Credit keeps reservation RPCs on the Order-only internal listener because those
+handlers do not verify an application credential. Other services currently
+expose every route publicly and run a single listener; they copy the User
+Service pattern when they gain private routes.
 
-The public ClusterIP Services expose port 8080 and target `PORT`.
-User and Credit internal Services expose port 8080 and target `INTERNAL_PORT`;
-other internal aliases point to their public listener because those services
-currently expose every route publicly. Backend callers use one internal base
-URL per destination. Ingress uses Kubernetes Gateway API
+The public ClusterIP Services expose port 8080 and target `PORT`. User and
+Credit internal Services expose port 8080 and target `INTERNAL_PORT`. Backend
+callers use one internal base URL per destination. Ingress uses Kubernetes
+Gateway API
 resources. Since standard `PathPrefix` matches complete slash-separated path
 elements, handwritten `HTTPRoute` resources match full public protobuf service
 paths (for example `/user.v1.AuthService`). Add a route for each new public

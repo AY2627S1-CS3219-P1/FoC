@@ -10,11 +10,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/supplier-service/internal/deps"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"net/http"
 )
-
-// Internal returns the reserved internal route table for future private APIs.
-func Internal() http.Handler { return http.NewServeMux() }
 
 func Setup(env *deps.Env, authenticator *httpauth.Authenticator, services RPCServices) *chi.Mux {
 	r := chi.NewRouter()

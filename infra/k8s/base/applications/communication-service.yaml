@@ -41,12 +41,12 @@ spec:
             - {name: http2-public, containerPort: 8080}
           startupProbe:
             exec:
-              command: ["/app/healthcheck", "live", "8080,8081"]
+              command: ["/app/healthcheck", "live", "8080"]
             failureThreshold: 40
             periodSeconds: 3
           livenessProbe:
             exec:
-              command: ["/app/healthcheck", "live", "8080,8081"]
+              command: ["/app/healthcheck", "live", "8080"]
             periodSeconds: 10
           readinessProbe:
             exec:
@@ -69,16 +69,6 @@ spec:
     app: communication-service
   ports:
     - {name: http2-public, port: 8080, targetPort: 8080, appProtocol: kubernetes.io/h2c}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: communication-service-internal
-spec:
-  selector:
-    app: communication-service
-  ports:
-    - {name: http2-internal, port: 8080, targetPort: http2-public, appProtocol: kubernetes.io/h2c}
 ---
 apiVersion: networking.istio.io/v1
 kind: Sidecar

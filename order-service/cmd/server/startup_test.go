@@ -89,7 +89,7 @@ func TestConfiguration(t *testing.T) {
 		})
 	}
 	c, err := loadConfig(func(key string) string { return valid[key] })
-	if err != nil || c.Transport.ExternalPort != "8080" || !c.RunMigrations {
+	if err != nil || c.Port != "8080" || !c.RunMigrations {
 		t.Fatalf("config=%+v, err=%v", c, err)
 	}
 	c, err = loadConfig(func(key string) string {

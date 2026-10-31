@@ -20,6 +20,6 @@ data:
   PUBLIC_ORDER_SERVICE_URL: https://localhost:5173
   PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
   PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
-  SUPPLIER_SERVICE_BASE_URL: http://supplier-service-internal:8080
+  SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
   CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080
   KAFKA_BROKERS: kafka:9092
