@@ -206,7 +206,9 @@ and `make seed-demo-reset` run the Go seed command through `docker compose exec`
 against the Compose PostgreSQL container. The manifest currently seeds
 only `users.sql` and `suppliers.sql`. These targets are not Kubernetes Jobs and
 are not run by `make k8s-up`; the repository has no Kubernetes demo-seeding
-target.
+target. Adding one depends on the seeding rework in
+[#212](https://github.com/AY2627S1-CS3219-P1/FoC/pull/212); until that lands,
+seed only the Compose stack.
 
 ## Mesh boundary and application behavior
 
