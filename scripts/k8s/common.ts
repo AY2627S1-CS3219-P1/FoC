@@ -442,7 +442,9 @@ async function waitForHTTPRoute(name: string): Promise<void> {
 	die("Timed out waiting for HTTPRoute " + name + " to be accepted with resolved backend references.");
 }
 
-function waitForLocalListener(port: number): Promise<boolean> {
+// Prove a local listener exists: kubectl binds the port before the tunnel is
+// usable, and an occupied port may be an already-attached forward worth reusing.
+export function waitForLocalListener(port: number): Promise<boolean> {
 	return new Promise((resolvePromise) => {
 		const socket = connect({ host: "127.0.0.1", port });
 		const timer = setTimeout(() => {

@@ -17,6 +17,7 @@ import {
 	startForward,
 	stopForwards,
 	waitForGateway,
+	waitForLocalListener,
 } from "./common";
 
 async function gatewaySmokeRequest(
@@ -74,7 +75,8 @@ async function assertServiceTarget(name: string, targetPort: number): Promise<vo
 
 // Public contract check: frontend and every public health RPC return 200
 // through the gateway; internal-only RPCs (user keys, credit reservations)
-// return 404; Service port wiring matches the listener split.
+// return 404; Service port wiring matches the listener split. Reuses an
+// already-attached gateway forward instead of failing on the occupied port.
 export async function smokeGateway(): Promise<void> {
 	if (!isLocalOverlay()) die("The Gateway smoke command currently supports the local overlay only.");
 	await checkContext();
@@ -82,10 +84,16 @@ export async function smokeGateway(): Promise<void> {
 	await requireCommands("curl");
 	const forward = configuredForwards().find((item) => item.name === "HTTPS gateway");
 	if (!forward) die("Set K8S_HTTPS_PORT to run the Gateway smoke check.");
-	await preflightForwards([forward]);
 	const children: Bun.Subprocess[] = [];
 	try {
-		await startForward(forward, children);
+		// A k8s-up session may already hold this forward attached in another
+		// terminal; reuse it, and only clean up forwards this command started.
+		if (await waitForLocalListener(forward.localPort)) {
+			note("Reusing the gateway forward already attached on localhost:" + forward.localPort + ".");
+		} else {
+			await preflightForwards([forward]);
+			await startForward(forward, children);
+		}
 		await gatewaySmokeRequest(forward, "/", 200);
 		for (const path of [
 			"/user.v1.HealthService/Check",
