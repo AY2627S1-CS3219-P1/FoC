@@ -54,6 +54,18 @@ func (s *PostgresStore) GetOrder(ctx context.Context, id uuid.UUID) (Order, erro
 	return fromRow(db.ListUserOrdersRow(row)), nil
 }
 
+// Revision implements notify.Orders.
+func (s *PostgresStore) Revision(ctx context.Context, id uuid.UUID) (int64, bool, error) {
+	o, err := s.GetOrder(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return o.Revision, true, nil
+}
+
 // UserOrders implements Store. It filters chat eligibility before applying
 // the /chat keyboard limit, using since for the terminal-order grace period.
 func (s *PostgresStore) UserOrders(ctx context.Context, userID uuid.UUID, since time.Time) ([]Order, error) {
