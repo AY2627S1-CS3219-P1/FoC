@@ -57,27 +57,9 @@ container directly without that sidecar. `PORT`, `HOST`, and `ORIGIN` are runtim
 settings; `.env` files are excluded from the image and are not loaded in
 production.
 
-The Go services share `docker/k8s/service.Dockerfile`, also built with the
-repository root as context:
-
-```sh
-docker build -f docker/k8s/service.Dockerfile --build-arg SERVICE=user-service -t foc-user-service:production .
-```
-
-`SERVICE` must be `user-service`, `supplier-service`, `order-service`,
-`credit-service`, or `communication-service`. Each image builds with Go 1.27
-and runs `/app/server` as UID/GID 65532 with system CA certificates. Local
-module replacements are included in the build context.
-
-The Kafka initialization Job uses `docker/k8s/kafka-init.Dockerfile`:
-
-```sh
-docker build -f docker/k8s/kafka-init.Dockerfile -t foc/kafka-init:local .
-```
-
-This image packages the authoritative `infra/kafka/topics.conf`, topic creation
-script, and `kafka/` schemas under `/setup` and `/schemas`. Set `KAFKA_BROKERS`
-at runtime; topic configuration and schemas do not need separate ConfigMaps.
+Backend service images (User, Supplier, Order, Credit, Communication), the
+migration Jobs and the Kafka initialization Job use the shared Dockerfiles
+under `docker/k8s/`; see [`infra/k8s/README.md`](../infra/k8s/README.md#container-images).
 
 ## Ownership handoff
 

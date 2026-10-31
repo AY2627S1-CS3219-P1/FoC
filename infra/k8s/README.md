@@ -97,6 +97,35 @@ For pod logs, `kubectl exec`, database debugging, security boundaries, external
 clusters, and production-overlay setup, see the
 [Kubernetes operations runbook](../../docs/runbooks/kubernetes.md).
 
+## Container images
+
+Every image builds from the repository root as context. The Go services share
+`docker/k8s/service.Dockerfile`:
+
+```sh
+docker build -f docker/k8s/service.Dockerfile --build-arg SERVICE=user-service -t foc-user-service:production .
+```
+
+`SERVICE` must be `user-service`, `supplier-service`, `order-service`,
+`credit-service`, or `communication-service`. Each image builds with Go 1.27
+and runs `/app/server` as UID/GID 65532 with system CA certificates. Local
+module replacements are included in the build context. `make k8s-deploy` builds
+the same images with the configured registry prefix and tag. The frontend image
+is documented in [the frontend README](../../frontend/README.md).
+
+The per-service migration Jobs share `docker/k8s/migrations.Dockerfile`, which
+bundles goose and every service's schema directory under `/migrations`.
+
+The Kafka initialization Job uses `docker/k8s/kafka-init.Dockerfile`:
+
+```sh
+docker build -f docker/k8s/kafka-init.Dockerfile -t foc/kafka-init:local .
+```
+
+This image packages the authoritative `infra/kafka/topics.conf`, topic creation
+script, and `kafka/` schemas under `/setup` and `/schemas`. Set `KAFKA_BROKERS`
+at runtime; topic configuration and schemas do not need separate ConfigMaps.
+
 ## Request path and router boundaries
 
 The same application binaries run in Compose and Kubernetes. Applications
