@@ -50,3 +50,16 @@ Triggered by User Service registration (U1).
 - NFR-09.5–09.7 (detect Order/Credit mismatches within 5 min of recovery; reconciliation checks at startup and ≥ every 5 min).
 - NFR-10.3 / NFR-10.3.1 / NFR-10.3.2 / NFR-10.4 (audit credit settlement + admin adjustments; alert admin on unexplained mismatch).
 - NFR-11.7 / NFR-11.18 / NFR-11.19 (tests: repeated credit events, async terminal-outcome settlement, Credit downtime without losing pending settlement).
+
+## Order integration handoff
+
+Order reserves/compensates via RPC and publishes terminal `order.outcome` through
+Kafka. Credit owns event consumption and settlement; Order never calls terminal
+settlement RPCs. See the [ADR](../docs/adr/order-credit-pubsub.md) and
+[conformance cases](../docs/testing/order-credit-pubsub.md). Credit serves the
+reservation RPCs and consumes `order.outcome` and `users.create`. Its tests cover
+settlement from a consumed outcome and harmless redelivery (NFR-04.2, NFR-11.7). A
+round trip with Order over a real broker (NFR-20), startup/five-minute
+reconciliation and mismatch alerts remain unverified. Mismatched outcomes are only
+logged so far. Workload identity depends on #29: until then, the reservation
+RPCs are served unauthenticated on an internal-only listener.

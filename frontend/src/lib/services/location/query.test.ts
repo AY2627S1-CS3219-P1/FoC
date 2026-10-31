@@ -28,4 +28,10 @@ describe('location query params', () => {
 		expect(query.archive).toBeUndefined();
 		expect(query.page).toBeUndefined();
 	});
+	it.each(['2147483648', '9007199254740992', 'Infinity', '1.5'])(
+		'ignores pages outside the RPC int32 range: %s',
+		(value) => {
+			expect(queryFromParams(new URLSearchParams({ page: value })).page).toBeUndefined();
+		}
+	);
 });

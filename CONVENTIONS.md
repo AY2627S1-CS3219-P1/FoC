@@ -32,13 +32,19 @@
 
 ## Go checks
 
-- Run `make fmt` from the repository root to apply Go formatting.
+- Use `gofmt` and `golines` for handwritten Go, with a target line width of
+  120 characters. Generated files are excluded from formatting.
+- Run `make fmt` from the repository root to apply Go formatting. It runs
+  `fmt-check` after each pass and stops when the check passes, failing after
+  five unsuccessful attempts.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
   default golangci-lint correctness linters across `pkg`, `user-service`,
-  `supplier-service` and `order-service`. CI installs the tool with the official
-  action, then runs the same target for each module. The Makefile pins
+  `supplier-service`, `order-service`, `communication-service` and
+  `credit-service`. CI installs the tool
+  with the official action, then runs the same target for each module. The
+  Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
@@ -106,6 +112,9 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   - user-service: handlers live in `internal/handlers/<domain>`. A handler is
     a struct that holds its dependencies as fields (see "Dependencies and
     interfaces").
+  - credit-service: handlers live under `internal/rpc/<domain>`, with error
+    and message conversion in `internal/rpc/shared`. Kafka handlers live in
+    `internal/events`.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.
@@ -172,15 +181,21 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 
 ## Database
 
-Supplier and Order Services use sqlc:
+Supplier, Order and Credit Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
   Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
   hand-edit generated files. Order generates one aggregate package,
-  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`.
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
+  generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
+and generates `internal/database/orderdb`; Communication keeps it at the service
+root, reads `migrations` and `queries`, and generates
+`internal/database/communicationdb`. Run `make sqlc` in the service directory.
 
 ## Frontend services
 

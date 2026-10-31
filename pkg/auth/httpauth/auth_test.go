@@ -57,6 +57,10 @@ func TestAccessMiddleware(t *testing.T) {
 		if !ok || claims.ID != "u1" || claims.Role != "user" {
 			t.Error("verified claims missing from context")
 		}
+		bearer, ok := auth.UserBearerFromContext(r.Context())
+		if !ok || bearer != "Bearer "+access {
+			t.Error("verified bearer missing from context")
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	for _, tc := range []struct {
@@ -101,6 +105,9 @@ type publicKeyService struct {
 	keys *userv1.GetPublicKeysResponse
 }
 
-func (s publicKeyService) GetPublicKeys(context.Context, *connect.Request[userv1.GetPublicKeysRequest]) (*connect.Response[userv1.GetPublicKeysResponse], error) {
+func (s publicKeyService) GetPublicKeys(
+	context.Context,
+	*connect.Request[userv1.GetPublicKeysRequest],
+) (*connect.Response[userv1.GetPublicKeysResponse], error) {
 	return connect.NewResponse(s.keys), nil
 }

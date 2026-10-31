@@ -44,20 +44,28 @@ func TestAuthenticationRetryPropagatesDeadlineToAttempt(t *testing.T) {
 func TestAuthenticationRetrySucceeds(t *testing.T) {
 	calls := 0
 	want := new(httpauth.Authenticator)
-	got, err := newAuthenticator(context.Background(), time.Nanosecond, func(context.Context) (*httpauth.Authenticator, error) {
-		calls++
-		if calls == 1 {
-			return nil, errors.New("not ready")
-		}
-		return want, nil
-	})
+	got, err := newAuthenticator(
+		context.Background(),
+		time.Nanosecond,
+		func(context.Context) (*httpauth.Authenticator, error) {
+			calls++
+			if calls == 1 {
+				return nil, errors.New("not ready")
+			}
+			return want, nil
+		},
+	)
 	if err != nil || got != want || calls != 2 {
 		t.Fatalf("calls=%d, result=%p, err=%v", calls, got, err)
 	}
 }
 
 func TestConfiguration(t *testing.T) {
-	valid := map[string]string{"DATABASE_URL": "postgresql://foc:password@localhost:5432/order_dev", "USER_SERVICE_BASE_URL": "http://localhost:8081", "APP_ENV": "local"}
+	valid := map[string]string{
+		"DATABASE_URL":          "postgresql://foc:password@localhost:5432/order_dev",
+		"USER_SERVICE_BASE_URL": "http://localhost:8081",
+		"APP_ENV":               "local",
+	}
 	for _, tc := range []struct{ name, key, value string }{
 		{"missing database", "DATABASE_URL", ""},
 		{"invalid database", "DATABASE_URL", "broken"},
@@ -92,5 +100,37 @@ func TestConfiguration(t *testing.T) {
 	})
 	if err != nil || c.RunMigrations {
 		t.Fatalf("config=%+v, err=%v", c, err)
+	}
+}
+
+func TestCreationConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		values map[string]string
+		valid  bool
+	}{
+		{"disabled without dependencies", map[string]string{}, true},
+		{"URL without token", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080"}, false},
+		{"token without URL", map[string]string{"CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"enabled local", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit", "SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080"}, true},
+		{"recovery with admission disabled", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, true},
+		{"no credential URL", map[string]string{"CREDIT_SERVICE_BASE_URL": "http://user:secret@credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+		{"no service path", map[string]string{"SUPPLIER_SERVICE_BASE_URL": "http://supplier:8080/rpc"}, false},
+		{"HTTPS outside local", map[string]string{"APP_ENV": "production", "USER_SERVICE_BASE_URL": "https://user.example", "CREDIT_SERVICE_BASE_URL": "http://credit:8080", "CREDIT_WORKLOAD_TOKEN_FILE": "/run/secrets/credit"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := map[string]string{
+				"DATABASE_URL":          "postgresql://order:example@localhost:5432/order_test",
+				"USER_SERVICE_BASE_URL": "http://user:8080",
+				"APP_ENV":               "local",
+			}
+			for key, value := range tc.values {
+				base[key] = value
+			}
+			_, err := loadConfig(func(key string) string { return base[key] })
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v err=%v", tc.valid, err)
+			}
+		})
 	}
 }

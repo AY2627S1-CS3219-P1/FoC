@@ -37,15 +37,38 @@ func WireWall(t *int64) *timeofday.TimeOfDay {
 		return nil
 	}
 	n := *t
-	return &timeofday.TimeOfDay{Hours: int32(n / 3600000000), Minutes: int32(n / 60000000 % 60), Seconds: int32(n / 1000000 % 60), Nanos: int32(n%1000000) * 1000}
+	return &timeofday.TimeOfDay{
+		Hours:   int32(n / 3600000000),
+		Minutes: int32(n / 60000000 % 60),
+		Seconds: int32(n / 1000000 % 60),
+		Nanos:   int32(n%1000000) * 1000,
+	}
 }
 
 func PageInfo(p app.PageInfo) *pb.PageInfo {
 	return &pb.PageInfo{Page: p.Number, PageSize: p.Size, TotalItems: p.TotalItems, TotalPages: p.TotalPages}
 }
 
-var stateToWire = map[app.DisablementState]pb.DisablementState{app.Scheduled: pb.DisablementState_DISABLEMENT_STATE_SCHEDULED, app.Active: pb.DisablementState_DISABLEMENT_STATE_ACTIVE, app.Ended: pb.DisablementState_DISABLEMENT_STATE_ENDED, app.Cancelled: pb.DisablementState_DISABLEMENT_STATE_CANCELLED}
+var stateToWire = map[app.DisablementState]pb.DisablementState{
+	app.Scheduled: pb.DisablementState_DISABLEMENT_STATE_SCHEDULED,
+	app.Active:    pb.DisablementState_DISABLEMENT_STATE_ACTIVE,
+	app.Ended:     pb.DisablementState_DISABLEMENT_STATE_ENDED,
+	app.Cancelled: pb.DisablementState_DISABLEMENT_STATE_CANCELLED,
+}
 
 func Disablement(d app.Disablement, now time.Time) *pb.Disablement {
-	return &pb.Disablement{Id: d.ID, LocationId: d.LocationID, StartsAt: Timestamp(&d.StartsAt), EndsAt: Timestamp(d.EndsAt), EndedAt: Timestamp(d.EndedAt), CancelledAt: Timestamp(d.CancelledAt), Reason: d.Reason, CreatedBy: d.CreatedBy, State: stateToWire[d.State(now)], Revision: d.Revision, CreatedAt: Timestamp(&d.CreatedAt), UpdatedAt: Timestamp(&d.UpdatedAt)}
+	return &pb.Disablement{
+		Id:          d.ID,
+		LocationId:  d.LocationID,
+		StartsAt:    Timestamp(&d.StartsAt),
+		EndsAt:      Timestamp(d.EndsAt),
+		EndedAt:     Timestamp(d.EndedAt),
+		CancelledAt: Timestamp(d.CancelledAt),
+		Reason:      d.Reason,
+		CreatedBy:   d.CreatedBy,
+		State:       stateToWire[d.State(now)],
+		Revision:    d.Revision,
+		CreatedAt:   Timestamp(&d.CreatedAt),
+		UpdatedAt:   Timestamp(&d.UpdatedAt),
+	}
 }

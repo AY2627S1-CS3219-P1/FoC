@@ -76,7 +76,17 @@ func TestPostgresTransactionInvariants(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			c.Offers = []OfferChange{{Offer: Offer{ID: uuid.NewString(), OrderID: uuid.NewString(), CourierID: uuid.NewString(), Credits: 20, Status: OfferOpen}}}
+			c.Offers = []OfferChange{
+				{
+					Offer: Offer{
+						ID:        uuid.NewString(),
+						OrderID:   uuid.NewString(),
+						CourierID: uuid.NewString(),
+						Credits:   20,
+						Status:    OfferOpen,
+					},
+				},
+			}
 			_ = tx.Apply(f.ctx, c)
 			return nil
 		})

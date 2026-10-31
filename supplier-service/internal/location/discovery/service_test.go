@@ -73,7 +73,9 @@ func TestListArchiveViewsRequireAdmin(t *testing.T) {
 		}
 
 		reader := &fakeReader{}
-		if _, err := NewService(reader).List(context.Background(), Caller{Admin: true}, ListRequest{Archive: archive}); err != nil {
+		if _, err := NewService(
+			reader,
+		).List(context.Background(), Caller{Admin: true}, ListRequest{Archive: archive}); err != nil {
 			t.Fatalf("%s as admin: %v", archive, err)
 		}
 		if reader.query.Archive != archive {
@@ -87,7 +89,10 @@ func TestListRejectsInvalidRequests(t *testing.T) {
 		req     ListRequest
 		message string
 	}{
-		"long search":        {ListRequest{Search: strings.Repeat("a", MaxSearchLength+1)}, "search has 201 characters; maximum is 200"},
+		"long search": {
+			ListRequest{Search: strings.Repeat("a", MaxSearchLength+1)},
+			"search has 201 characters; maximum is 200",
+		},
 		"negative page":      {ListRequest{Page: -1}, "page is -1; it cannot be negative"},
 		"negative page size": {ListRequest{PageSize: -1}, "page_size is -1; it cannot be negative"},
 		"large page":         {ListRequest{PageSize: MaxPageSize + 1}, "page_size is 101; maximum is 100"},
@@ -109,7 +114,9 @@ func TestListRejectsInvalidRequests(t *testing.T) {
 
 func TestListSearchLimitAppliesAfterTrimming(t *testing.T) {
 	search := "  " + strings.Repeat("a", MaxSearchLength) + "  "
-	if _, err := NewService(&fakeReader{}).List(context.Background(), Caller{}, ListRequest{Search: search}); err != nil {
+	if _, err := NewService(
+		&fakeReader{},
+	).List(context.Background(), Caller{}, ListRequest{Search: search}); err != nil {
 		t.Fatal(err)
 	}
 }

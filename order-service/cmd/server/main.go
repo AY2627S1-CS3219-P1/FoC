@@ -10,12 +10,18 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/images"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -62,18 +68,81 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	authenticator, err := newAuthenticator(startupCtx, 2*time.Second, func(ctx context.Context) (*httpauth.Authenticator, error) {
-		return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
-			UserServiceURL: config.UserServiceURL,
-			Issuer:         httpauth.TokenIssuer,
-			Audience:       httpauth.TokenAudience,
+	repository := order.NewPostgresRepository(pool)
+	var storage images.ObjectStorage
+	var proofStorage *images.S3
+	if config.S3Bucket != "" {
+		proofStorage, err = images.NewS3(startupCtx, images.S3Config{
+			Bucket:         config.S3Bucket,
+			Region:         config.AWSRegion,
+			Endpoint:       config.S3Endpoint,
+			PublicEndpoint: config.S3PublicEndpoint,
 		})
-	})
+		if err != nil {
+			return fmt.Errorf("initialize image storage: %w", err)
+		}
+		storage = proofStorage
+	}
+	itemImages := order.NewItemImages(repository, storage)
+	proofs := newProofRuntime(startupCtx, repository, proofStorage)
+	creator, recoverCreations, err := newCreator(startupCtx, repository, config, itemImages)
+	if err != nil {
+		return fmt.Errorf("initialize creation: %w", err)
+	}
+	assigner, recoverAssignments, err := newAssigner(startupCtx, repository, config)
+	if err != nil {
+		return fmt.Errorf("initialize assignment: %w", err)
+	}
+	canceller, recoverCancellations, err := newCanceller(startupCtx, repository, config)
+	if err != nil {
+		return fmt.Errorf("initialize cancellation: %w", err)
+	}
+	var publisher *kafka.Publisher
+	if config.KafkaBrokers != "" {
+		publisher, err = kafka.NewPublisher(kafka.PublisherConfig{Brokers: strings.Split(config.KafkaBrokers, ",")})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = publisher.Close() }()
+	}
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	proofs.start(workerCtx, &workers)
+	startLifecycleTimers(workerCtx, &workers, repository)
+	if recoverCreations {
+		workers.Go(func() { creator.RecoverCreations(workerCtx) })
+	}
+	if recoverAssignments {
+		workers.Go(func() { assigner.RecoverAssignments(workerCtx) })
+	}
+	if recoverCancellations {
+		workers.Go(func() { canceller.RecoverCancellations(workerCtx) })
+	}
+	if publisher != nil {
+		relay := outbox.New(outbox.NewPostgres(pool), publisher)
+		workers.Go(func() { relay.Run(workerCtx) })
+	}
+	if storage != nil {
+		workers.Go(func() { cleanupImages(workerCtx, itemImages) })
+	}
+	defer func() { stopWorkers(); workers.Wait() }()
+
+	authenticator, err := newAuthenticator(
+		startupCtx,
+		2*time.Second,
+		func(ctx context.Context) (*httpauth.Authenticator, error) {
+			return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
+				UserServiceURL: config.UserServiceURL,
+				Issuer:         httpauth.TokenIssuer,
+				Audience:       httpauth.TokenAudience,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool)
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
@@ -157,7 +226,11 @@ func serve(ctx context.Context, server *http.Server) error {
 
 // newAuthenticator bounds both network attempts and waits by the caller's
 // startup context; callbacks are construction attempts, never transactions.
-func newAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+func newAuthenticator(
+	ctx context.Context,
+	interval time.Duration,
+	build func(context.Context) (*httpauth.Authenticator, error),
+) (*httpauth.Authenticator, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
@@ -179,6 +252,21 @@ func newAuthenticator(ctx context.Context, interval time.Duration, build func(co
 			timer.Stop()
 			return nil, ctx.Err()
 		case <-timer.C:
+		}
+	}
+}
+
+func cleanupImages(ctx context.Context, images *order.ItemImages) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		if err := images.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+			slog.WarnContext(ctx, "Image cleanup deferred", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

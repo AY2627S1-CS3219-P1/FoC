@@ -24,6 +24,14 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 // Within owns the transaction lifecycle and rejects a commit after any Apply
 // failure, even when the callback swallows that failure.
 func (r *PostgresRepository) Within(ctx context.Context, fn func(Tx) error) error {
+	return r.within(ctx, func(tx *postgresTx) error { return fn(tx) })
+}
+
+func (r *PostgresRepository) WithinCreation(ctx context.Context, fn func(CreationTx) error) error {
+	return r.within(ctx, func(tx *postgresTx) error { return fn(tx) })
+}
+
+func (r *PostgresRepository) within(ctx context.Context, fn func(*postgresTx) error) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
@@ -55,10 +63,12 @@ func rollback(ctx context.Context, tx pgx.Tx) {
 
 // postgresTx tracks lock baselines, fresh relationship reads and applied changes.
 type postgresTx struct {
-	q                *db.Queries
-	locked           map[string]Order
-	related, applied map[string]bool
-	failed           error
+	q                  *db.Queries
+	locked             map[string]Order
+	related, applied   map[string]bool
+	failed             error
+	idempotencyCallers map[IdempotencyScope]bool
+	creationBaselines  map[string]CreationWorkflow
 }
 
 // LockOrder keeps an independent baseline for validating the eventual change.
@@ -148,28 +158,29 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 		err = t.q.InsertOrder(ctx, db.InsertOrderParams(row))
 	} else {
 		n, e := t.q.UpdateOrder(ctx, db.UpdateOrderParams{
-			ID:                   row.ID,
-			CourierID:            row.CourierID,
-			Status:               row.Status,
-			Pickup:               row.Pickup,
-			Delivery:             row.Delivery,
-			DeliveryInstructions: row.DeliveryInstructions,
-			ItemDescription:      row.ItemDescription,
-			RewardCredits:        row.RewardCredits,
-			ReservedCredits:      row.ReservedCredits,
-			DeliveryDurationNs:   row.DeliveryDurationNs,
-			ExpiresAt:            row.ExpiresAt,
-			AssignedAt:           row.AssignedAt,
-			PickedUpAt:           row.PickedUpAt,
-			DeliveredAt:          row.DeliveredAt,
-			CompletedAt:          row.CompletedAt,
-			ClosedAt:             row.ClosedAt,
-			CloseReason:          row.CloseReason,
-			ItemLocation:         row.ItemLocation,
-			UnattendedDelivery:   row.UnattendedDelivery,
-			Revision:             row.Revision,
-			UpdatedAt:            row.UpdatedAt,
-			ExpectedRevision:     c.ExpectedRevision,
+			ID:                    row.ID,
+			PendingCancellationID: row.PendingCancellationID,
+			CourierID:             row.CourierID,
+			Status:                row.Status,
+			Pickup:                row.Pickup,
+			Delivery:              row.Delivery,
+			DeliveryInstructions:  row.DeliveryInstructions,
+			ItemDescription:       row.ItemDescription,
+			RewardCredits:         row.RewardCredits,
+			ReservedCredits:       row.ReservedCredits,
+			DeliveryDurationNs:    row.DeliveryDurationNs,
+			ExpiresAt:             row.ExpiresAt,
+			AssignedAt:            row.AssignedAt,
+			PickedUpAt:            row.PickedUpAt,
+			DeliveredAt:           row.DeliveredAt,
+			CompletedAt:           row.CompletedAt,
+			ClosedAt:              row.ClosedAt,
+			CloseReason:           row.CloseReason,
+			ItemLocation:          row.ItemLocation,
+			UnattendedDelivery:    row.UnattendedDelivery,
+			Revision:              row.Revision,
+			UpdatedAt:             row.UpdatedAt,
+			ExpectedRevision:      c.ExpectedRevision,
 		})
 		err = e
 		if err == nil && n != 1 {
@@ -178,6 +189,11 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 	}
 	if err != nil {
 		return persistenceError(err)
+	}
+
+	// Assignment history shares this transaction, including its rollback poison.
+	if err = t.applyAssignmentHistory(ctx, before, c); err != nil {
+		return err
 	}
 
 	// Offer writes check their expected status within the same transaction.
@@ -287,7 +303,10 @@ func validateChange(before *Order, c Change) error {
 	if err != nil {
 		return err
 	}
-	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus || expected.Audit.Status != c.Audit.Status || !expected.Audit.At.Equal(c.Audit.At) || len(expected.Facts) != len(c.Facts) {
+	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus ||
+		expected.Audit.Status != c.Audit.Status ||
+		!expected.Audit.At.Equal(c.Audit.At) ||
+		len(expected.Facts) != len(c.Facts) {
 		return ErrInvalid
 	}
 
@@ -300,7 +319,8 @@ func validateChange(before *Order, c Change) error {
 			return ErrInvalid
 		}
 		seen[f.ID] = true
-		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version || !jsonEqual(f.Payload, expected.Facts[i].Payload) {
+		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version ||
+			!jsonEqual(f.Payload, expected.Facts[i].Payload) {
 			return ErrInvalid
 		}
 	}
@@ -350,3 +370,12 @@ func parseID(id string) (uuid.UUID, error) {
 
 var _ Repository = (*PostgresRepository)(nil)
 var _ Reader = (*PostgresRepository)(nil)
+
+// writeResult poisons the shared transaction after a failed persistence write.
+func (t *postgresTx) writeResult(err error) error {
+	err = persistenceError(err)
+	if err != nil {
+		t.failed = err
+	}
+	return err
+}

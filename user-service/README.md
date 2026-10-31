@@ -67,14 +67,16 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    From the repository root, run:
 
    ```bash
+   docker compose up -d kafka-init
    docker compose up --build user-service
    ```
 
    Compose also starts [Mailpit](https://mailpit.axllent.org/), which
    catches every email the service sends. Open http://localhost:8025 to
    read login and registration links. For host development, run
-   `docker compose up -d mailpit`, then `make run` from this directory after
-   setting up the environment and database.
+   `docker compose up -d mailpit kafka-init`, set
+   `KAFKA_BROKERS=localhost:9092` in `.env`, then run `make run` from this
+   directory after setting up the environment and database.
 
 ## Authentication
 
@@ -107,13 +109,14 @@ testing, add a domain, for example
 `INSERT INTO allowed_email_domains (domain) VALUES ('u.nus.edu');`. The
 bootstrapped admin can log in without one.
 
-`RegisterRequest` accepts a display name plus optional `telegram_handle` and
-`phone_number`, matching the nullable user columns. The service trims the
-name and contact values, treats empty contacts as unset, and validates the
-normalized values. Display names must be 1 to 100 characters; Telegram handles
-must contain 5 to 32 letters, digits, or underscores; phone numbers may be up
-to 20 characters. Registration, login, and refresh return these saved fields
-in the `User` message.
+`RegisterRequest` requires a display name and a phone number. Display names are
+trimmed and must be 1 to 100 characters. Phone numbers are validated with
+libphonenumber (`nyaruka/phonenumbers`), reading numbers without a country code
+as Singapore numbers, and stored in E.164 form such as `+6591234567`. The phone
+number is the contact fallback for users who haven't linked Telegram; Telegram
+is linked through the Communication Service, so User Service stores no Telegram
+details. Registration, login, and refresh return these saved fields in the
+`User` message. The bootstrapped admin has no phone number until they add one.
 
 
 ## First super admin
@@ -158,16 +161,16 @@ signing key and checks the caller's current role in the database.
 
 | RPC | Request | Response | Access |
 | --- | --- | --- | --- |
-| `ProfileService.GetMyProfile` | Empty | Profile with ID, email, display name, description, optional Telegram handle and phone number, and role | Every authenticated user |
-| `ProfileService.UpdateMyProfile` | Complete editable profile: `display_name`, `description`, optional `telegram_handle`, optional `phone_number` | Updated profile | All authenticated roles except `suspended_user` |
+| `ProfileService.GetMyProfile` | Empty | Profile with ID, email, display name, description, phone number, and role | Every authenticated user |
+| `ProfileService.UpdateMyProfile` | Complete editable profile: `display_name`, `description`, `phone_number` | Updated profile | All authenticated roles except `suspended_user` |
 | `UserAdminService.GetUserByEmail` | `email` | User ID, email, display name, role | `admin`, `super_admin` |
 | `UserAdminService.ChangeUserRole` | `user_id`, `to_role`, optional `reason` | Updated user | `admin`, `super_admin`, subject to the policy below |
 
-`UpdateMyProfile` replaces all four editable fields. An omitted description
-becomes empty and omitted contact fields are cleared. A display name must be
-nonblank after trimming and at most 100 characters. The other database limits
-are 500 characters for description, 32 for Telegram handle, and 20 for phone
-number. The request cannot update email, ID, role, or account status.
+`UpdateMyProfile` replaces all three editable fields. An omitted description
+becomes empty. A display name must be nonblank after trimming and at most 100
+characters, and a phone number is required and validated as at registration.
+The description limit is 500 characters. The request cannot update email, ID,
+role, or account status.
 
 `super_admin` may change another user's role among `admin`, `user`, and
 `suspended_user`. `admin` may change another user's role only between `user`
@@ -179,3 +182,17 @@ new role claim; previously issued access tokens remain valid until expiry.
 
 The `admin_bootstrap` table exists, but registration does not yet claim it.
 First-admin provisioning and account deletion APIs are separate work.
+
+## Credit account provisioning
+
+Successful registration writes a `UserCreated` fact to the transactional
+outbox in the same database transaction as the user and session. The relay
+publishes it to `users.create` using the user UUID as the Kafka key. Delivery
+is at least once; `event_id` remains stable across retries so consumers can
+deduplicate. A Kafka outage does not fail registration; pending facts are
+retried when the broker is available.
+
+`KAFKA_BROKERS` is required. Compose sets it to `kafka:9092`; host development
+uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
+owns the 100-credit starting grant. Existing users are not backfilled, and
+bootstrap-created administrators do not emit registration events.

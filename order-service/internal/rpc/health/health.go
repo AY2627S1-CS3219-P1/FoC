@@ -18,7 +18,10 @@ type Server struct {
 	DB Database
 }
 
-func (s *Server) Check(ctx context.Context, _ *connect.Request[orderv1.CheckRequest]) (*connect.Response[orderv1.CheckResponse], error) {
+func (s *Server) Check(
+	ctx context.Context,
+	_ *connect.Request[orderv1.CheckRequest],
+) (*connect.Response[orderv1.CheckResponse], error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := s.DB.Ping(ctx); err != nil {

@@ -23,7 +23,10 @@ type Handler struct {
 	Logic Logic
 }
 
-func (h *Handler) GetMyProfile(ctx context.Context, _ *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
+func (h *Handler) GetMyProfile(
+	ctx context.Context,
+	_ *connect.Request[userv1.GetMyProfileRequest],
+) (*connect.Response[userv1.GetMyProfileResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -37,14 +40,17 @@ func (h *Handler) GetMyProfile(ctx context.Context, _ *connect.Request[userv1.Ge
 	return response, nil
 }
 
-func (h *Handler) UpdateMyProfile(ctx context.Context, req *connect.Request[userv1.UpdateMyProfileRequest]) (*connect.Response[userv1.UpdateMyProfileResponse], error) {
+func (h *Handler) UpdateMyProfile(
+	ctx context.Context,
+	req *connect.Request[userv1.UpdateMyProfileRequest],
+) (*connect.Response[userv1.UpdateMyProfileResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	user, err := h.Logic.UpdateMyProfile(ctx, actorID, service.ProfileInput{
 		DisplayName: req.Msg.DisplayName, Description: req.Msg.Description,
-		TelegramHandle: req.Msg.TelegramHandle, PhoneNumber: req.Msg.PhoneNumber,
+		PhoneNumber: req.Msg.PhoneNumber,
 	})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)

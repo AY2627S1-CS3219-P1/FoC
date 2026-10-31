@@ -45,7 +45,11 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, email := range []string{"admin@example.com", "other@example.com"} {
-		if outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser(email)); err != nil || outcome != BootstrapAlreadyDone {
+		if outcome, err := store.Admin.Bootstrap(
+			ctx,
+			bootstrapUser(email),
+		); err != nil ||
+			outcome != BootstrapAlreadyDone {
 			t.Fatalf("rerun %s: %v, %v", email, outcome, err)
 		}
 	}

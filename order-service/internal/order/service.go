@@ -3,6 +3,9 @@ package order
 import (
 	"context"
 	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
 )
 
 // Service applies caller visibility rules to order and offer reads.
@@ -10,27 +13,39 @@ type Service struct{ reader Reader }
 
 func NewService(r Reader) *Service { return &Service{reader: r} }
 
-// GetOrder preserves participant access and hides delivery instructions from
-// callers browsing an open order.
+// GetOrder reads membership and the aggregate from one snapshot. Historical
+// membership is read-only and never widens the aggregate's mutation predicates.
 func (s *Service) GetOrder(ctx context.Context, c Caller, id string) (Order, error) {
-	o, err := s.reader.Get(ctx, id)
-	if err != nil {
-		return Order{}, err
-	}
-
 	if c.ID == "" {
 		return Order{}, ErrForbidden
 	}
-	if c.Admin || o.HasParticipant(c.ID) {
-		return o, nil
+	c = canonicalReadCaller(c)
+	o, historical, err := s.reader.GetWithParticipation(ctx, id, c.ID)
+	if err != nil {
+		return Order{}, err
 	}
-
-	if c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now()) {
+	if !c.Admin && !o.HasParticipant(c.ID) && !historical &&
+		(c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now())) {
 		return Order{}, ErrNotFound
 	}
+	return ProjectForCaller(c, o), nil
+}
 
-	o.DeliveryInstructions = nil
-	return o, nil
+func canonicalReadCaller(c Caller) Caller {
+	if id, err := uuid.Parse(c.ID); err == nil {
+		c.ID = id.String()
+	}
+	return c
+}
+
+// visibleTo reports whether the caller may see the order: admins and
+// participants always, other active users only while it is open for couriers.
+func visibleTo(o Order, c Caller, now time.Time) bool {
+	if c.Admin || o.HasParticipant(c.ID) {
+		return true
+	}
+
+	return !c.Suspended && o.Status == AwaitingCourier && o.ExpiresAt.After(now)
 }
 
 // Order listings select the visible scope before shared validation and redaction.
@@ -39,11 +54,11 @@ func (s *Service) ListOpenOrders(ctx context.Context, c Caller, r ListRequest) (
 		return OrderPage{}, ErrForbidden
 	}
 
-	return s.list(ctx, ReadQuery{Caller: c, Open: true, ListRequest: r})
+	return s.list(ctx, ReadQuery{Caller: canonicalReadCaller(c), Open: true, ListRequest: r})
 }
 
 func (s *Service) ListMyOrders(ctx context.Context, c Caller, r ListRequest) (OrderPage, error) {
-	return s.list(ctx, ReadQuery{Caller: c, UserID: c.ID, ListRequest: r})
+	return s.list(ctx, ReadQuery{Caller: canonicalReadCaller(c), UserID: c.ID, ListRequest: r})
 }
 
 func (s *Service) ListUserOrders(ctx context.Context, c Caller, id string, r ListRequest) (OrderPage, error) {
@@ -54,11 +69,10 @@ func (s *Service) ListUserOrders(ctx context.Context, c Caller, id string, r Lis
 		return OrderPage{}, ErrInvalid
 	}
 
-	return s.list(ctx, ReadQuery{Caller: c, UserID: id, ListRequest: r})
+	return s.list(ctx, ReadQuery{Caller: canonicalReadCaller(c), UserID: id, ListRequest: r})
 }
 
-// list validates filters and removes participant-only instructions from browsing
-// results. Participants and admins retain those instructions.
+// list validates filters and applies the same safe projection to every scope.
 func (s *Service) list(ctx context.Context, q ReadQuery) (OrderPage, error) {
 	if q.Caller.ID == "" {
 		return OrderPage{}, ErrForbidden
@@ -76,16 +90,17 @@ func (s *Service) list(ctx context.Context, q ReadQuery) (OrderPage, error) {
 		return OrderPage{}, ErrInvalid
 	}
 
-	out, err := s.reader.List(ctx, q)
-	if q.Open {
-		for i := range out.Orders {
-			if !q.Caller.Admin && !out.Orders[i].HasParticipant(q.Caller.ID) {
-				out.Orders[i].DeliveryInstructions = nil
-			}
-		}
+	if q.ListRequest.DeliveryID != "" || utf8.RuneCountInString(q.ListRequest.DeliveryBuildingName) > 200 {
+		return OrderPage{}, ErrInvalid
 	}
-
-	return out, err
+	out, err := s.reader.List(ctx, q)
+	if err != nil {
+		return OrderPage{}, err
+	}
+	for i := range out.Orders {
+		out.Orders[i] = ProjectForCaller(q.Caller, out.Orders[i])
+	}
+	return out, nil
 }
 
 // ListOffers validates the request before the reader applies relationship-based
@@ -94,7 +109,8 @@ func (s *Service) ListOffers(ctx context.Context, c Caller, id string, status Of
 	if c.ID == "" {
 		return nil, ErrForbidden
 	}
-	if status != "" && status != OfferOpen && status != OfferAccepting && status != OfferAccepted && status != OfferVoid {
+	if status != "" && status != OfferOpen && status != OfferAccepting && status != OfferAccepted &&
+		status != OfferVoid {
 		return nil, ErrInvalid
 	}
 
