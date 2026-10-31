@@ -126,8 +126,6 @@ export async function run(program: string, args: string[] = [], options: Command
 	return { stdout, stderr, exitCode };
 }
 
-// kind's kubeconfig stays in the state directory; the developer's global
-// kubeconfig is never written to.
 export function kubectlPrefix(): string[] {
 	return USING_EXISTING_CLUSTER
 		? ["--context", K8S_CONTEXT]
@@ -141,28 +139,22 @@ export async function aquaWhich(name: string): Promise<string> {
 	return path;
 }
 
-export async function kubectlBinary(): Promise<string> {
-	return aquaWhich("kubectl");
-}
-
 // The Helm charts ship inside the Istio archive, next to the istioctl binary.
 export async function istioChartsDirectory(): Promise<string> {
 	const installedIstioctl = await aquaWhich("istioctl");
 	return join(dirname(dirname(installedIstioctl)), "manifests/charts");
 }
 
-export function helmPrefix(): string[] {
-	return USING_EXISTING_CLUSTER
-		? ["--kube-context", K8S_CONTEXT]
-		: ["--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"), "--kube-context", K8S_CONTEXT];
-}
-
 export async function k(args: string[], options: CommandOptions = {}): Promise<CommandResult> {
 	return run("kubectl", [...kubectlPrefix(), ...args], options);
 }
 
+// Same kubeconfig strategy as kubectlPrefix, with Helm's --kube-context spelling.
 export async function h(args: string[], options: CommandOptions = {}): Promise<CommandResult> {
-	return run("helm", [...helmPrefix(), ...args], options);
+	const prefix = USING_EXISTING_CLUSTER
+		? ["--kube-context", K8S_CONTEXT]
+		: ["--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"), "--kube-context", K8S_CONTEXT];
+	return run("helm", [...prefix, ...args], options);
 }
 
 export async function commandExists(name: string): Promise<boolean> {
@@ -473,7 +465,7 @@ function waitForLocalListener(port: number): Promise<boolean> {
 // exit early; consider the forward ready only when the port accepts a TCP
 // connection.
 export async function startForward(forward: ForwardSpec, children: Bun.Subprocess[]): Promise<void> {
-	const kubectl = await kubectlBinary();
+	const kubectl = await aquaWhich("kubectl");
 	const child = Bun.spawn(
 		[
 			kubectl,
