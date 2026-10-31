@@ -6,24 +6,47 @@ import { constants } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { createServer } from "node:net";
 
-export const K8S_ROOT = resolve(import.meta.dir, "../..");
-export const AQUA_ROOT_DIR = resolve(process.env.AQUA_ROOT_DIR ?? join(K8S_ROOT, ".tools/aqua"));
+// Operator inputs and defaults. Constants that mirror an environment variable
+// (K8S_CLUSTER, K8S_CONTEXT, K8S_OVERLAY, K8S_IMAGE_*, K8S_TIMEOUT,
+// K8S_STATE_DIR) keep the variable's name so the docs and the code agree;
+// anything derived is named for what it means.
+
+// Repository root: every infra path resolves from here.
+export const REPO_ROOT = resolve(import.meta.dir, "../..");
+
+// Where the project's pinned tools are installed (git-ignored). aqua's own
+// binary lives in the user's home directory — unrelated to this path.
+export const AQUA_ROOT_DIR = resolve(process.env.AQUA_ROOT_DIR ?? join(REPO_ROOT, ".tools/aqua"));
 export const AQUA_BIN_DIR = join(AQUA_ROOT_DIR, "bin");
-export const K8S_STATE_DIR = resolve(process.env.K8S_STATE_DIR ?? join(K8S_ROOT, ".local/k8s"));
+
+// kubeconfigs, generated secrets and temporary render directories.
+export const K8S_STATE_DIR = resolve(process.env.K8S_STATE_DIR ?? join(REPO_ROOT, ".local/k8s"));
 process.env.AQUA_ROOT_DIR = AQUA_ROOT_DIR;
 process.env.PATH = AQUA_BIN_DIR + (process.platform === "win32" ? ";" : ":") + (process.env.PATH ?? "");
 
+// Managed local kind cluster name.
 export const K8S_CLUSTER = process.env.K8S_CLUSTER || "foc";
-export const K8S_EXISTING = Boolean(process.env.K8S_CONTEXT);
+// kubectl context: "kind-<cluster>" for the managed cluster, or an explicit
+// context when targeting a pre-existing cluster.
 export const K8S_CONTEXT = process.env.K8S_CONTEXT || "kind-" + K8S_CLUSTER;
+// True when K8S_CONTEXT targets a pre-existing (external) cluster instead of
+// the managed local one; gates kind lifecycle, image pushing and delete guards.
+export const USING_EXISTING_CLUSTER = Boolean(process.env.K8S_CONTEXT);
+// Manifest overlay: the local one by default; external clusters must set
+// K8S_OVERLAY explicitly.
 export const K8S_OVERLAY_EXPLICIT = Boolean(process.env.K8S_OVERLAY);
-export const K8S_OVERLAY = resolve(K8S_ROOT, process.env.K8S_OVERLAY || "infra/k8s/overlays/local");
+export const K8S_OVERLAY = resolve(REPO_ROOT, process.env.K8S_OVERLAY || "infra/k8s/overlays/local");
+// Default duration for kubectl --timeout waits and rollout statuses.
 export const K8S_TIMEOUT = process.env.K8S_TIMEOUT || "600s";
+// Registry prefix and tag for built application images.
 export const K8S_IMAGE_TAG = process.env.K8S_IMAGE_TAG || "local";
 export const K8S_IMAGE_PREFIX = process.env.K8S_IMAGE_PREFIX || "foc";
+// Container image for the kind control-plane node — the local Kubernetes version.
 export const K8S_NODE_IMAGE = process.env.K8S_NODE_IMAGE ||
 	"kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f";
+// Application Deployment names, in deploy order.
 export const K8S_APPS = ["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend"] as const;
+// Initialization Jobs (run to completion before applications start).
 export const K8S_JOBS = ["user-migrate", "supplier-migrate", "order-migrate", "credit-migrate", "communication-migrate", "kafka-init"] as const;
 
 export class OperatorError extends Error {}
@@ -64,7 +87,7 @@ export async function run(
 	const capture = Boolean(options.capture);
 	const command = [program, ...args].map((argument) => $.escape(argument)).join(" ");
 	const stdin = options.stdinFile ? " < " + $.escape(options.stdinFile) : "";
-	let task = $`${{ raw: command + stdin }}`.cwd(options.cwd ?? K8S_ROOT).env(env).nothrow();
+	let task = $`${{ raw: command + stdin }}`.cwd(options.cwd ?? REPO_ROOT).env(env).nothrow();
 	if (capture) task = task.quiet();
 	const result = await task;
 	const stdout = capture ? result.stdout.toString() : "";
@@ -83,7 +106,7 @@ export async function run(
 // kind's kubeconfig stays in the state directory; the developer's global
 // kubeconfig is never written to.
 export function kubectlPrefix(): string[] {
-	return K8S_EXISTING
+	return USING_EXISTING_CLUSTER
 		? ["--context", K8S_CONTEXT]
 		: ["--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"), "--context", K8S_CONTEXT];
 }
@@ -105,7 +128,7 @@ export async function istioChartsDirectory(): Promise<string> {
 }
 
 export function helmPrefix(): string[] {
-	return K8S_EXISTING
+	return USING_EXISTING_CLUSTER
 		? ["--kube-context", K8S_CONTEXT]
 		: ["--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"), "--kube-context", K8S_CONTEXT];
 }
@@ -163,7 +186,7 @@ export async function checkContext(): Promise<void> {
 }
 
 export async function checkOverlay(): Promise<void> {
-	if (K8S_EXISTING && !K8S_OVERLAY_EXPLICIT) {
+	if (USING_EXISTING_CLUSTER && !K8S_OVERLAY_EXPLICIT) {
 		die("An existing cluster requires explicit K8S_CONTEXT and K8S_OVERLAY.");
 	}
 	for (const stage of ["gateway", "dependencies", "provisioning", "initialization", "applications"]) {
@@ -173,7 +196,7 @@ export async function checkOverlay(): Promise<void> {
 }
 
 export function isLocalOverlay(): boolean {
-	return K8S_OVERLAY === resolve(K8S_ROOT, "infra/k8s/overlays/local");
+	return K8S_OVERLAY === resolve(REPO_ROOT, "infra/k8s/overlays/local");
 }
 
 export function validateService(service: string): asserts service is (typeof K8S_APPS)[number] {

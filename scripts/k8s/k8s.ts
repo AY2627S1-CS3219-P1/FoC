@@ -8,13 +8,13 @@ import {
 	K8S_APPS,
 	K8S_CLUSTER,
 	K8S_CONTEXT,
-	K8S_EXISTING,
+	USING_EXISTING_CLUSTER,
 	K8S_IMAGE_PREFIX,
 	K8S_IMAGE_TAG,
 	K8S_JOBS,
 	K8S_NODE_IMAGE,
 	K8S_OVERLAY,
-	K8S_ROOT,
+	REPO_ROOT,
 	K8S_STATE_DIR,
 	K8S_TIMEOUT,
 	ForwardSpec,
@@ -72,10 +72,10 @@ async function installMesh(): Promise<void> {
 	await requireCommands("helm");
 	const charts = await istioChartsDirectory();
 	if (!(await hasIstioCharts(charts))) die("Pinned Istio charts missing; run make k8s-tools.");
-	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/namespaces.yaml"));
-	await applyManifest(join(K8S_ROOT, "infra/k8s/platform/admission.yaml"));
-	const gatewayCRDs = join(K8S_ROOT, "infra/k8s/platform/gateway-api/standard-install.yaml");
-	if (K8S_EXISTING) {
+	await applyManifest(join(REPO_ROOT, "infra/k8s/platform/namespaces.yaml"));
+	await applyManifest(join(REPO_ROOT, "infra/k8s/platform/admission.yaml"));
+	const gatewayCRDs = join(REPO_ROOT, "infra/k8s/platform/gateway-api/standard-install.yaml");
+	if (USING_EXISTING_CLUSTER) {
 		for (const name of ["gatewayclasses.gateway.networking.k8s.io", "gateways.gateway.networking.k8s.io", "httproutes.gateway.networking.k8s.io"]) {
 			const result = await k(["get", "crd", name, "-o", "jsonpath={.status.conditions[?(@.type==\"Established\")].status}:{.spec.versions[?(@.name==\"v1\")].served}"], { capture: true, allowFailure: true });
 			if (result.exitCode !== 0 || result.stdout.trim() !== "True:true") {
@@ -91,19 +91,19 @@ async function installMesh(): Promise<void> {
 	await h(["upgrade", "--install", "istio-base", join(charts, "base"), "-n", "istio-system", "--wait", "--timeout", K8S_TIMEOUT]);
 	await h([
 		"upgrade", "--install", "istiod", join(charts, "istio-control/istio-discovery"), "-n", "istio-system",
-		"-f", join(K8S_ROOT, "infra/k8s/platform/istiod-values.yaml"), "--wait", "--timeout", K8S_TIMEOUT,
+		"-f", join(REPO_ROOT, "infra/k8s/platform/istiod-values.yaml"), "--wait", "--timeout", K8S_TIMEOUT,
 	]);
 }
 
 async function buildImage(name: string): Promise<void> {
 	const dockerfile = name === "frontend" || name === "kafka-init" || name === "migrations" ? name : "service";
 	await run("docker", [
-		"build", "--file", join(K8S_ROOT, "docker/k8s", dockerfile + ".Dockerfile"),
+		"build", "--file", join(REPO_ROOT, "docker/k8s", dockerfile + ".Dockerfile"),
 		"--build-arg", "SERVICE=" + name,
 		"--tag", imageFor(name),
-		K8S_ROOT,
+		REPO_ROOT,
 	]);
-	if (!K8S_EXISTING) {
+	if (!USING_EXISTING_CLUSTER) {
 		await run("kind", ["load", "docker-image", "--name", K8S_CLUSTER, imageFor(name)]);
 		return;
 	}
@@ -116,7 +116,7 @@ async function buildImage(name: string): Promise<void> {
 async function buildImages(names: readonly string[]): Promise<void> {
 	if (process.env.K8S_SKIP_BUILD === "1") return;
 	await requireCommands("docker");
-	if (K8S_EXISTING && process.env.K8S_PUSH_IMAGES !== "1") {
+	if (USING_EXISTING_CLUSTER && process.env.K8S_PUSH_IMAGES !== "1") {
 		die("Existing cluster image builds require K8S_PUSH_IMAGES=1 and a registry K8S_IMAGE_PREFIX; otherwise use K8S_SKIP_BUILD=1.");
 	}
 	for (const name of names) await buildImage(name);
@@ -363,7 +363,7 @@ async function stopForwards(children: Bun.Subprocess[]): Promise<void> {
 // Browser origins are baked into foc-config at deploy time; a changed forward
 // port would break CORS and sessions, so verify before attaching.
 async function checkGatewayOrigin(forwards: ForwardSpec[]): Promise<void> {
-	if (K8S_EXISTING || !isLocalOverlay()) return;
+	if (USING_EXISTING_CLUSTER || !isLocalOverlay()) return;
 	const gateway = forwards.find(forward => forward.name === "HTTPS gateway");
 	if (!gateway) return;
 	const expected = "https://localhost:" + gateway.localPort;
@@ -429,7 +429,7 @@ async function showStatus(): Promise<void> {
 	await k(["-n", "foc", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"]);
 	if (await commandExists("istioctl")) {
 		await run("istioctl", [
-			...(K8S_EXISTING ? ["--context", K8S_CONTEXT] : [
+			...(USING_EXISTING_CLUSTER ? ["--context", K8S_CONTEXT] : [
 				"--kubeconfig", join(K8S_STATE_DIR, "clusters", K8S_CLUSTER + ".config"),
 				"--context", K8S_CONTEXT,
 			]),
@@ -439,7 +439,7 @@ async function showStatus(): Promise<void> {
 }
 
 async function deleteCluster(): Promise<void> {
-	if (K8S_EXISTING) die("Cluster deletion is local-only. Unset K8S_CONTEXT and select K8S_CLUSTER explicitly.");
+	if (USING_EXISTING_CLUSTER) die("Cluster deletion is local-only. Unset K8S_CONTEXT and select K8S_CLUSTER explicitly.");
 	if (process.env.K8S_CONFIRM_DELETE !== K8S_CLUSTER) {
 		die("This deletes cluster " + K8S_CLUSTER + " and its PostgreSQL/Kafka PVC data. Rerun with K8S_CONFIRM_DELETE=" + K8S_CLUSTER + ". Local credential files are retained.");
 	}
@@ -541,7 +541,7 @@ async function up(): Promise<void> {
 	await checkOverlay();
 	const forwards = isLocalOverlay() ? configuredForwards() : [];
 	await preflightForwards(forwards);
-	if (!K8S_EXISTING) await createLocalCluster();
+	if (!USING_EXISTING_CLUSTER) await createLocalCluster();
 	await checkContext();
 	await installMesh();
 	await deployAll();
