@@ -31,7 +31,10 @@ type Handler struct {
 
 // SubmitReview records the caller's review of the other participant; `from`
 // must be the caller so impersonation is rejected.
-func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv1.SubmitReviewRequest]) (*connect.Response[reviewv1.SubmitReviewResponse], error) {
+func (h *Handler) SubmitReview(
+	ctx context.Context,
+	req *connect.Request[reviewv1.SubmitReviewRequest],
+) (*connect.Response[reviewv1.SubmitReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -51,7 +54,13 @@ func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv
 	if err != nil || orderID == uuid.Nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
 	}
-	if err := h.Logic.SubmitReview(ctx, actorID, to, orderID, reviewv1SubmissionToDomain(req.Msg.GetSubmission())); err != nil {
+	if err := h.Logic.SubmitReview(
+		ctx,
+		actorID,
+		to,
+		orderID,
+		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
+	); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
@@ -59,7 +68,10 @@ func (h *Handler) SubmitReview(ctx context.Context, req *connect.Request[reviewv
 
 // ListReviewsForUser lists the reviews a user received; a suspended caller may
 // only list their own.
-func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[reviewv1.ListReviewsForUserRequest]) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
+func (h *Handler) ListReviewsForUser(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListReviewsForUserRequest],
+) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
 	caller, err := userdto.Actor(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -82,7 +94,10 @@ func (h *Handler) ListReviewsForUser(ctx context.Context, req *connect.Request[r
 	return connect.NewResponse(toListReviewsForUserResponse(pageResult)), nil
 }
 
-func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[reviewv1.ListMyReviewsRequest]) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
+func (h *Handler) ListMyReviews(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewsRequest],
+) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -100,7 +115,10 @@ func (h *Handler) ListMyReviews(ctx context.Context, req *connect.Request[review
 
 // RemoveReview soft-deletes a review and records the removal audit row; the
 // admin-only gate lives in the interceptor.
-func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv1.RemoveReviewRequest]) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
+func (h *Handler) RemoveReview(
+	ctx context.Context,
+	req *connect.Request[reviewv1.RemoveReviewRequest],
+) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -115,7 +133,10 @@ func (h *Handler) RemoveReview(ctx context.Context, req *connect.Request[reviewv
 	return connect.NewResponse(&reviewv1.RemoveReviewResponse{}), nil
 }
 
-func (h *Handler) ListReviewRemovals(ctx context.Context, req *connect.Request[reviewv1.ListReviewRemovalsRequest]) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
+func (h *Handler) ListReviewRemovals(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListReviewRemovalsRequest],
+) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))

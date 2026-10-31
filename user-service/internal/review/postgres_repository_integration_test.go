@@ -96,14 +96,26 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			insertUser(t, ctx, sqlDB, id)
 		}
 
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order1, ReviewSubmission{Rating: 4, Comment: "good"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 4, Comment: "good"},
+		); err != nil {
 			t.Fatalf("submit first review: %v", err)
 		}
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 1 || avg != 4 {
 			t.Fatalf("after first review: count=%d avg=%v, want 1 and 4", c, avg)
 		}
 
-		if err := service.SubmitReview(ctx, second, reviewee, order2, ReviewSubmission{Rating: 2, Comment: "ok"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			second,
+			reviewee,
+			order2,
+			ReviewSubmission{Rating: 2, Comment: "ok"},
+		); err != nil {
 			t.Fatalf("submit second review: %v", err)
 		}
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 2 || avg != 3 {
@@ -140,7 +152,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list removals: %v", err)
 		}
-		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" || removals.Removals[0].CreatedBy != admin {
+		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" ||
+			removals.Removals[0].CreatedBy != admin {
 			t.Fatalf("audit row not recorded: %+v", removals)
 		}
 		if removals.TotalItems() != 1 || removals.TotalPages() != 1 {
@@ -149,7 +162,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		// The removed review's row is retained with deleted_at set, so the
 		// audit row can keep referencing it.
 		var deletedAt sql.NullTime
-		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", firstReview).Scan(&deletedAt); err != nil {
+		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", firstReview).
+			Scan(&deletedAt); err != nil {
 			t.Fatalf("read removed review: %v", err)
 		}
 		if !deletedAt.Valid {
@@ -175,7 +189,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, rating := range []int{1, 2, 2} {
 			reviewer := uuid.New()
 			insertUser(t, ctx, sqlDB, reviewer)
-			if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: rating, Comment: "fractional average"}); err != nil {
+			if err := service.SubmitReview(
+				ctx,
+				reviewer,
+				reviewee,
+				uuid.New(),
+				ReviewSubmission{Rating: rating, Comment: "fractional average"},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -321,7 +341,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "first"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "first"},
+		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "duplicate"})
@@ -339,7 +365,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "first"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "first"},
+		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
@@ -362,7 +394,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		// The reverse direction is unaffected: the other participant can still
 		// review for the same request.
-		if err := service.SubmitReview(ctx, reviewee, reviewer, order, ReviewSubmission{Rating: 4, Comment: "other side"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewee,
+			reviewer,
+			order,
+			ReviewSubmission{Rating: 4, Comment: "other side"},
+		); err != nil {
 			t.Fatalf("other participant review: %v", err)
 		}
 	})

@@ -25,8 +25,17 @@ func TestNewDefaults(t *testing.T) {
 				t.Fatalf("New(%d, %d): %v", tc.page, tc.pageSize, err)
 			}
 			if p.Page() != tc.wantPage || p.PageSize() != tc.wantPageSize || p.Offset() != tc.wantOffset {
-				t.Fatalf("New(%d, %d) = page %d size %d offset %d, want page %d size %d offset %d",
-					tc.page, tc.pageSize, p.Page(), p.PageSize(), p.Offset(), tc.wantPage, tc.wantPageSize, tc.wantOffset)
+				t.Fatalf(
+					"New(%d, %d) = page %d size %d offset %d, want page %d size %d offset %d",
+					tc.page,
+					tc.pageSize,
+					p.Page(),
+					p.PageSize(),
+					p.Offset(),
+					tc.wantPage,
+					tc.wantPageSize,
+					tc.wantOffset,
+				)
 			}
 		})
 	}

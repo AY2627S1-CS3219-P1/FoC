@@ -27,7 +27,11 @@ func NewService(repo Repository, withTransaction WithTransaction) *Service {
 
 // SubmitReview inserts the review and recomputes the reviewee's stats in the
 // same transaction, so the stats are current when it returns.
-func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error {
+func (s *Service) SubmitReview(
+	ctx context.Context,
+	reviewerID, revieweeID, orderID uuid.UUID,
+	submission ReviewSubmission,
+) error {
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
 	}
@@ -74,7 +78,11 @@ func (s *Service) SubmitReview(ctx context.Context, reviewerID, revieweeID, orde
 	})
 }
 
-func (s *Service) ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
+func (s *Service) ListReviewsForUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
 	reviews, err := s.repo.ListReviewsForUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
 		return ReviewPage{}, err
@@ -86,7 +94,11 @@ func (s *Service) ListReviewsForUser(ctx context.Context, userID uuid.UUID, page
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-func (s *Service) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
+func (s *Service) ListReviewsFromUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
 	reviews, err := s.repo.ListReviewsFromUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
 		return ReviewPage{}, err

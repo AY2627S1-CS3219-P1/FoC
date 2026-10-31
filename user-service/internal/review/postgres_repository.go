@@ -47,7 +47,11 @@ func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Q
 	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
 }
 
-func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error {
+func (r *PostgresRepository) InsertReviewRemoval(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	removal ReviewRemoval,
+) error {
 	return mapReviewError("insert review removal", q.InsertReviewRemoval(ctx, reviewdb.InsertReviewRemovalParams{
 		ID:         removal.ID,
 		ReviewID:   removal.ReviewID,
@@ -83,7 +87,11 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 	return nil
 }
 
-func (r *PostgresRepository) ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error) {
+func (r *PostgresRepository) ListReviewsForUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int,
+) ([]Review, error) {
 	rows, err := r.queries.ListReviewsForUser(ctx, reviewdb.ListReviewsForUserParams{
 		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
 	})
@@ -97,7 +105,11 @@ func (r *PostgresRepository) ListReviewsForUser(ctx context.Context, userID uuid
 	return out, nil
 }
 
-func (r *PostgresRepository) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error) {
+func (r *PostgresRepository) ListReviewsFromUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int,
+) ([]Review, error) {
 	rows, err := r.queries.ListReviewsFromUser(ctx, reviewdb.ListReviewsFromUserParams{
 		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
 	})
