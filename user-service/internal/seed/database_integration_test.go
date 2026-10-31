@@ -3,6 +3,7 @@
 package seed
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -61,11 +62,18 @@ func testContainer(t *testing.T, ctx context.Context, image string, options []st
 
 func docker(t *testing.T, ctx context.Context, args ...string) string {
 	t.Helper()
-	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
-	if err != nil {
-		t.Fatalf("docker %v: %v: %s", args, err, output)
+	// Docker prints pull progress on stderr, so only stdout carries the
+	// container ID or port mapping. Merging the streams (CombinedOutput)
+	// corrupts the result on cold runners where the image still needs a
+	// pull; keep stderr for the failure message instead.
+	var stdout, stderr bytes.Buffer
+	command := exec.CommandContext(ctx, "docker", args...)
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		t.Fatalf("docker %v: %v: %s", args, err, stderr.String())
 	}
-	return string(output)
+	return stdout.String()
 }
 
 func eventually(t *testing.T, ctx context.Context, predicate func() bool) {
