@@ -106,7 +106,7 @@ clusters, and production-overlay setup, see the
 | -- | -- |
 | `platform/namespaces.yaml` | Creates `foc` (apps, sidecar injection), `istio-system`, and `istio-ingress`. |
 | `platform/admission.yaml` | API-server policy: `foc` pods must carry the pinned Istio sidecar; rejects injection opt-outs, host networking, and capture overrides. |
-| `platform/istiod-values.yaml` | Helm values for the Istio control plane: native sidecars, proxy resources, access logs with query strings stripped. |
+| `platform/istiod-values.yaml` | Helm values used to install istiod from the pinned archive's charts: native sidecars, proxy resources, access logs with query strings stripped. |
 | `platform/gateway-api/standard-install.yaml` | Vendored Gateway API v1.6.0 CRDs. |
 | `platform/gateway-api/README.md` | Provenance and pin of the vendored CRDs. |
 | `base/dependencies/accounts.yaml` | One ServiceAccount per workload — the identities Istio principals refer to. |

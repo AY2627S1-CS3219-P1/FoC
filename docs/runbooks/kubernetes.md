@@ -302,6 +302,10 @@ K8S_CONTEXT=<context> K8S_OVERLAY=<completed-overlay-path> \
 
 Install the pinned platform resources and Istio first, or use `k8s-up` with
 those explicit inputs if authorized to install cluster-wide resources.
+Locally, Istio itself is installed with Helm: two releases, `istio-base` and
+`istiod`, rendered from the charts inside the pinned Istio archive and
+configured by `infra/k8s/platform/istiod-values.yaml`; an external operator
+replicates that with a compatible Istio installation.
 Existing-cluster mode never creates/deletes kind or changes the global context.
 Use `K8S_SKIP_BUILD=1` for already published images. The local-only origin
 patch does not run against external clusters: browser-facing origins come from

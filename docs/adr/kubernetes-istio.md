@@ -91,7 +91,10 @@ Kubernetes CLI tools are pinned in the root aqua configuration and installed
 under `.tools/aqua`; checksum verification is required. Aqua's standard
 registry supplies kind, kubectl, and Helm. Small local registry entries retain
 Bun's baseline Intel binary and the complete Istio distribution, whose archive
-also supplies Helm charts. Chart validation checks the base and istiod charts
+also supplies the Helm charts from which the control plane is installed: the
+`istio-base` and `istiod` releases, configured by
+`platform/istiod-values.yaml`. Chart validation checks the base and istiod
+charts
 that the install actually uses. TLS generation uses an OpenSSL configuration
 file for compatibility with macOS's system implementation.
 
