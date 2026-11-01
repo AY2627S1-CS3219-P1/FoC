@@ -87,17 +87,36 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 	if err := wait.ForListeningPort("19092/tcp").WithStartupTimeout(time.Minute).WaitUntilReady(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	connection, err := kafkago.DialContext(ctx, "tcp", address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.Close()
+	// A listening socket is not evidence that the broker serves Kafka
+	// requests: during startup it briefly accepts and then drops connections,
+	// which surfaces as EOF or a connection reset. Retry the handshake until
+	// the broker answers; CreateTopics is idempotent, so retries are harmless.
 	var topics []kafkago.TopicConfig
 	for _, name := range []string{"order.status_changed", "order.outcome", "order.courier_warning_requested"} {
 		topics = append(topics, kafkago.TopicConfig{Topic: name, NumPartitions: 1, ReplicationFactor: 1})
 	}
-	if err := connection.CreateTopics(topics...); err != nil {
-		t.Fatal(err)
+	handshake, cancelHandshake := context.WithTimeout(ctx, time.Minute)
+	defer cancelHandshake()
+	for {
+		var err error
+		connection, dialErr := kafkago.DialContext(handshake, "tcp", address)
+		if dialErr == nil {
+			// A broker that accepts but never answers must not pin the loop:
+			// bound each attempt so the handshake deadline stays observable.
+			_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
+			err = connection.CreateTopics(topics...)
+			_ = connection.Close()
+			if err == nil {
+				break
+			}
+		} else {
+			err = dialErr
+		}
+		select {
+		case <-handshake.Done():
+			t.Fatalf("Kafka broker did not serve a request: %v", err)
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 	// Topic creation is asynchronous; a listening broker is not evidence that
 	// each partition has an elected, serving leader yet.
