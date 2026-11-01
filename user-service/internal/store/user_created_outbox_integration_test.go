@@ -54,7 +54,7 @@ func TestUserCreatedOutboxPersistenceAndLeases(t *testing.T) {
 		t.Fatalf("claim outbox row: fact=%+v err=%v", fact, err)
 	}
 	if fact.EventID != event.EventID || fact.UserID != event.UserID || fact.Email != event.Email ||
-		fact.DisplayName != event.DisplayName || !fact.CreatedAt.Equal(event.CreatedAt.Truncate(time.Microsecond)) || fact.PayloadVersion != 1 || fact.LeaseToken == uuid.Nil {
+		fact.DisplayName != event.DisplayName || !fact.CreatedAt.Equal(event.CreatedAt) || fact.PayloadVersion != 1 || fact.LeaseToken == uuid.Nil {
 		t.Fatalf("claimed fact = %+v, want event %+v and a lease", fact, event)
 	}
 	if second, err := store.UserCreatedOutbox.Claim(
