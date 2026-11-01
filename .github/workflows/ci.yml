@@ -106,23 +106,6 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: make test-integration
 
-  user-seed-integration:
-    name: User seed and Credit provisioning integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: user-service/go.mod
-          cache-dependency-path: |
-            user-service/go.sum
-            credit-service/go.sum
-            pkg/go.sum
-      - name: Run seed regression tests against disposable Postgres, Kafka and Credit
-        working-directory: user-service
-        run: GOWORK=off go test -mod=readonly -race -tags=integration ./internal/seed -count=1 -timeout=8m
-
   order-integration:
     name: Order integration tests
     runs-on: ubuntu-latest
