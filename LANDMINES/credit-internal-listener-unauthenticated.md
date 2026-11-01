@@ -1,11 +1,13 @@
-# Credit's reservation listener accepts unauthenticated calls
+# Order's Credit token is not verified by Credit
 
-**Applies when:** Credit's internal listener (`INTERNAL_PORT`, 8081 by default) is reachable from outside the service network. Examples are publishing it in `compose.yaml`, exposing it through a Kubernetes Service or ingress, or merging it into the public listener.
+**Applies when:** configuring Order to call Credit's reservation RPCs, or exposing Credit's internal listener (`INTERNAL_PORT`, 8081 by default) beyond the service network.
 
-**Symptom:** anyone who can reach the port can call `credit.v1.CreditReservationService` (Reserve, AdjustReservation, RevertAdjustment, ReleaseReservation, GetReservation) without a credential. They can then hold, release or reassign any user's credits. No error is logged, because the call succeeds.
+**Symptom:** Order requires `CREDIT_SERVICE_BASE_URL` and `CREDIT_WORKLOAD_TOKEN_FILE` together. It sends the file's JWT with subject `order-service` and audience `credit-service`, checking those claims and expiry without verifying the signature. Credit's internal listener ignores the Authorization header, so it does not authenticate Order. Compose leaves both Order settings empty by default.
 
-**Cause:** Order sends a workload JWT (`sub=order-service`, `aud=credit-service`), but Credit has no way to verify it yet. The workload identity mechanism is undecided (#29, #157). `credit-service/internal/router.Internal` mounts the reservation RPCs with validation only and ignores the `Authorization` header.
+**Risk:** any caller that can reach the internal listener can invoke Reserve, AdjustReservation, RevertAdjustment, ReleaseReservation and GetReservation without authentication.
 
-**Current workaround:** keep the internal port unpublished. Compose publishes only Credit's public listener (`CREDIT_PORT`), and Order reaches the internal one at `http://credit-service:8081` on the Compose network. Shared deployments must restrict the port to Order, for example with a network policy.
+**Workaround:** keep the internal listener private. Do not treat Order's sender-side JWT checks or Istio namespace mTLS as Order-only authorization.
 
-**Remove this entry when:** Credit verifies the workload credential's signature, issuer, audience, subject and lifetime on every reservation RPC, as #157 requires of the receiver. Tracked under #157 and #29.
+**Tracking:** [#214 Order-to-Credit authentication](https://github.com/AY2627S1-CS3219-P1/FoC/issues/214), under [#29 workload identity](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29) and [#157 inter-service auth policy](https://github.com/AY2627S1-CS3219-P1/FoC/issues/157). Kubernetes/Istio groundwork is in [#167](https://github.com/AY2627S1-CS3219-P1/FoC/pull/167); its namespace-wide mTLS does not restrict calls to Order.
+
+**Remove this entry when:** Order's Credit calls work with the chosen service identity, and Credit verifies that identity and authorizes Order on every reservation RPC.
