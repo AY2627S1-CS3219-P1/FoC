@@ -24,6 +24,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"github.com/google/uuid"
 )
 
@@ -78,6 +79,17 @@ func (s *allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) erro
 	return nil
 }
 
+type warningStub struct {
+	calls  atomic.Int32
+	userID uuid.UUID
+}
+
+func (s *warningStub) ListWarnings(_ context.Context, userID uuid.UUID) ([]warningdomain.Warning, error) {
+	s.userID = userID
+	s.calls.Add(1)
+	return nil, nil
+}
+
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -93,17 +105,20 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target",
 		PhoneNumber: &contact, Role: models.RoleUser}
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
+	warnings := &warningStub{}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
 			Profile:        &profilehandler.Handler{Logic: profileStub{actor}},
 			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
 			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
+			Warnings:       &warningdomain.Handler{Logic: warnings},
 			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	profileClient := userv1connect.NewProfileServiceClient(server.Client(), server.URL)
 	adminClient := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
+	warningClient := userv1connect.NewWarningServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
 	if _, err := profileClient.GetMyProfile(
 		ctx,
@@ -119,6 +134,21 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	response, err := profileClient.GetMyProfile(ctx, get)
 	if err != nil || response.Msg.Profile.Id != actorID.String() || response.Msg.Profile.Email != actor.Email {
 		t.Fatalf("own profile: %+v, %v", response, err)
+	}
+	myWarnings := connect.NewRequest(&userv1.GetMyWarningsRequest{})
+	myWarnings.Header().Set("Authorization", "Bearer "+token)
+	if _, err := warningClient.GetMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID {
+		t.Fatalf("own warnings: user=%s err=%v", warnings.userID, err)
+	}
+	otherWarnings := connect.NewRequest(&userv1.GetWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings.Header().Set("Authorization", "Bearer "+token)
+	if _, err := warningClient.GetWarningsForUser(
+		ctx,
+		otherWarnings,
+	); connect.CodeOf(
+		err,
+	) != connect.CodePermissionDenied {
+		t.Fatalf("ordinary user lookup warnings: %v", err)
 	}
 	lookup := connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
 	lookup.Header().Set("Authorization", "Bearer "+token)
@@ -142,6 +172,11 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor
+	otherWarnings = connect.NewRequest(&userv1.GetWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings.Header().Set("Authorization", "Bearer "+token)
+	if _, err := warningClient.GetWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
+		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
+	}
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
 	lookup.Header().Set("Authorization", "Bearer "+token)
 	if response, err := adminClient.GetUserByEmail(

@@ -14,6 +14,7 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -25,6 +26,7 @@ type ProtectedRoutes struct {
 	Profile        *profilehandler.Handler
 	Admin          *adminhandler.Handler
 	AllowedDomains *allowedadmin.AllowedDomainHandler
+	Warnings       *warningdomain.Handler
 	Authenticate   func(http.Handler) http.Handler
 	Users          ActorReader
 }
@@ -80,6 +82,10 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(allowedDomainsPath, allowedDomainsService)
+		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
+			p.Warnings, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(warningsPath, warningsService)
 	}
 	return r
 }

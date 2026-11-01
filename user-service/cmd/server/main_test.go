@@ -48,7 +48,8 @@ func TestKeyIDRejectsInvalidPublicKey(t *testing.T) {
 func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
 	setValidConfigEnv(t)
 	t.Setenv("KAFKA_BROKERS", "")
-	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "KAFKA_BROKERS is not set") {
+	if _, err := loadConfig(); err == nil ||
+		!strings.Contains(err.Error(), "KAFKA_BROKERS must contain at least one broker") {
 		t.Fatalf("loadConfig error = %v, want missing KAFKA_BROKERS", err)
 	}
 }
@@ -61,7 +62,7 @@ func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig with configured broker: %v", err)
 	}
-	if cfg.kafkaBrokers != brokers {
+	if len(cfg.kafkaBrokers) != 1 || cfg.kafkaBrokers[0] != brokers {
 		t.Fatalf("KAFKA_BROKERS = %q, want %q", cfg.kafkaBrokers, brokers)
 	}
 }
