@@ -15,7 +15,7 @@ docker compose up -d postgres mailpit user-service supplier-service credit-servi
 make seed-demo
 ```
 
-Wait for User and Supplier migrations before seeding. New users emit
+Wait for User, Supplier and Credit migrations before seeding. New users emit
 `users.create` through the registration provisioning logic; User, Kafka and Credit
 must be running for their 100-credit accounts to appear asynchronously.
 
@@ -104,7 +104,7 @@ For a complete local Compose reset:
 # Deletes local database contents AND other Compose volumes/caches.
 docker compose down --volumes
 docker compose up -d
-# Wait until user-service and supplier-service have finished migrations/startup.
+# Wait until User, Supplier and Credit have finished migrations/startup.
 make seed-demo
 ```
 
@@ -165,8 +165,9 @@ have committed when a later one fails; fix the error and rerun.
 
 There is no cross-database transaction or schema migration step. Wait for
 service migrations before seeding. The assignment CSV importer remains separate.
-To add a project-defined seed, put its SQL here and add an entry at the intended
-position in `manifest.json`; no Makefile or Go code change is needed.
+For another SQL fixture, put its file here and add an entry to `manifest.json`;
+the SQL runner handles it without a Makefile or Go code change. User fixtures
+remain in `users.json` and use the User command described above.
 
 Run the SQL runner directly from the repository root for Supplier fixtures only:
 
