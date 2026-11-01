@@ -1,7 +1,6 @@
 package seed
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func ensureDomain(ctx context.Context, db *gorm.DB, fixture models.AllowedEmailDomain) error {
+func ensureDomain(db *gorm.DB, fixture models.AllowedEmailDomain) error {
 	var active models.AllowedEmailDomain
 	err := db.Where("domain = ?", fixture.Domain).Take(&active).Error
 	if err == nil {

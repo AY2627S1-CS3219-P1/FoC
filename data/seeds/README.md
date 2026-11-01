@@ -178,13 +178,12 @@ go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
 The `--project-dir` option selects a Compose project directory (default `.`).
 Manifest file paths are relative to the manifest, independent of this option.
 
-Seed integration tests require Docker and use disposable databases/brokers,
-the real Credit executable, and a test server for public keys.
+The SQL runner's unit tests and Docker-backed PostgreSQL integration test can be
+run as follows:
 
 ```sh
 (cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)
 (cd pkg && GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m)
-(cd user-service && GOWORK=off go test -mod=readonly -tags=integration ./internal/seed -count=1 -timeout=8m)
 ```
 
 To run outside Compose, apply migrations and supply host-accessible connection

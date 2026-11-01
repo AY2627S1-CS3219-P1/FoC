@@ -185,8 +185,6 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   (GORM persistence over `internal/models`). New sqlc-backed domains may keep
   their repository with the domain package when that keeps the feature
   cohesive.
-- Seed-only GORM persistence belongs under `internal/seed`; keep it out of the
-  application `internal/store.Store` and production service composition.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
 - Supplier and Order use domain packages with consumer-owned read/transaction

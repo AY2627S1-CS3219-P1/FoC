@@ -44,7 +44,7 @@ func (s Seeder) Run(ctx context.Context, fixtures Fixtures, reset bool) error {
 				return fmt.Errorf("seed user %s: %w", fixture.ID, err)
 			}
 		}
-		if err := ensureDomain(ctx, tx, models.AllowedEmailDomain{
+		if err := ensureDomain(tx, models.AllowedEmailDomain{
 			BaseModel: models.BaseModel{ID: fixtures.Domain.ID}, Domain: fixtures.Domain.Domain,
 		}); err != nil {
 			return err

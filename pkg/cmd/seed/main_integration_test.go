@@ -22,7 +22,7 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	defer cancel()
 	start := exec.CommandContext(ctx, "docker", "run", "--rm", "-d",
 		"-e", "POSTGRES_USER=foc", "-e", "POSTGRES_PASSWORD=fixture-test-only",
-		"-e", "USER_DB=user_seed_test", "-e", "SUPPLIER_DB=supplier_seed_test", "postgis/postgis:18-3.6")
+		"-e", "SUPPLIER_DB=supplier_seed_test", "postgis/postgis:18-3.6")
 	output, err := start.CombinedOutput()
 	if err != nil {
 		t.Fatalf("start PostgreSQL: %v: %s", err, output)
@@ -83,13 +83,12 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 		}
 		return output
 	}
-	mustSQL("postgres", "CREATE DATABASE user_seed_test;")
 	mustSQL("postgres", "CREATE DATABASE supplier_seed_test;")
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, target := range []struct{ database, path string }{{"user_seed_test", "user-service/migrations"}, {"supplier_seed_test", "supplier-service/database/schema"}} {
+	for _, target := range []struct{ database, path string }{{"supplier_seed_test", "supplier-service/database/schema"}} {
 		paths, err := filepath.Glob(filepath.Join(root, target.path, "*.sql"))
 		if err != nil || len(paths) == 0 {
 			t.Fatalf("migration files: %v", err)
@@ -195,9 +194,9 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 		t,
 		directory,
 		[]fixture{
-			{File: "z-first.sql", Database: "USER_DB"},
-			{File: "a-fail.sql", Database: "USER_DB"},
-			{File: "m-last.sql", Database: "USER_DB"},
+			{File: "z-first.sql", Database: "SUPPLIER_DB"},
+			{File: "a-fail.sql", Database: "SUPPLIER_DB"},
+			{File: "m-last.sql", Database: "SUPPLIER_DB"},
 		},
 	)
 	err = run(ctx, badPath, false, execute, io.Discard)
@@ -205,7 +204,7 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 		t.Fatalf("expected second-file failure: %v", err)
 	}
 	if got := mustSQL(
-		"user_seed_test",
+		"supplier_seed_test",
 		"SELECT string_agg(marker,',' ORDER BY marker) FROM runner_order",
 	); got != "first" {
 		t.Fatalf("transaction rollback/failure handling: %s", got)
