@@ -101,6 +101,9 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 		var err error
 		connection, dialErr := kafkago.DialContext(handshake, "tcp", address)
 		if dialErr == nil {
+			// A broker that accepts but never answers must not pin the loop:
+			// bound each attempt so the handshake deadline stays observable.
+			_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
 			err = connection.CreateTopics(topics...)
 			_ = connection.Close()
 			if err == nil {
