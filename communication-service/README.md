@@ -17,9 +17,17 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Users without a linked chat are skipped. Notifications run only when the bot started and `KAFKA_BROKERS` is set.
 
 - **At least once.** After each send, `order_notifications_sent` records the event and recipient, and a redelivered event skips recorded recipients. A crash between sending and recording can repeat one message.
-- **Stale events are skipped.** Events more than an hour old aren't sent. This also stops a new consumer group, which starts from the earliest offset, from sending an old backlog.
+- **Each notification has a delivery class.** It decides what happens when a message can't go out promptly, during an outage, retries or a consumer restart:
+
+  | Class | Notifications |
+  | -- | -- |
+  | Drop if late: sent only within 15 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), courier unassigned (to the requester), picked up |
+  | Still current: sent however late, but only while no later status change has been applied to the order | Offer accepted (to the courier), unassigned (to the removed courier) |
+  | Always: sent however late | Delivered, and every outcome: completed, cancelled, expired, failed, rejected |
+
+- **A new environment skips its backlog.** The first time notifications run, `notifications_start` records the time, and earlier events aren't sent. The consumer still reads them from the earliest offset to fill in chat participants. A group that loses its offsets, such as after a week-long outage, replays retained events: anything already sent is skipped, and the rest follow their class.
 - **Unreachable chats are unlinked.** If Telegram says the user blocked the bot or the chat doesn't exist, the chat is unlinked and the message skipped. Other 4xx rejections are logged and skipped, because they would fail every time.
-- **Telegram outages pause notifications.** A 429, 5xx or network error stops the consumer without committing the event. It restarts after 1 second, doubling up to 1 minute, and retries the event, so later events wait until Telegram recovers. A 429 response can extend this delay to Telegram's `retry_after`. The one-hour stale-event cutoff still applies during retries; delivery classification is tracked in [#200](https://github.com/AY2627S1-CS3219-P1/FoC/issues/200).
+- **Telegram outages pause notifications.** A 429, 5xx or network error stops the consumer without committing the event. It restarts after 1 second, doubling up to 1 minute, and retries the event, so later events wait until Telegram recovers. A 429 response can extend this delay to Telegram's `retry_after`. Drop-if-late notifications that are still failing after 15 minutes are skipped on a later retry.
 
 ## Order chat
 

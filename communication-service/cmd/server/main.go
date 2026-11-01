@@ -225,10 +225,12 @@ func startNotifications(
 		log.Warn("KAFKA_BROKERS is not set; order notifications are disabled")
 		return
 	}
+	deliveries := &notify.PostgresDeliveries{Queries: db.New(pool)}
 	handler := &notify.Handler{
 		Sender:       telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
 		Links:        links,
-		Deliveries:   &notify.PostgresDeliveries{Queries: db.New(pool)},
+		Deliveries:   deliveries,
+		Orders:       chats,
 		ReplyTargets: chats,
 		Log:          log,
 		Now:          time.Now,
@@ -241,6 +243,19 @@ func startNotifications(
 		return handler.Handle(ctx, meta, e)
 	}
 	workers.Go(func() {
+		for {
+			since, err := deliveries.Start(ctx, time.Now())
+			if err == nil {
+				handler.Since = since
+				break
+			}
+			log.Error("can't read when notifications started; retrying", "err", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(consumerRestartDelay):
+			}
+		}
 		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle)
 	})
 }
