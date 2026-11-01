@@ -5,6 +5,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/google/uuid"
@@ -22,6 +23,24 @@ func ActorID(ctx context.Context) (uuid.UUID, error) {
 		return uuid.Nil, ErrMissingActor
 	}
 	return id, nil
+}
+
+// Caller is the verified request caller. Role semantics are exposed as
+// methods so call sites never compare the raw Role string.
+type Caller struct {
+	auth.Caller
+}
+
+func (c Caller) IsSuspended() bool {
+	return tokenclaims.Role(c.Role) == tokenclaims.RoleSuspendedUser
+}
+
+func Actor(ctx context.Context) (Caller, error) {
+	caller, ok := auth.CallerFromContext(ctx)
+	if !ok {
+		return Caller{}, ErrMissingActor
+	}
+	return Caller{Caller: caller}, nil
 }
 
 func Role(role models.RoleName) userv1.UserRole {

@@ -6,6 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
@@ -14,6 +15,7 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -25,6 +27,7 @@ type ProtectedRoutes struct {
 	Profile        *profilehandler.Handler
 	Admin          *adminhandler.Handler
 	AllowedDomains *allowedadmin.AllowedDomainHandler
+	Review         *review.Handler
 	Authenticate   func(http.Handler) http.Handler
 	Users          ActorReader
 }
@@ -69,6 +72,11 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 		adminPath, adminService := userv1connect.NewUserAdminServiceHandler(
 			p.Admin, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(adminPath, adminService)
+		reviewPath, reviewService := reviewv1connect.NewReviewServiceHandler(
+			p.Review,
+			connect.WithInterceptors(validate.NewInterceptor(), review.AuthorizeInterceptor(), normalizeRPCError()),
+			connect.WithReadMaxBytes(maxRPCMessageBytes))
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(reviewPath, reviewService)
 		allowedDomainsPath, allowedDomainsService := userv1connect.NewAllowedDomainAdminServiceHandler(
 			p.AllowedDomains,
 			connect.WithInterceptors(
