@@ -51,7 +51,12 @@ func (s *Supplier) GetLocation(ctx context.Context, id string) (app.SelectableLo
 		return app.SelectableLocation{}, app.ErrUnavailable
 	}
 	return app.SelectableLocation{
-		Snapshot: app.LocationSnapshot{LocationID: locationID.String(), Name: loc.GetName(), BuildingName: loc.GetBuilding().GetName(), Floor: loc.Floor},
+		Snapshot: app.LocationSnapshot{
+			LocationID:   locationID.String(),
+			Name:         loc.GetName(),
+			BuildingName: loc.GetBuilding().GetName(),
+			Floor:        loc.Floor,
+		},
 		Archived: loc.ArchivedAt != nil,
 	}, nil
 }
@@ -136,7 +141,9 @@ func authorize[T any](ctx context.Context, request *connect.Request[T], source T
 }
 
 func (c *Credit) Reserve(ctx context.Context, intent app.ReservationIntent) error {
-	request := connect.NewRequest(&creditpb.ReserveRequest{RequestId: intent.OrderID, RequesterId: intent.RequesterID, Amount: intent.Amount})
+	request := connect.NewRequest(
+		&creditpb.ReserveRequest{RequestId: intent.OrderID, RequesterId: intent.RequesterID, Amount: intent.Amount},
+	)
 	if err := authorize(ctx, request, c.Tokens); err != nil {
 		return err
 	}
@@ -148,14 +155,17 @@ func (c *Credit) Reserve(ctx context.Context, intent app.ReservationIntent) erro
 		return app.ErrUnavailable
 	}
 	v := response.Msg.GetReservation()
-	if v == nil || v.RequestId != intent.OrderID || v.RequesterId != intent.RequesterID || v.OriginalAmount != intent.Amount {
+	if v == nil || v.RequestId != intent.OrderID || v.RequesterId != intent.RequesterID ||
+		v.OriginalAmount != intent.Amount {
 		return app.ErrUnavailable
 	}
 	return nil
 }
 
 func (c *Credit) ReleaseExpired(ctx context.Context, id string) error {
-	request := connect.NewRequest(&creditpb.ReleaseReservationRequest{RequestId: id, Reason: creditpb.ReleaseReason_RELEASE_REASON_EXPIRED})
+	request := connect.NewRequest(
+		&creditpb.ReleaseReservationRequest{RequestId: id, Reason: creditpb.ReleaseReason_RELEASE_REASON_EXPIRED},
+	)
 	if err := authorize(ctx, request, c.Tokens); err != nil {
 		return err
 	}
@@ -164,7 +174,8 @@ func (c *Credit) ReleaseExpired(ctx context.Context, id string) error {
 		return app.ErrUnavailable
 	}
 	v := response.Msg.GetReservation()
-	if v == nil || v.RequestId != id || v.Status != creditpb.ReservationStatus_RESERVATION_STATUS_RELEASED || v.ReservedAmount != 0 {
+	if v == nil || v.RequestId != id || v.Status != creditpb.ReservationStatus_RESERVATION_STATUS_RELEASED ||
+		v.ReservedAmount != 0 {
 		return app.ErrUnavailable
 	}
 	return nil
@@ -186,7 +197,12 @@ func (c *Credit) GetReservation(ctx context.Context, id string) (app.Reservation
 	if v == nil || v.RequestId != id || v.OriginalAmount < 0 || v.ReservedAmount < 0 {
 		return app.ReservationView{}, app.ErrUnavailable
 	}
-	view := app.ReservationView{OrderID: v.RequestId, RequesterID: v.RequesterId, OriginalAmount: v.OriginalAmount, ReservedAmount: v.ReservedAmount}
+	view := app.ReservationView{
+		OrderID:        v.RequestId,
+		RequesterID:    v.RequesterId,
+		OriginalAmount: v.OriginalAmount,
+		ReservedAmount: v.ReservedAmount,
+	}
 	switch v.Status {
 	case creditpb.ReservationStatus_RESERVATION_STATUS_HELD:
 		if v.ActiveAdjustment != nil || v.Settlement != nil {

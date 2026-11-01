@@ -17,7 +17,14 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	storage, err := images.NewS3(ctx, images.S3Config{Bucket: os.Getenv("ORDER_S3_BUCKET"), Endpoint: os.Getenv("ORDER_S3_ENDPOINT"), Region: os.Getenv("AWS_REGION")})
+	storage, err := images.NewS3(
+		ctx,
+		images.S3Config{
+			Bucket:   os.Getenv("ORDER_S3_BUCKET"),
+			Endpoint: os.Getenv("ORDER_S3_ENDPOINT"),
+			Region:   os.Getenv("AWS_REGION"),
+		},
+	)
 	if err != nil {
 		slog.Error("invalid local storage configuration")
 		os.Exit(1)

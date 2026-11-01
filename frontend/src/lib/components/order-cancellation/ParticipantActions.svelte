@@ -22,8 +22,8 @@
 		(courier && [OrderStatus.AWAITING_PICKUP, OrderStatus.DELIVERING].includes(order.status)));
 	const canRecord = $derived(courier && Boolean(order.pickedUpAt) && [OrderStatus.CANCELLED, OrderStatus.FAILED].includes(order.status));
 	const consequence = $derived(courier && order.status === OrderStatus.AWAITING_PICKUP
-		? 'Withdraw before pickup. The order reopens only after Credit confirms the original reward reservation.'
-		: courier ? 'Cancel after pickup. The order fails, reserved credits return to the requester, and an account warning is requested.'
+		? 'Withdraw before pickup. Once the reward is ready, another courier can accept the order.'
+		: courier ? 'Cancel after pickup. The order fails and reserved credits return to the requester. An account warning will be requested.'
 		: order.pickedUpAt ? 'Cancel after pickup. The reserved reward is paid to the courier.'
 		: 'Cancel before pickup. Reserved credits return to you.');
 
@@ -54,8 +54,8 @@
 			saved = loadCancellation(sessionStorage, callerId, order.id);
 			resetCancel({ data: { reason: saved?.reason ?? '' } });
 			ready = true;
-			if (saved) message = 'A previous cancellation result is uncertain or pending. Retry its saved request.';
-		} catch { error = 'Saved cancellation data cannot be read safely. Check My Orders before clearing browser storage.'; }
+			if (saved) message = 'Your cancellation is still being confirmed. Try again to check the result.';
+		} catch { error = 'Could not restore your cancellation. Check My Orders before trying again.'; }
 	});
 	onDestroy(() => { epoch++; });
 
@@ -69,39 +69,39 @@
 		if (busy || !ready || !callerId || input.orderId !== order.id) return;
 		const current = epoch, caller = callerId, id = order.id;
 		let sent = false;
-		busy = true; error = ''; message = 'Cancellation pending. No success has been confirmed.';
+		busy = true; error = ''; message = 'Submitting cancellation…';
 		try {
 			sessionStorage.setItem(cancellationStorageKey(caller, id), JSON.stringify(input));
 			saved = input; sent = true;
 			const result = await api.cancel(input);
 			if (current !== epoch) return;
 			if (result.status === CancellationStatus.PENDING) {
-				message = 'Withdrawal pending. Waiting for Credit confirmation. Pickup is blocked. Retry the saved request to check its result.';
+				message = 'Still confirming your withdrawal. Pickup is paused. Try again to check the result.';
 			} else {
 				message = result.status === CancellationStatus.SUPERSEDED
-					? 'Withdrawal was superseded by another action. Check the current order.'
-					: 'Cancellation succeeded. Check the current order. Any terminal credit settlement is asynchronous.';
+					? 'The order changed before your withdrawal finished. Check its current status.'
+					: 'Cancellation confirmed. Your credit balance may take a moment to update.';
 				try { sessionStorage.removeItem(cancellationStorageKey(caller, id)); saved = null; }
-				catch { ready = false; error = 'The result is confirmed, but saved browser data could not be cleared.'; }
+				catch { ready = false; error = 'Confirmed, but we could not finish updating this page. Check My Orders before trying again.'; }
 			}
 		} catch (cause) {
 			if (current !== epoch) return;
 			const code = ConnectError.from(cause).code;
 			if (!sent) {
 				ready = false; message = 'Cancellation not submitted.';
-				error = 'Browser storage could not retain this request. Nothing was sent. Check browser storage before trying cancellation again.';
+				error = 'Cancellation was not sent. Check that your browser allows site storage, then try again.';
 			} else if ([Code.Aborted, Code.InvalidArgument, Code.FailedPrecondition].includes(code)) {
 				try { sessionStorage.removeItem(cancellationStorageKey(caller, id)); saved = null; }
 				catch { ready = false; }
-				error = 'Cancellation rejected. The order, input or withdrawal prerequisites changed. Refresh, review its consequences, and confirm again.';
+				error = 'The order changed or could not be cancelled. Refresh, check the details, and try again.';
 				message = 'Cancellation rejected.';
 			} else {
-				error = 'Cancellation result is unknown. Keep the saved request and retry it. Do not submit a new cancellation.';
-				message = 'Cancellation pending or failed to respond.';
+				error = 'We could not confirm your cancellation. Try again to check the result.';
+				message = 'Cancellation not yet confirmed.';
 			}
 		} finally {
 			if (current === epoch) {
-				try { await refresh(); } catch { if (current === epoch) error += ' Refresh failed. Retry refresh.'; }
+				try { await refresh(); } catch { if (current === epoch) error += ' Could not update the order. Refresh to try again.'; }
 				if (current === epoch) busy = false;
 			}
 		}
@@ -116,10 +116,10 @@
 			else if (action === 'receipt') await api.receipt(id);
 			else await api.recordLocation(id, location);
 			if (current !== epoch) return;
-			message = action === 'location' ? 'Final item location saved.' : action === 'pickup' ? 'Pickup confirmed.' : 'Receipt confirmed. Credit settlement is asynchronous.';
+			message = action === 'location' ? 'Final item location saved.' : action === 'pickup' ? 'Pickup confirmed.' : 'Receipt confirmed. Your credit balance may take a moment to update.';
 		} catch {
 			if (current !== epoch) return;
-			error = `${action === 'location' ? 'Saving final location' : action === 'pickup' ? 'Confirming pickup' : 'Confirming receipt'} failed or its result is unknown. Input retained. Refresh and retry if the action is still available.`;
+			error = `${action === 'location' ? 'Saving final location' : action === 'pickup' ? 'Confirming pickup' : 'Confirming receipt'} is unconfirmed. Your input is still here. Refresh and retry if the action is still available.`;
 		} finally {
 			if (current === epoch) {
 				try { await refresh(); } catch { if (current === epoch) error += ' Refresh failed.'; }
@@ -133,17 +133,20 @@
 	{#if error}<p role="alert">{error}</p>{/if}
 	{#if message}<p role="status">{message}</p>{/if}
 	{#if saved}
-		<p>Saved cancellation reason: {saved.reason || 'Not supplied'}</p>
-		<Button variant="outlined" disabled={busy || !ready} onclick={() => { if (saved) void cancel(saved); }}>Retry saved cancellation</Button>
+		<p>Cancellation reason: {saved.reason || 'Not supplied'}</p>
+		<Button variant="outlined" disabled={busy || !ready} onclick={() => { if (saved) void cancel(saved); }}>Check cancellation</Button>
 	{:else if canCancel}
 		<p>{consequence}</p>
 		<form method="POST" use:enhanceCancel>
-			<TextFieldOutlinedMultiline label="Cancellation reason (optional, maximum 500 characters)" name="reason" bind:value={$cancelForm.reason} disabled={busy} rows={3} error={Boolean($cancelErrors.reason)} aria-invalid={$cancelErrors.reason ? 'true' : undefined} />
-			{#if $cancelErrors.reason}<p role="alert">{$cancelErrors.reason[0]}</p>{/if}
-			<Button type="submit" variant="outlined" disabled={busy || !ready || (courier && order.cancellationPending)}>Cancel or withdraw</Button>
+			<div class="field">
+			<TextFieldOutlinedMultiline label="Cancellation reason (optional)" name="reason" bind:value={$cancelForm.reason} disabled={busy} rows={3} error={Boolean($cancelErrors.reason)} aria-invalid={$cancelErrors.reason ? 'true' : undefined} aria-describedby={$cancelErrors.reason ? 'cancellation-reason-help cancellation-reason-error' : 'cancellation-reason-help'} />
+			<small id="cancellation-reason-help" class="secondary-text">Up to 500 characters.</small>
+			{#if $cancelErrors.reason}<p id="cancellation-reason-error" class="field-error" role="alert">{$cancelErrors.reason[0]}</p>{/if}
+			</div>
+			<Button type="submit" variant="outlined" disabled={busy || !ready || (courier && order.cancellationPending)}>{courier && order.status === OrderStatus.AWAITING_PICKUP ? 'Withdraw' : 'Cancel order'}</Button>
 		</form>
 	{/if}
-	{#if order.cancellationPending}<p role="status">Withdrawal is pending. Pickup is blocked until reservation recovery finishes.</p>{/if}
+	{#if order.cancellationPending}<p role="status">Still confirming the withdrawal. Pickup is paused.</p>{/if}
 	{#if courier && order.status === OrderStatus.AWAITING_PICKUP}
 		<Button disabled={busy || Boolean(saved) || order.cancellationPending} onclick={() => void perform('pickup')}>Confirm pickup</Button>
 	{/if}
@@ -153,12 +156,15 @@
 	{#if (requester || courier) && order.pickedUpAt && [OrderStatus.CANCELLED, OrderStatus.FAILED].includes(order.status)}
 		<p>Final item location: {order.itemLocation || 'Final location pending'}</p>
 	{:else if (requester || courier) && order.status === OrderStatus.CANCELLED && !order.pickedUpAt}
-		<p>Courier does not hold the item. Cancellation occurred before pickup.</p>
+		<p>Cancelled before pickup. The courier does not hold the item.</p>
 	{/if}
 	{#if canRecord}
 		<form method="POST" use:enhanceLocation>
-			<TextFieldOutlinedMultiline label="Final item location (1 to 500 characters)" name="location" bind:value={$locationForm.location} disabled={busy} rows={3} error={Boolean($locationErrors.location)} aria-invalid={$locationErrors.location ? 'true' : undefined} />
-			{#if $locationErrors.location}<p role="alert">{$locationErrors.location[0]}</p>{/if}
+			<div class="field">
+			<TextFieldOutlinedMultiline label="Final item location" name="location" bind:value={$locationForm.location} disabled={busy} rows={3} error={Boolean($locationErrors.location)} aria-invalid={$locationErrors.location ? 'true' : undefined} aria-describedby={$locationErrors.location ? 'final-location-help final-location-error' : 'final-location-help'} />
+			<small id="final-location-help" class="secondary-text">1 to 500 characters.</small>
+			{#if $locationErrors.location}<p id="final-location-error" class="field-error" role="alert">{$locationErrors.location[0]}</p>{/if}
+			</div>
 			<Button type="submit" disabled={busy || Boolean(saved)}>Save final item location</Button>
 		</form>
 	{/if}
@@ -171,7 +177,7 @@
 <Dialog bind:open={confirmOpen} headline="Confirm cancellation" aria-label="Confirm cancellation" buttons={confirmationButtons}>
 	{#if confirmation}
 		<p>{confirmation.consequence}</p>
-		<p>Credit settlement is asynchronous.</p>
+		<p>Your credit balance may take a moment to update.</p>
 	{/if}
 </Dialog>
 
@@ -179,5 +185,7 @@
 	.participant-actions, form { display: grid; gap: .75rem; min-width: 0; }
 	.participant-actions { margin-top: 1rem; }
 	form { width: 100%; }
+	.field :global(.m3-container) { width: 100%; min-width: 0; }
+	.participant-actions :global(button) { justify-self: start; max-width: 100%; height: auto; min-height: 2.5rem; padding-block: .5rem; white-space: normal; }
 	p { margin: 0; overflow-wrap: anywhere; }
 </style>

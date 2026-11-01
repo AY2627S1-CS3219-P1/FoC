@@ -19,7 +19,7 @@ func TestPostgresReservations(t *testing.T) {
 	pool := postgres.Setup(t)
 	clock := func() time.Time { return time.Now().UTC() }
 	s := reservation.NewService(reservation.NewPostgresRepository(pool), clock, reservation.LatenessPayout)
-	accounts := account.NewService(account.NewPostgresStore(pool))
+	accounts := account.NewService(account.NewPostgresStore(pool), nil, clock)
 	ctx := context.Background()
 	t.Cleanup(func() { postgres.CheckLedger(t, pool) })
 
@@ -77,7 +77,8 @@ func TestPostgresReservations(t *testing.T) {
 			t.Fatalf("reserve replay: %+v, first %+v", r, reserved)
 		}
 		r = must(t)(s.AdjustReservation(ctx, order, offer, cour, 40))
-		if r.Status != reservation.Assigned || r.ReservedAmount != 40 || r.Adjustment == nil || r.Adjustment.CourierID != cour {
+		if r.Status != reservation.Assigned || r.ReservedAmount != 40 || r.Adjustment == nil ||
+			r.Adjustment.CourierID != cour {
 			t.Fatalf("adjust replay: %+v", r)
 		}
 		if r.Revision != 2 || !sameStamps(r, adjusted) {
@@ -129,7 +130,10 @@ func TestPostgresReservations(t *testing.T) {
 		if err != nil || !applied || r.Settlement.PaidToCourier != 25 || r.Settlement.Completion != nil {
 			t.Fatalf("apply: %+v %v %v", r, applied, err)
 		}
-		_, _, err = s.ApplyOutcome(ctx, reservation.OrderOutcome{OrderID: order, Type: reservation.OrderFailed, RequesterID: req})
+		_, _, err = s.ApplyOutcome(
+			ctx,
+			reservation.OrderOutcome{OrderID: order, Type: reservation.OrderFailed, RequesterID: req},
+		)
 		expect(t, err, reservation.ErrOutcomeMismatch)
 	})
 
@@ -196,7 +200,14 @@ func TestPostgresReservations(t *testing.T) {
 		if _, err := accounts.GetAccount(ctx, user); !errors.Is(err, account.ErrAccountNotFound) {
 			t.Fatalf("get: %v", err)
 		}
-		if _, err := accounts.ListLedgerEntries(ctx, user, account.Page{}); !errors.Is(err, account.ErrAccountNotFound) {
+		if _, err := accounts.ListLedgerEntries(
+			ctx,
+			user,
+			account.Page{},
+		); !errors.Is(
+			err,
+			account.ErrAccountNotFound,
+		) {
 			t.Fatalf("list: %v", err)
 		}
 
@@ -217,7 +228,9 @@ func TestPostgresReservations(t *testing.T) {
 			t.Fatalf("reservation revision: %d", r.Revision)
 		}
 		var revision int64
-		if err := pool.QueryRow(ctx, `SELECT revision FROM accounts WHERE user_id = $1`, req).Scan(&revision); err != nil || revision != 3 {
+		if err := pool.QueryRow(ctx, `SELECT revision FROM accounts WHERE user_id = $1`, req).
+			Scan(&revision); err != nil ||
+			revision != 3 {
 			t.Fatalf("account revision after grant and reserve: %d %v", revision, err)
 		}
 	})
@@ -225,7 +238,11 @@ func TestPostgresReservations(t *testing.T) {
 	t.Run("terminal reservations are immutable in the database", func(t *testing.T) {
 		order := uuid.NewString()
 		must(t)(s.ReleaseReservation(ctx, order, reservation.Expired))
-		if _, err := pool.Exec(ctx, `UPDATE reservations SET release_reason = 'FAILED' WHERE order_id = $1`, order); err == nil {
+		if _, err := pool.Exec(
+			ctx,
+			`UPDATE reservations SET release_reason = 'FAILED' WHERE order_id = $1`,
+			order,
+		); err == nil {
 			t.Fatal("terminal reservation changed")
 		}
 	})
@@ -240,7 +257,8 @@ func TestPostgresReservations(t *testing.T) {
 			t.Fatal(err)
 		}
 		kinds := []account.Kind{page.Entries[0].Kind, page.Entries[1].Kind}
-		if page.PageInfo.TotalItems != 3 || page.PageInfo.TotalPages != 2 || kinds[0] != account.Release || kinds[1] != account.Reserve ||
+		if page.PageInfo.TotalItems != 3 || page.PageInfo.TotalPages != 2 || kinds[0] != account.Release ||
+			kinds[1] != account.Reserve ||
 			page.Entries[0].OrderID != order {
 			t.Fatalf("page: %+v", page)
 		}

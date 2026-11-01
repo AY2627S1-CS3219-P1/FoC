@@ -7,7 +7,9 @@
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService } from '$lib/services';
+	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
+	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 	let previousUser: string | undefined;
 	$effect(() => {
 		const currentUser = authService.user?.id;
@@ -80,6 +82,7 @@
 
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell">
+	<div class="snackbar-region"><SnackbarHost /></div>
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
@@ -99,6 +102,7 @@
 						>
 					{/each}
 				</div>
+				<CreditBalance />
 				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}
 					>{signingOut ? 'Signing out…' : 'Sign out'}</Button
 				>

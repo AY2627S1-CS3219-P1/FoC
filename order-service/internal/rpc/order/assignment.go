@@ -16,7 +16,10 @@ type AssignmentOperations interface {
 	AcceptOffer(context.Context, app.Caller, string) (app.AssignmentResult, error)
 }
 
-func (s *Server) MakeOffer(ctx context.Context, req *connect.Request[pb.MakeOfferRequest]) (*connect.Response[pb.MakeOfferResponse], error) {
+func (s *Server) MakeOffer(
+	ctx context.Context,
+	req *connect.Request[pb.MakeOfferRequest],
+) (*connect.Response[pb.MakeOfferResponse], error) {
 	caller := shared.Caller(ctx)
 	if caller.ID == "" || caller.Suspended {
 		return nil, shared.ConnectError(ctx, app.ErrForbidden)
@@ -32,7 +35,10 @@ func (s *Server) MakeOffer(ctx context.Context, req *connect.Request[pb.MakeOffe
 	return connect.NewResponse(&pb.MakeOfferResponse{Offer: shared.Offer(result)}), nil
 }
 
-func (s *Server) AcceptOrder(ctx context.Context, req *connect.Request[pb.AcceptOrderRequest]) (*connect.Response[pb.AcceptOrderResponse], error) {
+func (s *Server) AcceptOrder(
+	ctx context.Context,
+	req *connect.Request[pb.AcceptOrderRequest],
+) (*connect.Response[pb.AcceptOrderResponse], error) {
 	caller := shared.Caller(ctx)
 	if caller.ID == "" || caller.Suspended {
 		return nil, shared.ConnectError(ctx, app.ErrForbidden)
@@ -51,7 +57,10 @@ func (s *Server) AcceptOrder(ctx context.Context, req *connect.Request[pb.Accept
 	return connect.NewResponse(&pb.AcceptOrderResponse{Order: view, Attempt: attempt}), nil
 }
 
-func (s *Server) AcceptOffer(ctx context.Context, req *connect.Request[pb.AcceptOfferRequest]) (*connect.Response[pb.AcceptOfferResponse], error) {
+func (s *Server) AcceptOffer(
+	ctx context.Context,
+	req *connect.Request[pb.AcceptOfferRequest],
+) (*connect.Response[pb.AcceptOfferResponse], error) {
 	caller := shared.Caller(ctx)
 	if caller.ID == "" || caller.Suspended {
 		return nil, shared.ConnectError(ctx, app.ErrForbidden)
@@ -67,12 +76,18 @@ func (s *Server) AcceptOffer(ctx context.Context, req *connect.Request[pb.Accept
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&pb.AcceptOfferResponse{Order: view, Offer: shared.Offer(result.Offer), Attempt: attempt}), nil
+	return connect.NewResponse(
+		&pb.AcceptOfferResponse{Order: view, Offer: shared.Offer(result.Offer), Attempt: attempt},
+	), nil
 }
 
 // A retained attempt grants access to its own outcome, not to the current
 // aggregate's private data. Visibility and projection remain F0-owned.
-func (s *Server) assignmentView(ctx context.Context, caller app.Caller, result app.AssignmentResult) (*pb.Order, *pb.AssignmentAttemptResult, error) {
+func (s *Server) assignmentView(
+	ctx context.Context,
+	caller app.Caller,
+	result app.AssignmentResult,
+) (*pb.Order, *pb.AssignmentAttemptResult, error) {
 	var status pb.AssignmentAttemptStatus
 	switch result.Phase {
 	case app.AdjustmentPending:

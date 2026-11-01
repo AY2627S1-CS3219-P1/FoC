@@ -18,7 +18,11 @@ type CourierWarningConsumer struct {
 	Logic CourierWarningLogic
 }
 
-func (c *CourierWarningConsumer) Handle(ctx context.Context, _ kafka.Metadata, event *eventsv1.CourierWarningRequested) error {
+func (c *CourierWarningConsumer) Handle(
+	ctx context.Context,
+	_ kafka.Metadata,
+	event *eventsv1.CourierWarningRequested,
+) error {
 	if event == nil {
 		return fmt.Errorf("courier warning event is nil")
 	}

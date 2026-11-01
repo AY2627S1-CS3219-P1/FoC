@@ -34,7 +34,10 @@ func TestRecordCourierWarning(t *testing.T) {
 	eventID, courierID, requestID := uuid.New(), uuid.New(), uuid.New()
 	occurredAt := time.Date(2026, time.October, 12, 10, 30, 0, 0, time.FixedZone("SGT", 8*60*60))
 	err := service.RecordCourierWarning(context.Background(), CourierWarningRequest{
-		EventID: eventID.String(), CourierID: courierID.String(), RequestID: requestID.String(), Reason: "  late cancellation  ",
+		EventID:    eventID.String(),
+		CourierID:  courierID.String(),
+		RequestID:  requestID.String(),
+		Reason:     "  late cancellation  ",
 		OccurredAt: occurredAt,
 	})
 	if err != nil {
@@ -44,8 +47,12 @@ func TestRecordCourierWarning(t *testing.T) {
 		t.Fatalf("created warnings = %d, want 1", len(repository.created))
 	}
 	got := repository.created[0]
-	if got.UserID != courierID || got.RequestID != requestID || got.Reason != "late cancellation" || got.Status != StatusActive ||
-		got.SourceEventID == nil || *got.SourceEventID != eventID || !got.CreatedAt.Equal(occurredAt) || got.CreatedAt.Location() != time.UTC {
+	if got.UserID != courierID || got.RequestID != requestID || got.Reason != "late cancellation" ||
+		got.Status != StatusActive ||
+		got.SourceEventID == nil ||
+		*got.SourceEventID != eventID ||
+		!got.CreatedAt.Equal(occurredAt) ||
+		got.CreatedAt.Location() != time.UTC {
 		t.Fatalf("created warning = %+v", got)
 	}
 }
@@ -116,7 +123,14 @@ func TestCourierWarningConsumerRejectsInvalidTimestamp(t *testing.T) {
 				OccurredAt: timestamp,
 			}
 
-			if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); !errors.Is(err, ErrInvalidRequest) {
+			if err := consumer.Handle(
+				context.Background(),
+				kafka.Metadata{},
+				event,
+			); !errors.Is(
+				err,
+				ErrInvalidRequest,
+			) {
 				t.Fatalf("timestamp %v: got %v, want invalid request", timestamp, err)
 			}
 			if len(repository.created) != 0 {

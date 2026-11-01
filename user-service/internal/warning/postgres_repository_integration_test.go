@@ -70,7 +70,8 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 		t.Fatalf("duplicate event: created=%v err=%v", created, err)
 	}
 	warnings, err := repository.ListByUser(ctx, user.ID)
-	if err != nil || len(warnings) != 1 || warnings[0].RequestID != requestID || warnings[0].CreatedBy == nil || *warnings[0].CreatedBy != actor.ID {
+	if err != nil || len(warnings) != 1 || warnings[0].RequestID != requestID || warnings[0].CreatedBy == nil ||
+		*warnings[0].CreatedBy != actor.ID {
 		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
 	}
 	if warnings[0].CreatedAt.Before(beforeCreate) || warnings[0].CreatedAt.After(time.Now().UTC()) {
@@ -81,10 +82,21 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	reason := "appeal overturned"
 	updatedBy := actor.ID
 	removed, err := repository.Remove(ctx, warnings[0].ID, removedAt, &reason, nil, &updatedBy)
-	if err != nil || removed.Status != StatusRemoved || removed.RemovedAt == nil || removed.UpdatedBy == nil || *removed.UpdatedBy != actor.ID {
+	if err != nil || removed.Status != StatusRemoved || removed.RemovedAt == nil || removed.UpdatedBy == nil ||
+		*removed.UpdatedBy != actor.ID {
 		t.Fatalf("remove warning: %+v err=%v", removed, err)
 	}
-	if _, err := repository.Remove(ctx, warnings[0].ID, removedAt, &reason, nil, &updatedBy); !errors.Is(err, ErrNotFound) {
+	if _, err := repository.Remove(
+		ctx,
+		warnings[0].ID,
+		removedAt,
+		&reason,
+		nil,
+		&updatedBy,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
 		t.Fatalf("repeat removal: %v", err)
 	}
 	warnings, err = repository.ListByUser(ctx, user.ID)
@@ -115,7 +127,13 @@ func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
 		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
 	}
 	if !warnings[0].CreatedAt.Equal(newerAt) || !warnings[1].CreatedAt.Equal(olderAt) {
-		t.Fatalf("warning times = [%s, %s], want [%s, %s]", warnings[0].CreatedAt, warnings[1].CreatedAt, newerAt, olderAt)
+		t.Fatalf(
+			"warning times = [%s, %s], want [%s, %s]",
+			warnings[0].CreatedAt,
+			warnings[1].CreatedAt,
+			newerAt,
+			olderAt,
+		)
 	}
 
 	// Replaying an event must not change the original issue date.
@@ -127,7 +145,8 @@ func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
 		t.Fatalf("duplicate event: created=%v err=%v", created, err)
 	}
 	warnings, err = repository.ListByUser(ctx, user.ID)
-	if err != nil || len(warnings) != 2 || !warnings[0].CreatedAt.Equal(newerAt) || !warnings[1].CreatedAt.Equal(olderAt) {
+	if err != nil || len(warnings) != 2 || !warnings[0].CreatedAt.Equal(newerAt) ||
+		!warnings[1].CreatedAt.Equal(olderAt) {
 		t.Fatalf("replay changed warning history: warnings=%+v err=%v", warnings, err)
 	}
 }

@@ -60,7 +60,10 @@ func TestUsersDelete(t *testing.T) {
 	user := createStoreUser(t, store, "user@example.com")
 
 	sessionHash := testDigest("delete-session")
-	if err := store.Sessions.Create(ctx, &models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}); err != nil {
+	if err := store.Sessions.Create(
+		ctx,
+		&models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.AddFavourite(ctx, user.ID, uuid.New(), now); err != nil {
@@ -97,4 +100,49 @@ func TestUsersDelete(t *testing.T) {
 		t.Fatalf("repeated delete: %v", err)
 	}
 	createStoreUser(t, store, "user@example.com")
+}
+
+func TestAdminWarningsAndUserstamps(t *testing.T) {
+	store, _ := setupAuthStore(t)
+	admin := createStoreUser(t, store, "admin@example.com")
+	user := createStoreUser(t, store, "user@example.com")
+	ctx := context.Background()
+
+	ev := uuid.New()
+	first := &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "late", SourceEventID: &ev}
+	first.CreatedBy = &admin.ID
+	created, err := store.CreateWarning(ctx, first)
+	if err != nil || !created {
+		t.Fatalf("create warning: %v, %v", created, err)
+	}
+	if first.CreatedBy == nil || *first.CreatedBy != admin.ID {
+		t.Fatalf("created_by = %v, want %v", first.CreatedBy, admin.ID)
+	}
+
+	replay := &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "late", SourceEventID: &ev}
+	replay.ID = missingID
+	created, err = store.CreateWarning(ctx, replay)
+	if err != nil || created || replay.ID != first.ID {
+		t.Fatalf("replay: created=%v id=%v err=%v, want id %v", created, replay.ID, err, first.ID)
+	}
+
+	reason := "overturned"
+	removed, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID)
+	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil ||
+		*removed.UpdatedBy != admin.ID {
+		t.Fatalf("remove warning: %+v, %v", removed, err)
+	}
+	if _, err := store.RemoveWarning(
+		ctx,
+		first.ID,
+		time.Now().UTC(),
+		&reason,
+		nil,
+		&admin.ID,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
+		t.Fatalf("repeated remove: %v", err)
+	}
 }

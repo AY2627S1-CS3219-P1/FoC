@@ -38,7 +38,11 @@ func TestAuthenticationDomainPolicy(t *testing.T) {
 					case "register":
 						token := addRegistrationChallenge(t, store, now)
 						attempt = func() error {
-							_, _, err := svc.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"})
+							_, _, err := svc.Register(
+								ctx,
+								token,
+								jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+							)
 							return err
 						}
 					case "login", "refresh":
@@ -84,14 +88,18 @@ func TestAuthenticationDomainPolicy(t *testing.T) {
 					}
 					var external api.ExternalError
 					if result == "disallowed" {
-						if !errors.Is(err, ErrEmailDomainNotAllowed) || !errors.As(err, &external) || external.Code() != http.StatusForbidden {
+						if !errors.Is(err, ErrEmailDomainNotAllowed) || !errors.As(err, &external) ||
+							external.Code() != http.StatusForbidden {
 							t.Fatalf("expected shared Forbidden domain error, got %v", err)
 						}
 					} else if !errors.Is(err, lookupFailure) || errors.As(err, &external) {
 						t.Fatalf("lookup failure was lost or misclassified: %v", err)
 					}
 					if !reflect.DeepEqual(store.users, users) || !reflect.DeepEqual(store.logins, logins) ||
-						!reflect.DeepEqual(store.registrations, registrations) || !reflect.DeepEqual(store.sessions, sessions) {
+						!reflect.DeepEqual(
+							store.registrations,
+							registrations,
+						) || !reflect.DeepEqual(store.sessions, sessions) {
 						t.Fatal("failed domain check changed users, challenges, or sessions")
 					}
 					if len(sender.messages) != messages {

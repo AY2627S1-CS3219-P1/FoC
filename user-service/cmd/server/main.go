@@ -35,6 +35,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -72,6 +73,7 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
+	slog.SetDefault(log)
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
@@ -111,6 +113,16 @@ func run(log *slog.Logger) error {
 		}
 	}
 
+	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: cfg.kafkaBrokers})
+	if err != nil {
+		return fmt.Errorf("initialize Kafka publisher: %w", err)
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			log.Error("close Kafka publisher", "err", err)
+		}
+	}()
+
 	allowedDomainLogic := newAllowedDomainService(sqlDB)
 	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
@@ -121,9 +133,19 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("configure Kafka subscriber: %w", err)
 	}
-	if err := warningdomain.RegisterCourierWarningConsumer(subscriber, &warningdomain.CourierWarningConsumer{Logic: warningLogic}); err != nil {
+	if err := warningdomain.RegisterCourierWarningConsumer(
+		subscriber,
+		&warningdomain.CourierWarningConsumer{Logic: warningLogic},
+	); err != nil {
 		return fmt.Errorf("register courier warning consumer: %w", err)
 	}
+	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
+	relayDone := make(chan struct{})
+	go func() {
+		defer close(relayDone)
+		relay.Run(ctx)
+	}()
+
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
@@ -186,6 +208,11 @@ func run(log *slog.Logger) error {
 		case <-shutdownCtx.Done():
 			runErr = errors.Join(runErr, errors.New("Kafka subscriber did not stop before shutdown deadline"))
 		}
+	}
+	select {
+	case <-relayDone:
+	case <-shutdownCtx.Done():
+		runErr = errors.Join(runErr, errors.New("outbox relay did not stop before shutdown deadline"))
 	}
 	return runErr
 }
@@ -261,6 +288,14 @@ func loadConfig() (config, error) {
 	}
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
+	}
+	if raw := envString("KAFKA_BROKERS", ""); raw != "" {
+		for _, broker := range strings.Split(raw, ",") {
+			if strings.TrimSpace(broker) == "" {
+				errs = append(errs, errors.New("KAFKA_BROKERS must contain comma-separated broker addresses"))
+				break
+			}
+		}
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
@@ -342,8 +377,11 @@ func newWarningService(db warningdb.DBTX) *warningdomain.Service {
 
 func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
 	return service.Resources{
-		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
-		Sessions: persistence.Sessions, DomainPolicy: policy,
+		Users:             persistence.Users,
+		AuthTokens:        persistence.AuthTokens,
+		Sessions:          persistence.Sessions,
+		DomainPolicy:      policy,
+		UserCreatedEvents: persistence.UserCreatedOutbox,
 	}
 }
 
@@ -357,7 +395,11 @@ func authTransactions(db *gorm.DB) service.WithTransaction {
 	}
 }
 
-func newAuthServices(db *gorm.DB, cfg config, domainPolicy service.EmailDomainPolicy) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+func newAuthServices(
+	db *gorm.DB,
+	cfg config,
+	domainPolicy service.EmailDomainPolicy,
+) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)

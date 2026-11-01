@@ -5,15 +5,15 @@ SELECT pg_advisory_xact_lock(18003219, 1);
 CREATE TEMP TABLE demo_options ON COMMIT DROP AS SELECT :'reset_demo'::boolean AS reset;
 CREATE TEMP TABLE demo_users (
     id UUID PRIMARY KEY, email TEXT, display_name TEXT, role TEXT,
-    description TEXT, telegram_handle TEXT, phone_number TEXT
+    description TEXT, phone_number TEXT
 ) ON COMMIT DROP;
 INSERT INTO demo_users VALUES
-    ('f0c00001-0000-4000-8000-000000000001', 'superadmin@demo.foc.test', 'Super Admin', 'super_admin', 'Can promote/demote admins, suspend and reinstate other accounts.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000002', 'admin@demo.foc.test', 'Admin', 'admin', 'Can manage locations, review proposals and suspend/reinstate ordinary users.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000003', 'student@demo.foc.test', 'Student', 'user', 'Owns demo requests. Try changing these profile fields.', 'demo_student', '+6500000000'),
-    ('f0c00001-0000-4000-8000-000000000004', 'suspended@demo.foc.test', 'Suspended Student', 'suspended', 'Read-only profile. Use an administrator to reinstate this account.', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000005', 'other@demo.foc.test', 'Other Student', 'user', '', NULL, NULL),
-    ('f0c00001-0000-4000-8000-000000000006', 'staff@demo.foc.test', 'Other Admin', 'admin', 'Target for super-admin demotion and admin-to-admin permission tests.', NULL, NULL);
+    ('f0c00001-0000-4000-8000-000000000001', 'superadmin@demo.foc.test', 'Super Admin', 'super_admin', 'Can promote/demote admins, suspend and reinstate other accounts.', NULL),
+    ('f0c00001-0000-4000-8000-000000000002', 'admin@demo.foc.test', 'Admin', 'admin', 'Can manage locations, review proposals and suspend/reinstate ordinary users.', NULL),
+    ('f0c00001-0000-4000-8000-000000000003', 'student@demo.foc.test', 'Student', 'user', 'Owns demo requests. Try changing these profile fields.', '+6500000000'),
+    ('f0c00001-0000-4000-8000-000000000004', 'suspended@demo.foc.test', 'Suspended Student', 'suspended', 'Read-only profile. Use an administrator to reinstate this account.', NULL),
+    ('f0c00001-0000-4000-8000-000000000005', 'other@demo.foc.test', 'Other Student', 'user', '', NULL),
+    ('f0c00001-0000-4000-8000-000000000006', 'staff@demo.foc.test', 'Other Admin', 'admin', 'Target for super-admin demotion and admin-to-admin permission tests.', NULL);
 
 -- Never take over an unrelated account that already uses a fixture email/ID.
 DO $$ BEGIN
@@ -23,11 +23,11 @@ DO $$ BEGIN
     ) THEN RAISE EXCEPTION 'A demo account identity conflicts with an existing user; no users were seeded'; END IF;
 END $$;
 
-INSERT INTO users (id,email,display_name,role,description,telegram_handle,phone_number)
-SELECT id,email,display_name,role,description,telegram_handle,phone_number FROM demo_users
+INSERT INTO users (id,email,display_name,role,description,phone_number)
+SELECT id,email,display_name,role,description,phone_number FROM demo_users
 ON CONFLICT(id) DO UPDATE SET
     display_name=EXCLUDED.display_name, role=EXCLUDED.role, description=EXCLUDED.description,
-    telegram_handle=EXCLUDED.telegram_handle, phone_number=EXCLUDED.phone_number,
+    phone_number=EXCLUDED.phone_number,
     deleted_at=NULL, updated_at=now()
 WHERE (SELECT reset FROM demo_options);
 

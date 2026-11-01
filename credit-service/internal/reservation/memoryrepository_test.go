@@ -123,7 +123,11 @@ func (t *memoryTx) InsertReservation(_ context.Context, r reservation.Reservatio
 
 // UpdateReservation assigns the revision and updated_at, as the bump_revision
 // trigger does.
-func (t *memoryTx) UpdateReservation(_ context.Context, r reservation.Reservation, expected int64) (reservation.Reservation, error) {
+func (t *memoryTx) UpdateReservation(
+	_ context.Context,
+	r reservation.Reservation,
+	expected int64,
+) (reservation.Reservation, error) {
 	old, ok := t.s.reservations[r.OrderID]
 	if !ok || old.Revision != expected {
 		return reservation.Reservation{}, reservation.ErrAborted
@@ -176,7 +180,11 @@ func (t *memoryTx) LockAccounts(_ context.Context, at time.Time, ids ...string) 
 	for _, id := range ids {
 		if _, ok := t.s.accounts[id]; !ok {
 			t.s.accounts[id] = account.Account{UserID: id}
-			if err := t.Post(context.Background(), at, reservation.Entry{UserID: id, Kind: account.Grant, BalanceDelta: account.StartingCredits}); err != nil {
+			if err := t.Post(
+				context.Background(),
+				at,
+				reservation.Entry{UserID: id, Kind: account.Grant, BalanceDelta: account.StartingCredits},
+			); err != nil {
 				return nil, err
 			}
 		}
@@ -219,7 +227,14 @@ func (m *memoryRepository) checkLedger(t *testing.T) {
 	}
 	for id, a := range m.state.accounts {
 		if a.Balance != balance[id] || a.Reserved != reserved[id] || a.Reserved != held[id] || a.Available() < 0 {
-			t.Fatalf("account %s = %+v; ledger balance %d reserved %d; holds %d", id, a, balance[id], reserved[id], held[id])
+			t.Fatalf(
+				"account %s = %+v; ledger balance %d reserved %d; holds %d",
+				id,
+				a,
+				balance[id],
+				reserved[id],
+				held[id],
+			)
 		}
 	}
 }

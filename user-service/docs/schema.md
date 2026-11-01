@@ -92,7 +92,8 @@ erDiagram
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
 | 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#126) |
-| 00007 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
+| 00007 | `user_created_outbox` | Credit | durable, lease-based queue of user-created events; published to Kafka and consumed by the Credit service |
+| 00008 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
 
 ## Soft delete
 

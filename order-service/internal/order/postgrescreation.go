@@ -98,7 +98,9 @@ func (t *postgresTx) InsertCreation(ctx context.Context, w CreationWorkflow, key
 	if err != nil {
 		return err
 	}
-	if !t.idempotencyCallers[IdempotencyScope{CallerID: caller.String(), Method: CreateOrderMethod}] || !t.applied[orderID.String()] || w.Phase != ReservePending {
+	if !t.idempotencyCallers[IdempotencyScope{CallerID: caller.String(), Method: CreateOrderMethod}] ||
+		!t.applied[orderID.String()] ||
+		w.Phase != ReservePending {
 		return t.writeResult(ErrPrecondition)
 	}
 	if err := t.writeResult(t.q.InsertCreationWorkflow(ctx, db.InsertCreationWorkflowParams{
@@ -194,11 +196,22 @@ func fromCreation(row db.OrderCreationWorkflow) (CreationWorkflow, error) {
 		return CreationWorkflow{}, fmt.Errorf("unknown creation payload version: %d", row.CanonicalVersion)
 	}
 	w := CreationWorkflow{
-		ID: row.ID.String(), OrderID: row.OrderID.String(), RequesterID: row.RequesterID.String(),
-		Hash: row.RequestHash, Canonical: row.CanonicalRequest, Amount: row.ReservationAmount, ExpiresAt: row.ExpiresAt.UTC(),
-		Phase: CreationPhase(row.Phase), Generation: row.Generation, Attempts: row.Attempts,
-		LeaseUntil: row.LeaseUntil.UTC(), NextAttemptAt: row.NextAttemptAt.UTC(), LastError: row.LastError,
-		Rejection: CreationRejection(row.Rejection), CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
+		ID:            row.ID.String(),
+		OrderID:       row.OrderID.String(),
+		RequesterID:   row.RequesterID.String(),
+		Hash:          row.RequestHash,
+		Canonical:     row.CanonicalRequest,
+		Amount:        row.ReservationAmount,
+		ExpiresAt:     row.ExpiresAt.UTC(),
+		Phase:         CreationPhase(row.Phase),
+		Generation:    row.Generation,
+		Attempts:      row.Attempts,
+		LeaseUntil:    row.LeaseUntil.UTC(),
+		NextAttemptAt: row.NextAttemptAt.UTC(),
+		LastError:     row.LastError,
+		Rejection:     CreationRejection(row.Rejection),
+		CreatedAt:     row.CreatedAt.UTC(),
+		UpdatedAt:     row.UpdatedAt.UTC(),
 	}
 	if len(row.Result) != 0 {
 		w.Result = new(Order)

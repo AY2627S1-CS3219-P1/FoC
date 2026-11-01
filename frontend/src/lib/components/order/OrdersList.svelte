@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Button, Card, LoadingIndicator } from 'm3-svelte';
+	import { Button, Card, LoadingIndicator, SelectOutlined } from 'm3-svelte';
 	import { authService, orderApi, locationApi } from '$lib/services';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
@@ -38,7 +38,7 @@
 		if (!history && user && !suspended) {
 			let active = true;
 			locationApi.listBuildings().then((values) => { if (active) buildings = values; },
-				() => { if (active) buildingError = 'Destination filters unavailable. Retry loading the page.'; });
+				() => { if (active) buildingError = 'Destination filters unavailable. Reload to try again.'; });
 			return () => { active = false; };
 		}
 	});
@@ -69,8 +69,7 @@
 
 <section class="page-content" aria-labelledby="orders-title">
 	<header class="page-heading">
-		<div><p class="eyebrow">Orders</p><h1 id="orders-title">{history ? 'My Orders' : 'Browse orders'}</h1>
-			<p>{history ? 'Your requested deliveries and courier participation, including past assignments.' : 'Find an open request to deliver.'}</p></div>
+		<div><h1 id="orders-title">{history ? 'My Orders' : 'Browse orders'}</h1></div>
 	</header>
 	<nav aria-label="Order navigation" class="links">
 		<a href="/orders">Browse</a><a href="/orders/mine">My Orders</a>
@@ -81,16 +80,16 @@
 	{:else}
 		<Card variant="outlined"><div class="panel-body filters">
 			{#if history}
-				<label>Participation role<select value={page.url.searchParams.get('role') ?? ''} onchange={(e) => update('role', e.currentTarget.value)}><option value="">All roles</option><option value="requester">Requester</option><option value="courier">Courier</option></select></label>
-				<label>Order status<select value={page.url.searchParams.get('status') ?? ''} onchange={(e) => update('status', e.currentTarget.value)}><option value="">All statuses</option>{#each orderStatuses as [value, label]}<option value={value}>{label}</option>{/each}</select></label>
+				<SelectOutlined label="Role" width="100%" value={page.url.searchParams.get('role') ?? ''} options={[{value: '', text: 'All roles'}, {value: 'requester', text: 'Requester'}, {value: 'courier', text: 'Courier'}]} onchange={(e) => update('role', e.currentTarget.value)} />
+				<SelectOutlined label="Order status" width="100%" value={page.url.searchParams.get('status') ?? ''} options={[{value: '', text: 'All statuses'}, ...orderStatuses.map(([value, text]) => ({value: String(value), text}))]} onchange={(e) => update('status', e.currentTarget.value)} />
 			{:else}
-				<LocationPicker label="Pickup location filter" bind:value={pickup} onchange={(location) => update('pickup', location.id)} />
-				<label>Destination building/area<select value={query.deliveryBuildingName ?? ''} onchange={(e) => update('destination', e.currentTarget.value)}><option value="">All destination areas</option>{#each buildings as building (building.id)}<option value={building.name}>{building.name}</option>{/each}</select></label>
+				<LocationPicker label="Pickup location" bind:value={pickup} onchange={(location) => update('pickup', location.id)} />
+				<SelectOutlined label="Destination" width="100%" value={query.deliveryBuildingName ?? ''} options={[{value: '', text: 'All destination areas'}, ...buildings.map((building) => ({value: building.name, text: building.name}))]} onchange={(e) => update('destination', e.currentTarget.value)} />
 				{#if buildingError}<p class="notice error" role="alert">{buildingError}</p>{/if}
 			{/if}
 			<a href={page.url.pathname}>Clear filters</a>
 		</div></Card>
-		{#if error}<p class="notice error" role="alert">{error}</p><Button onclick={() => revision++}>Retry loading orders</Button>
+		{#if error}<p class="notice error" role="alert">{error}</p><Button onclick={() => revision++}>Retry</Button>
 		{:else if loading}<div class="loading-state" role="status"><LoadingIndicator aria-label="Loading orders" /><p>Loading orders…</p></div>
 		{:else if result}
 			<p role="status">{result.totalItems.toString()} {result.totalItems === 1n ? 'order' : 'orders'}</p>
@@ -107,9 +106,6 @@
 
 <style>
 	.links, .pagination { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
-	label { display: grid; gap: .5rem; }
-	select { width: 100%; min-width: 0; padding: .75rem; font: inherit; background: var(--m3c-surface); color: var(--m3c-on-surface); border: 1px solid var(--m3c-outline); border-radius: 8px; }
-	select:focus-visible { outline: 3px solid var(--m3c-primary); outline-offset: 2px; }
 	.cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); list-style: none; padding: 0; margin: 0; }
 	li { min-width: 0; }
 </style>

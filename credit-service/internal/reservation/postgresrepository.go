@@ -155,7 +155,11 @@ func (t *transaction) InsertReservation(ctx context.Context, r Reservation) (Res
 	return fromRow(creditdb.ReservationRevision(row)), nil
 }
 
-func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expectedRevision int64) (Reservation, error) {
+func (t *transaction) UpdateReservation(
+	ctx context.Context,
+	r Reservation,
+	expectedRevision int64,
+) (Reservation, error) {
 	c := toColumns(r)
 	row, err := t.q.UpdateReservation(ctx, creditdb.UpdateReservationParams{
 		OrderID:             uuid.MustParse(r.OrderID),
@@ -173,7 +177,12 @@ func (t *transaction) UpdateReservation(ctx context.Context, r Reservation, expe
 		ExpectedRevision:    expectedRevision,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Reservation{}, fmt.Errorf("update reservation %s at revision %d: %w", r.OrderID, expectedRevision, ErrAborted)
+		return Reservation{}, fmt.Errorf(
+			"update reservation %s at revision %d: %w",
+			r.OrderID,
+			expectedRevision,
+			ErrAborted,
+		)
 	}
 	if err != nil {
 		return Reservation{}, wrap("update reservation", err)
@@ -242,7 +251,11 @@ func (t *transaction) RevertAssignment(ctx context.Context, orderID, assignmentI
 
 // Accounts
 
-func (t *transaction) LockAccounts(ctx context.Context, at time.Time, userIDs ...string) (map[string]account.Account, error) {
+func (t *transaction) LockAccounts(
+	ctx context.Context,
+	at time.Time,
+	userIDs ...string,
+) (map[string]account.Account, error) {
 	ids := slices.Clone(userIDs)
 	slices.Sort(ids)
 	ids = slices.Compact(ids)

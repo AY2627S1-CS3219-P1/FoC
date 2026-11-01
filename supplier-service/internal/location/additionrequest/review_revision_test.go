@@ -14,7 +14,11 @@ func TestReviewRequiresTheCurrentPendingRevision(t *testing.T) {
 			ctx := context.Background()
 			repo := newTestRepository()
 			service := newTestService(repo, time.Now)
-			original, err := service.SubmitRequest(ctx, owner, additionrequest.SubmitRequest{Proposal: validProposal(), Key: key})
+			original, err := service.SubmitRequest(
+				ctx,
+				owner,
+				additionrequest.SubmitRequest{Proposal: validProposal(), Key: key},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -29,7 +33,16 @@ func TestReviewRequiresTheCurrentPendingRevision(t *testing.T) {
 			for _, revision := range []int64{0, -1} {
 				expectError(t, decide(revision), additionrequest.ErrInvalidArgument)
 			}
-			updated, err := service.UpdateRequest(ctx, owner, additionrequest.UpdateRequest{ID: original.ID, ExpectedRevision: original.Revision, Paths: []string{"details"}, Proposal: additionrequest.Proposal{Details: "Changed after the administrator reviewed it"}})
+			updated, err := service.UpdateRequest(
+				ctx,
+				owner,
+				additionrequest.UpdateRequest{
+					ID:               original.ID,
+					ExpectedRevision: original.Revision,
+					Paths:            []string{"details"},
+					Proposal:         additionrequest.Proposal{Details: "Changed after the administrator reviewed it"},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +51,12 @@ func TestReviewRequiresTheCurrentPendingRevision(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if stored.Status != additionrequest.Pending || stored.Revision != updated.Revision || stored.ReviewedAt != nil || stored.ReviewedBy != nil || stored.ResultingLocationID != nil || stored.ReviewNote != nil || len(repo.locations) != 0 {
+			if stored.Status != additionrequest.Pending || stored.Revision != updated.Revision ||
+				stored.ReviewedAt != nil ||
+				stored.ReviewedBy != nil ||
+				stored.ResultingLocationID != nil ||
+				stored.ReviewNote != nil ||
+				len(repo.locations) != 0 {
 				t.Fatalf("stale review wrote a decision or location: %+v", stored)
 			}
 			if err := decide(updated.Revision); err != nil {
@@ -49,7 +67,8 @@ func TestReviewRequiresTheCurrentPendingRevision(t *testing.T) {
 				t.Fatalf("retry original review: %v", err)
 			}
 			got := repo.requests[original.ID]
-			if got.Revision != terminal.Revision || !got.UpdatedAt.Equal(terminal.UpdatedAt) || got.Status != terminal.Status {
+			if got.Revision != terminal.Revision || !got.UpdatedAt.Equal(terminal.UpdatedAt) ||
+				got.Status != terminal.Status {
 				t.Fatal("retry changed the terminal decision")
 			}
 			if decision == "approve" && len(repo.locations) != 1 {

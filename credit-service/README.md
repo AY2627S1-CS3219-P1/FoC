@@ -1,0 +1,60 @@
+# Credit Service
+
+Credit owns users' credit accounts, the ledger, and the reservation that holds
+a requester's credits for each order. The behaviour follows the `credit.v1`
+contracts in [`proto/credit/v1`](../proto/credit/v1) and
+[`docs/adr/credit-reservation-holds.md`](../docs/adr/credit-reservation-holds.md).
+
+## What runs
+
+`cmd/server` applies the embedded migrations, then runs two listeners and the
+Kafka consumers.
+
+| Listener | Default port | Serves | Authentication |
+| --- | --- | --- | --- |
+| Public | `PORT` (8080) | `credit.v1.CreditAccountService`, `grpc.health.v1.Health` | User Service JWT |
+| Internal | `INTERNAL_PORT` (8081) | `credit.v1.CreditReservationService`, `grpc.health.v1.Health` | None yet (#29) |
+
+The internal listener serves Order's reservation calls. It does not verify
+Order's workload JWT yet, so never publish it or route it through an ingress.
+See [the landmine](../LANDMINES/credit-internal-listener-unauthenticated.md).
+
+| Topic | Effect |
+| --- | --- |
+| `order.outcome` | Settles or releases the order's reservation. This is the only terminal settlement trigger. |
+| `users.create` | Opens the user's account with the 100 starting credits. |
+
+Both consumers share the `credit-service` group. Redelivery is harmless:
+settled and released reservations never change, and the grant is posted only
+when an account is created. Outcomes that contradict Credit's records are
+logged at error level and acknowledged, so they don't block the partition.
+These are an outcome mismatch, a payout for an unknown or unassigned
+reservation, and an invalid payload. Database failures stop the subscription,
+which restarts with backoff and redelivers the uncommitted event.
+
+## Configuration
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | Credit's PostgreSQL database. |
+| `USER_SERVICE_BASE_URL` | Yes | Origin used to fetch JWT keys. Must be HTTPS unless `APP_ENV=local`. |
+| `PORT`, `INTERNAL_PORT` | No | 8080 and 8081 by default. They must differ. |
+| `RUN_MIGRATIONS` | No | `true` by default. |
+| `KAFKA_BROKERS` | No | Comma-separated. Without it nothing is consumed, and reservations stay held until it is set. |
+
+## Layout
+
+- `internal/account`, `internal/reservation`: domain rules and Postgres persistence.
+- `internal/rpc/<domain>`: Connect handlers. `internal/rpc/shared` maps domain
+  errors to Connect codes and `credit.v1` ErrorInfo reasons.
+- `internal/events`: Kafka handlers.
+- `internal/router`: mounts the public and internal listeners.
+
+## Development
+
+```sh
+docker compose up credit-service   # public listener on CREDIT_PORT (8085)
+make test                          # unit tests
+make test-integration              # needs Docker for testcontainers
+make sqlc                          # after changing database/query or database/schema
+```

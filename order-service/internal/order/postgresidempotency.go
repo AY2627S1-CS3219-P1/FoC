@@ -23,7 +23,9 @@ func (t *postgresTx) LockIdempotencyCaller(ctx context.Context, scope Idempotenc
 	if err != nil {
 		return err
 	}
-	if err := t.writeResult(t.q.LockOrderIdempotencyCaller(ctx, "order.idempotency:"+scope.CallerID+":"+scope.Method)); err != nil {
+	if err := t.writeResult(
+		t.q.LockOrderIdempotencyCaller(ctx, "order.idempotency:"+scope.CallerID+":"+scope.Method),
+	); err != nil {
 		return err
 	}
 	if t.idempotencyCallers == nil {
@@ -33,7 +35,11 @@ func (t *postgresTx) LockIdempotencyCaller(ctx context.Context, scope Idempotenc
 	return nil
 }
 
-func (t *postgresTx) FindIdempotencyKey(ctx context.Context, scope IdempotencyScope, key string) (*IdempotencyKey, error) {
+func (t *postgresTx) FindIdempotencyKey(
+	ctx context.Context,
+	scope IdempotencyScope,
+	key string,
+) (*IdempotencyKey, error) {
 	scope, err := canonicalIdempotencyScope(scope)
 	if err != nil {
 		return nil, err
@@ -46,7 +52,10 @@ func (t *postgresTx) FindIdempotencyKey(ctx context.Context, scope IdempotencySc
 	if !t.idempotencyCallers[scope] {
 		return nil, ErrPrecondition
 	}
-	row, err := t.q.GetOrderIdempotencyKey(ctx, db.GetOrderIdempotencyKeyParams{CallerID: caller, Method: scope.Method, IdempotencyKey: id})
+	row, err := t.q.GetOrderIdempotencyKey(
+		ctx,
+		db.GetOrderIdempotencyKeyParams{CallerID: caller, Method: scope.Method, IdempotencyKey: id},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -96,5 +105,10 @@ func (t *postgresTx) DeleteIdempotencyKey(ctx context.Context, scope Idempotency
 	if !t.idempotencyCallers[scope] {
 		return t.writeResult(ErrPrecondition)
 	}
-	return t.writeResult(t.q.DeleteOrderIdempotencyKey(ctx, db.DeleteOrderIdempotencyKeyParams{CallerID: caller, Method: scope.Method, IdempotencyKey: id}))
+	return t.writeResult(
+		t.q.DeleteOrderIdempotencyKey(
+			ctx,
+			db.DeleteOrderIdempotencyKeyParams{CallerID: caller, Method: scope.Method, IdempotencyKey: id},
+		),
+	)
 }

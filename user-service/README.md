@@ -72,14 +72,16 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    From the repository root, run:
 
    ```bash
+   docker compose up -d kafka-init
    docker compose up --build user-service
    ```
 
    Compose also starts [Mailpit](https://mailpit.axllent.org/), which
    catches every email the service sends. Open http://localhost:8025 to
    read login and registration links. For host development, run
-   `docker compose up -d mailpit`, then `make run` from this directory after
-   setting up the environment and database.
+   `docker compose up -d mailpit kafka-init`, set
+   `KAFKA_BROKERS=localhost:9092` in `.env`, then run `make run` from this
+   directory after setting up the environment and database.
 
 ## Authentication
 
@@ -189,3 +191,17 @@ new role claim; previously issued access tokens remain valid until expiry.
 
 The `admin_bootstrap` table exists, but registration does not yet claim it.
 First-admin provisioning and account deletion APIs are separate work.
+
+## Credit account provisioning
+
+Successful registration writes a `UserCreated` fact to the transactional
+outbox in the same database transaction as the user and session. The relay
+publishes it to `users.create` using the user UUID as the Kafka key. Delivery
+is at least once; `event_id` remains stable across retries so consumers can
+deduplicate. A Kafka outage does not fail registration; pending facts are
+retried when the broker is available.
+
+`KAFKA_BROKERS` is required. Compose sets it to `kafka:9092`; host development
+uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
+owns the 100-credit starting grant. Existing users are not backfilled, and
+bootstrap-created administrators do not emit registration events.

@@ -35,7 +35,12 @@ func NewWorkflowDatabase(t *testing.T) *WorkflowDatabase {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	options := []testcontainers.ContainerCustomizer{postgres.WithDatabase("workflow_test"), postgres.WithUsername("supplier"), postgres.WithPassword("supplier"), postgres.BasicWaitStrategies()}
+	options := []testcontainers.ContainerCustomizer{
+		postgres.WithDatabase("workflow_test"),
+		postgres.WithUsername("supplier"),
+		postgres.WithPassword("supplier"),
+		postgres.BasicWaitStrategies(),
+	}
 	if runtime.GOARCH == "arm64" {
 		options = append(options, testcontainers.WithImagePlatform("linux/amd64"))
 	}
@@ -79,7 +84,16 @@ func (f *WorkflowDatabase) Exec(t *testing.T, statement string, args ...any) {
 func (f *WorkflowDatabase) Reset(t *testing.T) {
 	t.Helper()
 	f.Exec(t, "TRUNCATE supplier_idempotency,location_addition_requests,locations,buildings,categories CASCADE")
-	f.Exec(t, "INSERT INTO buildings(id,name,center,radius_m) VALUES($1,'COM2',ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography,75)", postgresBuildingID)
+	f.Exec(
+		t,
+		"INSERT INTO buildings(id,name,center,radius_m) VALUES($1,'COM2',ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography,75)",
+		postgresBuildingID,
+	)
 	f.Exec(t, "INSERT INTO categories(id,name) VALUES($1,'Food'),($2,'Coffee')", postgresCategoryID, otherCategoryID)
-	f.Exec(t, "INSERT INTO locations(id,name,is_supplier,building_id,coordinates) VALUES($1,'Existing Location',true,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography)", postgresLocationID, postgresBuildingID)
+	f.Exec(
+		t,
+		"INSERT INTO locations(id,name,is_supplier,building_id,coordinates) VALUES($1,'Existing Location',true,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography)",
+		postgresLocationID,
+		postgresBuildingID,
+	)
 }

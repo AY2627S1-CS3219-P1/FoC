@@ -170,7 +170,8 @@ func (r *PostgresRepository) Offers(ctx context.Context, c Caller, id string, st
 				own = true
 			}
 		}
-		if !c.Admin && !o.HasParticipant(c.ID) && !own && (c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now())) {
+		if !c.Admin && !o.HasParticipant(c.ID) && !own &&
+			(c.Suspended || o.Status != AwaitingCourier || !o.ExpiresAt.After(time.Now())) {
 			return ErrNotFound
 		}
 

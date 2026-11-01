@@ -225,12 +225,20 @@ func (r *Relay) selectAndSend(ctx context.Context, m Message, senderChatID int64
 	return r.saveDeliveredTarget(ctx, recipientChatID, sent.MessageID, m.OrderID, m.SentAt)
 }
 
-func (r *Relay) saveDeliveredTarget(ctx context.Context, chatID, messageID int64, orderID uuid.UUID, at time.Time) error {
+func (r *Relay) saveDeliveredTarget(
+	ctx context.Context,
+	chatID, messageID int64,
+	orderID uuid.UUID,
+	at time.Time,
+) error {
 	if err := r.Store.SaveReplyTarget(ctx, chatID, messageID, orderID, at); err != nil {
 		// The poller retries only this write, never the successful Telegram send.
-		return &telegram.RetryError{Err: fmt.Errorf("save reply target: %w", err), Retry: func(ctx context.Context) error {
-			return r.saveDeliveredTarget(ctx, chatID, messageID, orderID, at)
-		}}
+		return &telegram.RetryError{
+			Err: fmt.Errorf("save reply target: %w", err),
+			Retry: func(ctx context.Context) error {
+				return r.saveDeliveredTarget(ctx, chatID, messageID, orderID, at)
+			},
+		}
 	}
 	return nil
 }
@@ -251,9 +259,12 @@ func (r *Relay) ShowChats(ctx context.Context, msg *telegram.Message) error {
 	if len(orders) == 0 {
 		return r.reply(ctx, msg.Chat.ID, noChatsReply, nil)
 	}
-	return r.reply(ctx, msg.Chat.ID,
+	return r.reply(
+		ctx,
+		msg.Chat.ID,
 		"Choose an order to chat about. Your messages go to the other person until you choose another. You can also reply to any message about an order.",
-		keyboard(orders))
+		keyboard(orders),
+	)
 }
 
 // HandleCallback handles a press of a /chat order button.
@@ -367,9 +378,12 @@ func (r *Relay) reply(ctx context.Context, chatID int64, text string, kb *telegr
 		if !errors.Is(err, telegram.ErrUnauthorized) && !(errors.As(err, &apiErr) && apiErr.Rejected()) {
 			// Retry only this feedback. Relaying the original update again could
 			// deliver a message the sender has already been asked to resend.
-			return &telegram.RetryError{Err: fmt.Errorf("send chat feedback: %w", err), Retry: func(ctx context.Context) error {
-				return r.reply(ctx, chatID, text, kb)
-			}}
+			return &telegram.RetryError{
+				Err: fmt.Errorf("send chat feedback: %w", err),
+				Retry: func(ctx context.Context) error {
+					return r.reply(ctx, chatID, text, kb)
+				},
+			}
 		}
 		r.Log.Warn("chat reply failed", "chat_id", chatID, "err", err)
 	}

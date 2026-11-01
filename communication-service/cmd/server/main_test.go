@@ -42,7 +42,13 @@ func TestWaitForBotRetriesTransientFailures(t *testing.T) {
 
 func TestWaitForBotStopsOnRejectedToken(t *testing.T) {
 	bot := &fakeBot{errs: []error{telegram.ErrUnauthorized}}
-	if _, err := waitForBot(context.Background(), bot, discard, time.Millisecond); !errors.Is(err, telegram.ErrUnauthorized) || bot.calls != 1 {
+	if _, err := waitForBot(
+		context.Background(),
+		bot,
+		discard,
+		time.Millisecond,
+	); !errors.Is(err, telegram.ErrUnauthorized) ||
+		bot.calls != 1 {
 		t.Fatalf("err=%v calls=%d", err, bot.calls)
 	}
 }
@@ -63,7 +69,11 @@ func TestNotificationRetryDelay(t *testing.T) {
 		want time.Duration
 	}{
 		{"network failure", errors.New("connection reset"), time.Second},
-		{"long rate limit", fmt.Errorf("handler: %w", &telegram.APIError{Code: 429, RetryAfter: 2 * time.Minute}), 2 * time.Minute},
+		{
+			"long rate limit",
+			fmt.Errorf("handler: %w", &telegram.APIError{Code: 429, RetryAfter: 2 * time.Minute}),
+			2 * time.Minute,
+		},
 		{"short rate limit", &telegram.APIError{Code: 429, RetryAfter: time.Millisecond}, time.Second},
 		{"other API failure", &telegram.APIError{Code: 502}, time.Second},
 	}
@@ -79,14 +89,21 @@ func TestNotificationRetryDelay(t *testing.T) {
 func TestBotShutdownJoinsStartedWorkers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// The server may not notice the client abandoning a long poll, so Close
+	// would wait on that handler. Cleanup releases it explicitly.
+	stopped := make(chan struct{})
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/bottest/getMe" {
 			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"foc_bot"}}`)
 			return
 		}
-		<-r.Context().Done()
+		select {
+		case <-r.Context().Done():
+		case <-stopped:
+		}
 	}))
 	defer api.Close()
+	defer close(stopped)
 
 	var workers sync.WaitGroup
 	var username atomic.Pointer[string]

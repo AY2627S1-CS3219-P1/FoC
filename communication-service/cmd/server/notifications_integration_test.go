@@ -103,11 +103,16 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 	orderID := uuid.NewString()
 	courier := uuid.NewString()
 	event := &eventsv1.OrderStatusChanged{
-		EventId: uuid.NewString(), OrderId: orderID, Revision: 5,
-		PreviousStatus: eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, Status: eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
-		Actor:       &eventsv1.Actor{Type: eventsv1.ActorType_ACTOR_TYPE_USER, UserId: proto.String(courier)},
-		RequesterId: requester.String(), CourierId: proto.String(courier),
-		PickupLocationName: "Fine Food", OccurredAt: timestamppb.Now(),
+		EventId:            uuid.NewString(),
+		OrderId:            orderID,
+		Revision:           5,
+		PreviousStatus:     eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		Status:             eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+		Actor:              &eventsv1.Actor{Type: eventsv1.ActorType_ACTOR_TYPE_USER, UserId: proto.String(courier)},
+		RequesterId:        requester.String(),
+		CourierId:          proto.String(courier),
+		PickupLocationName: "Fine Food",
+		OccurredAt:         timestamppb.Now(),
 	}
 	// The same event twice: the second delivery must not send again.
 	for range 2 {
@@ -148,7 +153,9 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 		t.Fatalf("calls=%d sent=%q", calls, sent)
 	}
 	var recorded int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM order_notifications_sent WHERE event_id = $1`, event.EventId).Scan(&recorded); err != nil || recorded != 1 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM order_notifications_sent WHERE event_id = $1`, event.EventId).
+		Scan(&recorded); err != nil ||
+		recorded != 1 {
 		t.Fatalf("recorded = %d, %v", recorded, err)
 	}
 }

@@ -57,7 +57,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
 	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {
@@ -81,12 +84,19 @@ func loadConfig(getenv func(string) string) (config, error) {
 			continue
 		}
 		parsed, err := url.Parse(value)
-		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") || (parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
+			parsed.User != nil ||
+			parsed.RawQuery != "" ||
+			parsed.Fragment != "" ||
+			(parsed.Path != "" && parsed.Path != "/") ||
+			(parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
 			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
 		}
 	}
 	if (c.CreditServiceURL == "") != (c.CreditTokenFile == "") {
-		return config{}, errors.New("CREDIT_SERVICE_BASE_URL and CREDIT_WORKLOAD_TOKEN_FILE must be configured together")
+		return config{}, errors.New(
+			"CREDIT_SERVICE_BASE_URL and CREDIT_WORKLOAD_TOKEN_FILE must be configured together",
+		)
 	}
 	if c.S3Bucket == "" && (c.S3Endpoint != "" || c.S3PublicEndpoint != "") {
 		return config{}, errors.New("ORDER_S3_BUCKET is required with S3 endpoints")

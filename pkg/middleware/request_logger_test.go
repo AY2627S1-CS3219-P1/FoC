@@ -28,9 +28,11 @@ func TestRequestLoggerRecordsStartAndCompletion(t *testing.T) {
 			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
 			t.Cleanup(func() { slog.SetDefault(previous) })
 
-			handler := chimiddleware.RequestID(RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(test.status)
-			})))
+			handler := chimiddleware.RequestID(
+				RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(test.status)
+				})),
+			)
 			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/health", nil))
 
 			lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
@@ -45,10 +47,14 @@ func TestRequestLoggerRecordsStartAndCompletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			id, ok := start["request_id"].(string)
-			if start["msg"] != "request started" || start["method"] != http.MethodGet || start["path"] != "/health" || !ok || id == "" {
+			if start["msg"] != "request started" || start["method"] != http.MethodGet || start["path"] != "/health" ||
+				!ok ||
+				id == "" {
 				t.Fatalf("unexpected start log: %v", start)
 			}
-			if completed["msg"] != "request completed" || completed["level"] != test.level || completed["status"] != float64(test.status) || completed["request_id"] != start["request_id"] {
+			if completed["msg"] != "request completed" || completed["level"] != test.level ||
+				completed["status"] != float64(test.status) ||
+				completed["request_id"] != start["request_id"] {
 				t.Fatalf("unexpected completion log: %v", completed)
 			}
 		})

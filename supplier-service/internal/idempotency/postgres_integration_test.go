@@ -58,7 +58,12 @@ func postgresFixture(t *testing.T) (context.Context, *pgxpool.Pool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	options := []testcontainers.ContainerCustomizer{postgres.WithDatabase("idempotency_test"), postgres.WithUsername("supplier"), postgres.WithPassword("supplier"), postgres.BasicWaitStrategies()}
+	options := []testcontainers.ContainerCustomizer{
+		postgres.WithDatabase("idempotency_test"),
+		postgres.WithUsername("supplier"),
+		postgres.WithPassword("supplier"),
+		postgres.BasicWaitStrategies(),
+	}
 	if runtime.GOARCH == "arm64" {
 		options = append(options, testcontainers.WithImagePlatform("linux/amd64"))
 	}
@@ -94,7 +99,11 @@ func postgresFixture(t *testing.T) (context.Context, *pgxpool.Pool) {
 	return ctx, pool
 }
 
-func within(ctx context.Context, pool *pgxpool.Pool, fn func(*idempotency.PostgresStore, func(string) error) (string, error)) (string, error) {
+func within(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	fn func(*idempotency.PostgresStore, func(string) error) (string, error),
+) (string, error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -141,15 +150,19 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		defer releaseFirst()
 		var calls atomic.Int32
 		go func() {
-			id, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-				return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
-					calls.Add(1)
-					close(entered)
-					<-release
-					id := uuid.NewString()
-					return id, resource(id)
-				})
-			})
+			id, err := within(
+				ctx,
+				pool,
+				func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+					return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
+						calls.Add(1)
+						close(entered)
+						<-release
+						id := uuid.NewString()
+						return id, resource(id)
+					})
+				},
+			)
 			first <- runResult{id, err}
 		}()
 		select {
@@ -161,13 +174,17 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		}
 		second := make(chan runResult, 1)
 		go func() {
-			id, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-				return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
-					calls.Add(1)
-					id := uuid.NewString()
-					return id, resource(id)
-				})
-			})
+			id, err := within(
+				ctx,
+				pool,
+				func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+					return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
+						calls.Add(1)
+						id := uuid.NewString()
+						return id, resource(id)
+					})
+				},
+			)
 			second <- runResult{id, err}
 		}()
 		waitForAdvisoryLock(t, ctx, pool)
@@ -183,8 +200,16 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		}
-		if a.err != nil || b.err != nil || a.id != b.id || calls.Load() != 1 || count("test_resources") != 1 || count("supplier_idempotency") != 1 {
-			t.Fatalf("replay a=%+v b=%+v callbacks=%d resources=%d keys=%d", a, b, calls.Load(), count("test_resources"), count("supplier_idempotency"))
+		if a.err != nil || b.err != nil || a.id != b.id || calls.Load() != 1 || count("test_resources") != 1 ||
+			count("supplier_idempotency") != 1 {
+			t.Fatalf(
+				"replay a=%+v b=%+v callbacks=%d resources=%d keys=%d",
+				a,
+				b,
+				calls.Load(),
+				count("test_resources"),
+				count("supplier_idempotency"),
+			)
 		}
 	})
 
@@ -197,14 +222,18 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		defer releaseFirst()
 		first := make(chan error, 1)
 		go func() {
-			_, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-				return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
-					close(entered)
-					<-release
-					id := uuid.NewString()
-					return id, resource(id)
-				})
-			})
+			_, err := within(
+				ctx,
+				pool,
+				func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+					return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
+						close(entered)
+						<-release
+						id := uuid.NewString()
+						return id, resource(id)
+					})
+				},
+			)
 			first <- err
 		}()
 		select {
@@ -216,12 +245,22 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		}
 		second := make(chan error, 1)
 		go func() {
-			_, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-				return runner.Run(ctx, store, scope, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", func(time.Time) (string, error) {
-					t.Error("conflicting retry invoked callback")
-					return "", nil
-				})
-			})
+			_, err := within(
+				ctx,
+				pool,
+				func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+					return runner.Run(
+						ctx,
+						store,
+						scope,
+						"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+						func(time.Time) (string, error) {
+							t.Error("conflicting retry invoked callback")
+							return "", nil
+						},
+					)
+				},
+			)
 			second <- err
 		}()
 		waitForAdvisoryLock(t, ctx, pool)
@@ -251,16 +290,25 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		reset()
 		scope := idempotency.Scope{Caller: "owner", Method: "create", Key: uuid.NewString()}
 		failure := errors.New("callback failed")
-		_, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-			return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
-				if err := resource(uuid.NewString()); err != nil {
-					return "", err
-				}
-				return "", failure
-			})
-		})
+		_, err := within(
+			ctx,
+			pool,
+			func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+				return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
+					if err := resource(uuid.NewString()); err != nil {
+						return "", err
+					}
+					return "", failure
+				})
+			},
+		)
 		if !errors.Is(err, failure) || count("test_resources") != 0 || count("supplier_idempotency") != 0 {
-			t.Fatalf("callback rollback error=%v resources=%d keys=%d", err, count("test_resources"), count("supplier_idempotency"))
+			t.Fatalf(
+				"callback rollback error=%v resources=%d keys=%d",
+				err,
+				count("test_resources"),
+				count("supplier_idempotency"),
+			)
 		}
 		_, err = within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
 			return runner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
@@ -276,21 +324,39 @@ func TestPostgresStoreTransactions(t *testing.T) {
 	t.Run("save failure rolls back resource and key", func(t *testing.T) {
 		reset()
 		scope := idempotency.Scope{Caller: "owner", Method: "create", Key: uuid.NewString()}
-		_, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-			return runner.Run(ctx, store, scope, "invalid hash", func(time.Time) (string, error) {
-				id := uuid.NewString()
-				return id, resource(id)
-			})
-		})
+		_, err := within(
+			ctx,
+			pool,
+			func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+				return runner.Run(ctx, store, scope, "invalid hash", func(time.Time) (string, error) {
+					id := uuid.NewString()
+					return id, resource(id)
+				})
+			},
+		)
 		if err == nil || count("test_resources") != 0 || count("supplier_idempotency") != 0 {
-			t.Fatalf("save rollback error=%v resources=%d keys=%d", err, count("test_resources"), count("supplier_idempotency"))
+			t.Fatalf(
+				"save rollback error=%v resources=%d keys=%d",
+				err,
+				count("test_resources"),
+				count("supplier_idempotency"),
+			)
 		}
 	})
 
 	t.Run("expiry is checked after waiting for the lock", func(t *testing.T) {
 		reset()
 		scope := idempotency.Scope{Caller: "owner", Method: "create", Key: uuid.NewString()}
-		if _, err := pool.Exec(ctx, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, goodHash, uuid.NewString(), now.Add(time.Hour)); err != nil {
+		if _, err := pool.Exec(
+			ctx,
+			"INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)",
+			scope.Caller,
+			scope.Method,
+			scope.Key,
+			goodHash,
+			uuid.NewString(),
+			now.Add(time.Hour),
+		); err != nil {
 			t.Fatal(err)
 		}
 		var clockNanos atomic.Int64
@@ -321,12 +387,16 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		}
 		second := make(chan runResult, 1)
 		go func() {
-			id, err := within(ctx, pool, func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
-				return movingRunner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
-					id := uuid.NewString()
-					return id, resource(id)
-				})
-			})
+			id, err := within(
+				ctx,
+				pool,
+				func(store *idempotency.PostgresStore, resource func(string) error) (string, error) {
+					return movingRunner.Run(ctx, store, scope, goodHash, func(time.Time) (string, error) {
+						id := uuid.NewString()
+						return id, resource(id)
+					})
+				},
+			)
 			second <- runResult{id, err}
 		}()
 		waitForAdvisoryLock(t, ctx, pool)
@@ -342,8 +412,14 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		}
 		select {
 		case result := <-second:
-			if result.err != nil || result.id == "" || count("test_resources") != 1 || count("supplier_idempotency") != 1 {
-				t.Fatalf("expired retry result=%+v resources=%d keys=%d", result, count("test_resources"), count("supplier_idempotency"))
+			if result.err != nil || result.id == "" || count("test_resources") != 1 ||
+				count("supplier_idempotency") != 1 {
+				t.Fatalf(
+					"expired retry result=%+v resources=%d keys=%d",
+					result,
+					count("test_resources"),
+					count("supplier_idempotency"),
+				)
 			}
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
@@ -358,7 +434,16 @@ func TestPostgresStoreTransactions(t *testing.T) {
 		otherMethod := idempotency.Scope{Caller: "owner", Method: "update", Key: key}
 		otherKey := idempotency.Scope{Caller: "owner", Method: "create", Key: uuid.NewString()}
 		for _, scope := range []idempotency.Scope{expired, otherCaller, otherMethod, otherKey} {
-			if _, err := pool.Exec(ctx, "INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)", scope.Caller, scope.Method, scope.Key, goodHash, uuid.NewString(), now.Add(-time.Second)); err != nil {
+			if _, err := pool.Exec(
+				ctx,
+				"INSERT INTO supplier_idempotency(caller_id,method,key,request_hash,resource_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)",
+				scope.Caller,
+				scope.Method,
+				scope.Key,
+				goodHash,
+				uuid.NewString(),
+				now.Add(-time.Second),
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

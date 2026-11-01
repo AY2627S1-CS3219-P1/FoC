@@ -60,7 +60,11 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 
 	if len(protected) > 0 {
 		p := protected[0]
-		interceptors := connect.WithInterceptors(validate.NewInterceptor(), authorizeProtected(p.Users), normalizeRPCError())
+		interceptors := connect.WithInterceptors(
+			validate.NewInterceptor(),
+			authorizeProtected(p.Users),
+			normalizeRPCError(),
+		)
 		profilePath, profileService := userv1connect.NewProfileServiceHandler(
 			p.Profile, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(profilePath, profileService)
@@ -76,10 +80,12 @@ func Setup(health *healthhandler.Handler, auth *authhandler.Handler, protected .
 				normalizeRPCError(),
 			),
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
-		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(allowedDomainsPath, allowedDomainsService)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(allowedDomainsPath, allowedDomainsService)
 		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
 			p.Warnings, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
-		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(warningsPath, warningsService)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(warningsPath, warningsService)
 	}
 	return r
 }

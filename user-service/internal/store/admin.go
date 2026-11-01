@@ -5,9 +5,11 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
@@ -125,4 +127,71 @@ func (s *Admin) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.Rol
 	var cs []models.RoleChange
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&cs).Error
 	return cs, err
+}
+
+// CreateWarning reports true when w is inserted, or false after loading the
+// existing warning with the same SourceEventID into w.
+func (s *Admin) CreateWarning(ctx context.Context, w *models.AccountWarning) (bool, error) {
+	db := s.db.WithContext(ctx)
+	if w.SourceEventID == nil {
+		return true, db.Create(w).Error
+	}
+	res := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "source_event_id"}}, DoNothing: true}).Create(w)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	if res.RowsAffected == 1 {
+		return true, nil
+	}
+	var existing models.AccountWarning
+	if err := db.Unscoped().Take(&existing, "source_event_id = ?", *w.SourceEventID).Error; err != nil {
+		return false, err
+	}
+	*w = existing
+	return false, nil
+}
+
+func (s *Admin) GetWarning(ctx context.Context, id uuid.UUID) (*models.AccountWarning, error) {
+	var w models.AccountWarning
+	err := s.db.WithContext(ctx).Take(&w, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+func (s *Admin) Warnings(ctx context.Context, userID uuid.UUID) ([]models.AccountWarning, error) {
+	var ws []models.AccountWarning
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&ws).Error
+	return ws, err
+}
+
+func (s *Admin) RemoveWarning(
+	ctx context.Context,
+	id uuid.UUID,
+	now time.Time,
+	reason *string,
+	appealID *uuid.UUID,
+	actor *uuid.UUID,
+) (*models.AccountWarning, error) {
+	var w models.AccountWarning
+	res := s.db.WithContext(ctx).Model(&w).Clauses(clause.Returning{}).
+		Where("id = ? AND status = ?", id, models.WarningActive).
+		Updates(map[string]any{
+			"status":         models.WarningRemoved,
+			"removed_at":     now,
+			"removed_reason": reason,
+			"appeal_id":      appealID,
+			"updated_by":     actor,
+		})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+	return &w, nil
 }

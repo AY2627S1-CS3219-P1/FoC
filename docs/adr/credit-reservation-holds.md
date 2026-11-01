@@ -11,7 +11,7 @@ AdjustReservation, RevertAdjustment, ReleaseReservation (creation compensation)
 and GetReservation by RPC. Terminal payout and refund come only from Kafka
 `order.outcome`. The domain package `credit-service/internal/reservation`
 implements these operations. Its `ApplyOutcome` is the settlement entry point
-for the future consumer.
+for the `order.outcome` consumer in `credit-service/internal/events`.
 
 ## Decisions
 
@@ -67,6 +67,22 @@ errors.
 
 A release outcome for an unknown order leaves a tombstone, like
 ReleaseReservation, so a delayed Reserve cannot hold credits afterwards.
+
+### The consumer acknowledges mismatched outcomes
+
+The `order.outcome` consumer (`internal/events`) logs a mismatch at error
+level and acknowledges it. A mismatch is any of the errors above, or an
+invalid payload. The log carries the event ID, order ID and offset.
+Redelivering a mismatch cannot change its result, and `pkg/kafka` stops the
+subscription on a handler error, so failing would block every later outcome
+on that partition. Reconciliation is expected to find these orders by
+comparing Order's terminal orders with reservations that are still held.
+
+`ErrAborted` is retried in place a few times. Any other error is returned:
+the subscription stops without committing and restarts with backoff, so the
+event is redelivered. The `users.create` consumer opens accounts the same
+way. The grant is posted only when the account row is created, so a
+redelivered event grants nothing.
 
 ### Serialization
 

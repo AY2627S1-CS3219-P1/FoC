@@ -74,10 +74,20 @@ func TestCreateTelegramLinkWhileBotDisabled(t *testing.T) {
 func TestRequiresCaller(t *testing.T) {
 	h := handler(&fakeLogic{}, "foc_bot")
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: "not-a-uuid"})
-	if _, err := h.GetTelegramLink(ctx, connect.NewRequest(&communicationv1.GetTelegramLinkRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := h.GetTelegramLink(
+		ctx,
+		connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("bad caller ID: err = %v", err)
 	}
-	if _, err := h.UnlinkTelegram(context.Background(), connect.NewRequest(&communicationv1.UnlinkTelegramRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := h.UnlinkTelegram(
+		context.Background(),
+		connect.NewRequest(&communicationv1.UnlinkTelegramRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("no caller: err = %v", err)
 	}
 }
@@ -89,7 +99,8 @@ func TestGetTelegramLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.Msg.GetLinked() || resp.Msg.GetTelegramUsername() != "kevin" || !resp.Msg.GetLinkedAt().AsTime().Equal(linkedAt) {
+	if !resp.Msg.GetLinked() || resp.Msg.GetTelegramUsername() != "kevin" ||
+		!resp.Msg.GetLinkedAt().AsTime().Equal(linkedAt) {
 		t.Fatalf("linked response = %+v", resp.Msg)
 	}
 

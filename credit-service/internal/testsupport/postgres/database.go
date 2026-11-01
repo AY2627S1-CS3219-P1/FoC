@@ -81,7 +81,15 @@ func CheckLedger(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatal(err)
 		}
 		if balance != ledgerBalance || reserved != ledgerReserved || reserved != held || balance < reserved {
-			t.Fatalf("account %s: balance %d reserved %d; ledger %d/%d; holds %d", id, balance, reserved, ledgerBalance, ledgerReserved, held)
+			t.Fatalf(
+				"account %s: balance %d reserved %d; ledger %d/%d; holds %d",
+				id,
+				balance,
+				reserved,
+				ledgerBalance,
+				ledgerReserved,
+				held,
+			)
 		}
 	}
 	if err := rows.Err(); err != nil {

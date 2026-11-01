@@ -33,7 +33,11 @@ func TestRunNormalizesInput(t *testing.T) {
 		t.Fatalf("user: %+v", fake.got)
 	}
 
-	if _, _, err := (&Bootstrapper{Store: fake}).Run(context.Background(), Config{Email: "a@b.com", DisplayName: "  Ops  "}); err != nil || fake.got.DisplayName != "Ops" {
+	if _, _, err := (&Bootstrapper{Store: fake}).Run(
+		context.Background(),
+		Config{Email: "a@b.com", DisplayName: "  Ops  "},
+	); err != nil ||
+		fake.got.DisplayName != "Ops" {
 		t.Fatalf("display name: %q, %v", fake.got.DisplayName, err)
 	}
 }
@@ -43,7 +47,13 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 	if _, _, err := b.Run(context.Background(), Config{Email: "Name <a@b.com>"}); !errors.Is(err, jwt.ErrInvalidEmail) {
 		t.Fatalf("invalid email: %v", err)
 	}
-	if _, _, err := b.Run(context.Background(), Config{Email: "a@b.com", DisplayName: strings.Repeat("x", 101)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := b.Run(
+		context.Background(),
+		Config{Email: "a@b.com", DisplayName: strings.Repeat("x", 101)},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("long name: %v", err)
 	}
 }

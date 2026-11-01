@@ -23,7 +23,12 @@ func (s *PostgresStore) queries() *db.Queries { return db.New(s.Pool) }
 
 // ReplaceCode implements Store. The partial unique index on unused codes
 // makes concurrent calls for one user leave a single unused code.
-func (s *PostgresStore) ReplaceCode(ctx context.Context, userID uuid.UUID, codeHash []byte, expiresAt, now time.Time) error {
+func (s *PostgresStore) ReplaceCode(
+	ctx context.Context,
+	userID uuid.UUID,
+	codeHash []byte,
+	expiresAt, now time.Time,
+) error {
 	if err := s.queries().ReplaceCode(ctx, db.ReplaceCodeParams{
 		CodeHash:  codeHash,
 		UserID:    userID,

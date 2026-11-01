@@ -111,14 +111,19 @@ func TestPollerRetriesContinuationBeforeLaterUpdates(t *testing.T) {
 		}
 		return nil
 	}
-	poller := &Poller{Source: source, Log: quietLog(), Backoff: time.Millisecond, Handle: func(_ context.Context, u Update) error {
-		if u.UpdateID == 10 {
-			steps = append(steps, "first")
-			return &RetryError{Err: errors.New("unavailable"), Retry: resume}
-		}
-		steps = append(steps, "second")
-		return nil
-	}}
+	poller := &Poller{
+		Source:  source,
+		Log:     quietLog(),
+		Backoff: time.Millisecond,
+		Handle: func(_ context.Context, u Update) error {
+			if u.UpdateID == 10 {
+				steps = append(steps, "first")
+				return &RetryError{Err: errors.New("unavailable"), Retry: resume}
+			}
+			steps = append(steps, "second")
+			return nil
+		},
+	}
 	if err := poller.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +160,11 @@ func TestPollerCancellationStopsPendingRetry(t *testing.T) {
 func TestPollerStopsWhenContextEnds(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	poller := &Poller{Source: &fakeSource{}, Log: quietLog(), Handle: func(context.Context, Update) error { return nil }}
+	poller := &Poller{
+		Source: &fakeSource{},
+		Log:    quietLog(),
+		Handle: func(context.Context, Update) error { return nil },
+	}
 	go func() { done <- poller.Run(ctx) }()
 
 	cancel()

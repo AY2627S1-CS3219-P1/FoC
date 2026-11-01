@@ -109,7 +109,8 @@ func (s *Service) ListOffers(ctx context.Context, c Caller, id string, status Of
 	if c.ID == "" {
 		return nil, ErrForbidden
 	}
-	if status != "" && status != OfferOpen && status != OfferAccepting && status != OfferAccepted && status != OfferVoid {
+	if status != "" && status != OfferOpen && status != OfferAccepting && status != OfferAccepted &&
+		status != OfferVoid {
 		return nil, ErrInvalid
 	}
 

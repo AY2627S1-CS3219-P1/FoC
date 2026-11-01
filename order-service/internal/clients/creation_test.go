@@ -55,11 +55,21 @@ type creditProbe struct {
 	bearers []string
 }
 
-func (p *creditProbe) GetReservation(_ context.Context, req *connect.Request[pb.GetReservationRequest]) (*connect.Response[pb.GetReservationResponse], error) {
+func (p *creditProbe) GetReservation(
+	_ context.Context,
+	req *connect.Request[pb.GetReservationRequest],
+) (*connect.Response[pb.GetReservationResponse], error) {
 	p.mu.Lock()
 	p.bearers = append(p.bearers, req.Header().Get("Authorization"))
 	p.mu.Unlock()
-	return connect.NewResponse(&pb.GetReservationResponse{Reservation: &pb.Reservation{RequestId: req.Msg.RequestId, Status: pb.ReservationStatus_RESERVATION_STATUS_RELEASED}}), nil
+	return connect.NewResponse(
+		&pb.GetReservationResponse{
+			Reservation: &pb.Reservation{
+				RequestId: req.Msg.RequestId,
+				Status:    pb.ReservationStatus_RESERVATION_STATUS_RELEASED,
+			},
+		},
+	), nil
 }
 
 func TestCreditReadsRotatedServiceCredential(t *testing.T) {
@@ -70,7 +80,10 @@ func TestCreditReadsRotatedServiceCredential(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	file := filepath.Join(t.TempDir(), "credit-token")
-	client := &Credit{Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL), Tokens: testFileTokens(file)}
+	client := &Credit{
+		Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
+		Tokens: testFileTokens(file),
+	}
 	for _, token := range []string{"first-service-token", "rotated-service-token"} {
 		replacement := file + ".next"
 		if err := os.WriteFile(replacement, []byte(token+"\n"), 0600); err != nil {
@@ -86,7 +99,8 @@ func TestCreditReadsRotatedServiceCredential(t *testing.T) {
 	}
 	probe.mu.Lock()
 	defer probe.mu.Unlock()
-	if len(probe.bearers) != 2 || probe.bearers[0] != "Bearer first-service-token" || probe.bearers[1] != "Bearer rotated-service-token" {
+	if len(probe.bearers) != 2 || probe.bearers[0] != "Bearer first-service-token" ||
+		probe.bearers[1] != "Bearer rotated-service-token" {
 		t.Fatalf("bearers=%v", probe.bearers)
 	}
 }
@@ -105,7 +119,10 @@ func TestCredentialClientDoesNotFollowRedirect(t *testing.T) {
 	}
 	transport := origin.Client()
 	transport.CheckRedirect = NoRedirect
-	client := Credit{Client: creditv1connect.NewCreditReservationServiceClient(transport, origin.URL), Tokens: testFileTokens(file)}
+	client := Credit{
+		Client: creditv1connect.NewCreditReservationServiceClient(transport, origin.URL),
+		Tokens: testFileTokens(file),
+	}
 	if _, err := client.GetReservation(context.Background(), "order"); err == nil {
 		t.Fatal("redirect unexpectedly succeeded")
 	}
@@ -146,7 +163,10 @@ func TestFileTokensRequireCurrentWorkloadClaims(t *testing.T) {
 		{"wrong audience", "order-service", "supplier-service", time.Now().Add(time.Minute), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": tc.subject, "aud": tc.audience, "exp": tc.expiry.Unix()})
+			token := jwt.NewWithClaims(
+				jwt.SigningMethodHS256,
+				jwt.MapClaims{"sub": tc.subject, "aud": tc.audience, "exp": tc.expiry.Unix()},
+			)
 			value, err := token.SignedString([]byte("test-only-issuer"))
 			if err != nil {
 				t.Fatal(err)

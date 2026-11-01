@@ -22,7 +22,10 @@ type Handler struct {
 	Logic WarningLogic
 }
 
-func (h *Handler) GetMyWarnings(ctx context.Context, _ *connect.Request[userv1.GetMyWarningsRequest]) (*connect.Response[userv1.GetMyWarningsResponse], error) {
+func (h *Handler) GetMyWarnings(
+	ctx context.Context,
+	_ *connect.Request[userv1.GetMyWarningsRequest],
+) (*connect.Response[userv1.GetMyWarningsResponse], error) {
 	userID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -36,7 +39,10 @@ func (h *Handler) GetMyWarnings(ctx context.Context, _ *connect.Request[userv1.G
 	return response, nil
 }
 
-func (h *Handler) GetWarningsForUser(ctx context.Context, req *connect.Request[userv1.GetWarningsForUserRequest]) (*connect.Response[userv1.GetWarningsForUserResponse], error) {
+func (h *Handler) GetWarningsForUser(
+	ctx context.Context,
+	req *connect.Request[userv1.GetWarningsForUserRequest],
+) (*connect.Response[userv1.GetWarningsForUserResponse], error) {
 	if _, err := userdto.ActorID(ctx); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

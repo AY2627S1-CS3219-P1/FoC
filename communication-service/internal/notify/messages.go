@@ -84,7 +84,9 @@ func message(e *eventsv1.OrderStatusChanged, r role) string {
 		return capitalize(order) + " is complete."
 	case eventsv1.OrderStatus_ORDER_STATUS_CANCELLED:
 		if r == courier && e.GetPreviousStatus() == eventsv1.OrderStatus_ORDER_STATUS_DELIVERING {
-			return capitalize(order) + " was cancelled after pickup. Please record where you left the item in the FoC app."
+			return capitalize(
+				order,
+			) + " was cancelled after pickup. Please record where you left the item in the FoC app."
 		}
 		return capitalize(order) + " was cancelled."
 	case eventsv1.OrderStatus_ORDER_STATUS_EXPIRED:

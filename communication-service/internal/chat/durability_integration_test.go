@@ -10,7 +10,14 @@ import (
 func TestPostgresSaveMessageRetryIsIdempotent(t *testing.T) {
 	s := newPostgresStore(t)
 	ctx := context.Background()
-	m := Message{ID: uuid.New(), OrderID: uuid.New(), SenderID: courier, RecipientID: requester, Body: "hi", SentAt: now}
+	m := Message{
+		ID:          uuid.New(),
+		OrderID:     uuid.New(),
+		SenderID:    courier,
+		RecipientID: requester,
+		Body:        "hi",
+		SentAt:      now,
+	}
 	for range 2 {
 		if err := s.SaveMessage(ctx, m); err != nil {
 			t.Fatal(err)

@@ -75,7 +75,14 @@ func (p *PostgresRepository) ListByUser(ctx context.Context, userID uuid.UUID) (
 	return warnings, nil
 }
 
-func (p *PostgresRepository) Remove(ctx context.Context, id uuid.UUID, removedAt time.Time, reason *string, appealID *uuid.UUID, actorID *uuid.UUID) (Warning, error) {
+func (p *PostgresRepository) Remove(
+	ctx context.Context,
+	id uuid.UUID,
+	removedAt time.Time,
+	reason *string,
+	appealID *uuid.UUID,
+	actorID *uuid.UUID,
+) (Warning, error) {
 	row, err := p.queries.RemoveAccountWarning(ctx, warningdb.RemoveAccountWarningParams{
 		ID: id, RemovedAt: sql.NullTime{Time: removedAt, Valid: true},
 		RemovedReason: nullableString(reason), AppealID: nullableUUID(appealID), UpdatedBy: nullableUUID(actorID),
