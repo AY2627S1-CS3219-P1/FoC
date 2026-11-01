@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { authService, warningService } from '$lib/services';
+	import { warningService } from '$lib/services';
 	import type { AccountWarning } from '$lib/services/warning/warningApi';
 
 	let warnings = $state<AccountWarning[]>([]);
@@ -24,13 +23,7 @@
 	}
 
 	onMount(() => {
-		void (async () => {
-			if (!authService.isAuthenticated) {
-				await goto('/login', { replaceState: true });
-				return;
-			}
-			await loadWarnings();
-		})();
+		void loadWarnings();
 	});
 </script>
 

@@ -418,6 +418,7 @@ func newAuthServices(
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
 	persistence := store.New(db)
+
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
 		TokenCodec: codec, EmailSender: cfg.smtp,
