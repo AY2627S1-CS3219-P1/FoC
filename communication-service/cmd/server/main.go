@@ -117,6 +117,7 @@ func main() {
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
+	defer func() { _ = authenticator.Close() }()
 
 	links := &linking.Service{Store: &linking.PostgresStore{Pool: pool}, Now: time.Now}
 

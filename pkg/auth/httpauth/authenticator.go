@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -68,6 +69,9 @@ type Authenticator struct {
 	cache     atomic.Pointer[keyCache]
 	refreshMu sync.Mutex
 	lastMiss  time.Time
+	// ownedRevocations is set only when this authenticator constructed its
+	// own revocation store; Close releases it.
+	ownedRevocations io.Closer
 }
 
 // NewAuthenticator fetches the initial key set before protected routes are served.
@@ -103,6 +107,16 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	return a, nil
 }
 
+// Close releases resources the authenticator owns. Composition roots with a
+// graceful-shutdown path defer it; it is a no-op when the revocation store is
+// owned externally.
+func (a *Authenticator) Close() error {
+	if a.ownedRevocations == nil {
+		return nil
+	}
+	return a.ownedRevocations.Close()
+}
+
 // NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and REDIS_ADDR,
 // fetching signing keys through the user service's generated Connect client
 // and consulting the shared revocation dictionary on every request.
@@ -125,8 +139,16 @@ func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize access-token revocation store: %w", err)
 	}
-	return NewAuthenticator(ctx, AuthConfig{UserServiceURL: baseURL,
+	authenticator, err := NewAuthenticator(ctx, AuthConfig{UserServiceURL: baseURL,
 		Issuer: TokenIssuer, Audience: TokenAudience, Revocations: revocations})
+	if err != nil {
+		// Startup retries construct a new store each attempt; never leak this
+		// one when the signing keys cannot be fetched.
+		_ = revocations.Close()
+		return nil, err
+	}
+	authenticator.ownedRevocations = revocations
+	return authenticator, nil
 }
 
 func (a *Authenticator) Authenticate(next http.Handler) http.Handler {

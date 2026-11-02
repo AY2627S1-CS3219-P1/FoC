@@ -39,6 +39,7 @@ func main() {
 		slog.Error("Error initializing authentication", "error", err)
 		panic(err)
 	}
+	defer func() { _ = authenticator.Close() }()
 
 	services, err := newRPCServices(pgxPool, time.Now)
 	if err != nil {
