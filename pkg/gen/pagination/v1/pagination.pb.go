@@ -32,10 +32,10 @@ const (
 type Pagination struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// One-based page. Zero or omitted means page 1.
-	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Page int64 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// Rows per page. Zero or omitted means the default; values above the server
 	// maximum are clamped down to it.
-	PageSize      int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize      int64 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -70,14 +70,14 @@ func (*Pagination) Descriptor() ([]byte, []int) {
 	return file_pagination_v1_pagination_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Pagination) GetPage() int32 {
+func (x *Pagination) GetPage() int64 {
 	if x != nil {
 		return x.Page
 	}
 	return 0
 }
 
-func (x *Pagination) GetPageSize() int32 {
+func (x *Pagination) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
 	}
@@ -89,12 +89,12 @@ func (x *Pagination) GetPageSize() int32 {
 type PageInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// One-based current page.
-	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Page int64 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// Effective page size, default 20, maximum 100.
-	PageSize   int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize   int64 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	TotalItems int64 `protobuf:"varint,3,opt,name=total_items,json=totalItems,proto3" json:"total_items,omitempty"`
 	// Total pages, zero for an empty result.
-	TotalPages    int32 `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	TotalPages    int64 `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -129,14 +129,14 @@ func (*PageInfo) Descriptor() ([]byte, []int) {
 	return file_pagination_v1_pagination_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PageInfo) GetPage() int32 {
+func (x *PageInfo) GetPage() int64 {
 	if x != nil {
 		return x.Page
 	}
 	return 0
 }
 
-func (x *PageInfo) GetPageSize() int32 {
+func (x *PageInfo) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
 	}
@@ -150,7 +150,7 @@ func (x *PageInfo) GetTotalItems() int64 {
 	return 0
 }
 
-func (x *PageInfo) GetTotalPages() int32 {
+func (x *PageInfo) GetTotalPages() int64 {
 	if x != nil {
 		return x.TotalPages
 	}
@@ -164,14 +164,14 @@ const file_pagination_v1_pagination_proto_rawDesc = "" +
 	"\x1epagination/v1/pagination.proto\x12\rpagination.v1\"=\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"}\n" +
+	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x03R\bpageSize\"}\n" +
 	"\bPageInfo\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x03R\bpageSize\x12\x1f\n" +
 	"\vtotal_items\x18\x03 \x01(\x03R\n" +
 	"totalItems\x12\x1f\n" +
-	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
+	"\vtotal_pages\x18\x04 \x01(\x03R\n" +
 	"totalPagesB\xbf\x01\n" +
 	"\x11com.pagination.v1B\x0fPaginationProtoP\x01ZDgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1;paginationv1\xa2\x02\x03PXX\xaa\x02\rPagination.V1\xca\x02\rPagination\\V1\xe2\x02\x19Pagination\\V1\\GPBMetadata\xea\x02\x0ePagination::V1b\x06proto3"
 

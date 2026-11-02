@@ -90,10 +90,12 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 func (r *PostgresRepository) ListReviewsForUser(
 	ctx context.Context,
 	userID uuid.UUID,
-	offset, limit int,
+	offset, limit int64,
 ) ([]Review, error) {
 	rows, err := r.queries.ListReviewsForUser(ctx, reviewdb.ListReviewsForUserParams{
-		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
+		UserID:     userID,
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list reviews received: %w", err)
@@ -108,10 +110,12 @@ func (r *PostgresRepository) ListReviewsForUser(
 func (r *PostgresRepository) ListReviewsFromUser(
 	ctx context.Context,
 	userID uuid.UUID,
-	offset, limit int,
+	offset, limit int64,
 ) ([]Review, error) {
 	rows, err := r.queries.ListReviewsFromUser(ctx, reviewdb.ListReviewsFromUserParams{
-		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
+		UserID:     userID,
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list reviews given: %w", err)
@@ -139,9 +143,10 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
-func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error) {
+func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
 	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
-		PageOffset: int32(offset), PageLimit: int32(limit),
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list removals: %w", err)

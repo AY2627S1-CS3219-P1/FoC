@@ -24,11 +24,11 @@ type Repository interface {
 	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
 
-	ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)
-	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)
+	ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
+	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
-	ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error)
+	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 	UserExists(ctx context.Context, id uuid.UUID) (bool, error)
 }

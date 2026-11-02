@@ -8,28 +8,25 @@ package pagination
 
 import (
 	"errors"
+	"math"
 )
 
-// ErrOffsetOverflow is returned when a page's offset exceeds the database's
-// offset range.
+// ErrOffsetOverflow is returned when a page's offset cannot fit in int64.
 var ErrOffsetOverflow = errors.New("pagination offset out of range")
 
 const (
 	defaultPage     = 1
 	defaultPageSize = 20
 	maxPageSize     = 100
-	// PostgreSQL OFFSET arguments are int4; a larger offset is rejected
-	// here instead of failing in SQL.
-	offsetMaxInt32 = 2_147_483_647
 )
 
 // Pagination is a request-side offset page.
 type Pagination struct {
-	page     int
-	pageSize int
+	page     int64
+	pageSize int64
 }
 
-func New(page, pageSize int) (Pagination, error) {
+func New(page, pageSize int64) (Pagination, error) {
 	p := page
 	if p <= 0 {
 		p = defaultPage
@@ -41,39 +38,39 @@ func New(page, pageSize int) (Pagination, error) {
 	if size > maxPageSize {
 		size = maxPageSize
 	}
-	// Check before multiplying: Go callers can pass pages larger than int32.
-	if p-1 > offsetMaxInt32/size {
+	// Check before multiplying: overflow can wrap to a nonnegative offset.
+	if p-1 > math.MaxInt64/size {
 		return Pagination{}, ErrOffsetOverflow
 	}
 	return Pagination{page: p, pageSize: size}, nil
 }
 
-func (p Pagination) Page() int { return p.page }
+func (p Pagination) Page() int64 { return p.page }
 
-func (p Pagination) PageSize() int { return p.pageSize }
+func (p Pagination) PageSize() int64 { return p.pageSize }
 
-func (p Pagination) Offset() int { return (p.page - 1) * p.pageSize }
+func (p Pagination) Offset() int64 { return (p.page - 1) * p.pageSize }
 
 // PageInfo is a response-side holder for the totals of a paginated list.
 type PageInfo struct {
-	page       int
-	pageSize   int
+	page       int64
+	pageSize   int64
 	totalItems int64
-	totalPages int
+	totalPages int64
 }
 
-func NewPageInfo(page, pageSize int, totalItems int64) PageInfo {
-	totalPages := 0
+func NewPageInfo(page, pageSize, totalItems int64) PageInfo {
+	var totalPages int64
 	if pageSize > 0 && totalItems > 0 {
-		totalPages = int((totalItems + int64(pageSize) - 1) / int64(pageSize))
+		totalPages = (totalItems-1)/pageSize + 1
 	}
 	return PageInfo{page: page, pageSize: pageSize, totalItems: totalItems, totalPages: totalPages}
 }
 
-func (p PageInfo) Page() int { return p.page }
+func (p PageInfo) Page() int64 { return p.page }
 
-func (p PageInfo) PageSize() int { return p.pageSize }
+func (p PageInfo) PageSize() int64 { return p.pageSize }
 
 func (p PageInfo) TotalItems() int64 { return p.totalItems }
 
-func (p PageInfo) TotalPages() int { return p.totalPages }
+func (p PageInfo) TotalPages() int64 { return p.totalPages }

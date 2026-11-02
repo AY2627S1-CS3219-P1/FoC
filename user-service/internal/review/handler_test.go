@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -337,13 +338,37 @@ func TestListReviewRemovalsRPC(t *testing.T) {
 		}
 	})
 
+	t.Run("pagination preserves int64 values", func(t *testing.T) {
+		stub := &handlerLogicStub{
+			removalsPage: RemovalPage{
+				PageInfo: pagination.NewPageInfo(math.MaxInt64, 1, math.MaxInt64),
+			},
+		}
+		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
+		resp, err := client.ListReviewRemovals(context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+				Pagination: &paginationv1.Pagination{Page: math.MaxInt64, PageSize: 1},
+			}))
+		if err != nil {
+			t.Fatalf("list removals: %v", err)
+		}
+		if stub.removalsFor.Offset() != math.MaxInt64-1 {
+			t.Fatalf("unexpected offset: %d", stub.removalsFor.Offset())
+		}
+		info := resp.Msg.GetPagination()
+		if info.GetPage() != math.MaxInt64 || info.GetTotalPages() != math.MaxInt64 ||
+			info.GetTotalItems() != math.MaxInt64 || info.GetPageSize() != 1 {
+			t.Fatalf("unexpected pagination: %+v", info)
+		}
+	})
+
 	t.Run("pagination overflow is rejected", func(t *testing.T) {
 		stub := &handlerLogicStub{}
 		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
 		_, err := client.ListReviewRemovals(
 			context.Background(),
 			connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
-				Pagination: &paginationv1.Pagination{Page: 2_147_483_647, PageSize: 2},
+				Pagination: &paginationv1.Pagination{Page: math.MaxInt64, PageSize: 2},
 			}),
 		)
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {

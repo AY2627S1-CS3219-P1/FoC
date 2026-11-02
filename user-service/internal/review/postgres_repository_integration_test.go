@@ -60,7 +60,7 @@ func userStats(t *testing.T, ctx context.Context, sqlDB *sql.DB, userID uuid.UUI
 	return count, avg
 }
 
-func mustPage(t *testing.T, page, size int) pagination.Pagination {
+func mustPage(t *testing.T, page, size int64) pagination.Pagination {
 	t.Helper()
 	p, err := pagination.New(page, size)
 	if err != nil {
@@ -88,6 +88,26 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	}
 	ctx := context.Background()
 	service := buildReviewService(t, sqlDB)
+
+	t.Run("list offsets beyond int32 are preserved", func(t *testing.T) {
+		page := mustPage(t, math.MaxInt64, 1)
+		userID := uuid.New()
+
+		received, err := service.ListReviewsForUser(ctx, userID, page)
+		if err != nil || len(received.Reviews) != 0 {
+			t.Fatalf("list received at large offset: reviews=%v err=%v", received.Reviews, err)
+		}
+
+		given, err := service.ListReviewsFromUser(ctx, userID, page)
+		if err != nil || len(given.Reviews) != 0 {
+			t.Fatalf("list given at large offset: reviews=%v err=%v", given.Reviews, err)
+		}
+
+		removals, err := service.ListReviewRemovals(ctx, page)
+		if err != nil || len(removals.Removals) != 0 {
+			t.Fatalf("list removals at large offset: removals=%v err=%v", removals.Removals, err)
+		}
+	})
 
 	t.Run("recalculates stats as reviews come and go", func(t *testing.T) {
 		reviewer, second, reviewee, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()

@@ -78,11 +78,11 @@ func (f *fakeRepository) RecalculateStats(_ context.Context, _ *reviewdb.Queries
 	return f.recalcErr
 }
 
-func (f *fakeRepository) ListReviewsForUser(_ context.Context, _ uuid.UUID, _ int, _ int) ([]Review, error) {
+func (f *fakeRepository) ListReviewsForUser(_ context.Context, _ uuid.UUID, _ int64, _ int64) ([]Review, error) {
 	return f.listForUser, f.listErr
 }
 
-func (f *fakeRepository) ListReviewsFromUser(_ context.Context, _ uuid.UUID, _ int, _ int) ([]Review, error) {
+func (f *fakeRepository) ListReviewsFromUser(_ context.Context, _ uuid.UUID, _ int64, _ int64) ([]Review, error) {
 	return f.listFromUser, f.listErr
 }
 
@@ -94,7 +94,7 @@ func (f *fakeRepository) CountReviewsFromUser(_ context.Context, _ uuid.UUID) (i
 	return f.countFromUser, f.countErr
 }
 
-func (f *fakeRepository) ListReviewRemovals(_ context.Context, _, _ int) ([]ReviewRemoval, error) {
+func (f *fakeRepository) ListReviewRemovals(_ context.Context, _, _ int64) ([]ReviewRemoval, error) {
 	return f.listRemovals, f.listErr
 }
 

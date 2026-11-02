@@ -167,7 +167,7 @@ func newPage(p *paginationv1.Pagination) (pagination.Pagination, error) {
 	if p == nil {
 		return pagination.New(0, 0)
 	}
-	return pagination.New(int(p.GetPage()), int(p.GetPageSize()))
+	return pagination.New(p.GetPage(), p.GetPageSize())
 }
 
 func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSubmission {
@@ -209,10 +209,10 @@ func toReviewProtos(reviews []Review) []*reviewv1.Review {
 
 func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
 	return &paginationv1.PageInfo{
-		Page:       int32(info.Page()),
-		PageSize:   int32(info.PageSize()),
+		Page:       info.Page(),
+		PageSize:   info.PageSize(),
 		TotalItems: info.TotalItems(),
-		TotalPages: int32(info.TotalPages()),
+		TotalPages: info.TotalPages(),
 	}
 }
 

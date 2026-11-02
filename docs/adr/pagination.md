@@ -20,11 +20,14 @@ PRs affected: user-service review feature (R3 list endpoints)
 
 Shared offset pagination lives in `pkg/pagination` as one self-contained model:
 
-- **Request model** carries `page` and `page_size`.
+- **Request model** carries `page` and `page_size`. All pagination values use
+  `int64` internally and in the shared protobuf contract; review SQL parameters
+  are explicitly `bigint` to avoid narrowing the offset to `int32`.
 - It **computes and exposes its own `offset`** (`(page - 1) * page_size`) and
   **validates itself** — defaults (page 0 → 1, page_size 0 → 20), bounds
   (page_size maximum 100), and an offset-overflow guard — as model methods, not
-  per-handler logic.
+  per-handler logic. The guard checks `page - 1 > MaxInt64 / page_size` before
+  multiplication, because overflow can wrap to zero or a positive number too.
 - **Response model** carries `page`, `page_size`, `total_pages`, `total_items`;
   `total_pages = ceil(total_items / page_size)`.
 - `page` is the canonical wire field (supplier-service precedent); `offset` is

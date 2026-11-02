@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pagination/v1/pagination.proto.
  */
 export const file_pagination_v1_pagination: GenFile = /*@__PURE__*/
-  fileDesc("Ch5wYWdpbmF0aW9uL3YxL3BhZ2luYXRpb24ucHJvdG8SDXBhZ2luYXRpb24udjEiLQoKUGFnaW5hdGlvbhIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBSJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgFEhEKCXBhZ2Vfc2l6ZRgCIAEoBRITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoBUK/AQoRY29tLnBhZ2luYXRpb24udjFCD1BhZ2luYXRpb25Qcm90b1ABWkRnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9wYWdpbmF0aW9uL3YxO3BhZ2luYXRpb252MaICA1BYWKoCDVBhZ2luYXRpb24uVjHKAg1QYWdpbmF0aW9uXFYx4gIZUGFnaW5hdGlvblxWMVxHUEJNZXRhZGF0YeoCDlBhZ2luYXRpb246OlYxYgZwcm90bzM");
+  fileDesc("Ch5wYWdpbmF0aW9uL3YxL3BhZ2luYXRpb24ucHJvdG8SDXBhZ2luYXRpb24udjEiLQoKUGFnaW5hdGlvbhIMCgRwYWdlGAEgASgDEhEKCXBhZ2Vfc2l6ZRgCIAEoAyJVCghQYWdlSW5mbxIMCgRwYWdlGAEgASgDEhEKCXBhZ2Vfc2l6ZRgCIAEoAxITCgt0b3RhbF9pdGVtcxgDIAEoAxITCgt0b3RhbF9wYWdlcxgEIAEoA0K/AQoRY29tLnBhZ2luYXRpb24udjFCD1BhZ2luYXRpb25Qcm90b1ABWkRnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9wYWdpbmF0aW9uL3YxO3BhZ2luYXRpb252MaICA1BYWKoCDVBhZ2luYXRpb24uVjHKAg1QYWdpbmF0aW9uXFYx4gIZUGFnaW5hdGlvblxWMVxHUEJNZXRhZGF0YeoCDlBhZ2luYXRpb246OlYxYgZwcm90bzM");
 
 /**
  * Pagination is a request-side offset page. page is the canonical wire field;
@@ -28,17 +28,17 @@ export type Pagination = Message<"pagination.v1.Pagination"> & {
   /**
    * One-based page. Zero or omitted means page 1.
    *
-   * @generated from field: int32 page = 1;
+   * @generated from field: int64 page = 1;
    */
-  page: number;
+  page: bigint;
 
   /**
    * Rows per page. Zero or omitted means the default; values above the server
    * maximum are clamped down to it.
    *
-   * @generated from field: int32 page_size = 2;
+   * @generated from field: int64 page_size = 2;
    */
-  pageSize: number;
+  pageSize: bigint;
 };
 
 /**
@@ -58,16 +58,16 @@ export type PageInfo = Message<"pagination.v1.PageInfo"> & {
   /**
    * One-based current page.
    *
-   * @generated from field: int32 page = 1;
+   * @generated from field: int64 page = 1;
    */
-  page: number;
+  page: bigint;
 
   /**
    * Effective page size, default 20, maximum 100.
    *
-   * @generated from field: int32 page_size = 2;
+   * @generated from field: int64 page_size = 2;
    */
-  pageSize: number;
+  pageSize: bigint;
 
   /**
    * @generated from field: int64 total_items = 3;
@@ -77,9 +77,9 @@ export type PageInfo = Message<"pagination.v1.PageInfo"> & {
   /**
    * Total pages, zero for an empty result.
    *
-   * @generated from field: int32 total_pages = 4;
+   * @generated from field: int64 total_pages = 4;
    */
-  totalPages: number;
+  totalPages: bigint;
 };
 
 /**

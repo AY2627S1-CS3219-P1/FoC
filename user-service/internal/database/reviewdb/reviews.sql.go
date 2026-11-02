@@ -137,12 +137,12 @@ SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reas
 FROM review_removals rr
 JOIN users creator ON creator.id = rr.created_by
 ORDER BY rr.created_at DESC, rr.id DESC
-LIMIT $2 OFFSET $1
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type ListReviewRemovalsParams struct {
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
 type ListReviewRemovalsRow struct {
@@ -199,13 +199,13 @@ JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $3 OFFSET $2
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListReviewsForUserParams struct {
 	UserID     uuid.UUID
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
 type ListReviewsForUserRow struct {
@@ -264,13 +264,13 @@ JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $3 OFFSET $2
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListReviewsFromUserParams struct {
 	UserID     uuid.UUID
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
 type ListReviewsFromUserRow struct {

@@ -35,7 +35,7 @@ JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT @page_limit OFFSET @page_offset;
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: ListReviewsFromUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
@@ -46,7 +46,7 @@ JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT @page_limit OFFSET @page_offset;
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewsForUser :one
 SELECT COUNT(*)
@@ -64,7 +64,7 @@ SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reas
 FROM review_removals rr
 JOIN users creator ON creator.id = rr.created_by
 ORDER BY rr.created_at DESC, rr.id DESC
-LIMIT @page_limit OFFSET @page_offset;
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewRemovals :one
 SELECT COUNT(*)
