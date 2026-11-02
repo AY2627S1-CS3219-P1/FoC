@@ -31,10 +31,16 @@ per-entry TTL equal to the maximum access-token lifetime.
   bounded by the access-token lifetime; Redis evicts expired keys itself.
 - **The User Service is the only writer.** After a database session revocation
   commits — logout, refresh rotation, logout-all (which returns the revoked
-  session IDs from `RevokeAllForUser`), and every role change, including
-  suspension — it records the revoked session IDs. Write failures are logged
-  and swallowed: the session is already revoked, and a missed entry only leaves
-  tokens valid until their own expiry.
+  session IDs from `RevokeAllForUser`), every role change including suspension,
+  and a bootstrap promotion of an existing user — it records the revoked
+  session IDs. Write failures are logged and swallowed: the session is already
+  revoked, and a missed entry only leaves tokens valid until their own expiry.
+- **Token issuance serializes against role changes.** Login and refresh read
+  the user with `FOR UPDATE` inside the transaction that issues tokens, so a
+  concurrent role change either committed first (the new tokens carry the new
+  role) or commits later (its revocation sweep then covers the new session).
+  Without the lock, a login racing a suspension could mint a session that
+  escapes revocation and keeps the old role until expiry.
 - **Every service is a reader and fails closed.** The shared authenticators
   (`pkg/auth/httpauth.Authenticator` for supplier, order, communication, and
   credit; `AuthenticateLocal` for the issuing User Service) check the
@@ -54,8 +60,10 @@ per-entry TTL equal to the maximum access-token lifetime.
   replaces the earlier guidance that stale token claims are tolerated until
   expiry.
 - A Redis outage blocks authenticated calls in all services (fail-closed).
-  Compose therefore health-checks Redis and orders services after it; the
-  client uses short dial/read/write timeouts so failures fail fast.
+  Compose therefore health-checks Redis, orders services after it, and
+  persists the dictionary with append-only files: a wiped dictionary would let
+  already-revoked tokens pass again until their expiry. The client uses short
+  dial/read/write timeouts so failures fail fast.
 - Local development gains one Redis container (`compose.yaml`); all services
   require `REDIS_ADDR`.
 - Credit's internal reservation listener remains unauthenticated (issue #29);
