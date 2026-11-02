@@ -1,4 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: foc
+# Local-only: creates per-service roles and databases on the shared ephemeral
+# Postgres. Production pre-provisions the database before deploying, so its
+# provisioning stage is empty.
 resources:
-  - ../../../base/provisioning
+  - accounts.yaml
+  - db-provision.yaml
+configMapGenerator:
+  - name: db-provision-script
+    files:
+      - provision.sh
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-provision
+  labels:
+    foc.dev/stage: provisioning
+automountServiceAccountToken: false

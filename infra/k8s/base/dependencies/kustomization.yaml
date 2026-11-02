@@ -5,6 +5,5 @@ resources:
   - config.yaml
   - accounts.yaml
   - security.yaml
-  - postgres.yaml
   - kafka.yaml
   - kafka-ui.yaml

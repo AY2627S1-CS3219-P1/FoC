@@ -1,6 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: foc
+# postgres.yaml is local-only (overlays/local/dependencies): production
+# pre-provisions the database and supplies the *-db Secrets.
 resources:
+  - postgres.yaml
   - ../../../base/dependencies
   - ../../../base/mailpit
   - ../../../base/floci
