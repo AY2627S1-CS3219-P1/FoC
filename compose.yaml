@@ -43,12 +43,17 @@ services:
     restart: unless-stopped
 
   # Shared revocation dictionary for access tokens. All services must agree
-  # on the revoked_access_tokens:<sid> keys it holds.
+  # on the revoked_access_tokens:<sid> keys it holds. Append-only persistence
+  # keeps revocation entries (and their TTLs) across container restarts;
+  # a wiped dictionary would let already-revoked tokens pass again.
   redis:
     image: redis:8-alpine
     container_name: foc-redis
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -341,6 +346,7 @@ services:
 volumes:
   order-images:
   pgdata:
+  redis-data:
   kafka-ui-config:
   frontend-node-modules:
   frontend-svelte-kit:
