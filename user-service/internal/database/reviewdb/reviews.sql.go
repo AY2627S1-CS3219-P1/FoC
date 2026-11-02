@@ -51,32 +51,6 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
-const findReviewLocked = `-- name: FindReviewLocked :one
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE id = $1::UUID AND deleted_at IS NULL
-FOR UPDATE
-`
-
-// Find the live review and lock it: removal serialises on this lock, so a
-// concurrent removal of the same review sees the row already soft-deleted and
-// reports not found instead of writing a second audit row.
-func (q *Queries) FindReviewLocked(ctx context.Context, id uuid.UUID) (Review, error) {
-	row := q.db.QueryRowContext(ctx, findReviewLocked, id)
-	var i Review
-	err := row.Scan(
-		&i.ID,
-		&i.DeletedAt,
-		&i.ReviewerID,
-		&i.RevieweeID,
-		&i.OrderID,
-		&i.Rating,
-		&i.Comment,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const insertReview = `-- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now())
@@ -335,6 +309,32 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 	return err
 }
 
+const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
+SELECT EXISTS (
+           SELECT 1 FROM users WHERE id = $1::UUID
+       ) AS reviewer_exists,
+       EXISTS (
+           SELECT 1 FROM users WHERE id = $2::UUID
+       ) AS reviewee_exists
+`
+
+type ReviewParticipantsExistParams struct {
+	ReviewerID uuid.UUID
+	RevieweeID uuid.UUID
+}
+
+type ReviewParticipantsExistRow struct {
+	ReviewerExists bool
+	RevieweeExists bool
+}
+
+func (q *Queries) ReviewParticipantsExist(ctx context.Context, arg ReviewParticipantsExistParams) (ReviewParticipantsExistRow, error) {
+	row := q.db.QueryRowContext(ctx, reviewParticipantsExist, arg.ReviewerID, arg.RevieweeID)
+	var i ReviewParticipantsExistRow
+	err := row.Scan(&i.ReviewerExists, &i.RevieweeExists)
+	return i, err
+}
+
 const revieweeStatistics = `-- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
@@ -353,16 +353,30 @@ func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) 
 	return i, err
 }
 
-const softDeleteReview = `-- name: SoftDeleteReview :exec
+const softDeleteReview = `-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = $1::UUID AND deleted_at IS NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 `
 
-// The row is retained (not deleted) so review_removals can keep referencing it.
-func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, softDeleteReview, id)
-	return err
+// The update locks the row and returns the data needed for the removal audit.
+// A concurrent removal waits, then finds no live row and reports not found.
+// The row is retained so review_removals can keep referencing it.
+func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, error) {
+	row := q.db.QueryRowContext(ctx, softDeleteReview, id)
+	var i Review
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateRevieweeStats = `-- name: UpdateRevieweeStats :exec
@@ -381,17 +395,4 @@ type UpdateRevieweeStatsParams struct {
 func (q *Queries) UpdateRevieweeStats(ctx context.Context, arg UpdateRevieweeStatsParams) error {
 	_, err := q.db.ExecContext(ctx, updateRevieweeStats, arg.Count, arg.AvgRating, arg.RevieweeID)
 	return err
-}
-
-const userExists = `-- name: UserExists :one
-SELECT EXISTS (
-    SELECT 1 FROM users WHERE id = $1::UUID
-) AS exists
-`
-
-func (q *Queries) UserExists(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, userExists, userID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }

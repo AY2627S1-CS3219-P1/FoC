@@ -225,6 +225,56 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "audit rollback"},
+		); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 10))
+		if err != nil {
+			t.Fatalf("list review: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("want one review, got %d", len(received.Reviews))
+		}
+
+		err = service.RemoveReview(ctx, received.Reviews[0].ID, "audit failure", uuid.New())
+		if err == nil {
+			t.Fatal("removal with a nonexistent administrator should fail")
+		}
+		var deletedAt sql.NullTime
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT deleted_at FROM reviews WHERE id = $1", received.Reviews[0].ID).Scan(&deletedAt); err != nil {
+			t.Fatalf("read review after failed removal: %v", err)
+		}
+		if deletedAt.Valid {
+			t.Fatal("review was soft-deleted despite the audit insert failing")
+		}
+		var auditCount int
+		if err := sqlDB.QueryRowContext(
+			ctx,
+			"SELECT COUNT(*) FROM review_removals WHERE review_id = $1",
+			received.Reviews[0].ID,
+		).Scan(&auditCount); err != nil {
+			t.Fatalf("count removal audits: %v", err)
+		}
+		if auditCount != 0 {
+			t.Fatalf("audit rows = %d after failed removal, want 0", auditCount)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 1 || avg != 5 {
+			t.Fatalf("stats after failed removal = (%d, %v), want (1, 5)", count, avg)
+		}
+	})
+
 	t.Run("statistics include reviews committed during a lock wait", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()

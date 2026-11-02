@@ -20,34 +20,39 @@ import (
 type fakeRepository struct {
 	exists map[uuid.UUID]bool
 
-	listForUser   []Review
-	listFromUser  []Review
-	countForUser  int64
-	countFromUser int64
-	listRemovals  []ReviewRemoval
-	countRemovals int64
-	userExistsErr error
-	listErr       error
-	countErr      error
+	listForUser     []Review
+	listFromUser    []Review
+	countForUser    int64
+	countFromUser   int64
+	listRemovals    []ReviewRemoval
+	countRemovals   int64
+	participantsErr error
+	listErr         error
+	countErr        error
 
-	insertErr    error
-	findReview   Review
-	findErr      error
-	softDelErr   error
-	removalErr   error
-	recalcErr    error
-	recalcCount  int
-	insertedID   uuid.UUID
-	audited      ReviewRemoval
-	softDeleted  uuid.UUID
-	recalculated uuid.UUID
+	insertErr      error
+	reviewToDelete Review
+	softDelErr     error
+	removalErr     error
+	recalcErr      error
+	recalcCount    int
+	insertedID     uuid.UUID
+	audited        ReviewRemoval
+	softDeleted    uuid.UUID
+	recalculated   uuid.UUID
 }
 
-func (f *fakeRepository) UserExists(_ context.Context, id uuid.UUID) (bool, error) {
-	if f.userExistsErr != nil {
-		return false, f.userExistsErr
+func (f *fakeRepository) CheckReviewParticipants(
+	_ context.Context,
+	reviewerID, revieweeID uuid.UUID,
+) (ReviewParticipantExistence, error) {
+	if f.participantsErr != nil {
+		return ReviewParticipantExistence{}, f.participantsErr
 	}
-	return f.exists[id], nil
+	return ReviewParticipantExistence{
+		ReviewerExists: f.exists[reviewerID],
+		RevieweeExists: f.exists[revieweeID],
+	}, nil
 }
 
 func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, input ReviewInput) error {
@@ -57,13 +62,10 @@ func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, in
 
 func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
 	f.softDeleted = id
-	if f.findErr != nil {
-		return Review{}, f.findErr
-	}
 	if f.softDelErr != nil {
 		return Review{}, f.softDelErr
 	}
-	return f.findReview, nil
+	return f.reviewToDelete, nil
 }
 
 func (f *fakeRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
@@ -148,6 +150,19 @@ func TestSubmitReview(t *testing.T) {
 			ReviewSubmission{Rating: 4, Comment: "ok"},
 		)
 		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("reviewer error takes precedence when both users are missing", func(t *testing.T) {
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{}})
+		err := svc.SubmitReview(
+			context.Background(),
+			uuid.New(),
+			uuid.New(),
+			uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "x"},
+		)
+		if !errors.Is(err, errReviewerNotFound) {
+			t.Fatalf("want reviewer-not-found error first, got: %v", err)
+		}
 	})
 	t.Run("inserts the review and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
@@ -299,10 +314,15 @@ func TestRemoveReview(t *testing.T) {
 		})
 	}
 	t.Run("character limit accepts multibyte text", func(t *testing.T) {
-		fake := &fakeRepository{findReview: Review{ID: uuid.New()}}
+		fake := &fakeRepository{reviewToDelete: Review{ID: uuid.New()}}
 		svc := newTestService(fake)
 		reason := strings.Repeat("界", 100000)
-		if err := svc.RemoveReview(context.Background(), fake.findReview.ID, " "+reason+" ", uuid.New()); err != nil {
+		if err := svc.RemoveReview(
+			context.Background(),
+			fake.reviewToDelete.ID,
+			" "+reason+" ",
+			uuid.New(),
+		); err != nil {
 			t.Fatal(err)
 		}
 		if fake.audited.Reason != reason {
@@ -312,7 +332,9 @@ func TestRemoveReview(t *testing.T) {
 	t.Run("soft-deletes the review, audits it, and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order, id := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		createdBy := uuid.New()
-		fake := &fakeRepository{findReview: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order}}
+		fake := &fakeRepository{
+			reviewToDelete: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order},
+		}
 		svc := newTestService(fake)
 		if err := svc.RemoveReview(context.Background(), id, " \tabuse\n ", createdBy); err != nil {
 			t.Fatalf("remove: %v", err)
@@ -334,7 +356,7 @@ func TestRemoveReview(t *testing.T) {
 		}
 	})
 	t.Run("unknown review is not found", func(t *testing.T) {
-		fake := &fakeRepository{findErr: errReviewNotFound}
+		fake := &fakeRepository{softDelErr: errReviewNotFound}
 		svc := newTestService(fake)
 		err := svc.RemoveReview(context.Background(), uuid.New(), "reason", uuid.New())
 		if !errors.Is(err, errReviewNotFound) {

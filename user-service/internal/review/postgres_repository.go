@@ -33,26 +33,12 @@ func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queri
 	return mapReviewError("insert review", err)
 }
 
-// findReviewLocked reads only the locked review row; it does not read related
-// data through a subquery (see LANDMINES/locked-row-relationship-snapshots.md).
-func (r *PostgresRepository) findReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
-	row, err := q.FindReviewLocked(ctx, id)
+func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	row, err := q.SoftDeleteReview(ctx, id)
 	if err != nil {
-		return Review{}, mapReviewError("find review", err)
+		return Review{}, mapReviewError("soft delete review", err)
 	}
 	return toReview(row), nil
-}
-
-func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
-	review, err := r.findReviewLocked(ctx, q, id)
-	if err != nil {
-		return Review{}, err
-	}
-
-	if err := mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id)); err != nil {
-		return Review{}, err
-	}
-	return review, nil
 }
 
 func (r *PostgresRepository) RecordReviewRemoval(
@@ -174,12 +160,21 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 	return count, nil
 }
 
-func (r *PostgresRepository) UserExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	exists, err := r.queries.UserExists(ctx, id)
+func (r *PostgresRepository) CheckReviewParticipants(
+	ctx context.Context,
+	reviewerID, revieweeID uuid.UUID,
+) (ReviewParticipantExistence, error) {
+	exists, err := r.queries.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+		ReviewerID: reviewerID,
+		RevieweeID: revieweeID,
+	})
 	if err != nil {
-		return false, fmt.Errorf("check user exists: %w", err)
+		return ReviewParticipantExistence{}, fmt.Errorf("check review participants exist: %w", err)
 	}
-	return exists, nil
+	return ReviewParticipantExistence{
+		ReviewerExists: exists.ReviewerExists,
+		RevieweeExists: exists.RevieweeExists,
+	}, nil
 }
 
 func toReview(row reviewdb.Review) Review {

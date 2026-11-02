@@ -13,8 +13,8 @@ import (
 // repository's own connection.
 type Repository interface {
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error
-	// SoftDeleteReview locks and removes a live review, returning its pre-delete
-	// data for the removal audit. The row remains so the audit can reference it.
+	// SoftDeleteReview removes a live review and returns its data for the removal
+	// audit. The row remains so the audit can reference it.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
@@ -27,5 +27,10 @@ type Repository interface {
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
-	UserExists(ctx context.Context, id uuid.UUID) (bool, error)
+	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
+}
+
+type ReviewParticipantExistence struct {
+	ReviewerExists bool
+	RevieweeExists bool
 }

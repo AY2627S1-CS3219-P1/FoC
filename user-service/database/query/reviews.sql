@@ -1,26 +1,23 @@
--- name: UserExists :one
+-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
-    SELECT 1 FROM users WHERE id = @user_id::UUID
-) AS exists;
+           SELECT 1 FROM users WHERE id = @reviewer_id::UUID
+       ) AS reviewer_exists,
+       EXISTS (
+           SELECT 1 FROM users WHERE id = @reviewee_id::UUID
+       ) AS reviewee_exists;
 
 -- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
 
--- Find the live review and lock it: removal serialises on this lock, so a
--- concurrent removal of the same review sees the row already soft-deleted and
--- reports not found instead of writing a second audit row.
--- name: FindReviewLocked :one
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE id = @id::UUID AND deleted_at IS NULL
-FOR UPDATE;
-
--- The row is retained (not deleted) so review_removals can keep referencing it.
--- name: SoftDeleteReview :exec
+-- The update locks the row and returns the data needed for the removal audit.
+-- A concurrent removal waits, then finds no live row and reports not found.
+-- The row is retained so review_removals can keep referencing it.
+-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
-WHERE id = @id::UUID AND deleted_at IS NULL;
+WHERE id = @id::UUID AND deleted_at IS NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at;
 
 -- name: RecordReviewRemoval :exec
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)

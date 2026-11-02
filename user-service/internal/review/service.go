@@ -35,18 +35,14 @@ func (s *Service) SubmitReview(
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
 	}
-	ok, err := s.repo.UserExists(ctx, reviewerID)
+	participants, err := s.repo.CheckReviewParticipants(ctx, reviewerID, revieweeID)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if !participants.ReviewerExists {
 		return errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
 	}
-	ok, err = s.repo.UserExists(ctx, revieweeID)
-	if err != nil {
-		return err
-	}
-	if !ok {
+	if !participants.RevieweeExists {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
 	}
 	id, err := newID()
