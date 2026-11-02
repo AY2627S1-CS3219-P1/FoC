@@ -17,7 +17,6 @@ type config struct {
 	RunMigrations      bool
 	SupplierServiceURL string
 	CreditServiceURL   string
-	CreditTokenFile    string
 	KafkaBrokers       string
 	S3Bucket           string
 	S3Endpoint         string
@@ -33,7 +32,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		RunMigrations:      true,
 		SupplierServiceURL: strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
 		CreditServiceURL:   strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
-		CreditTokenFile:    strings.TrimSpace(getenv("CREDIT_WORKLOAD_TOKEN_FILE")),
 		KafkaBrokers:       strings.TrimSpace(getenv("KAFKA_BROKERS")),
 		S3Bucket:           strings.TrimSpace(getenv("ORDER_S3_BUCKET")),
 		S3Endpoint:         strings.TrimSpace(getenv("ORDER_S3_ENDPOINT")),
@@ -63,10 +61,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {
-		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
-	}
-
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {
 		c.RunMigrations, err = strconv.ParseBool(value)
 		if err != nil {
@@ -84,19 +78,18 @@ func loadConfig(getenv func(string) string) (config, error) {
 			continue
 		}
 		parsed, err := url.Parse(value)
+		publicEndpoint := name == "ORDER_S3_PUBLIC_ENDPOINT"
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
 			parsed.User != nil ||
 			parsed.RawQuery != "" ||
 			parsed.Fragment != "" ||
 			(parsed.Path != "" && parsed.Path != "/") ||
-			(parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
-			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
+			(publicEndpoint && parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+			return config{}, fmt.Errorf(
+				"%s must be an HTTP(S) origin; public URLs require HTTPS outside local mode",
+				name,
+			)
 		}
-	}
-	if (c.CreditServiceURL == "") != (c.CreditTokenFile == "") {
-		return config{}, errors.New(
-			"CREDIT_SERVICE_BASE_URL and CREDIT_WORKLOAD_TOKEN_FILE must be configured together",
-		)
 	}
 	if c.S3Bucket == "" && (c.S3Endpoint != "" || c.S3PublicEndpoint != "") {
 		return config{}, errors.New("ORDER_S3_BUCKET is required with S3 endpoints")

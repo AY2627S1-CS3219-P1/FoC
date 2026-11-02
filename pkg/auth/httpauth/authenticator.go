@@ -64,12 +64,9 @@ type Authenticator struct {
 func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, error) {
 	parsed, err := url.Parse(config.UserServiceURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") ||
-		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") ||
 		config.Issuer == "" || config.Audience == "" {
 		return nil, errors.New("invalid authenticator configuration")
-	}
-	if parsed.Scheme == "http" && os.Getenv("APP_ENV") != "local" {
-		return nil, errors.New("user service URL must use HTTPS outside local mode")
 	}
 	client := config.Client
 	if client == nil {

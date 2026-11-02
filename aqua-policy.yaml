@@ -1,0 +1,18 @@
+# aqua policy: approve only the project package registries.
+registries:
+  - type: standard
+    ref: semver("= 4.579.0")
+  - name: local
+    type: local
+    path: .aqua/registry.yaml
+packages:
+  - registry: standard
+    name: kubernetes-sigs/kind
+  - registry: standard
+    name: kubernetes/kubernetes/kubectl
+  - registry: standard
+    name: helm/helm
+  - registry: local
+    name: oven-sh/bun
+  - registry: local
+    name: istio/istio

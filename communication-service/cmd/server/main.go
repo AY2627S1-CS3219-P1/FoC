@@ -142,11 +142,7 @@ func main() {
 		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 	}, authenticator.Authenticate)
-	srv := &http.Server{
-		Addr:              ":" + cfg.port,
-		Handler:           corsConfig().Handler(handler),
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
+	srv := newServer(":"+cfg.port, corsConfig().Handler(handler))
 	go func() {
 		log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -163,6 +159,20 @@ func main() {
 	}
 	// The bot may start the consumer, so join both before closing the pool.
 	workers.Wait()
+}
+
+// newServer serves HTTP/1.1 and unencrypted HTTP/2, which the Kubernetes
+// sidecar dials upstream because the Service advertises h2c.
+func newServer(addr string, handler http.Handler) *http.Server {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		Protocols:         protocols,
+	}
 }
 
 // startBot checks the token and starts polling in the background. A rejected

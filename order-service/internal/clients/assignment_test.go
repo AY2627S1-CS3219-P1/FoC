@@ -16,10 +16,6 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
-type assignmentTokens struct{}
-
-func (assignmentTokens) Token(context.Context) (string, error) { return "test-workload-token", nil }
-
 type assignmentProbe struct {
 	creditv1connect.UnimplementedCreditReservationServiceHandler
 	reservation *pb.Reservation
@@ -67,7 +63,6 @@ func assignmentClient(t *testing.T, p *assignmentProbe) *Credit {
 	t.Cleanup(server.Close)
 	return &Credit{
 		Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
-		Tokens: assignmentTokens{},
 	}
 }
 
@@ -122,9 +117,11 @@ func TestAssignmentCreditUsesContractAndCurrentRead(t *testing.T) {
 	if err != nil || view.State != "held" || view.ReservedAmount != 20 || view.OfferID != "" {
 		t.Fatalf("held view: %+v %v", view, err)
 	}
+	// The mesh authenticates service callers; the client must never attach a
+	// bearer credential (user JWT included) to Credit calls.
 	for _, bearer := range p.bearers {
-		if bearer != "Bearer test-workload-token" {
-			t.Fatal("did not use workload identity")
+		if bearer != "" {
+			t.Fatal("attached an authorization credential to the Credit call")
 		}
 	}
 }

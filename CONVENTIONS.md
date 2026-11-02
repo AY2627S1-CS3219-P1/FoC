@@ -273,6 +273,24 @@ Docs: [goose](https://github.com/pressly/goose),
 [validator](https://github.com/go-playground/validator),
 [pgx](https://github.com/jackc/pgx).
 
+## Kubernetes deployment
+
+Gateway exposure is an explicit allowlist. `infra/k8s/base/applications/gateway.yaml`
+routes full protobuf service paths (`/<package>.<service>`) to public
+`-external` Services. `PathPrefix` matches whole path segments, so a partial
+prefix (`/user.`) matches nothing, and a package-level pattern would also
+match internal-only services.
+
+- Adding a new public protobuf service: mount it on the public router, add its
+  service path to `gateway.yaml`, and add its health RPC to the `k8s-smoke`
+  public-health list, in the same change.
+- New methods on an already-routed service need no manifest change.
+- Internal-only services (User public-key, Credit reservation) must never
+  receive a Gateway route. Omitting a route fails safely: the path returns 404
+  through the gateway and stays reachable only over the internal Service.
+- Applications keep deployment-agnostic listeners (`PORT`, optional
+  `INTERNAL_PORT`); only User and Credit currently run internal listeners.
+
 ## Run and lint
 
 - `make run` (air live reload), `go build ./...`, `go vet ./...`.

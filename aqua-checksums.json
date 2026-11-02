@@ -1,0 +1,109 @@
+{
+  "checksums": [
+    {
+      "id": "github_release/github.com/istio/istio/1.31.2/istio-1.31.2-linux-amd64.tar.gz",
+      "checksum": "B3D58081FCFFAB9456F16B18E990D4DFF8FC08B075259BBC0E82B512337A3575",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/istio/istio/1.31.2/istio-1.31.2-linux-arm64.tar.gz",
+      "checksum": "4B940D4E0E2DB300212BCE19FFF0BA66D53924BA5F0B8CC87096340F830861C0",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/istio/istio/1.31.2/istio-1.31.2-osx-amd64.tar.gz",
+      "checksum": "339F2469DDBA6B60DB397BACE36393FA259D27C39645B0F9843397E9409F8795",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/istio/istio/1.31.2/istio-1.31.2-osx-arm64.tar.gz",
+      "checksum": "C02F9390FF8300B550C7B13230FEAE80ADEBE31AA7136F2930A1918502C626D3",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/kubernetes-sigs/kind/v0.33.0/kind-darwin-amd64",
+      "checksum": "5A99F26F57246DC9319DD294803313197A0F34D33C525B3EA8B655DB5916ECE0",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/kubernetes-sigs/kind/v0.33.0/kind-darwin-arm64",
+      "checksum": "0C8C7DBE5E23594A198B786C4BC13DACC101FA6196B0CB0B23A1CA44E61F4B4F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/kubernetes-sigs/kind/v0.33.0/kind-linux-amd64",
+      "checksum": "AEE6151561422756B764A4AE28E7F44CDA5AF5A9EEAD3CC9985112B1DE8D8E0D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/kubernetes-sigs/kind/v0.33.0/kind-linux-arm64",
+      "checksum": "20022BEE6CFCD5086CB7234D218E3454E6090022F2A8F55D1FA7FCF42C3867A2",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-darwin-aarch64.zip",
+      "checksum": "80AFD4C069B46A6FA8F3EC520BEBC750A7843E4A8D5B9583D29AD436C00A3403",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-darwin-x64-baseline.zip",
+      "checksum": "0FDE04E8B092156B97FE6432E899BAF16D9ED6CE52CBB4218D2D9C07A2F827EF",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-linux-aarch64.zip",
+      "checksum": "EFA9813DA5ED72423BF847F916E8D2C47C0D776ADD972354026A75E10DA9AA21",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-linux-x64-baseline.zip",
+      "checksum": "1FC2EDAC843102909E3A1BE1D8D9802CC6071CF074E67E88231F4FFE0F8B397B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/dl.k8s.io/v1.35.0/bin/darwin/amd64/kubectl",
+      "checksum": "2447CB78911B10A667202B078EEB30541EC78D1280C3682921DC81607E148D96",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/dl.k8s.io/v1.35.0/bin/darwin/arm64/kubectl",
+      "checksum": "CF699C56340DC775230FDE4EF84237D27563EA6EF52164C7D078072B586C3918",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/dl.k8s.io/v1.35.0/bin/linux/amd64/kubectl",
+      "checksum": "A2E984A18A0C063279D692533031C1EFF93A262AFCC0AFDC517375432D060989",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/dl.k8s.io/v1.35.0/bin/linux/arm64/kubectl",
+      "checksum": "58F82F9FE796C375C5C4B8439850B0F3F4D401A52434052F2DF46035A8789E25",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v3.20.1-darwin-amd64.tar.gz",
+      "checksum": "580515B544D5C966EDC6F782C9AE88E21A9E10C786A7D6C5FD4B52613F321076",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v3.20.1-darwin-arm64.tar.gz",
+      "checksum": "75CC96AC3FE8B8B9928EB051E55698E98D1E026967B6BFFE4F0F3C538A551B65",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v3.20.1-linux-amd64.tar.gz",
+      "checksum": "0165EE4A2DB012CC657381001E593E981F42AA5707ACDD50658326790C9D0DC3",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v3.20.1-linux-arm64.tar.gz",
+      "checksum": "56B9D1B0E0EFBB739BE6E68A37860ACE8EC9C7D3E6424E3B55D4C459BC3A0401",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.579.0/registry.yaml",
+      "checksum": "5BC609335C3E930F66B52E4EF44824852868C88898137557B078570C3CE9DF94",
+      "algorithm": "sha256"
+    }
+  ]
+}
