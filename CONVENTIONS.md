@@ -255,8 +255,15 @@ match internal-only services.
 - Internal-only services (User public-key, Credit reservation) must never
   receive a Gateway route. Omitting a route fails safely: the path returns 404
   through the gateway and stays reachable only over the internal Service.
-- Applications keep deployment-agnostic listeners (`PORT`, optional
-  `INTERNAL_PORT`); only User and Credit currently run internal listeners.
+- Applications keep deployment-agnostic listeners: every Go service binds
+  `PORT` (public routes) and a mandatory `INTERNAL_PORT` (private routes).
+  Services without private routes yet serve the public handler on the
+  internal listener, so local and deployed behavior stay identical; move
+  handlers to the internal listener when private routes arrive. New services
+  must set both ports in Compose, templates and manifests. Shared container
+  security, resources and startup/liveness probes come from the
+  `infra/k8s/components/workload` Kustomize component; keep ports, readiness
+  probes and access rules per service.
 
 ## Run and lint
 

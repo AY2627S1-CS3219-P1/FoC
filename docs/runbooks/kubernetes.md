@@ -273,7 +273,8 @@ pods and the gateway, not operator shortcuts, to verify mesh isolation.
 
 ```sh
 make k8s-deploy service=supplier-service
-# Full deploy reruns provisioning/migrations; required for schema changes:
+# Full deploy reruns provisioning/migrations (local overlays provision the
+# shared Postgres; production pre-provisions); required for schema changes:
 make k8s-deploy
 ```
 
@@ -328,7 +329,8 @@ the policy alongside the chart/version pin.
 
 ## Current-main updates
 
-A full deployment now provisions and migrates Communication's own database,
+A full deployment now provisions and migrates Communication's own database on
+the local overlay (production pre-provisions and only migrates),
 starts its optional Telegram API, and configures Order's Supplier discovery,
 Kafka outbox and local image storage. All deployed browser services use the
 same HTTPS origin, including `PUBLIC_ORDER_SERVICE_URL` and
