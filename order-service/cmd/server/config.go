@@ -14,6 +14,7 @@ type config struct {
 	Port               string
 	DatabaseURL        string
 	UserServiceURL     string
+	RedisAddr          string
 	RunMigrations      bool
 	SupplierServiceURL string
 	CreditServiceURL   string
@@ -30,6 +31,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		Port:               strings.TrimSpace(getenv("PORT")),
 		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
+		RedisAddr:          strings.TrimSpace(getenv("REDIS_ADDR")),
 		RunMigrations:      true,
 		SupplierServiceURL: strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
 		CreditServiceURL:   strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
@@ -54,6 +56,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if _, err := pgxpool.ParseConfig(c.DatabaseURL); err != nil {
 		return config{}, errors.New("DATABASE_URL must be a database URL")
+	}
+	if c.RedisAddr == "" {
+		return config{}, errors.New("REDIS_ADDR is required")
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)

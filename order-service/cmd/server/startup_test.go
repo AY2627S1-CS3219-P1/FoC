@@ -64,6 +64,7 @@ func TestConfiguration(t *testing.T) {
 	valid := map[string]string{
 		"DATABASE_URL":          "postgresql://foc:password@localhost:5432/order_dev",
 		"USER_SERVICE_BASE_URL": "http://localhost:8081",
+		"REDIS_ADDR":            "localhost:6379",
 		"APP_ENV":               "local",
 	}
 	for _, tc := range []struct{ name, key, value string }{
@@ -73,6 +74,7 @@ func TestConfiguration(t *testing.T) {
 		{"auth path", "USER_SERVICE_BASE_URL", "http://localhost/api"},
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
 		{"unsafe production auth", "APP_ENV", "production"},
+		{"missing redis", "REDIS_ADDR", ""},
 		{"invalid port", "PORT", "-1"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
@@ -122,6 +124,7 @@ func TestCreationConfiguration(t *testing.T) {
 			base := map[string]string{
 				"DATABASE_URL":          "postgresql://order:example@localhost:5432/order_test",
 				"USER_SERVICE_BASE_URL": "http://user:8080",
+				"REDIS_ADDR":            "redis:6379",
 				"APP_ENV":               "local",
 			}
 			for key, value := range tc.values {

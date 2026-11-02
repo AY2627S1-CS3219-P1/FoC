@@ -21,6 +21,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/revocation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -127,6 +128,16 @@ func run(ctx context.Context) error {
 	}
 	defer func() { stopWorkers(); workers.Wait() }()
 
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
+
+	// Access-token revocation dictionary; readers need no TTL.
+	var revocations *revocation.Store
+	revocations, err = revocation.NewStore(startupCtx, revocation.Config{Addr: config.RedisAddr})
+	if err != nil {
+		return fmt.Errorf("initialize access-token revocation store: %w", err)
+	}
+	defer func() { _ = revocations.Close() }()
+
 	authenticator, err := newAuthenticator(
 		startupCtx,
 		2*time.Second,
@@ -135,14 +146,13 @@ func run(ctx context.Context) error {
 				UserServiceURL: config.UserServiceURL,
 				Issuer:         httpauth.TokenIssuer,
 				Audience:       httpauth.TokenAudience,
+				Revocations:    revocations,
 			})
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
-
-	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
