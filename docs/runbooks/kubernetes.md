@@ -1,8 +1,12 @@
 # Kubernetes development and deployment
 
-Kubernetes is an additional deployment option. The Compose development
-workflow, ports, source mounts and signing keys are unchanged; Compose only
-gains `INTERNAL_PORT` wiring for User and Credit, and Order's
+Kubernetes is an additional deployment option. Compose retains its development
+commands, host ports, source mounts and signing keys, but existing `.env` files
+must change `USER_SERVICE_BASE_URL` to `http://user-service:8081` for User's
+internal public-key listener. Port 8080 continues to serve User's public APIs.
+Follow the [Compose upgrade instructions](../../README.md#upgrading-an-existing-compose-setup)
+and recreate the affected containers. Compose also gains `INTERNAL_PORT`
+wiring for User and Credit, and Order's
 `CREDIT_SERVICE_BASE_URL` now defaults to Credit's internal listener. Credit is
 deployed with its own database and Istio-restricted internal
 listener; this does not claim the complete D3 business workflow.

@@ -42,7 +42,11 @@ mesh authentication but no user JWT.
 
 ## Consequences
 
-- Compose commands, dev files, routes, ports, volumes and keys remain compatible.
+- Compose keeps its commands, host ports, source mounts, volumes and keys.
+  The User listener split intentionally changes the internal public-key address
+  from `http://user-service:8080` to `http://user-service:8081`. Existing `.env`
+  files must update `USER_SERVICE_BASE_URL`; see the
+  [Compose upgrade instructions](../../README.md#upgrading-an-existing-compose-setup).
 - Backend callers do not map methods to ports. Raw pod-IP calls are unsupported;
   use Service DNS so Istio can choose the authenticated upstream.
 - Proxy readiness gates startup. Runtime proxy failure makes the pod unready
