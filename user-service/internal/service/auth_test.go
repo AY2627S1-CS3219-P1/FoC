@@ -89,6 +89,10 @@ func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (*models.User, erro
 	return &user, nil
 }
 
+func (f *fakeStore) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	return f.GetByID(ctx, id)
+}
+
 func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -978,11 +982,6 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service := newService(t, newFakeStore())
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, "refresh") })
-	})
-	t.Run("auth store while refreshing", func(t *testing.T) {
-		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Resources.Users = nil
-		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)

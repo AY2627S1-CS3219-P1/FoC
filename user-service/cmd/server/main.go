@@ -35,6 +35,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -121,6 +122,13 @@ func main() {
 		} else {
 			log.Info("admin bootstrapped", "outcome", outcome.String(), "user_id", admin.ID)
 		}
+		if outcome == store.BootstrapPromoted {
+			// Promotion changes the role stored in outstanding access tokens,
+			// so the promoted user's existing sessions are signed out.
+			if err := revokePromotedAdmin(ctx, db, revocations, admin); err != nil {
+				fatal("revoke promoted admin sessions", err)
+			}
+		}
 	}
 
 	allowedDomainLogic := newAllowedDomainService(sqlDB)
@@ -136,7 +144,7 @@ func main() {
 		}
 	}()
 
-	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic, revocations)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
@@ -204,6 +212,22 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
+}
+
+// revokePromotedAdmin signs the promoted user's existing sessions out: the
+// promotion changed the role stored in their outstanding access tokens.
+func revokePromotedAdmin(
+	ctx context.Context,
+	db *gorm.DB,
+	revocations service.AccessTokenRevocations,
+	admin models.User,
+) error {
+	revoked, err := store.New(db).Sessions.RevokeAllForUser(ctx, admin.ID, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	service.RecordRevokedSessions(ctx, revocations, revoked)
+	return nil
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -360,6 +384,7 @@ func newAuthServices(
 	db *gorm.DB,
 	cfg config,
 	domainPolicy service.EmailDomainPolicy,
+	revocations service.AccessTokenRevocations,
 ) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
@@ -382,7 +407,7 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec, EmailSender: cfg.smtp, Revocations: revocations,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

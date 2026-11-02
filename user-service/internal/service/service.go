@@ -21,6 +21,10 @@ type Service struct {
 type UserStore interface {
 	GetByEmail(context.Context, string) (*models.User, error)
 	GetByID(context.Context, uuid.UUID) (*models.User, error)
+	// GetByIDForUpdate locks the user row until the transaction ends, so a
+	// concurrent role change either committed (new role is read) or waits
+	// (its revocation sweep then covers this transaction's session).
+	GetByIDForUpdate(context.Context, uuid.UUID) (*models.User, error)
 	Create(context.Context, *models.User) error
 }
 

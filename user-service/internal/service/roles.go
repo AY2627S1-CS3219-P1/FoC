@@ -140,7 +140,7 @@ func (s *RoleService) ChangeUserRole(
 	if err != nil {
 		return models.User{}, fmt.Errorf("change user role: %w", err)
 	}
-	recordRevokedSessions(ctx, s.Revocations, revoked)
+	RecordRevokedSessions(ctx, s.Revocations, revoked)
 	return changed, nil
 }
 

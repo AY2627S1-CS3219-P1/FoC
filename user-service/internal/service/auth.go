@@ -128,7 +128,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if challenge.UserID == nil {
 			return store.ErrChallengeRejected
 		}
-		storedUser, err := tx.Users.GetByID(ctx, *challenge.UserID)
+		storedUser, err := tx.Users.GetByIDForUpdate(ctx, *challenge.UserID)
 		if err != nil {
 			return err
 		}
@@ -236,29 +236,38 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	user, err := s.deps.Resources.Users.GetByID(ctx, userID)
-	if errors.Is(err, store.ErrNotFound) {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
-	}
-	if err != nil {
-		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
-	}
-	if user.ID != userID || !user.Role.Valid() {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
-	}
-	var tokens jwt.AuthTokens
+	var (
+		tokens jwt.AuthTokens
+		user   models.User
+	)
 	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
+		// Read the user under a row lock: a role change committing first must
+		// be reflected in the rotated tokens, and one committing later sweeps
+		// this session into its revocation.
+		locked, err := tx.Users.GetByIDForUpdate(ctx, userID)
+		if errors.Is(err, store.ErrNotFound) {
+			return jwt.ErrRefreshFailed
+		}
+		if err != nil {
+			return fmt.Errorf("find refresh user: %w", err)
+		}
+		if locked.ID != userID || !locked.Role.Valid() {
+			return jwt.ErrRefreshFailed
+		}
+		user = *locked
 		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, user.Email, user.Role); err != nil {
 			return err
 		}
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
-		var err error
-		tokens, err = s.createSession(ctx, tx, *user, now)
+		tokens, err = s.createSession(ctx, tx, user, now)
 		return err
 	})
 	if errors.Is(err, store.ErrSessionRejected) {
+		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
+	}
+	if errors.Is(err, jwt.ErrRefreshFailed) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
@@ -266,8 +275,8 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	}
 	// Rotation revokes the old session; its outstanding access tokens must die
 	// with it instead of living out their remaining TTL.
-	recordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
-	return *user, tokens, nil
+	RecordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
+	return user, tokens, nil
 }
 
 // Logout is idempotent. An unrecognizable or already revoked cookie is cleared
@@ -289,7 +298,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return fmt.Errorf("revoke refresh session: %w", err)
 	}
-	recordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
+	RecordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
 	return nil
 }
 
@@ -330,7 +339,7 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return fmt.Errorf("revoke all sessions: %w", err)
 	}
-	recordRevokedSessions(ctx, s.deps.Revocations, revoked)
+	RecordRevokedSessions(ctx, s.deps.Revocations, revoked)
 	return nil
 }
 
@@ -399,11 +408,12 @@ func parseID(value string) (uuid.UUID, error) {
 	return uuid.Parse(value)
 }
 
-// recordRevokedSessions lists sessions in the revocation dictionary after the
+// RecordRevokedSessions lists sessions in the revocation dictionary after the
 // database revocation committed. Failures are logged and swallowed: the
-// revocation must not fail the request that already revoked the session, and a
-// missed entry only leaves the tokens valid until their own expiry.
-func recordRevokedSessions(
+// revocation must not fail the operation that already revoked the session, and
+// a missed entry only leaves the tokens valid until their own expiry. Callers
+// are the auth service, the role service, and the bootstrap promotion.
+func RecordRevokedSessions(
 	ctx context.Context,
 	revocations AccessTokenRevocations,
 	sessionIDs []uuid.UUID,

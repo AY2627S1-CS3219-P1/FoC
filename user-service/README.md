@@ -118,10 +118,12 @@ cryptographically valid. If Redis is unreachable, verification fails closed
 with `Unavailable` rather than accepting tokens of unknown revocation state.
 
 `REDIS_ADDR` (`host:port`) is required in every Go service. Compose starts the
-dictionary and points services at `redis:6379`; host development uses
-`localhost:6379` against the published port. The dictionary holds no user
-data beyond session UUIDs and revocation timestamps, and entries expire with
-the access tokens they cover.
+dictionary with append-only persistence and points services at `redis:6379`;
+host development uses `localhost:6379` against the published port. The
+dictionary holds no user data beyond session UUIDs and revocation timestamps,
+and entries expire with the access tokens they cover. Token issuance reads the
+user row under a lock, so a session created while an admin changes that user's
+role either carries the new role or is swept into the change's revocation.
 
 Registration only accepts addresses whose domain is in
 `allowed_email_domains`; an empty table rejects every registration. For local
@@ -153,7 +155,10 @@ and later starts log that it was already done and ignore the variables, even if
 the email changes or the admin was demoted. Concurrent instances are serialised
 by a table lock, so only one bootstrap succeeds. An invalid email or display
 name stops startup. To bootstrap again, delete the `admin_bootstrap` row by
-hand.
+hand. When the bootstrap promotes an existing user to `super_admin`, that
+user's existing sessions are revoked (and recorded in the revocation
+dictionary), because the promotion changed the role stored in their
+outstanding access tokens.
 
 Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
 and initialize one authenticator at startup. The authenticator fetches keys
