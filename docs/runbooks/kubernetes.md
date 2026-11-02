@@ -176,7 +176,7 @@ load demo users or supplier records.
 
 | Job | Work performed |
 | -- | -- |
-| `db-provision` | Creates the five service databases and non-superuser roles if they are missing, grants database access, and installs Supplier's PostGIS and `pg_trgm` extensions. It does not drop existing data. |
+| `db-provision` (local overlay only) | Creates the five service databases and non-superuser roles if they are missing on the shared local Postgres, grants database access, and installs Supplier's PostGIS and `pg_trgm` extensions. It does not drop existing data. Production pre-provisions its database before deploying and runs no provisioning Job. |
 | `user-migrate`, `supplier-migrate`, `order-migrate`, `credit-migrate`, `communication-migrate` | Apply each service's Goose migrations before application rollout. Normal app containers have `RUN_MIGRATIONS=false`. |
 | `kafka-init` | Creates the topics declared in `infra/kafka/topics.conf`; topic auto-creation is disabled on the broker. |
 | `order-storage-init` (local overlay only) | Creates the Order image bucket and browser CORS configuration in local Floci. External deployments supply their own object storage. |
@@ -196,15 +196,14 @@ seed only the Compose stack.
 
 ## Mesh boundary and application behavior
 
-Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080.
-A service with private routes sets `INTERNAL_PORT` and serves them on a second
-listener; without `INTERNAL_PORT`, every route shares the public listener.
-User exposes its
-public-key RPC only on the internal listener when `INTERNAL_PORT` is set; in
-single-listener mode the shared public listener also serves key retrieval.
-Credit keeps reservation RPCs on
-the Order-only internal listener. Other services currently expose every route
-on the public listener and run a single listener. Internal service
+Applications do not have a `single` or `mesh` mode. `PORT` defaults to 8080 and
+`INTERNAL_PORT` to 8081. Every service runs the listener split: public routes on
+`PORT`, private routes on `INTERNAL_PORT`. User serves its public-key RPC only
+on the internal listener; Credit keeps reservation RPCs on the Order-only
+internal listener. Supplier, Order, and Communication do not have private routes
+yet, so their internal listener currently serves the same public handler —
+binding it early keeps local and deployed behaviour identical, and a later
+route split becomes a handler move rather than new plumbing. Internal service
 URLs may use HTTP; Istio STRICT mTLS encrypts the Kubernetes network hop.
 JWT verification, roles and ownership checks remain enabled.
 

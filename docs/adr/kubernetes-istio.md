@@ -9,21 +9,23 @@ deployment. Kubernetes DNS owns service discovery; Istio owns workload
 certificates, rotation and network mTLS. Application code retains JWT, role and
 ownership checks, without managing mesh certificates or discovery.
 
-Each application owns its routes. `PORT` defaults to 8080. A service with
-private routes also sets `INTERNAL_PORT`, which starts a second listener; when
-`INTERNAL_PORT` is unset, every route shares the public listener, which keeps
-single-port local development simple. The application does not select a
-deployment mode. When `INTERNAL_PORT` is set, User serves its public-key RPC
-only on the internal listener; without it, the single shared listener also
-serves key retrieval (the local single-port mode). Credit keeps reservation
-RPCs on the Order-only internal listener regardless, because those
-handlers do not verify an application credential. Other services currently
-expose every route publicly and run a single listener; they copy the User
-Service pattern when they gain private routes.
+Each application owns its routes. Every service runs the listener split:
+`PORT` (default 8080) serves public routes and `INTERNAL_PORT` (default 8081)
+serves private routes; both are mandatory, so application behavior is
+identical in Compose and Kubernetes. A service without private routes yet
+still binds its internal listener and serves the public handler there — a
+later route split becomes a handler move rather than new plumbing. The
+application does not select a deployment mode. User serves its public-key RPC
+only on the internal listener; without the split, key retrieval would share
+the public listener, which is no longer supported. Credit keeps reservation
+RPCs on the Order-only internal listener, because those handlers do not
+verify an application credential. Other services currently expose every route
+publicly on both listeners; they copy the User Service pattern when they gain
+private routes.
 
-The public ClusterIP Services expose port 8080 and target `PORT`. User and
-Credit internal Services expose port 8080 and target `INTERNAL_PORT`. Backend
-callers use one internal base URL per destination. Ingress uses Kubernetes
+The public ClusterIP Services expose port 8080 and target `PORT`. Every
+service also has an internal Service exposing port 8080 and targeting
+`INTERNAL_PORT`. Backend callers use one internal base URL per destination. Ingress uses Kubernetes
 Gateway API
 resources. Since standard `PathPrefix` matches complete slash-separated path
 elements, handwritten `HTTPRoute` resources match full public protobuf service
@@ -58,8 +60,15 @@ mesh authentication but no user JWT.
 - Frontend adapter-node preserves the SSR shell plus browser-driven data flow.
 - Kafka UI uses separate operator login and private port-forward access.
   Mailpit is local only; production must provide SMTP.
-- Single PostgreSQL/Kafka instances simplify local verification and are not HA
-  or backup guarantees. Kafka ACLs, other detailed service permissions, network
+- Single PostgreSQL/Kafka instances exist only in the local overlay. The
+  applications and the shared migration image are topology-agnostic: every
+  consumer receives a `DATABASE_URL` (a pointer) and a `-dir` of its own
+  migrations, so one bundled image does not imply one shared database.
+  Local's idempotent `db-provision` Job creates roles/databases on the
+  ephemeral shared instance; production pre-provisions its database (managed
+  RDS or equivalent) before deploying, the operator supplies the `*-db`
+  Secrets, and no provisioning Job runs. Single instances are not HA or backup
+  guarantees. Kafka ACLs, other detailed service permissions, network
   egress restrictions and production operations remain separate work.
 - The production overlay is a template. Credit is deployed, but the complete
   asynchronous D3 business workflow is not claimed by this infrastructure

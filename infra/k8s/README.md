@@ -46,7 +46,8 @@ K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
 
 The first run creates a local `kind` cluster, installs Gateway API Standard
 CRDs and Istio, builds and deploys
-the application and dependencies, provisions the databases, and runs database
+the application and dependencies, provisions the local databases, and runs
+database
 migrations. It may take several minutes. It does not erase data on later runs.
 The first administrator signs in through the magic-link flow; local email is
 available in Mailpit.
@@ -125,23 +126,25 @@ clusters, and production-overlay setup, see the
 | `platform/gateway-api/README.md` | Provenance and pin of the vendored CRDs. |
 | `base/dependencies/accounts.yaml` | One ServiceAccount per workload — the identities Istio principals refer to. |
 | `base/dependencies/config.yaml` | `foc-config`: shared runtime settings, browser-facing origins, internal service URLs. |
-| `base/dependencies/postgres.yaml` | PostgreSQL/PostGIS StatefulSet with its PVC. |
 | `base/dependencies/kafka.yaml` | Kafka broker StatefulSet, advertising its in-cluster FQDN. |
 | `base/dependencies/kafka-ui.yaml` | Kafka operator UI; private port-forward access with its own login. |
 | `base/dependencies/security.yaml` | STRICT mTLS, default-deny, and the per-caller authorization policies. |
 | `base/gateway/gateway.yaml` | The `foc-public` Gateway: HTTPS listener, local TLS Secret, route attachment rules. |
 | `base/applications/gateway.yaml` | The public HTTPRoute allowlist: one route per public protobuf service plus the frontend. |
-| `base/applications/<service>.yaml` | Deployment and Service(s) per app (User/Credit also have internal Services); probes use the image's healthcheck binary. |
+| `base/applications/<service>.yaml` | Deployment and Service(s) per app; probes use the image's healthcheck binary. Shared container security, resources and startup/liveness probes come from the `components/workload` Kustomize component. |
 | `base/initialization/*-migrate.yaml` | Per-service Goose migration Jobs. |
 | `base/initialization/kafka-init.yaml` | Topic-creation Job driven by `infra/kafka/topics.conf`. |
-| `base/provisioning/db-provision.yaml` + `provision.sh` | Job creating per-service database roles and installing PostGIS extensions. |
 | `base/mailpit/`, `base/floci/` | Local-only dev mailbox and S3-compatible image store (Floci adds its own gateway route). |
-| `overlays/local/`, `overlays/production/` | Kustomize patches: local forwards and storage; production hostname, certificate, and origins (template). |
+| `overlays/local/dependencies/postgres.yaml` | Local-only PostgreSQL/PostGIS StatefulSet with its PVC; production pre-provisions its database. |
+| `overlays/local/provisioning/db-provision.yaml` + `provision.sh` | Local-only Job creating per-service database roles and installing PostGIS extensions on the ephemeral shared instance. Production pre-provisions instead. |
+| `overlays/local/`, `overlays/production/` | Kustomize patches: local forwards, storage and Postgres; production hostname, certificate, and origins (template). |
 
-Environments are layered with Kustomize: `base/` holds every resource with
-local defaults — its five stage directories are the deployable Kustomize
+Environments are layered with Kustomize: `base/` holds the shared resources
+with local defaults — its stage directories are the deployable Kustomize
 packages (`base/` itself has no root kustomization; stages are applied through
-an overlay) — and each `overlays/<environment>/<stage>/` directory applies
+an overlay), and environment-specific resources such as the local Postgres
+live directly in the overlay stage — while each
+`overlays/<environment>/<stage>/` directory applies
 small declarative patches on top of it. The operator script renders
 every stage with `kubectl kustomize` (built into kubectl — no separate tool)
 and, before applying, wraps the output in a generated kustomization that
@@ -152,8 +155,9 @@ one place. Inspect the rendered YAML of a stage with
 ## Deployment stages
 
 The deploy applies five ordered stages — `gateway`, `dependencies`,
-`provisioning`, `initialization`, `applications` — each a directory under both
-`base/` and `overlays/<environment>/`. Stages run in dependency order, and each
+`provisioning`, `initialization`, `applications` — each a directory under
+`overlays/<environment>/` (shared resources live under the matching `base/`
+stage, local-only resources directly in the overlay). Stages run in dependency order, and each
 is verified before the next: a failed Job (for example, a migration) stops the
 deploy, so an application never starts before its database exists and its
 schema is current. Every object also carries a `foc.dev/stage` label naming its
@@ -228,10 +232,10 @@ at runtime; topic configuration and schemas do not need separate ConfigMaps.
 
 ## Request path and router boundaries
 
-The same application binaries run in Compose and Kubernetes. Applications
-listen on `PORT` and, where needed, `INTERNAL_PORT`; they do not detect a mesh
-or select a deployment mode. Kubernetes adds the Gateway API resources and
-Istio workload networking around those listeners.
+The same application binaries run in Compose and Kubernetes. Applications always
+listen on `PORT` and `INTERNAL_PORT`; they do not detect a mesh or select a
+deployment mode. Kubernetes adds the Gateway API resources and Istio workload
+networking around those listeners.
 
 ```mermaid
 flowchart LR
@@ -244,7 +248,7 @@ flowchart LR
     S[Public ClusterIP Service<br/>/service paths]
     E[Pod Envoy sidecar<br/>STRICT mTLS and workload policy]
     A[Application PORT<br/>public router]
-    I[User/Credit INTERNAL_PORT<br/>private router]
+    I[INTERNAL_PORT<br/>private router]
     C[Backend workload]
     D[Internal Service DNS alias]
     O[Local Floci route<br/>signed object paths]
@@ -303,11 +307,13 @@ application JWT, role, or ownership checks.
 | -- | -- | -- |
 | User | Health, Auth, Profile, and User Admin RPCs | Public-key RPC only; no Gateway route |
 | Credit | Health and Credit Account RPCs | Reservation RPCs; kept private to Order in Kubernetes |
-| Supplier, Order, Communication | All currently mounted RPCs | None; single public listener |
+| Supplier, Order, Communication | All currently mounted RPCs | Serves the public handler until private routes are split; no Gateway route |
 
-Only User and Credit run internal listeners, so only they have internal
-Services targeting `INTERNAL_PORT`. Supplier, Order, and Communication expose
-every route on the public listener and run a single listener.
+Every service runs both listeners, so every service has an internal Service
+targeting `INTERNAL_PORT`. Until a service splits its routes, its internal
+listener serves the same public handler — binding it early keeps local and
+deployed behaviour identical, and a later route split becomes a handler move
+rather than new plumbing.
 
 The public and internal Kubernetes Service names both resolve only inside the
 cluster. `-external` means “targets the public application listener,” not
