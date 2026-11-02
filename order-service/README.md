@@ -71,6 +71,8 @@ export DATABASE_URL='postgresql://foc:changeme@localhost:5432/order_dev?sslmode=
 export USER_SERVICE_BASE_URL=http://localhost:8081
 export SUPPLIER_SERVICE_BASE_URL=http://localhost:8082
 export APP_ENV=local
+export PORT=8080
+export INTERNAL_PORT=8081
 export KAFKA_BROKERS=localhost:9092
 export ORDER_S3_BUCKET=order-images
 export ORDER_S3_ENDPOINT=http://localhost:4566
