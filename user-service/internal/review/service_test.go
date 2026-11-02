@@ -55,16 +55,15 @@ func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, in
 	return f.insertErr
 }
 
-func (f *fakeRepository) FindReviewLocked(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
+func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	f.softDeleted = id
 	if f.findErr != nil {
 		return Review{}, f.findErr
 	}
+	if f.softDelErr != nil {
+		return Review{}, f.softDelErr
+	}
 	return f.findReview, nil
-}
-
-func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) error {
-	f.softDeleted = id
-	return f.softDelErr
 }
 
 func (f *fakeRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {

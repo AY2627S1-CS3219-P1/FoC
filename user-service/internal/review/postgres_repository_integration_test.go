@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -450,4 +451,121 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
+
+	t.Run("concurrent removal returns not found for the loser", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		orderID := uuid.New()
+		if err := service.SubmitReview(ctx, reviewer, reviewee, orderID,
+			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		var reviewID uuid.UUID
+		if err := sqlDB.QueryRowContext(ctx, "SELECT id FROM reviews WHERE order_id = $1", orderID).
+			Scan(&reviewID); err != nil {
+			t.Fatalf("read review ID: %v", err)
+		}
+
+		firstReady := make(chan int, 1)
+		firstResult := make(chan error, 1)
+		releaseFirst := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseFirst) }) }
+		defer release()
+
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		firstService := NewService(repo, func(
+			txCtx context.Context,
+			operation func(*reviewdb.Queries) error,
+		) error {
+			tx, err := sqlDB.BeginTx(txCtx, nil)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			if err := operation(reviewdb.New(tx)); err != nil {
+				return err
+			}
+			var pid int
+			if err := tx.QueryRowContext(txCtx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
+				return err
+			}
+			firstReady <- pid
+
+			select {
+			case <-releaseFirst:
+				return tx.Commit()
+			case <-txCtx.Done():
+				return txCtx.Err()
+			}
+		})
+		go func() {
+			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
+		}()
+
+		var firstPID int
+		select {
+		case firstPID = <-firstReady:
+		case err := <-firstResult:
+			t.Fatalf("first removal failed before holding its transaction: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("first removal did not reach its commit barrier: %v", ctx.Err())
+		}
+
+		secondResult := make(chan error, 1)
+		go func() {
+			secondResult <- service.RemoveReview(ctx, reviewID, "second removal", admin)
+		}()
+
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			var blocked bool
+			if err := sqlDB.QueryRowContext(ctx,
+				"SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))",
+				firstPID,
+			).Scan(&blocked); err != nil {
+				t.Fatalf("check removal lock wait: %v", err)
+			}
+			if blocked {
+				break
+			}
+			select {
+			case err := <-secondResult:
+				t.Fatalf("second removal completed before waiting on the first: %v", err)
+			case <-ctx.Done():
+				t.Fatalf("second removal did not wait on the review lock: %v", ctx.Err())
+			case <-ticker.C:
+			}
+		}
+
+		release()
+		if err := <-firstResult; err != nil {
+			t.Fatalf("first removal: %v", err)
+		}
+		if err := <-secondResult; !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("second removal = %v, want review not found", err)
+		} else {
+			assertExternal(t, err, http.StatusNotFound)
+		}
+
+		var auditRows int
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM review_removals WHERE review_id = $1", reviewID).Scan(&auditRows); err != nil {
+			t.Fatalf("count removal audit rows: %v", err)
+		}
+		if auditRows != 1 {
+			t.Fatalf("removal audit rows = %d, want 1", auditRows)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 0 || avg != 0 {
+			t.Fatalf("after removal: count=%d avg=%v, want 0 and 0", count, avg)
+		}
+	})
+
 }

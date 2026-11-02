@@ -33,9 +33,9 @@ func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queri
 	return mapReviewError("insert review", err)
 }
 
-// The snapshot comes from the locked row itself, so no relationship subquery is
-// involved (see LANDMINES/locked-row-relationship-snapshots.md).
-func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+// findReviewLocked reads only the locked review row; it does not read related
+// data through a subquery (see LANDMINES/locked-row-relationship-snapshots.md).
+func (r *PostgresRepository) findReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
 	row, err := q.FindReviewLocked(ctx, id)
 	if err != nil {
 		return Review{}, mapReviewError("find review", err)
@@ -43,8 +43,16 @@ func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Q
 	return toReview(row), nil
 }
 
-func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error {
-	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
+func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	review, err := r.findReviewLocked(ctx, q, id)
+	if err != nil {
+		return Review{}, err
+	}
+
+	if err := mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id)); err != nil {
+		return Review{}, err
+	}
+	return review, nil
 }
 
 func (r *PostgresRepository) RecordReviewRemoval(

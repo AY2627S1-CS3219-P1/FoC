@@ -123,14 +123,11 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		return err
 	}
 	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
-		review, err := s.repo.FindReviewLocked(ctx, q, id)
+		review, err := s.repo.SoftDeleteReview(ctx, q, id)
 		if err != nil {
 			if errors.Is(err, errReviewNotFound) {
 				return errs.WrapNotFoundError(errReviewNotFound, "review not found")
 			}
-			return err
-		}
-		if err := s.repo.SoftDeleteReview(ctx, q, id); err != nil {
 			return err
 		}
 		removal.ReviewID = review.ID
