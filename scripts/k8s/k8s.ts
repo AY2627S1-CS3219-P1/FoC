@@ -227,6 +227,9 @@ async function renderStage(stage: string): Promise<string> {
 
 async function applyStage(stage: string): Promise<void> {
 	const rendered = await renderStage(stage);
+	// An overlay stage may legitimately render nothing (production's
+	// provisioning stage is empty because production pre-provisions).
+	if (!rendered.trim()) return;
 	const directory = await mkdtemp(join(K8S_STATE_DIR, ".apply-"));
 	try {
 		const path = join(directory, "resources.yaml");
@@ -291,7 +294,8 @@ async function deployAll(): Promise<void> {
 		await generateLocalSecrets();
 	} else {
 		for (const secret of [
-			"postgres-admin",
+			// The shared Postgres Secret is local-only; production pre-provisions
+			// its database and supplies each service's *-db Secret.
 			"user-db",
 			"supplier-db",
 			"order-db",
@@ -311,16 +315,20 @@ async function deployAll(): Promise<void> {
 	await applyStage("dependencies");
 	await patchLocalConfig();
 	await patchBootstrap();
-	await k(["-n", "foc", "rollout", "status", "statefulset/postgres", "--timeout=" + K8S_TIMEOUT]);
+	// The shared Postgres and its idempotent provisioning Job are local-only:
+	// production pre-provisions the database and supplies the *-db Secrets.
+	if (isLocalOverlay()) {
+		await k(["-n", "foc", "rollout", "status", "statefulset/postgres", "--timeout=" + K8S_TIMEOUT]);
+	}
 	await k(["-n", "foc", "rollout", "status", "statefulset/kafka", "--timeout=" + K8S_TIMEOUT]);
 	await k(["-n", "foc", "rollout", "status", "deployment/kafka-ui", "--timeout=" + K8S_TIMEOUT]);
 	if (isLocalOverlay()) {
 		await k(["-n", "foc", "rollout", "status", "deployment/mailpit", "--timeout=" + K8S_TIMEOUT]);
 		await k(["-n", "foc", "rollout", "status", "deployment/floci", "--timeout=" + K8S_TIMEOUT]);
+		await prepareJob("db-provision");
+		await applyStage("provisioning");
+		await waitJob("db-provision");
 	}
-	await prepareJob("db-provision");
-	await applyStage("provisioning");
-	await waitJob("db-provision");
 	if (isLocalOverlay()) await prepareJob("order-storage-init");
 	for (const job of K8S_JOBS) await prepareJob(job);
 	await applyStage("initialization");
