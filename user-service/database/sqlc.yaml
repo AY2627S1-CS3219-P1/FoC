@@ -27,6 +27,3 @@ sql:
         sql_package: "database/sql"
         omit_unused_structs: true
         emit_empty_slices: true
-        overrides:
-          - db_type: "citext"
-            go_type: "string"

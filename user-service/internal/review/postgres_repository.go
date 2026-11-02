@@ -47,12 +47,12 @@ func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Q
 	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
 }
 
-func (r *PostgresRepository) InsertReviewRemoval(
+func (r *PostgresRepository) RecordReviewRemoval(
 	ctx context.Context,
 	q *reviewdb.Queries,
 	removal ReviewRemoval,
 ) error {
-	return mapReviewError("insert review removal", q.InsertReviewRemoval(ctx, reviewdb.InsertReviewRemovalParams{
+	return mapReviewError("record review removal", q.RecordReviewRemoval(ctx, reviewdb.RecordReviewRemovalParams{
 		ID:         removal.ID,
 		ReviewID:   removal.ReviewID,
 		ReviewerID: removal.ReviewerID,

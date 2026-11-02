@@ -22,7 +22,7 @@ UPDATE reviews
 SET deleted_at = now()
 WHERE id = @id::UUID AND deleted_at IS NULL;
 
--- name: InsertReviewRemoval :exec
+-- name: RecordReviewRemoval :exec
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 

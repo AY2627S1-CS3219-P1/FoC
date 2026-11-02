@@ -103,34 +103,6 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 	return err
 }
 
-const insertReviewRemoval = `-- name: InsertReviewRemoval :exec
-INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
-VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
-`
-
-type InsertReviewRemovalParams struct {
-	ID         uuid.UUID
-	ReviewID   uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Reason     string
-	CreatedBy  uuid.UUID
-}
-
-func (q *Queries) InsertReviewRemoval(ctx context.Context, arg InsertReviewRemovalParams) error {
-	_, err := q.db.ExecContext(ctx, insertReviewRemoval,
-		arg.ID,
-		arg.ReviewID,
-		arg.ReviewerID,
-		arg.RevieweeID,
-		arg.OrderID,
-		arg.Reason,
-		arg.CreatedBy,
-	)
-	return err
-}
-
 const listReviewRemovals = `-- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
        creator.display_name AS created_by_name
@@ -332,6 +304,34 @@ SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 // users rows.
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
+	return err
+}
+
+const recordReviewRemoval = `-- name: RecordReviewRemoval :exec
+INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
+`
+
+type RecordReviewRemovalParams struct {
+	ID         uuid.UUID
+	ReviewID   uuid.UUID
+	ReviewerID uuid.UUID
+	RevieweeID uuid.UUID
+	OrderID    uuid.UUID
+	Reason     string
+	CreatedBy  uuid.UUID
+}
+
+func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemovalParams) error {
+	_, err := q.db.ExecContext(ctx, recordReviewRemoval,
+		arg.ID,
+		arg.ReviewID,
+		arg.ReviewerID,
+		arg.RevieweeID,
+		arg.OrderID,
+		arg.Reason,
+		arg.CreatedBy,
+	)
 	return err
 }
 

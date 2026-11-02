@@ -137,7 +137,7 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		removal.ReviewerID = review.ReviewerID
 		removal.RevieweeID = review.RevieweeID
 		removal.OrderID = review.OrderID
-		if err := s.repo.InsertReviewRemoval(ctx, q, removal); err != nil {
+		if err := s.repo.RecordReviewRemoval(ctx, q, removal); err != nil {
 			return err
 		}
 		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)

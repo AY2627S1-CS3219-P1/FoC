@@ -19,7 +19,7 @@ type Repository interface {
 	// SoftDeleteReview marks the review removed (deleted_at set); the row is
 	// retained so the removal audit can keep referencing it.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error
-	InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
 	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error

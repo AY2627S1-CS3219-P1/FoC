@@ -67,7 +67,7 @@ func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries
 	return f.softDelErr
 }
 
-func (f *fakeRepository) InsertReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
+func (f *fakeRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
 	f.audited = removal
 	return f.removalErr
 }
