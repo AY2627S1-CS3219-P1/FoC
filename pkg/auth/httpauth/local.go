@@ -10,9 +10,14 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 )
 
-// AuthenticateLocal uses a caller-producing verifier supplied by the issuing service.
-// The issuer owns the private key; this package does not depend on its JWT codec.
-func AuthenticateLocal(verify func(string) (auth.Caller, error)) func(http.Handler) http.Handler {
+// AuthenticateLocal uses a caller-producing verifier supplied by the issuing
+// service. The issuer owns the private key; this package does not depend on its
+// JWT codec. Every verified caller also passes the shared revocation check,
+// which fails closed on store errors.
+func AuthenticateLocal(
+	verify func(string) (auth.Caller, error),
+	revocations RevocationChecker,
+) func(http.Handler) http.Handler {
 	errorWriter := connect.NewErrorWriter()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +35,15 @@ func AuthenticateLocal(verify func(string) (auth.Caller, error)) func(http.Handl
 				writeLocalAuthError(errorWriter, w, r)
 				return
 			}
+			revoked, err := revocations.IsRevoked(r.Context(), caller.SessionID)
+			if err != nil {
+				writeLocalUnavailableError(errorWriter, w, r)
+				return
+			}
+			if revoked {
+				writeLocalAuthError(errorWriter, w, r)
+				return
+			}
 			ctx := auth.WithCaller(r.Context(), caller)
 			ctx = auth.WithUserBearer(ctx, "Bearer "+parts[1])
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -41,5 +55,12 @@ func writeLocalAuthError(writer *connect.ErrorWriter, w http.ResponseWriter, r *
 	err := api.ToConnectError(r.Context(), errs.NewUnauthorizedError("invalid or missing access token"))
 	if writeErr := writer.Write(w, r, err); writeErr != nil {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+	}
+}
+
+func writeLocalUnavailableError(writer *connect.ErrorWriter, w http.ResponseWriter, r *http.Request) {
+	err := api.ToConnectError(r.Context(), revocationUnavailableError{})
+	if writeErr := writer.Write(w, r, err); writeErr != nil {
+		http.Error(w, errRevocationUnavailable.Error(), http.StatusServiceUnavailable)
 	}
 }
