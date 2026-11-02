@@ -9,6 +9,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"net/url"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +32,7 @@ type fakeStore struct {
 	sessions         map[uuid.UUID]models.Session
 	createdEvents    []userdomain.CreatedEvent
 	allowedDomains   map[string]struct{}
+	revocations      *fakeRevocations
 	domainErr        error
 	failCreatedEvent error
 	failSession      bool
@@ -38,7 +41,30 @@ type fakeStore struct {
 func newFakeStore() *fakeStore {
 	return &fakeStore{users: map[uuid.UUID]models.User{}, logins: map[[32]byte]models.AuthToken{},
 		registrations: map[[32]byte]models.AuthToken{}, sessions: map[uuid.UUID]models.Session{},
-		allowedDomains: map[string]struct{}{"example.com": {}}}
+		allowedDomains: map[string]struct{}{"example.com": {}}, revocations: &fakeRevocations{}}
+}
+
+// fakeRevocations records sessions written to the revocation dictionary.
+type fakeRevocations struct {
+	mu      sync.Mutex
+	revoked []string
+	err     error
+}
+
+func (f *fakeRevocations) Revoke(_ context.Context, sessionIDs ...string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.revoked = append(f.revoked, sessionIDs...)
+	return nil
+}
+
+func (f *fakeRevocations) recorded() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.revoked...)
 }
 
 func (f *fakeStore) GetByEmail(_ context.Context, email string) (*models.User, error) {
@@ -157,10 +183,10 @@ func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]by
 	return nil
 }
 
-func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now time.Time) ([]uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var count int64
+	var revoked []uuid.UUID
 	for id, session := range f.sessions {
 		if session.UserID != userID || session.RevokedAt != nil {
 			continue
@@ -168,9 +194,9 @@ func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now 
 		revokedAt := now
 		session.RevokedAt = &revokedAt
 		f.sessions[id] = session
-		count++
+		revoked = append(revoked, id)
 	}
-	return count, nil
+	return revoked, nil
 }
 
 type fakeUsers struct{ *fakeStore }
@@ -208,7 +234,7 @@ func (f fakeSessions) Revoke(ctx context.Context, id uuid.UUID, digest [32]byte,
 	return f.RevokeSession(ctx, id, digest, now)
 }
 
-func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now time.Time) ([]uuid.UUID, error) {
 	return f.RevokeUserSessions(ctx, userID, now)
 }
 
@@ -312,7 +338,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 		t.Fatal(err)
 	}
 	service, err := NewService(Dependencies{Resources: store.resources(), WithTransaction: store.withTransaction,
-		TokenCodec: codec, EmailSender: sender},
+		TokenCodec: codec, EmailSender: sender, Revocations: store.revocations},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
 	if err != nil {
@@ -517,6 +543,16 @@ func TestLogoutAllRevokesEveryDevice(t *testing.T) {
 	if err := service.LogoutAll(ctx, laptop); err != nil {
 		t.Fatal(err)
 	}
+	// Both devices' outstanding access tokens die with the sessions.
+	laptopClaims, err := service.deps.TokenCodec.Verify(laptop, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	phoneClaims, err := service.deps.TokenCodec.Verify(phone, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRevokedSessions(t, store.revocations, laptopClaims.SessionID, phoneClaims.SessionID)
 	for _, refresh := range []string{laptop, phone} {
 		if _, _, err := service.Refresh(ctx, refresh); !errors.Is(err, jwt.ErrRefreshFailed) {
 			t.Fatalf("refresh after logout all: %v", err)
@@ -527,6 +563,75 @@ func TestLogoutAllRevokesEveryDevice(t *testing.T) {
 	}
 	if _, _, err := service.Refresh(ctx, otherDevice); err != nil {
 		t.Fatalf("logout all revoked another user's session: %v", err)
+	}
+}
+
+func TestLogoutRecordsRevokedAccessTokens(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	claims, err := service.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	if err := service.Logout(ctx, refreshToken); err != nil {
+		t.Fatal(err)
+	}
+	assertRevokedSessions(t, store.revocations, claims.SessionID)
+
+	// Idempotent logout of an already revoked session must not touch the
+	// dictionary again.
+	before := len(store.revocations.recorded())
+	if err := service.Logout(ctx, refreshToken); err != nil {
+		t.Fatal(err)
+	}
+	if after := len(store.revocations.recorded()); after != before {
+		t.Fatalf("repeat logout recorded %d more sessions, want 0", after-before)
+	}
+}
+
+func TestRefreshRotationRecordsOldSession(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	claims, err := service.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	if _, _, err := service.Refresh(ctx, refreshToken); err != nil {
+		t.Fatal(err)
+	}
+	assertRevokedSessions(t, store.revocations, claims.SessionID)
+}
+
+func TestRevocationWriteFailureDoesNotFailLogout(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	store.revocations.err = errors.New("redis unavailable")
+	ctx := context.Background()
+
+	// The session is already revoked; the missed dictionary entry only leaves
+	// the access tokens valid until their own expiry, so logout still succeeds.
+	if err := service.Logout(ctx, refreshToken); err != nil {
+		t.Fatalf("logout with revocation store down: %v", err)
+	}
+	if _, _, err := service.Refresh(ctx, refreshToken); !errors.Is(err, jwt.ErrRefreshFailed) {
+		t.Fatalf("refresh after logout: %v", err)
+	}
+}
+
+// assertRevokedSessions checks that exactly these session IDs were recorded,
+// in any order.
+func assertRevokedSessions(t *testing.T, revocations *fakeRevocations, want ...string) {
+	t.Helper()
+	recorded := revocations.recorded()
+	sort.Strings(recorded)
+	expected := append([]string(nil), want...)
+	sort.Strings(expected)
+	if !slices.Equal(recorded, expected) {
+		t.Fatalf("revocation dictionary recorded %v, want %v", recorded, expected)
 	}
 }
 
@@ -893,6 +998,21 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
 		service.deps.Resources.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
+	})
+	t.Run("revocations while logging out", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Revocations = nil
+		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
+	})
+	t.Run("revocations while refreshing", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Revocations = nil
+		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
+	})
+	t.Run("revocations while logging out everywhere", func(t *testing.T) {
+		service, _, refreshToken := serviceWithRefreshToken(t, now)
+		service.deps.Revocations = nil
+		assertPanics(t, func() { _ = service.LogoutAll(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while logging out everywhere", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)

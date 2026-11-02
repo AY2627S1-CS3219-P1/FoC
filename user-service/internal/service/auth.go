@@ -27,8 +27,8 @@ var ErrEmailDomainNotAllowed = errs.NewForbiddenError("email domain is not allow
 
 const (
 	MagicLinkLifetime = 10 * time.Minute
-	// TODO: A revoked session may still have a valid access JWT for up to ten
-	// minutes. This does not satisfy backlog NFR-05.4.1's one-minute limit.
+	// AccessTokenLifetime is also the TTL of the revocation dictionary: any
+	// access token a revocation entry could cover expires within it.
 	AccessTokenLifetime  = 10 * time.Minute
 	RefreshTokenLifetime = 30 * 24 * time.Hour
 )
@@ -264,6 +264,9 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("replace refresh session: %w", err)
 	}
+	// Rotation revokes the old session; its outstanding access tokens must die
+	// with it instead of living out their remaining TTL.
+	recordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
 	return *user, tokens, nil
 }
 
@@ -286,6 +289,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return fmt.Errorf("revoke refresh session: %w", err)
 	}
+	recordRevokedSessions(ctx, s.deps.Revocations, []uuid.UUID{sessionID})
 	return nil
 }
 
@@ -306,12 +310,19 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return jwt.ErrRefreshFailed
 	}
+	var revoked []uuid.UUID
 	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
-		_, err := tx.Sessions.RevokeAllForUser(ctx, userID, now)
-		return err
+		ids, err := tx.Sessions.RevokeAllForUser(ctx, userID, now)
+		if err != nil {
+			return err
+		}
+		// RevokeAllForUser skips the just-revoked cookie session, so list it
+		// explicitly; duplicate entries are harmless.
+		revoked = append([]uuid.UUID{sessionID}, ids...)
+		return nil
 	})
 	if errors.Is(err, store.ErrSessionRejected) {
 		return jwt.ErrRefreshFailed
@@ -319,6 +330,7 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return fmt.Errorf("revoke all sessions: %w", err)
 	}
+	recordRevokedSessions(ctx, s.deps.Revocations, revoked)
 	return nil
 }
 
@@ -385,6 +397,27 @@ func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now t
 
 func parseID(value string) (uuid.UUID, error) {
 	return uuid.Parse(value)
+}
+
+// recordRevokedSessions lists sessions in the revocation dictionary after the
+// database revocation committed. Failures are logged and swallowed: the
+// revocation must not fail the request that already revoked the session, and a
+// missed entry only leaves the tokens valid until their own expiry.
+func recordRevokedSessions(
+	ctx context.Context,
+	revocations AccessTokenRevocations,
+	sessionIDs []uuid.UUID,
+) {
+	if len(sessionIDs) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		ids = append(ids, sessionID.String())
+	}
+	if err := revocations.Revoke(ctx, ids...); err != nil {
+		slog.WarnContext(ctx, "record revoked access tokens", "err", err)
+	}
 }
 
 func jwtRole(role models.RoleName) (jwt.Role, bool) {

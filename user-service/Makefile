@@ -13,9 +13,11 @@ sqlc:
 	@cd $(SQLC_PATH) && sqlc generate
 
 # Integration tests reset a shared TEST_DATABASE_URL, so packages must run one at a time.
+# tests/revocation starts its own throwaway PostgreSQL and Redis through
+# testcontainers and needs only Docker.
 test-integration:
 	@test -n "$(TEST_DATABASE_URL)" || (echo "TEST_DATABASE_URL is not set" && exit 1)
-	@TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -p 1 -count=1 ./...
+	@TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -p 1 -count=1 -tags=integration ./...
 
 migrate-up:
 	@goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" up

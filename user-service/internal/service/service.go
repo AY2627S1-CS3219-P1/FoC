@@ -33,7 +33,13 @@ type SessionStore interface {
 	Create(context.Context, *models.Session) error
 	UpdateTokenHash(context.Context, uuid.UUID, []byte) error
 	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
-	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
+	RevokeAllForUser(context.Context, uuid.UUID, time.Time) ([]uuid.UUID, error)
+}
+
+// AccessTokenRevocations records sessions in the shared revocation dictionary
+// so every service rejects their outstanding access tokens.
+type AccessTokenRevocations interface {
+	Revoke(ctx context.Context, sessionIDs ...string) error
 }
 
 // EmailDomainPolicy reports membership in the email-domain allowlist.
@@ -67,6 +73,7 @@ type Dependencies struct {
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
 	EmailSender     email.EmailSender
+	Revocations     AccessTokenRevocations
 }
 
 type Config struct {

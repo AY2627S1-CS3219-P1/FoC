@@ -53,6 +53,14 @@ func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRequiresRedisAddress(t *testing.T) {
+	setValidConfigEnv(t)
+	t.Setenv("REDIS_ADDR", "")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "REDIS_ADDR is not set") {
+		t.Fatalf("loadConfig error = %v, want missing REDIS_ADDR", err)
+	}
+}
+
 func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 	setValidConfigEnv(t)
 	const brokers = "unreachable.invalid:9092"
@@ -79,6 +87,8 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_PRIVATE_KEY_FILE":              "/tmp/user-service-key.pem",
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
+		"KAFKA_BROKERS":                     "kafka:9092",
+		"REDIS_ADDR":                        "localhost:6379",
 		"SMTP_ADDR":                         "smtp.example.test:25",
 		"SMTP_FROM":                         "FoC <no-reply@example.test>",
 		"SMTP_USERNAME":                     "",

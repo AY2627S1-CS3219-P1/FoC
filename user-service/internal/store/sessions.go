@@ -56,11 +56,28 @@ func (s *Sessions) Revoke(
 	return nil
 }
 
-// RevokeAllForUser revokes every unrevoked session of userID and returns how
-// many were revoked. Expired sessions are included; revoking them is harmless.
-func (s *Sessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now time.Time) (int64, error) {
+// RevokeAllForUser revokes every unrevoked session of userID and returns their
+// IDs so the caller can record each session's access tokens in the revocation
+// dictionary. Expired sessions are included; revoking them is harmless.
+func (s *Sessions) RevokeAllForUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	now time.Time,
+) ([]uuid.UUID, error) {
+	var sessionIDs []uuid.UUID
+	if err := s.db.WithContext(ctx).Model(&models.Session{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Pluck("id", &sessionIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(sessionIDs) == 0 {
+		return nil, nil
+	}
 	result := s.db.WithContext(ctx).Model(&models.Session{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
 		Updates(map[string]any{"revoked_at": now, "updated_at": now})
-	return result.RowsAffected, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return sessionIDs, nil
 }

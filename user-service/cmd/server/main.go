@@ -23,6 +23,7 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/revocation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
@@ -56,6 +57,7 @@ type config struct {
 	frontendURL     string
 	privateKey      string
 	kafkaBrokers    string
+	redisAddr       string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
@@ -77,6 +79,20 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// The revocation dictionary TTL must match the effective access-token
+	// lifetime; NewService applies the same default when the TTL is unset.
+	accessTTL := cfg.accessTokenTTL
+	if accessTTL == 0 {
+		accessTTL = service.AccessTokenLifetime
+	}
+	revocations, err := revocation.NewStore(ctx, revocation.Config{
+		Addr: cfg.redisAddr, TTL: accessTTL,
+	})
+	if err != nil {
+		fatal("initialize access-token revocation store", err)
+	}
+	defer func() { _ = revocations.Close() }()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -136,15 +152,16 @@ func main() {
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
+				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Sessions: tx.Sessions})
 			})
 		},
+		Revocations: revocations,
 	}
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
-		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess, revocations),
 		Users:          persistence.Users,
 	}
 	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
@@ -207,6 +224,7 @@ func loadConfig() (config, error) {
 		frontendURL:     envString("FRONTEND_BASE_URL", ""),
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
+		redisAddr:       envString("REDIS_ADDR", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
@@ -252,6 +270,9 @@ func loadConfig() (config, error) {
 				break
 			}
 		}
+	}
+	if cfg.redisAddr == "" {
+		errs = append(errs, errors.New("REDIS_ADDR is not set"))
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))

@@ -93,7 +93,7 @@ Secure, HttpOnly, SameSite=Strict and Path=/user.v1.AuthService/. Refresh and
 both logouts read that cookie and the logouts clear it. `LogoutAll` revokes
 every session of the cookie's user (sign out of all devices) and, unlike
 `Logout`, returns `Unauthenticated` when the cookie is not a live session.
-Access tokens already issued remain valid until they expire. Browser clients must send credentials
+Browser clients must send credentials
 so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
@@ -102,6 +102,26 @@ link is only emailed, through `pkg/email.SMTPSender`. If delivery fails,
 `RequestLink` returns `Unavailable` and logs the SMTP error. An existing
 account receives a `/login?token=` link and a new address a
 `/register?token=` link; both expire after ten minutes and work once.
+
+## Access-token revocation
+
+Revoking a session also revokes its outstanding access tokens within one
+request, instead of letting them live out their remaining lifetime (NFR-05.4.1,
+issue #57; see `docs/adr/redis-access-token-revocation.md`). After a logout,
+refresh rotation, logout-all, or role change commits, the User Service records
+the revoked session IDs in a Redis dictionary named
+`revoked_access_tokens:<session_id>`, one entry per session with a TTL equal to
+the maximum access-token lifetime. Every service's authentication middleware
+consults that dictionary after verifying the signature: a revoked session's
+access token is rejected with `Unauthenticated`, even though it is still
+cryptographically valid. If Redis is unreachable, verification fails closed
+with `Unavailable` rather than accepting tokens of unknown revocation state.
+
+`REDIS_ADDR` (`host:port`) is required in every Go service. Compose starts the
+dictionary and points services at `redis:6379`; host development uses
+`localhost:6379` against the published port. The dictionary holds no user
+data beyond session UUIDs and revocation timestamps, and entries expire with
+the access tokens they cover.
 
 Registration only accepts addresses whose domain is in
 `allowed_email_domains`; an empty table rejects every registration. For local
@@ -142,6 +162,8 @@ read `AccessClaims` with `ClaimsFromContext`. The
 authenticator fetches keys at startup, refreshes its cache every hour,
 and fetches early when a token names an unknown key ID. The base URL must use
 HTTPS unless `APP_ENV=local`; local mode permits the Compose network's HTTP URL.
+The authenticator also consults the shared revocation dictionary and requires
+`REDIS_ADDR`; see "Access-token revocation" above.
 
 ```go
 import authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
@@ -176,9 +198,11 @@ role, or account status.
 `suspended_user`. `admin` may change another user's role only between `user`
 and `suspended_user`. Neither may change its own role or a `super_admin` role.
 If either the previous or new role is `suspended_user`, a nonblank reason of at
-most 2,000 characters is required. The role update and audit entry commit
-together. Clients should refresh affected users' access tokens to obtain the
-new role claim; previously issued access tokens remain valid until expiry.
+most 2,000 characters is required. The role update, audit entry, and the
+target's session revocations commit together. Because the role lives in
+outstanding access tokens, the change signs the target out of every device;
+they must sign in again (or refresh, where their session allows) to obtain the
+new role claim.
 
 The `admin_bootstrap` table exists, but registration does not yet claim it.
 First-admin provisioning and account deletion APIs are separate work.
