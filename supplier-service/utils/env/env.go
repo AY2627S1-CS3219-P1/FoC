@@ -8,8 +8,9 @@ import (
 )
 
 type Environment struct {
-	Port        string
-	DatabaseURL string
+	Port         string
+	InternalPort string
+	DatabaseURL  string
 }
 
 var getEnvironment = sync.OnceValue(func() Environment {
@@ -17,13 +18,23 @@ var getEnvironment = sync.OnceValue(func() Environment {
 	if port == "" {
 		port = "8080"
 	}
+	// Every service runs the listener split: private routes will move to the
+	// internal listener, so it is bound even before any route is split.
+	internalPort := strings.TrimSpace(os.Getenv("INTERNAL_PORT"))
+	if internalPort == "" {
+		panic("INTERNAL_PORT environment variable is not set")
+	}
+	if internalPort == port {
+		panic("INTERNAL_PORT must differ from PORT")
+	}
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		panic("DATABASE_URL environment variable is not set")
 	}
 	return Environment{
-		Port:        port,
-		DatabaseURL: databaseURL,
+		Port:         port,
+		InternalPort: internalPort,
+		DatabaseURL:  databaseURL,
 	}
 })
 

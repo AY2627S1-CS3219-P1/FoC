@@ -12,6 +12,7 @@ import (
 
 type config struct {
 	Port               string
+	InternalPort       string
 	DatabaseURL        string
 	UserServiceURL     string
 	RunMigrations      bool
@@ -27,6 +28,7 @@ type config struct {
 func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
 		Port:               strings.TrimSpace(getenv("PORT")),
+		InternalPort:       strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RunMigrations:      true,
@@ -45,6 +47,19 @@ func loadConfig(getenv func(string) string) (config, error) {
 	port, err := strconv.Atoi(c.Port)
 	if err != nil || port < 1 || port > 65535 {
 		return config{}, errors.New("PORT must be between 1 and 65535")
+	}
+
+	// Every service runs the listener split: private routes will move to the
+	// internal listener, so it is bound even before any route is split.
+	if c.InternalPort == "" {
+		return config{}, errors.New("INTERNAL_PORT is required: every service runs the listener split")
+	}
+	internalPort, err := strconv.Atoi(c.InternalPort)
+	if err != nil || internalPort < 1 || internalPort > 65535 {
+		return config{}, errors.New("INTERNAL_PORT must be between 1 and 65535")
+	}
+	if c.InternalPort == c.Port {
+		return config{}, errors.New("INTERNAL_PORT must differ from PORT")
 	}
 
 	if c.DatabaseURL == "" {

@@ -70,6 +70,7 @@ func setValidConfigEnv(t *testing.T) {
 	t.Helper()
 	for key, value := range map[string]string{
 		"PORT":                              "8080",
+		"INTERNAL_PORT":                     "8081",
 		"DATABASE_URL":                      "postgres://user:password@localhost:5432/user_service",
 		"DB_MAX_OPEN":                       "10",
 		"DB_MAX_IDLE":                       "5",

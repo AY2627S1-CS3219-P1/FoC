@@ -19,8 +19,8 @@ import (
 
 const maxRPCMessageBytes = 1 << 20
 
-// Setup mounts every user RPC on one router. It serves the single-listener
-// mode, when no internal port is configured, and single-router tests.
+// Setup mounts every user RPC on one router. Production always runs the
+// listener split (Public plus Internal); Setup exists for single-router tests.
 type ProtectedRoutes struct {
 	Profile      *profilehandler.Handler
 	Admin        *adminhandler.Handler

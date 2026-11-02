@@ -145,17 +145,12 @@ func main() {
 		Users:        persistence.Users,
 	}
 	cors := getCorsConfig(auth.AllowedOrigin)
-	var servers []*http.Server
-	if cfg.internalPort == "" {
-		// Without an internal port, every route (public-key included) shares
-		// the public listener; local development does not need the split.
-		handler := cors.Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-		servers = []*http.Server{newServer(":"+cfg.port, handler)}
-	} else {
-		public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
-		internal := newServer(":"+cfg.internalPort, router.Internal(auth))
-		servers = []*http.Server{public, internal}
-	}
+	// Every service runs the listener split: public routes on PORT, private
+	// routes on INTERNAL_PORT. Services without private routes yet still bind
+	// the internal listener so local and deployed behaviour stay identical.
+	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	servers := []*http.Server{public, internal}
 
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
@@ -284,7 +279,9 @@ func loadConfig() (config, error) {
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
 	}
-	if cfg.internalPort != "" {
+	if cfg.internalPort == "" {
+		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
+	} else {
 		port, err := strconv.Atoi(cfg.internalPort)
 		if err != nil || port < 1 || port > 65535 {
 			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))

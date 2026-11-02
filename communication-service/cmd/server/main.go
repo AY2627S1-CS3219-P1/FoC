@@ -57,6 +57,7 @@ const (
 
 type config struct {
 	port          string
+	internalPort  string
 	databaseURL   string
 	runMigrations bool
 	telegramToken string
@@ -67,6 +68,7 @@ type config struct {
 func loadConfig() (config, error) {
 	cfg := config{
 		port:          os.Getenv("PORT"),
+		internalPort:  os.Getenv("INTERNAL_PORT"),
 		databaseURL:   os.Getenv("DATABASE_URL"),
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
@@ -79,6 +81,14 @@ func loadConfig() (config, error) {
 	}
 	if cfg.port == "" {
 		cfg.port = "8080"
+	}
+	// Every service runs the listener split: private routes will move to the
+	// internal listener, so it is bound even before any route is split.
+	if cfg.internalPort == "" {
+		return cfg, errors.New("INTERNAL_PORT is required: every service runs the listener split")
+	}
+	if cfg.internalPort == cfg.port {
+		return cfg, errors.New("INTERNAL_PORT must differ from PORT")
 	}
 	if cfg.databaseURL == "" {
 		return cfg, errors.New("DATABASE_URL is required")
@@ -138,24 +148,31 @@ func main() {
 		return ""
 	}
 
-	handler := router.New(router.Services{
+	// The internal listener serves the public handler until private routes are
+	// split out; binding it keeps every service on the same listener shape.
+	handler := corsConfig().Handler(router.New(router.Services{
 		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
-	}, authenticator.Authenticate)
-	srv := newServer(":"+cfg.port, corsConfig().Handler(handler))
-	go func() {
-		log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("serve", "err", err)
-			stop()
-		}
-	}()
+	}, authenticator.Authenticate))
+	public := newServer(":"+cfg.port, handler)
+	internal := newServer(":"+cfg.internalPort, handler)
+	for _, srv := range []*http.Server{public, internal} {
+		go func() {
+			log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("serve", "err", err)
+				stop()
+			}
+		}()
+	}
 
 	<-ctx.Done()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+	for _, srv := range []*http.Server{public, internal} {
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Error("shutdown", "err", err)
+		}
 	}
 	// The bot may start the consumer, so join both before closing the pool.
 	workers.Wait()

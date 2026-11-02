@@ -65,6 +65,7 @@ func TestConfiguration(t *testing.T) {
 		"DATABASE_URL":          "postgresql://foc:password@localhost:5432/order_dev",
 		"USER_SERVICE_BASE_URL": "http://localhost:8081",
 		"APP_ENV":               "local",
+		"INTERNAL_PORT":         "8081",
 	}
 	for _, tc := range []struct{ name, key, value string }{
 		{"missing database", "DATABASE_URL", ""},
@@ -74,6 +75,8 @@ func TestConfiguration(t *testing.T) {
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
 		{"unsupported auth scheme", "USER_SERVICE_BASE_URL", "ftp://localhost"},
 		{"invalid port", "PORT", "-1"},
+		{"missing internal port", "INTERNAL_PORT", ""},
+		{"internal port equals port", "INTERNAL_PORT", "8080"},
 		{"invalid migration toggle", "RUN_MIGRATIONS", "sometimes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -122,6 +125,7 @@ func TestCreationConfiguration(t *testing.T) {
 				"DATABASE_URL":          "postgresql://order:example@localhost:5432/order_test",
 				"USER_SERVICE_BASE_URL": "http://user:8080",
 				"APP_ENV":               "local",
+				"INTERNAL_PORT":         "8081",
 			}
 			for key, value := range tc.values {
 				base[key] = value
