@@ -13,6 +13,7 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL":          "postgres://credit:credit@localhost:5432/credit_dev",
 		"USER_SERVICE_BASE_URL": "https://user.example",
+		"REDIS_ADDR":            "redis:6379",
 	}
 }
 
@@ -42,6 +43,7 @@ func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 		"default port":      {"INTERNAL_PORT": "8080"},
 		"bad internal port": {"INTERNAL_PORT": "70000"},
 		"missing database":  {"DATABASE_URL": ""},
+		"missing redis":     {"REDIS_ADDR": ""},
 		"http user service": {"USER_SERVICE_BASE_URL": "http://user-service:8080"},
 		"user service path": {"USER_SERVICE_BASE_URL": "https://user.example/api"},
 		"migrations flag":   {"RUN_MIGRATIONS": "sometimes"},

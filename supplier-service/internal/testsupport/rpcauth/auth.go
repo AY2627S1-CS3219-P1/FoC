@@ -15,6 +15,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -44,6 +45,8 @@ func New(t *testing.T) *Auth {
 
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
+	redisServer := miniredis.RunT(t)
+	t.Setenv("REDIS_ADDR", redisServer.Addr())
 	authenticator, err := httpauth.NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)

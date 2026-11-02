@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/revocation"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -66,6 +67,13 @@ func run(ctx context.Context) error {
 
 	services := newServices(pool)
 
+	// Access-token revocation dictionary; readers need no TTL.
+	revocations, err := revocation.NewStore(startupCtx, revocation.Config{Addr: config.RedisAddr})
+	if err != nil {
+		return fmt.Errorf("initialize access-token revocation store: %w", err)
+	}
+	defer func() { _ = revocations.Close() }()
+
 	// Kafka consumers. Without them Order's outcomes wait in Kafka, and
 	// reservations stay held until Credit consumes them.
 	workerCtx, stopWorkers := context.WithCancel(ctx)
@@ -87,6 +95,7 @@ func run(ctx context.Context) error {
 				UserServiceURL: config.UserServiceURL,
 				Issuer:         httpauth.TokenIssuer,
 				Audience:       httpauth.TokenAudience,
+				Revocations:    revocations,
 			})
 		},
 	)

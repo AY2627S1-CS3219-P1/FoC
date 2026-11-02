@@ -16,6 +16,7 @@ type config struct {
 	InternalPort   string
 	DatabaseURL    string
 	UserServiceURL string
+	RedisAddr      string
 	RunMigrations  bool
 	// Empty disables the consumers; settlement then waits until it is set.
 	KafkaBrokers []string
@@ -27,6 +28,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		InternalPort:   strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
+		RedisAddr:      strings.TrimSpace(getenv("REDIS_ADDR")),
 		RunMigrations:  true,
 	}
 
@@ -53,6 +55,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if _, err := pgxpool.ParseConfig(c.DatabaseURL); err != nil {
 		return config{}, errors.New("DATABASE_URL must be a database URL")
+	}
+	if c.RedisAddr == "" {
+		return config{}, errors.New("REDIS_ADDR is required")
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)
