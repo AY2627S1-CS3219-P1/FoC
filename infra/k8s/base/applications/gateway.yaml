@@ -13,6 +13,7 @@ spec:
         - path: {type: PathPrefix, value: /user.v1.HealthService}
         - path: {type: PathPrefix, value: /user.v1.ProfileService}
         - path: {type: PathPrefix, value: /user.v1.UserAdminService}
+        - path: {type: PathPrefix, value: /user.v1.AllowedDomainAdminService}
       backendRefs:
         - name: user-service-external
           port: 8080
