@@ -34,7 +34,7 @@
 <figure class="payout">
 	<div class="figure-head">
 		<span class="amount">{payable.toString()}<span class="unit">credits</span></span>
-		{#if lost > 0n}<span class="lost">{lost.toString()} fewer than the {reward.toString()}-credit reward</span>{/if}
+		<span class="lost">{minutes(elapsedMs - allowedMs)} min late{lost > 0n ? ', ' + lost.toString() + ' credits lost' : ''}</span>
 	</div>
 	<svg viewBox="0 0 {width} {height}" role="img" aria-label={`Payout falls from ${reward} credits at ${minutes(allowedMs)} minutes after pickup to 0 at ${minutes(2 * allowedMs)} minutes. ${delivered ? 'Delivered' : 'Now'} at ${minutes(elapsedMs)} minutes: ${payable} credits.`}>
 		<line class="axis" x1={pad.left} y1={y(0n)} x2={width - pad.right} y2={y(0n)} />
@@ -45,9 +45,6 @@
 		<text class="tick" x={x(allowedMs)} y={height - 6} text-anchor="middle">{minutes(allowedMs)} min</text>
 		<text class="tick" x={width - pad.right} y={height - 6} text-anchor="end">{minutes(2 * allowedMs)} min</text>
 	</svg>
-	<figcaption>
-		{delivered ? 'Delivered' : 'Delivery is'} {minutes(elapsedMs - allowedMs)} min late. The courier's payout keeps falling until it reaches 0 at {minutes(2 * allowedMs)} minutes after pickup.
-	</figcaption>
 </figure>
 
 <style>
@@ -114,9 +111,4 @@
 		fill: var(--m3c-on-surface-variant);
 	}
 
-	figcaption {
-		font-size: 0.85rem;
-		line-height: 1.4;
-		color: var(--m3c-on-surface-variant);
-	}
 </style>
