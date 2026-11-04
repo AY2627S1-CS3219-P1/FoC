@@ -66,13 +66,17 @@ func (h *Handler) SubmitReview(
 	if err != nil || orderID == uuid.Nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
 	}
+	photoIDs, err := reviewv1PhotoIDsToDomain(req.Msg.GetPhotoIds())
+	if err != nil {
+		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid photo ID"))
+	}
 	if err := h.Logic.SubmitReview(
 		ctx,
 		actorID,
 		to,
 		orderID,
 		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
-		reviewv1PhotoIDsToDomain(req.Msg.GetPhotoIds()),
+		photoIDs,
 	); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -128,7 +132,9 @@ func (h *Handler) ListReviewsForUser(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(toListReviewsForUserResponse(pageResult)), nil
+	resp := connect.NewResponse(toListReviewsForUserResponse(pageResult))
+	noStore(resp)
+	return resp, nil
 }
 
 func (h *Handler) ListMyReviews(
@@ -147,7 +153,15 @@ func (h *Handler) ListMyReviews(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
+	resp := connect.NewResponse(toListMyReviewsResponse(pageResult))
+	noStore(resp)
+	return resp, nil
+}
+
+// noStore marks responses that may embed short-lived pre-signed photo URLs as
+// non-cacheable, so temporary download credentials never sit in a cache.
+func noStore[R any](resp *connect.Response[R]) {
+	resp.Header().Set("Cache-Control", "no-store")
 }
 
 // RemoveReview soft-deletes a review and records the removal audit row; the
@@ -211,21 +225,22 @@ func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSub
 	return ReviewSubmission{Rating: int(submission.GetRating()), Comment: submission.GetComment()}
 }
 
-// reviewv1PhotoIDsToDomain parses the validated photo IDs; a malformed entry
-// is a contract violation and rejects the request.
-func reviewv1PhotoIDsToDomain(ids []string) []uuid.UUID {
+// reviewv1PhotoIDsToDomain parses the validated photo IDs. Every entry must be
+// a well-formed, non-zero UUID: a silent nil on a malformed entry would drop
+// the whole attachment list and submit a review without its photos.
+func reviewv1PhotoIDsToDomain(ids []string) ([]uuid.UUID, error) {
 	if len(ids) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]uuid.UUID, 0, len(ids))
 	for _, raw := range ids {
 		id, err := uuid.Parse(raw)
 		if err != nil || id == uuid.Nil {
-			return nil
+			return nil, errs.NewBadRequestError("photo IDs must be non-zero UUIDs")
 		}
 		out = append(out, id)
 	}
-	return out
+	return out, nil
 }
 
 func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserResponse {

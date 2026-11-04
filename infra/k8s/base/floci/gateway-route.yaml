@@ -20,3 +20,15 @@ spec:
       backendRefs:
         - name: floci
           port: 4566
+    - matches:
+        - path: {type: PathPrefix, value: /user-images/}
+          method: GET
+        - path: {type: PathPrefix, value: /user-images/}
+          method: HEAD
+        - path: {type: PathPrefix, value: /user-images/}
+          method: PUT
+        - path: {type: PathPrefix, value: /user-images/}
+          method: OPTIONS
+      backendRefs:
+        - name: floci
+          port: 4566

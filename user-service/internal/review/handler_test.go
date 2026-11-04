@@ -145,6 +145,43 @@ func TestSubmitReviewRPC(t *testing.T) {
 		}
 	})
 
+	t.Run("passes ordered photo IDs through to the logic", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		first, second := uuid.New(), uuid.New()
+		_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+			From:       caller.String(),
+			To:         target.String(),
+			OrderId:    order.String(),
+			Submission: &reviewv1.ReviewSubmission{Rating: 4, Comment: "with photos"},
+			PhotoIds:   []string{first.String(), second.String()},
+		}))
+		if err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		if len(stub.photoIDs) != 2 || stub.photoIDs[0] != first || stub.photoIDs[1] != second {
+			t.Fatalf("photo IDs not mapped in order: %v", stub.photoIDs)
+		}
+	})
+
+	t.Run("a zero or malformed photo ID is rejected instead of dropped", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+			From:       caller.String(),
+			To:         target.String(),
+			OrderId:    order.String(),
+			Submission: &reviewv1.ReviewSubmission{Rating: 4, Comment: "bad photo id"},
+			PhotoIds:   []string{uuid.Nil.String()},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("expected invalid argument, got %v", err)
+		}
+		if len(stub.photoIDs) != 0 {
+			t.Fatal("the logic must not run when a photo ID is invalid")
+		}
+	})
+
 	t.Run("impersonation is rejected", func(t *testing.T) {
 		stub := &handlerLogicStub{}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
