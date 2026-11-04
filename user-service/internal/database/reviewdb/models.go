@@ -21,3 +21,16 @@ type Review struct {
 	Comment    string
 	CreatedAt  time.Time
 }
+
+type ReviewPhoto struct {
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	ObjectKey       string
+	ContentType     string
+	SizeBytes       int64
+	State           string
+	ReviewID        uuid.NullUUID
+	Ordinal         sql.NullInt32
+	CreatedAt       time.Time
+	UploadExpiresAt time.Time
+}
