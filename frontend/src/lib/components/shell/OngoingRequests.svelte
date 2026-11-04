@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { LoadingIndicator } from 'm3-svelte';
-	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
+	import { Icon, LoadingIndicator } from 'm3-svelte';
+	import iconBag from '@ktibow/iconset-material-symbols/shopping-bag-outline';
+	import iconBike from '@ktibow/iconset-material-symbols/pedal-bike';
+	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { authService, orderApi } from '$lib/services';
 	import { statusLabel } from '$lib/services/order/presentation';
 
@@ -57,16 +59,34 @@
 	function isCourier(order: Order): boolean {
 		return order.requesterId !== authService.user?.id;
 	}
+
+	// Say what happens next from the caller's side, not the raw status.
+	function nextStep(order: Order, courier: boolean): string {
+		switch (order.status) {
+			case OrderStatus.PENDING_RESERVATION:
+				return 'Reserving credits';
+			case OrderStatus.AWAITING_COURIER:
+				return 'Waiting for a courier';
+			case OrderStatus.AWAITING_PICKUP:
+				return courier ? 'Pick it up' : 'Courier assigned';
+			case OrderStatus.DELIVERING:
+				return courier ? 'Deliver it' : 'On the way';
+			case OrderStatus.DELIVERED:
+				return courier ? 'Waiting for confirmation' : 'Confirm you received it';
+			default:
+				return statusLabel(order.status);
+		}
+	}
 </script>
 
 <section class="ongoing" aria-labelledby="ongoing-title">
-	<h2 id="ongoing-title">Ongoing requests</h2>
+	<h2 id="ongoing-title">Ongoing</h2>
 	{#if failed && !orders}
-		<p class="hint" role="alert">Couldn't load your requests.</p>
+		<p class="hint" role="alert">Couldn't load your requests. They'll retry shortly.</p>
 	{:else if !orders}
 		<div class="loading"><LoadingIndicator size={24} aria-label="Loading ongoing requests" /></div>
 	{:else if !orders.length}
-		<p class="hint">Nothing in progress. <a href="/orders/new">Make a request</a> or <a href="/orders">deliver one</a>.</p>
+		<p class="hint">Nothing in progress.</p>
 	{:else}
 		<ul>
 			{#each orders as order (order.id)}
@@ -74,13 +94,17 @@
 				<li>
 					<a
 						class="request"
-						class:courier
 						href={'/orders/' + encodeURIComponent(order.id)}
 						aria-current={page.url.pathname === '/orders/' + order.id ? 'page' : undefined}
 					>
-						<span class="role">{courier ? 'Delivering' : 'Requested'}</span>
-						<span class="item">{order.itemDescription}</span>
-						<span class="status">{statusLabel(order.status)}</span>
+						<span class="role" class:courier title={courier ? "You're delivering" : 'You requested'}>
+							<Icon icon={courier ? iconBike : iconBag} size={18} />
+							<span class="visually-hidden">{courier ? "You're delivering:" : 'You requested:'}</span>
+						</span>
+						<span class="text">
+							<span class="item">{order.itemDescription}</span>
+							<span class="step">{nextStep(order, courier)}</span>
+						</span>
 					</a>
 				</li>
 			{/each}
@@ -94,17 +118,17 @@
 		display: grid;
 		grid-template-rows: auto minmax(0, 1fr);
 		align-content: start;
-		gap: 0.5rem;
+		gap: 0.25rem;
 		min-height: 0;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--m3c-outline-variant);
 	}
 
 	h2 {
 		margin: 0;
-		padding: 0 0.75rem;
-		font-size: 0.8rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
+		padding: 0.25rem 1rem;
+		font-size: 0.875rem;
+		font-weight: 600;
 		color: var(--m3c-on-surface-variant);
 	}
 
@@ -114,54 +138,77 @@
 		padding: 0;
 		display: grid;
 		align-content: start;
-		gap: 0.4rem;
+		gap: 0.15rem;
 		overflow-y: auto;
 	}
 
-	/* Requester and courier roles differ by colour and by the label text. */
+	/* Rows share the nav items' shape and selected state. */
 	.request {
-		display: grid;
-		gap: 0.1rem;
-		padding: 0.55rem 0.75rem;
-		border-radius: var(--m3-shape-medium);
-		border-inline-start: 4px solid var(--m3c-primary);
-		background: var(--m3c-primary-container);
-		color: var(--m3c-on-primary-container);
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 1rem;
+		border-radius: var(--m3-shape-full, 999px);
+		color: var(--m3c-on-surface);
 		text-decoration: none;
 	}
 
-	.request.courier {
-		border-inline-start-color: var(--m3c-tertiary);
+	.request:hover {
+		background: color-mix(in srgb, var(--m3c-on-surface) 8%, transparent);
+	}
+
+	.request:focus-visible {
+		outline: 2px solid var(--m3c-primary);
+		outline-offset: -2px;
+	}
+
+	.request[aria-current='page'] {
+		background: var(--m3c-secondary-container);
+		color: var(--m3c-on-secondary-container);
+	}
+
+	/* The role is shown by icon and tint, and named for screen readers. */
+	.role {
+		flex: 0 0 auto;
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 50%;
+		background: var(--m3c-primary-container);
+		color: var(--m3c-on-primary-container);
+	}
+
+	.role.courier {
 		background: var(--m3c-tertiary-container);
 		color: var(--m3c-on-tertiary-container);
 	}
 
-	.request[aria-current='page'] {
-		outline: 2px solid currentColor;
-		outline-offset: -2px;
+	.text {
+		display: grid;
+		min-width: 0;
 	}
 
-	.role {
-		font-size: 0.7rem;
-		font-weight: 700;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-	}
-
-	.item {
-		font-weight: 600;
+	.item,
+	.step {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.status {
+	.item {
+		font-size: 0.9rem;
+		font-weight: 500;
+	}
+
+	.step {
 		font-size: 0.8rem;
+		color: var(--m3c-on-surface-variant);
 	}
 
 	.hint {
 		margin: 0;
-		padding: 0 0.75rem;
+		padding: 0.25rem 1rem;
 		font-size: 0.85rem;
 		line-height: 1.4;
 		color: var(--m3c-on-surface-variant);
@@ -171,5 +218,14 @@
 		display: flex;
 		justify-content: center;
 		padding: 0.5rem;
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 </style>
