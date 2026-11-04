@@ -59,6 +59,14 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+func (a adminStub) GetUser(context.Context, uuid.UUID, uuid.UUID) (models.User, error) {
+	return a.user, nil
+}
+
+func (a adminStub) GetUserStats(context.Context, uuid.UUID) (service.UserStats, error) {
+	return service.UserStats{Active: 2, Suspended: 1}, nil
+}
+
 type reviewStub struct{}
 
 func (reviewStub) SubmitReview(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission) error {
