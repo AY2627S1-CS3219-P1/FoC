@@ -21,6 +21,8 @@ type readFake struct {
 	offersCaller Caller
 	offersID     string
 	offersStatus OfferStatus
+	counts       map[Status]int64
+	counted      bool
 }
 
 func (f *readFake) Get(_ context.Context, id string) (Order, error) {
@@ -38,6 +40,11 @@ func (f *readFake) List(_ context.Context, q ReadQuery) (OrderPage, error) {
 func (f *readFake) Offers(_ context.Context, caller Caller, id string, status OfferStatus) ([]Offer, error) {
 	f.offersCaller, f.offersID, f.offersStatus = caller, id, status
 	return f.offers, f.offersErr
+}
+
+func (f *readFake) CountByStatus(context.Context) (map[Status]int64, error) {
+	f.counted = true
+	return f.counts, nil
 }
 
 func strptr(v string) *string { return &v }
@@ -247,5 +254,22 @@ func TestOfferQueryIsForwardedToReader(t *testing.T) {
 		ErrInvalid,
 	) {
 		t.Fatalf("invalid offer status error = %v", err)
+	}
+}
+
+func TestCountOrdersByStatusRequiresAdmin(t *testing.T) {
+	f := &readFake{counts: map[Status]int64{AwaitingCourier: 3}}
+	s := NewService(f)
+
+	if _, err := s.CountOrdersByStatus(context.Background(), Caller{ID: "u"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-admin error = %v", err)
+	}
+	if f.counted {
+		t.Fatal("reader called for non-admin")
+	}
+
+	got, err := s.CountOrdersByStatus(context.Background(), Caller{ID: "a", Admin: true})
+	if err != nil || !reflect.DeepEqual(got, f.counts) {
+		t.Fatalf("admin counts = (%v, %v)", got, err)
 	}
 }

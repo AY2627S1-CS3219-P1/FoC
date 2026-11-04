@@ -32,6 +32,19 @@ var statuses = map[pb.OrderStatus]app.Status{
 	pb.OrderStatus_ORDER_STATUS_REJECTED:            app.Rejected,
 }
 
+// OrderStatusCounts lists every defined status in enum order, including
+// statuses absent from counts.
+func OrderStatusCounts(counts map[app.Status]int64) []*pb.OrderStatusCount {
+	out := make([]*pb.OrderStatusCount, 0, len(statuses)-1)
+	for value := pb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION; ; value++ {
+		status, ok := statuses[value]
+		if !ok {
+			return out
+		}
+		out = append(out, &pb.OrderStatusCount{Status: value, Count: counts[status]})
+	}
+}
+
 var roles = map[pb.ParticipantRole]app.Role{
 	pb.ParticipantRole_PARTICIPANT_ROLE_UNSPECIFIED: app.AnyRole,
 	pb.ParticipantRole_PARTICIPANT_ROLE_REQUESTER:   app.RequesterRole,

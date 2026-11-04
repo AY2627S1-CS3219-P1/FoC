@@ -4,6 +4,7 @@ package order
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,30 @@ func (f *fixture) seed(t *testing.T, o Order) {
 		t.Fatal(err)
 	}
 }
+func TestPostgresCountByStatus(t *testing.T) {
+	f := setup(t)
+	f.reset(t)
+
+	for _, status := range []Status{AwaitingCourier, AwaitingCourier, Delivering, Cancelled} {
+		o := sampleOrder()
+		o.Status = status
+		if status == Delivering {
+			courier := uuid.NewString()
+			o.CourierID = &courier
+		}
+		f.seed(t, o)
+	}
+
+	got, err := NewService(f.repo).CountOrdersByStatus(f.ctx, Caller{ID: uuid.NewString(), Admin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[Status]int64{AwaitingCourier: 2, Delivering: 1, Cancelled: 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("counts = %v, want %v", got, want)
+	}
+}
+
 func TestPostgresReads(t *testing.T) {
 	f := setup(t)
 	service := NewService(f.repo)

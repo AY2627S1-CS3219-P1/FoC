@@ -101,6 +101,11 @@ func (f *fakeOperations) ListUserOrders(
 	return f.page("user", c, r)
 }
 
+func (f *fakeOperations) CountOrdersByStatus(_ context.Context, c app.Caller) (map[app.Status]int64, error) {
+	f.called, f.caller = "stats", c
+	return map[app.Status]int64{app.AwaitingCourier: 3, app.Completed: 5}, f.err
+}
+
 func (f *fakeOperations) ListOffers(
 	_ context.Context,
 	c app.Caller,
@@ -515,5 +520,49 @@ func TestUnconfiguredParticipantRPCsFailClosed(t *testing.T) {
 				t.Fatalf("err=%v", err)
 			}
 		})
+	}
+}
+
+func TestGetOrderStats(t *testing.T) {
+	for _, role := range []string{"", "user", "suspended_user"} {
+		t.Run(role, func(t *testing.T) {
+			f := &fakeOperations{}
+			c := mount(t, f, role)
+			_, err := c.admin.GetOrderStats(context.Background(), connect.NewRequest(&pb.GetOrderStatsRequest{}))
+			want := connect.CodePermissionDenied
+			if role == "" {
+				want = connect.CodeUnauthenticated
+			}
+			if connect.CodeOf(err) != want || f.called != "" {
+				t.Fatalf("code=%v called=%q want=%v", connect.CodeOf(err), f.called, want)
+			}
+		})
+	}
+
+	f := &fakeOperations{}
+	c := mount(t, f, "admin")
+	got, err := c.admin.GetOrderStats(context.Background(), connect.NewRequest(&pb.GetOrderStatsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	counts := got.Msg.GetStatusCounts()
+	if len(counts) != 10 {
+		t.Fatalf("status count entries = %d, want every defined status", len(counts))
+	}
+	for i, entry := range counts {
+		want := int64(0)
+		switch entry.GetStatus() {
+		case pb.OrderStatus_ORDER_STATUS_AWAITING_COURIER:
+			want = 3
+		case pb.OrderStatus_ORDER_STATUS_COMPLETED:
+			want = 5
+		}
+		if entry.GetStatus() != pb.OrderStatus(i+1) || entry.GetCount() != want {
+			t.Fatalf("entry %d = %v", i, entry)
+		}
+	}
+	if !f.caller.Admin {
+		t.Fatalf("caller = %+v", f.caller)
 	}
 }

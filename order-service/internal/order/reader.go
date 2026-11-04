@@ -14,4 +14,5 @@ type Reader interface {
 	GetWithParticipation(context.Context, string, string) (Order, bool, error)
 	List(context.Context, ReadQuery) (OrderPage, error)
 	Offers(context.Context, Caller, string, OfferStatus) ([]Offer, error)
+	CountByStatus(context.Context) (map[Status]int64, error)
 }
