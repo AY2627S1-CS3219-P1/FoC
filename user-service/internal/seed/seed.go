@@ -42,24 +42,26 @@ func (s Seeder) Run(ctx context.Context, fixtures Fixtures, reset bool) error {
 		}
 		provisioner := service.UserProvisioner{Users: store.NewUsers(tx), Events: store.NewUserCreatedOutbox(tx)}
 		suspended := fixtures.Suspension.UserID
-		suspensionTouched := false
+		needsSuspension := false
 		for _, fixture := range fixtures.Users {
-			touched, err := seedUser(ctx, tx, provisioner, fixture, suspended, reset)
+			applySuspension, err := seedUser(ctx, tx, provisioner, fixture, suspended, reset)
 			if err != nil {
 				return fmt.Errorf("seed user %s: %w", fixture.ID, err)
 			}
-			suspensionTouched = suspensionTouched || (touched && fixture.ID == suspended)
+			needsSuspension = needsSuspension || applySuspension
 		}
 		if err := ensureDomain(tx, models.AllowedEmailDomain{
 			BaseModel: models.BaseModel{ID: fixtures.Domain.ID}, Domain: fixtures.Domain.Domain,
 		}); err != nil {
 			return err
 		}
-		if !suspensionTouched {
+		if !needsSuspension {
 			return nil
 		}
-		// Only rerun-created or reset targets are re-suspended, so a user an
-		// operator reinstated between seed runs stays reinstated.
+		// Only a created target or a reset target that no longer holds the
+		// suspended role gains a suspension, so repeated resets do not
+		// fabricate history and an operator-reinstated user survives plain
+		// seed reruns.
 		return suspendFixtureUser(ctx, tx, fixtures.Suspension)
 	})
 }
@@ -112,14 +114,22 @@ func seedUser(
 		PhoneNumber: fixture.PhoneNumber, Role: role,
 	}
 	if len(matches) == 0 {
-		return true, provisioner.Create(ctx, &candidate)
+		return fixture.ID == suspended, provisioner.Create(ctx, &candidate)
 	}
 	if reset {
-		return true, tx.Unscoped().Model(&models.User{}).Where("id = ?", fixture.ID).
-			Updates(map[string]any{
-				"display_name": fixture.DisplayName, "description": fixture.Description,
-				"phone_number": fixture.PhoneNumber, "role": role, "deleted_at": nil,
-			}).Error
+		updates := map[string]any{
+			"display_name": fixture.DisplayName, "description": fixture.Description,
+			"phone_number": fixture.PhoneNumber, "deleted_at": nil,
+		}
+		// An already suspended target keeps its recorded suspension instead of
+		// gaining a repeated one; only a reinstated or otherwise changed
+		// account records a fresh audited transition.
+		applySuspension := fixture.ID == suspended && matches[0].Role != models.RoleSuspended
+		if fixture.ID != suspended || applySuspension {
+			updates["role"] = role
+		}
+		return applySuspension, tx.Unscoped().Model(&models.User{}).Where("id = ?", fixture.ID).
+			Updates(updates).Error
 	}
 	return false, nil
 }
