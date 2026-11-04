@@ -13,6 +13,8 @@ service OrderAdminService {
   rpc AdminCancelOrder(AdminCancelOrderRequest) returns (AdminCancelOrderResponse) { option idempotency_level = IDEMPOTENT; }
 
   rpc UnassignCourier(UnassignCourierRequest) returns (UnassignCourierResponse) {}
+
+  rpc GetOrderStats(GetOrderStatsRequest) returns (GetOrderStatsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
 // One user's orders as requester, courier or either, newest first.
@@ -49,6 +51,20 @@ message UnassignCourierRequest {
     message: "reason must be 1-500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
   }];
+}
+
+message GetOrderStatsRequest {}
+
+// The number of orders currently in one status.
+message OrderStatusCount {
+  OrderStatus status = 1;
+  int64 count = 2;
+}
+
+// Counts across all orders, with one entry for every defined status in enum
+// order, including statuses with no orders.
+message GetOrderStatsResponse {
+  repeated OrderStatusCount status_counts = 1;
 }
 
 message ListUserOrdersResponse {
