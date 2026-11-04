@@ -37,7 +37,7 @@ erDiagram
     }
     allowed_email_domains {
         uuid id PK
-        citext domain UK "among live rows"
+        citext domain UK "across all rows"
     }
     auth_tokens {
         uuid id PK
@@ -83,7 +83,7 @@ erDiagram
 | Migration | Table | Backlog | Notes |
 |---|---|---|---|
 | 00001 | `users` | U1, U3 | `citext` email = case-insensitive unique |
-| 00002 | `allowed_email_domains` | U1.1.2 | empty table = no restriction |
+| 00002 | `allowed_email_domains` | U1.1.2 | empty table blocks non-super-admin authentication; super-admins bypass the domain policy |
 | 00002 | `auth_tokens` | U1.2, U2.1 | hash only; atomic consume (below); `requested_ip` used for rate limiting |
 | 00002 | `sessions` | U2.2, NFR-05.4 | opaque token hash; `revoked_at` for logout / logout-all |
 | 00003 | `roles` + `users.role` | U4, U5, U6 | one role per user; suspension is a role, so there's no status column |
@@ -92,6 +92,8 @@ erDiagram
 | 00004 | `account_warnings` | U7 | `source_event_id` unique = idempotent; removed ⇔ `removed_at` set |
 | 00005 | `favourite_suppliers` | U3.4 | `supplier_id` has no FK (other service) |
 | 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#126) |
+| 00007 | `user_created_outbox` | Credit | durable, lease-based queue of user-created events; published to Kafka and consumed by the Credit service |
+| 00008 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
 
 ## Soft delete
 
@@ -102,8 +104,9 @@ application instead: it soft-deletes the user's sessions and auth tokens and
 removes their favourites. Warnings and role changes stay as history. A user
 still referenced by `admin_bootstrap` cannot be deleted.
 
-`users.email` and `allowed_email_domains.domain` are unique only among rows
-that are not soft-deleted. `account_warnings.source_event_id` stays unique
+`users.email` is unique only among rows that are not soft-deleted.
+`allowed_email_domains.domain` is case-insensitive unique across all rows;
+the sqlc removal query hard-deletes domains. `account_warnings.source_event_id` stays unique
 across all rows so event replays remain idempotent. `role_changes.created_by`
 is the actor who made the change.
 
