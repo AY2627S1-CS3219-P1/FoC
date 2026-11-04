@@ -12,6 +12,7 @@ import (
 
 type Operations interface {
 	ListUserOrders(context.Context, app.Caller, string, app.ListRequest) (app.OrderPage, error)
+	CountOrdersByStatus(context.Context, app.Caller) (map[app.Status]int64, error)
 }
 
 type Server struct {
@@ -44,4 +45,16 @@ func (s *Server) ListUserOrders(
 		return nil, shared.ConnectError(ctx, err)
 	}
 	return connect.NewResponse(&pb.ListUserOrdersResponse{Orders: views, PageInfo: shared.PageInfo(p.PageInfo)}), nil
+}
+
+func (s *Server) GetOrderStats(
+	ctx context.Context,
+	_ *connect.Request[pb.GetOrderStatsRequest],
+) (*connect.Response[pb.GetOrderStatsResponse], error) {
+	counts, err := s.operations.CountOrdersByStatus(ctx, shared.Caller(ctx))
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+
+	return connect.NewResponse(&pb.GetOrderStatsResponse{StatusCounts: shared.OrderStatusCounts(counts)}), nil
 }

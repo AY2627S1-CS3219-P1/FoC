@@ -103,6 +103,16 @@ func (s *Service) list(ctx context.Context, q ReadQuery) (OrderPage, error) {
 	return out, nil
 }
 
+// CountOrdersByStatus counts all orders in each status for administrators.
+// Statuses with no orders are absent.
+func (s *Service) CountOrdersByStatus(ctx context.Context, c Caller) (map[Status]int64, error) {
+	if !c.Admin {
+		return nil, ErrForbidden
+	}
+
+	return s.reader.CountByStatus(ctx)
+}
+
 // ListOffers validates the request before the reader applies relationship-based
 // visibility to the offers.
 func (s *Service) ListOffers(ctx context.Context, c Caller, id string, status OfferStatus) ([]Offer, error) {
