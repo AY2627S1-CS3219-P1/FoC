@@ -26,4 +26,4 @@ docker compose start supplier-service
 
 Then reseed if you need demo locations. Use your `POSTGRES_USER` if it isn't `foc`.
 
-**Remove this entry when:** no one still runs a `supplier_dev` database created before 8 October 2026, or a migration reconciles the old schema.
+**Remove this entry when:** no one still runs a `supplier_dev` database created before 8 October 2026.
