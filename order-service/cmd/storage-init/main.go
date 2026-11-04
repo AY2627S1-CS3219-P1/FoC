@@ -3,7 +3,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -31,7 +33,12 @@ func main() {
 		os.Exit(1)
 	}
 	var origins []string
-	if origin := strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")), "/"); origin != "" {
+	if base := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")); base != "" {
+		origin, err := originOf(base)
+		if err != nil {
+			slog.Error("invalid FRONTEND_BASE_URL", "err", err)
+			os.Exit(1)
+		}
 		origins = append(origins, origin)
 	}
 	for {
@@ -46,4 +53,17 @@ func main() {
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
+}
+
+// originOf returns the browser origin of a frontend URL: browsers send only the
+// scheme and host, so a path would never match.
+func originOf(base string) (string, error) {
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("%q is not an http(s) URL", base)
+	}
+	return u.Scheme + "://" + u.Host, nil
 }
