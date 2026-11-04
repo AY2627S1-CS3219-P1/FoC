@@ -1,8 +1,10 @@
 import { env } from '$env/dynamic/public';
 import { createCustomTransport } from '$lib/connect/transport';
+import { authRedirectInterceptor } from '$lib/connect/authRedirect';
 import { createAuthService } from './auth/index.ts';
 import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
+import { createAllowedDomainService } from './allowedDomain/index.ts';
 import { createLocationApi } from './location/index.ts';
 import { createLocationAdminApi } from './location-admin';
 import { createAdditionRequestApi } from './addition-request';
@@ -14,6 +16,9 @@ import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 import { createTelegramLinkApi } from './telegram/index.ts';
+import { SnackbarService } from './snackbar/service.ts';
+
+export const snackbarService = new SnackbarService();
 
 const userServiceBaseUrl = env.PUBLIC_USER_SERVICE_URL ?? 'http://localhost:8081';
 // Auth RPCs must bypass the auth interceptor so refresh cannot intercept itself.
@@ -22,16 +27,17 @@ const plainAuthTransport = createCustomTransport({ baseUrl: userServiceBaseUrl }
 export const authService = createAuthService(plainAuthTransport);
 const protectedUserTransport = createCustomTransport({
 	baseUrl: userServiceBaseUrl,
-	interceptors: [authService.interceptor]
+	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
 
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
+export const allowedDomainService = createAllowedDomainService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
 const supplierTransport = createCustomTransport({
 	baseUrl: supplierServiceBaseUrl,
-	interceptors: [authService.interceptor]
+	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
 
 export const locationApi = createLocationApi(supplierTransport);

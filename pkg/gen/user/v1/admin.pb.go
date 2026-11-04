@@ -22,6 +22,298 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type AllowedDomain struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllowedDomain) Reset() {
+	*x = AllowedDomain{}
+	mi := &file_user_v1_admin_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllowedDomain) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllowedDomain) ProtoMessage() {}
+
+func (x *AllowedDomain) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllowedDomain.ProtoReflect.Descriptor instead.
+func (*AllowedDomain) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AllowedDomain) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AllowedDomain) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+type ListAllowedDomainsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllowedDomainsRequest) Reset() {
+	*x = ListAllowedDomainsRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllowedDomainsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllowedDomainsRequest) ProtoMessage() {}
+
+func (x *ListAllowedDomainsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllowedDomainsRequest.ProtoReflect.Descriptor instead.
+func (*ListAllowedDomainsRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{1}
+}
+
+type ListAllowedDomainsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AllowedDomains []*AllowedDomain       `protobuf:"bytes,1,rep,name=allowed_domains,json=allowedDomains,proto3" json:"allowed_domains,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListAllowedDomainsResponse) Reset() {
+	*x = ListAllowedDomainsResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllowedDomainsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllowedDomainsResponse) ProtoMessage() {}
+
+func (x *ListAllowedDomainsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllowedDomainsResponse.ProtoReflect.Descriptor instead.
+func (*ListAllowedDomainsResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListAllowedDomainsResponse) GetAllowedDomains() []*AllowedDomain {
+	if x != nil {
+		return x.AllowedDomains
+	}
+	return nil
+}
+
+type AllowDomainRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllowDomainRequest) Reset() {
+	*x = AllowDomainRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllowDomainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllowDomainRequest) ProtoMessage() {}
+
+func (x *AllowDomainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllowDomainRequest.ProtoReflect.Descriptor instead.
+func (*AllowDomainRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AllowDomainRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+type AllowDomainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllowDomainResponse) Reset() {
+	*x = AllowDomainResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllowDomainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllowDomainResponse) ProtoMessage() {}
+
+func (x *AllowDomainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllowDomainResponse.ProtoReflect.Descriptor instead.
+func (*AllowDomainResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{4}
+}
+
+type RemoveAllowedDomainRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllowedDomainRequest) Reset() {
+	*x = RemoveAllowedDomainRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllowedDomainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllowedDomainRequest) ProtoMessage() {}
+
+func (x *RemoveAllowedDomainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllowedDomainRequest.ProtoReflect.Descriptor instead.
+func (*RemoveAllowedDomainRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RemoveAllowedDomainRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RemoveAllowedDomainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllowedDomainResponse) Reset() {
+	*x = RemoveAllowedDomainResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllowedDomainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllowedDomainResponse) ProtoMessage() {}
+
+func (x *RemoveAllowedDomainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllowedDomainResponse.ProtoReflect.Descriptor instead.
+func (*RemoveAllowedDomainResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{6}
+}
+
 type UserSummary struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -34,7 +326,7 @@ type UserSummary struct {
 
 func (x *UserSummary) Reset() {
 	*x = UserSummary{}
-	mi := &file_user_v1_admin_proto_msgTypes[0]
+	mi := &file_user_v1_admin_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +338,7 @@ func (x *UserSummary) String() string {
 func (*UserSummary) ProtoMessage() {}
 
 func (x *UserSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[0]
+	mi := &file_user_v1_admin_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +351,7 @@ func (x *UserSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserSummary.ProtoReflect.Descriptor instead.
 func (*UserSummary) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{0}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UserSummary) GetId() string {
@@ -99,7 +391,7 @@ type GetUserByEmailRequest struct {
 
 func (x *GetUserByEmailRequest) Reset() {
 	*x = GetUserByEmailRequest{}
-	mi := &file_user_v1_admin_proto_msgTypes[1]
+	mi := &file_user_v1_admin_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +403,7 @@ func (x *GetUserByEmailRequest) String() string {
 func (*GetUserByEmailRequest) ProtoMessage() {}
 
 func (x *GetUserByEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[1]
+	mi := &file_user_v1_admin_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +416,7 @@ func (x *GetUserByEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByEmailRequest.ProtoReflect.Descriptor instead.
 func (*GetUserByEmailRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{1}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetUserByEmailRequest) GetEmail() string {
@@ -143,7 +435,7 @@ type GetUserByEmailResponse struct {
 
 func (x *GetUserByEmailResponse) Reset() {
 	*x = GetUserByEmailResponse{}
-	mi := &file_user_v1_admin_proto_msgTypes[2]
+	mi := &file_user_v1_admin_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -155,7 +447,7 @@ func (x *GetUserByEmailResponse) String() string {
 func (*GetUserByEmailResponse) ProtoMessage() {}
 
 func (x *GetUserByEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[2]
+	mi := &file_user_v1_admin_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -168,7 +460,7 @@ func (x *GetUserByEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByEmailResponse.ProtoReflect.Descriptor instead.
 func (*GetUserByEmailResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{2}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetUserByEmailResponse) GetUser() *UserSummary {
@@ -189,7 +481,7 @@ type ChangeUserRoleRequest struct {
 
 func (x *ChangeUserRoleRequest) Reset() {
 	*x = ChangeUserRoleRequest{}
-	mi := &file_user_v1_admin_proto_msgTypes[3]
+	mi := &file_user_v1_admin_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -201,7 +493,7 @@ func (x *ChangeUserRoleRequest) String() string {
 func (*ChangeUserRoleRequest) ProtoMessage() {}
 
 func (x *ChangeUserRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[3]
+	mi := &file_user_v1_admin_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -214,7 +506,7 @@ func (x *ChangeUserRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeUserRoleRequest.ProtoReflect.Descriptor instead.
 func (*ChangeUserRoleRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{3}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ChangeUserRoleRequest) GetUserId() string {
@@ -247,7 +539,7 @@ type ChangeUserRoleResponse struct {
 
 func (x *ChangeUserRoleResponse) Reset() {
 	*x = ChangeUserRoleResponse{}
-	mi := &file_user_v1_admin_proto_msgTypes[4]
+	mi := &file_user_v1_admin_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +551,7 @@ func (x *ChangeUserRoleResponse) String() string {
 func (*ChangeUserRoleResponse) ProtoMessage() {}
 
 func (x *ChangeUserRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_admin_proto_msgTypes[4]
+	mi := &file_user_v1_admin_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +564,7 @@ func (x *ChangeUserRoleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeUserRoleResponse.ProtoReflect.Descriptor instead.
 func (*ChangeUserRoleResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_admin_proto_rawDescGZIP(), []int{4}
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ChangeUserRoleResponse) GetUser() *UserSummary {
@@ -286,7 +578,19 @@ var File_user_v1_admin_proto protoreflect.FileDescriptor
 
 const file_user_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"}\n" +
+	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"7\n" +
+	"\rAllowedDomain\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06domain\x18\x02 \x01(\tR\x06domain\"\x1b\n" +
+	"\x19ListAllowedDomainsRequest\"]\n" +
+	"\x1aListAllowedDomainsResponse\x12?\n" +
+	"\x0fallowed_domains\x18\x01 \x03(\v2\x16.user.v1.AllowedDomainR\x0eallowedDomains\"5\n" +
+	"\x12AllowDomainRequest\x12\x1f\n" +
+	"\x06domain\x18\x01 \x01(\tB\a\xbaH\x04r\x02h\x01R\x06domain\"\x15\n" +
+	"\x13AllowDomainResponse\"6\n" +
+	"\x1aRemoveAllowedDomainRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x1d\n" +
+	"\x1bRemoveAllowedDomainResponse\"}\n" +
 	"\vUserSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
@@ -304,7 +608,11 @@ const file_user_v1_admin_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user2\xbc\x01\n" +
 	"\x10UserAdminService\x12S\n" +
 	"\x0eGetUserByEmail\x12\x1e.user.v1.GetUserByEmailRequest\x1a\x1f.user.v1.GetUserByEmailResponse\"\x00\x12S\n" +
-	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x00B\x90\x01\n" +
+	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x002\xac\x02\n" +
+	"\x19AllowedDomainAdminService\x12_\n" +
+	"\x12ListAllowedDomains\x12\".user.v1.ListAllowedDomainsRequest\x1a#.user.v1.ListAllowedDomainsResponse\"\x00\x12J\n" +
+	"\vAllowDomain\x12\x1b.user.v1.AllowDomainRequest\x1a\x1c.user.v1.AllowDomainResponse\"\x00\x12b\n" +
+	"\x13RemoveAllowedDomain\x12#.user.v1.RemoveAllowedDomainRequest\x1a$.user.v1.RemoveAllowedDomainResponse\"\x00B\x90\x01\n" +
 	"\vcom.user.v1B\n" +
 	"AdminProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
@@ -320,29 +628,43 @@ func file_user_v1_admin_proto_rawDescGZIP() []byte {
 	return file_user_v1_admin_proto_rawDescData
 }
 
-var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_user_v1_admin_proto_goTypes = []any{
-	(*UserSummary)(nil),            // 0: user.v1.UserSummary
-	(*GetUserByEmailRequest)(nil),  // 1: user.v1.GetUserByEmailRequest
-	(*GetUserByEmailResponse)(nil), // 2: user.v1.GetUserByEmailResponse
-	(*ChangeUserRoleRequest)(nil),  // 3: user.v1.ChangeUserRoleRequest
-	(*ChangeUserRoleResponse)(nil), // 4: user.v1.ChangeUserRoleResponse
-	(UserRole)(0),                  // 5: user.v1.UserRole
+	(*AllowedDomain)(nil),               // 0: user.v1.AllowedDomain
+	(*ListAllowedDomainsRequest)(nil),   // 1: user.v1.ListAllowedDomainsRequest
+	(*ListAllowedDomainsResponse)(nil),  // 2: user.v1.ListAllowedDomainsResponse
+	(*AllowDomainRequest)(nil),          // 3: user.v1.AllowDomainRequest
+	(*AllowDomainResponse)(nil),         // 4: user.v1.AllowDomainResponse
+	(*RemoveAllowedDomainRequest)(nil),  // 5: user.v1.RemoveAllowedDomainRequest
+	(*RemoveAllowedDomainResponse)(nil), // 6: user.v1.RemoveAllowedDomainResponse
+	(*UserSummary)(nil),                 // 7: user.v1.UserSummary
+	(*GetUserByEmailRequest)(nil),       // 8: user.v1.GetUserByEmailRequest
+	(*GetUserByEmailResponse)(nil),      // 9: user.v1.GetUserByEmailResponse
+	(*ChangeUserRoleRequest)(nil),       // 10: user.v1.ChangeUserRoleRequest
+	(*ChangeUserRoleResponse)(nil),      // 11: user.v1.ChangeUserRoleResponse
+	(UserRole)(0),                       // 12: user.v1.UserRole
 }
 var file_user_v1_admin_proto_depIdxs = []int32{
-	5, // 0: user.v1.UserSummary.role:type_name -> user.v1.UserRole
-	0, // 1: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.UserSummary
-	5, // 2: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
-	0, // 3: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.UserSummary
-	1, // 4: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
-	3, // 5: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
-	2, // 6: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
-	4, // 7: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: user.v1.ListAllowedDomainsResponse.allowed_domains:type_name -> user.v1.AllowedDomain
+	12, // 1: user.v1.UserSummary.role:type_name -> user.v1.UserRole
+	7,  // 2: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.UserSummary
+	12, // 3: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
+	7,  // 4: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.UserSummary
+	8,  // 5: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
+	10, // 6: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
+	1,  // 7: user.v1.AllowedDomainAdminService.ListAllowedDomains:input_type -> user.v1.ListAllowedDomainsRequest
+	3,  // 8: user.v1.AllowedDomainAdminService.AllowDomain:input_type -> user.v1.AllowDomainRequest
+	5,  // 9: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:input_type -> user.v1.RemoveAllowedDomainRequest
+	9,  // 10: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
+	11, // 11: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
+	2,  // 12: user.v1.AllowedDomainAdminService.ListAllowedDomains:output_type -> user.v1.ListAllowedDomainsResponse
+	4,  // 13: user.v1.AllowedDomainAdminService.AllowDomain:output_type -> user.v1.AllowDomainResponse
+	6,  // 14: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:output_type -> user.v1.RemoveAllowedDomainResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_admin_proto_init() }
@@ -357,9 +679,9 @@ func file_user_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_admin_proto_rawDesc), len(file_user_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_user_v1_admin_proto_goTypes,
 		DependencyIndexes: file_user_v1_admin_proto_depIdxs,
