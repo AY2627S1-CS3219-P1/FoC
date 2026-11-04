@@ -80,7 +80,60 @@ If another process uses one of these host ports, set `FRONTEND_PORT`, `USER_PORT
 
    To run just one service with its Postgres dependency, use `docker compose up --build user-service` or `docker compose up --build supplier-service`.
 
+### Upgrading an existing Compose setup
+
+The User Service listener split requires a one-time change to existing `.env`
+files. Set:
+
+```dotenv
+USER_SERVICE_BASE_URL=http://user-service:8081
+```
+
+Inside the Compose network, User's port **8080** serves public APIs; port
+**8081** serves internal public-key retrieval. `USER_PORT` is the separate
+host-side mapping for public APIs; do not use it for service-to-service calls.
+The internal listener is not published to the host.
+
+Older `.env` files set `USER_SERVICE_BASE_URL=http://user-service:8080`.
+Updating `.env.example` does not update your existing `.env`, and its explicit
+value overrides Compose's new default. With the old address, Supplier, Order,
+Credit and Communication cannot fetch public keys and fail authentication
+startup after retrying. After editing `.env`, run:
+
+```sh
+docker compose up -d user-service supplier-service order-service credit-service communication-service
+```
+
+Use `up` so Compose recreates containers with the updated environment;
+`docker compose restart` alone does not apply it. See the
+[listener migration landmine](LANDMINES/compose-user-internal-listener.md)
+for diagnosis. Keep existing credentials and database volumes.
+
 Tear down (containers + images + DB data):
 ```bash
 docker compose down -v --rmi all
 ```
+
+---
+
+## Kubernetes Deployment (Optional)
+
+Besides Docker Compose, the full stack can run on a local Kubernetes cluster
+(kind) with an Istio service mesh. Compose remains the default for
+development; the two stacks share default host ports, so run only one at a
+time.
+
+```bash
+cp .env.example .env
+K8S_BOOTSTRAP_SUPERADMIN_EMAIL=admin@example.test make k8s-up
+```
+
+The first run creates the local `kind` cluster, installs Istio and the Gateway
+API, builds and deploys every service, and serves the app at
+`https://localhost:5173` (self-signed local certificate). Prerequisites,
+day-to-day commands (`make k8s-status` / `k8s-smoke` / `k8s-deploy`), and
+teardown are documented in [`infra/k8s/README.md`](infra/k8s/README.md).
+Operations, security boundaries, and production guidance live in
+[`docs/runbooks/kubernetes.md`](docs/runbooks/kubernetes.md); the design
+decision is recorded in
+[`docs/adr/kubernetes-istio.md`](docs/adr/kubernetes-istio.md).

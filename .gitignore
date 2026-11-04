@@ -24,3 +24,6 @@ Thumbs.db
 
 # Local mounts may contain real workload credential paths.
 compose.override.yaml
+
+# Infrastructure tooling dependencies
+/node_modules/

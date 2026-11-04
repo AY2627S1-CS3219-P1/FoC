@@ -19,6 +19,50 @@ From the repository root, `docker compose up --build` starts the frontend at
 for frontend dependencies and build output; restart the frontend after lockfile
 changes. `docker compose down -v` also deletes database data.
 
+## Production container
+
+Build from the repository root:
+
+```sh
+docker build -f docker/k8s/frontend.Dockerfile -t foc-frontend:production .
+```
+
+The image runs the SvelteKit Node server with Node.js 24 as UID/GID 1000.
+`npm run build` writes the server and browser assets to `frontend/build`; the
+container starts it with `node build`. The adapter runs only during builds,
+so `npm run dev` continues to start Vite as before.
+
+Set these environment variables on the Kubernetes frontend container:
+
+```text
+NODE_ENV=production
+HOST=127.0.0.1
+PORT=3000
+ORIGIN=https://foc.example.edu
+PUBLIC_USER_SERVICE_URL=https://foc.example.edu
+PUBLIC_SUPPLIER_SERVICE_URL=https://foc.example.edu
+```
+
+Replace the example origin with the deployment's one public HTTPS origin. The
+gateway must route the existing Connect RPC paths to their owning Go services
+and page/asset requests to the frontend. Both `PUBLIC_*` values are read through
+`$env/dynamic/public` at runtime and sent to the browser with the rendered shell;
+they are public configuration, not secrets. No build arguments or image rebuilds
+are needed to change them. Data fetching and authentication still happen in
+the browser after hydration.
+
+`HOST=127.0.0.1` assumes the Kubernetes service mesh sidecar reaches the frontend
+over the pod's loopback interface. Set `HOST=0.0.0.0` explicitly to access the
+container directly without that sidecar. `PORT`, `HOST`, and `ORIGIN` are runtime
+settings; `.env` files are excluded from the image and are not loaded in
+production.
+
+Backend service images (User, Supplier, Order, Credit, Communication), the
+migration Jobs and the Kafka initialization Job use the shared Dockerfiles
+under `docker/k8s/`; see [`infra/k8s/README.md`](../infra/k8s/README.md#container-images).
+
+## Ownership handoff
+
 Browser-reachable service URLs:
 
 - `PUBLIC_USER_SERVICE_URL`: defaults to `http://localhost:8081`.

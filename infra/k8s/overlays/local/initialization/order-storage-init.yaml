@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: order-storage-init
+  namespace: foc
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: order-storage-init
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: order-storage-init
+      restartPolicy: Never
+      containers:
+        - name: order-storage-init
+          image: foc/order-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["/app/storage-init"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: APP_ENV, value: local}
+            - {name: ORDER_S3_BUCKET, value: order-images}
+            - {name: ORDER_S3_ENDPOINT, value: "http://floci:4566"}
+            - {name: AWS_REGION, value: us-east-1}
+          envFrom:
+            - secretRef:
+                name: object-storage

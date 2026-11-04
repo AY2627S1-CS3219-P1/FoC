@@ -1,0 +1,46 @@
+# Shared workload settings for the Go application containers. Each service
+# kustomization references this component, which patches containers/0 — the
+# single application container declared in every manifest; the Istio sidecar
+# is injected at runtime and is not part of the rendered YAML.
+#
+# Kept per service instead: container ports, the readiness probe (its health
+# endpoint is service-specific), Sidecar access rules, image, envFrom/secrets
+# and volumes.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Name-anchored so the Node frontend Deployment (same stage label, different
+# runtime and probe style) is never patched. Add a new Go service here.
+patches:
+  - target:
+      kind: Deployment
+      name: ^(user|supplier|order|credit|communication)-service$
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          runAsNonRoot: true
+          runAsUser: 65532
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          exec:
+            command: ["/app/healthcheck", "live", "8080,8081"]
+          failureThreshold: 40
+          periodSeconds: 3
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          exec:
+            command: ["/app/healthcheck", "live", "8080,8081"]
+          periodSeconds: 10
