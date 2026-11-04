@@ -323,3 +323,61 @@ func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uuid.UUID, ro
 	}
 	return token
 }
+
+func TestAdminUserStatsAndLookupAuthorization(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec, err := jwt.NewES256Codec(key, "test-key", httpauth.TokenIssuer, httpauth.TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorID, targetID := uuid.New(), uuid.New()
+	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target", Role: models.RoleUser}
+	users := &protectedUsers{users: map[uuid.UUID]models.User{targetID: target}}
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
+		router.ProtectedRoutes{
+			Profile:        &profilehandler.Handler{Logic: profileStub{}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+		})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	// The persisted role decides access; every token claims admin.
+	token := "Bearer " + signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
+	getUser := func() (*connect.Response[userv1.GetUserResponse], error) {
+		req := connect.NewRequest(&userv1.GetUserRequest{UserId: targetID.String()})
+		req.Header().Set("Authorization", token)
+		return client.GetUser(ctx, req)
+	}
+	getStats := func() (*connect.Response[userv1.GetUserStatsResponse], error) {
+		req := connect.NewRequest(&userv1.GetUserStatsRequest{})
+		req.Header().Set("Authorization", token)
+		return client.GetUserStats(ctx, req)
+	}
+
+	for _, role := range []models.RoleName{models.RoleUser, models.RoleSuspended} {
+		users.users[actorID] = models.User{ID: actorID, Role: role}
+		if _, err := getUser(); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s GetUser: %v", role, err)
+		}
+		if _, err := getStats(); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s GetUserStats: %v", role, err)
+		}
+	}
+
+	users.users[actorID] = models.User{ID: actorID, Role: models.RoleAdmin}
+	profile, err := getUser()
+	if err != nil || profile.Msg.GetProfile().GetId() != targetID.String() {
+		t.Fatalf("admin GetUser: %+v, %v", profile, err)
+	}
+	stats, err := getStats()
+	if err != nil || stats.Msg.GetActiveCount() != 2 || stats.Msg.GetSuspendedCount() != 1 {
+		t.Fatalf("admin GetUserStats: %+v, %v", stats, err)
+	}
+}
