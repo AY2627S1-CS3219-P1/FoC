@@ -19,8 +19,9 @@ SELECT count(*) FROM orders WHERE
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'building_name' = $8::text)
+ AND (NOT $7::boolean OR status NOT IN ('completed','cancelled','expired','failed','rejected'))
+ AND ($8::text = '' OR pickup->>'location_id' = $8::text)
+ AND ($9::text = '' OR delivery->>'building_name' = $9::text)
 `
 
 type CountOrdersParams struct {
@@ -30,6 +31,7 @@ type CountOrdersParams struct {
 	UserID               string
 	Role                 string
 	StatusFilter         string
+	ActiveOnly           bool
 	PickupID             string
 	DeliveryBuildingName string
 }
@@ -42,6 +44,7 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 		arg.UserID,
 		arg.Role,
 		arg.StatusFilter,
+		arg.ActiveOnly,
 		arg.PickupID,
 		arg.DeliveryBuildingName,
 	)
@@ -241,8 +244,9 @@ SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instruct
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'building_name' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
+ AND (NOT $7::boolean OR status NOT IN ('completed','cancelled','expired','failed','rejected'))
+ AND ($8::text = '' OR pickup->>'location_id' = $8::text)
+ AND ($9::text = '' OR delivery->>'building_name' = $9::text) ORDER BY created_at DESC,id DESC LIMIT $11 OFFSET $10::bigint
 `
 
 type ListOrdersParams struct {
@@ -252,6 +256,7 @@ type ListOrdersParams struct {
 	UserID               string
 	Role                 string
 	StatusFilter         string
+	ActiveOnly           bool
 	PickupID             string
 	DeliveryBuildingName string
 	PageOffset           int64
@@ -266,6 +271,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		arg.UserID,
 		arg.Role,
 		arg.StatusFilter,
+		arg.ActiveOnly,
 		arg.PickupID,
 		arg.DeliveryBuildingName,
 		arg.PageOffset,
