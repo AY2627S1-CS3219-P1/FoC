@@ -30,20 +30,14 @@ func newCanceller(
 	}
 	if pending && c.CreditServiceURL == "" {
 		return nil, false, errors.New(
-			"outstanding cancellation workflows require Credit URL and token file for recovery",
+			"outstanding cancellation workflows require Credit URL for recovery",
 		)
 	}
 	var credit order.CancellationCredit
 	if c.CreditServiceURL != "" {
-		if _, err := clients.ReadServiceToken(c.CreditTokenFile); err != nil {
-			return nil, false, errors.New(
-				"CREDIT_WORKLOAD_TOKEN_FILE must contain a readable nonempty bearer credential",
-			)
-		}
 		client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: clients.NoRedirect}
 		credit = &clients.Credit{
 			Client: creditv1connect.NewCreditReservationServiceClient(client, c.CreditServiceURL),
-			Tokens: clients.FileTokens{Path: c.CreditTokenFile},
 		}
 	}
 	return order.NewCanceller(repository, credit, order.AssignmentOptions{}), credit != nil, nil

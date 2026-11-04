@@ -13,11 +13,13 @@ Kafka consumers.
 | Listener | Default port | Serves | Authentication |
 | --- | --- | --- | --- |
 | Public | `PORT` (8080) | `credit.v1.CreditAccountService`, `grpc.health.v1.Health` | User Service JWT |
-| Internal | `INTERNAL_PORT` (8081) | `credit.v1.CreditReservationService`, `grpc.health.v1.Health` | None yet (#29) |
+| Internal | `INTERNAL_PORT` (8081) | `credit.v1.CreditReservationService`, `grpc.health.v1.Health` | Istio workload principal in Kubernetes; no app credential |
 
-The internal listener serves Order's reservation calls. It does not verify
-Order's workload JWT yet, so never publish it or route it through an ingress.
-See [the landmine](../LANDMINES/credit-internal-listener-unauthenticated.md).
+The internal listener serves Order's reservation calls and does not verify an
+application credential. Kubernetes authenticates the caller with Istio mTLS and
+allows only `cluster.local/ns/foc/sa/order-service` to reach port 8081. Compose
+publishes only Credit's public listener and keeps the internal one on its private
+network. See [the landmine](../LANDMINES/credit-internal-listener-unauthenticated.md).
 
 | Topic | Effect |
 | --- | --- |
@@ -37,8 +39,9 @@ which restarts with backoff and redelivers the uncommitted event.
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Credit's PostgreSQL database. |
-| `USER_SERVICE_BASE_URL` | Yes | Origin used to fetch JWT keys. Must be HTTPS unless `APP_ENV=local`. |
-| `PORT`, `INTERNAL_PORT` | No | 8080 and 8081 by default. They must differ. |
+| `USER_SERVICE_BASE_URL` | Yes | Origin used to fetch JWT keys; may use HTTP for internal service discovery. |
+| `PORT` | No | Public listener port; defaults to 8080. |
+| `INTERNAL_PORT` | Yes | Private reservation listener; required and must differ from `PORT`. |
 | `RUN_MIGRATIONS` | No | `true` by default. |
 | `KAFKA_BROKERS` | No | Comma-separated. Without it nothing is consumed, and reservations stay held until it is set. |
 

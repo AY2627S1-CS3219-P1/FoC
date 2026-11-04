@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -30,10 +28,6 @@ func TestCancellationStartupPreservesRecoveryDuringOutage(t *testing.T) {
 		http.Error(w, "down", http.StatusServiceUnavailable)
 	}))
 	t.Cleanup(server.Close)
-	file := filepath.Join(t.TempDir(), "workload-token")
-	if err := os.WriteFile(file, []byte("fixture-workload-token"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	for _, tc := range []struct {
 		name           string
 		pending        bool
@@ -42,8 +36,7 @@ func TestCancellationStartupPreservesRecoveryDuringOutage(t *testing.T) {
 	}{
 		{"no pending financial intent", false, config{}, true, false},
 		{"cannot abandon pending intent", true, config{}, false, false},
-		{"recovery while dependency down", true, config{CreditServiceURL: server.URL, CreditTokenFile: file}, true, true},
-		{"unreadable identity", true, config{CreditServiceURL: server.URL, CreditTokenFile: file + "-missing"}, false, false},
+		{"recovery while dependency down", true, config{CreditServiceURL: server.URL}, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assigner, recover, err := newCanceller(

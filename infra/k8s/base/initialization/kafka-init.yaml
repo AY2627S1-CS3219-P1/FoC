@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+  labels:
+    foc.dev/stage: initialization
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 240
+  template:
+    metadata:
+      labels:
+        app: kafka-init
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: kafka-init
+      restartPolicy: Never
+      containers:
+        - name: kafka-init
+          image: foc/kafka-init:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: KAFKA_BROKERS, value: "kafka:9092"}
+            - {name: KAFKA_HEAP_OPTS, value: "-Xms128m -Xmx256m"}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi

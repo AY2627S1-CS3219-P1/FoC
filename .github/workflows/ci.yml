@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -44,6 +44,7 @@ jobs:
         with:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: |
+            scripts/go.sum
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum

@@ -40,7 +40,8 @@
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
-  default golangci-lint correctness linters across `pkg`, `user-service`,
+  default golangci-lint correctness linters across the `scripts` tooling module,
+  `pkg`, `user-service`,
   `supplier-service`, `order-service`, `communication-service` and
   `credit-service`. CI installs the tool
   with the official action, then runs the same target for each module. The
@@ -272,6 +273,31 @@ Docs: [goose](https://github.com/pressly/goose),
 [Connect](https://connectrpc.com/docs/go/getting-started),
 [validator](https://github.com/go-playground/validator),
 [pgx](https://github.com/jackc/pgx).
+
+## Kubernetes deployment
+
+Gateway exposure is an explicit allowlist. `infra/k8s/base/applications/gateway.yaml`
+routes full protobuf service paths (`/<package>.<service>`) to public
+`-external` Services. `PathPrefix` matches whole path segments, so a partial
+prefix (`/user.`) matches nothing, and a package-level pattern would also
+match internal-only services.
+
+- Adding a new public protobuf service: mount it on the public router, add its
+  service path to `gateway.yaml`, and add its health RPC to the `k8s-smoke`
+  public-health list, in the same change.
+- New methods on an already-routed service need no manifest change.
+- Internal-only services (User public-key, Credit reservation) must never
+  receive a Gateway route. Omitting a route fails safely: the path returns 404
+  through the gateway and stays reachable only over the internal Service.
+- Applications keep deployment-agnostic listeners: every Go service binds
+  `PORT` (public routes) and a mandatory `INTERNAL_PORT` (private routes).
+  Services without private routes yet serve the public handler on the
+  internal listener, so local and deployed behavior stay identical; move
+  handlers to the internal listener when private routes arrive. New services
+  must set both ports in Compose, templates and manifests. Shared container
+  security, resources and startup/liveness probes come from the
+  `infra/k8s/components/workload` Kustomize component; keep ports, readiness
+  probes and access rules per service.
 
 ## Run and lint
 

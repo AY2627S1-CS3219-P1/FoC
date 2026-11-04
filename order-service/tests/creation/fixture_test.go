@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -157,8 +156,8 @@ func businessError(code connect.Code, reason string) *connect.Error {
 }
 
 func (r *remotes) checkCreditBearer(value string) {
-	if value != "Bearer service-credit-token" {
-		r.t.Errorf("incorrect Credit credential separation")
+	if value != "" {
+		r.t.Errorf("attached an authorization credential to a Credit call")
 	}
 }
 
@@ -290,15 +289,10 @@ func (r *remotes) adapters(t *testing.T) (*clients.Supplier, *clients.Credit) {
 	mux.Handle(lp, lh)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	file := filepath.Join(t.TempDir(), "credit-token")
-	if err := os.WriteFile(file, []byte("service-credit-token"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	return &clients.Supplier{
 		Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
 	}, &clients.Credit{
 		Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
-		Tokens: fixtureTokens("service-credit-token"),
 	}
 }
 
@@ -402,10 +396,6 @@ func (f *fixture) count(t *testing.T, table string) int {
 	}
 	return count
 }
-
-type fixtureTokens string
-
-func (t fixtureTokens) Token(context.Context) (string, error) { return string(t), nil }
 
 func callerRole(c app.Caller) string {
 	if c.Suspended {
