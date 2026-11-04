@@ -20,6 +20,8 @@
 	let busy = $state(false);
 	let message = $state('');
 	let polling: AbortController | null = null;
+	// A link request can finish after the card is gone, such as after Skip.
+	let destroyed = false;
 
 	function describe(cause: unknown): string {
 		if (cause instanceof ConnectError && cause.code === Code.Unavailable) {
@@ -53,6 +55,7 @@
 		message = '';
 		try {
 			const link = await telegramLinkApi.createLink();
+			if (destroyed) return;
 			view = { kind: 'waiting', link };
 			void waitForLink(link);
 		} catch (cause) {
@@ -101,7 +104,10 @@
 	onMount(() => {
 		void load();
 	});
-	onDestroy(stopPolling);
+	onDestroy(() => {
+		destroyed = true;
+		stopPolling();
+	});
 </script>
 
 <div class="telegram-link">
