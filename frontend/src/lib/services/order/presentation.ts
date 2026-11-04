@@ -32,13 +32,14 @@ export function orderDeadline(order: Order): number | undefined {
 }
 
 /**
- * The caller's part in an order. ListMyOrders also returns orders a courier
- * withdrew from, where they are neither requester nor current courier.
+ * The caller's part in an order. ListMyOrders also returns orders the caller was
+ * once assigned to, after withdrawing or being unassigned by an admin. The order
+ * doesn't say which, so former couriers get a neutral label.
  */
 export function participationLabel(order: Order, callerId: string | undefined): string {
 	if (order.requesterId === callerId) return 'Requested';
 	if (order.courierId === callerId) return 'Courier';
-	return 'Withdrew as courier';
+	return 'Former courier';
 }
 
 export function roleFromQuery(value: string | null): ParticipantRole {

@@ -32,8 +32,11 @@ describe('participationLabel', () => {
 		expect(participationLabel(order, 'ben')).toBe('Courier');
 	});
 
-	// ListMyOrders returns orders a courier withdrew from; they didn't deliver them.
-	it('marks a withdrawn courier', () => {
-		expect(participationLabel(order, 'cara')).toBe('Withdrew as courier');
+	// ListMyOrders also returns orders the caller withdrew from or was unassigned
+	// from by an admin. Both clear courierId, so neither is presented as the cause.
+	it('marks a former courier without guessing why', () => {
+		const withdrawnOrUnassigned = create(OrderSchema, { requesterId: 'amy', courierId: 'dan' });
+		expect(participationLabel(withdrawnOrUnassigned, 'ben')).toBe('Former courier');
+		expect(participationLabel(create(OrderSchema, { requesterId: 'amy' }), 'ben')).toBe('Former courier');
 	});
 });
