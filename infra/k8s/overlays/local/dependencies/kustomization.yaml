@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: foc
+# postgres.yaml is local-only (overlays/local/dependencies): production
+# pre-provisions the database and supplies the *-db Secrets.
+resources:
+  - postgres.yaml
+  - ../../../base/dependencies
+  - ../../../base/mailpit
+  - ../../../base/floci
+patches:
+  - target:
+      kind: ConfigMap
+      name: foc-config
+    patch: |-
+      - op: add
+        path: /data/ORDER_S3_BUCKET
+        value: order-images
+      - op: add
+        path: /data/ORDER_S3_ENDPOINT
+        value: http://floci:4566
+      - op: add
+        path: /data/ORDER_S3_PUBLIC_ENDPOINT
+        value: https://localhost:5173
+      - op: add
+        path: /data/AWS_REGION
+        value: us-east-1

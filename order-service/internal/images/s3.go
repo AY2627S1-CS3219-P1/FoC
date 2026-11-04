@@ -137,7 +137,8 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 
 // InitializeLocalBucket is an explicit local setup action, never server startup
 // behavior. Production buckets and policies are provisioned outside this service.
-func (s *S3) InitializeLocalBucket(ctx context.Context) error {
+// Browsers on the default frontend port and any extra origins may upload.
+func (s *S3) InitializeLocalBucket(ctx context.Context, origins ...string) error {
 	_, err := s.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(s.bucket)})
 	var api smithy.APIError
 	if err != nil && !(errors.As(err, &api) && api.ErrorCode() == "BucketAlreadyOwnedByYou") {
@@ -147,7 +148,7 @@ func (s *S3) InitializeLocalBucket(ctx context.Context) error {
 		Bucket: aws.String(s.bucket),
 		CORSConfiguration: &types.CORSConfiguration{CORSRules: []types.CORSRule{{
 			AllowedMethods: []string{"PUT", "GET", "HEAD"},
-			AllowedOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+			AllowedOrigins: append([]string{"http://localhost:5173", "http://127.0.0.1:5173"}, origins...),
 			AllowedHeaders: []string{"content-type", "if-none-match"},
 			ExposeHeaders:  []string{"ETag"},
 			MaxAgeSeconds:  aws.Int32(300),

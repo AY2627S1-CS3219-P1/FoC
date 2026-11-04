@@ -1,6 +1,7 @@
 .git
 .agents
 .codex
+.tools
 .local
 data
 .env
@@ -12,3 +13,7 @@ data
 *.key
 **/*.pem
 **/*.key
+**/node_modules
+**/.svelte-kit
+frontend/build
+**/coverage

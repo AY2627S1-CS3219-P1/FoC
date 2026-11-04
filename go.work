@@ -5,6 +5,7 @@ use (
 	./credit-service
 	./order-service
 	./pkg
+	./scripts
 	./supplier-service
 	./user-service
 )

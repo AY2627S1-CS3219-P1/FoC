@@ -21,7 +21,7 @@
 				<p class="eyebrow">Optional</p>
 				<h1 id="telegram-title">Get order updates on Telegram</h1>
 				{#if authService.isAuthenticated}
-					<TelegramLinkCard onLinked={() => (linked = true)} />
+					<TelegramLinkCard autoConnect onLinked={() => (linked = true)} />
 				{/if}
 				<p class="hint">You can connect or disconnect anytime from your profile.</p>
 				<div class="form-actions">
