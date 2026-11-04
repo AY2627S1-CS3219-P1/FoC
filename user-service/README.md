@@ -196,3 +196,6 @@ retried when the broker is available.
 uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
 owns the 100-credit starting grant. Existing users are not backfilled, and
 bootstrap-created administrators do not emit registration events.
+
+Demo seeding uses the same user/event provisioning logic as registration.
+See [seed commands and reset behavior](../data/seeds/README.md).
