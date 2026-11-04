@@ -2,6 +2,10 @@
 // Transport failures and ambiguous responses remain Failed/unknown.
 export class ReviewRejectedError extends Error {}
 
+// A temporary server-side limit (e.g. upload quota). The photo stays selected
+// and a later retry can succeed; never treated as a permanent rejection.
+export class ReviewLimitedError extends Error {}
+
 export type ReviewPhotoGrant = {
 	photoId: string;
 	uploadUrl: string;
@@ -45,7 +49,17 @@ export type SubmitReviewInput = {
 	photoIds: string[];
 };
 
+export type ReviewPage = {
+	reviews: ReviewRecord[];
+	totalItems: number;
+	totalPages: number;
+};
+
 export interface ReviewApi extends ReviewPhotoUploadAPI {
 	submit(input: SubmitReviewInput, signal: AbortSignal): Promise<void>;
-	listForUser(userId: string, signal: AbortSignal): Promise<ReviewRecord[]>;
+	listForUser(
+		userId: string,
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage>;
 }

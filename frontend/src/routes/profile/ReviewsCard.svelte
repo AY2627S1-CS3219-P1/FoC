@@ -5,11 +5,19 @@
 	import ReviewPhotos from './ReviewPhotos.svelte';
 
 	// "Reviews from other users" on the personal profile: the reviews the signed
-	// in user received, newest first as the backend returns them.
-	const shown = 3;
+	// in user received, newest first as the backend returns them. Three fit the
+	// wireframe; "Show more" pages through the rest instead of hiding them.
+	const pageSize = 3;
 	let reviews = $state<ReviewRecord[] | null>(null);
+	let totalPages = $state(0);
+	let page = $state(0);
+	let loadingMore = $state(false);
 	let error = $state('');
 	let revision = $state(0);
+
+	function handle(cause: unknown) {
+		error = 'We could not load your reviews. Check your connection and try again.';
+	}
 
 	$effect(() => {
 		const reviewer = authService.user?.id;
@@ -18,19 +26,41 @@
 		let active = true;
 		const lifetime = new AbortController();
 		error = '';
+		reviews = null;
+		totalPages = 0;
+		page = 0;
 		reviewApi
-			.listForUser(reviewer, lifetime.signal)
-			.then((page) => {
-				if (active) reviews = page;
+			.listForUser(reviewer, { page: 1, pageSize }, lifetime.signal)
+			.then((result) => {
+				if (!active) return;
+				reviews = result.reviews;
+				totalPages = result.totalPages;
 			})
-			.catch(() => {
-				if (active) error = 'We could not load your reviews. Check your connection and try again.';
+			.catch((cause) => {
+				if (active) handle(cause);
 			});
 		return () => {
 			active = false;
 			lifetime.abort();
 		};
 	});
+
+	async function showMore() {
+		const reviewer = authService.user?.id;
+		if (!reviewer || loadingMore || page >= totalPages) return;
+		loadingMore = true;
+		const next = page + 1;
+		try {
+			const result = await reviewApi.listForUser(reviewer, { page: next, pageSize }, AbortSignal.timeout(15000));
+			reviews = [...(reviews ?? []), ...result.reviews];
+			totalPages = result.totalPages;
+			page = next;
+		} catch {
+			error = 'We could not load more reviews. Check your connection and try again.';
+		} finally {
+			loadingMore = false;
+		}
+	}
 
 	const date = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' });
 </script>
@@ -49,7 +79,7 @@
 			<p class="muted">No reviews yet. Reviews you receive for completed requests appear here.</p>
 		{:else}
 			<ul>
-				{#each reviews.slice(0, shown) as review (review.id)}
+				{#each reviews as review (review.id)}
 					<li>
 						<div class="review-head">
 							<span class="reviewer">{review.reviewerName || 'A user'}</span>
@@ -63,6 +93,13 @@
 					</li>
 				{/each}
 			</ul>
+			{#if page < totalPages}
+				<div class="more">
+					<Button variant="text" size="s" disabled={loadingMore} onclick={showMore}>
+						{loadingMore ? 'Loading…' : 'Show more'}
+					</Button>
+				</div>
+			{/if}
 		{/if}
 	</section>
 </Card>
@@ -80,4 +117,5 @@
 	.rating { color: var(--m3c-primary); letter-spacing: 0.1rem; }
 	.date { font-size: 0.85rem; color: var(--m3c-on-surface-variant); }
 	.comment { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+	.more { display: flex; justify-content: center; }
 </style>

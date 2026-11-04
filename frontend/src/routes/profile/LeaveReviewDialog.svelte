@@ -50,6 +50,11 @@
 				setMessage(validated, 'Wait for the photos to finish uploading, then submit again.');
 				return;
 			}
+			const unuploaded = photoView.files.filter((row) => row.outcome === 'Not Submitted');
+			if (unuploaded.length > 0) {
+				setMessage(validated, 'Upload your photos or remove them before submitting.');
+				return;
+			}
 			const failed = photoView.files.filter((row) => row.outcome === 'Failed' || row.outcome === 'Rejected');
 			if (failed.length > 0) {
 				setMessage(validated, 'Some photos did not upload. Remove them to submit without, or try uploading again.');

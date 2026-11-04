@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
-import { ReviewRejectedError } from './reviewApi.ts';
+import { ReviewLimitedError, ReviewRejectedError } from './reviewApi.ts';
 import { ConnectReviewApi } from './connectReviewApi.ts';
 
 function scenario() {
@@ -44,14 +44,20 @@ describe('ConnectReviewApi', () => {
 	});
 
 	it('maps list responses with photo records and epoch dates', async () => {
-		const { api } = scenario();
-		const reviews = await api.listForUser('e', new AbortController().signal);
-		expect(reviews).toHaveLength(1);
-		expect(reviews[0]).toMatchObject({
+		const { client, api } = scenario();
+		const page = await api.listForUser('e', { page: 1, pageSize: 3 }, new AbortController().signal);
+		expect(page.reviews).toHaveLength(1);
+		expect(page.totalPages).toBe(1);
+		expect(page.totalItems).toBe(1);
+		expect(page.reviews[0]).toMatchObject({
 			id: 'review-1', rating: 4, comment: 'Great',
 			createdAt: 1700000000000,
 			photos: [{ id: 'photo-1', url: 'https://storage.invalid/get', contentType: 'image/png', expiresAt: 1700003600000 }]
 		});
+		expect(client.listReviewsForUser).toHaveBeenCalledWith(
+			{ userId: 'e', pagination: { page: 1n, pageSize: 3n } },
+			expect.anything()
+		);
 	});
 
 	it('marks authoritative rejections as rejected and keeps unknown failures', async () => {
@@ -60,8 +66,9 @@ describe('ConnectReviewApi', () => {
 			new ConnectError('limited', Code.ResourceExhausted)
 		);
 		vi.mocked(client.submitReview).mockRejectedValueOnce(new ConnectError('down', Code.Unavailable));
+		// A temporary limit is a retryable ReviewLimitedError, not a rejection.
 		await expect(api.createPhotoUpload({ contentType: 'image/png', sizeBytes: 1 }, new AbortController().signal))
-			.rejects.toBeInstanceOf(ReviewRejectedError);
+			.rejects.toBeInstanceOf(ReviewLimitedError);
 		await expect(api.submit({ from: 'r', to: 'e', orderId: 'o', rating: 1, comment: 'x', photoIds: [] }, new AbortController().signal))
 			.rejects.not.toBeInstanceOf(ReviewRejectedError);
 	});

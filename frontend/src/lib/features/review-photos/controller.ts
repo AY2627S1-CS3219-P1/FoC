@@ -1,4 +1,4 @@
-import { ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
+import { ReviewLimitedError, ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 
 export type ReviewPhotoOutcome = 'Not Submitted' | 'Pending' | 'Succeeded' | 'Rejected' | 'Failed';
 export type ReviewPhotoRow = {
@@ -149,10 +149,14 @@ export class ReviewPhotosController {
 					row.outcome = 'Succeeded';
 					row.message = '';
 				} catch (cause) {
+					// A temporary limit leaves the row retryable ('Failed'); only an
+					// authoritative server rejection is permanent.
 					row.outcome = cause instanceof ReviewRejectedError ? 'Rejected' : 'Failed';
-					row.message = cause instanceof ReviewRejectedError
+					row.message = cause instanceof ReviewLimitedError
 						? cause.message
-						: 'Could not upload this photo. Try again or remove it.';
+						: cause instanceof ReviewRejectedError
+							? cause.message
+							: 'Could not upload this photo. Try again or remove it.';
 				}
 				this.publish();
 			}

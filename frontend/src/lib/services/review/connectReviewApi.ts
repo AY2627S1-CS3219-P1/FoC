@@ -3,8 +3,10 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { ReviewService, type Review as ProtoReview } from '$lib/gen/user/review/v1/review_pb';
 import {
+	ReviewLimitedError,
 	ReviewRejectedError,
 	type ReviewApi,
+	type ReviewPage,
 	type ReviewPhotoGrant,
 	type ReviewRecord,
 	type SubmitReviewInput
@@ -15,13 +17,22 @@ type ReviewClient = Client<typeof ReviewService>;
 // Authentication, cancellation, deadlines and transport failures can hide a
 // committed result. Only explicit application rejection releases saved input.
 function rethrow(cause: unknown): never {
-	if (cause instanceof ConnectError && [
-		Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound,
-		Code.AlreadyExists, Code.ResourceExhausted
-	].includes(cause.code)) {
-		throw new ReviewRejectedError(cause.code === Code.ResourceExhausted
-			? 'Photo uploads are temporarily limited. Keep this photo and try again later.'
-			: 'This action could not be completed. Check the review details and photos, then try again.');
+	if (cause instanceof ConnectError) {
+		if (cause.code === Code.ResourceExhausted) {
+			// A temporary limit is retryable: keep the photo selected and let the
+			// controller leave it in a retryable state.
+			throw new ReviewLimitedError(
+				'Photo uploads are temporarily limited. Keep this photo and try again later.'
+			);
+		}
+		if ([
+			Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound,
+			Code.AlreadyExists
+		].includes(cause.code)) {
+			throw new ReviewRejectedError(
+				'This action could not be completed. Check the review details and photos, then try again.'
+			);
+		}
 	}
 	throw cause;
 }
@@ -83,10 +94,24 @@ export class ConnectReviewApi implements ReviewApi {
 		}
 	}
 
-	async listForUser(userId: string, signal: AbortSignal): Promise<ReviewRecord[]> {
+	async listForUser(
+		userId: string,
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage> {
 		try {
-			const response = await this.#client.listReviewsForUser({ userId }, { signal, timeoutMs: 15000 });
-			return response.reviews.map(toReview);
+			const response = await this.#client.listReviewsForUser(
+				{
+					userId,
+					pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) }
+				},
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
 		} catch (cause) {
 			rethrow(cause);
 		}

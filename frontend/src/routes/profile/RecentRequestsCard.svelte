@@ -56,7 +56,8 @@
 							<span class="title">{order.itemDescription}</span>
 							<span class="meta">{role(order)}, {statusLabel(order.status).toLowerCase()}{order.createdAt ? ', ' + date.format(timestampDate(order.createdAt)) : ''}</span>
 						</a>
-						{#if order.status === OrderStatus.COMPLETED && onreview}
+						{#if order.status === OrderStatus.COMPLETED && onreview &&
+							(order.requesterId === authService.user?.id || order.courierId === authService.user?.id)}
 							<Button
 								variant="text"
 								size="s"
