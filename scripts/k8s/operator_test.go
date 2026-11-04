@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -8,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -279,6 +282,9 @@ func TestMain(m *testing.M) {
 	}
 	if os.Getenv("K8S_TEST_CLI") == "1" {
 		os.Args = []string{"k8s", "render", "dependencies"}
+		if command := os.Getenv("K8S_TEST_CLI_COMMAND"); command != "" {
+			os.Args = []string{"k8s", command}
+		}
 		main()
 		os.Exit(0)
 	}
@@ -372,5 +378,95 @@ esac`)
 	application := strings.Index(calls, "rollout restart deployment/user-service")
 	if migration < 0 || application <= migration {
 		t.Fatal("applications started before migration completion")
+	}
+}
+
+func TestCLISignalExitStatusAndForwardCleanup(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		signal os.Signal
+		status int
+	}{{"interrupt", os.Interrupt, 130}, {"termination", syscall.SIGTERM, 143}} {
+		t.Run(tc.name, func(t *testing.T) {
+			op := testOperator(t)
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "aqua.yaml"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(root, "infra/k8s"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			listener, err := net.Listen("tcp4", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			port := listener.Addr().(*net.TCPAddr).Port
+			if err := listener.Close(); err != nil {
+				t.Fatal(err)
+			}
+			fakeCommand(t, "kubectl", `case "$*" in
+ *get-contexts*) printf 'kind-foc';;
+ *port-forward*) K8S_TEST_LISTENER=1 exec "$K8S_TEST_EXECUTABLE" "$@";;
+ esac`)
+			fakeCommand(t, "aqua", `printf '%s' "$K8S_TEST_KUBECTL"`)
+			kubectl, err := exec.LookPath("kubectl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(executable)
+			cmd.Dir = root
+			for _, entry := range os.Environ() {
+				if strings.HasPrefix(entry, "K8S_") || strings.HasPrefix(entry, "AQUA_ROOT_DIR=") {
+					continue
+				}
+				cmd.Env = append(cmd.Env, entry)
+			}
+			cmd.Env = append(
+				cmd.Env,
+				"K8S_TEST_CLI=1",
+				"K8S_TEST_CLI_COMMAND=access",
+				"K8S_TEST_EXECUTABLE="+executable,
+				"K8S_TEST_KUBECTL="+kubectl,
+				"K8S_MAILPIT_PORT="+strconv.Itoa(port),
+				"K8S_STATE_DIR="+op.state,
+			)
+			var output bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &output, &output
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
+			defer func() { _ = cmd.Process.Kill() }()
+			deadline := time.Now().Add(5 * time.Second)
+			for !waitForLocalListener(port) && time.Now().Before(deadline) {
+				time.Sleep(20 * time.Millisecond)
+			}
+			if !waitForLocalListener(port) {
+				_ = cmd.Process.Kill()
+				<-done
+				t.Fatalf("CLI forward never started: %s", output.String())
+			}
+			if err := cmd.Process.Signal(tc.signal); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				_ = cmd.Process.Kill()
+				<-done
+				t.Fatal("CLI cleanup hung")
+			}
+			if cmd.ProcessState.ExitCode() != tc.status {
+				t.Fatalf("signal exit=%d want=%d: %s", cmd.ProcessState.ExitCode(), tc.status, output.String())
+			}
+			if waitForLocalListener(port) {
+				t.Fatal("CLI left its forward running")
+			}
+		})
 	}
 }

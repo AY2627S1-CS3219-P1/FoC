@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -27,13 +28,29 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		os.Exit(1)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	received := make(chan os.Signal, 1)
+	signal.Notify(received, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(received)
+	var signalStatus atomic.Int32
+	go func() {
+		select {
+		case sig := <-received:
+			code := int32(130)
+			if sig == syscall.SIGTERM {
+				code = 143
+			}
+			signalStatus.Store(code)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	op := newOperator(ctx, root)
 	if err := op.runCLI(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		if ctx.Err() != nil {
-			os.Exit(130)
+		if status := signalStatus.Load(); status != 0 {
+			os.Exit(int(status))
 		}
 		os.Exit(1)
 	}
