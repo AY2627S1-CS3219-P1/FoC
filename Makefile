@@ -3,7 +3,7 @@ BUF := .tools/buf/$(BUF_VERSION)/buf
 
 GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
-GO_MODULES := pkg user-service supplier-service order-service communication-service credit-service
+GO_MODULES := scripts pkg user-service supplier-service order-service communication-service credit-service
 
 .PHONY: buf-lint buf-generate buf-generate-rpc buf-generate-kafka fmt fmt-check lint
 
@@ -52,55 +52,59 @@ buf-generate-kafka: $(BUF)
 # Local Kubernetes operators; see docs/runbooks/kubernetes.md.
 AQUA ?= aqua
 AQUA_ROOT_DIR ?= $(CURDIR)/.tools/aqua
-K8S_BUN := $(AQUA_ROOT_DIR)/bin/bun
+K8S_CLI := $(CURDIR)/.tools/bin/k8s
+
+$(K8S_CLI): $(wildcard scripts/k8s/*.go) scripts/go.mod scripts/go.sum
+	@mkdir -p "$(@D)"
+	GOWORK=off go -C scripts build -mod=readonly -o "$@" ./k8s
 
 .PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
 
-# Install the pinned CLI tools (kind, kubectl, helm, istioctl, bun) via aqua.
+# Install the pinned CLI tools (kind, kubectl, helm, istioctl) via aqua.
 k8s-tools:
 	@command -v "$(AQUA)" >/dev/null 2>&1 || { echo "Install aqua v2.65.2 or newer; see docs/runbooks/kubernetes.md." >&2; exit 1; }
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(AQUA)" install
 
 # First-run bootstrap: create the kind cluster, install the mesh, deploy
 # everything, then supervise the configured port-forwards until Ctrl+C.
-k8s-up: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts up
+k8s-up: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" up
 
 # Rebuild images, re-apply manifests, and restart workloads; runs on an
 # existing cluster. Use `service=<name>` for a single service.
-k8s-deploy: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts deploy "$(service)"
+k8s-deploy: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" deploy "$(service)"
 
 # Attach every configured forward (gateway, Kafka UI, Mailpit), skipping any
 # whose port cannot be bound.
-k8s-access: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts access
+k8s-access: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" access
 
 # Print cluster state: pods, jobs, PVCs, routes, warning events, proxy sync.
-k8s-status: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts status
+k8s-status: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" status
 
 # Verify the public contract through the gateway: health RPCs respond, and
 # internal-only RPCs (user keys, credit reservations) are not routed.
-k8s-smoke: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts smoke
+k8s-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" smoke
 
 # Unavailable by design until the integrated business workflow is verified.
-k8s-demo: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts demo
+k8s-demo: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" demo
 
 # Delete the kind cluster and its PostgreSQL/Kafka PVC data; requires
 # K8S_CONFIRM_DELETE=foc. Local secrets in .local/k8s/secrets are retained.
-k8s-delete-cluster: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts delete-cluster
+k8s-delete-cluster: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" delete-cluster
 
 # Supervise only the Kafka UI forward (operator login required).
-k8s-kafka-ui: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts kafka-ui
+k8s-kafka-ui: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" kafka-ui
 
 # Supervise only the Mailpit forward (local dev mailbox).
-k8s-mailpit: k8s-tools
-	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_BUN)" run scripts/k8s/k8s.ts mailpit
+k8s-mailpit: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" mailpit
 
 .PHONY: seed-demo seed-demo-reset
 # The manifest owns file order and database targets; SQL owns transactions.

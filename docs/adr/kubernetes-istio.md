@@ -110,14 +110,19 @@ Compose's image selection and persistence.
 
 Kubernetes CLI tools are pinned in the root aqua configuration and installed
 under `.tools/aqua`; checksum verification is required. Aqua's standard
-registry supplies kind, kubectl, and Helm. Small local registry entries retain
-Bun's baseline Intel binary and the complete Istio distribution, whose archive
-also supplies the Helm charts from which the control plane is installed: the
+registry supplies kind, kubectl, and Helm. A local registry entry retains
+the complete Istio distribution, whose archive also supplies the Helm charts from which the control plane is installed: the
 `istio-base` and `istiod` releases, configured by
 `platform/istiod-values.yaml`. Chart validation checks the base and istiod
 charts
 that the install actually uses. TLS generation uses an OpenSSL configuration
 file for compatibility with macOS's system implementation.
+
+Host deployment orchestration is a Go CLI in the separate `scripts` module.
+It reuses the repository's Go toolchain and keeps operator-only dependencies
+out of service runtime modules. Make builds `.tools/bin/k8s`; the existing
+`k8s-*` targets invoke that executable and the CLI loads root `.env` without
+overriding exported values.
 
 Envoy access logs use the
 [query-free path formatter](https://www.envoyproxy.io/docs/envoy/v1.36.0/configuration/observability/access_log/usage)

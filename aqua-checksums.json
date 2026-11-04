@@ -41,26 +41,6 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-darwin-aarch64.zip",
-      "checksum": "80AFD4C069B46A6FA8F3EC520BEBC750A7843E4A8D5B9583D29AD436C00A3403",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-darwin-x64-baseline.zip",
-      "checksum": "0FDE04E8B092156B97FE6432E899BAF16D9ED6CE52CBB4218D2D9C07A2F827EF",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-linux-aarch64.zip",
-      "checksum": "EFA9813DA5ED72423BF847F916E8D2C47C0D776ADD972354026A75E10DA9AA21",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/oven-sh/bun/bun-v1.4.3/bun-linux-x64-baseline.zip",
-      "checksum": "1FC2EDAC843102909E3A1BE1D8D9802CC6071CF074E67E88231F4FFE0F8B397B",
-      "algorithm": "sha256"
-    },
-    {
       "id": "http/dl.k8s.io/v1.35.0/bin/darwin/amd64/kubectl",
       "checksum": "2447CB78911B10A667202B078EEB30541EC78D1280C3682921DC81607E148D96",
       "algorithm": "sha256"

@@ -40,7 +40,8 @@
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
-  default golangci-lint correctness linters across `pkg`, `user-service`,
+  default golangci-lint correctness linters across the `scripts` tooling module,
+  `pkg`, `user-service`,
   `supplier-service`, `order-service`, `communication-service` and
   `credit-service`. CI installs the tool
   with the official action, then runs the same target for each module. The

@@ -17,12 +17,6 @@ registries:
 packages:
   # CLI tools used only by the Kubernetes operator scripts (make k8s-*).
   #
-  # Bun and Istio come from the local registry (.aqua/registry.yaml): Bun keeps
-  # the baseline-Intel binary for older Intel Macs, and the Istio archive also
-  # supplies the Helm charts that installMesh() deploys.
-  - name: oven-sh/bun
-    registry: local
-    version: bun-v1.4.3 # release tags carry the bun- prefix
   - name: kubernetes-sigs/kind
     # Creates and deletes the local kind cluster; loads built images into it.
     version: v0.33.0

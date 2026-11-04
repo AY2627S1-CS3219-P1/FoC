@@ -371,10 +371,10 @@ other preserved local credentials.
 | Order runtime / proof codecs | [Debian](https://hub.docker.com/_/debian) and [ImageMagick](https://github.com/ImageMagick/ImageMagick) | amd64, arm64 |
 | Frontend runtime | [Official Node image](https://github.com/nodejs/docker-node) | amd64, arm64 |
 
-Application runtime images contain no Bun/compiler. The frontend runs Node;
-Go services use their compiled binaries. Host tooling uses the pinned Bun
-runtime. Linux amd64/arm64 and macOS hosts are supported; Docker Desktop is
-required on macOS.
+Application runtime images contain no compiler. The frontend runs Node;
+Go services use their compiled binaries. Host deployment tooling is a Go CLI
+under `scripts/k8s`, built by Make into `.tools/bin/k8s`. Linux amd64/arm64 and
+macOS hosts are supported; Docker Desktop is required on macOS.
 
 The shared Dockerfile selects Order's native runtime when built with
 `--build-arg SERVICE=order-service`. It builds checksum-pinned ImageMagick

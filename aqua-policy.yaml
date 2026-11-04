@@ -13,6 +13,4 @@ packages:
   - registry: standard
     name: helm/helm
   - registry: local
-    name: oven-sh/bun
-  - registry: local
     name: istio/istio

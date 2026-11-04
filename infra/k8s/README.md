@@ -7,12 +7,13 @@ overlap.
 ## First run
 
 Prerequisites: Docker, `make`, [aqua v2.65.2 or newer](https://aquaproj.github.io/docs/install/),
-and OpenSSL, plus about 4 CPUs and 8 GiB of memory. Internet access is needed
-for pinned Kubernetes tools and container images. Bun 1.4.3 is installed by
-aqua under the ignored `.tools/aqua/` directory. You do not need Node.js or Bun
-globally.
+Go 1.27 or newer and OpenSSL, plus about 4 CPUs and 8 GiB of memory. Internet
+access is needed for pinned Kubernetes tools and container images. Aqua installs
+kind, kubectl, Helm and Istio under the ignored `.tools/aqua/` directory. Make
+builds the Go deployment CLI into `.tools/bin/k8s`; no JavaScript runtime is
+needed for deployment.
 
-Install aqua itself (the only manual tool prerequisite):
+Install aqua itself if it is not already on your PATH:
 
 ```sh
 brew install aquaproj/aqua/aqua        # with Homebrew
@@ -150,7 +151,7 @@ every stage with `kubectl kustomize` (built into kubectl — no separate tool)
 and, before applying, wraps the output in a generated kustomization that
 rewrites image registry and tag, so image references are decided in exactly
 one place. Inspect the rendered YAML of a stage with
-`bun run scripts/k8s/k8s.ts render <stage>`.
+`go run ./scripts/k8s render <stage>`.
 
 ## Deployment stages
 
@@ -342,5 +343,5 @@ Linux and macOS hosts on amd64 or arm64 are supported. Docker Desktop must be
 running on macOS. Clear any `DOCKER_DEFAULT_PLATFORM` override left over from
 the Compose Apple Silicon workaround before starting kind. Kubernetes uses a
 native multiarch PostGIS image; the Compose-specific Apple Silicon workaround
-does not apply to this deployment. Bun automatically reads root `.env`;
+does not apply to this deployment. The Go CLI reads root `.env`;
 explicitly exported values take precedence.
