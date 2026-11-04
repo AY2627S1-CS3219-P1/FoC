@@ -49,9 +49,8 @@
 		try {
 			const result = await orderApi.listMyOrders({ activeOnly: true, pageSize: 20 });
 			if (current === request && authService.user?.id === caller) {
-				// ListMyOrders also returns orders the caller withdrew from as a courier;
-				// those are no longer theirs to progress.
-				orders = result.orders.filter((order) => order.requesterId === caller || order.courierId === caller);
+				// active_only already excludes ended orders and ones the caller withdrew from.
+				orders = result.orders;
 				hasMore = result.totalPages > 1;
 				failed = false;
 			}
@@ -113,9 +112,9 @@
 				</li>
 			{/each}
 		</ul>
-		{#if hasMore}<a class="more" href="/orders/mine">See all your orders</a>{/if}
 		{#if failed}<p class="hint" role="alert">This list may be out of date.</p>{/if}
 	{/if}
+	{#if hasMore}<a class="more" href="/orders/mine">See all your orders</a>{/if}
 </section>
 
 <style>
