@@ -50,6 +50,35 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 	return count, err
 }
 
+const countOrdersByStatus = `-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status
+`
+
+type CountOrdersByStatusRow struct {
+	Status string
+	Total  int64
+}
+
+func (q *Queries) CountOrdersByStatus(ctx context.Context) ([]CountOrdersByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countOrdersByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOrdersByStatusRow
+	for rows.Next() {
+		var i CountOrdersByStatusRow
+		if err := rows.Scan(&i.Status, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrder = `-- name: GetOrder :one
 SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id FROM orders WHERE id = $1
 `
