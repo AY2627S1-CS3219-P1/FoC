@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          cache-dependency-path: ${{ matrix.module }}/go.*
       - name: Run all Go tests
         run: GOWORK=off go test -mod=readonly ./...
 
@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service, credit-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -44,6 +44,7 @@ jobs:
         with:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: |
+            scripts/go.mod
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
@@ -100,8 +101,8 @@ jobs:
             pkg/go.sum
       - name: Run seed runner integration tests
         if: steps.changes.outputs.run == 'true'
-        working-directory: pkg
-        run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
+        working-directory: scripts
+        run: GOWORK=off go test -mod=readonly -tags=integration ./seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration
