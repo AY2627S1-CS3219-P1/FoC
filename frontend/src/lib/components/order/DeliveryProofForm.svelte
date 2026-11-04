@@ -30,8 +30,10 @@
 	let cameraInput: HTMLInputElement | undefined = $state();
 	const schema = z.object({ unattended: z.boolean().default(false) });
 
+	// Parent reads replace the Order object even when its ID is unchanged.
+	const controllerOrderId = $derived(orderId);
 	$effect(() => {
-		const instance = new DeliveryProofController(orderId, api, (snapshot) => { view = snapshot; }, undefined, untrack(() => pending));
+		const instance = new DeliveryProofController(controllerOrderId, api, (snapshot) => { view = snapshot; }, undefined, untrack(() => pending));
 		controller = instance;
 		view = instance.snapshot();
 		return () => instance.dispose();

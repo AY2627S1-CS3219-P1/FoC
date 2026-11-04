@@ -27,20 +27,30 @@ The goal is #201: make the frontend follow the team wireframe (layout, navigatio
 
 All Devin review threads on both PRs are answered and resolved.
 
-## Not done
+## Follow-up in this worktree
 
-1. **Onboarding:** put Connect Telegram on the registration screen, next to name and phone, instead of the separate `/welcome/telegram` page. Keep it optional. The profile picture waits on #234.
-2. **Login:** restyle with the logo. The magic-link flow already matches the wireframe.
-3. **Drawer focus:** return focus to the menu button when the phone drawer closes.
-4. **Real-stack test (most important):** every check so far used mocked Connect responses. Run Compose from the worktree and walk through these flows:
-   - create, with and without photos, and from a supplier's Request link;
-   - accept, counteroffer, and accept an offer;
-   - pickup, then late delivery with proof (check the payout graph);
-   - confirm receipt, cancel and withdraw;
-   - suspended user.
+- **Onboarding:** registration offers optional Connect Telegram next to name and
+  phone. Selecting it creates the account, then connects on the same registration
+  screen; skipping it goes home. An unavailable bot never blocks completion.
+  The old `/welcome/telegram` route remains available for existing links.
+- **Login:** uses the existing FoC wordmark; there is no logo asset yet.
+- **Drawer focus:** opening focuses the close button; Escape, close and scrim
+  dismissal return focus to the menu button. Navigation keeps SvelteKit's normal
+  destination focus.
+- **Proof selection:** background Order reads and nonterminal revisions now
+  preserve selected photos. The real-stack check exposed this reset; a committed
+  Playwright regression reproduces it before the fix.
+- **Verification:** see [the verification record](../explanations/wireframe-ui-verification.md)
+  for real Compose checks, repeatable browser checks, captures and limitations.
 
-   Also check real supplier coordinates on the maps and set `PUBLIC_TELEGRAM_BOT_URL`.
-5. Before marking #241 ready: refresh the before and after screenshots in the PR body, and remove anything from this note that has landed.
+## Before marking #241 ready
+
+1. Configure the actual Telegram bot and `PUBLIC_TELEGRAM_BOT_URL`, then verify
+   live linking and the order chat button. No bot is configured locally.
+2. Push the local implementation changes shown in the refreshed captures.
+   Screenshots and verification notes were published to #241 on 4 November 2026
+   (hosting commit `55505e0`); their captions identify the unpushed local scope.
+   Remove anything from this note that has landed.
 
 ## Waiting on other work
 
@@ -84,6 +94,6 @@ Dropped by the product owner: viewing other users' profiles. Chat uses the Teleg
 - **Svelte 5 effects:** an effect that reads state it also writes loops. The request panel did this and refetched forever. Read such values with `untrack`, and drive fetches with explicit revision counters.
 - **Nested forms:** `LocationPicker` sits inside other forms, so its search is a `div` that handles Enter, not a `<form>`.
 - **OpenStreetMap tiles:** the public tile server rate-limits repeated automated loads (HTTP 429) and the maps turn grey. For screenshots, cache tiles or block them. Production traffic needs a tile provider; swapping one only changes the URL in `CampusMap.svelte`.
-- **Tooling scripts are not committed:** the Playwright screenshot and check scripts are in `/tmp/foc-shots` (`shots.mjs`, `verify.mjs`, `handlers.mjs` with mock data). Move them into the repo if they're worth keeping.
+- **Browser checks:** `npm run test:wireframe` in `frontend/` runs the committed regression checks against a running frontend. The larger screenshot and real-stack drivers remain in `/tmp/foc-shots`; see the verification record.
 - **Pushes:** `git push` over SSH sometimes printed `Permission denied (publickey)` but still updated the branch. Compare the branch on GitHub with the local head before retrying.
 - **Agent shell:** the agent shell is fish. Heredocs don't work, and backticks inside double-quoted Python one-liners pick up stray backslashes. Write reply bodies to files first.

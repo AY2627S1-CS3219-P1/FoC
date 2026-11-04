@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
@@ -39,13 +39,17 @@
 	// Below this width the sidebar becomes an off-canvas drawer behind a menu button.
 	const compact = new MediaQuery('max-width: 60rem');
 	let drawerOpen = $state(false);
+	let menuControl = $state<HTMLDivElement>();
 	const showSidebar = $derived(Boolean(authService.user) && !authenticationRoute);
 
-	function closeDrawer() {
+	async function closeDrawer() {
+		if (!drawerOpen) return;
 		drawerOpen = false;
+		await tick();
+		menuControl?.querySelector('button')?.focus();
 	}
 
-	afterNavigate(closeDrawer);
+	afterNavigate(() => { drawerOpen = false; });
 
 	async function restoreAuth() {
 		status = 'loading';
@@ -110,16 +114,18 @@
 	<div class="app-body" inert={showSidebar && compact.current && drawerOpen}>
 		{#if showSidebar && compact.current}
 			<header class="top-bar">
-				<Button
-					variant="text"
-					iconType="full"
-					aria-label="Open menu"
-					aria-controls="app-sidebar"
-					aria-expanded={drawerOpen}
-					onclick={() => (drawerOpen = true)}
-				>
-					<Icon icon={iconMenu} />
-				</Button>
+				<div bind:this={menuControl}>
+					<Button
+						variant="text"
+						iconType="full"
+						aria-label="Open menu"
+						aria-controls="app-sidebar"
+						aria-expanded={drawerOpen}
+						onclick={() => (drawerOpen = true)}
+					>
+						<Icon icon={iconMenu} />
+					</Button>
+				</div>
 				<a class="brand" href="/" aria-label="Friend on Campus home">FoC</a>
 				<CreditBalance />
 			</header>

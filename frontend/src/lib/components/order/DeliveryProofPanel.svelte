@@ -16,6 +16,8 @@
 	const participant = $derived(Boolean(callerId) && (order.requesterId === callerId || order.courierId === callerId));
 	const canConfirm = $derived(order.courierId === callerId && order.status === OrderStatus.DELIVERING);
 	// Ordinary polling must not recreate the form or discard selected File objects.
+	const identity = $derived(`${order.id}:${callerId}:${participant}`);
+	let loadedIdentity = '';
 	const scope = $derived(`${order.id}:${callerId}:${order.status}:${order.revision}:${participant}`);
 
 	async function load(key: string) {
@@ -42,7 +44,12 @@
 	$effect(() => {
 		const key = scope;
 		request++;
-		proof = null;
+		// Keep selected files mounted while refreshing the same participant's order.
+		// Identity changes still clear evidence before reading another order.
+		if (identity !== loadedIdentity) {
+			loadedIdentity = identity;
+			proof = null;
+		}
 		error = '';
 		if (key.endsWith(':true')) void load(key);
 		return () => { request++; active?.abort(); clearTimeout(refreshTimer); };
