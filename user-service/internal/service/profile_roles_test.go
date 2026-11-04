@@ -71,6 +71,14 @@ func (f *accountFixture) ChangeRole(_ context.Context, change *models.RoleChange
 	return nil
 }
 
+func (f *accountFixture) CountByRole(context.Context) (map[models.RoleName]int64, error) {
+	counts := map[models.RoleName]int64{}
+	for _, u := range f.users {
+		counts[u.Role]++
+	}
+	return counts, nil
+}
+
 func ptr(value string) *string { return &value }
 
 func TestProfileFullReplacementAndSuspension(t *testing.T) {
@@ -284,5 +292,38 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 	}
 	if len(f.changes) != 0 || f.users[targetID].Role != models.RoleUser {
 		t.Fatal("conflict mutated role or audit")
+	}
+}
+
+func TestAdminUserLookupAndStats(t *testing.T) {
+	admin, user, suspended := uuid.New(), uuid.New(), uuid.New()
+	f := &accountFixture{users: map[uuid.UUID]models.User{
+		admin:     {ID: admin, Role: models.RoleAdmin},
+		user:      {ID: user, Role: models.RoleUser},
+		suspended: {ID: suspended, Role: models.RoleSuspended},
+	}}
+	s := &RoleService{Users: f, Counts: f}
+	ctx := context.Background()
+
+	for _, actor := range []uuid.UUID{user, suspended} {
+		if _, err := s.GetUser(ctx, actor, admin); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("non-admin lookup error = %v", err)
+		}
+		if _, err := s.GetUserStats(ctx, actor); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("non-admin stats error = %v", err)
+		}
+	}
+
+	got, err := s.GetUser(ctx, admin, suspended)
+	if err != nil || got.ID != suspended {
+		t.Fatalf("GetUser = (%+v, %v)", got, err)
+	}
+	if _, err := s.GetUser(ctx, admin, uuid.New()); !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("missing user error = %v", err)
+	}
+
+	stats, err := s.GetUserStats(ctx, admin)
+	if err != nil || stats != (UserStats{Active: 2, Suspended: 1}) {
+		t.Fatalf("GetUserStats = (%+v, %v)", stats, err)
 	}
 }

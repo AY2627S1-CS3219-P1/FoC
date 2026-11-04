@@ -57,6 +57,14 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+func (a adminStub) GetUser(context.Context, uuid.UUID, uuid.UUID) (models.User, error) {
+	return a.user, nil
+}
+
+func (a adminStub) GetUserStats(context.Context, uuid.UUID) (service.UserStats, error) {
+	return service.UserStats{Active: 2, Suspended: 1}, nil
+}
+
 type allowedDomainStub struct {
 	calls  atomic.Int32
 	domain atomic.Value

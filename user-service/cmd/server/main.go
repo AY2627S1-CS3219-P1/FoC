@@ -133,7 +133,8 @@ func main() {
 
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
-		Users: persistence.Users,
+		Users:  persistence.Users,
+		Counts: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
 				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
