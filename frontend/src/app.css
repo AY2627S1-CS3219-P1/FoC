@@ -1,8 +1,10 @@
 @import 'm3-svelte/etc/styles.css';
 @import 'm3-svelte/etc/livetheme/tonalspot2025.css';
 
+/* --foc-field-shrink lets an app wrapper make M3 fields more compact without
+   styling their internals, e.g. a 2.75rem search field inside a panel. */
 @function --m3-density(--size) {
-	result: var(--size);
+	result: calc(var(--size) - var(--foc-field-shrink, 0rem));
 }
 
 :root {

@@ -83,7 +83,7 @@
 				<SelectOutlined label="Role" width="100%" value={page.url.searchParams.get('role') ?? ''} options={[{value: '', text: 'All roles'}, {value: 'requester', text: 'Requester'}, {value: 'courier', text: 'Courier'}]} onchange={(e) => update('role', e.currentTarget.value)} />
 				<SelectOutlined label="Order status" width="100%" value={page.url.searchParams.get('status') ?? ''} options={[{value: '', text: 'All statuses'}, ...orderStatuses.map(([value, text]) => ({value: String(value), text}))]} onchange={(e) => update('status', e.currentTarget.value)} />
 			{:else}
-				<LocationPicker label="Pickup location" bind:value={pickup} onchange={(location) => update('pickup', location.id)} />
+				<LocationPicker label="Pickup location" bind:value={pickup} onchange={(location) => update('pickup', location.id)} onclear={() => update('pickup', '')} />
 				<SelectOutlined label="Destination" width="100%" value={query.deliveryBuildingName ?? ''} options={[{value: '', text: 'All destination areas'}, ...buildings.map((building) => ({value: building.name, text: building.name}))]} onchange={(e) => update('destination', e.currentTarget.value)} />
 				{#if buildingError}<p class="notice error" role="alert">{buildingError}</p>{/if}
 			{/if}

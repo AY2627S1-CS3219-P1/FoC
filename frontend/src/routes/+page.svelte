@@ -417,11 +417,8 @@
 		white-space: nowrap;
 	}
 
-	.search { display: grid; }
-
-	/* A compact field: the panel's lists, not the input, should carry the weight. */
-	.search :global(.m3-container) { width: 100%; min-width: 0; height: 2.75rem; }
-	.search :global(input) { padding-block: 0.5rem; }
+	/* A compact, full-width field: the panel's lists, not the input, carry the weight. */
+	.search { display: grid; --foc-field-shrink: 0.75rem; }
 
 	.rows {
 		list-style: none;
