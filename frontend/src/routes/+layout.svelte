@@ -1,13 +1,15 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { page } from '$app/state';
-	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { Button, Card, LoadingIndicator } from 'm3-svelte';
+	import { Button, Card, Icon, LoadingIndicator } from 'm3-svelte';
+	import iconMenu from '@ktibow/iconset-material-symbols/menu';
 	import { authService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
+	import AppSidebar from '$lib/components/shell/AppSidebar.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
 	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 	let previousUser: string | undefined;
@@ -33,6 +35,17 @@
 	const canRender = $derived(
 		authenticationRoute || status === 'ready' || authService.isAuthenticated
 	);
+
+	// Below this width the sidebar becomes an off-canvas drawer behind a menu button.
+	const compact = new MediaQuery('max-width: 60rem');
+	let drawerOpen = $state(false);
+	const showSidebar = $derived(Boolean(authService.user) && !authenticationRoute);
+
+	function closeDrawer() {
+		drawerOpen = false;
+	}
+
+	afterNavigate(closeDrawer);
 
 	async function restoreAuth() {
 		status = 'loading';
@@ -80,37 +93,43 @@
 	/>
 </svelte:head>
 
+<svelte:window onkeydown={(event) => { if (event.key === 'Escape' && drawerOpen) closeDrawer(); }} />
+
 <a class="skip-link" href="#main-content">Skip to main content</a>
-<div class="app-shell">
+<div class="app-shell" class:with-sidebar={showSidebar}>
 	<div class="snackbar-region"><SnackbarHost /></div>
-	<header class="site-header">
-		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
-		{#if authService.user}
-			<nav class="site-nav" aria-label="Account navigation">
-				<div class="primary-links">
-					{#each [{ name: 'Home', href: '/' }, { name: 'Locations', href: '/suppliers' }, { name: 'Orders', href: '/orders/mine' }, { name: 'Profile', href: '/profile' }, ...(authService.user.role === UserRole.SUPER_ADMIN || authService.user.role === UserRole.ADMIN ? [{ name: 'Administration', href: '/admin' }] : [])] as item}
-						<Button
-							variant="text"
-							href={item.href}
-							aria-current={(
-								item.href === '/'
-									? page.url.pathname === '/'
-									: page.url.pathname.startsWith(item.href)
-							)
-								? 'page'
-								: undefined}>{item.name}</Button
-						>
-					{/each}
-				</div>
-				<CreditBalance />
-				<Button variant="text" disabled={signingOut} onclick={() => void signOut()}
-					>{signingOut ? 'Signing out…' : 'Sign out'}</Button
+	{#if showSidebar}
+		<AppSidebar
+			drawer={compact.current}
+			open={drawerOpen}
+			{signingOut}
+			onclose={closeDrawer}
+			onsignout={() => void signOut()}
+		/>
+	{/if}
+	<div class="app-body" inert={showSidebar && compact.current && drawerOpen}>
+		{#if showSidebar && compact.current}
+			<header class="top-bar">
+				<Button
+					variant="text"
+					iconType="full"
+					aria-label="Open menu"
+					aria-controls="app-sidebar"
+					aria-expanded={drawerOpen}
+					onclick={() => (drawerOpen = true)}
 				>
-			</nav>
+					<Icon icon={iconMenu} />
+				</Button>
+				<a class="brand" href="/" aria-label="Friend on Campus home">FoC</a>
+				<CreditBalance />
+			</header>
+		{:else if !showSidebar}
+			<header class="site-header">
+				<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
+			</header>
 		{/if}
-	</header>
-	{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
-	{#if sessionError}<p class="notice error" role="alert">{sessionError}</p>{/if}
+		{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
+		{#if sessionError}<p class="notice error" role="alert">{sessionError}</p>{/if}
 
 	<main id="main-content" class="page-main" tabindex="-1">
 		{#if canRender}
@@ -139,4 +158,5 @@
 			</div>
 		{/if}
 	</main>
+	</div>
 </div>
