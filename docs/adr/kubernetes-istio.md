@@ -83,6 +83,14 @@ Order's Kafka outbox workers and image storage, and Credit's ledger/reservation
 backend. Browser RPC origins all use the TLS gateway. The operator's `demo`
 command remains disabled until the integrated D3 business workflow is verified.
 
+Order's Kubernetes image includes the native proof-image decoder and the same
+restricted ImageMagick policy as its existing deployment. Other Go services
+remain distroless. The decoder is built from checksum-pinned upstream source:
+the tested Debian ImageMagick backport rejects the policy's private temporary
+spool paths, even with the later path allowance. The image build executes
+the existing five-format capability check as the runtime user. Order also
+retains Compose's 3 GiB/two-CPU container budget for native decoding.
+
 Local object storage uses Floci 2.3.0 with S3 signature enforcement and a PVC.
 Its loopback listener is forwarded by Envoy. The gateway permits only object
 GET/HEAD/PUT/OPTIONS beneath `/order-images/`; bucket administration remains

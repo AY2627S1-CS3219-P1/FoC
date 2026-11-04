@@ -248,8 +248,9 @@ kubectl -n foc logs <pod-name> -c user-service --previous
 kubectl -n foc logs <pod-name> -c istio-proxy --tail=100
 ```
 
-`-c` selects the application rather than its proxy. Production Go images have
-no shell or psql. Execute an installed command, for example a local probe:
+`-c` selects the application rather than its proxy. The distroless Go images
+have no shell or psql. Order uses Debian for its native image codecs; use
+installed probes for routine checks in either runtime:
 
 ```sh
 kubectl -n foc exec deployment/user-service -c user-service -- /app/healthcheck ready 8080 /user.v1.HealthService/Check
@@ -366,13 +367,23 @@ other preserved local credentials.
 | Mailpit | [Axllent](https://github.com/axllent/mailpit) | amd64, arm64 |
 | Local S3 | [Floci](https://github.com/floci-io/floci) | amd64, arm64 |
 | Istio control plane / proxies | [Istio](https://github.com/istio/istio) | amd64, arm64 |
-| Go runtime | [Google Distroless](https://github.com/GoogleContainerTools/distroless) | amd64, arm64 |
+| Go runtime (except Order) | [Google Distroless](https://github.com/GoogleContainerTools/distroless) | amd64, arm64 |
+| Order runtime / proof codecs | [Debian](https://hub.docker.com/_/debian) and [ImageMagick](https://github.com/ImageMagick/ImageMagick) | amd64, arm64 |
 | Frontend runtime | [Official Node image](https://github.com/nodejs/docker-node) | amd64, arm64 |
 
 Application runtime images contain no Bun/compiler. The frontend runs Node;
 Go services use their compiled binaries. Host tooling uses the pinned Bun
 runtime. Linux amd64/arm64 and macOS hosts are supported; Docker Desktop is
 required on macOS.
+
+The shared Dockerfile selects Order's native runtime when built with
+`--build-arg SERVICE=order-service`. It builds checksum-pinned ImageMagick
+7.1.2-35 with JPEG, PNG, WebP and HEIC/HEIF delegates, installs the existing
+restricted proof policy, and runs `/app/proof-image-check` as UID 65532 during
+the image build. A missing or unusable decoder therefore fails the build.
+Order's container limits are 3 GiB and two CPUs, matching Compose's budget for
+the application and its bounded native decoders. These limits are a deployment
+budget, not a measured peak-memory guarantee.
 
 Access logs intentionally omit query strings using Envoy's query-free path
 formatter. This keeps presigned URL signatures and login-link tokens out of
