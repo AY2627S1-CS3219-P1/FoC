@@ -41,18 +41,7 @@ func (p *PostgresRepository) Create(ctx context.Context, warning Warning) (bool,
 	if warning.SourceEventID == nil {
 		return false, errors.New("account warning insert affected no rows")
 	}
-	if _, err := p.GetByEventID(ctx, *warning.SourceEventID); err != nil {
-		return false, fmt.Errorf("load warning after duplicate event: %w", err)
-	}
 	return false, nil
-}
-
-func (p *PostgresRepository) GetByEventID(ctx context.Context, eventID uuid.UUID) (Warning, error) {
-	row, err := p.queries.GetAccountWarningByEventID(ctx, uuid.NullUUID{UUID: eventID, Valid: true})
-	if err != nil {
-		return Warning{}, mapNotFound(err, "get warning by event ID")
-	}
-	return warningFromRow(row), nil
 }
 
 func (p *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Warning, error) {
