@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
+	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { authService, orderApi } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { participationLabel, statusLabel } from '$lib/services/order/presentation';
+
+	let { onreview }: { onreview?: (order: Order) => void } = $props();
 
 	const shown = 5;
 	let orders = $state<Order[] | null>(null);
@@ -54,6 +56,14 @@
 							<span class="title">{order.itemDescription}</span>
 							<span class="meta">{role(order)}, {statusLabel(order.status).toLowerCase()}{order.createdAt ? ', ' + date.format(timestampDate(order.createdAt)) : ''}</span>
 						</a>
+						{#if order.status === OrderStatus.COMPLETED && onreview}
+							<Button
+								variant="text"
+								size="s"
+								aria-label={`Leave a review for ${order.itemDescription}`}
+								onclick={() => onreview?.(order)}>Leave a review</Button
+							>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -66,11 +76,12 @@
 	h2 { margin: 0; font-size: 1.25rem; }
 	.muted { margin: 0; color: var(--m3c-on-surface-variant); }
 	ul { display: grid; margin: 0; padding: 0; list-style: none; }
-	li { border-bottom: 1px solid var(--m3c-outline-variant); }
+	li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; border-bottom: 1px solid var(--m3c-outline-variant); }
 	li:last-child { border-bottom: 0; }
-	a { display: grid; gap: 0.1rem; padding: 0.6rem 0; color: inherit; text-decoration: none; }
+	a { display: grid; gap: 0.1rem; padding: 0.6rem 0; color: inherit; text-decoration: none; min-width: 0; }
 	a:hover .title { text-decoration: underline; }
 	a:focus-visible { outline: 2px solid var(--m3c-primary); outline-offset: 2px; }
 	.title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 	.meta { font-size: 0.85rem; color: var(--m3c-on-surface-variant); }
+	li :global(button) { height: auto; min-height: 2.25rem; padding-block: 0.35rem; }
 </style>

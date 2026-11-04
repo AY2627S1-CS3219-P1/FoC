@@ -12,7 +12,8 @@
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { authService, profileService } from '$lib/services';
+	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
+	import { authService, profileService, reviewApi } from '$lib/services';
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
@@ -20,10 +21,13 @@
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
+	import LeaveReviewDialog from './LeaveReviewDialog.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
 	let loadError = $state('');
+	// The order the signed-in user is leaving a review for, if any.
+	let reviewOrder = $state<Order | null>(null);
 
 	function valuesFromProfile(value: UserProfile): ProfileFormData {
 		return {
@@ -123,7 +127,7 @@
 	{:else if profile}
 		<div class="activity">
 			<CreditsCard />
-			<RecentRequestsCard />
+			<RecentRequestsCard onreview={(order) => (reviewOrder = order)} />
 		</div>
 		<Card variant="outlined">
 			<div class="panel-body">
@@ -208,6 +212,18 @@
 		</Card>
 	{/if}
 </section>
+
+{#if reviewOrder && authService.user}
+	{#key `${reviewOrder.id}:${authService.user.id}`}
+		<LeaveReviewDialog
+			order={reviewOrder}
+			callerId={authService.user.id}
+			api={reviewApi}
+			onclose={() => (reviewOrder = null)}
+			onsubmitted={() => (reviewOrder = null)}
+		/>
+	{/key}
+{/if}
 
 <style>
 	/* Wireframe: current credits and request history sit beside each other. */
