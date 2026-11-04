@@ -18,6 +18,8 @@
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
+	import CreditsCard from './CreditsCard.svelte';
+	import RecentRequestsCard from './RecentRequestsCard.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -98,8 +100,8 @@
 <section class="page-content profile-page" aria-labelledby="profile-title">
 	<header class="page-heading">
 		<div>
-			<p class="eyebrow">Your account</p>
-			<h1 id="profile-title">Your profile</h1>
+			<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
+			{#if profile}<p>{profile.email}</p>{/if}
 		</div>
 		{#if profile}<span class="role-chip">{roleLabel(profile.role)}</span>{/if}
 	</header>
@@ -119,8 +121,13 @@
 			</div></Card
 		>
 	{:else if profile}
+		<div class="activity">
+			<CreditsCard />
+			<RecentRequestsCard />
+		</div>
 		<Card variant="outlined">
 			<div class="panel-body">
+				<h2 class="card-title">Account details</h2>
 				<div class="account-facts">
 					<div><span>Email</span><strong>{profile.email}</strong></div>
 					<div><span>Account role</span><strong>{roleLabel(profile.role)}</strong></div>
@@ -195,7 +202,7 @@
 		</Card>
 		<Card variant="outlined">
 			<div class="panel-body">
-				<div><p class="eyebrow">Notifications</p><h2 class="telegram-title">Telegram</h2></div>
+				<h2 class="card-title">Telegram</h2>
 				<TelegramLinkCard />
 			</div>
 		</Card>
@@ -203,7 +210,15 @@
 </section>
 
 <style>
-	.telegram-title {
+	/* Wireframe: current credits and request history sit beside each other. */
+	.activity {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+		gap: 1.25rem;
+		align-items: start;
+	}
+
+	.card-title {
 		margin: 0.1rem 0 0;
 		font-size: 1.25rem;
 	}
