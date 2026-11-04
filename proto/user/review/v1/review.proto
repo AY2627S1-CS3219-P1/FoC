@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+// Review feature contract for user-service. A review lets one participant of a
+// Completed request rate the other; removals are soft deletes recorded with an
+// audit row.
+package user.review.v1;
+
+import "buf/validate/validate.proto";
+import "pagination/v1/pagination.proto";
+import "google/protobuf/timestamp.proto";
+
+service ReviewService {
+  rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
+  rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
+  rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
+  rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
+}
+
+// A review given by one participant about another for a single request.
+message Review {
+  string id = 1;
+  string reviewer_id = 2;
+  string reviewee_id = 3;
+  // Opaque request id owned by the order service; no foreign key here.
+  string order_id = 4;
+  int32 rating = 5;
+  string comment = 6;
+  google.protobuf.Timestamp created_at = 7;
+  // display_name of the reviewer and reviewee, joined at read time.
+  string reviewer_name = 8;
+  string reviewee_name = 9;
+}
+
+// The rating and comment a caller submits about a reviewee.
+message ReviewSubmission {
+  int32 rating = 1 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 5
+  }];
+  string comment = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 100000
+  }];
+}
+
+message SubmitReviewRequest {
+  // The reviewer. Must be the authenticated caller; impersonation is rejected.
+  string from = 1 [(buf.validate.field).string.uuid = true];
+  // The reviewee; must be an existing user and differ from `from`.
+  string to = 2 [(buf.validate.field).string.uuid = true];
+  string order_id = 3 [(buf.validate.field).string.uuid = true];
+  ReviewSubmission submission = 4 [(buf.validate.field).required = true];
+}
+
+message SubmitReviewResponse {}
+
+message ListReviewsForUserResponse {
+  repeated Review reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+message ListMyReviewsResponse {
+  repeated Review reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+message ListReviewsForUserRequest {
+  // A suspended caller may only request their own id; the handler enforces this.
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  pagination.v1.Pagination pagination = 2;
+}
+
+message ListMyReviewsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
+
+message RemoveReviewRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // Recorded on the audit row.
+  string reason = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 100000
+  }];
+}
+
+message RemoveReviewResponse {}
+
+message ReviewRemoval {
+  string id = 1;
+  string reviewer_id = 2;
+  string reviewee_id = 3;
+  string order_id = 4;
+  string reason = 5;
+  google.protobuf.Timestamp created_at = 6;
+  string created_by = 7;
+  // display_name of the user who created this audit row, joined at read time.
+  string created_by_name = 8;
+}
+
+message ListReviewRemovalsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
+
+message ListReviewRemovalsResponse {
+  repeated ReviewRemoval removals = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
