@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/admin.proto.
  */
 export const file_order_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChRvcmRlci92MS9hZG1pbi5wcm90bxIIb3JkZXIudjEiywEKFUxpc3RVc2VyT3JkZXJzUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIxCgRyb2xlGAIgASgOMhkub3JkZXIudjEuUGFydGljaXBhbnRSb2xlQgi6SAWCAQIQARIvCgZzdGF0dXMYAyABKA4yFS5vcmRlci52MS5PcmRlclN0YXR1c0IIukgFggECEAESFQoEcGFnZRgEIAEoBUIHukgEGgIoABIcCglwYWdlX3NpemUYBSABKAVCCbpIBhoEGGQoACLsAQoXQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEroBCgZyZWFzb24YAiABKAlCqQG6SKUBugGhAQogYWRtaW5fY2FuY2VsX29yZGVyLnJlYXNvbl9sZW5ndGgSSXJlYXNvbiBtdXN0IGJlIDEtNTAwIGNoYXJhY3RlcnMgZXhjbHVkaW5nIGxlYWRpbmcgYW5kIHRyYWlsaW5nIHdoaXRlc3BhY2UaMnNpemUodGhpcy50cmltKCkpID49IDEgJiYgc2l6ZSh0aGlzLnRyaW0oKSkgPD0gNTAwIu8BChZVbmFzc2lnbkNvdXJpZXJSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARK4AQoGcmVhc29uGAIgASgJQqcBukijAboBnwEKHnVuYXNzaWduX2NvdXJpZXIucmVhc29uX2xlbmd0aBJJcmVhc29uIG11c3QgYmUgMS01MDAgY2hhcmFjdGVycyBleGNsdWRpbmcgbGVhZGluZyBhbmQgdHJhaWxpbmcgd2hpdGVzcGFjZRoyc2l6ZSh0aGlzLnRyaW0oKSkgPj0gMSAmJiBzaXplKHRoaXMudHJpbSgpKSA8PSA1MDAiYAoWTGlzdFVzZXJPcmRlcnNSZXNwb25zZRIfCgZvcmRlcnMYASADKAsyDy5vcmRlci52MS5PcmRlchIlCglwYWdlX2luZm8YAiABKAsyEi5vcmRlci52MS5QYWdlSW5mbyI6ChhBZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciI5ChdVbmFzc2lnbkNvdXJpZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyMqcCChFPcmRlckFkbWluU2VydmljZRJYCg5MaXN0VXNlck9yZGVycxIfLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVxdWVzdBogLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVzcG9uc2UiA5ACARJeChBBZG1pbkNhbmNlbE9yZGVyEiEub3JkZXIudjEuQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QaIi5vcmRlci52MS5BZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2UiA5ACAhJYCg9VbmFzc2lnbkNvdXJpZXISIC5vcmRlci52MS5VbmFzc2lnbkNvdXJpZXJSZXF1ZXN0GiEub3JkZXIudjEuVW5hc3NpZ25Db3VyaWVyUmVzcG9uc2UiAEKXAQoMY29tLm9yZGVyLnYxQgpBZG1pblByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
+  fileDesc("ChRvcmRlci92MS9hZG1pbi5wcm90bxIIb3JkZXIudjEiywEKFUxpc3RVc2VyT3JkZXJzUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIxCgRyb2xlGAIgASgOMhkub3JkZXIudjEuUGFydGljaXBhbnRSb2xlQgi6SAWCAQIQARIvCgZzdGF0dXMYAyABKA4yFS5vcmRlci52MS5PcmRlclN0YXR1c0IIukgFggECEAESFQoEcGFnZRgEIAEoBUIHukgEGgIoABIcCglwYWdlX3NpemUYBSABKAVCCbpIBhoEGGQoACLsAQoXQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEroBCgZyZWFzb24YAiABKAlCqQG6SKUBugGhAQogYWRtaW5fY2FuY2VsX29yZGVyLnJlYXNvbl9sZW5ndGgSSXJlYXNvbiBtdXN0IGJlIDEtNTAwIGNoYXJhY3RlcnMgZXhjbHVkaW5nIGxlYWRpbmcgYW5kIHRyYWlsaW5nIHdoaXRlc3BhY2UaMnNpemUodGhpcy50cmltKCkpID49IDEgJiYgc2l6ZSh0aGlzLnRyaW0oKSkgPD0gNTAwIu8BChZVbmFzc2lnbkNvdXJpZXJSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARK4AQoGcmVhc29uGAIgASgJQqcBukijAboBnwEKHnVuYXNzaWduX2NvdXJpZXIucmVhc29uX2xlbmd0aBJJcmVhc29uIG11c3QgYmUgMS01MDAgY2hhcmFjdGVycyBleGNsdWRpbmcgbGVhZGluZyBhbmQgdHJhaWxpbmcgd2hpdGVzcGFjZRoyc2l6ZSh0aGlzLnRyaW0oKSkgPj0gMSAmJiBzaXplKHRoaXMudHJpbSgpKSA8PSA1MDAiFgoUR2V0T3JkZXJTdGF0c1JlcXVlc3QiSAoQT3JkZXJTdGF0dXNDb3VudBIlCgZzdGF0dXMYASABKA4yFS5vcmRlci52MS5PcmRlclN0YXR1cxINCgVjb3VudBgCIAEoAyJKChVHZXRPcmRlclN0YXRzUmVzcG9uc2USMQoNc3RhdHVzX2NvdW50cxgBIAMoCzIaLm9yZGVyLnYxLk9yZGVyU3RhdHVzQ291bnQiYAoWTGlzdFVzZXJPcmRlcnNSZXNwb25zZRIfCgZvcmRlcnMYASADKAsyDy5vcmRlci52MS5PcmRlchIlCglwYWdlX2luZm8YAiABKAsyEi5vcmRlci52MS5QYWdlSW5mbyI6ChhBZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciI5ChdVbmFzc2lnbkNvdXJpZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyMv4CChFPcmRlckFkbWluU2VydmljZRJYCg5MaXN0VXNlck9yZGVycxIfLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVxdWVzdBogLm9yZGVyLnYxLkxpc3RVc2VyT3JkZXJzUmVzcG9uc2UiA5ACARJeChBBZG1pbkNhbmNlbE9yZGVyEiEub3JkZXIudjEuQWRtaW5DYW5jZWxPcmRlclJlcXVlc3QaIi5vcmRlci52MS5BZG1pbkNhbmNlbE9yZGVyUmVzcG9uc2UiA5ACAhJYCg9VbmFzc2lnbkNvdXJpZXISIC5vcmRlci52MS5VbmFzc2lnbkNvdXJpZXJSZXF1ZXN0GiEub3JkZXIudjEuVW5hc3NpZ25Db3VyaWVyUmVzcG9uc2UiABJVCg1HZXRPcmRlclN0YXRzEh4ub3JkZXIudjEuR2V0T3JkZXJTdGF0c1JlcXVlc3QaHy5vcmRlci52MS5HZXRPcmRlclN0YXRzUmVzcG9uc2UiA5ACAUKXAQoMY29tLm9yZGVyLnYxQgpBZG1pblByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
 
 /**
  * One user's orders as requester, courier or either, newest first.
@@ -109,6 +109,63 @@ export const UnassignCourierRequestSchema: GenMessage<UnassignCourierRequest> = 
   messageDesc(file_order_v1_admin, 2);
 
 /**
+ * @generated from message order.v1.GetOrderStatsRequest
+ */
+export type GetOrderStatsRequest = Message<"order.v1.GetOrderStatsRequest"> & {
+};
+
+/**
+ * Describes the message order.v1.GetOrderStatsRequest.
+ * Use `create(GetOrderStatsRequestSchema)` to create a new message.
+ */
+export const GetOrderStatsRequestSchema: GenMessage<GetOrderStatsRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_admin, 3);
+
+/**
+ * The number of orders currently in one status.
+ *
+ * @generated from message order.v1.OrderStatusCount
+ */
+export type OrderStatusCount = Message<"order.v1.OrderStatusCount"> & {
+  /**
+   * @generated from field: order.v1.OrderStatus status = 1;
+   */
+  status: OrderStatus;
+
+  /**
+   * @generated from field: int64 count = 2;
+   */
+  count: bigint;
+};
+
+/**
+ * Describes the message order.v1.OrderStatusCount.
+ * Use `create(OrderStatusCountSchema)` to create a new message.
+ */
+export const OrderStatusCountSchema: GenMessage<OrderStatusCount> = /*@__PURE__*/
+  messageDesc(file_order_v1_admin, 4);
+
+/**
+ * Counts across all orders, with one entry for every defined status in enum
+ * order, including statuses with no orders.
+ *
+ * @generated from message order.v1.GetOrderStatsResponse
+ */
+export type GetOrderStatsResponse = Message<"order.v1.GetOrderStatsResponse"> & {
+  /**
+   * @generated from field: repeated order.v1.OrderStatusCount status_counts = 1;
+   */
+  statusCounts: OrderStatusCount[];
+};
+
+/**
+ * Describes the message order.v1.GetOrderStatsResponse.
+ * Use `create(GetOrderStatsResponseSchema)` to create a new message.
+ */
+export const GetOrderStatsResponseSchema: GenMessage<GetOrderStatsResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_admin, 5);
+
+/**
  * @generated from message order.v1.ListUserOrdersResponse
  */
 export type ListUserOrdersResponse = Message<"order.v1.ListUserOrdersResponse"> & {
@@ -128,7 +185,7 @@ export type ListUserOrdersResponse = Message<"order.v1.ListUserOrdersResponse"> 
  * Use `create(ListUserOrdersResponseSchema)` to create a new message.
  */
 export const ListUserOrdersResponseSchema: GenMessage<ListUserOrdersResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_admin, 3);
+  messageDesc(file_order_v1_admin, 6);
 
 /**
  * @generated from message order.v1.AdminCancelOrderResponse
@@ -145,7 +202,7 @@ export type AdminCancelOrderResponse = Message<"order.v1.AdminCancelOrderRespons
  * Use `create(AdminCancelOrderResponseSchema)` to create a new message.
  */
 export const AdminCancelOrderResponseSchema: GenMessage<AdminCancelOrderResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_admin, 4);
+  messageDesc(file_order_v1_admin, 7);
 
 /**
  * @generated from message order.v1.UnassignCourierResponse
@@ -162,7 +219,7 @@ export type UnassignCourierResponse = Message<"order.v1.UnassignCourierResponse"
  * Use `create(UnassignCourierResponseSchema)` to create a new message.
  */
 export const UnassignCourierResponseSchema: GenMessage<UnassignCourierResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_admin, 5);
+  messageDesc(file_order_v1_admin, 8);
 
 /**
  * Administrator-only Order operations. Admins read single orders through
@@ -194,6 +251,14 @@ export const OrderAdminService: GenService<{
     methodKind: "unary";
     input: typeof UnassignCourierRequestSchema;
     output: typeof UnassignCourierResponseSchema;
+  },
+  /**
+   * @generated from rpc order.v1.OrderAdminService.GetOrderStats
+   */
+  getOrderStats: {
+    methodKind: "unary";
+    input: typeof GetOrderStatsRequestSchema;
+    output: typeof GetOrderStatsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_order_v1_admin, 0);

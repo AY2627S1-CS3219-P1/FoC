@@ -42,6 +42,9 @@ const (
 	// OrderAdminServiceUnassignCourierProcedure is the fully-qualified name of the OrderAdminService's
 	// UnassignCourier RPC.
 	OrderAdminServiceUnassignCourierProcedure = "/order.v1.OrderAdminService/UnassignCourier"
+	// OrderAdminServiceGetOrderStatsProcedure is the fully-qualified name of the OrderAdminService's
+	// GetOrderStats RPC.
+	OrderAdminServiceGetOrderStatsProcedure = "/order.v1.OrderAdminService/GetOrderStats"
 )
 
 // OrderAdminServiceClient is a client for the order.v1.OrderAdminService service.
@@ -49,6 +52,7 @@ type OrderAdminServiceClient interface {
 	ListUserOrders(context.Context, *connect.Request[v1.ListUserOrdersRequest]) (*connect.Response[v1.ListUserOrdersResponse], error)
 	AdminCancelOrder(context.Context, *connect.Request[v1.AdminCancelOrderRequest]) (*connect.Response[v1.AdminCancelOrderResponse], error)
 	UnassignCourier(context.Context, *connect.Request[v1.UnassignCourierRequest]) (*connect.Response[v1.UnassignCourierResponse], error)
+	GetOrderStats(context.Context, *connect.Request[v1.GetOrderStatsRequest]) (*connect.Response[v1.GetOrderStatsResponse], error)
 }
 
 // NewOrderAdminServiceClient constructs a client for the order.v1.OrderAdminService service. By
@@ -82,6 +86,13 @@ func NewOrderAdminServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(orderAdminServiceMethods.ByName("UnassignCourier")),
 			connect.WithClientOptions(opts...),
 		),
+		getOrderStats: connect.NewClient[v1.GetOrderStatsRequest, v1.GetOrderStatsResponse](
+			httpClient,
+			baseURL+OrderAdminServiceGetOrderStatsProcedure,
+			connect.WithSchema(orderAdminServiceMethods.ByName("GetOrderStats")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -90,6 +101,7 @@ type orderAdminServiceClient struct {
 	listUserOrders   *connect.Client[v1.ListUserOrdersRequest, v1.ListUserOrdersResponse]
 	adminCancelOrder *connect.Client[v1.AdminCancelOrderRequest, v1.AdminCancelOrderResponse]
 	unassignCourier  *connect.Client[v1.UnassignCourierRequest, v1.UnassignCourierResponse]
+	getOrderStats    *connect.Client[v1.GetOrderStatsRequest, v1.GetOrderStatsResponse]
 }
 
 // ListUserOrders calls order.v1.OrderAdminService.ListUserOrders.
@@ -107,11 +119,17 @@ func (c *orderAdminServiceClient) UnassignCourier(ctx context.Context, req *conn
 	return c.unassignCourier.CallUnary(ctx, req)
 }
 
+// GetOrderStats calls order.v1.OrderAdminService.GetOrderStats.
+func (c *orderAdminServiceClient) GetOrderStats(ctx context.Context, req *connect.Request[v1.GetOrderStatsRequest]) (*connect.Response[v1.GetOrderStatsResponse], error) {
+	return c.getOrderStats.CallUnary(ctx, req)
+}
+
 // OrderAdminServiceHandler is an implementation of the order.v1.OrderAdminService service.
 type OrderAdminServiceHandler interface {
 	ListUserOrders(context.Context, *connect.Request[v1.ListUserOrdersRequest]) (*connect.Response[v1.ListUserOrdersResponse], error)
 	AdminCancelOrder(context.Context, *connect.Request[v1.AdminCancelOrderRequest]) (*connect.Response[v1.AdminCancelOrderResponse], error)
 	UnassignCourier(context.Context, *connect.Request[v1.UnassignCourierRequest]) (*connect.Response[v1.UnassignCourierResponse], error)
+	GetOrderStats(context.Context, *connect.Request[v1.GetOrderStatsRequest]) (*connect.Response[v1.GetOrderStatsResponse], error)
 }
 
 // NewOrderAdminServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -141,6 +159,13 @@ func NewOrderAdminServiceHandler(svc OrderAdminServiceHandler, opts ...connect.H
 		connect.WithSchema(orderAdminServiceMethods.ByName("UnassignCourier")),
 		connect.WithHandlerOptions(opts...),
 	)
+	orderAdminServiceGetOrderStatsHandler := connect.NewUnaryHandler(
+		OrderAdminServiceGetOrderStatsProcedure,
+		svc.GetOrderStats,
+		connect.WithSchema(orderAdminServiceMethods.ByName("GetOrderStats")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/order.v1.OrderAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OrderAdminServiceListUserOrdersProcedure:
@@ -149,6 +174,8 @@ func NewOrderAdminServiceHandler(svc OrderAdminServiceHandler, opts ...connect.H
 			orderAdminServiceAdminCancelOrderHandler.ServeHTTP(w, r)
 		case OrderAdminServiceUnassignCourierProcedure:
 			orderAdminServiceUnassignCourierHandler.ServeHTTP(w, r)
+		case OrderAdminServiceGetOrderStatsProcedure:
+			orderAdminServiceGetOrderStatsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -168,4 +195,8 @@ func (UnimplementedOrderAdminServiceHandler) AdminCancelOrder(context.Context, *
 
 func (UnimplementedOrderAdminServiceHandler) UnassignCourier(context.Context, *connect.Request[v1.UnassignCourierRequest]) (*connect.Response[v1.UnassignCourierResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderAdminService.UnassignCourier is not implemented"))
+}
+
+func (UnimplementedOrderAdminServiceHandler) GetOrderStats(context.Context, *connect.Request[v1.GetOrderStatsRequest]) (*connect.Response[v1.GetOrderStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderAdminService.GetOrderStats is not implemented"))
 }
