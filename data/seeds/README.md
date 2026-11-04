@@ -141,7 +141,7 @@ The Make targets pass `users.json` over stdin to `user-service/cmd/seed` first.
 It requires `APP_ENV=local` and applies the fixtures in one transaction; conflicting
 user identities abort it.
 
-The targets then invoke the standalone SQL runner at `pkg/cmd/seed`.
+The targets then invoke the standalone SQL runner at `scripts/seed`.
 It reads `manifest.json` in array order and validates the entire SQL manifest and
 all referenced SQL files before starting. Paths must stay within this directory;
 unknown fields, unsupported versions, empty files and duplicate file/database
@@ -172,8 +172,8 @@ remain in `users.json` and use the User command described above.
 Run the SQL runner directly from the repository root for Supplier fixtures only:
 
 ```sh
-go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
-go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
+go run ./scripts/seed --manifest data/seeds/manifest.json
+go run ./scripts/seed --manifest data/seeds/manifest.json --reset
 ```
 
 The `--project-dir` option selects a Compose project directory (default `.`).
@@ -183,8 +183,8 @@ The SQL runner's unit tests and Docker-backed PostgreSQL integration test can be
 run as follows:
 
 ```sh
-(cd pkg && GOWORK=off go test -mod=readonly ./cmd/seed)
-(cd pkg && GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m)
+(cd scripts && GOWORK=off go test -mod=readonly ./seed)
+(cd scripts && GOWORK=off go test -mod=readonly -tags=integration ./seed -count=1 -timeout=5m)
 ```
 
 To run outside Compose, apply migrations and supply host-accessible connection
