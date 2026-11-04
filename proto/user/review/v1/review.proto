@@ -11,6 +11,7 @@ import "google/protobuf/timestamp.proto";
 
 service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
+  rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
@@ -30,6 +31,18 @@ message Review {
   // display_name of the reviewer and reviewee, joined at read time.
   string reviewer_name = 8;
   string reviewee_name = 9;
+  // Attached photos in display order. URL is a short-lived pre-signed GET
+  // grant; treat responses carrying it as non-cacheable.
+  repeated ReviewPhoto photos = 10;
+}
+
+// One attached review photo. The URL is a temporary credential minted per
+// response, never a stable object address.
+message ReviewPhoto {
+  string id = 1;
+  string url = 2;
+  string content_type = 3;
+  google.protobuf.Timestamp expires_at = 4;
 }
 
 // The rating and comment a caller submits about a reviewee.
@@ -51,9 +64,42 @@ message SubmitReviewRequest {
   string to = 2 [(buf.validate.field).string.uuid = true];
   string order_id = 3 [(buf.validate.field).string.uuid = true];
   ReviewSubmission submission = 4 [(buf.validate.field).required = true];
+  // IDs returned by CreateReviewPhotoUpload, in display order. Attachment is
+  // authorized and verified inside the submission transaction.
+  repeated string photo_ids = 5 [(buf.validate.field).repeated = {
+    max_items: 5
+    items: {string: {uuid: true}}
+  }];
 }
 
 message SubmitReviewResponse {}
+
+// Requests one pre-signed PUT grant for a review photo. Bytes upload directly
+// from the browser to object storage; the service never carries them.
+message CreateReviewPhotoUploadRequest {
+  string content_type = 1 [(buf.validate.field).string = {
+    in: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif"
+    ]
+  }];
+  // Decimal bytes; matches the repository-wide image limit.
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {
+    gte: 1
+    lte: 10000000
+  }];
+}
+
+message CreateReviewPhotoUploadResponse {
+  string photo_id = 1;
+  string upload_url = 2;
+  // Headers the browser must send with the PUT.
+  map<string, string> upload_headers = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
 
 message ListReviewsForUserResponse {
   repeated Review reviews = 1;
