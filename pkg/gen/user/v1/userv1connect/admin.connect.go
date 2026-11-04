@@ -42,6 +42,12 @@ const (
 	// UserAdminServiceChangeUserRoleProcedure is the fully-qualified name of the UserAdminService's
 	// ChangeUserRole RPC.
 	UserAdminServiceChangeUserRoleProcedure = "/user.v1.UserAdminService/ChangeUserRole"
+	// UserAdminServiceGetUserProcedure is the fully-qualified name of the UserAdminService's GetUser
+	// RPC.
+	UserAdminServiceGetUserProcedure = "/user.v1.UserAdminService/GetUser"
+	// UserAdminServiceGetUserStatsProcedure is the fully-qualified name of the UserAdminService's
+	// GetUserStats RPC.
+	UserAdminServiceGetUserStatsProcedure = "/user.v1.UserAdminService/GetUserStats"
 	// AllowedDomainAdminServiceListAllowedDomainsProcedure is the fully-qualified name of the
 	// AllowedDomainAdminService's ListAllowedDomains RPC.
 	AllowedDomainAdminServiceListAllowedDomainsProcedure = "/user.v1.AllowedDomainAdminService/ListAllowedDomains"
@@ -57,6 +63,8 @@ const (
 type UserAdminServiceClient interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error)
 }
 
 // NewUserAdminServiceClient constructs a client for the user.v1.UserAdminService service. By
@@ -82,6 +90,18 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 			connect.WithClientOptions(opts...),
 		),
+		getUser: connect.NewClient[v1.GetUserRequest, v1.GetUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceGetUserProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
+			connect.WithClientOptions(opts...),
+		),
+		getUserStats: connect.NewClient[v1.GetUserStatsRequest, v1.GetUserStatsResponse](
+			httpClient,
+			baseURL+UserAdminServiceGetUserStatsProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("GetUserStats")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -89,6 +109,8 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 type userAdminServiceClient struct {
 	getUserByEmail *connect.Client[v1.GetUserByEmailRequest, v1.GetUserByEmailResponse]
 	changeUserRole *connect.Client[v1.ChangeUserRoleRequest, v1.ChangeUserRoleResponse]
+	getUser        *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	getUserStats   *connect.Client[v1.GetUserStatsRequest, v1.GetUserStatsResponse]
 }
 
 // GetUserByEmail calls user.v1.UserAdminService.GetUserByEmail.
@@ -101,10 +123,22 @@ func (c *userAdminServiceClient) ChangeUserRole(ctx context.Context, req *connec
 	return c.changeUserRole.CallUnary(ctx, req)
 }
 
+// GetUser calls user.v1.UserAdminService.GetUser.
+func (c *userAdminServiceClient) GetUser(ctx context.Context, req *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return c.getUser.CallUnary(ctx, req)
+}
+
+// GetUserStats calls user.v1.UserAdminService.GetUserStats.
+func (c *userAdminServiceClient) GetUserStats(ctx context.Context, req *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error) {
+	return c.getUserStats.CallUnary(ctx, req)
+}
+
 // UserAdminServiceHandler is an implementation of the user.v1.UserAdminService service.
 type UserAdminServiceHandler interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error)
 }
 
 // NewUserAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -126,12 +160,28 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 		connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userAdminServiceGetUserHandler := connect.NewUnaryHandler(
+		UserAdminServiceGetUserProcedure,
+		svc.GetUser,
+		connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceGetUserStatsHandler := connect.NewUnaryHandler(
+		UserAdminServiceGetUserStatsProcedure,
+		svc.GetUserStats,
+		connect.WithSchema(userAdminServiceMethods.ByName("GetUserStats")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.UserAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserAdminServiceGetUserByEmailProcedure:
 			userAdminServiceGetUserByEmailHandler.ServeHTTP(w, r)
 		case UserAdminServiceChangeUserRoleProcedure:
 			userAdminServiceChangeUserRoleHandler.ServeHTTP(w, r)
+		case UserAdminServiceGetUserProcedure:
+			userAdminServiceGetUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceGetUserStatsProcedure:
+			userAdminServiceGetUserStatsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -147,6 +197,14 @@ func (UnimplementedUserAdminServiceHandler) GetUserByEmail(context.Context, *con
 
 func (UnimplementedUserAdminServiceHandler) ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.ChangeUserRole is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.GetUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.GetUserStats is not implemented"))
 }
 
 // AllowedDomainAdminServiceClient is a client for the user.v1.AllowedDomainAdminService service.
