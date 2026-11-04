@@ -9,7 +9,7 @@
 	} from '$lib/features/review-photos/controller';
 	import type { ReviewApi } from '$lib/services/review/reviewApi';
 	import { reviewSchema } from '$lib/services/review/reviewSchema';
-	import { participationLabel, statusLabel } from '$lib/services/order/presentation';
+	import { statusLabel } from '$lib/services/order/presentation';
 	import ReviewPhotoPicker from './ReviewPhotoPicker.svelte';
 
 	// The Add Review dialog from the wireframe: order details, rating, a short
@@ -87,7 +87,7 @@
 		<section class="order-details" aria-label="Order details">
 			<h2>{order.itemDescription}</h2>
 			<p>
-				Reviewing the {participationLabel(order, callerId) === 'Requested' ? 'courier' : 'requester'} ·
+				Reviewing the {order.requesterId === callerId ? 'courier' : 'requester'} ·
 				{statusLabel(order.status).toLowerCase()}
 			</p>
 		</section>

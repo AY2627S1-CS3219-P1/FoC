@@ -21,6 +21,7 @@
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
+	import ReviewsCard from './ReviewsCard.svelte';
 	import LeaveReviewDialog from './LeaveReviewDialog.svelte';
 
 	let profile = $state<UserProfile | null>(null);
@@ -129,6 +130,7 @@
 			<CreditsCard />
 			<RecentRequestsCard onreview={(order) => (reviewOrder = order)} />
 		</div>
+		<ReviewsCard />
 		<Card variant="outlined">
 			<div class="panel-body">
 				<h2 class="card-title">Account details</h2>
