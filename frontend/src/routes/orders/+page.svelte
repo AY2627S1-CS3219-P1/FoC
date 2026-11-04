@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
@@ -69,22 +70,24 @@
 	});
 
 	// A selected request may have left the open list (accepted, expired), so read it directly.
+	// Only the id drives this effect; reading `selected` here would re-run it on every fetch.
 	let selected = $state<Order | null>(null);
 	let selectedError = $state('');
 	$effect(() => {
 		const id = selectedId;
-		const listed = result?.orders.find((order) => order.id === id);
+		const user = authService.user?.id;
 		selectedError = '';
-		if (!id || !authService.user?.id) {
+		if (!id || !user) {
 			selected = null;
 			return;
 		}
-		if (listed && selected?.id !== id) selected = listed;
+		const listed = untrack(() => result?.orders.find((order) => order.id === id));
+		if (untrack(() => selected?.id) !== id) selected = listed ?? null;
 		let stale = false;
 		orderApi
 			.getOrder(id)
 			.then((order) => !stale && (selected = order))
-			.catch((cause) => !stale && !listed && (selectedError = describeOrderError(cause, 'load this request')));
+			.catch((cause) => !stale && !selected && (selectedError = describeOrderError(cause, 'load this request')));
 		return () => (stale = true);
 	});
 
