@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
@@ -16,7 +17,18 @@ import (
 )
 
 type Logic interface {
-	SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error
+	SubmitReview(
+		ctx context.Context,
+		reviewerID, revieweeID, orderID uuid.UUID,
+		submission ReviewSubmission,
+		photoIDs []uuid.UUID,
+	) error
+	CreateReviewPhotoUpload(
+		ctx context.Context,
+		callerID uuid.UUID,
+		contentType string,
+		sizeBytes int64,
+	) (PhotoUpload, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
@@ -60,10 +72,35 @@ func (h *Handler) SubmitReview(
 		to,
 		orderID,
 		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
+		reviewv1PhotoIDsToDomain(req.Msg.GetPhotoIds()),
 	); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
+}
+
+// CreateReviewPhotoUpload grants one pre-signed PUT; the browser uploads the
+// bytes directly to storage, so the response carries the grant untouched.
+func (h *Handler) CreateReviewPhotoUpload(
+	ctx context.Context,
+	req *connect.Request[reviewv1.CreateReviewPhotoUploadRequest],
+) (*connect.Response[reviewv1.CreateReviewPhotoUploadResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	upload, grant, err := h.Logic.CreateReviewPhotoUpload(
+		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
+	)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	return connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
+		PhotoId:       upload.ID.String(),
+		UploadUrl:     grant.URL,
+		UploadHeaders: grant.Headers,
+		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
+	}), nil
 }
 
 // ListReviewsForUser lists the reviews a user received; a suspended caller may
@@ -174,6 +211,23 @@ func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSub
 	return ReviewSubmission{Rating: int(submission.GetRating()), Comment: submission.GetComment()}
 }
 
+// reviewv1PhotoIDsToDomain parses the validated photo IDs; a malformed entry
+// is a contract violation and rejects the request.
+func reviewv1PhotoIDsToDomain(ids []string) []uuid.UUID {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		id, err := uuid.Parse(raw)
+		if err != nil || id == uuid.Nil {
+			return nil
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
 func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserResponse {
 	return &reviewv1.ListReviewsForUserResponse{
 		Reviews:    toReviewProtos(page.Reviews),
@@ -227,6 +281,27 @@ func toReviewProto(review Review) *reviewv1.Review {
 		Rating:       int32(review.Rating),
 		Comment:      review.Comment,
 		CreatedAt:    timestamppb.New(review.CreatedAt),
+		Photos:       toReviewPhotoProtos(review.Photos),
+	}
+}
+
+func toReviewPhotoProtos(photos []ReviewPhotoView) []*reviewv1.ReviewPhoto {
+	if len(photos) == 0 {
+		return nil
+	}
+	out := make([]*reviewv1.ReviewPhoto, len(photos))
+	for i, photo := range photos {
+		out[i] = toReviewPhotoProto(photo)
+	}
+	return out
+}
+
+func toReviewPhotoProto(photo ReviewPhotoView) *reviewv1.ReviewPhoto {
+	return &reviewv1.ReviewPhoto{
+		Id:          photo.ID.String(),
+		Url:         photo.URL,
+		ContentType: photo.ContentType,
+		ExpiresAt:   timestamppb.New(photo.ExpiresAt),
 	}
 }
 

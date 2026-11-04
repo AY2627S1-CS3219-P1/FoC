@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
@@ -28,6 +29,23 @@ type Repository interface {
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
+
+	// Review photos. Single-statement operations (staging insert, reads,
+	// cleanup claim/delete) run on the repository's own connection; only
+	// AttachReviewPhoto takes the transaction-bound queries because it must
+	// commit or roll back with the review.
+	InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error
+	GetReviewPhoto(ctx context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error)
+	AttachReviewPhoto(
+		ctx context.Context,
+		q *reviewdb.Queries,
+		ownerID, reviewID uuid.UUID,
+		ordinal int,
+		photo ReviewPhoto,
+	) (int64, error)
+	ListReviewPhotosForReviews(ctx context.Context, reviewIDs []uuid.UUID) ([]ReviewPhotoAttached, error)
+	ClaimOrphanReviewPhotos(ctx context.Context, createdBefore, now time.Time) ([]ClaimedReviewPhoto, error)
+	DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
 type ReviewParticipantExistence struct {

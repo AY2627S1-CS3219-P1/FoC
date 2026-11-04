@@ -232,7 +232,7 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	})
+	}, nil)
 }
 
 // loadConfig reads .env (if present) and the environment once, applying

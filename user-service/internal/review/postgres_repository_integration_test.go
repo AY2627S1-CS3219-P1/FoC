@@ -37,7 +37,7 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx)
+	return NewService(repo, withTx, nil)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -123,6 +123,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order1,
 			ReviewSubmission{Rating: 4, Comment: "good"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit first review: %v", err)
 		}
@@ -136,6 +137,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order2,
 			ReviewSubmission{Rating: 2, Comment: "ok"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit second review: %v", err)
 		}
@@ -216,6 +218,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 				reviewee,
 				uuid.New(),
 				ReviewSubmission{Rating: rating, Comment: "fractional average"},
+				nil,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -236,6 +239,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			uuid.New(),
 			ReviewSubmission{Rating: 5, Comment: "audit rollback"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
@@ -418,10 +422,18 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order,
 			ReviewSubmission{Rating: 5, Comment: "first"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "duplicate"})
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "duplicate"},
+			nil,
+		)
 		assertExternal(t, err, http.StatusConflict)
 		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 1 {
 			t.Fatalf("duplicate review persisted: count=%d, want 1", c)
@@ -442,6 +454,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order,
 			ReviewSubmission{Rating: 5, Comment: "first"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
@@ -458,7 +471,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
 			t.Fatalf("removed review still counted: count=%d avg=%v, want 0 and 0", c, avg)
 		}
-		err = service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 3, Comment: "again"})
+		err = service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 3, Comment: "again"}, nil)
 		assertExternal(t, err, http.StatusConflict)
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
 			t.Fatalf("rejected re-review changed stats: count=%d avg=%v, want 0 and 0", c, avg)
@@ -471,6 +484,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewer,
 			order,
 			ReviewSubmission{Rating: 4, Comment: "other side"},
+			nil,
 		); err != nil {
 			t.Fatalf("other participant review: %v", err)
 		}
@@ -481,7 +495,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 6, Comment: "too high"})
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 6, Comment: "too high"},
+			nil,
+		)
 		assertExternal(t, err, http.StatusBadRequest)
 		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 0 {
 			t.Fatalf("rating out of range persisted: count=%d, want 0", c)
@@ -491,14 +512,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		u := uuid.New()
 		insertUser(t, ctx, sqlDB, u)
-		err := service.SubmitReview(ctx, u, u, uuid.New(), ReviewSubmission{Rating: 5, Comment: "self"})
+		err := service.SubmitReview(ctx, u, u, uuid.New(), ReviewSubmission{Rating: 5, Comment: "self"}, nil)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("unknown reviewer is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		insertUser(t, ctx, sqlDB, reviewee)
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"})
+		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"}, nil)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 
@@ -512,7 +533,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		orderID := uuid.New()
 		if err := service.SubmitReview(ctx, reviewer, reviewee, orderID,
-			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}); err != nil {
+			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}, nil); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		var reviewID uuid.UUID
@@ -554,7 +575,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			case <-txCtx.Done():
 				return txCtx.Err()
 			}
-		})
+		}, nil)
 		go func() {
 			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
 		}()

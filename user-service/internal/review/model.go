@@ -27,11 +27,55 @@ type Review struct {
 	Comment      string
 	CreatedAt    time.Time
 	DeletedAt    time.Time
+	// Photos carries freshly minted download URLs; empty when the review has
+	// no photos or storage is not configured.
+	Photos []ReviewPhotoView
 }
 
 type ReviewSubmission struct {
 	Rating  int
 	Comment string
+}
+
+// ReviewPhoto is a staged or attached photo row. Grant URLs are never stored;
+// ObjectKey is the durable identity of the stored bytes.
+type ReviewPhoto struct {
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	ObjectKey       string
+	ContentType     string
+	SizeBytes       int64
+	State           string
+	ReviewID        uuid.UUID
+	Ordinal         int
+	CreatedAt       time.Time
+	UploadExpiresAt time.Time
+}
+
+// ReviewPhotoInput carries the fields of a new staging row.
+type ReviewPhotoInput struct {
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	ObjectKey       string
+	ContentType     string
+	SizeBytes       int64
+	UploadExpiresAt time.Time
+}
+
+// ReviewPhotoAttached is an attached photo as listed for a page of reviews.
+type ReviewPhotoAttached struct {
+	ID          uuid.UUID
+	ReviewID    uuid.UUID
+	ObjectKey   string
+	ContentType string
+	Ordinal     int
+}
+
+// ClaimedReviewPhoto is a staging row claimed by cleanup, awaiting object and
+// row deletion.
+type ClaimedReviewPhoto struct {
+	ID        uuid.UUID
+	ObjectKey string
 }
 
 // ReviewRemoval is the audit row for a removed review; ReviewID references the

@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
@@ -26,7 +27,15 @@ import (
 type handlerLogicStub struct {
 	submitted ReviewSubmission
 	submitter uuid.UUID
+	photoIDs  []uuid.UUID
 	submitErr error
+
+	uploadOwner  uuid.UUID
+	uploadType   string
+	uploadSize   int64
+	uploadGrant  images.UploadGrant
+	uploadUpload PhotoUpload
+	uploadErr    error
 
 	listedFor   uuid.UUID
 	forUserPage ReviewPage
@@ -46,10 +55,24 @@ func (s *handlerLogicStub) SubmitReview(
 	_ context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
+	photoIDs []uuid.UUID,
 ) error {
 	s.submitter = reviewerID
 	s.submitted = submission
+	s.photoIDs = photoIDs
 	return s.submitErr
+}
+
+func (s *handlerLogicStub) CreateReviewPhotoUpload(
+	_ context.Context,
+	callerID uuid.UUID,
+	contentType string,
+	sizeBytes int64,
+) (PhotoUpload, images.UploadGrant, error) {
+	s.uploadOwner = callerID
+	s.uploadType = contentType
+	s.uploadSize = sizeBytes
+	return s.uploadUpload, s.uploadGrant, s.uploadErr
 }
 
 func (s *handlerLogicStub) ListReviewsForUser(

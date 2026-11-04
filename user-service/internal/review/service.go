@@ -19,18 +19,25 @@ type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries)
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
+	// photos may be nil: photo uploads are an optional deployment feature and
+	// every photo path degrades to "unavailable" or "no photos" accordingly.
+	photos PhotoStorage
 }
 
-func NewService(repo Repository, withTransaction WithTransaction) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction}
+func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, photos: photos}
 }
 
-// SubmitReview inserts the review and recomputes the reviewee's stats in the
-// same transaction, so the stats are current when it returns.
+// SubmitReview inserts the review, attaches the caller's staged photos and
+// recomputes the reviewee's stats in the same transaction, so the stats are
+// current when it returns. Photo metadata inspection happens before the
+// transaction; the guarded attachment inside it is the authorization and
+// consistency boundary.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
+	photoIDs []uuid.UUID,
 ) error {
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
@@ -44,6 +51,10 @@ func (s *Service) SubmitReview(
 	}
 	if !participants.RevieweeExists {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
+	}
+	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
+	if err != nil {
+		return err
 	}
 	id, err := newID()
 	if err != nil {
@@ -70,6 +81,9 @@ func (s *Service) SubmitReview(
 				return err
 			}
 		}
+		if err := s.attachPhotos(ctx, q, reviewerID, id, prepared); err != nil {
+			return err
+		}
 		return s.repo.RecalculateStats(ctx, q, revieweeID)
 	})
 }
@@ -87,6 +101,10 @@ func (s *Service) ListReviewsForUser(
 	if err != nil {
 		return ReviewPage{}, err
 	}
+	reviews, err = s.fillPhotos(ctx, reviews)
+	if err != nil {
+		return ReviewPage{}, err
+	}
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
@@ -100,6 +118,10 @@ func (s *Service) ListReviewsFromUser(
 		return ReviewPage{}, err
 	}
 	total, err := s.repo.CountReviewsFromUser(ctx, userID)
+	if err != nil {
+		return ReviewPage{}, err
+	}
+	reviews, err = s.fillPhotos(ctx, reviews)
 	if err != nil {
 		return ReviewPage{}, err
 	}
