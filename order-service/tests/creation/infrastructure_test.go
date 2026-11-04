@@ -84,12 +84,16 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 	if err := c.CopyToContainer(ctx, []byte(script), "/tmp/start-order-kafka", 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := wait.ForListeningPort("19092/tcp").WithStartupTimeout(time.Minute).WaitUntilReady(ctx, c); err != nil {
-		t.Fatal(err)
+	// Kafka binds its listener before completing broker startup. Wait for the
+	// server to finish starting before the first protocol request creates topics.
+	ready := wait.ForAll(wait.ForLog("Kafka Server started"), wait.ForListeningPort("19092/tcp")).
+		WithDeadline(time.Minute)
+	if err := ready.WaitUntilReady(ctx, c); err != nil {
+		t.Fatal("wait for Kafka startup:", err)
 	}
 	connection, err := kafkago.DialContext(ctx, "tcp", address)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("connect to Kafka:", err)
 	}
 	defer connection.Close()
 	var topics []kafkago.TopicConfig
@@ -97,7 +101,7 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 		topics = append(topics, kafkago.TopicConfig{Topic: name, NumPartitions: 1, ReplicationFactor: 1})
 	}
 	if err := connection.CreateTopics(topics...); err != nil {
-		t.Fatal(err)
+		t.Fatal("create Kafka topics:", err)
 	}
 	// Topic creation is asynchronous; a listening broker is not evidence that
 	// each partition has an elected, serving leader yet.
