@@ -339,7 +339,7 @@ func (a *authProbe) verifySession() error {
 			return errors.New("invalid Supplier locations response")
 		}
 	}
-	for _, path := range []string{"/order.v1.OrderService/ListOpenOrders", "/communication.v1.TelegramLinkService/GetTelegramLink"} {
+	for _, path := range []string{"/order.v1.OrderService/ListOpenOrders", "/communication.v1.TelegramLinkService/GetTelegramLink", "/user.v1.AllowedDomainAdminService/ListAllowedDomains"} {
 		payload := map[string]any{}
 		if strings.Contains(path, "ListOpenOrders") {
 			payload = map[string]any{"page": 1, "pageSize": 1}
