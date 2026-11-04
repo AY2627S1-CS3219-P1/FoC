@@ -20,12 +20,16 @@ import (
 func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
-	start := exec.CommandContext(ctx, "docker", "run", "--rm", "-d",
+	start := exec.CommandContext(ctx, "docker", "run", "-d",
 		"-e", "POSTGRES_USER=foc", "-e", "POSTGRES_PASSWORD=fixture-test-only",
 		"-e", "USER_DB=user_seed_test", "-e", "SUPPLIER_DB=supplier_seed_test", "postgis/postgis:18-3.6")
-	output, err := start.CombinedOutput()
+	// Docker writes image-pull progress to stderr on a cold runner. Only stdout
+	// contains the container ID used by subsequent exec, logs and cleanup calls.
+	var startStderr bytes.Buffer
+	start.Stderr = &startStderr
+	output, err := start.Output()
 	if err != nil {
-		t.Fatalf("start PostgreSQL: %v: %s", err, output)
+		t.Fatalf("start PostgreSQL: %v: %s", err, startStderr.String())
 	}
 	container := strings.TrimSpace(string(output))
 	t.Cleanup(func() {
@@ -63,11 +67,13 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 	// restarts. TCP readiness selects the final server and avoids that restart.
 	deadline := time.Now().Add(time.Minute)
 	for {
-		if _, err := psql("postgres", "SELECT 1"); err == nil {
+		output, err := psql("postgres", "SELECT 1")
+		if err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("PostgreSQL did not become ready")
+			logs, logErr := exec.CommandContext(ctx, "docker", "logs", container).CombinedOutput()
+			t.Fatalf("PostgreSQL did not become ready: %v: %s\ncontainer logs (%v):\n%s", err, output, logErr, logs)
 		}
 		select {
 		case <-ctx.Done():

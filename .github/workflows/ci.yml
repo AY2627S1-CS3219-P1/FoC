@@ -108,7 +108,7 @@ jobs:
 
   order-integration:
     name: Order integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     defaults:
       run:
@@ -121,6 +121,14 @@ jobs:
           cache-dependency-path: |
             order-service/go.sum
             pkg/go.sum
+      - name: Install proof image decoders
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends imagemagick libheif-plugin-libde265
+      - name: Verify proof image decoders
+        env:
+          MAGICK_CONFIGURE_PATH: ${{ github.workspace }}/order-service/config/imagemagick
+        run: GOWORK=off go run -mod=readonly ./cmd/proof-image-check
       - name: Run Order database integration tests
         run: make test-integration
 
