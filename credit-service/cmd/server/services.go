@@ -8,6 +8,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/admin"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
@@ -34,10 +35,12 @@ func newServices(pool *pgxpool.Pool) services {
 				DB: pool,
 				Services: []string{
 					creditv1connect.CreditAccountServiceName,
+					creditv1connect.CreditAdminServiceName,
 					creditv1connect.CreditReservationServiceName,
 				},
 			},
 			Account:     &accountrpc.Server{Accounts: accounts},
+			Admin:       &adminrpc.Server{Totals: accountStore},
 			Reservation: &reservationrpc.Server{Reservations: reservations},
 		},
 		outcomes: &events.Outcomes{Settler: reservations, Backoff: 100 * time.Millisecond},

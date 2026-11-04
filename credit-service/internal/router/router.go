@@ -20,10 +20,12 @@ import (
 type RPCServices struct {
 	Health      grpchealth.Checker
 	Account     creditv1connect.CreditAccountServiceHandler
+	Admin       creditv1connect.CreditAdminServiceHandler
 	Reservation creditv1connect.CreditReservationServiceHandler
 }
 
-// Public mounts the health check and the caller's account RPCs.
+// Public mounts the health check, the caller's account RPCs and the
+// administrator RPCs.
 func Public(services RPCServices, authenticate func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))
@@ -33,6 +35,12 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 		connect.WithInterceptors(auth.RequireCaller(), validate.NewInterceptor()),
 	)
 	mux.Handle(accountPath, authenticate(accountHandler))
+
+	adminPath, adminHandler := creditv1connect.NewCreditAdminServiceHandler(
+		services.Admin,
+		connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()),
+	)
+	mux.Handle(adminPath, authenticate(adminHandler))
 
 	return mux
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/admin"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/testsupport/postgres"
@@ -37,6 +38,7 @@ import (
 type credit struct {
 	reservations creditv1connect.CreditReservationServiceClient
 	accounts     creditv1connect.CreditAccountServiceClient
+	admin        creditv1connect.CreditAdminServiceClient
 	outcomes     *events.Outcomes
 	users        *events.Users
 }
@@ -51,10 +53,11 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	services := router.RPCServices{
 		Health:      &healthrpc.Checker{DB: pool},
 		Account:     &accountrpc.Server{Accounts: accounts},
+		Admin:       &adminrpc.Server{Totals: accountStore},
 		Reservation: &reservationrpc.Server{Reservations: reservations},
 	}
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
-		return auth.Caller{ID: token}, nil
+		return auth.Caller{ID: token, Admin: true}, nil
 	})
 
 	public := httptest.NewServer(router.Public(services, authenticate))
@@ -65,6 +68,7 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	return credit{
 		reservations: creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, internal.URL),
 		accounts:     creditv1connect.NewCreditAccountServiceClient(http.DefaultClient, public.URL),
+		admin:        creditv1connect.NewCreditAdminServiceClient(http.DefaultClient, public.URL),
 		outcomes:     &events.Outcomes{Settler: reservations, Backoff: 10 * time.Millisecond},
 		users:        &events.Users{Opener: accounts},
 	}
@@ -243,4 +247,69 @@ func equalKinds(a, b []creditv1.LedgerEntryKind) bool {
 		}
 	}
 	return true
+}
+
+func TestCreditTotalsOverPostgres(t *testing.T) {
+	pool := postgres.Setup(t)
+	c := startCredit(t, pool)
+	ctx := context.Background()
+	reserve := func(order, requester string, amount int64) {
+		t.Helper()
+		_, err := c.reservations.Reserve(ctx, connect.NewRequest(
+			&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: amount},
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Completed: half of a 30-credit offer is paid and half returned.
+	completed, requester, courier := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	reserve(completed, requester, 30)
+	_, err := c.reservations.AdjustReservation(ctx, connect.NewRequest(&creditv1.AdjustReservationRequest{
+		RequestId:   completed,
+		OfferId:     uuid.NewString(),
+		CourierId:   courier,
+		OfferAmount: 30,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	err = c.outcomes.Handle(ctx, kafka.Metadata{Topic: events.OrderOutcomeTopic}, &ordereventsv1.OrderOutcome{
+		EventId:          uuid.NewString(),
+		OrderId:          completed,
+		Outcome:          ordereventsv1.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED,
+		RequesterId:      requester,
+		CourierId:        proto.String(courier),
+		ReservedCredits:  30,
+		DeliveryDuration: durationpb.New(time.Hour),
+		PickedUpAt:       timestamppb.New(picked),
+		DeliveredAt:      timestamppb.New(picked.Add(90 * time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Released: all 10 credits are returned.
+	released := uuid.NewString()
+	reserve(released, requester, 10)
+	_, err = c.reservations.ReleaseReservation(ctx, connect.NewRequest(&creditv1.ReleaseReservationRequest{
+		RequestId: released,
+		Reason:    creditv1.ReleaseReason_RELEASE_REASON_CANCELLED_BEFORE_PICKUP,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Held: 7 credits stay reserved.
+	reserve(uuid.NewString(), uuid.NewString(), 7)
+
+	res, err := c.admin.GetCreditTotals(ctx, withBearer(&creditv1.GetCreditTotalsRequest{}, uuid.NewString()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := res.Msg; m.GetReserved() != 7 || m.GetReturned() != 25 || m.GetTransferred() != 15 {
+		t.Fatalf("totals: %v", m)
+	}
 }
