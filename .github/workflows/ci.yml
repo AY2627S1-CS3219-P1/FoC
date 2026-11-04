@@ -122,43 +122,24 @@ jobs:
           cache-dependency-path: |
             order-service/go.sum
             pkg/go.sum
-      # The delivery-proof tests require a magick binary with JPEG, PNG, WebP
-      # and HEIC delegates. Distro imagemagick is ImageMagick 6 without
-      # libheif, so build ImageMagick 7 from source and cache the install.
-      # The HEVC decoder lives in a separate libheif runtime plugin, needed on
-      # cache hits too, so the dependencies are installed unconditionally.
+      # The delivery-proof tests decode with the same pinned ImageMagick build
+      # as the Order images (order-service/scripts/build-imagemagick.sh). The
+      # build libraries are installed on cache hits too, for their runtime
+      # libraries and libheif's HEVC plugin.
       - name: Install ImageMagick dependencies
         run: |
+          . scripts/imagemagick-deps.sh
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            build-essential libde265-dev libheif-dev libheif-plugin-libde265 \
-            libjpeg-dev libpng-dev libwebp-dev
+          sudo apt-get install -y --no-install-recommends $IMAGEMAGICK_BUILD_DEPS
       - name: Cache ImageMagick build
         id: imagemagick
         uses: actions/cache@v6
         with:
           path: /opt/imagemagick
-          key: ${{ runner.os }}-${{ runner.arch }}-imagemagick-7.1.2-34
-      - name: Build ImageMagick with required delegates
+          key: ${{ runner.os }}-${{ runner.arch }}-imagemagick-${{ hashFiles('order-service/scripts/build-imagemagick.sh', 'order-service/scripts/imagemagick-deps.sh') }}
+      - name: Build ImageMagick
         if: steps.imagemagick.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl -fsSL https://download.imagemagick.org/archive/releases/ImageMagick-7.1.2-34.tar.xz | tar -xJ
-          cd ImageMagick-7.1.2-34
-          ./configure \
-            --prefix=/opt/imagemagick \
-            --disable-shared \
-            --disable-openmp \
-            --without-modules \
-            --without-x \
-            --without-magick-plus-plus \
-            --without-perl \
-            --with-heic \
-            --with-jpeg \
-            --with-png \
-            --with-webp
-          make -j"$(nproc)"
-          sudo make install
+        run: sudo sh scripts/build-imagemagick.sh
       - name: Add ImageMagick to PATH
         run: |
           echo /opt/imagemagick/bin >> "$GITHUB_PATH"
