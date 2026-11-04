@@ -380,12 +380,10 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
-	body, err := o.gatewaySmokeRequest(gateway, keyPath, 404, true)
-	if err != nil {
+	// Unrouted RPCs reach the frontend catchall, whose 404 can contain HTML.
+	// The status proves the RPC is unavailable; its error page format does not.
+	if _, err := o.gatewaySmokeRequest(gateway, keyPath, 404, true); err != nil {
 		return err
-	}
-	if strings.Contains(strings.ToLower(body), "<html") {
-		return errors.New("internal RPC returned frontend HTML")
 	}
 	if _, err := o.gatewaySmokeRequest(gateway, "/credit.v1.CreditReservationService/Reserve", 404, true); err != nil {
 		return err

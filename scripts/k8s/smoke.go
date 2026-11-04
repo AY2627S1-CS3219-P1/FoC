@@ -24,8 +24,7 @@ func (o *operator) gatewaySmokeRequest(
 		o.localCA(),
 	}
 	if connect {
-		// Negotiate an RPC error response when an unrouted path reaches the
-		// frontend catchall; curl otherwise accepts its HTML 404 page.
+		// Request JSON for RPC responses; frontend 404 pages may still be HTML.
 		args = append(
 			args,
 			"--header",
