@@ -28,7 +28,6 @@ type Domain struct {
 }
 
 type Suspension struct {
-	ID      uuid.UUID `json:"id"`
 	UserID  uuid.UUID `json:"user_id"`
 	ActorID uuid.UUID `json:"actor_id"`
 	Reason  string    `json:"reason"`
@@ -77,7 +76,7 @@ func (f Fixtures) Validate() error {
 		return fmt.Errorf("registration domain identity is required")
 	}
 	actorRole, actorExists := ids[f.Suspension.ActorID]
-	if f.Suspension.ID == uuid.Nil || ids[f.Suspension.UserID] != models.RoleSuspended ||
+	if ids[f.Suspension.UserID] != models.RoleSuspended ||
 		!actorExists || !actorRole.IsAdmin() || strings.TrimSpace(f.Suspension.Reason) == "" {
 		return fmt.Errorf("suspension must reference a suspended fixture user and an administrator")
 	}

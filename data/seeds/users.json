@@ -55,7 +55,6 @@
     "domain": "demo.foc.test"
   },
   "suspension": {
-    "id": "f0c00001-0000-4000-8000-000000000011",
     "user_id": "f0c00001-0000-4000-8000-000000000004",
     "actor_id": "f0c00001-0000-4000-8000-000000000002",
     "reason": "Seeded suspension for reinstatement testing"
