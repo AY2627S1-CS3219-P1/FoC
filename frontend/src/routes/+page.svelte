@@ -85,18 +85,24 @@
 		new Map([...suppliers, ...Object.values(extraLocations)].map((location) => [location.id, location]))
 	);
 
-	// Look up coordinates for open-request pickups that the supplier page didn't include.
+	// Resolve recent pickups and map coordinates beyond the first supplier page.
 	$effect(() => {
 		const known = locationsById;
-		const missing = [...new Set(openOrders.map((order) => order.pickup?.locationId))].filter(
+		const ids = [...recentPickupIds, ...openOrders.map((order) => order.pickup?.locationId)];
+		const missing = [...new Set(ids)].filter(
 			(id): id is string => Boolean(id) && !known.has(id!)
 		);
-		for (const id of missing) {
-			locationApi.getLocation(id).then(
-				(location) => { extraLocations = { ...extraLocations, [id]: location }; },
-				() => {}
-			);
-		}
+		if (!missing.length) return;
+		let active = true;
+		// Publish the batch together so each response doesn't restart other lookups.
+		void Promise.allSettled(missing.map((id) => locationApi.getLocation(id))).then((results) => {
+			if (!active) return;
+			const found = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+			if (found.length) {
+				extraLocations = { ...extraLocations, ...Object.fromEntries(found.map((location) => [location.id, location])) };
+			}
+		});
+		return () => { active = false; };
 	});
 
 	function pickupPoint(order: Order): Point | undefined {
@@ -228,7 +234,11 @@
 			<span class="meta">{location.building?.name ?? ''}{location.floor ? ', ' + location.floor : ''}</span>
 			{#if location.currentDisablement}<span class="closed">Closed now</span>{/if}
 		</button>
-		<Button variant="tonal" size="xs" href={'/orders/new?pickup=' + encodeURIComponent(location.id)}>Request</Button>
+		{#if location.archivedAt}
+			<span class="closed">Archived</span>
+		{:else}
+			<Button variant="tonal" size="xs" href={'/orders/new?pickup=' + encodeURIComponent(location.id)}>Request</Button>
+		{/if}
 	</li>
 {/snippet}
 

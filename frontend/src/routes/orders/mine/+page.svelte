@@ -93,7 +93,9 @@
 	</div>
 
 	<div class="results" aria-live="polite">
-		{#if error}
+		{#if !authService.user}
+			<p class="muted"><a href="/login">Sign in</a> to view your orders.</p>
+		{:else if error}
 			<p class="notice error" role="alert">{error}</p>
 			<div><Button variant="outlined" onclick={() => revision++}>Try again</Button></div>
 		{:else if loading && !result}

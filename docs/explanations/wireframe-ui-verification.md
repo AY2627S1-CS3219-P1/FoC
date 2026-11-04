@@ -19,6 +19,8 @@ Set `WIREFRAME_BASE_URL` to check a different frontend origin. These checks mock
 Connect responses and block map tiles. They cover registration with Telegram
 skipped or selected, drawer focus on opening and dismissal, and proof selection
 surviving both an ordinary order refresh and a nonterminal revision change.
+They also cover recent pickups beyond supplier page one (ordinary, archived and
+unavailable locations), plus a working sign-in link on anonymous My orders.
 They do not substitute for the real-stack checks below.
 
 The proof regression failed before the fix on its first forced background read.
@@ -93,5 +95,5 @@ These phone captures use the same mocked data on the baseline and current UI.
 - Comparison screenshots use mocked Connect data, with before at `422bb11` and
   after at the current worktree. Refreshed captures live in
   `/tmp/foc-shots/refreshed/`. The refreshed images and captions were published in PR #241 on 4 November
-  2026, pinned to screenshot commit `55505e0`. The captions distinguish the
-  unpushed local implementation from the current PR head.
+  2026, pinned to screenshot commit `55505e0`. The captions record that the implementation was local at capture time; those
+  changes are now committed to the PR branch.

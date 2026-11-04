@@ -30,21 +30,63 @@ async function open(path, { authenticated = true, overrides = {} } = {}) {
 			Refresh: () => ({ accessToken: 'browser-fixture', user }),
 			Register: () => ({ accessToken: 'browser-fixture', user }),
 			GetOrder: () => ({ order }),
-			ListMyOrders: () => ({ orders: [] }),
+			ListMyOrders: () => ({ orders: [], pageInfo: { page: 1, pageSize: 20, totalPages: 0 } }),
+			ListOpenOrders: () => ({ orders: [], pageInfo: { page: 1, pageSize: 20, totalPages: 0 } }),
 			GetMyAccount: () => ({ account: { userId: user.id, balance: '100', available: '100', reserved: '0' } }),
 			GetDeliveryProof: () => ({}),
 			GetTelegramLink: () => ({ linked: false }),
 			CreateTelegramLink: () => ({ linkUrl: 'https://t.me/example?start=fixture', expiresAt: new Date(Date.now() + 600000).toISOString() })
 		};
-		return route.fulfill({ json: (overrides[method] ?? defaults[method] ?? (() => ({})))() });
+		const body = JSON.parse(route.request().postData() || '{}');
+		const json = await (overrides[method] ?? defaults[method] ?? (() => ({})))(body);
+		return route.fulfill({ json });
 	});
 	await page.goto(base + path);
 	return { page, context };
 }
 
 try {
+	// History can name pickups outside the first supplier page, including ordinary locations.
+	const supplierPage = Array.from({ length: 100 }, (_, i) => ({ id: `supplier-${i}`, name: `Supplier ${i}` }));
+	const recent = [
+		{ id: 'supplier-101', name: 'Recent supplier beyond page one' },
+		{ id: 'ordinary', name: 'Recent ordinary pickup', isSupplier: false },
+		{ id: 'archived', name: 'Archived recent pickup', archivedAt: new Date().toISOString() }
+	];
+	const reads = [];
+	let { page, context } = await open('/', { overrides: {
+		ListLocations: async () => {
+			await new Promise(resolve => setTimeout(resolve, 150));
+			return { locations: supplierPage, page: 1, pageSize: 100, totalPages: 2 };
+		},
+		ListMyOrders: body => ({ orders: body.role ? [...recent, { id: 'unavailable' }].map(location => ({ ...order, pickup: { locationId: location.id } })) : [], pageInfo: { page: 1, pageSize: 20, totalPages: 1 } }),
+		GetLocation: body => {
+			reads.push(body.id);
+			return { location: recent.find(location => location.id === body.id) };
+		}
+	} });
+	await page.getByRole('heading', { name: 'Recent', exact: true }).waitFor({ timeout: 5000 });
+	for (const location of recent) {
+		await page.getByRole('button', { name: location.name, exact: true }).waitFor();
+	}
+	assert(reads.includes('supplier-101') && reads.includes('ordinary') && reads.includes('archived'));
+	const archived = page.locator('li').filter({ has: page.getByRole('button', { name: 'Archived recent pickup' }) });
+	await archived.getByText('Archived', { exact: true }).waitFor();
+	assert.equal(await archived.getByRole('link', { name: 'Request', exact: true }).count(), 0);
+	assert.equal(await page.getByRole('button', { name: 'unavailable', exact: true }).count(), 0);
+	await context.close();
+	console.log('PASS recent pickups outside supplier page one are loaded; unavailable locations are omitted');
+
+	({ page, context } = await open('/orders/mine', { authenticated: false }));
+	const signIn = page.getByRole('link', { name: 'Sign in', exact: true });
+	await signIn.waitFor({ timeout: 5000 });
+	await signIn.click();
+	await page.waitForURL(base + '/login');
+	await context.close();
+	console.log('PASS signed-out order history provides a working sign-in link');
+
 	// File objects must survive both ordinary reads and nonterminal revisions.
-	let { page, context } = await open('/orders/' + id);
+	({ page, context } = await open('/orders/' + id));
 	await page.getByRole('button', { name: 'Update status: delivered' }).click();
 	const dialog = page.getByRole('alertdialog');
 	await dialog.getByText('0 / 5 selected').waitFor();

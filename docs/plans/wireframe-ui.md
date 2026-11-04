@@ -27,7 +27,7 @@ The goal is #201: make the frontend follow the team wireframe (layout, navigatio
 
 All Devin review threads on both PRs are answered and resolved.
 
-## Follow-up in this worktree
+## Follow-up on the PR branch
 
 - **Onboarding:** registration offers optional Connect Telegram next to name and
   phone. Selecting it creates the account, then connects on the same registration
@@ -40,6 +40,9 @@ All Devin review threads on both PRs are answered and resolved.
 - **Proof selection:** background Order reads and nonterminal revisions now
   preserve selected photos. The real-stack check exposed this reset; a committed
   Playwright regression reproduces it before the fix.
+- **Review follow-up:** recent pickups beyond the first supplier page now resolve
+  independently, with archived pickups labelled and unavailable for new requests.
+  Signed-out My orders offers a sign-in link. See [the feedback audit](../explanations/wireframe-ui-review.md).
 - **Verification:** see [the verification record](../explanations/wireframe-ui-verification.md)
   for real Compose checks, repeatable browser checks, captures and limitations.
 
@@ -47,10 +50,11 @@ All Devin review threads on both PRs are answered and resolved.
 
 1. Configure the actual Telegram bot and `PUBLIC_TELEGRAM_BOT_URL`, then verify
    live linking and the order chat button. No bot is configured locally.
-2. Push the local implementation changes shown in the refreshed captures.
-   Screenshots and verification notes were published to #241 on 4 November 2026
-   (hosting commit `55505e0`); their captions identify the unpushed local scope.
-   Remove anything from this note that has landed.
+
+The implementation shown in the refreshed captures is now committed to the PR
+branch. Screenshots and verification notes were published on 4 November 2026
+(hosting commit `55505e0`); the capture-time captions identify their source.
+Remove anything from this note that has landed.
 
 ## Waiting on other work
 
