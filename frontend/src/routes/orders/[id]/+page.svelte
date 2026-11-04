@@ -183,13 +183,8 @@
 							{/if}
 
 							<div class="actions">
-								{#if canChat}
-									{#if telegramBotUrl}
-										<Button variant="tonal" href={telegramBotUrl} target="_blank" rel="noreferrer">Chat on Telegram</Button>
-										<small class="sub">In the bot, send /chat and choose this request.</small>
-									{:else}
-										<small class="sub">Chat with the {isCourier ? 'requester' : 'courier'} through the FoC Telegram bot: send /chat and choose this request.</small>
-									{/if}
+								{#if canChat && telegramBotUrl}
+									<Button variant="tonal" href={telegramBotUrl} target="_blank" rel="noreferrer" title="Send /chat in the bot and choose this request">Chat on Telegram</Button>
 								{/if}
 								{#if isCourier && order.status === OrderStatus.DELIVERING}
 									<Button onclick={() => (proofOpen = true)}>Update status: delivered</Button>
