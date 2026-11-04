@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Button, Icon, ListItem } from 'm3-svelte';
+	import { Button, Icon } from 'm3-svelte';
 	import iconAdd from '@ktibow/iconset-material-symbols/add';
 	import iconAdmin from '@ktibow/iconset-material-symbols/admin-panel-settings-outline';
 	import iconClose from '@ktibow/iconset-material-symbols/close';
@@ -79,13 +79,11 @@
 	<nav aria-label="Main">
 		<ul>
 			{#each items as item (item.href)}
-				<ListItem
-					href={item.href}
-					headline={item.label}
-					aria-current={isActive(item) ? 'page' : undefined}
-				>
-					{#snippet leading()}<Icon icon={item.icon} size={24} />{/snippet}
-				</ListItem>
+				<li>
+					<a class="nav-link" href={item.href} aria-current={isActive(item) ? 'page' : undefined}>
+						<Icon icon={item.icon} size={24} />{item.label}
+					</a>
+				</li>
 			{/each}
 		</ul>
 	</nav>
@@ -179,12 +177,27 @@
 		gap: 0.15rem;
 	}
 
-	nav :global(a.m3-container) {
-		border-radius: var(--m3-shape-full, 999px);
+	.nav-link {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
 		min-height: 3rem;
+		padding: 0 1rem;
+		border-radius: var(--m3-shape-full, 999px);
+		color: var(--m3c-on-surface-variant);
+		text-decoration: none;
 	}
 
-	nav :global(a.m3-container[aria-current='page']) {
+	.nav-link:hover {
+		background: color-mix(in srgb, var(--m3c-on-surface) 8%, transparent);
+	}
+
+	.nav-link:focus-visible {
+		outline: 2px solid var(--m3c-primary);
+		outline-offset: -2px;
+	}
+
+	.nav-link[aria-current='page'] {
 		background: var(--m3c-secondary-container);
 		color: var(--m3c-on-secondary-container);
 		font-weight: 650;

@@ -10,6 +10,7 @@
 	const refreshMs = 30_000;
 
 	let orders = $state<Order[] | null>(null);
+	let hasMore = $state(false);
 	let failed = $state(false);
 	let request = 0;
 
@@ -48,7 +49,10 @@
 		try {
 			const result = await orderApi.listMyOrders({ activeOnly: true, pageSize: 20 });
 			if (current === request && authService.user?.id === caller) {
-				orders = result.orders;
+				// ListMyOrders also returns orders the caller withdrew from as a courier;
+				// those are no longer theirs to progress.
+				orders = result.orders.filter((order) => order.requesterId === caller || order.courierId === caller);
+				hasMore = result.totalPages > 1;
 				failed = false;
 			}
 		} catch {
@@ -109,6 +113,7 @@
 				</li>
 			{/each}
 		</ul>
+		{#if hasMore}<a class="more" href="/orders/mine">See all your orders</a>{/if}
 		{#if failed}<p class="hint" role="alert">This list may be out of date.</p>{/if}
 	{/if}
 </section>
@@ -204,6 +209,11 @@
 	.step {
 		font-size: 0.8rem;
 		color: var(--m3c-on-surface-variant);
+	}
+
+	.more {
+		padding: 0.25rem 1rem;
+		font-size: 0.85rem;
 	}
 
 	.hint {
