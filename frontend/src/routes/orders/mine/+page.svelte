@@ -9,7 +9,7 @@
 	import { authService, orderApi } from '$lib/services';
 	import type { OrderPage } from '$lib/services/order';
 	import { describeOrderError } from '$lib/services/order/errors';
-	import { orderStatuses, roleFromQuery, statusLabel } from '$lib/services/order/presentation';
+	import { orderStatuses, participationLabel, roleFromQuery, statusLabel } from '$lib/services/order/presentation';
 
 	// URL state: view (active | all), role, status (all view only) and page.
 	const params = $derived(page.url.searchParams);
@@ -52,7 +52,7 @@
 	const roleOptions: { value: string; label: string }[] = [
 		{ value: '', label: 'All' },
 		{ value: 'requester', label: 'Requested' },
-		{ value: 'courier', label: 'Delivered' }
+		{ value: 'courier', label: 'As courier' }
 	];
 	const roleParam = $derived(role === ParticipantRole.REQUESTER ? 'requester' : role === ParticipantRole.COURIER ? 'courier' : '');
 
@@ -110,9 +110,9 @@
 						{@const mine = requested(order)}
 						<li>
 							<a class="row" href={'/orders/' + encodeURIComponent(order.id)}>
-								<span class="role" class:courier={!mine} title={mine ? 'You requested this' : 'You delivered or are delivering this'}>
+								<span class="role" class:courier={!mine} title={participationLabel(order, authService.user?.id)}>
 									<Icon icon={mine ? iconBag : iconBike} size={18} />
-									<span class="visually-hidden">{mine ? 'You requested:' : 'You delivered:'}</span>
+									<span class="visually-hidden">{participationLabel(order, authService.user?.id)}:</span>
 								</span>
 								<span class="text">
 									<span class="title-line">

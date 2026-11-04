@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { payableReward } from './presentation';
+import { create } from '@bufbuild/protobuf';
+import { OrderSchema } from '$lib/gen/order/v1/shared_types_pb';
+import { participationLabel, payableReward } from './presentation';
 
 // Cases from credit-service/internal/reservation/lateness_test.go, so the UI's
 // estimate keeps matching what Credit pays.
@@ -19,5 +21,19 @@ describe('payableReward', () => {
 		['huge reward', maxInt64, hour + hour / 2n, maxInt64 / 2n]
 	])('%s', (_name, reward, elapsed, want) => {
 		expect(payableReward(reward, elapsed, hour)).toBe(want);
+	});
+});
+
+describe('participationLabel', () => {
+	const order = create(OrderSchema, { requesterId: 'amy', courierId: 'ben' });
+
+	it('names the requester and current courier', () => {
+		expect(participationLabel(order, 'amy')).toBe('Requested');
+		expect(participationLabel(order, 'ben')).toBe('Courier');
+	});
+
+	// ListMyOrders returns orders a courier withdrew from; they didn't deliver them.
+	it('marks a withdrawn courier', () => {
+		expect(participationLabel(order, 'cara')).toBe('Withdrew as courier');
 	});
 });

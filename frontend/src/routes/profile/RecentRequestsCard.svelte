@@ -4,7 +4,7 @@
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { authService, orderApi } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
-	import { statusLabel } from '$lib/services/order/presentation';
+	import { participationLabel, statusLabel } from '$lib/services/order/presentation';
 
 	const shown = 5;
 	let orders = $state<Order[] | null>(null);
@@ -30,7 +30,7 @@
 	});
 
 	const date = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' });
-	const role = (order: Order) => (order.requesterId === authService.user?.id ? 'Requested' : 'Delivered');
+	const role = (order: Order) => participationLabel(order, authService.user?.id);
 </script>
 
 <Card variant="outlined">
