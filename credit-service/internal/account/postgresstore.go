@@ -99,3 +99,12 @@ var (
 	_ Store  = (*PostgresStore)(nil)
 	_ Opener = (*PostgresStore)(nil)
 )
+
+// Totals reads credit totals across all accounts from one snapshot.
+func (s *PostgresStore) Totals(ctx context.Context) (Totals, error) {
+	row, err := creditdb.New(s.pool).GetCreditTotals(ctx)
+	if err != nil {
+		return Totals{}, fmt.Errorf("get credit totals: %w", err)
+	}
+	return Totals{Reserved: row.Reserved, Returned: row.Returned, Transferred: row.Transferred}, nil
+}

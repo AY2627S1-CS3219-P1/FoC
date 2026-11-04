@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/admin"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -98,6 +99,13 @@ func (f *fakeAccounts) ListLedgerEntries(_ context.Context, userID string, p acc
 	return account.LedgerPage{PageInfo: account.PageInfo{Page: 1, PageSize: 20}}, f.err
 }
 
+type fakeTotals struct{ calls int }
+
+func (f *fakeTotals) Totals(context.Context) (account.Totals, error) {
+	f.calls++
+	return account.Totals{Reserved: 7, Returned: 25, Transferred: 15}, nil
+}
+
 type pingable struct{ err error }
 
 func (p pingable) Ping(context.Context) error { return p.err }
@@ -108,22 +116,27 @@ type servers struct {
 	public, internal *httptest.Server
 	reservations     *fakeReservations
 	accounts         *fakeAccounts
+	totals           *fakeTotals
 }
 
 func start(t *testing.T) servers {
 	t.Helper()
-	s := servers{reservations: &fakeReservations{}, accounts: &fakeAccounts{}}
+	s := servers{reservations: &fakeReservations{}, accounts: &fakeAccounts{}, totals: &fakeTotals{}}
 	services := router.RPCServices{
 		Health: &healthrpc.Checker{
 			DB:       pingable{},
 			Services: []string{creditv1connect.CreditReservationServiceName},
 		},
 		Account:     &accountrpc.Server{Accounts: s.accounts},
+		Admin:       &adminrpc.Server{Totals: s.totals},
 		Reservation: &reservationrpc.Server{Reservations: s.reservations},
 	}
 
-	// A bearer token "user:<id>" authenticates as that user.
+	// A bearer token "user:<id>" or "admin:<id>" authenticates as that user.
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
+		if id, ok := strings.CutPrefix(token, "admin:"); ok {
+			return auth.Caller{ID: id, Admin: true}, nil
+		}
 		id, ok := strings.CutPrefix(token, "user:")
 		if !ok {
 			return auth.Caller{}, errors.New("invalid token")
@@ -294,6 +307,48 @@ func TestAccountRPCsRejectAnonymousAndInvalidRequests(t *testing.T) {
 		err,
 	) != connect.CodeNotFound {
 		t.Fatalf("missing account: %v", err)
+	}
+}
+
+// Admin RPCs
+
+func TestAdminRPCsReadCreditTotalsForAdministrators(t *testing.T) {
+	s := start(t)
+	client := creditv1connect.NewCreditAdminServiceClient(http.DefaultClient, s.public.URL)
+	ctx := context.Background()
+
+	if _, err := client.GetCreditTotals(
+		ctx,
+		connect.NewRequest(&creditv1.GetCreditTotalsRequest{}),
+	); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("anonymous: %v", err)
+	}
+	if _, err := client.GetCreditTotals(
+		ctx,
+		withBearer(&creditv1.GetCreditTotalsRequest{}, "user:"+requesterID),
+	); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("user: %v", err)
+	}
+	if s.totals.calls != 0 {
+		t.Fatalf("domain called %d times before an administrator asked", s.totals.calls)
+	}
+
+	res, err := client.GetCreditTotals(ctx, withBearer(&creditv1.GetCreditTotalsRequest{}, "admin:"+requesterID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := res.Msg; m.GetReserved() != 7 || m.GetReturned() != 25 || m.GetTransferred() != 15 {
+		t.Fatalf("totals: %v", m)
+	}
+}
+
+func TestAdminRPCsAreNotInternal(t *testing.T) {
+	s := start(t)
+	client := creditv1connect.NewCreditAdminServiceClient(http.DefaultClient, s.internal.URL)
+
+	_, err := client.GetCreditTotals(context.Background(), connect.NewRequest(&creditv1.GetCreditTotalsRequest{}))
+	if connect.CodeOf(err) != connect.CodeUnimplemented || s.totals.calls != 0 {
+		t.Fatalf("internal admin RPC: %v, calls %d", err, s.totals.calls)
 	}
 }
 
