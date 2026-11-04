@@ -9,6 +9,7 @@
 	import { authService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
+	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 	let previousUser: string | undefined;
 	$effect(() => {
 		const currentUser = authService.user?.id;
@@ -22,6 +23,10 @@
 	let status = $state<'loading' | 'ready' | 'error'>('loading');
 	let signingOut = $state(false);
 	let signOutError = $state('');
+	let sessionError = $state('');
+	$effect(() => {
+		if (authService.isAuthenticated) sessionError = '';
+	});
 	const authenticationRoute = $derived(
 		page.url.pathname === '/login' || page.url.pathname === '/register'
 	);
@@ -31,10 +36,16 @@
 
 	async function restoreAuth() {
 		status = 'loading';
+		sessionError = '';
 		try {
 			await authService.refresh();
 			status = 'ready';
 		} catch (error) {
+			if (error instanceof ConnectError && error.code === Code.PermissionDenied) {
+				sessionError = 'Your email domain is not allowed. Contact an administrator to restore access, or sign in with another email address.';
+				status = 'ready';
+				return;
+			}
 			status =
 				error instanceof ConnectError && error.code === Code.Unauthenticated ? 'ready' : 'error';
 		}
@@ -71,6 +82,7 @@
 
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell">
+	<div class="snackbar-region"><SnackbarHost /></div>
 	<header class="site-header">
 		<a class="brand" href="/" aria-label="Friend on Campus home">FoC · Friend on Campus</a>
 		{#if authService.user}
@@ -98,6 +110,7 @@
 		{/if}
 	</header>
 	{#if signOutError}<p class="notice error" role="alert">{signOutError}</p>{/if}
+	{#if sessionError}<p class="notice error" role="alert">{sessionError}</p>{/if}
 
 	<main id="main-content" class="page-main" tabindex="-1">
 		{#if canRender}
