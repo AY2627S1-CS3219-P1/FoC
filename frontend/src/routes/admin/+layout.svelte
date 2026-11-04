@@ -41,7 +41,7 @@
 {:else}
 	<div class="admin-workspace">
 		<nav class="admin-navigation" aria-label="Administration">
-			{#each [{ href: '/admin/suppliers', label: 'Locations' }, { href: '/admin/supplier-requests', label: 'Addition requests' }, { href: '/admin/users', label: 'Users' }] as item}
+			{#each [{ href: '/admin/suppliers', label: 'Locations' }, { href: '/admin/supplier-requests', label: 'Addition requests' }, { href: '/admin/users', label: 'Users' }, { href: '/admin/config', label: 'Config' }] as item}
 				<a
 					href={item.href}
 					aria-current={page.url.pathname.startsWith(item.href) ? 'page' : undefined}

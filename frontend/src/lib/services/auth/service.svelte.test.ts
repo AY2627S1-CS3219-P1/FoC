@@ -193,11 +193,11 @@ describe('AuthService', () => {
 			expect(service.accessToken).toBe('later-token');
 		});
 
-		it('clears the session and loading state when refresh credentials are rejected', async () => {
+		it.each([Code.Unauthenticated, Code.PermissionDenied])('clears the session when refresh is rejected with %s and permits recovery', async (code) => {
 			const api = createAuthApi();
 			const service = new AuthService(api);
 			await service.login('valid-token');
-			const error = new ConnectError('refresh credentials rejected', Code.Unauthenticated);
+			const error = new ConnectError('refresh rejected', code);
 			api.refresh.mockRejectedValueOnce(error);
 
 			await expect(service.refresh()).rejects.toBe(error);
@@ -261,11 +261,12 @@ describe('AuthService', () => {
 			expect(api.refresh).not.toHaveBeenCalled();
 		});
 
-		it('rethrows non-authentication errors without refreshing', async () => {
+		it.each([Code.Unavailable, Code.PermissionDenied])('rethrows protected-request errors with %s without refreshing or clearing the session', async (code) => {
 			const api = createAuthApi();
 			const service = new AuthService(api);
+			await service.login('valid-token');
 			const request = createUnaryRequest();
-			const error = new ConnectError('unavailable', Code.Unavailable);
+			const error = new ConnectError('request rejected', code);
 			const next = vi.fn(async () => {
 				throw error;
 			});
@@ -274,6 +275,7 @@ describe('AuthService', () => {
 
 			expect(next).toHaveBeenCalledOnce();
 			expect(api.refresh).not.toHaveBeenCalled();
+			expect(service.isAuthenticated).toBe(true);
 		});
 
 		it('refreshes and retries an unauthenticated unary request with the new token', async () => {
@@ -343,6 +345,23 @@ describe('AuthService', () => {
 
 			expect(api.refresh).toHaveBeenCalledOnce();
 			expect(next).toHaveBeenCalledOnce();
+		});
+
+		it('reports domain denial during refresh without retrying a protected request', async () => {
+			const api = createAuthApi();
+			const service = new AuthService(api);
+			await service.login('valid-token');
+			const denied = new ConnectError('email domain is not allowed', Code.PermissionDenied);
+			api.refresh.mockRejectedValueOnce(denied);
+			const next = vi.fn(async () => {
+				throw new ConnectError('expired', Code.Unauthenticated);
+			});
+
+			await expect(service.interceptor(next)(createUnaryRequest())).rejects.toBe(denied);
+
+			expect(next).toHaveBeenCalledOnce();
+			expect(api.refresh).toHaveBeenCalledOnce();
+			expect(service.isAuthenticated).toBe(false);
 		});
 
 		it('clears the session when the retried request is still unauthenticated', async () => {
