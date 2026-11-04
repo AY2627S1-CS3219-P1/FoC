@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -55,15 +56,25 @@ func main() {
 	}
 }
 
-// originOf returns the browser origin of a frontend URL: browsers send only the
-// scheme and host, so a path would never match.
+// originOf returns the origin a browser sends for a frontend URL: the scheme and
+// lowercase host, without a path or the scheme's default port.
 func originOf(base string) (string, error) {
 	u, err := url.Parse(base)
 	if err != nil {
 		return "", err
 	}
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	scheme, host, port := strings.ToLower(u.Scheme), strings.ToLower(u.Hostname()), u.Port()
+	if (scheme != "http" && scheme != "https") || host == "" {
 		return "", fmt.Errorf("%q is not an http(s) URL", base)
 	}
-	return u.Scheme + "://" + u.Host, nil
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		port = ""
+	}
+	if port != "" {
+		return scheme + "://" + net.JoinHostPort(host, port), nil
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	return scheme + "://" + host, nil
 }
