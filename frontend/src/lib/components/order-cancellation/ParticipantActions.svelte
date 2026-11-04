@@ -14,6 +14,8 @@
 	let error = $state(''), message = $state('');
 	let saved = $state<CancellationSubmission | null>(null), busy = $state(false), ready = $state(false);
 	let confirmOpen = $state(false);
+	// The reason form stays folded away until the participant chooses to cancel.
+	let cancelOpen = $state(false);
 	let confirmation = $state<{ input: CancellationSubmission; consequence: string; epoch: number } | null>(null);
 	let scope = '', epoch = 0;
 	const requester = $derived(order.requesterId === callerId);
@@ -135,6 +137,8 @@
 	{#if saved}
 		<p>Cancellation reason: {saved.reason || 'Not supplied'}</p>
 		<Button variant="outlined" disabled={busy || !ready} onclick={() => { if (saved) void cancel(saved); }}>Check cancellation</Button>
+	{:else if canCancel && !cancelOpen}
+		<Button variant="text" disabled={busy || !ready} onclick={() => (cancelOpen = true)}>{courier && order.status === OrderStatus.AWAITING_PICKUP ? 'Withdraw…' : 'Cancel order…'}</Button>
 	{:else if canCancel}
 		<p>{consequence}</p>
 		<form method="POST" use:enhanceCancel>
