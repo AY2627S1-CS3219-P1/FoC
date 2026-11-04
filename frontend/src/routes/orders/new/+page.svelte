@@ -207,7 +207,7 @@
 				{#if !markers.length}<p class="map-hint">Choose a pickup and delivery location to see the route.</p>{/if}
 			</aside>
 
-			<Card variant="outlined">
+			<div class="form-card"><Card variant="outlined">
 				<form method="POST" use:enhance class="panel-body">
 					<fieldset disabled={busy || !!submission || !!recoveryError}>
 						<input type="hidden" name="pickupLocationId" value={$form.pickupLocationId} />
@@ -259,7 +259,7 @@
 						</div>
 					</fieldset>
 				</form>
-			</Card>
+			</Card></div>
 		</div>
 	{/if}
 </section>
@@ -273,7 +273,7 @@
 	.pending { display: flex; align-items: center; gap: 1rem; }
 
 	.layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
-	.layout > :global(.m3-container) { grid-column: 1; grid-row: 1; min-width: 0; }
+	.form-card { grid-column: 1; grid-row: 1; display: grid; min-width: 0; }
 	.map { grid-column: 2; grid-row: 1; position: sticky; top: 1rem; height: min(70vh, 34rem); }
 	.map-hint {
 		position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 500; margin: 0;
@@ -286,7 +286,6 @@
 	.group { display: grid; gap: 1rem; min-width: 0; }
 	.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 	.field { display: grid; gap: 0.35rem; min-width: 0; }
-	.field :global(.m3-container) { width: 100%; min-width: 0; }
 
 
 	.photos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
@@ -304,7 +303,7 @@
 	@media (max-width: 60rem) {
 		.layout { grid-template-columns: minmax(0, 1fr); }
 		.map { grid-column: 1; grid-row: 1; position: static; height: 14rem; }
-		.layout > :global(.m3-container) { grid-row: 2; }
+		.form-card { grid-row: 2; }
 	}
 	@media (max-width: 36rem) {
 		.row { grid-template-columns: minmax(0, 1fr); }
