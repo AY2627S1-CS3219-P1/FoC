@@ -3,15 +3,16 @@
 
 	let {
 		reward,
-		allowedMs,
-		elapsedMs,
-		delivered = false
+		allowedNanos,
+		elapsedNanos,
+		settled = false
 	}: {
 		reward: bigint;
-		allowedMs: number;
+		allowedNanos: bigint;
 		/** Time since pickup: now while delivering, or at delivery. */
-		elapsedMs: number;
-		delivered?: boolean;
+		elapsedNanos: bigint;
+		/** Credit settles the payout when the requester confirms receipt. */
+		settled?: boolean;
 	} = $props();
 
 	// Plot area in SVG units. The x axis runs from pickup to twice the allowed time.
@@ -21,29 +22,31 @@
 	const plotW = width - pad.left - pad.right;
 	const plotH = height - pad.top - pad.bottom;
 
-	const payable = $derived(payableReward(reward, elapsedMs, allowedMs));
+	const payable = $derived(payableReward(reward, elapsedNanos, allowedNanos));
 	const lost = $derived(reward - payable);
-	const x = (ms: number) => pad.left + (Math.min(Math.max(ms, 0), 2 * allowedMs) / (2 * allowedMs)) * plotW;
+	const allowed = $derived(Number(allowedNanos) / 1e6);
+	const elapsed = $derived(Number(elapsedNanos) / 1e6);
+	const x = (ms: number) => pad.left + (Math.min(Math.max(ms, 0), 2 * allowed) / (2 * allowed)) * plotW;
 	const y = (credits: bigint) => pad.top + plotH - (reward > 0n ? Number((credits * 1000n) / reward) / 1000 : 0) * plotH;
 
-	const curve = $derived(`M ${x(0)} ${y(reward)} L ${x(allowedMs)} ${y(reward)} L ${x(2 * allowedMs)} ${y(0n)}`);
-	const point = $derived({ cx: x(elapsedMs), cy: y(payable) });
+	const curve = $derived(`M ${x(0)} ${y(reward)} L ${x(allowed)} ${y(reward)} L ${x(2 * allowed)} ${y(0n)}`);
+	const point = $derived({ cx: x(elapsed), cy: y(payable) });
 	const minutes = (ms: number) => Math.round(ms / 60_000);
 </script>
 
 <figure class="payout">
 	<div class="figure-head">
-		<span class="amount">{payable.toString()}<span class="unit">credits</span></span>
-		<span class="lost">{minutes(elapsedMs - allowedMs)} min late{lost > 0n ? ', ' + lost.toString() + ' credits lost' : ''}</span>
+		<span class="amount">{payable.toString()}<span class="unit">credits{settled ? '' : ', estimated'}</span></span>
+		<span class="lost">{minutes(elapsed - allowed)} min late{lost > 0n ? ', ' + lost.toString() + ' credits lost' : ''}</span>
 	</div>
-	<svg viewBox="0 0 {width} {height}" role="img" aria-label={`Payout falls from ${reward} credits at ${minutes(allowedMs)} minutes after pickup to 0 at ${minutes(2 * allowedMs)} minutes. ${delivered ? 'Delivered' : 'Now'} at ${minutes(elapsedMs)} minutes: ${payable} credits.`}>
+	<svg viewBox="0 0 {width} {height}" role="img" aria-label={`Payout falls from ${reward} credits at ${minutes(allowed)} minutes after pickup to 0 at ${minutes(2 * allowed)} minutes. At ${minutes(elapsed)} minutes: ${payable} credits.`}>
 		<line class="axis" x1={pad.left} y1={y(0n)} x2={width - pad.right} y2={y(0n)} />
-		<line class="deadline" x1={x(allowedMs)} y1={pad.top} x2={x(allowedMs)} y2={y(0n)} />
+		<line class="deadline" x1={x(allowed)} y1={pad.top} x2={x(allowed)} y2={y(0n)} />
 		<path class="curve" d={curve} />
 		<circle class="now" cx={point.cx} cy={point.cy} r="5" />
 		<text class="tick" x={pad.left} y={height - 6}>Pickup</text>
-		<text class="tick" x={x(allowedMs)} y={height - 6} text-anchor="middle">{minutes(allowedMs)} min</text>
-		<text class="tick" x={width - pad.right} y={height - 6} text-anchor="end">{minutes(2 * allowedMs)} min</text>
+		<text class="tick" x={x(allowed)} y={height - 6} text-anchor="middle">{minutes(allowed)} min</text>
+		<text class="tick" x={width - pad.right} y={height - 6} text-anchor="end">{minutes(2 * allowed)} min: 0</text>
 	</svg>
 </figure>
 
@@ -110,5 +113,4 @@
 		font-size: 10px;
 		fill: var(--m3c-on-surface-variant);
 	}
-
 </style>

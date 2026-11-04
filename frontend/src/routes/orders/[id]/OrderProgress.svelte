@@ -20,12 +20,14 @@
 		[OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED, OrderStatus.REJECTED].includes(order.status)
 	);
 
+	// Times are Singapore time, so "today" is the Singapore calendar day too.
 	const time = new Intl.DateTimeFormat('en-SG', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Singapore' });
 	const day = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' });
+	const calendarDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' });
 	function when(at?: Timestamp): string {
 		if (!at) return '';
 		const date = timestampDate(at);
-		const today = new Date().toDateString() === date.toDateString();
+		const today = calendarDay.format(new Date()) === calendarDay.format(date);
 		return today ? time.format(date) : `${day.format(date)}, ${time.format(date)}`;
 	}
 </script>

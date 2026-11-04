@@ -5,7 +5,7 @@
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import { Button, Card, LoadingIndicator, SelectOutlined } from 'm3-svelte';
 	import LocationPicker from '$lib/components/order/LocationPicker.svelte';
-	import OrderRouteMap from '$lib/components/order/OrderRouteMap.svelte';
+	import OrderRouteMap from './OrderRouteMap.svelte';
 	import OrderOfferControls from '$lib/components/order-offers/OrderOfferControls.svelte';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import type { Building } from '$lib/gen/supplier/location/v1/shared_types_pb';
@@ -26,7 +26,9 @@
 	let result = $state<OrderPage | null>(null);
 	let error = $state('');
 	let loading = $state(false);
+	// revision reloads the list and the selected request; listRevision only the list.
 	let revision = $state(0);
+	let listRevision = $state(0);
 	let buildings = $state<Building[]>([]);
 	let buildingError = $state('');
 	let pickup = $state('');
@@ -57,6 +59,7 @@
 		const identity = authService.user?.id;
 		const current = query;
 		void revision;
+		void listRevision;
 		error = '';
 		if (!identity || suspended) return;
 		let active = true;
@@ -76,6 +79,7 @@
 	$effect(() => {
 		const id = selectedId;
 		const user = authService.user?.id;
+		void revision; // Refresh reloads the selected request with the list.
 		selectedError = '';
 		if (!id || !user) {
 			selected = null;
@@ -87,8 +91,17 @@
 		orderApi
 			.getOrder(id)
 			.then((order) => !stale && (selected = order))
-			.catch((cause) => !stale && !selected && (selectedError = describeOrderError(cause, 'load this request')));
+			.catch((cause) => !stale && !untrack(() => selected) && (selectedError = describeOrderError(cause, 'load this request')));
 		return () => (stale = true);
+	});
+
+	// If the direct read failed but the list now has the request, show the listed copy.
+	$effect(() => {
+		const listed = result?.orders.find((order) => order.id === selectedId);
+		if (listed && untrack(() => !selected && selectedError)) {
+			selected = listed;
+			selectedError = '';
+		}
 	});
 
 	async function refreshSelected() {
@@ -98,7 +111,7 @@
 		} catch (cause) {
 			selectedError = describeOrderError(cause, 'refresh this request');
 		}
-		revision++;
+		listRevision++;
 	}
 
 	function hrefWith(changes: Record<string, string | null>): string {
@@ -154,11 +167,13 @@
 					onchange={(event) => update('destination', event.currentTarget.value)}
 				/>
 				{#if buildingError}<p class="notice error" role="alert">{buildingError}</p>{/if}
-				<Button variant="text" size="s" aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
-					{filtersOpen ? 'Hide pickup filter' : 'Filter by pickup'}
-				</Button>
+				<div class="filter-toggle">
+					<Button variant="text" size="s" aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
+						{filtersOpen ? 'Hide pickup filter' : 'Filter by pickup'}
+					</Button>
+				</div>
 				{#if filtersOpen}
-					<LocationPicker label="Pickup location" bind:value={pickup} onchange={(location) => update('pickup', location.id)} />
+					<LocationPicker label="Pickup location" bind:value={pickup} onchange={(location) => update('pickup', location.id)} onclear={() => update('pickup', '')} />
 				{/if}
 				{#if query.pickupLocationId || query.deliveryBuildingName}
 					<a href={page.url.pathname}>Clear filters</a>
@@ -249,7 +264,7 @@
 								callerId={authService.user?.id ?? ''}
 								{suspended}
 							/>
-							<Button variant="text" href={'/orders/' + encodeURIComponent(selected.id)}>Open full request</Button>
+							<div class="full-link"><Button variant="text" href={'/orders/' + encodeURIComponent(selected.id)}>Open full request</Button></div>
 						</article>
 					{/if}
 				{:else}
@@ -279,7 +294,7 @@
 		min-width: 0;
 	}
 
-	.filters > :global(button) {
+	.filter-toggle {
 		justify-self: start;
 	}
 
@@ -385,7 +400,7 @@
 		min-width: 0;
 	}
 
-	.request > :global(a) {
+	.full-link {
 		justify-self: start;
 	}
 

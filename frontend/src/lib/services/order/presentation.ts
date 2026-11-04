@@ -1,4 +1,4 @@
-import { timestampDate, type Timestamp } from '@bufbuild/protobuf/wkt';
+import { timestampDate, type Duration, type Timestamp } from '@bufbuild/protobuf/wkt';
 import { OrderStatus, ParticipantRole, type Order } from '$lib/gen/order/v1/shared_types_pb';
 
 export const orderStatuses: [OrderStatus, string][] = [
@@ -35,17 +35,26 @@ export function roleFromQuery(value: string | null): ParticipantRole {
 	return value === 'requester' ? ParticipantRole.REQUESTER : value === 'courier' ? ParticipantRole.COURIER : ParticipantRole.UNSPECIFIED;
 }
 
+/** Nanoseconds since the epoch, as Go's time arithmetic sees a protobuf Timestamp. */
+export function timestampNanos(value: Timestamp): bigint {
+	return value.seconds * 1_000_000_000n + BigInt(value.nanos);
+}
+
+/** Nanoseconds in a protobuf Duration. */
+export function durationNanos(value: Duration): bigint {
+	return value.seconds * 1_000_000_000n + BigInt(value.nanos);
+}
+
 /**
  * Mirrors Credit Service's lateness rule (credit-service/internal/reservation/lateness.go)
- * so the UI can show what a courier earns. Credit remains authoritative; replace this with
- * a server value once Order exposes it (#206).
+ * in the same integer nanoseconds, so the UI can show what a courier earns. Credit settles
+ * the actual payout; replace this with a server value once Order exposes it (#206).
  * - elapsed <= allowed pays the full reward;
  * - allowed < elapsed < 2 * allowed pays floor(reward * (2 * allowed - elapsed) / allowed);
  * - elapsed >= 2 * allowed pays 0.
  */
-export function payableReward(reward: bigint, elapsedMs: number, allowedMs: number): bigint {
-	if (allowedMs <= 0 || elapsedMs <= allowedMs) return reward;
-	if (elapsedMs >= 2 * allowedMs) return 0n;
-	// Whole milliseconds keep the integer arithmetic exact enough for display.
-	return (reward * BigInt(Math.round(2 * allowedMs - elapsedMs))) / BigInt(Math.round(allowedMs));
+export function payableReward(reward: bigint, elapsedNanos: bigint, allowedNanos: bigint): bigint {
+	if (allowedNanos <= 0n || elapsedNanos <= allowedNanos) return reward;
+	if (elapsedNanos >= 2n * allowedNanos) return 0n;
+	return (reward * (2n * allowedNanos - elapsedNanos)) / allowedNanos;
 }

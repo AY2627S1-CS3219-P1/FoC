@@ -1,15 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { env } from '$env/dynamic/public';
-	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import { Button, Card, Dialog, LoadingIndicator } from 'm3-svelte';
 	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi } from '$lib/services';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
-	import { isTerminal, orderDeadline, statusLabel } from '$lib/services/order/presentation';
+	import { durationNanos, isTerminal, orderDeadline, statusLabel, timestampNanos } from '$lib/services/order/presentation';
 	import { describeOrderError } from '$lib/services/order/errors';
-	import OrderProgress from '$lib/components/order/OrderProgress.svelte';
-	import PayoutChart from '$lib/components/order/PayoutChart.svelte';
+	import OrderProgress from './OrderProgress.svelte';
+	import PayoutChart from './PayoutChart.svelte';
 	import ParticipantActions from '$lib/components/order-cancellation/ParticipantActions.svelte';
 	import OrderOfferControls from '$lib/components/order-offers/OrderOfferControls.svelte';
 	import DeliveryProofPanel from '$lib/components/order/DeliveryProofPanel.svelte';
@@ -81,16 +80,17 @@
 	const callerId = $derived(authService.user?.id ?? '');
 	const isRequester = $derived(Boolean(order && order.requesterId === callerId));
 	const isCourier = $derived(Boolean(order && order.courierId === callerId));
-	const allowedMs = $derived(order?.deliveryDuration ? Number(order.deliveryDuration.seconds) * 1000 : 0);
-	const elapsedMs = $derived.by(() => {
-		if (!order?.pickedUpAt) return 0;
-		const start = timestampDate(order.pickedUpAt).getTime();
-		const end = order.deliveredAt ? timestampDate(order.deliveredAt).getTime() : now;
-		return end - start;
+	// Payout inputs in integer nanoseconds, as Credit computes them.
+	const allowedNanos = $derived(order?.deliveryDuration ? durationNanos(order.deliveryDuration) : 0n);
+	const elapsedNanos = $derived.by(() => {
+		if (!order?.pickedUpAt) return 0n;
+		const end = order.deliveredAt ? timestampNanos(order.deliveredAt) : BigInt(now) * 1_000_000n;
+		return end - timestampNanos(order.pickedUpAt);
 	});
+	const deliveryMinutes = $derived(Number(allowedNanos / 60_000_000_000n));
 	// Wireframe: the payout graph only appears once delivery runs late.
 	const late = $derived(
-		Boolean(order?.pickedUpAt) && allowedMs > 0 && elapsedMs > allowedMs &&
+		Boolean(order?.pickedUpAt) && allowedNanos > 0n && elapsedNanos > allowedNanos &&
 			(order?.status === OrderStatus.DELIVERING || Boolean(order?.deliveredAt))
 	);
 	const canChat = $derived(
@@ -168,16 +168,17 @@
 					<Card variant="outlined">
 						<div class="panel-body">
 							{#if late}
-								<PayoutChart reward={order.rewardCredits} {allowedMs} {elapsedMs} delivered={Boolean(order.deliveredAt)} />
+								<PayoutChart reward={order.rewardCredits} {allowedNanos} {elapsedNanos} settled={order.status === OrderStatus.COMPLETED} />
 							{:else}
 								<div class="reward">
 									<span class="amount">{order.rewardCredits.toString()}<span class="unit">credits</span></span>
 									{#if order.status === OrderStatus.DELIVERING && seconds !== undefined}
 										<span class="sub">Full reward if delivered by {clock.format(deadline!)}, in {countdown(seconds)}.</span>
-									{:else if order.status === OrderStatus.AWAITING_COURIER && seconds !== undefined}
+									{:else if !order.pickedUpAt && deliveryMinutes}
+										<span class="sub">Deliver within {deliveryMinutes} min of pickup for the full reward.</span>
+									{/if}
+									{#if order.status === OrderStatus.AWAITING_COURIER && seconds !== undefined}
 										<span class="sub">{seconds > 0 ? `Open for couriers for ${countdown(seconds)}.` : 'Closing. Checking status…'}</span>
-									{:else if !order.pickedUpAt && allowedMs}
-										<span class="sub">Delivery is due {allowedMs / 60_000} min after pickup.</span>
 									{/if}
 								</div>
 							{/if}
@@ -250,8 +251,7 @@
 	.amount { font-size: 2.25rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
 	.unit { margin-inline-start: 0.35rem; font-size: 1rem; font-weight: 600; }
 
-	.actions { display: grid; gap: 0.5rem; }
-	.actions > :global(a), .actions > :global(button) { justify-self: start; }
+	.actions { display: grid; justify-items: start; gap: 0.5rem; }
 
 	@media (max-width: 60rem) {
 		.layout { grid-template-columns: minmax(0, 1fr); }
