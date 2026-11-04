@@ -7,13 +7,15 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { UserRole } from "./auth_pb";
 import { file_user_v1_auth } from "./auth_pb";
+import type { Profile } from "./profile_pb";
+import { file_user_v1_profile } from "./profile_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file user/v1/admin.proto.
  */
 export const file_user_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIisKDUFsbG93ZWREb21haW4SCgoCaWQYASABKAkSDgoGZG9tYWluGAIgASgJIhsKGUxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QiTQoaTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2USLwoPYWxsb3dlZF9kb21haW5zGAEgAygLMhYudXNlci52MS5BbGxvd2VkRG9tYWluIi0KEkFsbG93RG9tYWluUmVxdWVzdBIXCgZkb21haW4YASABKAlCB7pIBHICaAEiFQoTQWxsb3dEb21haW5SZXNwb25zZSIyChpSZW1vdmVBbGxvd2VkRG9tYWluUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiHQobUmVtb3ZlQWxsb3dlZERvbWFpblJlc3BvbnNlIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiADKsAgoZQWxsb3dlZERvbWFpbkFkbWluU2VydmljZRJfChJMaXN0QWxsb3dlZERvbWFpbnMSIi51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QaIy51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1Jlc3BvbnNlIgASSgoLQWxsb3dEb21haW4SGy51c2VyLnYxLkFsbG93RG9tYWluUmVxdWVzdBocLnVzZXIudjEuQWxsb3dEb21haW5SZXNwb25zZSIAEmIKE1JlbW92ZUFsbG93ZWREb21haW4SIy51c2VyLnYxLlJlbW92ZUFsbG93ZWREb21haW5SZXF1ZXN0GiQudXNlci52MS5SZW1vdmVBbGxvd2VkRG9tYWluUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIisKDUFsbG93ZWREb21haW4SCgoCaWQYASABKAkSDgoGZG9tYWluGAIgASgJIhsKGUxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QiTQoaTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2USLwoPYWxsb3dlZF9kb21haW5zGAEgAygLMhYudXNlci52MS5BbGxvd2VkRG9tYWluIi0KEkFsbG93RG9tYWluUmVxdWVzdBIXCgZkb21haW4YASABKAlCB7pIBHICaAEiFQoTQWxsb3dEb21haW5SZXNwb25zZSIyChpSZW1vdmVBbGxvd2VkRG9tYWluUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiHQobUmVtb3ZlQWxsb3dlZERvbWFpblJlc3BvbnNlIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkiKwoOR2V0VXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQEiNAoPR2V0VXNlclJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiFQoTR2V0VXNlclN0YXRzUmVxdWVzdCJFChRHZXRVc2VyU3RhdHNSZXNwb25zZRIUCgxhY3RpdmVfY291bnQYASABKAMSFwoPc3VzcGVuZGVkX2NvdW50GAIgASgDMssCChBVc2VyQWRtaW5TZXJ2aWNlElMKDkdldFVzZXJCeUVtYWlsEh4udXNlci52MS5HZXRVc2VyQnlFbWFpbFJlcXVlc3QaHy51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVzcG9uc2UiABJTCg5DaGFuZ2VVc2VyUm9sZRIeLnVzZXIudjEuQ2hhbmdlVXNlclJvbGVSZXF1ZXN0Gh8udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlc3BvbnNlIgASPgoHR2V0VXNlchIXLnVzZXIudjEuR2V0VXNlclJlcXVlc3QaGC51c2VyLnYxLkdldFVzZXJSZXNwb25zZSIAEk0KDEdldFVzZXJTdGF0cxIcLnVzZXIudjEuR2V0VXNlclN0YXRzUmVxdWVzdBodLnVzZXIudjEuR2V0VXNlclN0YXRzUmVzcG9uc2UiADKsAgoZQWxsb3dlZERvbWFpbkFkbWluU2VydmljZRJfChJMaXN0QWxsb3dlZERvbWFpbnMSIi51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QaIy51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1Jlc3BvbnNlIgASSgoLQWxsb3dEb21haW4SGy51c2VyLnYxLkFsbG93RG9tYWluUmVxdWVzdBocLnVzZXIudjEuQWxsb3dEb21haW5SZXNwb25zZSIAEmIKE1JlbW92ZUFsbG93ZWREb21haW4SIy51c2VyLnYxLlJlbW92ZUFsbG93ZWREb21haW5SZXF1ZXN0GiQudXNlci52MS5SZW1vdmVBbGxvd2VkRG9tYWluUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth, file_user_v1_profile]);
 
 /**
  * @generated from message user.v1.AllowedDomain
@@ -238,6 +240,78 @@ export const ChangeUserRoleResponseSchema: GenMessage<ChangeUserRoleResponse> = 
   messageDesc(file_user_v1_admin, 11);
 
 /**
+ * @generated from message user.v1.GetUserRequest
+ */
+export type GetUserRequest = Message<"user.v1.GetUserRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message user.v1.GetUserRequest.
+ * Use `create(GetUserRequestSchema)` to create a new message.
+ */
+export const GetUserRequestSchema: GenMessage<GetUserRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 12);
+
+/**
+ * @generated from message user.v1.GetUserResponse
+ */
+export type GetUserResponse = Message<"user.v1.GetUserResponse"> & {
+  /**
+   * @generated from field: user.v1.Profile profile = 1;
+   */
+  profile?: Profile | undefined;
+};
+
+/**
+ * Describes the message user.v1.GetUserResponse.
+ * Use `create(GetUserResponseSchema)` to create a new message.
+ */
+export const GetUserResponseSchema: GenMessage<GetUserResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 13);
+
+/**
+ * @generated from message user.v1.GetUserStatsRequest
+ */
+export type GetUserStatsRequest = Message<"user.v1.GetUserStatsRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.GetUserStatsRequest.
+ * Use `create(GetUserStatsRequestSchema)` to create a new message.
+ */
+export const GetUserStatsRequestSchema: GenMessage<GetUserStatsRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 14);
+
+/**
+ * Counts exclude deleted users. Active users are every user who is not
+ * suspended, including administrators.
+ *
+ * @generated from message user.v1.GetUserStatsResponse
+ */
+export type GetUserStatsResponse = Message<"user.v1.GetUserStatsResponse"> & {
+  /**
+   * @generated from field: int64 active_count = 1;
+   */
+  activeCount: bigint;
+
+  /**
+   * @generated from field: int64 suspended_count = 2;
+   */
+  suspendedCount: bigint;
+};
+
+/**
+ * Describes the message user.v1.GetUserStatsResponse.
+ * Use `create(GetUserStatsResponseSchema)` to create a new message.
+ */
+export const GetUserStatsResponseSchema: GenMessage<GetUserStatsResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 15);
+
+/**
  * @generated from service user.v1.UserAdminService
  */
 export const UserAdminService: GenService<{
@@ -256,6 +330,22 @@ export const UserAdminService: GenService<{
     methodKind: "unary";
     input: typeof ChangeUserRoleRequestSchema;
     output: typeof ChangeUserRoleResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.UserAdminService.GetUser
+   */
+  getUser: {
+    methodKind: "unary";
+    input: typeof GetUserRequestSchema;
+    output: typeof GetUserResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.UserAdminService.GetUserStats
+   */
+  getUserStats: {
+    methodKind: "unary";
+    input: typeof GetUserStatsRequestSchema;
+    output: typeof GetUserStatsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_admin, 0);
