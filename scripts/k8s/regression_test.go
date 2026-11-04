@@ -173,3 +173,22 @@ func TestAllKustomizeStagesRenderWithSelectedImages(t *testing.T) {
 		}
 	}
 }
+
+func TestPersistenceRequiresDataBeforeRestart(t *testing.T) {
+	op := testOperator(t)
+	log := filepath.Join(t.TempDir(), "commands")
+	t.Setenv("K8S_TEST_LOG", log)
+	fakeCommand(t, "kubectl", `printf '%s\n' "$*" >> "$K8S_TEST_LOG"
+case "$*" in *'config get-contexts'*) printf 'kind-foc-test';; *' psql '*) printf '0:';; esac`)
+	err := op.persistenceSmoke()
+	if err == nil || !strings.Contains(err.Error(), "existing bootstrap identity") {
+		t.Fatalf("empty persistence assertion was accepted: %v", err)
+	}
+	calls, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(calls), "rollout restart") || strings.Contains(string(calls), "kafka-topics") {
+		t.Fatal("empty identity triggered disruption or Kafka mutations")
+	}
+}

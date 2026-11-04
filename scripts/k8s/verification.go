@@ -122,7 +122,7 @@ func (o *operator) makeSmokeClient(namespace, name, account string, injected boo
 	return o.k("-n", namespace, "wait", "--for=condition=Ready", "pod/"+name, "--timeout="+o.timeout)
 }
 
-func (o *operator) clientRequest(namespace, pod, url string, expected int, headers ...string) error {
+func (o *operator) clientRequest(namespace, pod, url string, expected int, body string, headers ...string) error {
 	args := []string{
 		"-n",
 		namespace,
@@ -142,7 +142,7 @@ func (o *operator) clientRequest(namespace, pod, url string, expected int, heade
 		"-H",
 		"Connect-Protocol-Version: 1",
 		"-d",
-		"{}",
+		body,
 	}
 	for _, header := range headers {
 		args = append(args, "-H", header)
@@ -151,7 +151,8 @@ func (o *operator) clientRequest(namespace, pod, url string, expected int, heade
 	if err != nil {
 		return err
 	}
-	index := strings.LastIndex(strings.TrimSpace(output), "\n")
+	output = strings.TrimRight(output, "\r\n")
+	index := strings.LastIndex(output, "\n")
 	if index < 0 {
 		return errors.New("missing internal RPC status")
 	}
@@ -161,6 +162,12 @@ func (o *operator) clientRequest(namespace, pod, url string, expected int, heade
 	}
 	if expected == 200 && strings.Contains(url, "GetPublicKeys") && !strings.Contains(output, "ES256") {
 		return errors.New("internal key response lacks ES256 keys")
+	}
+	if expected == 404 && strings.Contains(url, "GetReservation") {
+		var result struct{ Code string }
+		if err := json.Unmarshal([]byte(output[:index]), &result); err != nil || result.Code != "not_found" {
+			return errors.New("Order did not reach the reservation RPC's not_found response")
+		}
 	}
 	note("PASS %s/%s internal RPC HTTP %d", namespace, pod, expected)
 	return nil
@@ -261,7 +268,7 @@ func (o *operator) meshSmoke() error {
 		ns, pod, url string
 		status       int
 	}{{"foc", client, keys, 200}, {"foc", client, "http://user-service-internal.foc.svc.cluster.local:8080/user.v1.HealthService/Check", 404}, {"istio-ingress", client, keys, 403}, {outsider, "meshed", keys, 403}, {"foc", order, credit, 200}, {"foc", client, credit, 403}, {"istio-ingress", client, credit, 403}, {outsider, "meshed", credit, 403}} {
-		if err := o.clientRequest(tc.ns, tc.pod, tc.url, tc.status); err != nil {
+		if err := o.clientRequest(tc.ns, tc.pod, tc.url, tc.status, "{}"); err != nil {
 			return err
 		}
 	}
@@ -270,9 +277,30 @@ func (o *operator) meshSmoke() error {
 		client,
 		credit,
 		403,
+		"{}",
 		"X-Forwarded-Client-Cert: URI=spiffe://cluster.local/ns/foc/sa/order-service",
 		"Authorization: Bearer forged-workload-token",
 	); err != nil {
+		return err
+	}
+	var requestID [16]byte
+	if _, err := rand.Read(requestID[:]); err != nil {
+		return err
+	}
+	requestID[6] = (requestID[6] & 0x0f) | 0x40
+	requestID[8] = (requestID[8] & 0x3f) | 0x80
+	id := fmt.Sprintf("%x-%x-%x-%x-%x", requestID[:4], requestID[4:6], requestID[6:8], requestID[8:10], requestID[10:])
+	reservation := "http://credit-service-internal.foc.svc.cluster.local:8080/credit.v1.CreditReservationService/GetReservation"
+	reservationBody := fmt.Sprintf(`{"requestId":%q}`, id)
+	if err := o.clientRequest("foc", order, reservation, 404, reservationBody); err != nil {
+		return err
+	}
+	for _, caller := range [][2]string{{"foc", client}, {"istio-ingress", client}, {outsider, "meshed"}} {
+		if err := o.clientRequest(caller[0], caller[1], reservation, 403, reservationBody); err != nil {
+			return err
+		}
+	}
+	if err := o.assertTransportBlocked(outsider, "plaintext", reservation); err != nil {
 		return err
 	}
 	userPod, err := o.query(
@@ -488,6 +516,11 @@ func (o *operator) persistenceSmoke() error {
 	before, err := o.query(postgres...)
 	if err != nil {
 		return err
+	}
+	if !regexp.MustCompile(`^1:[0-9a-fA-F-]{36}$`).MatchString(strings.TrimSpace(before)) {
+		return errors.New(
+			"persistence smoke requires an existing bootstrap identity; bootstrap an administrator before restarting dependencies",
+		)
 	}
 	suffix := uniqueSuffix()
 	topic := "foc.infrastructure-smoke-" + suffix
