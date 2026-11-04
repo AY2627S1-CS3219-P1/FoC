@@ -145,6 +145,32 @@ services:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
     restart: unless-stopped
 
+  # Provisions the local review photo bucket and browser CORS policy.
+  user-storage-init:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile.dev
+    working_dir: /app
+    command: ["go", "run", "./cmd/storage-init"]
+    environment:
+      APP_ENV: local
+      # Browser origin allowed to upload review photos, in addition to the
+      # default port.
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
+      USER_S3_BUCKET: ${USER_S3_BUCKET:-user-images}
+      USER_S3_ENDPOINT: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ./user-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+    depends_on:
+      floci:
+        condition: service_started
+    restart: "no"
+
   user-service:
     build:
       context: .
@@ -168,6 +194,12 @@ services:
       SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      USER_S3_BUCKET: ${USER_S3_BUCKET:-user-images}
+      USER_S3_ENDPOINT: http://floci:4566
+      USER_S3_PUBLIC_ENDPOINT: http://localhost:${FLOCI_PORT:-4566}
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     volumes:
       - ./user-service:/app
       - ./pkg:/pkg
