@@ -67,7 +67,7 @@ func assignmentClient(t *testing.T, p *assignmentProbe) *Credit {
 }
 
 // Source: credit/v1/reservation.proto requires immutable adjustment/revert keys,
-// workload authorization and fresh current-state reads after uncertain responses.
+// private transport authorization and fresh current-state reads after uncertain responses.
 func TestAssignmentCreditUsesContractAndCurrentRead(t *testing.T) {
 	orderID, offerID, courierID, requesterID := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 	p := &assignmentProbe{reservation: &pb.Reservation{

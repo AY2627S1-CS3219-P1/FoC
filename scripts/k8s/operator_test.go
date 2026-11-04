@@ -267,6 +267,13 @@ func TestPortForwardIsReapedOnCancellation(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	if os.Getenv("K8S_TEST_LISTENER") == "1" {
+		if path := os.Getenv("K8S_TEST_WAIT_PID"); path != "" {
+			if err := os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+				os.Exit(1)
+			}
+			time.Sleep(30 * time.Second)
+		}
+
 		port := strings.Split(os.Args[len(os.Args)-1], ":")[0]
 		listener, err := net.Listen("tcp4", "127.0.0.1:"+port)
 		if err != nil {

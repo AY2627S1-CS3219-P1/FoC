@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -26,8 +24,11 @@ func (o *operator) gatewaySmokeRequest(
 		o.localCA(),
 	}
 	if connect {
+		// Request JSON for RPC responses; frontend 404 pages may still be HTML.
 		args = append(
 			args,
+			"--header",
+			"Accept: application/json",
 			"--header",
 			"Content-Type: application/json",
 			"--header",
@@ -89,72 +90,4 @@ func (o *operator) assertServiceTarget(name string, target int) error {
 		}
 	}
 	return fmt.Errorf("service %s does not target application port %d", name, target)
-}
-
-func (o *operator) smokeGateway() error {
-	if !o.isLocal() {
-		return errors.New("the Gateway smoke command currently supports the local overlay only")
-	}
-	if err := o.checkContext(); err != nil {
-		return err
-	}
-	if err := o.waitForGateway(); err != nil {
-		return err
-	}
-	if err := requireCommands("curl"); err != nil {
-		return err
-	}
-	forwards, err := configuredForwards(os.Getenv)
-	if err != nil {
-		return err
-	}
-	var gateway *forwardSpec
-	for i := range forwards {
-		if forwards[i].service == "foc-public-istio" {
-			gateway = &forwards[i]
-			break
-		}
-	}
-	if gateway == nil {
-		return errors.New("set K8S_HTTPS_PORT to run the Gateway smoke check")
-	}
-	var children []*portForward
-	defer func() { stopForwards(children) }()
-	if waitForLocalListener(gateway.localPort) {
-		note("Reusing the gateway forward already attached on localhost:%d.", gateway.localPort)
-	} else {
-		if err := preflightForwards([]forwardSpec{*gateway}); err != nil {
-			return err
-		}
-		child, err := o.startForward(*gateway)
-		if err != nil {
-			return err
-		}
-		children = append(children, child)
-	}
-	if _, err := o.gatewaySmokeRequest(*gateway, "/", 200, false); err != nil {
-		return err
-	}
-	for _, path := range []string{"/user.v1.HealthService/Check", "/supplier.v1.HealthService/Check", "/order.v1.HealthService/Check", "/communication.v1.HealthService/Check", "/grpc.health.v1.Health/Check"} {
-		if err := o.assertPublicHealth(*gateway, path); err != nil {
-			return err
-		}
-	}
-	for _, path := range []string{"/user.v1.PublicKeyService/GetPublicKeys", "/credit.v1.CreditReservationService/Reserve"} {
-		if _, err := o.gatewaySmokeRequest(*gateway, path, 404, true); err != nil {
-			return err
-		}
-	}
-	for _, service := range []string{"user-service", "credit-service"} {
-		if err := o.assertServiceTarget(service+"-external", 8080); err != nil {
-			return err
-		}
-		if err := o.assertServiceTarget(service+"-internal", 8081); err != nil {
-			return err
-		}
-	}
-	note(
-		"Gateway smoke passed: frontend and public health RPCs respond; User keys and Credit reservations are not public; Services target separate public/internal ports.",
-	)
-	return nil
 }

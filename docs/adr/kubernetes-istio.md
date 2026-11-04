@@ -74,7 +74,8 @@ mesh authentication but no user JWT.
   asynchronous D3 business workflow is not claimed by this infrastructure
   change.
 
-See the [runbook](../runbooks/kubernetes.md).
+See the [runbook](../runbooks/kubernetes.md) and
+[verification record](../runbooks/kubernetes-verification.md).
 
 ## Current-main deployment and developer portability
 

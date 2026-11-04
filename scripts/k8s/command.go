@@ -13,6 +13,7 @@ import (
 )
 
 type commandOptions struct {
+	env          []string
 	capture      bool
 	allowFailure bool
 	stdinFile    string
@@ -28,6 +29,9 @@ type commandResult struct {
 func (o *operator) run(program string, args []string, options commandOptions) (commandResult, error) {
 	cmd := exec.CommandContext(o.ctx, program, args...)
 	cmd.Dir = o.root
+	if len(options.env) > 0 {
+		cmd.Env = append(os.Environ(), options.env...)
+	}
 	cmd.WaitDelay = 3 * time.Second
 	var stdout, stderr bytes.Buffer
 	if options.capture {
