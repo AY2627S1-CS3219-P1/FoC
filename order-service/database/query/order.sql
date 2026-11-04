@@ -32,6 +32,9 @@ SELECT count(*) FROM orders WHERE
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
  AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text);
 
+-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status;
+
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;
 
