@@ -103,7 +103,7 @@
 				fillColor: color,
 				fillOpacity: isSelected ? 1 : 0.85
 			})
-				.bindTooltip(marker.label, { direction: 'top', permanent: isSelected })
+				.bindTooltip(textElement(marker.label), { direction: 'top', permanent: isSelected })
 				.addTo(layer);
 			if (onselect) circle.on('click', () => onselect(marker.id));
 			points.push(point);
@@ -129,6 +129,13 @@
 		if (focus.length === 1) map.setView(focus[0], Math.max(map.getZoom(), 17), { animate: false });
 		else if (focus.length > 1) map.fitBounds(L.latLngBounds(focus), { paddingTopLeft: [24, 72], paddingBottomRight: [24, 32], maxZoom: 17, animate: false });
 	});
+
+	/** Leaflet renders string tooltips as HTML; labels hold user text, so pass a text-only element. */
+	function textElement(text: string): HTMLElement {
+		const element = document.createElement('span');
+		element.textContent = text;
+		return element;
+	}
 
 	/** Leaflet draws SVG attributes, which can't read CSS variables directly. */
 	function resolve(style: CSSStyleDeclaration, value: string): string {
