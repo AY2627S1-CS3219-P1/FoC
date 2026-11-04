@@ -7,10 +7,11 @@
 	// "Reviews from other users" on the personal profile: the reviews the signed
 	// in user received, newest first as the backend returns them. Three fit the
 	// wireframe; "Show more" pages through the rest instead of hiding them.
+	// Pages are 1-based, matching the backend's offset math.
 	const pageSize = 3;
 	let reviews = $state<ReviewRecord[] | null>(null);
 	let totalPages = $state(0);
-	let page = $state(0);
+	let page = $state(1);
 	let loadingMore = $state(false);
 	let error = $state('');
 	let revision = $state(0);
@@ -28,7 +29,7 @@
 		error = '';
 		reviews = null;
 		totalPages = 0;
-		page = 0;
+		page = 1;
 		reviewApi
 			.listForUser(reviewer, { page: 1, pageSize }, lifetime.signal)
 			.then((result) => {
