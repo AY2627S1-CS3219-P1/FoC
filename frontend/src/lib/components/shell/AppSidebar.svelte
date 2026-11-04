@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { page } from '$app/state';
 	import { Button, Icon } from 'm3-svelte';
 	import iconAdd from '@ktibow/iconset-material-symbols/add';
@@ -31,6 +32,15 @@
 		onsignout: () => void;
 	} = $props();
 
+	let sidebar: HTMLElement;
+	$effect(() => {
+		if (drawer && open) {
+			void tick().then(() => {
+				if (drawer && open) sidebar?.querySelector('button')?.focus();
+			});
+		}
+	});
+
 	type NavItem = { label: string; href: string; icon: IconifyIcon; exact?: boolean };
 
 	const items = $derived<NavItem[]>([
@@ -51,6 +61,7 @@
 </script>
 
 <aside
+	bind:this={sidebar}
 	id="app-sidebar"
 	class="sidebar"
 	class:drawer
