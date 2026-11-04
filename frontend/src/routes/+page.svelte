@@ -8,6 +8,8 @@
 	import { authService, locationApi, orderApi } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { describeLocationError } from '$lib/services/location/errors';
+	import iconSearch from '@ktibow/iconset-material-symbols/search';
+	import iconHourglass from '@ktibow/iconset-material-symbols/hourglass-empty';
 	import CampusMap, { type MapMarker } from '$lib/components/map/CampusMap.svelte';
 	import { currentPosition, distanceLabel, distanceMetres, type Point } from '$lib/components/map/geo';
 
@@ -170,8 +172,8 @@
 	}
 
 	// Searching zooms the map to the top supplier result.
-	async function findSuppliers(event: SubmitEvent) {
-		event.preventDefault();
+	async function findSuppliers(event?: SubmitEvent) {
+		event?.preventDefault();
 		const term = search.trim();
 		if (!term) {
 			searchResults = null;
@@ -293,8 +295,11 @@
 					<Button variant="text" size="s" href="/suppliers">All suppliers</Button>
 				</header>
 				<form class="search" role="search" onsubmit={(event) => void findSuppliers(event)}>
-					<TextFieldOutlined label="Search suppliers" bind:value={search} />
-					<Button type="submit" variant="outlined" disabled={searching}>{searching ? 'Searching…' : 'Search'}</Button>
+					<TextFieldOutlined
+						label="Search suppliers"
+						bind:value={search}
+						trailing={{ icon: searching ? iconHourglass : iconSearch, 'aria-label': 'Search', disabled: searching, onclick: () => void findSuppliers() }}
+					/>
 				</form>
 				{#if supplierError}<p class="notice error" role="alert">{supplierError}</p>{/if}
 
@@ -412,14 +417,11 @@
 		white-space: nowrap;
 	}
 
-	.search {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 0.5rem;
-	}
+	.search { display: grid; }
 
-	.search :global(.m3-container) { width: 100%; min-width: 0; }
+	/* A compact field: the panel's lists, not the input, should carry the weight. */
+	.search :global(.m3-container) { width: 100%; min-width: 0; height: 2.75rem; }
+	.search :global(input) { padding-block: 0.5rem; }
 
 	.rows {
 		list-style: none;
