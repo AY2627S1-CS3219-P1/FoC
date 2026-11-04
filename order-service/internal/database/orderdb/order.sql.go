@@ -19,7 +19,7 @@ SELECT count(*) FROM orders WHERE
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND (NOT $7::boolean OR status NOT IN ('completed','cancelled','expired','failed','rejected'))
+ AND (NOT $7::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF($4::text,'')::uuid OR courier_id = NULLIF($4::text,'')::uuid)))
  AND ($8::text = '' OR pickup->>'location_id' = $8::text)
  AND ($9::text = '' OR delivery->>'building_name' = $9::text)
 `
@@ -244,7 +244,7 @@ SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instruct
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND (NOT $7::boolean OR status NOT IN ('completed','cancelled','expired','failed','rejected'))
+ AND (NOT $7::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF($4::text,'')::uuid OR courier_id = NULLIF($4::text,'')::uuid)))
  AND ($8::text = '' OR pickup->>'location_id' = $8::text)
  AND ($9::text = '' OR delivery->>'building_name' = $9::text) ORDER BY created_at DESC,id DESC LIMIT $11 OFFSET $10::bigint
 `

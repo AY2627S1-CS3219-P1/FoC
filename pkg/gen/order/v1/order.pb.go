@@ -382,8 +382,9 @@ type ListMyOrdersRequest struct {
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
 	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// Only orders whose lifecycle has not ended: not Completed, Cancelled,
-	// Expired, Failed or Rejected. Combines with status.
+	// Only orders the caller is part of now and whose lifecycle has not ended:
+	// not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+	// withdrew from as a courier are excluded. Combines with status and role.
 	ActiveOnly    bool `protobuf:"varint,5,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

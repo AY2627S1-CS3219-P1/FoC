@@ -237,8 +237,9 @@ export type ListMyOrdersRequest = Message<"order.v1.ListMyOrdersRequest"> & {
   pageSize: number;
 
   /**
-   * Only orders whose lifecycle has not ended: not Completed, Cancelled,
-   * Expired, Failed or Rejected. Combines with status.
+   * Only orders the caller is part of now and whose lifecycle has not ended:
+   * not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+   * withdrew from as a courier are excluded. Combines with status and role.
    *
    * @generated from field: bool active_only = 5;
    */
