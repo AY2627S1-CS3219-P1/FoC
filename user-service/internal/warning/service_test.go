@@ -108,7 +108,7 @@ func TestCourierWarningConsumerMapsEvent(t *testing.T) {
 	}
 }
 
-func TestCourierWarningConsumerRejectsInvalidTimestamp(t *testing.T) {
+func TestCourierWarningConsumerSkipsInvalidTimestamp(t *testing.T) {
 	for name, timestamp := range map[string]*timestamppb.Timestamp{
 		"missing":              nil,
 		"invalid nanoseconds":  {Seconds: 1, Nanos: -1},
@@ -123,15 +123,8 @@ func TestCourierWarningConsumerRejectsInvalidTimestamp(t *testing.T) {
 				OccurredAt: timestamp,
 			}
 
-			if err := consumer.Handle(
-				context.Background(),
-				kafka.Metadata{},
-				event,
-			); !errors.Is(
-				err,
-				ErrInvalidRequest,
-			) {
-				t.Fatalf("timestamp %v: got %v, want invalid request", timestamp, err)
+			if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
+				t.Fatalf("timestamp %v: got %v, want acknowledged without error", timestamp, err)
 			}
 			if len(repository.created) != 0 {
 				t.Fatalf("persisted warnings = %d, want 0", len(repository.created))
@@ -140,7 +133,7 @@ func TestCourierWarningConsumerRejectsInvalidTimestamp(t *testing.T) {
 	}
 }
 
-func TestCourierWarningConsumerRejectsUnspecifiedReason(t *testing.T) {
+func TestCourierWarningConsumerSkipsUnspecifiedReason(t *testing.T) {
 	repository := &repositoryStub{}
 	consumer := &CourierWarningConsumer{Logic: NewService(repository)}
 	event := &eventsv1.CourierWarningRequested{
@@ -148,8 +141,8 @@ func TestCourierWarningConsumerRejectsUnspecifiedReason(t *testing.T) {
 		Reason:     eventsv1.CourierWarningReason_COURIER_WARNING_REASON_UNSPECIFIED,
 		OccurredAt: timestamppb.Now(),
 	}
-	if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); err == nil {
-		t.Fatal("expected unsupported reason error")
+	if err := consumer.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
+		t.Fatalf("unspecified reason: got %v, want acknowledged without error", err)
 	}
 	if len(repository.created) != 0 {
 		t.Fatalf("persisted warnings = %d, want 0", len(repository.created))

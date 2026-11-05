@@ -9,6 +9,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type PostgresRepository struct {
@@ -33,6 +34,11 @@ func (p *PostgresRepository) Create(ctx context.Context, warning Warning) (bool,
 		CreatedAt: sql.NullTime{Time: warning.CreatedAt, Valid: !warning.CreatedAt.IsZero()},
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			// The warned courier has no users row; retrying cannot succeed.
+			return false, fmt.Errorf("insert account warning: %w", ErrUnknownCourier)
+		}
 		return false, fmt.Errorf("insert account warning: %w", err)
 	}
 	if rows > 0 {

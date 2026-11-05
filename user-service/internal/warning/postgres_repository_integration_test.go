@@ -105,6 +105,25 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryCreateRejectsUnknownCourier(t *testing.T) {
+	repository, _, _ := setupWarningRepository(t)
+	ctx := context.Background()
+	// The warned courier has no users row, so the insert violates
+	// account_warnings.user_id -> users (23503). The consumer must be able to
+	// recognise this as an unprocessable event rather than a transient failure.
+	eventID := uuid.New()
+	created, err := repository.Create(ctx, Warning{
+		UserID: uuid.New(), RequestID: uuid.New(), Reason: "courier without an account",
+		Status: StatusActive, SourceEventID: &eventID,
+	})
+	if created {
+		t.Fatal("created a warning for a courier without a user account")
+	}
+	if !errors.Is(err, ErrUnknownCourier) {
+		t.Fatalf("unknown courier error = %v, want ErrUnknownCourier", err)
+	}
+}
+
 func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
 	repository, _, user := setupWarningRepository(t)
 	ctx := context.Background()

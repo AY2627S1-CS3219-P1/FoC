@@ -49,6 +49,10 @@ import (
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
+
+	warningConsumerGroup     = "user-service"
+	minWarningConsumeBackoff = time.Second
+	maxWarningConsumeBackoff = 30 * time.Second
 )
 
 type config struct {
@@ -131,16 +135,6 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
-	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: cfg.kafkaBrokers, GroupID: "user-service"})
-	if err != nil {
-		fatal("configure Kafka subscriber", err)
-	}
-	if err := warningdomain.RegisterCourierWarningConsumer(
-		subscriber,
-		&warningdomain.CourierWarningConsumer{Logic: warningLogic},
-	); err != nil {
-		fatal("register courier warning consumer", err)
-	}
 	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
 	relayDone := make(chan struct{})
 	go func() {
@@ -174,19 +168,21 @@ func main() {
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 
-	// The warning consumer runs alongside the HTTP listeners. Its own shutdown
-	// waits on ctx, so rootCancel() below stops it cleanly during shutdown.
-	kafkaErrCh := make(chan error, 1)
-	go func() { kafkaErrCh <- subscriber.Run(ctx) }()
+	// The courier-warning consumer runs alongside the HTTP listeners and
+	// rebuilds its subscription after a transient failure, so one bad delivery
+	// cannot stall warnings. rootCancel() stops it during shutdown.
+	consumeDone := make(chan struct{})
+	go func() {
+		defer close(consumeDone)
+		consume(ctx, cfg.kafkaBrokers, warningLogic)
+	}()
 
 	if err := serve(ctx, public, internal); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	rootCancel()
-	if err := <-kafkaErrCh; err != nil {
-		log.Error("Kafka subscriber", "err", err)
-	}
+	<-consumeDone
 	<-relayDone
 }
 
@@ -228,6 +224,49 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// consume runs the courier-warning subscription until ctx ends. A failed
+// subscriber cannot restart, so each failure builds a new one after a growing
+// delay; the uncommitted delivery is then redelivered.
+func consume(ctx context.Context, brokers []string, logic *warningdomain.Service) {
+	backoff := minWarningConsumeBackoff
+	for ctx.Err() == nil {
+		started := time.Now()
+		err := subscribe(ctx, brokers, logic)
+		if ctx.Err() != nil {
+			return
+		}
+
+		// A subscription that ran for a while was healthy; restart promptly.
+		if time.Since(started) > maxWarningConsumeBackoff {
+			backoff = minWarningConsumeBackoff
+		}
+		slog.ErrorContext(ctx, "Kafka subscription stopped; restarting", "error", err, "backoff", backoff)
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		backoff = min(2*backoff, maxWarningConsumeBackoff)
+	}
+}
+
+func subscribe(ctx context.Context, brokers []string, logic *warningdomain.Service) error {
+	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: warningConsumerGroup})
+	if err != nil {
+		return err
+	}
+	if err := warningdomain.RegisterCourierWarningConsumer(
+		subscriber,
+		&warningdomain.CourierWarningConsumer{Logic: logic},
+	); err != nil {
+		return err
+	}
+	return subscriber.Run(ctx)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
