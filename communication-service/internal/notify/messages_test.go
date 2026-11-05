@@ -151,3 +151,50 @@ func TestMessages(t *testing.T) {
 		}
 	}
 }
+
+func TestDeliveryClasses(t *testing.T) {
+	const (
+		awaitingCourier = eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER
+		awaitingPickup  = eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP
+		delivering      = eventsv1.OrderStatus_ORDER_STATUS_DELIVERING
+		delivered       = eventsv1.OrderStatus_ORDER_STATUS_DELIVERED
+		completed       = eventsv1.OrderStatus_ORDER_STATUS_COMPLETED
+		cancelled       = eventsv1.OrderStatus_ORDER_STATUS_CANCELLED
+		expired         = eventsv1.OrderStatus_ORDER_STATUS_EXPIRED
+		failed          = eventsv1.OrderStatus_ORDER_STATUS_FAILED
+		rejected        = eventsv1.OrderStatus_ORDER_STATUS_REJECTED
+		unspecified     = eventsv1.OrderStatus_ORDER_STATUS_UNSPECIFIED
+	)
+	cases := []struct {
+		name             string
+		previous, status eventsv1.OrderStatus
+		role             role
+		want             delivery
+	}{
+		{"opened", unspecified, awaitingCourier, requester, dropIfLate},
+		{"accepted, to requester", awaitingCourier, awaitingPickup, requester, dropIfLate},
+		{"accepted, to courier", awaitingCourier, awaitingPickup, courier, ifStillCurrent},
+		{"unassigned, to requester", awaitingPickup, awaitingCourier, requester, dropIfLate},
+		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, ifStillCurrent},
+		{"picked up", awaitingPickup, delivering, requester, dropIfLate},
+		{"delivered", delivering, delivered, requester, alwaysDeliver},
+		{"completed, to courier", delivered, completed, courier, alwaysDeliver},
+		{"completed, to requester", delivered, completed, requester, alwaysDeliver},
+		{"cancelled before pickup", awaitingPickup, cancelled, courier, alwaysDeliver},
+		{"cancelled after pickup", delivering, cancelled, courier, alwaysDeliver},
+		{"expired", awaitingCourier, expired, requester, alwaysDeliver},
+		{"failed", delivering, failed, requester, alwaysDeliver},
+		{"rejected", unspecified, rejected, requester, alwaysDeliver},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := event(tc.previous, tc.status, system)
+			if message(e, tc.role) == "" {
+				t.Fatal("no message for this recipient")
+			}
+			if got := deliveryFor(e, tc.role); got != tc.want {
+				t.Fatalf("delivery = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
