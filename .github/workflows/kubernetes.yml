@@ -1,0 +1,106 @@
+name: Kubernetes bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/kubernetes.yml'
+      - '.env.example'
+      - 'infra/**'
+      - 'scripts/**'
+      - 'aqua*.yaml'
+      - 'aqua-checksums.json'
+      - '.aqua/**'
+      - 'docker/k8s/**'
+      - 'pkg/**'
+      - 'user-service/**'
+      - 'supplier-service/**'
+      - 'order-service/**'
+      - 'communication-service/**'
+      - 'credit-service/**'
+      - 'frontend/**'
+      - 'Makefile'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-mesh:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    env:
+      AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+      K8S_BOOTSTRAP_SUPERADMIN_EMAIL: admin@example.test
+      K8S_HTTPS_PORT: ""
+      K8S_KAFKA_UI_PORT: ""
+      K8S_MAILPIT_PORT: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache-dependency-path: scripts/go.sum
+      - uses: aquaproj/aqua-installer@611554c6f0137ba41c8dd15aca8bee82504ea461 # v4.1.1
+        with:
+          aqua_version: v2.66.0
+          policy_allow: aqua-policy.yaml
+      - name: Verify Go operator and render manifests
+        run: |
+          make k8s-tools
+          make k8s-test
+          .tools/bin/k8s render applications > /tmp/foc-local.yaml
+          K8S_OVERLAY=infra/k8s/overlays/production .tools/bin/k8s render applications > /tmp/foc-production.yaml
+      - name: Build and deploy into isolated kind cluster
+        run: make k8s-up
+      - name: Verify gateway, mTLS and private routing
+        run: make k8s-smoke
+      - name: Verify Connect HTTP/1.1 and native gRPC through the gateway
+        run: |
+          .tools/aqua/bin/kubectl --kubeconfig .local/k8s/clusters/foc.config -n istio-ingress \
+            port-forward --address 127.0.0.1 svc/foc-public-istio 19543:443 >/tmp/foc-protocol-forward.log 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --cacert .local/k8s/secrets/tls.crt -fsS https://localhost:19543/ >/dev/null; then break; fi
+            sleep 1
+          done
+          cd pkg
+          RPC_SMOKE_BASE_URL=https://localhost:19543 \
+            RPC_SMOKE_CA_FILE="$GITHUB_WORKSPACE/.local/k8s/secrets/tls.crt" \
+            GOWORK=off go test -mod=readonly ./server -run TestMeshGateway -count=1
+      - name: Verify PostgreSQL and Kafka persistence
+        run: make k8s-persistence-smoke
+      - name: Verify signed object uploads through HTTPS
+        run: make k8s-storage-smoke
+      - name: Verify application cannot start without a ready proxy
+        run: make k8s-proxy-startup-smoke
+      - name: Report bounded deployment status on failure
+        if: failure()
+        run: make k8s-status || true
+      - name: Remove the CI-only cluster
+        if: always()
+        run: K8S_CONFIRM_DELETE=foc make k8s-delete-cluster
+
+  macos-operator:
+    env:
+      AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache-dependency-path: scripts/go.sum
+      - uses: aquaproj/aqua-installer@611554c6f0137ba41c8dd15aca8bee82504ea461 # v4.1.1
+        with:
+          aqua_version: v2.66.0
+          policy_allow: aqua-policy.yaml
+      - name: Verify macOS tools and Go operator behavior
+        run: |
+          make k8s-tools
+          make k8s-test

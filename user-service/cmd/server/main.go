@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
@@ -36,6 +38,7 @@ import (
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -50,6 +53,7 @@ const (
 
 type config struct {
 	port            string
+	internalPort    string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -57,26 +61,24 @@ type config struct {
 	appEnv          string
 	frontendURL     string
 	privateKey      string
+	kafkaBrokers    []string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
 	bootstrap       bootstrap.Config
-	kafkaBrokers    []string
 }
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
-	if err := run(log); err != nil {
-		log.Error("user service stopped", "err", err)
+	slog.SetDefault(log)
+	fatal := func(msg string, err error) {
+		log.Error(msg, "err", err)
 		os.Exit(1)
 	}
-}
 
-func run(log *slog.Logger) error {
-	slog.SetDefault(log)
 	cfg, err := loadConfig()
 	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
+		fatal("invalid config", err)
 	}
 
 	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -86,17 +88,17 @@ func run(log *slog.Logger) error {
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
-		return fmt.Errorf("open database: %w", err)
+		fatal("open database", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("database handle: %w", err)
+		fatal("database handle", err)
 	}
 	defer func() { _ = sqlDB.Close() }()
 
 	if cfg.runMigrations {
 		if err := database.Migrate(db); err != nil {
-			return fmt.Errorf("migrate: %w", err)
+			fatal("migrate", err)
 		}
 		log.Info("migrations applied")
 	}
@@ -104,7 +106,7 @@ func run(log *slog.Logger) error {
 	if cfg.bootstrap.Email != "" {
 		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
 		if err != nil {
-			return fmt.Errorf("admin bootstrap: %w", err)
+			fatal("admin bootstrap", err)
 		}
 		if outcome == store.BootstrapAlreadyDone {
 			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
@@ -115,7 +117,7 @@ func run(log *slog.Logger) error {
 
 	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: cfg.kafkaBrokers})
 	if err != nil {
-		return fmt.Errorf("initialize Kafka publisher: %w", err)
+		fatal("initialize Kafka publisher", err)
 	}
 	defer func() {
 		if err := publisher.Close(); err != nil {
@@ -126,18 +128,18 @@ func run(log *slog.Logger) error {
 	allowedDomainLogic := newAllowedDomainService(sqlDB)
 	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
-		return fmt.Errorf("initialize authentication: %w", err)
+		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
 	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: cfg.kafkaBrokers, GroupID: "user-service"})
 	if err != nil {
-		return fmt.Errorf("configure Kafka subscriber: %w", err)
+		fatal("configure Kafka subscriber", err)
 	}
 	if err := warningdomain.RegisterCourierWarningConsumer(
 		subscriber,
 		&warningdomain.CourierWarningConsumer{Logic: warningLogic},
 	); err != nil {
-		return fmt.Errorf("register courier warning consumer: %w", err)
+		fatal("register courier warning consumer", err)
 	}
 	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
 	relayDone := make(chan struct{})
@@ -155,66 +157,77 @@ func run(log *slog.Logger) error {
 			})
 		},
 	}
+	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Review:         &review.Handler{Logic: reviewLogic},
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	// Every service runs the listener split: public routes on PORT, private
+	// routes on INTERNAL_PORT. Services without private routes yet still bind
+	// the internal listener so local and deployed behaviour stay identical.
+	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		errCh <- srv.ListenAndServe()
-	}()
+	// The warning consumer runs alongside the HTTP listeners. Its own shutdown
+	// waits on ctx, so rootCancel() below stops it cleanly during shutdown.
 	kafkaErrCh := make(chan error, 1)
 	go func() { kafkaErrCh <- subscriber.Run(ctx) }()
 
-	var runErr error
-	subscriberExited := false
+	if err := serve(ctx, public, internal); err != nil {
+		fatal("serve", err)
+	}
+	stop()
+	rootCancel()
+	if err := <-kafkaErrCh; err != nil {
+		log.Error("Kafka subscriber", "err", err)
+	}
+	<-relayDone
+}
+
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
 	select {
-	case err := <-errCh:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			runErr = fmt.Errorf("serve: %w", err)
-		}
-	case err := <-kafkaErrCh:
-		subscriberExited = true
-		if err != nil {
-			runErr = fmt.Errorf("Kafka subscriber: %w", err)
-		} else if ctx.Err() == nil {
-			runErr = errors.New("Kafka subscriber stopped unexpectedly")
-		}
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
 	case <-ctx.Done():
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
-	defer shutdownCancel()
-	stop()
-	rootCancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		runErr = errors.Join(runErr, fmt.Errorf("HTTP shutdown: %w", err))
-	}
-	if !subscriberExited {
-		select {
-		case err := <-kafkaErrCh:
-			if err != nil {
-				runErr = errors.Join(runErr, fmt.Errorf("stop Kafka subscriber: %w", err))
-			}
-		case <-shutdownCtx.Done():
-			runErr = errors.Join(runErr, errors.New("Kafka subscriber did not stop before shutdown deadline"))
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
+	defer cancel()
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
 		}
 	}
-	select {
-	case <-relayDone:
-	case <-shutdownCtx.Done():
-		runErr = errors.Join(runErr, errors.New("outbox relay did not stop before shutdown deadline"))
+	for range running {
+		errs = append(errs, <-stopped)
 	}
-	return runErr
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -229,6 +242,21 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
+func newReviewService(sqlDB *sql.DB) *review.Service {
+	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
 // loadConfig reads .env (if present) and the environment once, applying
 // local defaults and rejecting missing required values or malformed settings.
 func loadConfig() (config, error) {
@@ -239,6 +267,7 @@ func loadConfig() (config, error) {
 	var errs []error
 	cfg := config{
 		port:            envString("PORT", "8080"),
+		internalPort:    envString("INTERNAL_PORT", ""),
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
@@ -299,6 +328,16 @@ func loadConfig() (config, error) {
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.internalPort == "" {
+		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
+	} else {
+		port, err := strconv.Atoi(cfg.internalPort)
+		if err != nil || port < 1 || port > 65535 {
+			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))
+		} else if cfg.internalPort == cfg.port {
+			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
+		}
 	}
 	if cfg.smtp.From == "" {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))

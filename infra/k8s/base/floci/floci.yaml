@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: floci
+spec:
+  selector:
+    app: floci
+  ports:
+    - {name: http-s3, port: 4566, targetPort: 4566}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: floci
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: floci
+  template:
+    metadata:
+      labels:
+        app: floci
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      # FLOCI_PORT from Kubernetes service links collides with Floci configuration.
+      enableServiceLinks: false
+      serviceAccountName: floci
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: floci
+          image: floci/floci:2.3.0@sha256:e0b292df4dc9559b7b1bf4f51bdda4bb8e269276236438cd03cae661260ea8a9
+          args: ["/app/application", "-Dquarkus.http.host=127.0.0.1"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: FLOCI_SERVICES_S3_ENFORCE_AUTH, value: "true"}
+            - {name: FLOCI_STORAGE_SERVICES_S3_MODE, value: persistent}
+          startupProbe:
+            exec:
+              command: ["/usr/local/bin/healthcheck.sh"]
+            failureThreshold: 60
+            periodSeconds: 2
+            timeoutSeconds: 3
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/healthcheck.sh"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - {name: data, mountPath: /app/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: floci-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: floci-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: floci
+spec:
+  workloadSelector:
+    labels:
+      app: floci
+  ingress:
+    - port:
+        number: 4566
+        name: http-s3
+        protocol: HTTP
+      defaultEndpoint: 127.0.0.1:4566
+  egress:
+    - hosts: ["./*", "istio-system/*"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-signed-images
+spec:
+  selector:
+    matchLabels:
+      app: floci
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
+      to:
+        - operation:
+            ports: ["4566"]
+            methods: [GET, HEAD, PUT, OPTIONS]
+            paths: ["/order-images/*"]
+---
+# A trailing slash is still the bucket root, not an object key. DENY wins over
+# the prefix ALLOW even when a caller possesses a valid S3 signing credential.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-never-bucket-root
+spec:
+  selector:
+    matchLabels:
+      app: floci
+  action: DENY
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
+      to:
+        - operation:
+            ports: ["4566"]
+            paths: ["/order-images", "/order-images/"]

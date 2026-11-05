@@ -42,7 +42,7 @@ func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 		"default port":      {"INTERNAL_PORT": "8080"},
 		"bad internal port": {"INTERNAL_PORT": "70000"},
 		"missing database":  {"DATABASE_URL": ""},
-		"http user service": {"USER_SERVICE_BASE_URL": "http://user-service:8080"},
+		"bad user scheme":   {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},
 		"user service path": {"USER_SERVICE_BASE_URL": "https://user.example/api"},
 		"migrations flag":   {"RUN_MIGRATIONS": "sometimes"},
 	}
@@ -59,12 +59,23 @@ func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	}
 }
 
-func TestLoadConfigAllowsHTTPLocally(t *testing.T) {
+func TestLoadConfigAllowsHTTPServiceURLs(t *testing.T) {
 	values := validEnv()
-	values["APP_ENV"] = "local"
+	values["APP_ENV"] = "production"
 	values["USER_SERVICE_BASE_URL"] = "http://user-service:8080"
 
 	if _, err := loadConfig(env(values)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLoadConfigAllowsHTTPForInternalServiceCalls(t *testing.T) {
+	values := validEnv()
+	values["APP_ENV"] = "production"
+	values["USER_SERVICE_BASE_URL"] = "http://user-service-internal:8080"
+
+	c, err := loadConfig(env(values))
+	if err != nil || c.InternalPort != "8081" {
+		t.Fatalf("internal service config = %+v, err = %v", c, err)
 	}
 }

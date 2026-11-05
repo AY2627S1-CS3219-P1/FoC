@@ -88,7 +88,10 @@ func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
 }
 
 func TestAuthenticatorVerifyTypedClaims(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
+	testAuthenticatorVerifyTypedClaims(t)
+}
+
+func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -196,18 +199,43 @@ func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
 	}
 }
 
-func TestNewAuthenticatorRejectsHTTPOutsideLocalMode(t *testing.T) {
+func TestNewAuthenticatorAllowsHTTPServiceURL(t *testing.T) {
+	key := testSigningKey(t)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
 	for _, environment := range []string{"", "production"} {
 		t.Run(environment, func(t *testing.T) {
 			t.Setenv("APP_ENV", environment)
 			_, err := NewAuthenticator(context.Background(), AuthConfig{
-				UserServiceURL: "http://user-service:8080",
+				UserServiceURL: server.URL,
 				Issuer:         TokenIssuer, Audience: TokenAudience,
 			})
-			if err == nil || err.Error() != "user service URL must use HTTPS outside local mode" {
-				t.Fatalf("got %v, want insecure user service URL rejection", err)
+			if err != nil {
+				t.Fatalf("HTTP service URL should be accepted: %v", err)
 			}
 		})
+	}
+}
+
+func TestAuthenticatorRejectsNonOriginURLs(t *testing.T) {
+	for _, rawURL := range []string{
+		"http://user-service:8081/api",
+		"http://user:password@user-service:8081",
+		"http://user-service:8081?query=1",
+		"http://user-service:8081#fragment",
+		"ftp://user-service:8081",
+		"://invalid",
+	} {
+		_, err := NewAuthenticator(context.Background(), AuthConfig{
+			UserServiceURL: rawURL,
+			Issuer:         TokenIssuer, Audience: TokenAudience,
+		})
+		if err == nil {
+			t.Fatal("invalid mode or origin accepted")
+		}
 	}
 }
 
