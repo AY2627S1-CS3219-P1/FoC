@@ -245,9 +245,9 @@ func newServer(addr string, handler http.Handler) *http.Server {
 
 // newReviewService builds the review domain over the shared database pool.
 // The second return is nil unless review photo storage is configured.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, review.PhotoStorage) {
+func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	var photos review.PhotoStorage
+	var photos *images.S3
 	if cfg.s3Bucket != "" {
 		storage, err := images.NewS3(context.Background(), images.S3Config{
 			Bucket:         cfg.s3Bucket,
