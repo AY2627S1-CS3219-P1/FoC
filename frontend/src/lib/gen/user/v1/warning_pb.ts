@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/warning.proto.
  */
 export const file_user_v1_warning: GenFile = /*@__PURE__*/
-  fileDesc("ChV1c2VyL3YxL3dhcm5pbmcucHJvdG8SB3VzZXIudjEi+AEKDkFjY291bnRXYXJuaW5nEgoKAmlkGAEgASgJEhIKCnJlcXVlc3RfaWQYAiABKAkSDgoGcmVhc29uGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLnVzZXIudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiIWChRHZXRNeVdhcm5pbmdzUmVxdWVzdCJCChVHZXRNeVdhcm5pbmdzUmVzcG9uc2USKQoId2FybmluZ3MYASADKAsyFy51c2VyLnYxLkFjY291bnRXYXJuaW5nIjYKGUdldFdhcm5pbmdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQEiRwoaR2V0V2FybmluZ3NGb3JVc2VyUmVzcG9uc2USKQoId2FybmluZ3MYASADKAsyFy51c2VyLnYxLkFjY291bnRXYXJuaW5nKmYKDVdhcm5pbmdTdGF0dXMSHgoaV0FSTklOR19TVEFUVVNfVU5TUEVDSUZJRUQQABIZChVXQVJOSU5HX1NUQVRVU19BQ1RJVkUQARIaChZXQVJOSU5HX1NUQVRVU19SRU1PVkVEEAIywwEKDldhcm5pbmdTZXJ2aWNlElAKDUdldE15V2FybmluZ3MSHS51c2VyLnYxLkdldE15V2FybmluZ3NSZXF1ZXN0Gh4udXNlci52MS5HZXRNeVdhcm5pbmdzUmVzcG9uc2UiABJfChJHZXRXYXJuaW5nc0ZvclVzZXISIi51c2VyLnYxLkdldFdhcm5pbmdzRm9yVXNlclJlcXVlc3QaIy51c2VyLnYxLkdldFdhcm5pbmdzRm9yVXNlclJlc3BvbnNlIgBCkgEKC2NvbS51c2VyLnYxQgxXYXJuaW5nUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_timestamp]);
+  fileDesc("ChV1c2VyL3YxL3dhcm5pbmcucHJvdG8SB3VzZXIudjEi+AEKDkFjY291bnRXYXJuaW5nEgoKAmlkGAEgASgJEhIKCnJlcXVlc3RfaWQYAiABKAkSDgoGcmVhc29uGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLnVzZXIudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiIXChVMaXN0TXlXYXJuaW5nc1JlcXVlc3QiQwoWTGlzdE15V2FybmluZ3NSZXNwb25zZRIpCgh3YXJuaW5ncxgBIAMoCzIXLnVzZXIudjEuQWNjb3VudFdhcm5pbmciNwoaTGlzdFdhcm5pbmdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQEiSAobTGlzdFdhcm5pbmdzRm9yVXNlclJlc3BvbnNlEikKCHdhcm5pbmdzGAEgAygLMhcudXNlci52MS5BY2NvdW50V2FybmluZypmCg1XYXJuaW5nU3RhdHVzEh4KGldBUk5JTkdfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGQoVV0FSTklOR19TVEFUVVNfQUNUSVZFEAESGgoWV0FSTklOR19TVEFUVVNfUkVNT1ZFRBACMskBCg5XYXJuaW5nU2VydmljZRJTCg5MaXN0TXlXYXJuaW5ncxIeLnVzZXIudjEuTGlzdE15V2FybmluZ3NSZXF1ZXN0Gh8udXNlci52MS5MaXN0TXlXYXJuaW5nc1Jlc3BvbnNlIgASYgoTTGlzdFdhcm5pbmdzRm9yVXNlchIjLnVzZXIudjEuTGlzdFdhcm5pbmdzRm9yVXNlclJlcXVlc3QaJC51c2VyLnYxLkxpc3RXYXJuaW5nc0ZvclVzZXJSZXNwb25zZSIAQpIBCgtjb20udXNlci52MUIMV2FybmluZ1Byb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message user.v1.AccountWarning
@@ -63,22 +63,22 @@ export const AccountWarningSchema: GenMessage<AccountWarning> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 0);
 
 /**
- * @generated from message user.v1.GetMyWarningsRequest
+ * @generated from message user.v1.ListMyWarningsRequest
  */
-export type GetMyWarningsRequest = Message<"user.v1.GetMyWarningsRequest"> & {
+export type ListMyWarningsRequest = Message<"user.v1.ListMyWarningsRequest"> & {
 };
 
 /**
- * Describes the message user.v1.GetMyWarningsRequest.
- * Use `create(GetMyWarningsRequestSchema)` to create a new message.
+ * Describes the message user.v1.ListMyWarningsRequest.
+ * Use `create(ListMyWarningsRequestSchema)` to create a new message.
  */
-export const GetMyWarningsRequestSchema: GenMessage<GetMyWarningsRequest> = /*@__PURE__*/
+export const ListMyWarningsRequestSchema: GenMessage<ListMyWarningsRequest> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 1);
 
 /**
- * @generated from message user.v1.GetMyWarningsResponse
+ * @generated from message user.v1.ListMyWarningsResponse
  */
-export type GetMyWarningsResponse = Message<"user.v1.GetMyWarningsResponse"> & {
+export type ListMyWarningsResponse = Message<"user.v1.ListMyWarningsResponse"> & {
   /**
    * @generated from field: repeated user.v1.AccountWarning warnings = 1;
    */
@@ -86,16 +86,16 @@ export type GetMyWarningsResponse = Message<"user.v1.GetMyWarningsResponse"> & {
 };
 
 /**
- * Describes the message user.v1.GetMyWarningsResponse.
- * Use `create(GetMyWarningsResponseSchema)` to create a new message.
+ * Describes the message user.v1.ListMyWarningsResponse.
+ * Use `create(ListMyWarningsResponseSchema)` to create a new message.
  */
-export const GetMyWarningsResponseSchema: GenMessage<GetMyWarningsResponse> = /*@__PURE__*/
+export const ListMyWarningsResponseSchema: GenMessage<ListMyWarningsResponse> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 2);
 
 /**
- * @generated from message user.v1.GetWarningsForUserRequest
+ * @generated from message user.v1.ListWarningsForUserRequest
  */
-export type GetWarningsForUserRequest = Message<"user.v1.GetWarningsForUserRequest"> & {
+export type ListWarningsForUserRequest = Message<"user.v1.ListWarningsForUserRequest"> & {
   /**
    * @generated from field: string user_id = 1;
    */
@@ -103,16 +103,16 @@ export type GetWarningsForUserRequest = Message<"user.v1.GetWarningsForUserReque
 };
 
 /**
- * Describes the message user.v1.GetWarningsForUserRequest.
- * Use `create(GetWarningsForUserRequestSchema)` to create a new message.
+ * Describes the message user.v1.ListWarningsForUserRequest.
+ * Use `create(ListWarningsForUserRequestSchema)` to create a new message.
  */
-export const GetWarningsForUserRequestSchema: GenMessage<GetWarningsForUserRequest> = /*@__PURE__*/
+export const ListWarningsForUserRequestSchema: GenMessage<ListWarningsForUserRequest> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 3);
 
 /**
- * @generated from message user.v1.GetWarningsForUserResponse
+ * @generated from message user.v1.ListWarningsForUserResponse
  */
-export type GetWarningsForUserResponse = Message<"user.v1.GetWarningsForUserResponse"> & {
+export type ListWarningsForUserResponse = Message<"user.v1.ListWarningsForUserResponse"> & {
   /**
    * @generated from field: repeated user.v1.AccountWarning warnings = 1;
    */
@@ -120,10 +120,10 @@ export type GetWarningsForUserResponse = Message<"user.v1.GetWarningsForUserResp
 };
 
 /**
- * Describes the message user.v1.GetWarningsForUserResponse.
- * Use `create(GetWarningsForUserResponseSchema)` to create a new message.
+ * Describes the message user.v1.ListWarningsForUserResponse.
+ * Use `create(ListWarningsForUserResponseSchema)` to create a new message.
  */
-export const GetWarningsForUserResponseSchema: GenMessage<GetWarningsForUserResponse> = /*@__PURE__*/
+export const ListWarningsForUserResponseSchema: GenMessage<ListWarningsForUserResponse> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 4);
 
 /**
@@ -157,20 +157,20 @@ export const WarningStatusSchema: GenEnum<WarningStatus> = /*@__PURE__*/
  */
 export const WarningService: GenService<{
   /**
-   * @generated from rpc user.v1.WarningService.GetMyWarnings
+   * @generated from rpc user.v1.WarningService.ListMyWarnings
    */
-  getMyWarnings: {
+  listMyWarnings: {
     methodKind: "unary";
-    input: typeof GetMyWarningsRequestSchema;
-    output: typeof GetMyWarningsResponseSchema;
+    input: typeof ListMyWarningsRequestSchema;
+    output: typeof ListMyWarningsResponseSchema;
   },
   /**
-   * @generated from rpc user.v1.WarningService.GetWarningsForUser
+   * @generated from rpc user.v1.WarningService.ListWarningsForUser
    */
-  getWarningsForUser: {
+  listWarningsForUser: {
     methodKind: "unary";
-    input: typeof GetWarningsForUserRequestSchema;
-    output: typeof GetWarningsForUserResponseSchema;
+    input: typeof ListWarningsForUserRequestSchema;
+    output: typeof ListWarningsForUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_warning, 0);

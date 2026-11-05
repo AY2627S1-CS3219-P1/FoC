@@ -11,5 +11,5 @@ export interface AccountWarning {
 }
 
 export interface WarningApi {
-	getMyWarnings(): Promise<AccountWarning[]>;
+	listMyWarnings(): Promise<AccountWarning[]>;
 }

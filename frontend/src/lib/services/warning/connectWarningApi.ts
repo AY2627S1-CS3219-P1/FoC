@@ -40,8 +40,8 @@ export class ConnectWarningApi implements WarningApi {
 		this.#client = client;
 	}
 
-	async getMyWarnings(): Promise<AccountWarning[]> {
-		const response = await this.#client.getMyWarnings({});
+	async listMyWarnings(): Promise<AccountWarning[]> {
+		const response = await this.#client.listMyWarnings({});
 		return response.warnings.map(toWarning);
 	}
 }

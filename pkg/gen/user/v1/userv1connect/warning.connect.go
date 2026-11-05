@@ -33,18 +33,18 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// WarningServiceGetMyWarningsProcedure is the fully-qualified name of the WarningService's
-	// GetMyWarnings RPC.
-	WarningServiceGetMyWarningsProcedure = "/user.v1.WarningService/GetMyWarnings"
-	// WarningServiceGetWarningsForUserProcedure is the fully-qualified name of the WarningService's
-	// GetWarningsForUser RPC.
-	WarningServiceGetWarningsForUserProcedure = "/user.v1.WarningService/GetWarningsForUser"
+	// WarningServiceListMyWarningsProcedure is the fully-qualified name of the WarningService's
+	// ListMyWarnings RPC.
+	WarningServiceListMyWarningsProcedure = "/user.v1.WarningService/ListMyWarnings"
+	// WarningServiceListWarningsForUserProcedure is the fully-qualified name of the WarningService's
+	// ListWarningsForUser RPC.
+	WarningServiceListWarningsForUserProcedure = "/user.v1.WarningService/ListWarningsForUser"
 )
 
 // WarningServiceClient is a client for the user.v1.WarningService service.
 type WarningServiceClient interface {
-	GetMyWarnings(context.Context, *connect.Request[v1.GetMyWarningsRequest]) (*connect.Response[v1.GetMyWarningsResponse], error)
-	GetWarningsForUser(context.Context, *connect.Request[v1.GetWarningsForUserRequest]) (*connect.Response[v1.GetWarningsForUserResponse], error)
+	ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error)
+	ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error)
 }
 
 // NewWarningServiceClient constructs a client for the user.v1.WarningService service. By default,
@@ -58,16 +58,16 @@ func NewWarningServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	warningServiceMethods := v1.File_user_v1_warning_proto.Services().ByName("WarningService").Methods()
 	return &warningServiceClient{
-		getMyWarnings: connect.NewClient[v1.GetMyWarningsRequest, v1.GetMyWarningsResponse](
+		listMyWarnings: connect.NewClient[v1.ListMyWarningsRequest, v1.ListMyWarningsResponse](
 			httpClient,
-			baseURL+WarningServiceGetMyWarningsProcedure,
-			connect.WithSchema(warningServiceMethods.ByName("GetMyWarnings")),
+			baseURL+WarningServiceListMyWarningsProcedure,
+			connect.WithSchema(warningServiceMethods.ByName("ListMyWarnings")),
 			connect.WithClientOptions(opts...),
 		),
-		getWarningsForUser: connect.NewClient[v1.GetWarningsForUserRequest, v1.GetWarningsForUserResponse](
+		listWarningsForUser: connect.NewClient[v1.ListWarningsForUserRequest, v1.ListWarningsForUserResponse](
 			httpClient,
-			baseURL+WarningServiceGetWarningsForUserProcedure,
-			connect.WithSchema(warningServiceMethods.ByName("GetWarningsForUser")),
+			baseURL+WarningServiceListWarningsForUserProcedure,
+			connect.WithSchema(warningServiceMethods.ByName("ListWarningsForUser")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -75,24 +75,24 @@ func NewWarningServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // warningServiceClient implements WarningServiceClient.
 type warningServiceClient struct {
-	getMyWarnings      *connect.Client[v1.GetMyWarningsRequest, v1.GetMyWarningsResponse]
-	getWarningsForUser *connect.Client[v1.GetWarningsForUserRequest, v1.GetWarningsForUserResponse]
+	listMyWarnings      *connect.Client[v1.ListMyWarningsRequest, v1.ListMyWarningsResponse]
+	listWarningsForUser *connect.Client[v1.ListWarningsForUserRequest, v1.ListWarningsForUserResponse]
 }
 
-// GetMyWarnings calls user.v1.WarningService.GetMyWarnings.
-func (c *warningServiceClient) GetMyWarnings(ctx context.Context, req *connect.Request[v1.GetMyWarningsRequest]) (*connect.Response[v1.GetMyWarningsResponse], error) {
-	return c.getMyWarnings.CallUnary(ctx, req)
+// ListMyWarnings calls user.v1.WarningService.ListMyWarnings.
+func (c *warningServiceClient) ListMyWarnings(ctx context.Context, req *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error) {
+	return c.listMyWarnings.CallUnary(ctx, req)
 }
 
-// GetWarningsForUser calls user.v1.WarningService.GetWarningsForUser.
-func (c *warningServiceClient) GetWarningsForUser(ctx context.Context, req *connect.Request[v1.GetWarningsForUserRequest]) (*connect.Response[v1.GetWarningsForUserResponse], error) {
-	return c.getWarningsForUser.CallUnary(ctx, req)
+// ListWarningsForUser calls user.v1.WarningService.ListWarningsForUser.
+func (c *warningServiceClient) ListWarningsForUser(ctx context.Context, req *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error) {
+	return c.listWarningsForUser.CallUnary(ctx, req)
 }
 
 // WarningServiceHandler is an implementation of the user.v1.WarningService service.
 type WarningServiceHandler interface {
-	GetMyWarnings(context.Context, *connect.Request[v1.GetMyWarningsRequest]) (*connect.Response[v1.GetMyWarningsResponse], error)
-	GetWarningsForUser(context.Context, *connect.Request[v1.GetWarningsForUserRequest]) (*connect.Response[v1.GetWarningsForUserResponse], error)
+	ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error)
+	ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error)
 }
 
 // NewWarningServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -102,24 +102,24 @@ type WarningServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewWarningServiceHandler(svc WarningServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	warningServiceMethods := v1.File_user_v1_warning_proto.Services().ByName("WarningService").Methods()
-	warningServiceGetMyWarningsHandler := connect.NewUnaryHandler(
-		WarningServiceGetMyWarningsProcedure,
-		svc.GetMyWarnings,
-		connect.WithSchema(warningServiceMethods.ByName("GetMyWarnings")),
+	warningServiceListMyWarningsHandler := connect.NewUnaryHandler(
+		WarningServiceListMyWarningsProcedure,
+		svc.ListMyWarnings,
+		connect.WithSchema(warningServiceMethods.ByName("ListMyWarnings")),
 		connect.WithHandlerOptions(opts...),
 	)
-	warningServiceGetWarningsForUserHandler := connect.NewUnaryHandler(
-		WarningServiceGetWarningsForUserProcedure,
-		svc.GetWarningsForUser,
-		connect.WithSchema(warningServiceMethods.ByName("GetWarningsForUser")),
+	warningServiceListWarningsForUserHandler := connect.NewUnaryHandler(
+		WarningServiceListWarningsForUserProcedure,
+		svc.ListWarningsForUser,
+		connect.WithSchema(warningServiceMethods.ByName("ListWarningsForUser")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/user.v1.WarningService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case WarningServiceGetMyWarningsProcedure:
-			warningServiceGetMyWarningsHandler.ServeHTTP(w, r)
-		case WarningServiceGetWarningsForUserProcedure:
-			warningServiceGetWarningsForUserHandler.ServeHTTP(w, r)
+		case WarningServiceListMyWarningsProcedure:
+			warningServiceListMyWarningsHandler.ServeHTTP(w, r)
+		case WarningServiceListWarningsForUserProcedure:
+			warningServiceListWarningsForUserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -129,10 +129,10 @@ func NewWarningServiceHandler(svc WarningServiceHandler, opts ...connect.Handler
 // UnimplementedWarningServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedWarningServiceHandler struct{}
 
-func (UnimplementedWarningServiceHandler) GetMyWarnings(context.Context, *connect.Request[v1.GetMyWarningsRequest]) (*connect.Response[v1.GetMyWarningsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.GetMyWarnings is not implemented"))
+func (UnimplementedWarningServiceHandler) ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.ListMyWarnings is not implemented"))
 }
 
-func (UnimplementedWarningServiceHandler) GetWarningsForUser(context.Context, *connect.Request[v1.GetWarningsForUserRequest]) (*connect.Response[v1.GetWarningsForUserResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.GetWarningsForUser is not implemented"))
+func (UnimplementedWarningServiceHandler) ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.ListWarningsForUser is not implemented"))
 }

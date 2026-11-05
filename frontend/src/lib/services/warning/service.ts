@@ -7,7 +7,7 @@ export class WarningService {
 		this.#api = api;
 	}
 
-	getMyWarnings(): Promise<AccountWarning[]> {
-		return this.#api.getMyWarnings();
+	listMyWarnings(): Promise<AccountWarning[]> {
+		return this.#api.listMyWarnings();
 	}
 }

@@ -23,11 +23,11 @@ describe('ConnectWarningApi', () => {
 			removedReason: 'appeal overturned'
 		});
 		const client = {
-			getMyWarnings: vi.fn(async () => ({ warnings: [warning] }))
+			listMyWarnings: vi.fn(async () => ({ warnings: [warning] }))
 		} as unknown as Client<typeof WarningServiceDefinition>;
 		const api = new ConnectWarningApi(client);
 
-		expect(await api.getMyWarnings()).toEqual([{
+		expect(await api.listMyWarnings()).toEqual([{
 			id: 'warning-id',
 			requestId: 'request-id',
 			reason: 'late cancellation',
@@ -36,6 +36,6 @@ describe('ConnectWarningApi', () => {
 			removedAt,
 			removedReason: 'appeal overturned'
 		}]);
-		expect(client.getMyWarnings).toHaveBeenCalledWith({});
+		expect(client.listMyWarnings).toHaveBeenCalledWith({});
 	});
 });

@@ -91,8 +91,8 @@ publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
 
-`user.v1.WarningService.GetMyWarnings` returns the authenticated caller's
-warnings. `GetWarningsForUser` is restricted to admins and returns the same
+`user.v1.WarningService.ListMyWarnings` returns the authenticated caller's
+warnings. `ListWarningsForUser` is restricted to admins and returns the same
 warning history for a specified user.
 
 Login, registration, and refresh return an access token in their typed

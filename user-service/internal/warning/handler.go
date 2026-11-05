@@ -22,10 +22,10 @@ type Handler struct {
 	Logic WarningLogic
 }
 
-func (h *Handler) GetMyWarnings(
+func (h *Handler) ListMyWarnings(
 	ctx context.Context,
-	_ *connect.Request[userv1.GetMyWarningsRequest],
-) (*connect.Response[userv1.GetMyWarningsResponse], error) {
+	_ *connect.Request[userv1.ListMyWarningsRequest],
+) (*connect.Response[userv1.ListMyWarningsResponse], error) {
 	userID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -34,15 +34,15 @@ func (h *Handler) GetMyWarnings(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	response := connect.NewResponse(&userv1.GetMyWarningsResponse{Warnings: warningDTOs(warnings)})
+	response := connect.NewResponse(&userv1.ListMyWarningsResponse{Warnings: warningDTOs(warnings)})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
 }
 
-func (h *Handler) GetWarningsForUser(
+func (h *Handler) ListWarningsForUser(
 	ctx context.Context,
-	req *connect.Request[userv1.GetWarningsForUserRequest],
-) (*connect.Response[userv1.GetWarningsForUserResponse], error) {
+	req *connect.Request[userv1.ListWarningsForUserRequest],
+) (*connect.Response[userv1.ListWarningsForUserResponse], error) {
 	if _, err := userdto.ActorID(ctx); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -54,7 +54,7 @@ func (h *Handler) GetWarningsForUser(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	response := connect.NewResponse(&userv1.GetWarningsForUserResponse{Warnings: warningDTOs(warnings)})
+	response := connect.NewResponse(&userv1.ListWarningsForUserResponse{Warnings: warningDTOs(warnings)})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
 }

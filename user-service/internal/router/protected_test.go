@@ -158,14 +158,14 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if err != nil || response.Msg.Profile.Id != actorID.String() || response.Msg.Profile.Email != actor.Email {
 		t.Fatalf("own profile: %+v, %v", response, err)
 	}
-	myWarnings := connect.NewRequest(&userv1.GetMyWarningsRequest{})
+	myWarnings := connect.NewRequest(&userv1.ListMyWarningsRequest{})
 	myWarnings.Header().Set("Authorization", "Bearer "+token)
-	if _, err := warningClient.GetMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID {
+	if _, err := warningClient.ListMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID {
 		t.Fatalf("own warnings: user=%s err=%v", warnings.userID, err)
 	}
-	otherWarnings := connect.NewRequest(&userv1.GetWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings := connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
 	otherWarnings.Header().Set("Authorization", "Bearer "+token)
-	if _, err := warningClient.GetWarningsForUser(
+	if _, err := warningClient.ListWarningsForUser(
 		ctx,
 		otherWarnings,
 	); connect.CodeOf(
@@ -195,9 +195,9 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor
-	otherWarnings = connect.NewRequest(&userv1.GetWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings = connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
 	otherWarnings.Header().Set("Authorization", "Bearer "+token)
-	if _, err := warningClient.GetWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
+	if _, err := warningClient.ListWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
 		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
 	}
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})

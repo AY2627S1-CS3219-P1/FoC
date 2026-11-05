@@ -14,7 +14,7 @@
 		loading = true;
 		error = '';
 		try {
-			warnings = await warningService.getMyWarnings();
+			warnings = await warningService.listMyWarnings();
 		} catch {
 			error = 'We could not load your warnings. Check your connection and try again.';
 		} finally {

@@ -6,8 +6,8 @@ import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
 service WarningService {
-  rpc GetMyWarnings(GetMyWarningsRequest) returns (GetMyWarningsResponse) {}
-  rpc GetWarningsForUser(GetWarningsForUserRequest) returns (GetWarningsForUserResponse) {}
+  rpc ListMyWarnings(ListMyWarningsRequest) returns (ListMyWarningsResponse) {}
+  rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
 }
 
 enum WarningStatus {
@@ -26,16 +26,16 @@ message AccountWarning {
   optional string removed_reason = 7;
 }
 
-message GetMyWarningsRequest {}
+message ListMyWarningsRequest {}
 
-message GetMyWarningsResponse {
+message ListMyWarningsResponse {
   repeated AccountWarning warnings = 1;
 }
 
-message GetWarningsForUserRequest {
+message ListWarningsForUserRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-message GetWarningsForUserResponse {
+message ListWarningsForUserResponse {
   repeated AccountWarning warnings = 1;
 }
