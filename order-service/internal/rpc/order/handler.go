@@ -145,6 +145,7 @@ func (s *Server) ListMyOrders(
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
+	r.ActiveOnly = m.GetActiveOnly()
 
 	p, err := s.operations.ListMyOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {
