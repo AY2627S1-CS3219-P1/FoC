@@ -35,7 +35,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -113,21 +112,19 @@ func main() {
 	}
 
 	if cfg.bootstrap.Email != "" {
-		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
+		admin, outcome, err := (&bootstrap.Bootstrapper{
+			Store: store.NewAdmin(db), Revocations: revocations,
+		}).Run(ctx, cfg.bootstrap)
 		if err != nil {
 			fatal("admin bootstrap", err)
 		}
-		if outcome == store.BootstrapAlreadyDone {
+		switch outcome {
+		case store.BootstrapAlreadyDone:
 			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
-		} else {
+		case store.BootstrapUnchanged:
+			log.Info("admin is already a super admin; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
+		default:
 			log.Info("admin bootstrapped", "outcome", outcome.String(), "user_id", admin.ID)
-		}
-		if outcome == store.BootstrapPromoted {
-			// Promotion changes the role stored in outstanding access tokens,
-			// so the promoted user's existing sessions are signed out.
-			if err := revokePromotedAdmin(ctx, db, revocations, admin); err != nil {
-				fatal("revoke promoted admin sessions", err)
-			}
 		}
 	}
 
@@ -212,22 +209,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
-}
-
-// revokePromotedAdmin signs the promoted user's existing sessions out: the
-// promotion changed the role stored in their outstanding access tokens.
-func revokePromotedAdmin(
-	ctx context.Context,
-	db *gorm.DB,
-	revocations service.AccessTokenRevocations,
-	admin models.User,
-) error {
-	revoked, err := store.New(db).Sessions.RevokeAllForUser(ctx, admin.ID, time.Now().UTC())
-	if err != nil {
-		return err
-	}
-	service.RecordRevokedSessions(ctx, revocations, revoked)
-	return nil
 }
 
 // loadConfig reads .env (if present) and the environment once, applying

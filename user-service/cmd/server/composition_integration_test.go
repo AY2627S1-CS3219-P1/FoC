@@ -205,7 +205,9 @@ func TestCompositionWiresRevocationDictionary(t *testing.T) {
 }
 
 // TestBootstrapPromotionRevokesSessions proves the bootstrap promotion signs
-// the promoted user's existing sessions out of every device.
+// the promoted user's existing sessions out of every device: the store
+// revokes them in the bootstrap transaction and the bootstrapper records the
+// dictionary entries.
 func TestBootstrapPromotionRevokesSessions(t *testing.T) {
 	_, persistence, _, db, redisServer := setupComposition(t)
 	ctx := context.Background()
@@ -218,22 +220,21 @@ func TestBootstrapPromotionRevokesSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx,
-		bootstrap.Config{Email: user.Email, DisplayName: "Promoted"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if outcome != store.BootstrapPromoted {
-		t.Fatalf("bootstrap outcome = %v, want promotion", outcome)
-	}
 	revocations, err := revocation.NewStore(ctx,
 		revocation.Config{Addr: redisServer.Addr(), TTL: compositionAccessTTL})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = revocations.Close() })
-	if err := revokePromotedAdmin(ctx, db, revocations, admin); err != nil {
+
+	admin, outcome, err := (&bootstrap.Bootstrapper{
+		Store: store.NewAdmin(db), Revocations: revocations,
+	}).Run(ctx, bootstrap.Config{Email: user.Email, DisplayName: "Promoted"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if outcome != store.BootstrapPromoted || admin.ID != user.ID {
+		t.Fatalf("bootstrap outcome = %v, admin = %+v, want promotion of %s", outcome, admin, user.ID)
 	}
 
 	var live int64
