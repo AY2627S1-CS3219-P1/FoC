@@ -50,14 +50,6 @@ func (p *PostgresRepository) Create(ctx context.Context, warning Warning) (bool,
 	return false, nil
 }
 
-func (p *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Warning, error) {
-	row, err := p.queries.GetAccountWarningByID(ctx, id)
-	if err != nil {
-		return Warning{}, mapNotFound(err, "get warning")
-	}
-	return warningFromRow(row), nil
-}
-
 func (p *PostgresRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Warning, error) {
 	rows, err := p.queries.ListAccountWarningsByUser(ctx, userID)
 	if err != nil {

@@ -51,37 +51,6 @@ func (q *Queries) CreateAccountWarning(ctx context.Context, arg CreateAccountWar
 	return result.RowsAffected()
 }
 
-const getAccountWarningByID = `-- name: GetAccountWarningByID :one
-SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
-       removed_at, removed_reason, appeal_id, created_at, updated_at,
-       deleted_at, created_by, updated_by
-FROM account_warnings
-WHERE id = $1 AND deleted_at IS NULL
-`
-
-func (q *Queries) GetAccountWarningByID(ctx context.Context, id uuid.UUID) (AccountWarning, error) {
-	row := q.db.QueryRowContext(ctx, getAccountWarningByID, id)
-	var i AccountWarning
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.RequestID,
-		&i.ReportID,
-		&i.Reason,
-		&i.Status,
-		&i.SourceEventID,
-		&i.RemovedAt,
-		&i.RemovedReason,
-		&i.AppealID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-	)
-	return i, err
-}
-
 const listAccountWarningsByUser = `-- name: ListAccountWarningsByUser :many
 SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
        removed_at, removed_reason, appeal_id, created_at, updated_at,

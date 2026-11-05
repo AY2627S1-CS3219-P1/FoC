@@ -6,13 +6,6 @@ INSERT INTO account_warnings (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE(sqlc.narg(created_at)::timestamptz, now()))
 ON CONFLICT (source_event_id) DO NOTHING;
 
--- name: GetAccountWarningByID :one
-SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
-       removed_at, removed_reason, appeal_id, created_at, updated_at,
-       deleted_at, created_by, updated_by
-FROM account_warnings
-WHERE id = $1 AND deleted_at IS NULL;
-
 -- name: ListAccountWarningsByUser :many
 SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
        removed_at, removed_reason, appeal_id, created_at, updated_at,
