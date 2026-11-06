@@ -1,4 +1,4 @@
-import type { AccountWarning, WarningApi } from './warningApi.ts';
+import type { WarningApi, WarningPage, WarningQuery } from './warningApi.ts';
 
 export class WarningService {
 	readonly #api: WarningApi;
@@ -7,7 +7,7 @@ export class WarningService {
 		this.#api = api;
 	}
 
-	listMyWarnings(): Promise<AccountWarning[]> {
-		return this.#api.listMyWarnings();
+	listMyWarnings(query?: WarningQuery): Promise<WarningPage> {
+		return this.#api.listMyWarnings(query);
 	}
 }

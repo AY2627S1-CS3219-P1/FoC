@@ -5,16 +5,23 @@
 	import type { AccountWarning } from '$lib/services/warning/warningApi';
 
 	let warnings = $state<AccountWarning[]>([]);
+	let page = $state(1);
+	let totalPages = $state(0);
+	let totalItems = $state(0);
 	let loading = $state(true);
 	let error = $state('');
 
 	const dateFormat = new Intl.DateTimeFormat('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
 
-	async function loadWarnings() {
+	async function loadWarnings(requestedPage = page) {
 		loading = true;
 		error = '';
 		try {
-			warnings = await warningService.listMyWarnings();
+			const result = await warningService.listMyWarnings({ page: requestedPage });
+			warnings = result.warnings;
+			page = result.page;
+			totalPages = result.totalPages;
+			totalItems = result.totalItems;
 		} catch {
 			error = 'We could not load your warnings. Check your connection and try again.';
 		} finally {
@@ -61,11 +68,23 @@
 				</Card>
 			{/each}
 		</div>
+		{#if totalPages > 1}
+			<nav class="pagination" aria-label="Warning pages">
+				<Button variant="outlined" disabled={loading || page <= 1} onclick={() => void loadWarnings(page - 1)}>
+					Previous
+				</Button>
+				<span>Page {page} of {totalPages} · {totalItems} warnings</span>
+				<Button variant="outlined" disabled={loading || page >= totalPages} onclick={() => void loadWarnings(page + 1)}>
+					Next
+				</Button>
+			</nav>
+		{/if}
 	{/if}
 </section>
 
 <style>
 	.warning-list { display: grid; gap: 1rem; }
+	.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
 	.warning-item h2 { margin: 0; font-size: 1.1rem; }
 	.warning-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 	.warning-reason { margin: 1rem 0; white-space: pre-wrap; }

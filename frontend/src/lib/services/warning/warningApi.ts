@@ -10,6 +10,19 @@ export interface AccountWarning {
 	removedReason: string | null;
 }
 
+export interface WarningQuery {
+	page?: number;
+	pageSize?: number;
+}
+
+export interface WarningPage {
+	warnings: AccountWarning[];
+	page: number;
+	pageSize: number;
+	totalItems: number;
+	totalPages: number;
+}
+
 export interface WarningApi {
-	listMyWarnings(): Promise<AccountWarning[]>;
+	listMyWarnings(query?: WarningQuery): Promise<WarningPage>;
 }

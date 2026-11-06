@@ -7,6 +7,7 @@ import {
 	WarningService as WarningServiceDefinition,
 	WarningStatus
 } from '$lib/gen/user/v1/warning_pb';
+import { PageInfoSchema } from '$lib/gen/pagination/v1/pagination_pb';
 import { ConnectWarningApi } from './connectWarningApi.ts';
 
 describe('ConnectWarningApi', () => {
@@ -22,20 +23,32 @@ describe('ConnectWarningApi', () => {
 			removedAt: timestampFromDate(removedAt),
 			removedReason: 'appeal overturned'
 		});
+		const pagination = create(PageInfoSchema, {
+			page: 2n,
+			pageSize: 20n,
+			totalItems: 21n,
+			totalPages: 2n
+		});
 		const client = {
-			listMyWarnings: vi.fn(async () => ({ warnings: [warning] }))
+			listMyWarnings: vi.fn(async () => ({ warnings: [warning], pagination }))
 		} as unknown as Client<typeof WarningServiceDefinition>;
 		const api = new ConnectWarningApi(client);
 
-		expect(await api.listMyWarnings()).toEqual([{
-			id: 'warning-id',
-			requestId: 'request-id',
-			reason: 'late cancellation',
-			status: 'removed',
-			createdAt,
-			removedAt,
-			removedReason: 'appeal overturned'
-		}]);
-		expect(client.listMyWarnings).toHaveBeenCalledWith({});
+		expect(await api.listMyWarnings({ page: 2, pageSize: 20 })).toEqual({
+			warnings: [{
+				id: 'warning-id',
+				requestId: 'request-id',
+				reason: 'late cancellation',
+				status: 'removed',
+				createdAt,
+				removedAt,
+				removedReason: 'appeal overturned'
+			}],
+			page: 2,
+			pageSize: 20,
+			totalItems: 21,
+			totalPages: 2
+		});
+		expect(client.listMyWarnings).toHaveBeenCalledWith({ pagination: { page: 2n, pageSize: 20n } });
 	});
 });

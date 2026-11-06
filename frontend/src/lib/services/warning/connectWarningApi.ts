@@ -5,7 +5,8 @@ import {
 	WarningStatus as ProtoWarningStatus,
 	type AccountWarning as ProtoAccountWarning
 } from '$lib/gen/user/v1/warning_pb';
-import type { AccountWarning, WarningApi, WarningStatus } from './warningApi.ts';
+import type { PageInfo } from '$lib/gen/pagination/v1/pagination_pb';
+import type { AccountWarning, WarningApi, WarningPage, WarningQuery, WarningStatus } from './warningApi.ts';
 
 type WarningClient = Client<typeof WarningServiceDefinition>;
 
@@ -40,8 +41,26 @@ export class ConnectWarningApi implements WarningApi {
 		this.#client = client;
 	}
 
-	async listMyWarnings(): Promise<AccountWarning[]> {
-		const response = await this.#client.listMyWarnings({});
-		return response.warnings.map(toWarning);
+	async listMyWarnings(query: WarningQuery = {}): Promise<WarningPage> {
+		const response = await this.#client.listMyWarnings({
+			pagination: {
+				page: BigInt(query.page ?? 1),
+				pageSize: BigInt(query.pageSize ?? 20)
+			}
+		});
+		return {
+			warnings: response.warnings.map(toWarning),
+			...toPageInfo(response.pagination)
+		};
 	}
+}
+
+function toPageInfo(info: PageInfo | undefined): Omit<WarningPage, 'warnings'> {
+	if (!info) throw new Error('Warning response did not include pagination');
+	return {
+		page: Number(info.page),
+		pageSize: Number(info.pageSize),
+		totalItems: Number(info.totalItems),
+		totalPages: Number(info.totalPages)
+	};
 }
