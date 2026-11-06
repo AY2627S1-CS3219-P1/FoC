@@ -36,19 +36,11 @@ const (
 	// WarningServiceListMyWarningsProcedure is the fully-qualified name of the WarningService's
 	// ListMyWarnings RPC.
 	WarningServiceListMyWarningsProcedure = "/user.v1.WarningService/ListMyWarnings"
-	// WarningServiceListWarningsForUserProcedure is the fully-qualified name of the WarningService's
-	// ListWarningsForUser RPC.
-	WarningServiceListWarningsForUserProcedure = "/user.v1.WarningService/ListWarningsForUser"
-	// WarningServiceMarkWarningAsRemovedProcedure is the fully-qualified name of the WarningService's
-	// MarkWarningAsRemoved RPC.
-	WarningServiceMarkWarningAsRemovedProcedure = "/user.v1.WarningService/MarkWarningAsRemoved"
 )
 
 // WarningServiceClient is a client for the user.v1.WarningService service.
 type WarningServiceClient interface {
 	ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error)
-	ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error)
-	MarkWarningAsRemoved(context.Context, *connect.Request[v1.MarkWarningAsRemovedRequest]) (*connect.Response[v1.MarkWarningAsRemovedResponse], error)
 }
 
 // NewWarningServiceClient constructs a client for the user.v1.WarningService service. By default,
@@ -68,26 +60,12 @@ func NewWarningServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(warningServiceMethods.ByName("ListMyWarnings")),
 			connect.WithClientOptions(opts...),
 		),
-		listWarningsForUser: connect.NewClient[v1.ListWarningsForUserRequest, v1.ListWarningsForUserResponse](
-			httpClient,
-			baseURL+WarningServiceListWarningsForUserProcedure,
-			connect.WithSchema(warningServiceMethods.ByName("ListWarningsForUser")),
-			connect.WithClientOptions(opts...),
-		),
-		markWarningAsRemoved: connect.NewClient[v1.MarkWarningAsRemovedRequest, v1.MarkWarningAsRemovedResponse](
-			httpClient,
-			baseURL+WarningServiceMarkWarningAsRemovedProcedure,
-			connect.WithSchema(warningServiceMethods.ByName("MarkWarningAsRemoved")),
-			connect.WithClientOptions(opts...),
-		),
 	}
 }
 
 // warningServiceClient implements WarningServiceClient.
 type warningServiceClient struct {
-	listMyWarnings       *connect.Client[v1.ListMyWarningsRequest, v1.ListMyWarningsResponse]
-	listWarningsForUser  *connect.Client[v1.ListWarningsForUserRequest, v1.ListWarningsForUserResponse]
-	markWarningAsRemoved *connect.Client[v1.MarkWarningAsRemovedRequest, v1.MarkWarningAsRemovedResponse]
+	listMyWarnings *connect.Client[v1.ListMyWarningsRequest, v1.ListMyWarningsResponse]
 }
 
 // ListMyWarnings calls user.v1.WarningService.ListMyWarnings.
@@ -95,21 +73,9 @@ func (c *warningServiceClient) ListMyWarnings(ctx context.Context, req *connect.
 	return c.listMyWarnings.CallUnary(ctx, req)
 }
 
-// ListWarningsForUser calls user.v1.WarningService.ListWarningsForUser.
-func (c *warningServiceClient) ListWarningsForUser(ctx context.Context, req *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error) {
-	return c.listWarningsForUser.CallUnary(ctx, req)
-}
-
-// MarkWarningAsRemoved calls user.v1.WarningService.MarkWarningAsRemoved.
-func (c *warningServiceClient) MarkWarningAsRemoved(ctx context.Context, req *connect.Request[v1.MarkWarningAsRemovedRequest]) (*connect.Response[v1.MarkWarningAsRemovedResponse], error) {
-	return c.markWarningAsRemoved.CallUnary(ctx, req)
-}
-
 // WarningServiceHandler is an implementation of the user.v1.WarningService service.
 type WarningServiceHandler interface {
 	ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error)
-	ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error)
-	MarkWarningAsRemoved(context.Context, *connect.Request[v1.MarkWarningAsRemovedRequest]) (*connect.Response[v1.MarkWarningAsRemovedResponse], error)
 }
 
 // NewWarningServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -125,26 +91,10 @@ func NewWarningServiceHandler(svc WarningServiceHandler, opts ...connect.Handler
 		connect.WithSchema(warningServiceMethods.ByName("ListMyWarnings")),
 		connect.WithHandlerOptions(opts...),
 	)
-	warningServiceListWarningsForUserHandler := connect.NewUnaryHandler(
-		WarningServiceListWarningsForUserProcedure,
-		svc.ListWarningsForUser,
-		connect.WithSchema(warningServiceMethods.ByName("ListWarningsForUser")),
-		connect.WithHandlerOptions(opts...),
-	)
-	warningServiceMarkWarningAsRemovedHandler := connect.NewUnaryHandler(
-		WarningServiceMarkWarningAsRemovedProcedure,
-		svc.MarkWarningAsRemoved,
-		connect.WithSchema(warningServiceMethods.ByName("MarkWarningAsRemoved")),
-		connect.WithHandlerOptions(opts...),
-	)
 	return "/user.v1.WarningService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WarningServiceListMyWarningsProcedure:
 			warningServiceListMyWarningsHandler.ServeHTTP(w, r)
-		case WarningServiceListWarningsForUserProcedure:
-			warningServiceListWarningsForUserHandler.ServeHTTP(w, r)
-		case WarningServiceMarkWarningAsRemovedProcedure:
-			warningServiceMarkWarningAsRemovedHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -156,12 +106,4 @@ type UnimplementedWarningServiceHandler struct{}
 
 func (UnimplementedWarningServiceHandler) ListMyWarnings(context.Context, *connect.Request[v1.ListMyWarningsRequest]) (*connect.Response[v1.ListMyWarningsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.ListMyWarnings is not implemented"))
-}
-
-func (UnimplementedWarningServiceHandler) ListWarningsForUser(context.Context, *connect.Request[v1.ListWarningsForUserRequest]) (*connect.Response[v1.ListWarningsForUserResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.ListWarningsForUser is not implemented"))
-}
-
-func (UnimplementedWarningServiceHandler) MarkWarningAsRemoved(context.Context, *connect.Request[v1.MarkWarningAsRemovedRequest]) (*connect.Response[v1.MarkWarningAsRemovedResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.WarningService.MarkWarningAsRemoved is not implemented"))
 }

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "user/v1/warning.proto";
+
+// WarningAdminService is the admin-only warning sub-service. It shares the
+// warning message types with the user-facing WarningService in warning.proto.
+service WarningAdminService {
+  rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
+  rpc MarkWarningAsRemoved(MarkWarningAsRemovedRequest) returns (MarkWarningAsRemovedResponse) {}
+}

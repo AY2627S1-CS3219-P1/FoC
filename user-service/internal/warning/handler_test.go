@@ -71,7 +71,8 @@ func TestWarningListHandlersReturnPagination(t *testing.T) {
 		t.Fatalf("my warnings response=%+v user=%s page=%+v", myResponse.Msg, logic.listUserID, logic.listPage)
 	}
 
-	userResponse, err := handler.ListWarningsForUser(ctx, connect.NewRequest(&userv1.ListWarningsForUserRequest{
+	adminHandler := &AdminHandler{Logic: logic}
+	userResponse, err := adminHandler.ListWarningsForUser(ctx, connect.NewRequest(&userv1.ListWarningsForUserRequest{
 		UserId: targetID.String(), Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
 	}))
 	if err != nil {
@@ -86,10 +87,10 @@ func TestMarkWarningAsRemovedHandlerPassesOptionalMetadataAndActor(t *testing.T)
 	actorID, warningID, appealID := uuid.New(), uuid.New(), uuid.New()
 	reason, appealText := "appeal overturned", appealID.String()
 	logic := &handlerLogicStub{}
-	handler := &Handler{Logic: logic}
+	adminHandler := &AdminHandler{Logic: logic}
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
 
-	_, err := handler.MarkWarningAsRemoved(ctx, connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+	_, err := adminHandler.MarkWarningAsRemoved(ctx, connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
 		Id: warningID.String(), RemovedReason: &reason, AppealId: &appealText,
 	}))
 	if err != nil {

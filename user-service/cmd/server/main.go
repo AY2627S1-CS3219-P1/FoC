@@ -158,6 +158,7 @@ func main() {
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
 		Review:         &review.Handler{Logic: reviewLogic},
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
+		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}

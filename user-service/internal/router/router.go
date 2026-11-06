@@ -6,6 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	authz "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
@@ -30,6 +31,7 @@ type ProtectedRoutes struct {
 	Admin          *adminhandler.Handler
 	AllowedDomains *allowedadmin.AllowedDomainHandler
 	Warnings       *warningdomain.Handler
+	AdminWarnings  *warningdomain.AdminHandler
 	Review         *review.Handler
 	Authenticate   func(http.Handler) http.Handler
 	Users          ActorReader
@@ -126,15 +128,23 @@ func setup(
 			Mount(allowedDomainsPath, allowedDomainsService)
 		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
 			p.Warnings,
+			connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
+			connect.WithReadMaxBytes(maxRPCMessageBytes),
+		)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(warningsPath, warningsService)
+
+		adminWarningsPath, adminWarningsService := userv1connect.NewWarningAdminServiceHandler(
+			p.AdminWarnings,
 			connect.WithInterceptors(
+				authz.RequireAdmin(),
 				validate.NewInterceptor(),
-				warningdomain.AuthorizeInterceptor(),
 				normalizeRPCError(),
 			),
 			connect.WithReadMaxBytes(maxRPCMessageBytes),
 		)
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
-			Mount(warningsPath, warningsService)
+			Mount(adminWarningsPath, adminWarningsService)
 	}
 	return r
 }

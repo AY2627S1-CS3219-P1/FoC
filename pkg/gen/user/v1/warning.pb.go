@@ -508,11 +508,9 @@ const file_user_v1_warning_proto_rawDesc = "" +
 	"\rWarningStatus\x12\x1e\n" +
 	"\x1aWARNING_STATUS_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15WARNING_STATUS_ACTIVE\x10\x01\x12\x1a\n" +
-	"\x16WARNING_STATUS_REMOVED\x10\x022\xb0\x02\n" +
+	"\x16WARNING_STATUS_REMOVED\x10\x022e\n" +
 	"\x0eWarningService\x12S\n" +
-	"\x0eListMyWarnings\x12\x1e.user.v1.ListMyWarningsRequest\x1a\x1f.user.v1.ListMyWarningsResponse\"\x00\x12b\n" +
-	"\x13ListWarningsForUser\x12#.user.v1.ListWarningsForUserRequest\x1a$.user.v1.ListWarningsForUserResponse\"\x00\x12e\n" +
-	"\x14MarkWarningAsRemoved\x12$.user.v1.MarkWarningAsRemovedRequest\x1a%.user.v1.MarkWarningAsRemovedResponse\"\x00B\x92\x01\n" +
+	"\x0eListMyWarnings\x12\x1e.user.v1.ListMyWarningsRequest\x1a\x1f.user.v1.ListMyWarningsResponse\"\x00B\x92\x01\n" +
 	"\vcom.user.v1B\fWarningProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
 var (
@@ -553,13 +551,9 @@ var file_user_v1_warning_proto_depIdxs = []int32{
 	1,  // 7: user.v1.ListWarningsForUserResponse.warnings:type_name -> user.v1.AccountWarning
 	10, // 8: user.v1.ListWarningsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
 	2,  // 9: user.v1.WarningService.ListMyWarnings:input_type -> user.v1.ListMyWarningsRequest
-	4,  // 10: user.v1.WarningService.ListWarningsForUser:input_type -> user.v1.ListWarningsForUserRequest
-	6,  // 11: user.v1.WarningService.MarkWarningAsRemoved:input_type -> user.v1.MarkWarningAsRemovedRequest
-	3,  // 12: user.v1.WarningService.ListMyWarnings:output_type -> user.v1.ListMyWarningsResponse
-	5,  // 13: user.v1.WarningService.ListWarningsForUser:output_type -> user.v1.ListWarningsForUserResponse
-	7,  // 14: user.v1.WarningService.MarkWarningAsRemoved:output_type -> user.v1.MarkWarningAsRemovedResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
+	3,  // 10: user.v1.WarningService.ListMyWarnings:output_type -> user.v1.ListMyWarningsResponse
+	10, // [10:11] is the sub-list for method output_type
+	9,  // [9:10] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name

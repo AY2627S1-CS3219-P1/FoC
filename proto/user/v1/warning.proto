@@ -6,10 +6,10 @@ import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "pagination/v1/pagination.proto";
 
+// WarningService is the user-facing warning sub-service. Administrative warning
+// operations live in warning_admin.proto's WarningAdminService.
 service WarningService {
   rpc ListMyWarnings(ListMyWarningsRequest) returns (ListMyWarningsResponse) {}
-  rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
-  rpc MarkWarningAsRemoved(MarkWarningAsRemovedRequest) returns (MarkWarningAsRemovedResponse) {}
 }
 
 enum WarningStatus {

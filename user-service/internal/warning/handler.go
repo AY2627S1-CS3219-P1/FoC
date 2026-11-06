@@ -15,16 +15,19 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// WarningLogic is the shared persistence the user and admin handlers call.
 type WarningLogic interface {
 	ListWarnings(context.Context, uuid.UUID, pagination.Pagination) (WarningPage, error)
 	MarkWarningAsRemoved(context.Context, uuid.UUID, *string, *uuid.UUID, uuid.UUID) error
 }
 
+// Handler is the user-facing WarningService adapter.
 type Handler struct {
 	userv1connect.UnimplementedWarningServiceHandler
 	Logic WarningLogic
 }
 
+// ListMyWarnings returns the authenticated caller's own warnings.
 func (h *Handler) ListMyWarnings(
 	ctx context.Context,
 	req *connect.Request[userv1.ListMyWarningsRequest],
@@ -46,7 +49,16 @@ func (h *Handler) ListMyWarnings(
 	return response, nil
 }
 
-func (h *Handler) ListWarningsForUser(
+// AdminHandler is the admin-only WarningAdminService adapter. It is mounted
+// behind auth.RequireAdmin(), so every method is administrator-gated at the
+// service boundary rather than per-method.
+type AdminHandler struct {
+	userv1connect.UnimplementedWarningAdminServiceHandler
+	Logic WarningLogic
+}
+
+// ListWarningsForUser returns the warnings held against an arbitrary user.
+func (h *AdminHandler) ListWarningsForUser(
 	ctx context.Context,
 	req *connect.Request[userv1.ListWarningsForUserRequest],
 ) (*connect.Response[userv1.ListWarningsForUserResponse], error) {
@@ -70,7 +82,8 @@ func (h *Handler) ListWarningsForUser(
 	return response, nil
 }
 
-func (h *Handler) MarkWarningAsRemoved(
+// MarkWarningAsRemoved records an audit row for a warning. Admin-only.
+func (h *AdminHandler) MarkWarningAsRemoved(
 	ctx context.Context,
 	req *connect.Request[userv1.MarkWarningAsRemovedRequest],
 ) (*connect.Response[userv1.MarkWarningAsRemovedResponse], error) {
