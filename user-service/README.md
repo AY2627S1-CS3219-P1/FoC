@@ -92,8 +92,10 @@ service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
 
 `user.v1.WarningService.ListMyWarnings` returns the authenticated caller's
-warnings. `ListWarningsForUser` is restricted to admins and returns the same
-warning history for a specified user.
+warnings. Both warning list RPCs use shared offset pagination and include page
+metadata. `ListWarningsForUser` and `MarkWarningAsRemoved` are restricted to
+admins; marking a warning as removed records the admin and optional removal
+reason and appeal ID.
 
 Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`

@@ -4,10 +4,12 @@ package user.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
+import "pagination/v1/pagination.proto";
 
 service WarningService {
   rpc ListMyWarnings(ListMyWarningsRequest) returns (ListMyWarningsResponse) {}
   rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
+  rpc MarkWarningAsRemoved(MarkWarningAsRemovedRequest) returns (MarkWarningAsRemovedResponse) {}
 }
 
 enum WarningStatus {
@@ -26,16 +28,29 @@ message AccountWarning {
   optional string removed_reason = 7;
 }
 
-message ListMyWarningsRequest {}
+message ListMyWarningsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
 
 message ListMyWarningsResponse {
   repeated AccountWarning warnings = 1;
+  pagination.v1.PageInfo pagination = 2;
 }
 
 message ListWarningsForUserRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
+  pagination.v1.Pagination pagination = 2;
 }
 
 message ListWarningsForUserResponse {
   repeated AccountWarning warnings = 1;
+  pagination.v1.PageInfo pagination = 2;
 }
+
+message MarkWarningAsRemovedRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  optional string removed_reason = 2 [(buf.validate.field).string.max_len = 2000];
+  optional string appeal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkWarningAsRemovedResponse {}

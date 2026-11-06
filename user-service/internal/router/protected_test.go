@@ -102,14 +102,40 @@ func (s *allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) erro
 }
 
 type warningStub struct {
-	calls  atomic.Int32
-	userID uuid.UUID
+	calls       atomic.Int32
+	userID      uuid.UUID
+	page        pagination.Pagination
+	removeCalls atomic.Int32
+	warningID   uuid.UUID
+	removedBy   uuid.UUID
+	removedText *string
+	appealID    *uuid.UUID
 }
 
-func (s *warningStub) ListWarnings(_ context.Context, userID uuid.UUID) ([]warningdomain.Warning, error) {
+func (s *warningStub) ListWarnings(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (warningdomain.WarningPage, error) {
 	s.userID = userID
+	s.page = page
 	s.calls.Add(1)
-	return nil, nil
+	return warningdomain.WarningPage{}, nil
+}
+
+func (s *warningStub) MarkWarningAsRemoved(
+	_ context.Context,
+	warningID uuid.UUID,
+	removedReason *string,
+	appealID *uuid.UUID,
+	actorID uuid.UUID,
+) error {
+	s.warningID = warningID
+	s.removedText = removedReason
+	s.appealID = appealID
+	s.removedBy = actorID
+	s.removeCalls.Add(1)
+	return nil
 }
 
 func TestProtectedConnectRoutes(t *testing.T) {
@@ -160,8 +186,26 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	myWarnings := connect.NewRequest(&userv1.ListMyWarningsRequest{})
 	myWarnings.Header().Set("Authorization", "Bearer "+token)
-	if _, err := warningClient.ListMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID {
+	if _, err := warningClient.ListMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID ||
+		warnings.page.Page() != 1 || warnings.page.PageSize() != 20 {
 		t.Fatalf("own warnings: user=%s err=%v", warnings.userID, err)
+	}
+	warningID, appealID := uuid.New(), uuid.New()
+	removedReason := "appeal overturned"
+	markRemoved := connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
+	})
+	markRemoved.Header().Set("Authorization", "Bearer "+token)
+	if _, err := warningClient.MarkWarningAsRemoved(
+		ctx,
+		markRemoved,
+	); connect.CodeOf(
+		err,
+	) != connect.CodePermissionDenied {
+		t.Fatalf("ordinary user warning removal: %v", err)
+	}
+	if warnings.removeCalls.Load() != 0 {
+		t.Fatal("ordinary user reached warning removal logic")
 	}
 	otherWarnings := connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
 	otherWarnings.Header().Set("Authorization", "Bearer "+token)
@@ -195,10 +239,21 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor
+	adminWarningToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
 	otherWarnings = connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
-	otherWarnings.Header().Set("Authorization", "Bearer "+token)
+	otherWarnings.Header().Set("Authorization", "Bearer "+adminWarningToken)
 	if _, err := warningClient.ListWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
 		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
+	}
+	markRemoved = connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
+	})
+	markRemoved.Header().Set("Authorization", "Bearer "+adminWarningToken)
+	if _, err := warningClient.MarkWarningAsRemoved(ctx, markRemoved); err != nil || warnings.removeCalls.Load() != 1 ||
+		warnings.warningID != warningID || warnings.removedBy != actorID || warnings.removedText == nil ||
+		*warnings.removedText != removedReason || warnings.appealID == nil || *warnings.appealID != appealID {
+		t.Fatalf("admin warning removal: warning=%s actor=%s calls=%d err=%v", warnings.warningID,
+			warnings.removedBy, warnings.removeCalls.Load(), err)
 	}
 	lookup = connect.NewRequest(&userv1.GetUserByEmailRequest{Email: target.Email})
 	lookup.Header().Set("Authorization", "Bearer "+token)
@@ -219,7 +274,18 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
 	}
+	markRemoved = connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{Id: warningID.String()})
+	markRemoved.Header().Set("Authorization", "Bearer "+staleAdminToken)
+	if _, err := warningClient.MarkWarningAsRemoved(ctx, markRemoved); err != nil || warnings.removeCalls.Load() != 2 {
+		t.Fatalf(
+			"warning interceptor should follow token-claim roles: calls=%d err=%v",
+			warnings.removeCalls.Load(),
+			err,
+		)
+	}
 }
+
+func ptr(value string) *string { return &value }
 
 func TestAllowedDomainAuthorization(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

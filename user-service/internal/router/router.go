@@ -125,7 +125,14 @@ func setup(
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(allowedDomainsPath, allowedDomainsService)
 		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
-			p.Warnings, interceptors, connect.WithReadMaxBytes(maxRPCMessageBytes))
+			p.Warnings,
+			connect.WithInterceptors(
+				validate.NewInterceptor(),
+				warningdomain.AuthorizeInterceptor(),
+				normalizeRPCError(),
+			),
+			connect.WithReadMaxBytes(maxRPCMessageBytes),
+		)
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(warningsPath, warningsService)
 	}

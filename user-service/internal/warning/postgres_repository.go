@@ -50,8 +50,14 @@ func (p *PostgresRepository) Create(ctx context.Context, warning Warning) (bool,
 	return false, nil
 }
 
-func (p *PostgresRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Warning, error) {
-	rows, err := p.queries.ListAccountWarningsByUser(ctx, userID)
+func (p *PostgresRepository) ListByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]Warning, error) {
+	rows, err := p.queries.ListAccountWarningsByUser(ctx, warningdb.ListAccountWarningsByUserParams{
+		UserID: userID, PageOffset: offset, PageLimit: limit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list account warnings: %w", err)
 	}
@@ -60,6 +66,14 @@ func (p *PostgresRepository) ListByUser(ctx context.Context, userID uuid.UUID) (
 		warnings[i] = warningFromRow(row)
 	}
 	return warnings, nil
+}
+
+func (p *PostgresRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	count, err := p.queries.CountAccountWarningsByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("count account warnings: %w", err)
+	}
+	return count, nil
 }
 
 func (p *PostgresRepository) Remove(

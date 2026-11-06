@@ -12,7 +12,13 @@ SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
        deleted_at, created_by, updated_by
 FROM account_warnings
 WHERE user_id = $1 AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC;
+ORDER BY created_at DESC, id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
+
+-- name: CountAccountWarningsByUser :one
+SELECT COUNT(*)
+FROM account_warnings
+WHERE user_id = $1 AND deleted_at IS NULL;
 
 -- name: RemoveAccountWarning :one
 UPDATE account_warnings

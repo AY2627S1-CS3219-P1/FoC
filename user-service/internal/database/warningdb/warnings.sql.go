@@ -12,6 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAccountWarningsByUser = `-- name: CountAccountWarningsByUser :one
+SELECT COUNT(*)
+FROM account_warnings
+WHERE user_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountAccountWarningsByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAccountWarningsByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccountWarning = `-- name: CreateAccountWarning :execrows
 INSERT INTO account_warnings (
     user_id, request_id, report_id, reason, status, source_event_id,
@@ -58,10 +71,17 @@ SELECT id, user_id, request_id, report_id, reason, status, source_event_id,
 FROM account_warnings
 WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
-func (q *Queries) ListAccountWarningsByUser(ctx context.Context, userID uuid.UUID) ([]AccountWarning, error) {
-	rows, err := q.db.QueryContext(ctx, listAccountWarningsByUser, userID)
+type ListAccountWarningsByUserParams struct {
+	UserID     uuid.UUID
+	PageOffset int64
+	PageLimit  int64
+}
+
+func (q *Queries) ListAccountWarningsByUser(ctx context.Context, arg ListAccountWarningsByUserParams) ([]AccountWarning, error) {
+	rows, err := q.db.QueryContext(ctx, listAccountWarningsByUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

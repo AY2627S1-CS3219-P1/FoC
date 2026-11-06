@@ -3,6 +3,7 @@ package warning
 import (
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
 
@@ -29,6 +30,11 @@ type Warning struct {
 	DeletedAt     *time.Time
 	CreatedBy     *uuid.UUID
 	UpdatedBy     *uuid.UUID
+}
+
+type WarningPage struct {
+	Warnings []Warning
+	PageInfo pagination.PageInfo
 }
 
 type CourierWarningRequest struct {

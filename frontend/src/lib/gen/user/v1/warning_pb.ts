@@ -7,13 +7,15 @@ import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { PageInfo, Pagination } from "../../pagination/v1/pagination_pb";
+import { file_pagination_v1_pagination } from "../../pagination/v1/pagination_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file user/v1/warning.proto.
  */
 export const file_user_v1_warning: GenFile = /*@__PURE__*/
-  fileDesc("ChV1c2VyL3YxL3dhcm5pbmcucHJvdG8SB3VzZXIudjEi+AEKDkFjY291bnRXYXJuaW5nEgoKAmlkGAEgASgJEhIKCnJlcXVlc3RfaWQYAiABKAkSDgoGcmVhc29uGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLnVzZXIudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiIXChVMaXN0TXlXYXJuaW5nc1JlcXVlc3QiQwoWTGlzdE15V2FybmluZ3NSZXNwb25zZRIpCgh3YXJuaW5ncxgBIAMoCzIXLnVzZXIudjEuQWNjb3VudFdhcm5pbmciNwoaTGlzdFdhcm5pbmdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQEiSAobTGlzdFdhcm5pbmdzRm9yVXNlclJlc3BvbnNlEikKCHdhcm5pbmdzGAEgAygLMhcudXNlci52MS5BY2NvdW50V2FybmluZypmCg1XYXJuaW5nU3RhdHVzEh4KGldBUk5JTkdfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGQoVV0FSTklOR19TVEFUVVNfQUNUSVZFEAESGgoWV0FSTklOR19TVEFUVVNfUkVNT1ZFRBACMskBCg5XYXJuaW5nU2VydmljZRJTCg5MaXN0TXlXYXJuaW5ncxIeLnVzZXIudjEuTGlzdE15V2FybmluZ3NSZXF1ZXN0Gh8udXNlci52MS5MaXN0TXlXYXJuaW5nc1Jlc3BvbnNlIgASYgoTTGlzdFdhcm5pbmdzRm9yVXNlchIjLnVzZXIudjEuTGlzdFdhcm5pbmdzRm9yVXNlclJlcXVlc3QaJC51c2VyLnYxLkxpc3RXYXJuaW5nc0ZvclVzZXJSZXNwb25zZSIAQpIBCgtjb20udXNlci52MUIMV2FybmluZ1Byb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp]);
+  fileDesc("ChV1c2VyL3YxL3dhcm5pbmcucHJvdG8SB3VzZXIudjEi+AEKDkFjY291bnRXYXJuaW5nEgoKAmlkGAEgASgJEhIKCnJlcXVlc3RfaWQYAiABKAkSDgoGcmVhc29uGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLnVzZXIudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiJGChVMaXN0TXlXYXJuaW5nc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJwChZMaXN0TXlXYXJuaW5nc1Jlc3BvbnNlEikKCHdhcm5pbmdzGAEgAygLMhcudXNlci52MS5BY2NvdW50V2FybmluZxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJmChpMaXN0V2FybmluZ3NGb3JVc2VyUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARItCgpwYWdpbmF0aW9uGAIgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInUKG0xpc3RXYXJuaW5nc0ZvclVzZXJSZXNwb25zZRIpCgh3YXJuaW5ncxgBIAMoCzIXLnVzZXIudjEuQWNjb3VudFdhcm5pbmcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8inQEKG01hcmtXYXJuaW5nQXNSZW1vdmVkUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQESJQoOcmVtb3ZlZF9yZWFzb24YAiABKAlCCLpIBXIDGNAPSACIAQESIAoJYXBwZWFsX2lkGAMgASgJQgi6SAVyA7ABAUgBiAEBQhEKD19yZW1vdmVkX3JlYXNvbkIMCgpfYXBwZWFsX2lkIh4KHE1hcmtXYXJuaW5nQXNSZW1vdmVkUmVzcG9uc2UqZgoNV2FybmluZ1N0YXR1cxIeChpXQVJOSU5HX1NUQVRVU19VTlNQRUNJRklFRBAAEhkKFVdBUk5JTkdfU1RBVFVTX0FDVElWRRABEhoKFldBUk5JTkdfU1RBVFVTX1JFTU9WRUQQAjKwAgoOV2FybmluZ1NlcnZpY2USUwoOTGlzdE15V2FybmluZ3MSHi51c2VyLnYxLkxpc3RNeVdhcm5pbmdzUmVxdWVzdBofLnVzZXIudjEuTGlzdE15V2FybmluZ3NSZXNwb25zZSIAEmIKE0xpc3RXYXJuaW5nc0ZvclVzZXISIy51c2VyLnYxLkxpc3RXYXJuaW5nc0ZvclVzZXJSZXF1ZXN0GiQudXNlci52MS5MaXN0V2FybmluZ3NGb3JVc2VyUmVzcG9uc2UiABJlChRNYXJrV2FybmluZ0FzUmVtb3ZlZBIkLnVzZXIudjEuTWFya1dhcm5pbmdBc1JlbW92ZWRSZXF1ZXN0GiUudXNlci52MS5NYXJrV2FybmluZ0FzUmVtb3ZlZFJlc3BvbnNlIgBCkgEKC2NvbS51c2VyLnYxQgxXYXJuaW5nUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_timestamp, file_pagination_v1_pagination]);
 
 /**
  * @generated from message user.v1.AccountWarning
@@ -66,6 +68,10 @@ export const AccountWarningSchema: GenMessage<AccountWarning> = /*@__PURE__*/
  * @generated from message user.v1.ListMyWarningsRequest
  */
 export type ListMyWarningsRequest = Message<"user.v1.ListMyWarningsRequest"> & {
+  /**
+   * @generated from field: pagination.v1.Pagination pagination = 1;
+   */
+  pagination?: Pagination | undefined;
 };
 
 /**
@@ -83,6 +89,11 @@ export type ListMyWarningsResponse = Message<"user.v1.ListMyWarningsResponse"> &
    * @generated from field: repeated user.v1.AccountWarning warnings = 1;
    */
   warnings: AccountWarning[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
 };
 
 /**
@@ -100,6 +111,11 @@ export type ListWarningsForUserRequest = Message<"user.v1.ListWarningsForUserReq
    * @generated from field: string user_id = 1;
    */
   userId: string;
+
+  /**
+   * @generated from field: pagination.v1.Pagination pagination = 2;
+   */
+  pagination?: Pagination | undefined;
 };
 
 /**
@@ -117,6 +133,11 @@ export type ListWarningsForUserResponse = Message<"user.v1.ListWarningsForUserRe
    * @generated from field: repeated user.v1.AccountWarning warnings = 1;
    */
   warnings: AccountWarning[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
 };
 
 /**
@@ -125,6 +146,46 @@ export type ListWarningsForUserResponse = Message<"user.v1.ListWarningsForUserRe
  */
 export const ListWarningsForUserResponseSchema: GenMessage<ListWarningsForUserResponse> = /*@__PURE__*/
   messageDesc(file_user_v1_warning, 4);
+
+/**
+ * @generated from message user.v1.MarkWarningAsRemovedRequest
+ */
+export type MarkWarningAsRemovedRequest = Message<"user.v1.MarkWarningAsRemovedRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: optional string removed_reason = 2;
+   */
+  removedReason?: string | undefined;
+
+  /**
+   * @generated from field: optional string appeal_id = 3;
+   */
+  appealId?: string | undefined;
+};
+
+/**
+ * Describes the message user.v1.MarkWarningAsRemovedRequest.
+ * Use `create(MarkWarningAsRemovedRequestSchema)` to create a new message.
+ */
+export const MarkWarningAsRemovedRequestSchema: GenMessage<MarkWarningAsRemovedRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_warning, 5);
+
+/**
+ * @generated from message user.v1.MarkWarningAsRemovedResponse
+ */
+export type MarkWarningAsRemovedResponse = Message<"user.v1.MarkWarningAsRemovedResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.MarkWarningAsRemovedResponse.
+ * Use `create(MarkWarningAsRemovedResponseSchema)` to create a new message.
+ */
+export const MarkWarningAsRemovedResponseSchema: GenMessage<MarkWarningAsRemovedResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_warning, 6);
 
 /**
  * @generated from enum user.v1.WarningStatus
@@ -171,6 +232,14 @@ export const WarningService: GenService<{
     methodKind: "unary";
     input: typeof ListWarningsForUserRequestSchema;
     output: typeof ListWarningsForUserResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.WarningService.MarkWarningAsRemoved
+   */
+  markWarningAsRemoved: {
+    methodKind: "unary";
+    input: typeof MarkWarningAsRemovedRequestSchema;
+    output: typeof MarkWarningAsRemovedResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_warning, 0);

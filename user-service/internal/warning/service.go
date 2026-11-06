@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
 
@@ -53,15 +56,50 @@ func (s *Service) RecordCourierWarning(ctx context.Context, request CourierWarni
 	return nil
 }
 
-func (s *Service) ListWarnings(ctx context.Context, userID uuid.UUID) ([]Warning, error) {
+func (s *Service) ListWarnings(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (WarningPage, error) {
 	if userID == uuid.Nil {
-		return nil, fmt.Errorf("%w: invalid user ID", ErrInvalidRequest)
+		return WarningPage{}, fmt.Errorf("%w: invalid user ID", ErrInvalidRequest)
 	}
-	warnings, err := s.repository.ListByUser(ctx, userID)
+	warnings, err := s.repository.ListByUser(ctx, userID, page.Offset(), page.PageSize())
 	if err != nil {
-		return nil, fmt.Errorf("list warnings: %w", err)
+		return WarningPage{}, fmt.Errorf("list warnings: %w", err)
 	}
-	return warnings, nil
+	total, err := s.repository.CountByUser(ctx, userID)
+	if err != nil {
+		return WarningPage{}, fmt.Errorf("count warnings: %w", err)
+	}
+	return WarningPage{
+		Warnings: warnings,
+		PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total),
+	}, nil
+}
+
+func (s *Service) MarkWarningAsRemoved(
+	ctx context.Context,
+	warningID uuid.UUID,
+	removedReason *string,
+	appealID *uuid.UUID,
+	actorID uuid.UUID,
+) error {
+	if warningID == uuid.Nil || actorID == uuid.Nil || (appealID != nil && *appealID == uuid.Nil) {
+		return errs.NewBadRequestError("invalid warning removal")
+	}
+	if removedReason != nil && utf8.RuneCountInString(*removedReason) > 2000 {
+		return errs.NewBadRequestError("removal reason must not exceed 2000 characters")
+	}
+
+	_, err := s.repository.Remove(ctx, warningID, time.Now().UTC(), removedReason, appealID, &actorID)
+	if errors.Is(err, ErrNotFound) {
+		return errs.WrapNotFoundError(ErrNotFound, "warning not found")
+	}
+	if err != nil {
+		return fmt.Errorf("mark warning as removed: %w", err)
+	}
+	return nil
 }
 
 func parseID(value string) (uuid.UUID, error) {

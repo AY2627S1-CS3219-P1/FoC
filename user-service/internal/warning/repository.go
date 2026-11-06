@@ -3,6 +3,7 @@ package warning
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,5 +18,7 @@ var (
 
 type Repository interface {
 	Create(context.Context, Warning) (bool, error)
-	ListByUser(context.Context, uuid.UUID) ([]Warning, error)
+	ListByUser(context.Context, uuid.UUID, int64, int64) ([]Warning, error)
+	CountByUser(context.Context, uuid.UUID) (int64, error)
+	Remove(context.Context, uuid.UUID, time.Time, *string, *uuid.UUID, *uuid.UUID) (Warning, error)
 }

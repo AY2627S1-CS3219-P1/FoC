@@ -9,14 +9,27 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type repositoryStub struct {
-	created []Warning
-	list    []Warning
-	err     error
+	created      []Warning
+	list         []Warning
+	total        int64
+	listUserID   uuid.UUID
+	listOffset   int64
+	listLimit    int64
+	removeID     uuid.UUID
+	removedAt    time.Time
+	removeReason *string
+	appealID     *uuid.UUID
+	actorID      *uuid.UUID
+	removed      Warning
+	err          error
+	countErr     error
+	removeErr    error
 }
 
 func (r *repositoryStub) Create(_ context.Context, warning Warning) (bool, error) {
@@ -24,8 +37,34 @@ func (r *repositoryStub) Create(_ context.Context, warning Warning) (bool, error
 	return true, r.err
 }
 
-func (r *repositoryStub) ListByUser(context.Context, uuid.UUID) ([]Warning, error) {
+func (r *repositoryStub) ListByUser(
+	_ context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]Warning, error) {
+	r.listUserID = userID
+	r.listOffset = offset
+	r.listLimit = limit
 	return r.list, r.err
+}
+
+func (r *repositoryStub) CountByUser(context.Context, uuid.UUID) (int64, error) {
+	return r.total, r.countErr
+}
+
+func (r *repositoryStub) Remove(
+	_ context.Context,
+	id uuid.UUID,
+	removedAt time.Time,
+	reason *string,
+	appealID, actorID *uuid.UUID,
+) (Warning, error) {
+	r.removeID = id
+	r.removedAt = removedAt
+	r.removeReason = reason
+	r.appealID = appealID
+	r.actorID = actorID
+	return r.removed, r.removeErr
 }
 
 func TestRecordCourierWarning(t *testing.T) {
@@ -152,7 +191,100 @@ func TestCourierWarningConsumerSkipsUnspecifiedReason(t *testing.T) {
 func TestListWarningsReturnsRepositoryError(t *testing.T) {
 	wantErr := errors.New("database unavailable")
 	service := NewService(&repositoryStub{err: wantErr})
-	if _, err := service.ListWarnings(context.Background(), uuid.New()); !errors.Is(err, wantErr) {
+	page, _ := pagination.New(1, 20)
+	if _, err := service.ListWarnings(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
 		t.Fatalf("list warning error = %v, want wrapped database error", err)
+	}
+}
+
+func TestListWarningsUsesOffsetAndReturnsPageInfo(t *testing.T) {
+	userID := uuid.New()
+	warnings := []Warning{{ID: uuid.New()}, {ID: uuid.New()}}
+	repository := &repositoryStub{list: warnings, total: 7}
+	service := NewService(repository)
+	page, err := pagination.New(2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := service.ListWarnings(context.Background(), userID, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 2 || got.Warnings[0].ID != warnings[0].ID ||
+		got.PageInfo.Page() != 2 || got.PageInfo.PageSize() != 2 ||
+		got.PageInfo.TotalItems() != 7 || got.PageInfo.TotalPages() != 4 {
+		t.Fatalf("warning page = %+v", got)
+	}
+	if repository.listUserID != userID || repository.listOffset != 2 || repository.listLimit != 2 {
+		t.Fatalf(
+			"repository page = user %s offset %d limit %d",
+			repository.listUserID,
+			repository.listOffset,
+			repository.listLimit,
+		)
+	}
+}
+
+func TestMarkWarningAsRemovedPassesAuditMetadata(t *testing.T) {
+	warningID, actorID, appealID := uuid.New(), uuid.New(), uuid.New()
+	reason := "appeal overturned"
+	repository := &repositoryStub{}
+	service := NewService(repository)
+
+	if err := service.MarkWarningAsRemoved(context.Background(), warningID, &reason, &appealID, actorID); err != nil {
+		t.Fatal(err)
+	}
+	if repository.removeID != warningID || repository.removeReason == nil || *repository.removeReason != reason ||
+		repository.appealID == nil || *repository.appealID != appealID ||
+		repository.actorID == nil || *repository.actorID != actorID || repository.removedAt.IsZero() ||
+		repository.removedAt.Location() != time.UTC {
+		t.Fatalf("remove arguments: id=%s at=%s reason=%v appeal=%v actor=%v", repository.removeID,
+			repository.removedAt, repository.removeReason, repository.appealID, repository.actorID)
+	}
+}
+
+func TestMarkWarningAsRemovedValidatesAndMapsRepositoryErrors(t *testing.T) {
+	actorID, warningID := uuid.New(), uuid.New()
+	service := NewService(&repositoryStub{removeErr: ErrNotFound})
+	if err := service.MarkWarningAsRemoved(
+		context.Background(),
+		warningID,
+		nil,
+		nil,
+		actorID,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
+		t.Fatalf("missing warning error = %v, want ErrNotFound", err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		warningID   uuid.UUID
+		actorID     uuid.UUID
+		removedText *string
+	}{
+		{name: "nil warning ID", warningID: uuid.Nil, actorID: actorID},
+		{name: "nil actor ID", warningID: warningID, actorID: uuid.Nil},
+		{name: "reason too long", warningID: warningID, actorID: actorID, removedText: stringPointer(strings.Repeat("界", 2001))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repository := &repositoryStub{}
+			service := NewService(repository)
+			if err := service.MarkWarningAsRemoved(
+				context.Background(),
+				tc.warningID,
+				tc.removedText,
+				nil,
+				tc.actorID,
+			); err == nil {
+				t.Fatal("invalid removal input accepted")
+			}
+			if !repository.removedAt.IsZero() {
+				t.Fatal("invalid removal reached repository")
+			}
+		})
 	}
 }

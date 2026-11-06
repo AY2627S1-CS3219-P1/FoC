@@ -11,9 +11,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-func setupWarningRepository(t *testing.T) (*PostgresRepository, models.User, models.User) {
+func setupWarningRepository(t *testing.T) (*PostgresRepository, *gorm.DB, models.User, models.User) {
 	t.Helper()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -45,11 +46,11 @@ func setupWarningRepository(t *testing.T) (*PostgresRepository, models.User, mod
 		t.Fatal(err)
 	}
 	repository := NewPostgresRepository(warningdb.New(sqlDB))
-	return repository, actor, user
+	return repository, db, actor, user
 }
 
 func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
-	repository, actor, user := setupWarningRepository(t)
+	repository, _, actor, user := setupWarningRepository(t)
 	ctx := context.Background()
 	eventID, requestID := uuid.New(), uuid.New()
 	createdBy := actor.ID
@@ -69,7 +70,7 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	if err != nil || created {
 		t.Fatalf("duplicate event: created=%v err=%v", created, err)
 	}
-	warnings, err := repository.ListByUser(ctx, user.ID)
+	warnings, err := repository.ListByUser(ctx, user.ID, 0, 100)
 	if err != nil || len(warnings) != 1 || warnings[0].RequestID != requestID || warnings[0].CreatedBy == nil ||
 		*warnings[0].CreatedBy != actor.ID {
 		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
@@ -99,14 +100,14 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	) {
 		t.Fatalf("repeat removal: %v", err)
 	}
-	warnings, err = repository.ListByUser(ctx, user.ID)
+	warnings, err = repository.ListByUser(ctx, user.ID, 0, 100)
 	if err != nil || len(warnings) != 1 || warnings[0].Status != StatusRemoved {
 		t.Fatalf("removed warning missing from user history: %+v err=%v", warnings, err)
 	}
 }
 
 func TestPostgresRepositoryCreateRejectsUnknownCourier(t *testing.T) {
-	repository, _, _ := setupWarningRepository(t)
+	repository, _, _, _ := setupWarningRepository(t)
 	ctx := context.Background()
 	// The warned courier has no users row, so the insert violates
 	// account_warnings.user_id -> users (23503). The consumer must be able to
@@ -125,7 +126,7 @@ func TestPostgresRepositoryCreateRejectsUnknownCourier(t *testing.T) {
 }
 
 func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
-	repository, _, user := setupWarningRepository(t)
+	repository, _, _, user := setupWarningRepository(t)
 	ctx := context.Background()
 	newerAt := time.Date(2026, time.October, 12, 10, 30, 0, 0, time.UTC)
 	olderAt := newerAt.Add(-24 * time.Hour)
@@ -141,7 +142,7 @@ func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
 		}
 	}
 
-	warnings, err := repository.ListByUser(ctx, user.ID)
+	warnings, err := repository.ListByUser(ctx, user.ID, 0, 100)
 	if err != nil || len(warnings) != 2 {
 		t.Fatalf("listed warnings=%+v err=%v", warnings, err)
 	}
@@ -163,9 +164,41 @@ func TestPostgresRepositoryPreservesCreationTimeAndOrder(t *testing.T) {
 	if err != nil || created {
 		t.Fatalf("duplicate event: created=%v err=%v", created, err)
 	}
-	warnings, err = repository.ListByUser(ctx, user.ID)
+	warnings, err = repository.ListByUser(ctx, user.ID, 0, 100)
 	if err != nil || len(warnings) != 2 || !warnings[0].CreatedAt.Equal(newerAt) ||
 		!warnings[1].CreatedAt.Equal(olderAt) {
 		t.Fatalf("replay changed warning history: warnings=%+v err=%v", warnings, err)
+	}
+}
+
+func TestPostgresRepositoryListPagesAndCountsVisibleWarnings(t *testing.T) {
+	repository, db, _, user := setupWarningRepository(t)
+	ctx := context.Background()
+	createdAt := time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC)
+	for i := range 5 {
+		created, err := repository.Create(ctx, Warning{
+			UserID: user.ID, RequestID: uuid.New(), Reason: "warning", Status: StatusActive,
+			CreatedAt: createdAt.Add(time.Duration(i) * time.Hour),
+		})
+		if err != nil || !created {
+			t.Fatalf("create warning %d: created=%v err=%v", i, created, err)
+		}
+	}
+
+	all, err := repository.ListByUser(ctx, user.ID, 0, 100)
+	if err != nil || len(all) != 5 {
+		t.Fatalf("list all warnings: warnings=%d err=%v", len(all), err)
+	}
+	if err := db.Exec("UPDATE account_warnings SET deleted_at = now() WHERE id = ?", all[0].ID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := repository.ListByUser(ctx, user.ID, 1, 2)
+	if err != nil || len(page) != 2 || page[0].ID != all[1].ID || page[1].ID != all[2].ID {
+		t.Fatalf("page warnings=%+v err=%v", page, err)
+	}
+	total, err := repository.CountByUser(ctx, user.ID)
+	if err != nil || total != 4 {
+		t.Fatalf("visible warning count=%d err=%v, want 4", total, err)
 	}
 }
