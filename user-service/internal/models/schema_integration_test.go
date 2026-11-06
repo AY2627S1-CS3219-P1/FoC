@@ -1,4 +1,6 @@
-// Schema tests: run every migration up, down and up, then check constraints. Needs a throwaway TEST_DATABASE_URL.
+//go:build integration
+
+// Schema tests: run every migration up, down and up, then check constraints.
 
 package models_test
 
@@ -7,7 +9,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,24 +19,13 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	m "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/testsupport/postgres"
 )
 
 func setup(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set")
-	}
 	ctx := context.Background()
-	db, err := database.Open(dsn, 5, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = sqlDB.Close() })
+	db := postgres.New(t, 5, 5)
 	p, err := database.Migrator(db)
 	if err != nil {
 		t.Fatal(err)

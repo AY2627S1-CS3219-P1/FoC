@@ -1,3 +1,5 @@
+//go:build integration
+
 package review
 
 import (
@@ -6,14 +8,13 @@ import (
 	"errors"
 	"math"
 	"net/http"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/testsupport/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -71,20 +72,9 @@ func mustPage(t *testing.T, page, size int64) pagination.Pagination {
 }
 
 func TestReviewRepositoryIntegration(t *testing.T) {
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set")
-	}
-	db, err := database.Open(dsn, 5, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := postgres.New(t, 5, 5)
 	sqlDB, err := db.DB()
 	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := database.Migrate(db); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()

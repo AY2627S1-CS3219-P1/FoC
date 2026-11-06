@@ -1,3 +1,5 @@
+//go:build integration
+
 // Store tests for the first super_admin bootstrap; see auth_integration_test.go for setup.
 
 package store
