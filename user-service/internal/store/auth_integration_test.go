@@ -1,40 +1,26 @@
+//go:build integration
+
 package store
 
 import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/testsupport/postgres"
 )
 
-// setupAuthStore runs only against an explicitly configured throwaway database
-// because it truncates user data before each test.
+// setupAuthStore starts a throwaway PostgreSQL with the embedded migrations
+// applied and empties the user tables before each test.
 func setupAuthStore(t *testing.T) (*Store, *gorm.DB) {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set")
-	}
-	db, err := database.Open(dsn, 5, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := database.Migrate(db); err != nil {
-		t.Fatal(err)
-	}
+	db := postgres.New(t, 5, 5)
 	if err := db.Exec("TRUNCATE users CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}

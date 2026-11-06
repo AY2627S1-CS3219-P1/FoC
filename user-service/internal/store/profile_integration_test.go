@@ -1,3 +1,5 @@
+//go:build integration
+
 // Store tests for profile updates, user deletion and warnings; see auth_integration_test.go for setup.
 
 package store

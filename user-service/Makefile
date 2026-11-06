@@ -12,10 +12,10 @@ run:
 sqlc:
 	@cd $(SQLC_PATH) && sqlc generate
 
-# Integration tests reset a shared TEST_DATABASE_URL, so packages must run one at a time.
+# Integration tests run against throwaway testcontainers databases, so
+# packages must run one at a time.
 test-integration:
-	@test -n "$(TEST_DATABASE_URL)" || (echo "TEST_DATABASE_URL is not set" && exit 1)
-	@TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -p 1 -count=1 ./...
+	@GOWORK=off go test -mod=readonly -p 1 -tags=integration ./... -count=1 -timeout=20m
 
 migrate-up:
 	@goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" up
