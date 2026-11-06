@@ -12,13 +12,13 @@ import (
 
 type config struct {
 	Port               string
+	InternalPort       string
 	DatabaseURL        string
 	UserServiceURL     string
 	RedisAddr          string
 	RunMigrations      bool
 	SupplierServiceURL string
 	CreditServiceURL   string
-	CreditTokenFile    string
 	KafkaBrokers       string
 	S3Bucket           string
 	S3Endpoint         string
@@ -29,13 +29,13 @@ type config struct {
 func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
 		Port:               strings.TrimSpace(getenv("PORT")),
+		InternalPort:       strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
 		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
 		RedisAddr:          strings.TrimSpace(getenv("REDIS_ADDR")),
 		RunMigrations:      true,
 		SupplierServiceURL: strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
 		CreditServiceURL:   strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
-		CreditTokenFile:    strings.TrimSpace(getenv("CREDIT_WORKLOAD_TOKEN_FILE")),
 		KafkaBrokers:       strings.TrimSpace(getenv("KAFKA_BROKERS")),
 		S3Bucket:           strings.TrimSpace(getenv("ORDER_S3_BUCKET")),
 		S3Endpoint:         strings.TrimSpace(getenv("ORDER_S3_ENDPOINT")),
@@ -49,6 +49,19 @@ func loadConfig(getenv func(string) string) (config, error) {
 	port, err := strconv.Atoi(c.Port)
 	if err != nil || port < 1 || port > 65535 {
 		return config{}, errors.New("PORT must be between 1 and 65535")
+	}
+
+	// Every service runs the listener split: private routes will move to the
+	// internal listener, so it is bound even before any route is split.
+	if c.InternalPort == "" {
+		return config{}, errors.New("INTERNAL_PORT is required: every service runs the listener split")
+	}
+	internalPort, err := strconv.Atoi(c.InternalPort)
+	if err != nil || internalPort < 1 || internalPort > 65535 {
+		return config{}, errors.New("INTERNAL_PORT must be between 1 and 65535")
+	}
+	if c.InternalPort == c.Port {
+		return config{}, errors.New("INTERNAL_PORT must differ from PORT")
 	}
 
 	if c.DatabaseURL == "" {
@@ -68,10 +81,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 		(parsed.Path != "" && parsed.Path != "/") {
 		return config{}, errors.New("USER_SERVICE_BASE_URL must be an HTTP(S) origin")
 	}
-	if parsed.Scheme != "https" && getenv("APP_ENV") != "local" {
-		return config{}, errors.New("USER_SERVICE_BASE_URL must use HTTPS outside local mode")
-	}
-
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {
 		c.RunMigrations, err = strconv.ParseBool(value)
 		if err != nil {
@@ -89,19 +98,18 @@ func loadConfig(getenv func(string) string) (config, error) {
 			continue
 		}
 		parsed, err := url.Parse(value)
+		publicEndpoint := name == "ORDER_S3_PUBLIC_ENDPOINT"
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
 			parsed.User != nil ||
 			parsed.RawQuery != "" ||
 			parsed.Fragment != "" ||
 			(parsed.Path != "" && parsed.Path != "/") ||
-			(parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
-			return config{}, fmt.Errorf("%s must be an HTTP(S) origin, HTTPS outside local mode", name)
+			(publicEndpoint && parsed.Scheme != "https" && getenv("APP_ENV") != "local") {
+			return config{}, fmt.Errorf(
+				"%s must be an HTTP(S) origin; public URLs require HTTPS outside local mode",
+				name,
+			)
 		}
-	}
-	if (c.CreditServiceURL == "") != (c.CreditTokenFile == "") {
-		return config{}, errors.New(
-			"CREDIT_SERVICE_BASE_URL and CREDIT_WORKLOAD_TOKEN_FILE must be configured together",
-		)
 	}
 	if c.S3Bucket == "" && (c.S3Endpoint != "" || c.S3PublicEndpoint != "") {
 		return config{}, errors.New("ORDER_S3_BUCKET is required with S3 endpoints")

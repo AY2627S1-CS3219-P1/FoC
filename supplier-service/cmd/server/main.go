@@ -48,15 +48,29 @@ func main() {
 	r := router.Setup(deps.New(pgxPool), authenticator, services)
 	cors := getCorsConfig().Handler(r)
 
-	port := config.Port
+	// The internal listener serves the public handler until private routes are
+	// split out; binding it keeps every service on the same listener shape.
+	public := newServer(":"+config.Port, cors)
+	internal := newServer(":"+config.InternalPort, cors)
 
-	server := newServer(":"+port, cors)
-
-	slog.Info("Listening on :" + port)
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error("Server failed to start: %v", "error", err)
+	slog.Info("Listening", "public", public.Addr, "internal", internal.Addr)
+	if err := serve(public, internal); err != nil {
+		slog.Error("Server failed to start", "error", err)
 		panic(err)
 	}
+}
+
+// serve blocks while both listeners run; the first failure aborts the process.
+func serve(servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+	}
+	err := <-stopped
+	for _, server := range servers {
+		_ = server.Close()
+	}
+	return err
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {

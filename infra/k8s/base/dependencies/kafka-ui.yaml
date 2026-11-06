@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+spec:
+  selector:
+    app: kafka-ui
+  ports:
+    - {name: http-ui, port: 8080, targetPort: 8080}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  labels:
+    foc.dev/stage: dependencies
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: kafka-ui
+      containers:
+        - name: kafka-ui
+          image: ghcr.io/kafbat/kafka-ui:v1.5.0@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: kafka-ui-auth
+          env:
+            - {name: SERVER_ADDRESS, value: "127.0.0.1"}
+            - {name: AUTH_TYPE, value: LOGIN_FORM}
+            - {name: DYNAMIC_CONFIG_ENABLED, value: "false"}
+            - {name: KAFKA_CLUSTERS_0_NAME, value: foc}
+            - {name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS, value: "kafka:9092"}
+            - {name: JAVA_TOOL_OPTIONS, value: "-Xms128m -Xmx384m"}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 640Mi
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: kafka-ui
+spec:
+  workloadSelector:
+    labels:
+      app: kafka-ui
+  ingress:
+    - port:
+        number: 8080
+        name: http-ui
+        protocol: HTTP
+      defaultEndpoint: 127.0.0.1:8080
+  egress:
+    - hosts: ["./*", "istio-system/*"]
