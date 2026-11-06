@@ -193,7 +193,7 @@ func TestPostgresRepositoryListPagesAndCountsVisibleWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := repository.ListByUser(ctx, user.ID, 1, 2)
+	page, err := repository.ListByUser(ctx, user.ID, 0, 2)
 	if err != nil || len(page) != 2 || page[0].ID != all[1].ID || page[1].ID != all[2].ID {
 		t.Fatalf("page warnings=%+v err=%v", page, err)
 	}
