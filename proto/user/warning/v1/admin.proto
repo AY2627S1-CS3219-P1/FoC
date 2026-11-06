@@ -2,11 +2,54 @@ syntax = "proto3";
 
 package user.warning.v1;
 
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "pagination/v1/pagination.proto";
 import "user/warning/v1/warning.proto";
 
-// WarningAdminService is the admin-only warning sub-service. It shares the
-// warning message types with the user-facing WarningService in warning.proto.
+// WarningAdminService is the admin-only warning sub-service. It is mounted
+// behind RequireAdmin, so every method is administrator-gated at the service
+// boundary rather than per-method.
 service WarningAdminService {
   rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
   rpc MarkWarningAsRemoved(MarkWarningAsRemovedRequest) returns (MarkWarningAsRemovedResponse) {}
 }
+
+// AdminAccountWarning is the admin read view of a warning. It repeats the
+// user-facing AccountWarning fields and adds the audit context that only the
+// admin sub-service ever populates; the user view physically lacks these
+// fields.
+message AdminAccountWarning {
+  string id = 1;
+  string request_id = 2;
+  string reason = 3;
+  WarningStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp removed_at = 6;
+  optional string removed_reason = 7;
+  // Set when the warning was recorded from a courier-warning event.
+  optional string source_event_id = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  optional string updated_by = 10;
+  // Display name of the user who last updated the warning, joined at read
+  // time; unset for system-created warnings that have no updater.
+  optional string updated_by_name = 11;
+}
+
+message ListWarningsForUserRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  pagination.v1.Pagination pagination = 2;
+}
+
+message ListWarningsForUserResponse {
+  repeated AdminAccountWarning warnings = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+message MarkWarningAsRemovedRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  optional string removed_reason = 2 [(buf.validate.field).string.max_len = 2000];
+  optional string appeal_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkWarningAsRemovedResponse {}

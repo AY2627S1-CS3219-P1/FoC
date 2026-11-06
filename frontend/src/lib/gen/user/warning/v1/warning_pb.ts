@@ -4,7 +4,6 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { PageInfo, Pagination } from "../../../pagination/v1/pagination_pb";
@@ -15,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/warning/v1/warning.proto.
  */
 export const file_user_warning_v1_warning: GenFile = /*@__PURE__*/
-  fileDesc("Ch11c2VyL3dhcm5pbmcvdjEvd2FybmluZy5wcm90bxIPdXNlci53YXJuaW5nLnYxIoACCg5BY2NvdW50V2FybmluZxIKCgJpZBgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEg4KBnJlYXNvbhgDIAEoCRIuCgZzdGF0dXMYBCABKA4yHi51c2VyLndhcm5pbmcudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiJGChVMaXN0TXlXYXJuaW5nc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ4ChZMaXN0TXlXYXJuaW5nc1Jlc3BvbnNlEjEKCHdhcm5pbmdzGAEgAygLMh8udXNlci53YXJuaW5nLnYxLkFjY291bnRXYXJuaW5nEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvImYKGkxpc3RXYXJuaW5nc0ZvclVzZXJSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24ifQobTGlzdFdhcm5pbmdzRm9yVXNlclJlc3BvbnNlEjEKCHdhcm5pbmdzGAEgAygLMh8udXNlci53YXJuaW5nLnYxLkFjY291bnRXYXJuaW5nEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIp0BChtNYXJrV2FybmluZ0FzUmVtb3ZlZFJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEiUKDnJlbW92ZWRfcmVhc29uGAIgASgJQgi6SAVyAxjQD0gAiAEBEiAKCWFwcGVhbF9pZBgDIAEoCUIIukgFcgOwAQFIAYgBAUIRCg9fcmVtb3ZlZF9yZWFzb25CDAoKX2FwcGVhbF9pZCIeChxNYXJrV2FybmluZ0FzUmVtb3ZlZFJlc3BvbnNlKmYKDVdhcm5pbmdTdGF0dXMSHgoaV0FSTklOR19TVEFUVVNfVU5TUEVDSUZJRUQQABIZChVXQVJOSU5HX1NUQVRVU19BQ1RJVkUQARIaChZXQVJOSU5HX1NUQVRVU19SRU1PVkVEEAIydQoOV2FybmluZ1NlcnZpY2USYwoOTGlzdE15V2FybmluZ3MSJi51c2VyLndhcm5pbmcudjEuTGlzdE15V2FybmluZ3NSZXF1ZXN0GicudXNlci53YXJuaW5nLnYxLkxpc3RNeVdhcm5pbmdzUmVzcG9uc2UiAELGAQoTY29tLnVzZXIud2FybmluZy52MUIMV2FybmluZ1Byb3RvUAFaQ2dpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvd2FybmluZy92MTt3YXJuaW5ndjGiAgNVV1iqAg9Vc2VyLldhcm5pbmcuVjHKAg9Vc2VyXFdhcm5pbmdcVjHiAhtVc2VyXFdhcm5pbmdcVjFcR1BCTWV0YWRhdGHqAhFVc2VyOjpXYXJuaW5nOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_timestamp, file_pagination_v1_pagination]);
+  fileDesc("Ch11c2VyL3dhcm5pbmcvdjEvd2FybmluZy5wcm90bxIPdXNlci53YXJuaW5nLnYxIoACCg5BY2NvdW50V2FybmluZxIKCgJpZBgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEg4KBnJlYXNvbhgDIAEoCRIuCgZzdGF0dXMYBCABKA4yHi51c2VyLndhcm5pbmcudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBQhEKD19yZW1vdmVkX3JlYXNvbiJGChVMaXN0TXlXYXJuaW5nc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ4ChZMaXN0TXlXYXJuaW5nc1Jlc3BvbnNlEjEKCHdhcm5pbmdzGAEgAygLMh8udXNlci53YXJuaW5nLnYxLkFjY291bnRXYXJuaW5nEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvKmYKDVdhcm5pbmdTdGF0dXMSHgoaV0FSTklOR19TVEFUVVNfVU5TUEVDSUZJRUQQABIZChVXQVJOSU5HX1NUQVRVU19BQ1RJVkUQARIaChZXQVJOSU5HX1NUQVRVU19SRU1PVkVEEAIydQoOV2FybmluZ1NlcnZpY2USYwoOTGlzdE15V2FybmluZ3MSJi51c2VyLndhcm5pbmcudjEuTGlzdE15V2FybmluZ3NSZXF1ZXN0GicudXNlci53YXJuaW5nLnYxLkxpc3RNeVdhcm5pbmdzUmVzcG9uc2UiAELGAQoTY29tLnVzZXIud2FybmluZy52MUIMV2FybmluZ1Byb3RvUAFaQ2dpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvd2FybmluZy92MTt3YXJuaW5ndjGiAgNVV1iqAg9Vc2VyLldhcm5pbmcuVjHKAg9Vc2VyXFdhcm5pbmdcVjHiAhtVc2VyXFdhcm5pbmdcVjFcR1BCTWV0YWRhdGHqAhFVc2VyOjpXYXJuaW5nOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_pagination_v1_pagination]);
 
 /**
  * @generated from message user.warning.v1.AccountWarning
@@ -102,90 +101,6 @@ export type ListMyWarningsResponse = Message<"user.warning.v1.ListMyWarningsResp
  */
 export const ListMyWarningsResponseSchema: GenMessage<ListMyWarningsResponse> = /*@__PURE__*/
   messageDesc(file_user_warning_v1_warning, 2);
-
-/**
- * @generated from message user.warning.v1.ListWarningsForUserRequest
- */
-export type ListWarningsForUserRequest = Message<"user.warning.v1.ListWarningsForUserRequest"> & {
-  /**
-   * @generated from field: string user_id = 1;
-   */
-  userId: string;
-
-  /**
-   * @generated from field: pagination.v1.Pagination pagination = 2;
-   */
-  pagination?: Pagination | undefined;
-};
-
-/**
- * Describes the message user.warning.v1.ListWarningsForUserRequest.
- * Use `create(ListWarningsForUserRequestSchema)` to create a new message.
- */
-export const ListWarningsForUserRequestSchema: GenMessage<ListWarningsForUserRequest> = /*@__PURE__*/
-  messageDesc(file_user_warning_v1_warning, 3);
-
-/**
- * @generated from message user.warning.v1.ListWarningsForUserResponse
- */
-export type ListWarningsForUserResponse = Message<"user.warning.v1.ListWarningsForUserResponse"> & {
-  /**
-   * @generated from field: repeated user.warning.v1.AccountWarning warnings = 1;
-   */
-  warnings: AccountWarning[];
-
-  /**
-   * @generated from field: pagination.v1.PageInfo pagination = 2;
-   */
-  pagination?: PageInfo | undefined;
-};
-
-/**
- * Describes the message user.warning.v1.ListWarningsForUserResponse.
- * Use `create(ListWarningsForUserResponseSchema)` to create a new message.
- */
-export const ListWarningsForUserResponseSchema: GenMessage<ListWarningsForUserResponse> = /*@__PURE__*/
-  messageDesc(file_user_warning_v1_warning, 4);
-
-/**
- * @generated from message user.warning.v1.MarkWarningAsRemovedRequest
- */
-export type MarkWarningAsRemovedRequest = Message<"user.warning.v1.MarkWarningAsRemovedRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: optional string removed_reason = 2;
-   */
-  removedReason?: string | undefined;
-
-  /**
-   * @generated from field: optional string appeal_id = 3;
-   */
-  appealId?: string | undefined;
-};
-
-/**
- * Describes the message user.warning.v1.MarkWarningAsRemovedRequest.
- * Use `create(MarkWarningAsRemovedRequestSchema)` to create a new message.
- */
-export const MarkWarningAsRemovedRequestSchema: GenMessage<MarkWarningAsRemovedRequest> = /*@__PURE__*/
-  messageDesc(file_user_warning_v1_warning, 5);
-
-/**
- * @generated from message user.warning.v1.MarkWarningAsRemovedResponse
- */
-export type MarkWarningAsRemovedResponse = Message<"user.warning.v1.MarkWarningAsRemovedResponse"> & {
-};
-
-/**
- * Describes the message user.warning.v1.MarkWarningAsRemovedResponse.
- * Use `create(MarkWarningAsRemovedResponseSchema)` to create a new message.
- */
-export const MarkWarningAsRemovedResponseSchema: GenMessage<MarkWarningAsRemovedResponse> = /*@__PURE__*/
-  messageDesc(file_user_warning_v1_warning, 6);
 
 /**
  * @generated from enum user.warning.v1.WarningStatus

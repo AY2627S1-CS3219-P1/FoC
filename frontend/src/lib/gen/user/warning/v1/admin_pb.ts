@@ -2,20 +2,188 @@
 // @generated from file user/warning/v1/admin.proto (package user.warning.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { ListWarningsForUserRequestSchema, ListWarningsForUserResponseSchema, MarkWarningAsRemovedRequestSchema, MarkWarningAsRemovedResponseSchema } from "./warning_pb";
+import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { PageInfo, Pagination } from "../../../pagination/v1/pagination_pb";
+import { file_pagination_v1_pagination } from "../../../pagination/v1/pagination_pb";
+import type { WarningStatus } from "./warning_pb";
 import { file_user_warning_v1_warning } from "./warning_pb";
+import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file user/warning/v1/admin.proto.
  */
 export const file_user_warning_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3dhcm5pbmcvdjEvYWRtaW4ucHJvdG8SD3VzZXIud2FybmluZy52MTKAAgoTV2FybmluZ0FkbWluU2VydmljZRJyChNMaXN0V2FybmluZ3NGb3JVc2VyEisudXNlci53YXJuaW5nLnYxLkxpc3RXYXJuaW5nc0ZvclVzZXJSZXF1ZXN0GiwudXNlci53YXJuaW5nLnYxLkxpc3RXYXJuaW5nc0ZvclVzZXJSZXNwb25zZSIAEnUKFE1hcmtXYXJuaW5nQXNSZW1vdmVkEiwudXNlci53YXJuaW5nLnYxLk1hcmtXYXJuaW5nQXNSZW1vdmVkUmVxdWVzdBotLnVzZXIud2FybmluZy52MS5NYXJrV2FybmluZ0FzUmVtb3ZlZFJlc3BvbnNlIgBCxAEKE2NvbS51c2VyLndhcm5pbmcudjFCCkFkbWluUHJvdG9QAVpDZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci93YXJuaW5nL3YxO3dhcm5pbmd2MaICA1VXWKoCD1VzZXIuV2FybmluZy5WMcoCD1VzZXJcV2FybmluZ1xWMeICG1VzZXJcV2FybmluZ1xWMVxHUEJNZXRhZGF0YeoCEVVzZXI6Oldhcm5pbmc6OlYxYgZwcm90bzM", [file_user_warning_v1_warning]);
+  fileDesc("Cht1c2VyL3dhcm5pbmcvdjEvYWRtaW4ucHJvdG8SD3VzZXIud2FybmluZy52MSLBAwoTQWRtaW5BY2NvdW50V2FybmluZxIKCgJpZBgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEg4KBnJlYXNvbhgDIAEoCRIuCgZzdGF0dXMYBCABKA4yHi51c2VyLndhcm5pbmcudjEuV2FybmluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZW1vdmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbCg5yZW1vdmVkX3JlYXNvbhgHIAEoCUgAiAEBEhwKD3NvdXJjZV9ldmVudF9pZBgIIAEoCUgBiAEBEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCnVwZGF0ZWRfYnkYCiABKAlIAogBARIcCg91cGRhdGVkX2J5X25hbWUYCyABKAlIA4gBAUIRCg9fcmVtb3ZlZF9yZWFzb25CEgoQX3NvdXJjZV9ldmVudF9pZEINCgtfdXBkYXRlZF9ieUISChBfdXBkYXRlZF9ieV9uYW1lImYKGkxpc3RXYXJuaW5nc0ZvclVzZXJSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iggEKG0xpc3RXYXJuaW5nc0ZvclVzZXJSZXNwb25zZRI2Cgh3YXJuaW5ncxgBIAMoCzIkLnVzZXIud2FybmluZy52MS5BZG1pbkFjY291bnRXYXJuaW5nEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIp0BChtNYXJrV2FybmluZ0FzUmVtb3ZlZFJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEiUKDnJlbW92ZWRfcmVhc29uGAIgASgJQgi6SAVyAxjQD0gAiAEBEiAKCWFwcGVhbF9pZBgDIAEoCUIIukgFcgOwAQFIAYgBAUIRCg9fcmVtb3ZlZF9yZWFzb25CDAoKX2FwcGVhbF9pZCIeChxNYXJrV2FybmluZ0FzUmVtb3ZlZFJlc3BvbnNlMoACChNXYXJuaW5nQWRtaW5TZXJ2aWNlEnIKE0xpc3RXYXJuaW5nc0ZvclVzZXISKy51c2VyLndhcm5pbmcudjEuTGlzdFdhcm5pbmdzRm9yVXNlclJlcXVlc3QaLC51c2VyLndhcm5pbmcudjEuTGlzdFdhcm5pbmdzRm9yVXNlclJlc3BvbnNlIgASdQoUTWFya1dhcm5pbmdBc1JlbW92ZWQSLC51c2VyLndhcm5pbmcudjEuTWFya1dhcm5pbmdBc1JlbW92ZWRSZXF1ZXN0Gi0udXNlci53YXJuaW5nLnYxLk1hcmtXYXJuaW5nQXNSZW1vdmVkUmVzcG9uc2UiAELEAQoTY29tLnVzZXIud2FybmluZy52MUIKQWRtaW5Qcm90b1ABWkNnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3dhcm5pbmcvdjE7d2FybmluZ3YxogIDVVdYqgIPVXNlci5XYXJuaW5nLlYxygIPVXNlclxXYXJuaW5nXFYx4gIbVXNlclxXYXJuaW5nXFYxXEdQQk1ldGFkYXRh6gIRVXNlcjo6V2FybmluZzo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp, file_pagination_v1_pagination, file_user_warning_v1_warning]);
 
 /**
- * WarningAdminService is the admin-only warning sub-service. It shares the
- * warning message types with the user-facing WarningService in warning.proto.
+ * AdminAccountWarning is the admin read view of a warning. It repeats the
+ * user-facing AccountWarning fields and adds the audit context that only the
+ * admin sub-service ever populates; the user view physically lacks these
+ * fields.
+ *
+ * @generated from message user.warning.v1.AdminAccountWarning
+ */
+export type AdminAccountWarning = Message<"user.warning.v1.AdminAccountWarning"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string request_id = 2;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: user.warning.v1.WarningStatus status = 4;
+   */
+  status: WarningStatus;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 5;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp removed_at = 6;
+   */
+  removedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: optional string removed_reason = 7;
+   */
+  removedReason?: string | undefined;
+
+  /**
+   * Set when the warning was recorded from a courier-warning event.
+   *
+   * @generated from field: optional string source_event_id = 8;
+   */
+  sourceEventId?: string | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 9;
+   */
+  updatedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: optional string updated_by = 10;
+   */
+  updatedBy?: string | undefined;
+
+  /**
+   * Display name of the user who last updated the warning, joined at read
+   * time; unset for system-created warnings that have no updater.
+   *
+   * @generated from field: optional string updated_by_name = 11;
+   */
+  updatedByName?: string | undefined;
+};
+
+/**
+ * Describes the message user.warning.v1.AdminAccountWarning.
+ * Use `create(AdminAccountWarningSchema)` to create a new message.
+ */
+export const AdminAccountWarningSchema: GenMessage<AdminAccountWarning> = /*@__PURE__*/
+  messageDesc(file_user_warning_v1_admin, 0);
+
+/**
+ * @generated from message user.warning.v1.ListWarningsForUserRequest
+ */
+export type ListWarningsForUserRequest = Message<"user.warning.v1.ListWarningsForUserRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: pagination.v1.Pagination pagination = 2;
+   */
+  pagination?: Pagination | undefined;
+};
+
+/**
+ * Describes the message user.warning.v1.ListWarningsForUserRequest.
+ * Use `create(ListWarningsForUserRequestSchema)` to create a new message.
+ */
+export const ListWarningsForUserRequestSchema: GenMessage<ListWarningsForUserRequest> = /*@__PURE__*/
+  messageDesc(file_user_warning_v1_admin, 1);
+
+/**
+ * @generated from message user.warning.v1.ListWarningsForUserResponse
+ */
+export type ListWarningsForUserResponse = Message<"user.warning.v1.ListWarningsForUserResponse"> & {
+  /**
+   * @generated from field: repeated user.warning.v1.AdminAccountWarning warnings = 1;
+   */
+  warnings: AdminAccountWarning[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
+};
+
+/**
+ * Describes the message user.warning.v1.ListWarningsForUserResponse.
+ * Use `create(ListWarningsForUserResponseSchema)` to create a new message.
+ */
+export const ListWarningsForUserResponseSchema: GenMessage<ListWarningsForUserResponse> = /*@__PURE__*/
+  messageDesc(file_user_warning_v1_admin, 2);
+
+/**
+ * @generated from message user.warning.v1.MarkWarningAsRemovedRequest
+ */
+export type MarkWarningAsRemovedRequest = Message<"user.warning.v1.MarkWarningAsRemovedRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: optional string removed_reason = 2;
+   */
+  removedReason?: string | undefined;
+
+  /**
+   * @generated from field: optional string appeal_id = 3;
+   */
+  appealId?: string | undefined;
+};
+
+/**
+ * Describes the message user.warning.v1.MarkWarningAsRemovedRequest.
+ * Use `create(MarkWarningAsRemovedRequestSchema)` to create a new message.
+ */
+export const MarkWarningAsRemovedRequestSchema: GenMessage<MarkWarningAsRemovedRequest> = /*@__PURE__*/
+  messageDesc(file_user_warning_v1_admin, 3);
+
+/**
+ * @generated from message user.warning.v1.MarkWarningAsRemovedResponse
+ */
+export type MarkWarningAsRemovedResponse = Message<"user.warning.v1.MarkWarningAsRemovedResponse"> & {
+};
+
+/**
+ * Describes the message user.warning.v1.MarkWarningAsRemovedResponse.
+ * Use `create(MarkWarningAsRemovedResponseSchema)` to create a new message.
+ */
+export const MarkWarningAsRemovedResponseSchema: GenMessage<MarkWarningAsRemovedResponse> = /*@__PURE__*/
+  messageDesc(file_user_warning_v1_admin, 4);
+
+/**
+ * WarningAdminService is the admin-only warning sub-service. It is mounted
+ * behind RequireAdmin, so every method is administrator-gated at the service
+ * boundary rather than per-method.
  *
  * @generated from service user.warning.v1.WarningAdminService
  */

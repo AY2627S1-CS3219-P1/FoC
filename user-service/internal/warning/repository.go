@@ -19,6 +19,7 @@ var (
 type Repository interface {
 	Create(context.Context, Warning) (bool, error)
 	ListByUser(context.Context, uuid.UUID, int64, int64) ([]Warning, error)
+	ListForAdmin(context.Context, uuid.UUID, int64, int64) ([]AdminWarning, error)
 	CountByUser(context.Context, uuid.UUID) (int64, error)
 	Remove(context.Context, uuid.UUID, time.Time, *string, *uuid.UUID, *uuid.UUID) (Warning, error)
 }

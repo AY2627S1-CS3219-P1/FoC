@@ -14,13 +14,14 @@ import (
 )
 
 type handlerLogicStub struct {
-	listUserID uuid.UUID
-	listPage   pagination.Pagination
-	listResult WarningPage
-	removeID   uuid.UUID
-	removeText *string
-	appealID   *uuid.UUID
-	actorID    uuid.UUID
+	listUserID  uuid.UUID
+	listPage    pagination.Pagination
+	listResult  WarningPage
+	adminResult AdminWarningPage
+	removeID    uuid.UUID
+	removeText  *string
+	appealID    *uuid.UUID
+	actorID     uuid.UUID
 }
 
 func (s *handlerLogicStub) ListWarnings(
@@ -31,6 +32,16 @@ func (s *handlerLogicStub) ListWarnings(
 	s.listUserID = userID
 	s.listPage = page
 	return s.listResult, nil
+}
+
+func (s *handlerLogicStub) ListWarningsForAdmin(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (AdminWarningPage, error) {
+	s.listUserID = userID
+	s.listPage = page
+	return s.adminResult, nil
 }
 
 func (s *handlerLogicStub) MarkWarningAsRemoved(
@@ -72,14 +83,34 @@ func TestWarningListHandlersReturnPagination(t *testing.T) {
 	}
 
 	adminHandler := &AdminHandler{Logic: logic}
+	sourceEventID, updaterID := uuid.New(), uuid.New()
+	updaterName := "Admin"
+	updatedAt := time.Date(2026, time.November, 2, 9, 0, 0, 0, time.UTC)
+	logic.adminResult = AdminWarningPage{
+		Warnings: []AdminWarning{{
+			Warning: Warning{
+				ID: warningID, RequestID: uuid.New(), Reason: "test warning", Status: StatusRemoved,
+				SourceEventID: &sourceEventID, UpdatedBy: &updaterID,
+				CreatedAt: createdAt, UpdatedAt: updatedAt,
+			},
+			UpdatedByName: &updaterName,
+		}},
+		PageInfo: pagination.NewPageInfo(2, 10, 21),
+	}
 	userResponse, err := adminHandler.ListWarningsForUser(ctx, connect.NewRequest(&warningv1.ListWarningsForUserRequest{
 		UserId: targetID.String(), Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if logic.listUserID != targetID || userResponse.Msg.GetPagination().GetPage() != 2 {
-		t.Fatalf("user warning response=%+v user=%s", userResponse.Msg, logic.listUserID)
+	adminWarning := userResponse.Msg.GetWarnings()[0]
+	if logic.listUserID != targetID || userResponse.Msg.GetPagination().GetPage() != 2 ||
+		adminWarning.GetId() != warningID.String() ||
+		adminWarning.GetSourceEventId() != sourceEventID.String() ||
+		adminWarning.GetUpdatedAt().AsTime() != updatedAt ||
+		adminWarning.GetUpdatedBy() != updaterID.String() ||
+		adminWarning.GetUpdatedByName() != updaterName {
+		t.Fatalf("admin warning response=%+v user=%s", userResponse.Msg, logic.listUserID)
 	}
 }
 

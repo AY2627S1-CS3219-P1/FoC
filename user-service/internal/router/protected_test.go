@@ -125,6 +125,17 @@ func (s *warningStub) ListWarnings(
 	return warningdomain.WarningPage{}, nil
 }
 
+func (s *warningStub) ListWarningsForAdmin(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (warningdomain.AdminWarningPage, error) {
+	s.userID = userID
+	s.page = page
+	s.calls.Add(1)
+	return warningdomain.AdminWarningPage{}, nil
+}
+
 func (s *warningStub) MarkWarningAsRemoved(
 	_ context.Context,
 	warningID uuid.UUID,

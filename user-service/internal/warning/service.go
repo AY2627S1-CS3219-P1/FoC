@@ -78,6 +78,30 @@ func (s *Service) ListWarnings(
 	}, nil
 }
 
+// ListWarningsForAdmin returns the admin read projection of a user's warnings:
+// the same records plus the display name of the user who last updated each.
+func (s *Service) ListWarningsForAdmin(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (AdminWarningPage, error) {
+	if userID == uuid.Nil {
+		return AdminWarningPage{}, fmt.Errorf("%w: invalid user ID", ErrInvalidRequest)
+	}
+	warnings, err := s.repository.ListForAdmin(ctx, userID, page.Offset(), page.PageSize())
+	if err != nil {
+		return AdminWarningPage{}, fmt.Errorf("list warnings for admin: %w", err)
+	}
+	total, err := s.repository.CountByUser(ctx, userID)
+	if err != nil {
+		return AdminWarningPage{}, fmt.Errorf("count warnings: %w", err)
+	}
+	return AdminWarningPage{
+		Warnings: warnings,
+		PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total),
+	}, nil
+}
+
 func (s *Service) MarkWarningAsRemoved(
 	ctx context.Context,
 	warningID uuid.UUID,

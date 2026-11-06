@@ -37,6 +37,20 @@ type WarningPage struct {
 	PageInfo pagination.PageInfo
 }
 
+// AdminWarning is the admin read projection of a Warning. It augments the
+// domain record with the display name of the user who last updated it, which
+// only exists as a read-time join and never persists.
+type AdminWarning struct {
+	Warning
+	UpdatedByName *string
+}
+
+// AdminWarningPage is one page of the admin read projection.
+type AdminWarningPage struct {
+	Warnings []AdminWarning
+	PageInfo pagination.PageInfo
+}
+
 type CourierWarningRequest struct {
 	EventID    string
 	CourierID  string

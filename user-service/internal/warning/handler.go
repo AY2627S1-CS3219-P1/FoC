@@ -8,17 +8,17 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	paginationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	warningv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1"
-	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// WarningLogic is the shared persistence the user and admin handlers call.
+// WarningLogic is the read operation the user-facing WarningService adapter
+// calls.
 type WarningLogic interface {
 	ListWarnings(context.Context, uuid.UUID, pagination.Pagination) (WarningPage, error)
-	MarkWarningAsRemoved(context.Context, uuid.UUID, *string, *uuid.UUID, uuid.UUID) error
 }
 
 // Handler is the user-facing WarningService adapter.
@@ -49,15 +49,22 @@ func (h *Handler) ListMyWarnings(
 	return response, nil
 }
 
-// AdminHandler is the admin-only WarningAdminService adapter. It is mounted
-// behind auth.RequireAdmin(), so every method is administrator-gated at the
-// service boundary rather than per-method.
-type AdminHandler struct {
-	warningv1connect.UnimplementedWarningAdminServiceHandler
-	Logic WarningLogic
+// AdminWarningLogic is the operations the admin-only WarningAdminService
+// adapter calls. It is mounted behind auth.RequireAdmin(), so every method is
+// administrator-gated at the service boundary rather than per-method.
+type AdminWarningLogic interface {
+	ListWarningsForAdmin(context.Context, uuid.UUID, pagination.Pagination) (AdminWarningPage, error)
+	MarkWarningAsRemoved(context.Context, uuid.UUID, *string, *uuid.UUID, uuid.UUID) error
 }
 
-// ListWarningsForUser returns the warnings held against an arbitrary user.
+// AdminHandler is the admin-only WarningAdminService adapter.
+type AdminHandler struct {
+	warningv1connect.UnimplementedWarningAdminServiceHandler
+	Logic AdminWarningLogic
+}
+
+// ListWarningsForUser returns the admin read view of the warnings held against
+// an arbitrary user.
 func (h *AdminHandler) ListWarningsForUser(
 	ctx context.Context,
 	req *connect.Request[warningv1.ListWarningsForUserRequest],
@@ -73,7 +80,7 @@ func (h *AdminHandler) ListWarningsForUser(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
-	warnings, err := h.Logic.ListWarnings(ctx, userID, page)
+	warnings, err := h.Logic.ListWarningsForAdmin(ctx, userID, page)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -130,9 +137,9 @@ func toListMyWarningsResponse(page WarningPage) *warningv1.ListMyWarningsRespons
 	}
 }
 
-func toListWarningsForUserResponse(page WarningPage) *warningv1.ListWarningsForUserResponse {
+func toListWarningsForUserResponse(page AdminWarningPage) *warningv1.ListWarningsForUserResponse {
 	return &warningv1.ListWarningsForUserResponse{
-		Warnings:   warningDTOs(page.Warnings),
+		Warnings:   adminWarningDTOs(page.Warnings),
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }
@@ -151,15 +158,42 @@ func warningDTOs(warnings []Warning) []*warningv1.AccountWarning {
 			Id: warning.ID.String(), RequestId: warning.RequestID.String(), Reason: warning.Reason,
 			Status: warningStatus(warning.Status), CreatedAt: timestamppb.New(warning.CreatedAt),
 		}
-		if warning.RemovedAt != nil {
-			item.RemovedAt = timestamppb.New(*warning.RemovedAt)
+		item.RemovedAt, item.RemovedReason = removalFields(warning)
+		result[i] = item
+	}
+	return result
+}
+
+func adminWarningDTOs(warnings []AdminWarning) []*warningv1.AdminAccountWarning {
+	result := make([]*warningv1.AdminAccountWarning, len(warnings))
+	for i, admin := range warnings {
+		item := &warningv1.AdminAccountWarning{
+			Id: admin.ID.String(), RequestId: admin.RequestID.String(), Reason: admin.Reason,
+			Status: warningStatus(admin.Status), CreatedAt: timestamppb.New(admin.CreatedAt),
+			UpdatedAt: timestamppb.New(admin.UpdatedAt),
 		}
-		if warning.RemovedReason != nil {
-			item.RemovedReason = warning.RemovedReason
+		item.RemovedAt, item.RemovedReason = removalFields(admin.Warning)
+		if admin.SourceEventID != nil {
+			item.SourceEventId = stringPointer(admin.SourceEventID.String())
+		}
+		if admin.UpdatedBy != nil {
+			item.UpdatedBy = stringPointer(admin.UpdatedBy.String())
+		}
+		if admin.UpdatedByName != nil {
+			item.UpdatedByName = admin.UpdatedByName
 		}
 		result[i] = item
 	}
 	return result
+}
+
+// removalFields converts the soft-delete record shared by both read views.
+func removalFields(warning Warning) (*timestamppb.Timestamp, *string) {
+	var removedAt *timestamppb.Timestamp
+	if warning.RemovedAt != nil {
+		removedAt = timestamppb.New(*warning.RemovedAt)
+	}
+	return removedAt, warning.RemovedReason
 }
 
 func warningStatus(status Status) warningv1.WarningStatus {

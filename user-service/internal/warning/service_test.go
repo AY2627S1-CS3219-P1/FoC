@@ -17,6 +17,7 @@ import (
 type repositoryStub struct {
 	created      []Warning
 	list         []Warning
+	adminList    []AdminWarning
 	total        int64
 	listUserID   uuid.UUID
 	listOffset   int64
@@ -46,6 +47,17 @@ func (r *repositoryStub) ListByUser(
 	r.listOffset = offset
 	r.listLimit = limit
 	return r.list, r.err
+}
+
+func (r *repositoryStub) ListForAdmin(
+	_ context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]AdminWarning, error) {
+	r.listUserID = userID
+	r.listOffset = offset
+	r.listLimit = limit
+	return r.adminList, r.err
 }
 
 func (r *repositoryStub) CountByUser(context.Context, uuid.UUID) (int64, error) {
@@ -223,6 +235,52 @@ func TestListWarningsUsesOffsetAndReturnsPageInfo(t *testing.T) {
 			repository.listOffset,
 			repository.listLimit,
 		)
+	}
+}
+
+func TestListWarningsForAdminReturnsReadProjectionPage(t *testing.T) {
+	userID := uuid.New()
+	updaterName := "Admin"
+	adminWarnings := []AdminWarning{{
+		Warning:       Warning{ID: uuid.New()},
+		UpdatedByName: &updaterName,
+	}}
+	repository := &repositoryStub{adminList: adminWarnings, total: 7}
+	service := NewService(repository)
+	page, err := pagination.New(2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := service.ListWarningsForAdmin(context.Background(), userID, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 1 || got.Warnings[0].ID != adminWarnings[0].ID ||
+		got.Warnings[0].UpdatedByName == nil || *got.Warnings[0].UpdatedByName != updaterName ||
+		got.PageInfo.Page() != 2 || got.PageInfo.PageSize() != 2 ||
+		got.PageInfo.TotalItems() != 7 || got.PageInfo.TotalPages() != 4 {
+		t.Fatalf("admin warning page = %+v", got)
+	}
+	if repository.listUserID != userID || repository.listOffset != 2 || repository.listLimit != 2 {
+		t.Fatalf(
+			"repository page = user %s offset %d limit %d",
+			repository.listUserID,
+			repository.listOffset,
+			repository.listLimit,
+		)
+	}
+}
+
+func TestListWarningsForAdminRejectsInvalidUserAndMapsRepositoryErrors(t *testing.T) {
+	wantErr := errors.New("database unavailable")
+	service := NewService(&repositoryStub{err: wantErr})
+	page, _ := pagination.New(1, 20)
+	if _, err := service.ListWarningsForAdmin(context.Background(), uuid.Nil, page); err == nil {
+		t.Fatal("expected invalid user ID rejection")
+	}
+	if _, err := service.ListWarningsForAdmin(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
+		t.Fatalf("admin list error = %v, want wrapped database error", err)
 	}
 }
 

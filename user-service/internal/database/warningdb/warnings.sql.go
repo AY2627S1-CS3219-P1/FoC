@@ -8,6 +8,7 @@ package warningdb
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -105,6 +106,86 @@ func (q *Queries) ListAccountWarningsByUser(ctx context.Context, arg ListAccount
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountWarningsForAdmin = `-- name: ListAccountWarningsForAdmin :many
+SELECT w.id, w.user_id, w.request_id, w.report_id, w.reason, w.status, w.source_event_id,
+       w.removed_at, w.removed_reason, w.appeal_id, w.created_at, w.updated_at,
+       w.deleted_at, w.created_by, w.updated_by,
+       updater.display_name AS updated_by_name
+FROM account_warnings w
+LEFT JOIN users updater ON updater.id = w.updated_by
+WHERE w.user_id = $1 AND w.deleted_at IS NULL
+ORDER BY w.created_at DESC, w.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
+`
+
+type ListAccountWarningsForAdminParams struct {
+	UserID     uuid.UUID
+	PageOffset int64
+	PageLimit  int64
+}
+
+type ListAccountWarningsForAdminRow struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	RequestID     uuid.UUID
+	ReportID      uuid.NullUUID
+	Reason        string
+	Status        string
+	SourceEventID uuid.NullUUID
+	RemovedAt     sql.NullTime
+	RemovedReason sql.NullString
+	AppealID      uuid.NullUUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+	CreatedBy     uuid.NullUUID
+	UpdatedBy     uuid.NullUUID
+	UpdatedByName sql.NullString
+}
+
+// The admin read view additionally joins the display name of the user who last
+// updated the warning; system-created warnings have no updater, so the join is
+// optional and the name is nullable.
+func (q *Queries) ListAccountWarningsForAdmin(ctx context.Context, arg ListAccountWarningsForAdminParams) ([]ListAccountWarningsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAccountWarningsForAdmin, arg.UserID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountWarningsForAdminRow{}
+	for rows.Next() {
+		var i ListAccountWarningsForAdminRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.RequestID,
+			&i.ReportID,
+			&i.Reason,
+			&i.Status,
+			&i.SourceEventID,
+			&i.RemovedAt,
+			&i.RemovedReason,
+			&i.AppealID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.UpdatedByName,
 		); err != nil {
 			return nil, err
 		}

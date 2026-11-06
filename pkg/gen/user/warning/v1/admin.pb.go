@@ -7,9 +7,13 @@
 package warningv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	v1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -20,33 +24,429 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// AdminAccountWarning is the admin read view of a warning. It repeats the
+// user-facing AccountWarning fields and adds the audit context that only the
+// admin sub-service ever populates; the user view physically lacks these
+// fields.
+type AdminAccountWarning struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Status        WarningStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=user.warning.v1.WarningStatus" json:"status,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	RemovedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=removed_at,json=removedAt,proto3" json:"removed_at,omitempty"`
+	RemovedReason *string                `protobuf:"bytes,7,opt,name=removed_reason,json=removedReason,proto3,oneof" json:"removed_reason,omitempty"`
+	// Set when the warning was recorded from a courier-warning event.
+	SourceEventId *string                `protobuf:"bytes,8,opt,name=source_event_id,json=sourceEventId,proto3,oneof" json:"source_event_id,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	UpdatedBy     *string                `protobuf:"bytes,10,opt,name=updated_by,json=updatedBy,proto3,oneof" json:"updated_by,omitempty"`
+	// Display name of the user who last updated the warning, joined at read
+	// time; unset for system-created warnings that have no updater.
+	UpdatedByName *string `protobuf:"bytes,11,opt,name=updated_by_name,json=updatedByName,proto3,oneof" json:"updated_by_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminAccountWarning) Reset() {
+	*x = AdminAccountWarning{}
+	mi := &file_user_warning_v1_admin_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminAccountWarning) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminAccountWarning) ProtoMessage() {}
+
+func (x *AdminAccountWarning) ProtoReflect() protoreflect.Message {
+	mi := &file_user_warning_v1_admin_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminAccountWarning.ProtoReflect.Descriptor instead.
+func (*AdminAccountWarning) Descriptor() ([]byte, []int) {
+	return file_user_warning_v1_admin_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AdminAccountWarning) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetStatus() WarningStatus {
+	if x != nil {
+		return x.Status
+	}
+	return WarningStatus_WARNING_STATUS_UNSPECIFIED
+}
+
+func (x *AdminAccountWarning) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AdminAccountWarning) GetRemovedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RemovedAt
+	}
+	return nil
+}
+
+func (x *AdminAccountWarning) GetRemovedReason() string {
+	if x != nil && x.RemovedReason != nil {
+		return *x.RemovedReason
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetSourceEventId() string {
+	if x != nil && x.SourceEventId != nil {
+		return *x.SourceEventId
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *AdminAccountWarning) GetUpdatedBy() string {
+	if x != nil && x.UpdatedBy != nil {
+		return *x.UpdatedBy
+	}
+	return ""
+}
+
+func (x *AdminAccountWarning) GetUpdatedByName() string {
+	if x != nil && x.UpdatedByName != nil {
+		return *x.UpdatedByName
+	}
+	return ""
+}
+
+type ListWarningsForUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Pagination    *v1.Pagination         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWarningsForUserRequest) Reset() {
+	*x = ListWarningsForUserRequest{}
+	mi := &file_user_warning_v1_admin_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWarningsForUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWarningsForUserRequest) ProtoMessage() {}
+
+func (x *ListWarningsForUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_warning_v1_admin_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWarningsForUserRequest.ProtoReflect.Descriptor instead.
+func (*ListWarningsForUserRequest) Descriptor() ([]byte, []int) {
+	return file_user_warning_v1_admin_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListWarningsForUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListWarningsForUserRequest) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+type ListWarningsForUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Warnings      []*AdminAccountWarning `protobuf:"bytes,1,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWarningsForUserResponse) Reset() {
+	*x = ListWarningsForUserResponse{}
+	mi := &file_user_warning_v1_admin_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWarningsForUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWarningsForUserResponse) ProtoMessage() {}
+
+func (x *ListWarningsForUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_warning_v1_admin_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWarningsForUserResponse.ProtoReflect.Descriptor instead.
+func (*ListWarningsForUserResponse) Descriptor() ([]byte, []int) {
+	return file_user_warning_v1_admin_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListWarningsForUserResponse) GetWarnings() []*AdminAccountWarning {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
+func (x *ListWarningsForUserResponse) GetPagination() *v1.PageInfo {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+type MarkWarningAsRemovedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	RemovedReason *string                `protobuf:"bytes,2,opt,name=removed_reason,json=removedReason,proto3,oneof" json:"removed_reason,omitempty"`
+	AppealId      *string                `protobuf:"bytes,3,opt,name=appeal_id,json=appealId,proto3,oneof" json:"appeal_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarkWarningAsRemovedRequest) Reset() {
+	*x = MarkWarningAsRemovedRequest{}
+	mi := &file_user_warning_v1_admin_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarkWarningAsRemovedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarkWarningAsRemovedRequest) ProtoMessage() {}
+
+func (x *MarkWarningAsRemovedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_warning_v1_admin_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarkWarningAsRemovedRequest.ProtoReflect.Descriptor instead.
+func (*MarkWarningAsRemovedRequest) Descriptor() ([]byte, []int) {
+	return file_user_warning_v1_admin_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MarkWarningAsRemovedRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *MarkWarningAsRemovedRequest) GetRemovedReason() string {
+	if x != nil && x.RemovedReason != nil {
+		return *x.RemovedReason
+	}
+	return ""
+}
+
+func (x *MarkWarningAsRemovedRequest) GetAppealId() string {
+	if x != nil && x.AppealId != nil {
+		return *x.AppealId
+	}
+	return ""
+}
+
+type MarkWarningAsRemovedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarkWarningAsRemovedResponse) Reset() {
+	*x = MarkWarningAsRemovedResponse{}
+	mi := &file_user_warning_v1_admin_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarkWarningAsRemovedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarkWarningAsRemovedResponse) ProtoMessage() {}
+
+func (x *MarkWarningAsRemovedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_warning_v1_admin_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarkWarningAsRemovedResponse.ProtoReflect.Descriptor instead.
+func (*MarkWarningAsRemovedResponse) Descriptor() ([]byte, []int) {
+	return file_user_warning_v1_admin_proto_rawDescGZIP(), []int{4}
+}
+
 var File_user_warning_v1_admin_proto protoreflect.FileDescriptor
 
 const file_user_warning_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/warning/v1/admin.proto\x12\x0fuser.warning.v1\x1a\x1duser/warning/v1/warning.proto2\x80\x02\n" +
+	"\x1buser/warning/v1/admin.proto\x12\x0fuser.warning.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1duser/warning/v1/warning.proto\"\xb9\x04\n" +
+	"\x13AdminAccountWarning\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x126\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1e.user.warning.v1.WarningStatusR\x06status\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"removed_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tremovedAt\x12*\n" +
+	"\x0eremoved_reason\x18\a \x01(\tH\x00R\rremovedReason\x88\x01\x01\x12+\n" +
+	"\x0fsource_event_id\x18\b \x01(\tH\x01R\rsourceEventId\x88\x01\x01\x129\n" +
+	"\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\"\n" +
+	"\n" +
+	"updated_by\x18\n" +
+	" \x01(\tH\x02R\tupdatedBy\x88\x01\x01\x12+\n" +
+	"\x0fupdated_by_name\x18\v \x01(\tH\x03R\rupdatedByName\x88\x01\x01B\x11\n" +
+	"\x0f_removed_reasonB\x12\n" +
+	"\x10_source_event_idB\r\n" +
+	"\v_updated_byB\x12\n" +
+	"\x10_updated_by_name\"z\n" +
+	"\x1aListWarningsForUserRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x129\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x19.pagination.v1.PaginationR\n" +
+	"pagination\"\x98\x01\n" +
+	"\x1bListWarningsForUserResponse\x12@\n" +
+	"\bwarnings\x18\x01 \x03(\v2$.user.warning.v1.AdminAccountWarningR\bwarnings\x127\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
+	"pagination\"\xba\x01\n" +
+	"\x1bMarkWarningAsRemovedRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x124\n" +
+	"\x0eremoved_reason\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fH\x00R\rremovedReason\x88\x01\x01\x12*\n" +
+	"\tappeal_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\bappealId\x88\x01\x01B\x11\n" +
+	"\x0f_removed_reasonB\f\n" +
+	"\n" +
+	"_appeal_id\"\x1e\n" +
+	"\x1cMarkWarningAsRemovedResponse2\x80\x02\n" +
 	"\x13WarningAdminService\x12r\n" +
 	"\x13ListWarningsForUser\x12+.user.warning.v1.ListWarningsForUserRequest\x1a,.user.warning.v1.ListWarningsForUserResponse\"\x00\x12u\n" +
 	"\x14MarkWarningAsRemoved\x12,.user.warning.v1.MarkWarningAsRemovedRequest\x1a-.user.warning.v1.MarkWarningAsRemovedResponse\"\x00B\xc4\x01\n" +
 	"\x13com.user.warning.v1B\n" +
 	"AdminProtoP\x01ZCgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1;warningv1\xa2\x02\x03UWX\xaa\x02\x0fUser.Warning.V1\xca\x02\x0fUser\\Warning\\V1\xe2\x02\x1bUser\\Warning\\V1\\GPBMetadata\xea\x02\x11User::Warning::V1b\x06proto3"
 
+var (
+	file_user_warning_v1_admin_proto_rawDescOnce sync.Once
+	file_user_warning_v1_admin_proto_rawDescData []byte
+)
+
+func file_user_warning_v1_admin_proto_rawDescGZIP() []byte {
+	file_user_warning_v1_admin_proto_rawDescOnce.Do(func() {
+		file_user_warning_v1_admin_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_user_warning_v1_admin_proto_rawDesc), len(file_user_warning_v1_admin_proto_rawDesc)))
+	})
+	return file_user_warning_v1_admin_proto_rawDescData
+}
+
+var file_user_warning_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_user_warning_v1_admin_proto_goTypes = []any{
-	(*ListWarningsForUserRequest)(nil),   // 0: user.warning.v1.ListWarningsForUserRequest
-	(*MarkWarningAsRemovedRequest)(nil),  // 1: user.warning.v1.MarkWarningAsRemovedRequest
+	(*AdminAccountWarning)(nil),          // 0: user.warning.v1.AdminAccountWarning
+	(*ListWarningsForUserRequest)(nil),   // 1: user.warning.v1.ListWarningsForUserRequest
 	(*ListWarningsForUserResponse)(nil),  // 2: user.warning.v1.ListWarningsForUserResponse
-	(*MarkWarningAsRemovedResponse)(nil), // 3: user.warning.v1.MarkWarningAsRemovedResponse
+	(*MarkWarningAsRemovedRequest)(nil),  // 3: user.warning.v1.MarkWarningAsRemovedRequest
+	(*MarkWarningAsRemovedResponse)(nil), // 4: user.warning.v1.MarkWarningAsRemovedResponse
+	(WarningStatus)(0),                   // 5: user.warning.v1.WarningStatus
+	(*timestamppb.Timestamp)(nil),        // 6: google.protobuf.Timestamp
+	(*v1.Pagination)(nil),                // 7: pagination.v1.Pagination
+	(*v1.PageInfo)(nil),                  // 8: pagination.v1.PageInfo
 }
 var file_user_warning_v1_admin_proto_depIdxs = []int32{
-	0, // 0: user.warning.v1.WarningAdminService.ListWarningsForUser:input_type -> user.warning.v1.ListWarningsForUserRequest
-	1, // 1: user.warning.v1.WarningAdminService.MarkWarningAsRemoved:input_type -> user.warning.v1.MarkWarningAsRemovedRequest
-	2, // 2: user.warning.v1.WarningAdminService.ListWarningsForUser:output_type -> user.warning.v1.ListWarningsForUserResponse
-	3, // 3: user.warning.v1.WarningAdminService.MarkWarningAsRemoved:output_type -> user.warning.v1.MarkWarningAsRemovedResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	5, // 0: user.warning.v1.AdminAccountWarning.status:type_name -> user.warning.v1.WarningStatus
+	6, // 1: user.warning.v1.AdminAccountWarning.created_at:type_name -> google.protobuf.Timestamp
+	6, // 2: user.warning.v1.AdminAccountWarning.removed_at:type_name -> google.protobuf.Timestamp
+	6, // 3: user.warning.v1.AdminAccountWarning.updated_at:type_name -> google.protobuf.Timestamp
+	7, // 4: user.warning.v1.ListWarningsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	0, // 5: user.warning.v1.ListWarningsForUserResponse.warnings:type_name -> user.warning.v1.AdminAccountWarning
+	8, // 6: user.warning.v1.ListWarningsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	1, // 7: user.warning.v1.WarningAdminService.ListWarningsForUser:input_type -> user.warning.v1.ListWarningsForUserRequest
+	3, // 8: user.warning.v1.WarningAdminService.MarkWarningAsRemoved:input_type -> user.warning.v1.MarkWarningAsRemovedRequest
+	2, // 9: user.warning.v1.WarningAdminService.ListWarningsForUser:output_type -> user.warning.v1.ListWarningsForUserResponse
+	4, // 10: user.warning.v1.WarningAdminService.MarkWarningAsRemoved:output_type -> user.warning.v1.MarkWarningAsRemovedResponse
+	9, // [9:11] is the sub-list for method output_type
+	7, // [7:9] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_user_warning_v1_admin_proto_init() }
@@ -55,18 +455,21 @@ func file_user_warning_v1_admin_proto_init() {
 		return
 	}
 	file_user_warning_v1_warning_proto_init()
+	file_user_warning_v1_admin_proto_msgTypes[0].OneofWrappers = []any{}
+	file_user_warning_v1_admin_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_warning_v1_admin_proto_rawDesc), len(file_user_warning_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   0,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_user_warning_v1_admin_proto_goTypes,
 		DependencyIndexes: file_user_warning_v1_admin_proto_depIdxs,
+		MessageInfos:      file_user_warning_v1_admin_proto_msgTypes,
 	}.Build()
 	File_user_warning_v1_admin_proto = out.File
 	file_user_warning_v1_admin_proto_goTypes = nil

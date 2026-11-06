@@ -68,6 +68,24 @@ func (p *PostgresRepository) ListByUser(
 	return warnings, nil
 }
 
+func (p *PostgresRepository) ListForAdmin(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]AdminWarning, error) {
+	rows, err := p.queries.ListAccountWarningsForAdmin(ctx, warningdb.ListAccountWarningsForAdminParams{
+		UserID: userID, PageOffset: offset, PageLimit: limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list account warnings for admin: %w", err)
+	}
+	warnings := make([]AdminWarning, len(rows))
+	for i, row := range rows {
+		warnings[i] = adminWarningFromRow(row)
+	}
+	return warnings, nil
+}
+
 func (p *PostgresRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	count, err := p.queries.CountAccountWarningsByUser(ctx, userID)
 	if err != nil {
@@ -124,6 +142,23 @@ func warningFromRow(row warningdb.AccountWarning) Warning {
 		warning.UpdatedBy = uuidPointer(row.UpdatedBy.UUID)
 	}
 	return warning
+}
+
+// adminWarningFromRow maps the admin query's row onto the read projection.
+// The row carries every table column plus the joined updater name, so the
+// common columns feed the shared table mapping and only the name is added.
+func adminWarningFromRow(row warningdb.ListAccountWarningsForAdminRow) AdminWarning {
+	admin := AdminWarning{Warning: warningFromRow(warningdb.AccountWarning{
+		ID: row.ID, UserID: row.UserID, RequestID: row.RequestID, ReportID: row.ReportID,
+		Reason: row.Reason, Status: row.Status, SourceEventID: row.SourceEventID,
+		RemovedAt: row.RemovedAt, RemovedReason: row.RemovedReason, AppealID: row.AppealID,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		CreatedBy: row.CreatedBy, UpdatedBy: row.UpdatedBy,
+	})}
+	if row.UpdatedByName.Valid {
+		admin.UpdatedByName = stringPointer(row.UpdatedByName.String)
+	}
+	return admin
 }
 
 func mapNotFound(err error, operation string) error {

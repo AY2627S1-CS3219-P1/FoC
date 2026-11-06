@@ -106,6 +106,44 @@ func TestPostgresRepositoryCreateListAndRemove(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
+	repository, _, actor, user := setupWarningRepository(t)
+	ctx := context.Background()
+	updater := actor.ID
+	if _, err := repository.Create(ctx, Warning{
+		UserID: user.ID, RequestID: uuid.New(), Reason: "admin recorded", Status: StatusActive,
+		CreatedBy: &updater, UpdatedBy: &updater,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.Create(ctx, Warning{
+		UserID: user.ID, RequestID: uuid.New(), Reason: "courier event", Status: StatusActive,
+		SourceEventID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	warnings, err := repository.ListForAdmin(ctx, user.ID, 0, 100)
+	if err != nil || len(warnings) != 2 {
+		t.Fatalf("admin warnings=%+v err=%v", warnings, err)
+	}
+
+	byReason := make(map[string]AdminWarning, len(warnings))
+	for _, warning := range warnings {
+		byReason[warning.Reason] = warning
+	}
+	adminRecorded, ok := byReason["admin recorded"]
+	if !ok || adminRecorded.UpdatedBy == nil || *adminRecorded.UpdatedBy != actor.ID ||
+		adminRecorded.UpdatedByName == nil || *adminRecorded.UpdatedByName != actor.DisplayName {
+		t.Fatalf("updater join missing: %+v", adminRecorded)
+	}
+	courierEvent, ok := byReason["courier event"]
+	if !ok || courierEvent.UpdatedBy != nil || courierEvent.UpdatedByName != nil ||
+		courierEvent.SourceEventID == nil {
+		t.Fatalf("system-created warning must have no updater: %+v", courierEvent)
+	}
+}
+
 func TestPostgresRepositoryCreateRejectsUnknownCourier(t *testing.T) {
 	repository, _, _, _ := setupWarningRepository(t)
 	ctx := context.Background()
