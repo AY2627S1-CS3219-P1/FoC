@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: user/v1/warning.proto
+// source: user/warning/v1/warning.proto
 
-package userv1
+package warningv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -57,11 +57,11 @@ func (x WarningStatus) String() string {
 }
 
 func (WarningStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_user_v1_warning_proto_enumTypes[0].Descriptor()
+	return file_user_warning_v1_warning_proto_enumTypes[0].Descriptor()
 }
 
 func (WarningStatus) Type() protoreflect.EnumType {
-	return &file_user_v1_warning_proto_enumTypes[0]
+	return &file_user_warning_v1_warning_proto_enumTypes[0]
 }
 
 func (x WarningStatus) Number() protoreflect.EnumNumber {
@@ -70,7 +70,7 @@ func (x WarningStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WarningStatus.Descriptor instead.
 func (WarningStatus) EnumDescriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{0}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{0}
 }
 
 type AccountWarning struct {
@@ -78,7 +78,7 @@ type AccountWarning struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	Status        WarningStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=user.v1.WarningStatus" json:"status,omitempty"`
+	Status        WarningStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=user.warning.v1.WarningStatus" json:"status,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	RemovedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=removed_at,json=removedAt,proto3" json:"removed_at,omitempty"`
 	RemovedReason *string                `protobuf:"bytes,7,opt,name=removed_reason,json=removedReason,proto3,oneof" json:"removed_reason,omitempty"`
@@ -88,7 +88,7 @@ type AccountWarning struct {
 
 func (x *AccountWarning) Reset() {
 	*x = AccountWarning{}
-	mi := &file_user_v1_warning_proto_msgTypes[0]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -100,7 +100,7 @@ func (x *AccountWarning) String() string {
 func (*AccountWarning) ProtoMessage() {}
 
 func (x *AccountWarning) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[0]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -113,7 +113,7 @@ func (x *AccountWarning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountWarning.ProtoReflect.Descriptor instead.
 func (*AccountWarning) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{0}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AccountWarning) GetId() string {
@@ -174,7 +174,7 @@ type ListMyWarningsRequest struct {
 
 func (x *ListMyWarningsRequest) Reset() {
 	*x = ListMyWarningsRequest{}
-	mi := &file_user_v1_warning_proto_msgTypes[1]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -186,7 +186,7 @@ func (x *ListMyWarningsRequest) String() string {
 func (*ListMyWarningsRequest) ProtoMessage() {}
 
 func (x *ListMyWarningsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[1]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -199,7 +199,7 @@ func (x *ListMyWarningsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyWarningsRequest.ProtoReflect.Descriptor instead.
 func (*ListMyWarningsRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{1}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ListMyWarningsRequest) GetPagination() *v1.Pagination {
@@ -219,7 +219,7 @@ type ListMyWarningsResponse struct {
 
 func (x *ListMyWarningsResponse) Reset() {
 	*x = ListMyWarningsResponse{}
-	mi := &file_user_v1_warning_proto_msgTypes[2]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +231,7 @@ func (x *ListMyWarningsResponse) String() string {
 func (*ListMyWarningsResponse) ProtoMessage() {}
 
 func (x *ListMyWarningsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[2]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +244,7 @@ func (x *ListMyWarningsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyWarningsResponse.ProtoReflect.Descriptor instead.
 func (*ListMyWarningsResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{2}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListMyWarningsResponse) GetWarnings() []*AccountWarning {
@@ -271,7 +271,7 @@ type ListWarningsForUserRequest struct {
 
 func (x *ListWarningsForUserRequest) Reset() {
 	*x = ListWarningsForUserRequest{}
-	mi := &file_user_v1_warning_proto_msgTypes[3]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -283,7 +283,7 @@ func (x *ListWarningsForUserRequest) String() string {
 func (*ListWarningsForUserRequest) ProtoMessage() {}
 
 func (x *ListWarningsForUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[3]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -296,7 +296,7 @@ func (x *ListWarningsForUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWarningsForUserRequest.ProtoReflect.Descriptor instead.
 func (*ListWarningsForUserRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{3}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListWarningsForUserRequest) GetUserId() string {
@@ -323,7 +323,7 @@ type ListWarningsForUserResponse struct {
 
 func (x *ListWarningsForUserResponse) Reset() {
 	*x = ListWarningsForUserResponse{}
-	mi := &file_user_v1_warning_proto_msgTypes[4]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +335,7 @@ func (x *ListWarningsForUserResponse) String() string {
 func (*ListWarningsForUserResponse) ProtoMessage() {}
 
 func (x *ListWarningsForUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[4]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +348,7 @@ func (x *ListWarningsForUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWarningsForUserResponse.ProtoReflect.Descriptor instead.
 func (*ListWarningsForUserResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{4}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListWarningsForUserResponse) GetWarnings() []*AccountWarning {
@@ -376,7 +376,7 @@ type MarkWarningAsRemovedRequest struct {
 
 func (x *MarkWarningAsRemovedRequest) Reset() {
 	*x = MarkWarningAsRemovedRequest{}
-	mi := &file_user_v1_warning_proto_msgTypes[5]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +388,7 @@ func (x *MarkWarningAsRemovedRequest) String() string {
 func (*MarkWarningAsRemovedRequest) ProtoMessage() {}
 
 func (x *MarkWarningAsRemovedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[5]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +401,7 @@ func (x *MarkWarningAsRemovedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkWarningAsRemovedRequest.ProtoReflect.Descriptor instead.
 func (*MarkWarningAsRemovedRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{5}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MarkWarningAsRemovedRequest) GetId() string {
@@ -433,7 +433,7 @@ type MarkWarningAsRemovedResponse struct {
 
 func (x *MarkWarningAsRemovedResponse) Reset() {
 	*x = MarkWarningAsRemovedResponse{}
-	mi := &file_user_v1_warning_proto_msgTypes[6]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -445,7 +445,7 @@ func (x *MarkWarningAsRemovedResponse) String() string {
 func (*MarkWarningAsRemovedResponse) ProtoMessage() {}
 
 func (x *MarkWarningAsRemovedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_warning_proto_msgTypes[6]
+	mi := &file_user_warning_v1_warning_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -458,20 +458,20 @@ func (x *MarkWarningAsRemovedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkWarningAsRemovedResponse.ProtoReflect.Descriptor instead.
 func (*MarkWarningAsRemovedResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_warning_proto_rawDescGZIP(), []int{6}
+	return file_user_warning_v1_warning_proto_rawDescGZIP(), []int{6}
 }
 
-var File_user_v1_warning_proto protoreflect.FileDescriptor
+var File_user_warning_v1_warning_proto protoreflect.FileDescriptor
 
-const file_user_v1_warning_proto_rawDesc = "" +
+const file_user_warning_v1_warning_proto_rawDesc = "" +
 	"\n" +
-	"\x15user/v1/warning.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\"\xbc\x02\n" +
+	"\x1duser/warning/v1/warning.proto\x12\x0fuser.warning.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\"\xc4\x02\n" +
 	"\x0eAccountWarning\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x02 \x01(\tR\trequestId\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\x12.\n" +
-	"\x06status\x18\x04 \x01(\x0e2\x16.user.v1.WarningStatusR\x06status\x129\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x126\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1e.user.warning.v1.WarningStatusR\x06status\x129\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
@@ -481,9 +481,9 @@ const file_user_v1_warning_proto_rawDesc = "" +
 	"\x15ListMyWarningsRequest\x129\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +
-	"pagination\"\x86\x01\n" +
-	"\x16ListMyWarningsResponse\x123\n" +
-	"\bwarnings\x18\x01 \x03(\v2\x17.user.v1.AccountWarningR\bwarnings\x127\n" +
+	"pagination\"\x8e\x01\n" +
+	"\x16ListMyWarningsResponse\x12;\n" +
+	"\bwarnings\x18\x01 \x03(\v2\x1f.user.warning.v1.AccountWarningR\bwarnings\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
 	"pagination\"z\n" +
@@ -491,9 +491,9 @@ const file_user_v1_warning_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x129\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x19.pagination.v1.PaginationR\n" +
-	"pagination\"\x8b\x01\n" +
-	"\x1bListWarningsForUserResponse\x123\n" +
-	"\bwarnings\x18\x01 \x03(\v2\x17.user.v1.AccountWarningR\bwarnings\x127\n" +
+	"pagination\"\x93\x01\n" +
+	"\x1bListWarningsForUserResponse\x12;\n" +
+	"\bwarnings\x18\x01 \x03(\v2\x1f.user.warning.v1.AccountWarningR\bwarnings\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
 	"pagination\"\xba\x01\n" +
@@ -508,50 +508,50 @@ const file_user_v1_warning_proto_rawDesc = "" +
 	"\rWarningStatus\x12\x1e\n" +
 	"\x1aWARNING_STATUS_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15WARNING_STATUS_ACTIVE\x10\x01\x12\x1a\n" +
-	"\x16WARNING_STATUS_REMOVED\x10\x022e\n" +
-	"\x0eWarningService\x12S\n" +
-	"\x0eListMyWarnings\x12\x1e.user.v1.ListMyWarningsRequest\x1a\x1f.user.v1.ListMyWarningsResponse\"\x00B\x92\x01\n" +
-	"\vcom.user.v1B\fWarningProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
+	"\x16WARNING_STATUS_REMOVED\x10\x022u\n" +
+	"\x0eWarningService\x12c\n" +
+	"\x0eListMyWarnings\x12&.user.warning.v1.ListMyWarningsRequest\x1a'.user.warning.v1.ListMyWarningsResponse\"\x00B\xc6\x01\n" +
+	"\x13com.user.warning.v1B\fWarningProtoP\x01ZCgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1;warningv1\xa2\x02\x03UWX\xaa\x02\x0fUser.Warning.V1\xca\x02\x0fUser\\Warning\\V1\xe2\x02\x1bUser\\Warning\\V1\\GPBMetadata\xea\x02\x11User::Warning::V1b\x06proto3"
 
 var (
-	file_user_v1_warning_proto_rawDescOnce sync.Once
-	file_user_v1_warning_proto_rawDescData []byte
+	file_user_warning_v1_warning_proto_rawDescOnce sync.Once
+	file_user_warning_v1_warning_proto_rawDescData []byte
 )
 
-func file_user_v1_warning_proto_rawDescGZIP() []byte {
-	file_user_v1_warning_proto_rawDescOnce.Do(func() {
-		file_user_v1_warning_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_user_v1_warning_proto_rawDesc), len(file_user_v1_warning_proto_rawDesc)))
+func file_user_warning_v1_warning_proto_rawDescGZIP() []byte {
+	file_user_warning_v1_warning_proto_rawDescOnce.Do(func() {
+		file_user_warning_v1_warning_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_user_warning_v1_warning_proto_rawDesc), len(file_user_warning_v1_warning_proto_rawDesc)))
 	})
-	return file_user_v1_warning_proto_rawDescData
+	return file_user_warning_v1_warning_proto_rawDescData
 }
 
-var file_user_v1_warning_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_user_v1_warning_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_user_v1_warning_proto_goTypes = []any{
-	(WarningStatus)(0),                   // 0: user.v1.WarningStatus
-	(*AccountWarning)(nil),               // 1: user.v1.AccountWarning
-	(*ListMyWarningsRequest)(nil),        // 2: user.v1.ListMyWarningsRequest
-	(*ListMyWarningsResponse)(nil),       // 3: user.v1.ListMyWarningsResponse
-	(*ListWarningsForUserRequest)(nil),   // 4: user.v1.ListWarningsForUserRequest
-	(*ListWarningsForUserResponse)(nil),  // 5: user.v1.ListWarningsForUserResponse
-	(*MarkWarningAsRemovedRequest)(nil),  // 6: user.v1.MarkWarningAsRemovedRequest
-	(*MarkWarningAsRemovedResponse)(nil), // 7: user.v1.MarkWarningAsRemovedResponse
+var file_user_warning_v1_warning_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_user_warning_v1_warning_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_user_warning_v1_warning_proto_goTypes = []any{
+	(WarningStatus)(0),                   // 0: user.warning.v1.WarningStatus
+	(*AccountWarning)(nil),               // 1: user.warning.v1.AccountWarning
+	(*ListMyWarningsRequest)(nil),        // 2: user.warning.v1.ListMyWarningsRequest
+	(*ListMyWarningsResponse)(nil),       // 3: user.warning.v1.ListMyWarningsResponse
+	(*ListWarningsForUserRequest)(nil),   // 4: user.warning.v1.ListWarningsForUserRequest
+	(*ListWarningsForUserResponse)(nil),  // 5: user.warning.v1.ListWarningsForUserResponse
+	(*MarkWarningAsRemovedRequest)(nil),  // 6: user.warning.v1.MarkWarningAsRemovedRequest
+	(*MarkWarningAsRemovedResponse)(nil), // 7: user.warning.v1.MarkWarningAsRemovedResponse
 	(*timestamppb.Timestamp)(nil),        // 8: google.protobuf.Timestamp
 	(*v1.Pagination)(nil),                // 9: pagination.v1.Pagination
 	(*v1.PageInfo)(nil),                  // 10: pagination.v1.PageInfo
 }
-var file_user_v1_warning_proto_depIdxs = []int32{
-	0,  // 0: user.v1.AccountWarning.status:type_name -> user.v1.WarningStatus
-	8,  // 1: user.v1.AccountWarning.created_at:type_name -> google.protobuf.Timestamp
-	8,  // 2: user.v1.AccountWarning.removed_at:type_name -> google.protobuf.Timestamp
-	9,  // 3: user.v1.ListMyWarningsRequest.pagination:type_name -> pagination.v1.Pagination
-	1,  // 4: user.v1.ListMyWarningsResponse.warnings:type_name -> user.v1.AccountWarning
-	10, // 5: user.v1.ListMyWarningsResponse.pagination:type_name -> pagination.v1.PageInfo
-	9,  // 6: user.v1.ListWarningsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	1,  // 7: user.v1.ListWarningsForUserResponse.warnings:type_name -> user.v1.AccountWarning
-	10, // 8: user.v1.ListWarningsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
-	2,  // 9: user.v1.WarningService.ListMyWarnings:input_type -> user.v1.ListMyWarningsRequest
-	3,  // 10: user.v1.WarningService.ListMyWarnings:output_type -> user.v1.ListMyWarningsResponse
+var file_user_warning_v1_warning_proto_depIdxs = []int32{
+	0,  // 0: user.warning.v1.AccountWarning.status:type_name -> user.warning.v1.WarningStatus
+	8,  // 1: user.warning.v1.AccountWarning.created_at:type_name -> google.protobuf.Timestamp
+	8,  // 2: user.warning.v1.AccountWarning.removed_at:type_name -> google.protobuf.Timestamp
+	9,  // 3: user.warning.v1.ListMyWarningsRequest.pagination:type_name -> pagination.v1.Pagination
+	1,  // 4: user.warning.v1.ListMyWarningsResponse.warnings:type_name -> user.warning.v1.AccountWarning
+	10, // 5: user.warning.v1.ListMyWarningsResponse.pagination:type_name -> pagination.v1.PageInfo
+	9,  // 6: user.warning.v1.ListWarningsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	1,  // 7: user.warning.v1.ListWarningsForUserResponse.warnings:type_name -> user.warning.v1.AccountWarning
+	10, // 8: user.warning.v1.ListWarningsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	2,  // 9: user.warning.v1.WarningService.ListMyWarnings:input_type -> user.warning.v1.ListMyWarningsRequest
+	3,  // 10: user.warning.v1.WarningService.ListMyWarnings:output_type -> user.warning.v1.ListMyWarningsResponse
 	10, // [10:11] is the sub-list for method output_type
 	9,  // [9:10] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
@@ -559,29 +559,29 @@ var file_user_v1_warning_proto_depIdxs = []int32{
 	0,  // [0:9] is the sub-list for field type_name
 }
 
-func init() { file_user_v1_warning_proto_init() }
-func file_user_v1_warning_proto_init() {
-	if File_user_v1_warning_proto != nil {
+func init() { file_user_warning_v1_warning_proto_init() }
+func file_user_warning_v1_warning_proto_init() {
+	if File_user_warning_v1_warning_proto != nil {
 		return
 	}
-	file_user_v1_warning_proto_msgTypes[0].OneofWrappers = []any{}
-	file_user_v1_warning_proto_msgTypes[5].OneofWrappers = []any{}
+	file_user_warning_v1_warning_proto_msgTypes[0].OneofWrappers = []any{}
+	file_user_warning_v1_warning_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_warning_proto_rawDesc), len(file_user_v1_warning_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_warning_v1_warning_proto_rawDesc), len(file_user_warning_v1_warning_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_user_v1_warning_proto_goTypes,
-		DependencyIndexes: file_user_v1_warning_proto_depIdxs,
-		EnumInfos:         file_user_v1_warning_proto_enumTypes,
-		MessageInfos:      file_user_v1_warning_proto_msgTypes,
+		GoTypes:           file_user_warning_v1_warning_proto_goTypes,
+		DependencyIndexes: file_user_warning_v1_warning_proto_depIdxs,
+		EnumInfos:         file_user_warning_v1_warning_proto_enumTypes,
+		MessageInfos:      file_user_warning_v1_warning_proto_msgTypes,
 	}.Build()
-	File_user_v1_warning_proto = out.File
-	file_user_v1_warning_proto_goTypes = nil
-	file_user_v1_warning_proto_depIdxs = nil
+	File_user_warning_v1_warning_proto = out.File
+	file_user_warning_v1_warning_proto_goTypes = nil
+	file_user_warning_v1_warning_proto_depIdxs = nil
 }

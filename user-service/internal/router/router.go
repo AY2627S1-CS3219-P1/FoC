@@ -8,7 +8,8 @@ import (
 	"connectrpc.com/validate"
 	authz "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	userv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -126,7 +127,7 @@ func setup(
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(allowedDomainsPath, allowedDomainsService)
-		warningsPath, warningsService := userv1connect.NewWarningServiceHandler(
+		warningsPath, warningsService := warningv1connect.NewWarningServiceHandler(
 			p.Warnings,
 			connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
 			connect.WithReadMaxBytes(maxRPCMessageBytes),
@@ -134,7 +135,7 @@ func setup(
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(warningsPath, warningsService)
 
-		adminWarningsPath, adminWarningsService := userv1connect.NewWarningAdminServiceHandler(
+		adminWarningsPath, adminWarningsService := warningv1connect.NewWarningAdminServiceHandler(
 			p.AdminWarnings,
 			connect.WithInterceptors(
 				authz.RequireAdmin(),

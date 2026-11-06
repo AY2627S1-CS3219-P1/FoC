@@ -14,7 +14,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	userv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	warningv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1"
+	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
 	pagination "github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -168,8 +170,8 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	t.Cleanup(server.Close)
 	profileClient := userv1connect.NewProfileServiceClient(server.Client(), server.URL)
 	adminClient := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
-	warningClient := userv1connect.NewWarningServiceClient(server.Client(), server.URL)
-	adminWarningClient := userv1connect.NewWarningAdminServiceClient(server.Client(), server.URL)
+	warningClient := warningv1connect.NewWarningServiceClient(server.Client(), server.URL)
+	adminWarningClient := warningv1connect.NewWarningAdminServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
 	if _, err := profileClient.GetMyProfile(
 		ctx,
@@ -186,7 +188,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if err != nil || response.Msg.Profile.Id != actorID.String() || response.Msg.Profile.Email != actor.Email {
 		t.Fatalf("own profile: %+v, %v", response, err)
 	}
-	myWarnings := connect.NewRequest(&userv1.ListMyWarningsRequest{})
+	myWarnings := connect.NewRequest(&warningv1.ListMyWarningsRequest{})
 	myWarnings.Header().Set("Authorization", "Bearer "+token)
 	if _, err := warningClient.ListMyWarnings(ctx, myWarnings); err != nil || warnings.userID != actorID ||
 		warnings.page.Page() != 1 || warnings.page.PageSize() != 20 {
@@ -194,7 +196,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	}
 	warningID, appealID := uuid.New(), uuid.New()
 	removedReason := "appeal overturned"
-	markRemoved := connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+	markRemoved := connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
 		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
 	})
 	markRemoved.Header().Set("Authorization", "Bearer "+token)
@@ -209,7 +211,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if warnings.removeCalls.Load() != 0 {
 		t.Fatal("ordinary user reached warning removal logic")
 	}
-	otherWarnings := connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings := connect.NewRequest(&warningv1.ListWarningsForUserRequest{UserId: targetID.String()})
 	otherWarnings.Header().Set("Authorization", "Bearer "+token)
 	if _, err := adminWarningClient.ListWarningsForUser(
 		ctx,
@@ -242,12 +244,12 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor
 	adminWarningToken := signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
-	otherWarnings = connect.NewRequest(&userv1.ListWarningsForUserRequest{UserId: targetID.String()})
+	otherWarnings = connect.NewRequest(&warningv1.ListWarningsForUserRequest{UserId: targetID.String()})
 	otherWarnings.Header().Set("Authorization", "Bearer "+adminWarningToken)
 	if _, err := adminWarningClient.ListWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
 		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
 	}
-	markRemoved = connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+	markRemoved = connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
 		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
 	})
 	markRemoved.Header().Set("Authorization", "Bearer "+adminWarningToken)
@@ -280,7 +282,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
 	}
-	markRemoved = connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{Id: warningID.String()})
+	markRemoved = connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{Id: warningID.String()})
 	markRemoved.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminWarningClient.MarkWarningAsRemoved(
 		ctx,

@@ -6,7 +6,7 @@ import {
 	AccountWarningSchema,
 	WarningService as WarningServiceDefinition,
 	WarningStatus
-} from '$lib/gen/user/v1/warning_pb';
+} from '$lib/gen/user/warning/v1/warning_pb';
 import { PageInfoSchema } from '$lib/gen/pagination/v1/pagination_pb';
 import { ConnectWarningApi } from './connectWarningApi.ts';
 

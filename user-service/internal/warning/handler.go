@@ -7,8 +7,8 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	paginationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
-	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	warningv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1"
+	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
@@ -23,15 +23,15 @@ type WarningLogic interface {
 
 // Handler is the user-facing WarningService adapter.
 type Handler struct {
-	userv1connect.UnimplementedWarningServiceHandler
+	warningv1connect.UnimplementedWarningServiceHandler
 	Logic WarningLogic
 }
 
 // ListMyWarnings returns the authenticated caller's own warnings.
 func (h *Handler) ListMyWarnings(
 	ctx context.Context,
-	req *connect.Request[userv1.ListMyWarningsRequest],
-) (*connect.Response[userv1.ListMyWarningsResponse], error) {
+	req *connect.Request[warningv1.ListMyWarningsRequest],
+) (*connect.Response[warningv1.ListMyWarningsResponse], error) {
 	userID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -53,15 +53,15 @@ func (h *Handler) ListMyWarnings(
 // behind auth.RequireAdmin(), so every method is administrator-gated at the
 // service boundary rather than per-method.
 type AdminHandler struct {
-	userv1connect.UnimplementedWarningAdminServiceHandler
+	warningv1connect.UnimplementedWarningAdminServiceHandler
 	Logic WarningLogic
 }
 
 // ListWarningsForUser returns the warnings held against an arbitrary user.
 func (h *AdminHandler) ListWarningsForUser(
 	ctx context.Context,
-	req *connect.Request[userv1.ListWarningsForUserRequest],
-) (*connect.Response[userv1.ListWarningsForUserResponse], error) {
+	req *connect.Request[warningv1.ListWarningsForUserRequest],
+) (*connect.Response[warningv1.ListWarningsForUserResponse], error) {
 	if _, err := userdto.ActorID(ctx); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -85,8 +85,8 @@ func (h *AdminHandler) ListWarningsForUser(
 // MarkWarningAsRemoved records an audit row for a warning. Admin-only.
 func (h *AdminHandler) MarkWarningAsRemoved(
 	ctx context.Context,
-	req *connect.Request[userv1.MarkWarningAsRemovedRequest],
-) (*connect.Response[userv1.MarkWarningAsRemovedResponse], error) {
+	req *connect.Request[warningv1.MarkWarningAsRemovedRequest],
+) (*connect.Response[warningv1.MarkWarningAsRemovedResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -113,7 +113,7 @@ func (h *AdminHandler) MarkWarningAsRemoved(
 	if err := h.Logic.MarkWarningAsRemoved(ctx, warningID, removedReason, appealID, actorID); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&userv1.MarkWarningAsRemovedResponse{}), nil
+	return connect.NewResponse(&warningv1.MarkWarningAsRemovedResponse{}), nil
 }
 
 func newPage(p *paginationv1.Pagination) (pagination.Pagination, error) {
@@ -123,15 +123,15 @@ func newPage(p *paginationv1.Pagination) (pagination.Pagination, error) {
 	return pagination.New(p.GetPage(), p.GetPageSize())
 }
 
-func toListMyWarningsResponse(page WarningPage) *userv1.ListMyWarningsResponse {
-	return &userv1.ListMyWarningsResponse{
+func toListMyWarningsResponse(page WarningPage) *warningv1.ListMyWarningsResponse {
+	return &warningv1.ListMyWarningsResponse{
 		Warnings:   warningDTOs(page.Warnings),
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }
 
-func toListWarningsForUserResponse(page WarningPage) *userv1.ListWarningsForUserResponse {
-	return &userv1.ListWarningsForUserResponse{
+func toListWarningsForUserResponse(page WarningPage) *warningv1.ListWarningsForUserResponse {
+	return &warningv1.ListWarningsForUserResponse{
 		Warnings:   warningDTOs(page.Warnings),
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
@@ -144,10 +144,10 @@ func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
 	}
 }
 
-func warningDTOs(warnings []Warning) []*userv1.AccountWarning {
-	result := make([]*userv1.AccountWarning, len(warnings))
+func warningDTOs(warnings []Warning) []*warningv1.AccountWarning {
+	result := make([]*warningv1.AccountWarning, len(warnings))
 	for i, warning := range warnings {
-		item := &userv1.AccountWarning{
+		item := &warningv1.AccountWarning{
 			Id: warning.ID.String(), RequestId: warning.RequestID.String(), Reason: warning.Reason,
 			Status: warningStatus(warning.Status), CreatedAt: timestamppb.New(warning.CreatedAt),
 		}
@@ -162,13 +162,13 @@ func warningDTOs(warnings []Warning) []*userv1.AccountWarning {
 	return result
 }
 
-func warningStatus(status Status) userv1.WarningStatus {
+func warningStatus(status Status) warningv1.WarningStatus {
 	switch status {
 	case StatusActive:
-		return userv1.WarningStatus_WARNING_STATUS_ACTIVE
+		return warningv1.WarningStatus_WARNING_STATUS_ACTIVE
 	case StatusRemoved:
-		return userv1.WarningStatus_WARNING_STATUS_REMOVED
+		return warningv1.WarningStatus_WARNING_STATUS_REMOVED
 	default:
-		return userv1.WarningStatus_WARNING_STATUS_UNSPECIFIED
+		return warningv1.WarningStatus_WARNING_STATUS_UNSPECIFIED
 	}
 }

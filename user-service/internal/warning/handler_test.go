@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	paginationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
-	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	warningv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
@@ -59,7 +59,7 @@ func TestWarningListHandlersReturnPagination(t *testing.T) {
 	handler := &Handler{Logic: logic}
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
 
-	myResponse, err := handler.ListMyWarnings(ctx, connect.NewRequest(&userv1.ListMyWarningsRequest{
+	myResponse, err := handler.ListMyWarnings(ctx, connect.NewRequest(&warningv1.ListMyWarningsRequest{
 		Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
 	}))
 	if err != nil {
@@ -72,7 +72,7 @@ func TestWarningListHandlersReturnPagination(t *testing.T) {
 	}
 
 	adminHandler := &AdminHandler{Logic: logic}
-	userResponse, err := adminHandler.ListWarningsForUser(ctx, connect.NewRequest(&userv1.ListWarningsForUserRequest{
+	userResponse, err := adminHandler.ListWarningsForUser(ctx, connect.NewRequest(&warningv1.ListWarningsForUserRequest{
 		UserId: targetID.String(), Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
 	}))
 	if err != nil {
@@ -90,7 +90,7 @@ func TestMarkWarningAsRemovedHandlerPassesOptionalMetadataAndActor(t *testing.T)
 	adminHandler := &AdminHandler{Logic: logic}
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
 
-	_, err := adminHandler.MarkWarningAsRemoved(ctx, connect.NewRequest(&userv1.MarkWarningAsRemovedRequest{
+	_, err := adminHandler.MarkWarningAsRemoved(ctx, connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
 		Id: warningID.String(), RemovedReason: &reason, AppealId: &appealText,
 	}))
 	if err != nil {

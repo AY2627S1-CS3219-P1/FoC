@@ -4,7 +4,7 @@ import {
 	WarningService as WarningServiceDefinition,
 	WarningStatus as ProtoWarningStatus,
 	type AccountWarning as ProtoAccountWarning
-} from '$lib/gen/user/v1/warning_pb';
+} from '$lib/gen/user/warning/v1/warning_pb';
 import type { PageInfo } from '$lib/gen/pagination/v1/pagination_pb';
 import type { AccountWarning, WarningApi, WarningPage, WarningQuery, WarningStatus } from './warningApi.ts';
 
