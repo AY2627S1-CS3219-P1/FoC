@@ -94,8 +94,7 @@ and JWKS routes are no longer served.
 `user.warning.v1.WarningService.ListMyWarnings` returns the authenticated caller's
 warnings. Both warning list RPCs use shared offset pagination and include page
 metadata. `ListWarningsForUser` and `MarkWarningAsRemoved` are restricted to
-admins; marking a warning as removed records the admin and optional removal
-reason and appeal ID.
+admins; marking a warning as removed records the admin, removal reason and appeal ID.
 
 Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`
