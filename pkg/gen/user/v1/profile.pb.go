@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,10 +30,16 @@ type Profile struct {
 	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	// E.164. Absent only for the bootstrapped admin until they add one.
-	PhoneNumber   *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
-	Role          UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PhoneNumber *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	Role        UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	// Short-lived pre-signed GET grant minted per response. Empty when the user
+	// has no profile picture. Responses carrying this URL must not be cached.
+	ProfilePictureUrl       string                 `protobuf:"bytes,8,opt,name=profile_picture_url,json=profilePictureUrl,proto3" json:"profile_picture_url,omitempty"`
+	ProfilePictureExpiresAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=profile_picture_expires_at,json=profilePictureExpiresAt,proto3" json:"profile_picture_expires_at,omitempty"`
+	// Stable application reference for the current picture. Empty when none.
+	ProfilePictureId string `protobuf:"bytes,10,opt,name=profile_picture_id,json=profilePictureId,proto3" json:"profile_picture_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Profile) Reset() {
@@ -105,6 +112,27 @@ func (x *Profile) GetRole() UserRole {
 		return x.Role
 	}
 	return UserRole_USER_ROLE_UNSPECIFIED
+}
+
+func (x *Profile) GetProfilePictureUrl() string {
+	if x != nil {
+		return x.ProfilePictureUrl
+	}
+	return ""
+}
+
+func (x *Profile) GetProfilePictureExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ProfilePictureExpiresAt
+	}
+	return nil
+}
+
+func (x *Profile) GetProfilePictureId() string {
+	if x != nil {
+		return x.ProfilePictureId
+	}
+	return ""
 }
 
 type GetMyProfileRequest struct {
@@ -294,18 +322,318 @@ func (x *UpdateMyProfileResponse) GetProfile() *Profile {
 	return nil
 }
 
+// Requests one pre-signed PUT grant for a profile picture. Bytes upload
+// directly from the browser to object storage; the service never carries them.
+type CreateProfilePictureUploadRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ContentType string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// Decimal bytes; matches the repository-wide image limit.
+	SizeBytes     int64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateProfilePictureUploadRequest) Reset() {
+	*x = CreateProfilePictureUploadRequest{}
+	mi := &file_user_v1_profile_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateProfilePictureUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateProfilePictureUploadRequest) ProtoMessage() {}
+
+func (x *CreateProfilePictureUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateProfilePictureUploadRequest.ProtoReflect.Descriptor instead.
+func (*CreateProfilePictureUploadRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateProfilePictureUploadRequest) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *CreateProfilePictureUploadRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+type CreateProfilePictureUploadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Stable row ID that is also returned in Profile.profile_picture_id once
+	// the picture is active. The browser never sees the storage key.
+	PictureId string `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
+	UploadUrl string `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
+	// Headers the browser must send with the PUT.
+	UploadHeaders map[string]string      `protobuf:"bytes,3,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateProfilePictureUploadResponse) Reset() {
+	*x = CreateProfilePictureUploadResponse{}
+	mi := &file_user_v1_profile_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateProfilePictureUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateProfilePictureUploadResponse) ProtoMessage() {}
+
+func (x *CreateProfilePictureUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateProfilePictureUploadResponse.ProtoReflect.Descriptor instead.
+func (*CreateProfilePictureUploadResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CreateProfilePictureUploadResponse) GetPictureId() string {
+	if x != nil {
+		return x.PictureId
+	}
+	return ""
+}
+
+func (x *CreateProfilePictureUploadResponse) GetUploadUrl() string {
+	if x != nil {
+		return x.UploadUrl
+	}
+	return ""
+}
+
+func (x *CreateProfilePictureUploadResponse) GetUploadHeaders() map[string]string {
+	if x != nil {
+		return x.UploadHeaders
+	}
+	return nil
+}
+
+func (x *CreateProfilePictureUploadResponse) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+// Applies a previously uploaded picture. The picture ID must belong to the
+// authenticated caller. Repeating the same call is idempotent.
+type UpdateMyProfilePictureRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PictureId     string                 `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateMyProfilePictureRequest) Reset() {
+	*x = UpdateMyProfilePictureRequest{}
+	mi := &file_user_v1_profile_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateMyProfilePictureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateMyProfilePictureRequest) ProtoMessage() {}
+
+func (x *UpdateMyProfilePictureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateMyProfilePictureRequest.ProtoReflect.Descriptor instead.
+func (*UpdateMyProfilePictureRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UpdateMyProfilePictureRequest) GetPictureId() string {
+	if x != nil {
+		return x.PictureId
+	}
+	return ""
+}
+
+type UpdateMyProfilePictureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *Profile               `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateMyProfilePictureResponse) Reset() {
+	*x = UpdateMyProfilePictureResponse{}
+	mi := &file_user_v1_profile_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateMyProfilePictureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateMyProfilePictureResponse) ProtoMessage() {}
+
+func (x *UpdateMyProfilePictureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateMyProfilePictureResponse.ProtoReflect.Descriptor instead.
+func (*UpdateMyProfilePictureResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdateMyProfilePictureResponse) GetProfile() *Profile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type RemoveMyProfilePictureRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveMyProfilePictureRequest) Reset() {
+	*x = RemoveMyProfilePictureRequest{}
+	mi := &file_user_v1_profile_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveMyProfilePictureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveMyProfilePictureRequest) ProtoMessage() {}
+
+func (x *RemoveMyProfilePictureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveMyProfilePictureRequest.ProtoReflect.Descriptor instead.
+func (*RemoveMyProfilePictureRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{9}
+}
+
+type RemoveMyProfilePictureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *Profile               `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveMyProfilePictureResponse) Reset() {
+	*x = RemoveMyProfilePictureResponse{}
+	mi := &file_user_v1_profile_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveMyProfilePictureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveMyProfilePictureResponse) ProtoMessage() {}
+
+func (x *RemoveMyProfilePictureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveMyProfilePictureResponse.ProtoReflect.Descriptor instead.
+func (*RemoveMyProfilePictureResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RemoveMyProfilePictureResponse) GetProfile() *Profile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
 var File_user_v1_profile_proto protoreflect.FileDescriptor
 
 const file_user_v1_profile_proto_rawDesc = "" +
 	"\n" +
-	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"\xeb\x01\n" +
+	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x12user/v1/auth.proto\"\xa2\x03\n" +
 	"\aProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12&\n" +
 	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01\x12%\n" +
-	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04roleB\x0f\n" +
+	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04role\x12.\n" +
+	"\x13profile_picture_url\x18\b \x01(\tR\x11profilePictureUrl\x12W\n" +
+	"\x1aprofile_picture_expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x17profilePictureExpiresAt\x12,\n" +
+	"\x12profile_picture_id\x18\n" +
+	" \x01(\tR\x10profilePictureIdB\x0f\n" +
 	"\r_phone_numberJ\x04\b\x05\x10\x06R\x0ftelegram_handle\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
@@ -315,10 +643,40 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12!\n" +
 	"\fphone_number\x18\x04 \x01(\tR\vphoneNumberJ\x04\b\x03\x10\x04R\x0ftelegram_handle\"E\n" +
 	"\x17UpdateMyProfileResponse\x12*\n" +
-	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile2\xb7\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\xb5\x01\n" +
+	"!CreateProfilePictureUploadRequest\x12c\n" +
+	"\fcontent_type\x18\x01 \x01(\tB@\xbaH=r;R\n" +
+	"image/jpegR\timage/pngR\n" +
+	"image/webpR\n" +
+	"image/heicR\n" +
+	"image/heifR\vcontentType\x12+\n" +
+	"\n" +
+	"size_bytes\x18\x02 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\"\xc6\x02\n" +
+	"\"CreateProfilePictureUploadResponse\x12\x1d\n" +
+	"\n" +
+	"picture_id\x18\x01 \x01(\tR\tpictureId\x12\x1d\n" +
+	"\n" +
+	"upload_url\x18\x02 \x01(\tR\tuploadUrl\x12e\n" +
+	"\x0eupload_headers\x18\x03 \x03(\v2>.user.v1.CreateProfilePictureUploadResponse.UploadHeadersEntryR\ruploadHeaders\x129\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x1a@\n" +
+	"\x12UploadHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"H\n" +
+	"\x1dUpdateMyProfilePictureRequest\x12'\n" +
+	"\n" +
+	"picture_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tpictureId\"L\n" +
+	"\x1eUpdateMyProfilePictureResponse\x12*\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\x1f\n" +
+	"\x1dRemoveMyProfilePictureRequest\"L\n" +
+	"\x1eRemoveMyProfilePictureResponse\x12*\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile2\x8a\x04\n" +
 	"\x0eProfileService\x12M\n" +
 	"\fGetMyProfile\x12\x1c.user.v1.GetMyProfileRequest\x1a\x1d.user.v1.GetMyProfileResponse\"\x00\x12V\n" +
-	"\x0fUpdateMyProfile\x12\x1f.user.v1.UpdateMyProfileRequest\x1a .user.v1.UpdateMyProfileResponse\"\x00B\x92\x01\n" +
+	"\x0fUpdateMyProfile\x12\x1f.user.v1.UpdateMyProfileRequest\x1a .user.v1.UpdateMyProfileResponse\"\x00\x12w\n" +
+	"\x1aCreateProfilePictureUpload\x12*.user.v1.CreateProfilePictureUploadRequest\x1a+.user.v1.CreateProfilePictureUploadResponse\"\x00\x12k\n" +
+	"\x16UpdateMyProfilePicture\x12&.user.v1.UpdateMyProfilePictureRequest\x1a'.user.v1.UpdateMyProfilePictureResponse\"\x00\x12k\n" +
+	"\x16RemoveMyProfilePicture\x12&.user.v1.RemoveMyProfilePictureRequest\x1a'.user.v1.RemoveMyProfilePictureResponse\"\x00B\x92\x01\n" +
 	"\vcom.user.v1B\fProfileProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
 var (
@@ -333,28 +691,47 @@ func file_user_v1_profile_proto_rawDescGZIP() []byte {
 	return file_user_v1_profile_proto_rawDescData
 }
 
-var file_user_v1_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_user_v1_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_user_v1_profile_proto_goTypes = []any{
-	(*Profile)(nil),                 // 0: user.v1.Profile
-	(*GetMyProfileRequest)(nil),     // 1: user.v1.GetMyProfileRequest
-	(*GetMyProfileResponse)(nil),    // 2: user.v1.GetMyProfileResponse
-	(*UpdateMyProfileRequest)(nil),  // 3: user.v1.UpdateMyProfileRequest
-	(*UpdateMyProfileResponse)(nil), // 4: user.v1.UpdateMyProfileResponse
-	(UserRole)(0),                   // 5: user.v1.UserRole
+	(*Profile)(nil),                            // 0: user.v1.Profile
+	(*GetMyProfileRequest)(nil),                // 1: user.v1.GetMyProfileRequest
+	(*GetMyProfileResponse)(nil),               // 2: user.v1.GetMyProfileResponse
+	(*UpdateMyProfileRequest)(nil),             // 3: user.v1.UpdateMyProfileRequest
+	(*UpdateMyProfileResponse)(nil),            // 4: user.v1.UpdateMyProfileResponse
+	(*CreateProfilePictureUploadRequest)(nil),  // 5: user.v1.CreateProfilePictureUploadRequest
+	(*CreateProfilePictureUploadResponse)(nil), // 6: user.v1.CreateProfilePictureUploadResponse
+	(*UpdateMyProfilePictureRequest)(nil),      // 7: user.v1.UpdateMyProfilePictureRequest
+	(*UpdateMyProfilePictureResponse)(nil),     // 8: user.v1.UpdateMyProfilePictureResponse
+	(*RemoveMyProfilePictureRequest)(nil),      // 9: user.v1.RemoveMyProfilePictureRequest
+	(*RemoveMyProfilePictureResponse)(nil),     // 10: user.v1.RemoveMyProfilePictureResponse
+	nil,                                        // 11: user.v1.CreateProfilePictureUploadResponse.UploadHeadersEntry
+	(UserRole)(0),                              // 12: user.v1.UserRole
+	(*timestamppb.Timestamp)(nil),              // 13: google.protobuf.Timestamp
 }
 var file_user_v1_profile_proto_depIdxs = []int32{
-	5, // 0: user.v1.Profile.role:type_name -> user.v1.UserRole
-	0, // 1: user.v1.GetMyProfileResponse.profile:type_name -> user.v1.Profile
-	0, // 2: user.v1.UpdateMyProfileResponse.profile:type_name -> user.v1.Profile
-	1, // 3: user.v1.ProfileService.GetMyProfile:input_type -> user.v1.GetMyProfileRequest
-	3, // 4: user.v1.ProfileService.UpdateMyProfile:input_type -> user.v1.UpdateMyProfileRequest
-	2, // 5: user.v1.ProfileService.GetMyProfile:output_type -> user.v1.GetMyProfileResponse
-	4, // 6: user.v1.ProfileService.UpdateMyProfile:output_type -> user.v1.UpdateMyProfileResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	12, // 0: user.v1.Profile.role:type_name -> user.v1.UserRole
+	13, // 1: user.v1.Profile.profile_picture_expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 2: user.v1.GetMyProfileResponse.profile:type_name -> user.v1.Profile
+	0,  // 3: user.v1.UpdateMyProfileResponse.profile:type_name -> user.v1.Profile
+	11, // 4: user.v1.CreateProfilePictureUploadResponse.upload_headers:type_name -> user.v1.CreateProfilePictureUploadResponse.UploadHeadersEntry
+	13, // 5: user.v1.CreateProfilePictureUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 6: user.v1.UpdateMyProfilePictureResponse.profile:type_name -> user.v1.Profile
+	0,  // 7: user.v1.RemoveMyProfilePictureResponse.profile:type_name -> user.v1.Profile
+	1,  // 8: user.v1.ProfileService.GetMyProfile:input_type -> user.v1.GetMyProfileRequest
+	3,  // 9: user.v1.ProfileService.UpdateMyProfile:input_type -> user.v1.UpdateMyProfileRequest
+	5,  // 10: user.v1.ProfileService.CreateProfilePictureUpload:input_type -> user.v1.CreateProfilePictureUploadRequest
+	7,  // 11: user.v1.ProfileService.UpdateMyProfilePicture:input_type -> user.v1.UpdateMyProfilePictureRequest
+	9,  // 12: user.v1.ProfileService.RemoveMyProfilePicture:input_type -> user.v1.RemoveMyProfilePictureRequest
+	2,  // 13: user.v1.ProfileService.GetMyProfile:output_type -> user.v1.GetMyProfileResponse
+	4,  // 14: user.v1.ProfileService.UpdateMyProfile:output_type -> user.v1.UpdateMyProfileResponse
+	6,  // 15: user.v1.ProfileService.CreateProfilePictureUpload:output_type -> user.v1.CreateProfilePictureUploadResponse
+	8,  // 16: user.v1.ProfileService.UpdateMyProfilePicture:output_type -> user.v1.UpdateMyProfilePictureResponse
+	10, // 17: user.v1.ProfileService.RemoveMyProfilePicture:output_type -> user.v1.RemoveMyProfilePictureResponse
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_profile_proto_init() }
@@ -370,7 +747,7 @@ func file_user_v1_profile_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_profile_proto_rawDesc), len(file_user_v1_profile_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -16,12 +16,12 @@ type Userstamps struct {
 type User struct {
 	BaseModel
 	Userstamps
-	Email             string
-	DisplayName       string
-	Description       string
-	PhoneNumber       *string
-	ProfilePictureKey *string
-	Role              RoleName `gorm:"default:user"`
+	Email            string
+	DisplayName      string
+	Description      string
+	PhoneNumber      *string
+	ProfilePictureID *uuid.UUID
+	Role             RoleName `gorm:"default:user"`
 }
 
 func (u *User) IsSuspended() bool { return u.Role == RoleSuspended }

@@ -127,6 +127,81 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("profile_pictures: state checks, one active, cascade", func(t *testing.T) {
+		picture := &m.ProfilePicture{ID: uuid.New(), UserID: alice.ID,
+			ObjectKey: "profile/picture/" + uuid.NewString(), ContentType: "image/png",
+			SizeBytes: 1, State: m.ProfilePicturePending, CreatedAt: now}
+		if err := db.Create(picture).Error; err != nil {
+			t.Fatal(err)
+		}
+		badType := *picture
+		badType.ID = uuid.New()
+		badType.ObjectKey = "profile/picture/" + uuid.NewString()
+		badType.ContentType = "text/plain"
+		if err := db.Create(&badType).Error; err == nil {
+			t.Fatal("expected unsupported content type to fail")
+		}
+		badSize := *picture
+		badSize.ID = uuid.New()
+		badSize.ObjectKey = "profile/picture/" + uuid.NewString()
+		badSize.SizeBytes = 0
+		if err := db.Create(&badSize).Error; err == nil {
+			t.Fatal("expected zero size to fail")
+		}
+		badState := *picture
+		badState.ID = uuid.New()
+		badState.ObjectKey = "profile/picture/" + uuid.NewString()
+		badState.State = "unknown"
+		if err := db.Create(&badState).Error; err == nil {
+			t.Fatal("expected unknown state to fail")
+		}
+
+		active := *picture
+		active.ID = uuid.New()
+		active.ObjectKey = "profile/picture/" + uuid.NewString()
+		active.State = m.ProfilePictureActive
+		if err := db.Create(&active).Error; err != nil {
+			t.Fatal(err)
+		}
+		secondActive := active
+		secondActive.ID = uuid.New()
+		secondActive.ObjectKey = "profile/picture/" + uuid.NewString()
+		if err := db.Create(&secondActive).Error; err == nil {
+			t.Fatal("expected a second active picture to fail")
+		}
+
+		// Deleting the active row clears the user's pointer.
+		if err := db.Model(&m.User{}).Where("id = ?", alice.ID).
+			Update("profile_picture_id", active.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Delete(&m.ProfilePicture{}, active.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		var current m.User
+		if err := db.First(&current, alice.ID).Error; err != nil || current.ProfilePictureID != nil {
+			t.Fatalf("picture pointer not cleared: %+v, %v", current, err)
+		}
+
+		cascaded := newUser(t, db, "cascade@u.nus.edu")
+		orphan := &m.ProfilePicture{ID: uuid.New(), UserID: cascaded.ID,
+			ObjectKey: "profile/picture/" + uuid.NewString(), ContentType: "image/jpeg",
+			SizeBytes: 1, State: m.ProfilePicturePending, CreatedAt: now}
+		if err := db.Create(orphan).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec("DELETE FROM users WHERE id = ?", cascaded.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		var count int64
+		if err := db.Model(&m.ProfilePicture{}).Where("id = ?", orphan.ID).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("profile picture survived its user: %d", count)
+		}
+	})
+
 	t.Run("users: soft delete frees the email", func(t *testing.T) {
 		gone := newUser(t, db, "gone@u.nus.edu")
 		if err := db.Delete(gone).Error; err != nil {

@@ -3,11 +3,15 @@ syntax = "proto3";
 package user.v1;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 import "user/v1/auth.proto";
 
 service ProfileService {
   rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse) {}
   rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse) {}
+  rpc CreateProfilePictureUpload(CreateProfilePictureUploadRequest) returns (CreateProfilePictureUploadResponse) {}
+  rpc UpdateMyProfilePicture(UpdateMyProfilePictureRequest) returns (UpdateMyProfilePictureResponse) {}
+  rpc RemoveMyProfilePicture(RemoveMyProfilePictureRequest) returns (RemoveMyProfilePictureResponse) {}
 }
 
 message Profile {
@@ -20,6 +24,12 @@ message Profile {
   // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
   UserRole role = 7;
+  // Short-lived pre-signed GET grant minted per response. Empty when the user
+  // has no profile picture. Responses carrying this URL must not be cached.
+  string profile_picture_url = 8;
+  google.protobuf.Timestamp profile_picture_expires_at = 9;
+  // Stable application reference for the current picture. Empty when none.
+  string profile_picture_id = 10;
 }
 
 message GetMyProfileRequest {}
@@ -40,5 +50,50 @@ message UpdateMyProfileRequest {
 }
 
 message UpdateMyProfileResponse {
+  Profile profile = 1;
+}
+
+// Requests one pre-signed PUT grant for a profile picture. Bytes upload
+// directly from the browser to object storage; the service never carries them.
+message CreateProfilePictureUploadRequest {
+  string content_type = 1 [(buf.validate.field).string = {
+    in: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif"
+    ]
+  }];
+  // Decimal bytes; matches the repository-wide image limit.
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {
+    gte: 1
+    lte: 10000000
+  }];
+}
+
+message CreateProfilePictureUploadResponse {
+  // Stable row ID that is also returned in Profile.profile_picture_id once
+  // the picture is active. The browser never sees the storage key.
+  string picture_id = 1;
+  string upload_url = 2;
+  // Headers the browser must send with the PUT.
+  map<string, string> upload_headers = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+// Applies a previously uploaded picture. The picture ID must belong to the
+// authenticated caller. Repeating the same call is idempotent.
+message UpdateMyProfilePictureRequest {
+  string picture_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UpdateMyProfilePictureResponse {
+  Profile profile = 1;
+}
+
+message RemoveMyProfilePictureRequest {}
+
+message RemoveMyProfilePictureResponse {
   Profile profile = 1;
 }
