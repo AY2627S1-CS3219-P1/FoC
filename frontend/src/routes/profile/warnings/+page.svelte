@@ -51,18 +51,26 @@
 	{:else}
 		<div class="warning-list">
 			{#each warnings as warning (warning.id)}
+				{@const isRemoved = warning.status === 'removed'}
 				<article
 					class="warning-card"
-					class:is-active={warning.status === 'active'}
-					class:is-removed={warning.status === 'removed'}
-					aria-label={`Warning, ${warning.status === 'removed' ? 'removed' : 'active'}`}
+					class:is-active={!isRemoved}
+					class:is-removed={isRemoved}
+					aria-label={`Warning, ${isRemoved ? 'removed' : 'active'}: ${warning.reason}`}
 				>
 					<header class="warning-top">
-						<span class="status-chip">{warning.status === 'removed' ? 'Removed' : 'Active'}</span>
+						<span class="status-chip">{isRemoved ? 'Removed' : 'Active'}</span>
 						<p class="warning-reason">{warning.reason}</p>
-						<a class="view-order" href={`/orders/${encodeURIComponent(warning.requestId)}`}>
-							View order <span class="arrow" aria-hidden="true">→</span>
-						</a>
+						<span class="view-order">
+							<Button
+								variant="text"
+								size="xs"
+								href={`/orders/${encodeURIComponent(warning.requestId)}`}
+								aria-label={`View order ${warning.requestId}`}
+							>
+								View order <span class="arrow" aria-hidden="true">→</span>
+							</Button>
+						</span>
 					</header>
 					<dl class="warning-meta">
 						<div><dt>Order ID</dt><dd>{warning.requestId}</dd></div>
@@ -95,12 +103,17 @@
 		gap: 0.6rem;
 		padding: 0.75rem 1rem;
 		border: 1px solid var(--m3c-outline-variant);
-		border-radius: 12px;
+		border-radius: var(--m3-shape-medium);
 		background: var(--m3c-surface);
 	}
+	/* Local tokens for the active-state amber; kept beside the snackbar warning
+	   palette in app.css, which may align with these in a future theme pass. */
 	.warning-card.is-active {
-		border-color: #fcd34d;
-		background: #fffbeb;
+		--warning-container: #fffbeb;
+		--warning-on-container: #92400e;
+		--warning-outline: #fcd34d;
+		border-color: var(--warning-outline);
+		background: var(--warning-container);
 	}
 	.warning-card.is-removed {
 		background: var(--m3c-surface-container-low);
@@ -122,8 +135,8 @@
 	}
 	.is-active .status-chip {
 		background: #fef3c7;
-		color: #92400e;
-		border: 1px solid #fcd34d;
+		color: var(--warning-on-container);
+		border: 1px solid var(--warning-outline);
 	}
 	.is-removed .status-chip {
 		background: var(--m3c-surface-container-highest);
@@ -139,26 +152,8 @@
 	}
 	.is-removed .warning-reason { color: var(--m3c-on-surface-variant); }
 
-	.view-order {
-		flex: none;
-		margin-left: auto;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		padding: 0.3rem 0.75rem;
-		border-radius: 999px;
-		background: var(--m3c-secondary-container);
-		color: var(--m3c-on-secondary-container);
-		font-size: 0.8rem;
-		font-weight: 600;
-		text-decoration: none;
-	}
-	.view-order .arrow { font-size: 0.9rem; line-height: 1; }
-	.view-order:hover { filter: brightness(0.97); }
-	.view-order:focus-visible {
-		outline: 2px solid var(--m3c-primary);
-		outline-offset: 2px;
-	}
+	.view-order { flex: none; margin-left: auto; }
+	.arrow { font-size: 0.9rem; line-height: 1; }
 
 	.warning-meta {
 		display: flex;
@@ -173,7 +168,7 @@
 
 	.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
 
-	@media (max-width: 480px) {
+	@media (max-width: 30rem) {
 		.warning-card { padding: 0.7rem 0.85rem; }
 		.view-order { margin-left: 0; }
 		.warning-meta { gap: 0.35rem 1.5rem; }
