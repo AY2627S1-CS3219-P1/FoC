@@ -31,6 +31,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -41,12 +42,17 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"gorm.io/gorm"
 )
 
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
+
+	warningConsumerGroup     = "user-service"
+	minWarningConsumeBackoff = time.Second
+	maxWarningConsumeBackoff = 30 * time.Second
 )
 
 type config struct {
@@ -59,7 +65,7 @@ type config struct {
 	appEnv          string
 	frontendURL     string
 	privateKey      string
-	kafkaBrokers    string
+	kafkaBrokers    []string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
@@ -79,8 +85,10 @@ func main() {
 		fatal("invalid config", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	ctx, rootCancel := context.WithCancel(signalCtx)
+	defer rootCancel()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -111,10 +119,7 @@ func main() {
 		}
 	}
 
-	allowedDomainLogic := newAllowedDomainService(sqlDB)
-	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{
-		Brokers: strings.Split(cfg.kafkaBrokers, ","),
-	})
+	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: cfg.kafkaBrokers})
 	if err != nil {
 		fatal("initialize Kafka publisher", err)
 	}
@@ -124,10 +129,12 @@ func main() {
 		}
 	}()
 
+	allowedDomainLogic := newAllowedDomainService(sqlDB)
 	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
+	warningLogic := newWarningService(sqlDB)
 	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
 	relayDone := make(chan struct{})
 	go func() {
@@ -150,6 +157,8 @@ func main() {
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
 		Review:         &review.Handler{Logic: reviewLogic},
+		Warnings:       &warningdomain.Handler{Logic: warningLogic},
+		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
@@ -159,12 +168,22 @@ func main() {
 	// the internal listener so local and deployed behaviour stay identical.
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
-	servers := []*http.Server{public, internal}
 
-	if err := serve(ctx, servers...); err != nil {
+	// The courier-warning consumer runs alongside the HTTP listeners and
+	// rebuilds its subscription after a transient failure, so one bad delivery
+	// cannot stall warnings. rootCancel() stops it during shutdown.
+	consumeDone := make(chan struct{})
+	go func() {
+		defer close(consumeDone)
+		consume(ctx, cfg.kafkaBrokers, warningLogic)
+	}()
+
+	if err := serve(ctx, public, internal); err != nil {
 		fatal("serve", err)
 	}
 	stop()
+	rootCancel()
+	<-consumeDone
 	<-relayDone
 }
 
@@ -208,6 +227,49 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 	return errors.Join(failures...)
 }
 
+// consume runs the courier-warning subscription until ctx ends. A failed
+// subscriber cannot restart, so each failure builds a new one after a growing
+// delay; the uncommitted delivery is then redelivered.
+func consume(ctx context.Context, brokers []string, logic *warningdomain.Service) {
+	backoff := minWarningConsumeBackoff
+	for ctx.Err() == nil {
+		started := time.Now()
+		err := subscribe(ctx, brokers, logic)
+		if ctx.Err() != nil {
+			return
+		}
+
+		// A subscription that ran for a while was healthy; restart promptly.
+		if time.Since(started) > maxWarningConsumeBackoff {
+			backoff = minWarningConsumeBackoff
+		}
+		slog.ErrorContext(ctx, "Kafka subscription stopped; restarting", "error", err, "backoff", backoff)
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		backoff = min(2*backoff, maxWarningConsumeBackoff)
+	}
+}
+
+func subscribe(ctx context.Context, brokers []string, logic *warningdomain.Service) error {
+	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: warningConsumerGroup})
+	if err != nil {
+		return err
+	}
+	if err := warningdomain.RegisterCourierWarningConsumer(
+		subscriber,
+		&warningdomain.CourierWarningConsumer{Logic: logic},
+	); err != nil {
+		return err
+	}
+	return subscriber.Run(ctx)
+}
+
 func newServer(addr string, handler http.Handler) *http.Server {
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
@@ -236,7 +298,7 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
-// defaults and rejecting missing required settings or malformed values.
+// local defaults and rejecting missing required values or malformed settings.
 func loadConfig() (config, error) {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return config{}, fmt.Errorf("load .env: %w", err)
@@ -253,7 +315,6 @@ func loadConfig() (config, error) {
 		appEnv:          envString("APP_ENV", ""),
 		frontendURL:     envString("FRONTEND_BASE_URL", ""),
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
@@ -267,9 +328,13 @@ func loadConfig() (config, error) {
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
 		},
+		kafkaBrokers: envList("KAFKA_BROKERS", ""),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
+	}
+	if len(cfg.kafkaBrokers) == 0 && cfg.appEnv == "local" {
+		cfg.kafkaBrokers = []string{"localhost:9092"}
 	}
 	if cfg.privateKey == "" && cfg.appEnv == "local" {
 		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
@@ -284,16 +349,17 @@ func loadConfig() (config, error) {
 	if cfg.databaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is not set"))
 	}
+	if len(cfg.kafkaBrokers) == 0 {
+		errs = append(errs, errors.New("KAFKA_BROKERS must contain at least one broker"))
+	}
 	if cfg.frontendURL == "" {
 		errs = append(errs, errors.New("FRONTEND_BASE_URL is not set"))
 	}
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
 	}
-	if cfg.kafkaBrokers == "" {
-		errs = append(errs, errors.New("KAFKA_BROKERS is not set"))
-	} else {
-		for _, broker := range strings.Split(cfg.kafkaBrokers, ",") {
+	if raw := envString("KAFKA_BROKERS", ""); raw != "" {
+		for _, broker := range strings.Split(raw, ",") {
 			if strings.TrimSpace(broker) == "" {
 				errs = append(errs, errors.New("KAFKA_BROKERS must contain comma-separated broker addresses"))
 				break
@@ -326,6 +392,18 @@ func envString(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envList(key, fallback string) []string {
+	value := envString(key, fallback)
+	items := strings.Split(value, ",")
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if item = strings.TrimSpace(item); item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func envPositiveInt(key string, fallback int, errs *[]error) int {
@@ -370,6 +448,10 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
 	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
 	return allowedadmin.NewAllowedDomainService(repo)
+}
+
+func newWarningService(db warningdb.DBTX) *warningdomain.Service {
+	return warningdomain.NewService(warningdomain.NewPostgresRepository(warningdb.New(db)))
 }
 
 func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
