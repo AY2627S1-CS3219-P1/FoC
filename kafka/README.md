@@ -11,6 +11,8 @@ declare messages and enums without RPC services.
 | `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
+| `users.review_submitted` | `users.events.v1.ReviewSubmitted` | Review UUID as UTF-8 text |
+| `moderation.review_moderation_finished` | `moderation.events.v1.ReviewModerationFinished` | Review UUID as UTF-8 text |
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
@@ -22,6 +24,24 @@ Order publishes its three topics from its outbox. Topic names match the outbox
 fact kinds. `order.status_changed` drives Communication's notifications,
 `order.outcome` reports how an order ended, and
 `order.courier_warning_requested` asks User Service to warn a courier.
+
+`users.review_submitted` announces a committed pending review. User Service
+publishes it from the same transactional outbox as the review row, keyed by
+review UUID. The payload carries a stable event ID, a
+`moderation_request_id` identifying the content-assessment request, the
+authenticated `reviewer_id`, a `content_revision` (initially 1) and the
+complete immutable comment snapshot. The content moderation service consumes
+it and creates at most one durable job per `moderation_request_id`.
+
+`moderation.review_moderation_finished` reports the terminal result of a
+moderation job, keyed by review UUID. Its outcome is `APPROVED`, `REJECTED`
+or `ERROR`; `ERROR` means no valid verdict was obtained after terminal
+failure and never carries content-violation reason codes, while `REJECTED`
+requires at least one. `run_generation` starts at 1 and increases only for an
+explicit retry of a terminal errored job, so an older completion cannot
+overwrite a later successful retry. User Service consumes this topic with the
+`user-service-review-moderation` consumer group and applies the outcome to
+the review's publication status.
 
 Values use binary Protobuf (`proto.Marshal` / `proto.Unmarshal`), without a
 schema registry framing prefix. The topic identifies its value message.

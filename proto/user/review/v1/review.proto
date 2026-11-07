@@ -13,6 +13,7 @@ service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc ListUnpublishedReviewsForUser(ListUnpublishedReviewsForUserRequest) returns (ListUnpublishedReviewsForUserResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
   rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
 }
@@ -53,7 +54,18 @@ message SubmitReviewRequest {
   ReviewSubmission submission = 4 [(buf.validate.field).required = true];
 }
 
-message SubmitReviewResponse {}
+// SubmitReview acknowledges a persisted pending review. Publication follows
+// only after asynchronous content moderation approves it; a successful
+// response never means the review is public.
+message SubmitReviewResponse {
+  string review_id = 1;
+  // Stable identity of the content-assessment request created for this
+  // review; correlate it with the unpublished-reviews page and moderation job
+  // lookups.
+  string moderation_request_id = 2;
+  // Always PENDING_MODERATION for newly gated submissions.
+  ModerationStatus moderation_status = 3;
+}
 
 message ListReviewsForUserResponse {
   repeated Review reviews = 1;
@@ -105,4 +117,66 @@ message ListReviewRemovalsRequest {
 message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
   pagination.v1.PageInfo pagination = 2;
+}
+
+// Moderation lifecycle of a review. Ordinary published reads and rating
+// aggregates include only APPROVED reviews; rejected and errored reviews stay
+// stored and visible to their author and authorised admins here.
+enum ModerationStatus {
+  MODERATION_STATUS_UNSPECIFIED = 0;
+  // Committed but not yet assessed. Contributes nothing to published
+  // statistics.
+  MODERATION_STATUS_PENDING_MODERATION = 1;
+  // Assessed and published.
+  MODERATION_STATUS_APPROVED = 2;
+  // Assessed and rejected by the content policy; retained for its author.
+  MODERATION_STATUS_REJECTED = 3;
+  // No valid content verdict was obtained; a technical outcome, never a
+  // content judgement.
+  MODERATION_STATUS_MODERATION_ERROR = 4;
+}
+
+// Lists the caller's (or an admin-selected reviewer's) reviews that are not
+// published: pending, rejected and moderation-error. Queried by author, not
+// reviewee — ListReviewsForUser's target semantics concern reviews received.
+// This endpoint never calls the content moderation service, so it works even
+// while moderation is unavailable.
+message ListUnpublishedReviewsForUserRequest {
+  // The review author. Ordinary callers may request only their own id;
+  // admin/super-admin may select another reviewer. A suspended caller may
+  // inspect only their own. Enforced before any database lookup.
+  string reviewer_id = 1 [(buf.validate.field).string.uuid = true];
+  pagination.v1.Pagination pagination = 2;
+  // Optional filter. Only pending, rejected and moderation-error are valid
+  // here; approved reviews are never in this collection.
+  optional ModerationStatus moderation_status_filter = 3;
+  // Optional: recover a submission after an ambiguous response by the order
+  // the review was submitted for.
+  optional string order_id = 4 [(buf.validate.field).string.uuid = true];
+}
+
+message ListUnpublishedReviewsForUserResponse {
+  repeated UnpublishedReview reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+// A not-yet-published review with its moderation metadata.
+message UnpublishedReview {
+  string id = 1;
+  string reviewer_id = 2;
+  string reviewee_id = 3;
+  string order_id = 4;
+  int32 rating = 5;
+  string comment = 6;
+  google.protobuf.Timestamp created_at = 7;
+  string reviewer_name = 8;
+  string reviewee_name = 9;
+  ModerationStatus moderation_status = 10;
+  // Correlates with SubmitReviewResponse and moderation job lookups.
+  string moderation_request_id = 11;
+  int32 content_revision = 12;
+  // Known rejection reason codes when rejected; empty otherwise.
+  repeated string moderation_reason_codes = 13;
+  // When the latest moderation result was applied, when present.
+  optional google.protobuf.Timestamp moderated_at = 14;
 }
