@@ -19,6 +19,35 @@ function scenario(putImpl: (grant: ReviewPhotoGrant, file: File, signal: AbortSi
 
 const photo = (name = 'review.png') => new File(['photo'], name, { type: 'image/png' });
 
+describe('review photo not-ready handling', () => {
+	it('flags the row the backend could not attach and keeps it out of the payload', async () => {
+		const { controller } = scenario();
+		controller.addFiles([photo('first.png'), photo('second.png')]);
+		await controller.upload();
+		const staleId = controller.snapshot().files[0].photoId!;
+
+		controller.markNotReady([staleId], "This photo didn't make it. Remove and re-add it, or submit without it.");
+		const snapshot = controller.snapshot();
+		expect(snapshot.files[0].outcome).toBe('Rejected');
+		expect(snapshot.files[0].message).toContain("Remove and re-add it");
+		expect(controller.photoIds()).toEqual([snapshot.files[1].photoId]);
+		// The stale group status names the dead photos instead of going quiet.
+		expect(snapshot.message).toContain("can't be used");
+	});
+
+	it('leaves untouched rows alone when only one photo is flagged', async () => {
+		const { controller } = scenario();
+		controller.addFiles([photo(), photo()]);
+		await controller.upload();
+		const first = controller.snapshot().files[0].photoId!;
+
+		controller.markNotReady([first], 'gone');
+		const snapshot = controller.snapshot();
+		expect(snapshot.files[1].outcome).toBe('Succeeded');
+		expect(controller.photoIds()).toEqual([snapshot.files[1].photoId]);
+	});
+});
+
 describe('review photo staging', () => {
 	it('grants and PUTs each photo once, marking it succeeded with its photo id', async () => {
 		const { api, put, controller } = scenario();

@@ -98,24 +98,23 @@
 	</div>
 	{#if view.files.length > 0}
 		<ul aria-label="Photos attached to this review">
-			{#each view.files as row (row.id)}
+			{#each view.files as row, index (row.id)}
 				<li>
 					{#if previews.get(row.id)}
 						<span class="photo-preview">
-							<img src={previews.get(row.id)} alt={row.file.name} />
+							<img src={previews.get(row.id)} alt="" />
 						</span>
 					{:else}
 						<span class="photo-preview placeholder" aria-hidden="true"></span>
 					{/if}
 					<div class="file-summary">
-						<strong>{row.file.name}</strong>
 						<span class="file-outcome">{outcomeLabel(row)}</span>
 					</div>
 					<div class="remove-action">
 						<Button
 							type="button"
 							variant="text"
-							aria-label={`Remove ${row.file.name}`}
+							aria-label={`Remove photo ${index + 1}`}
 							disabled={busy || row.outcome === 'Pending'}
 							onclick={() => {
 								controller?.removeFile(row.id);
@@ -154,7 +153,6 @@
 	.photo-preview.placeholder { border: 1px dashed var(--m3c-outline-variant); }
 	.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 	.file-summary { display: grid; gap: 0.1rem; min-width: 0; }
-	.file-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.file-outcome { color: var(--m3c-on-surface-variant); }
 	.file-message { grid-column: 1 / -1; margin: 0; font-size: 0.875rem; }
 	.photo-selection > :global(button) { justify-self: start; }

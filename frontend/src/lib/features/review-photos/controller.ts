@@ -115,6 +115,21 @@ export class ReviewPhotosController {
 		this.publish();
 	}
 
+	// The backend could not attach these staged uploads; its reaper collects
+	// them. The user re-stages by removing and re-adding the file.
+	markNotReady(photoIds: string[], message: string): void {
+		if (this.disposed || photoIds.length === 0) return;
+		const stale = new Set(photoIds);
+		for (const row of this.files) {
+			if (row.photoId && stale.has(row.photoId)) {
+				row.outcome = 'Rejected';
+				row.message = message;
+			}
+		}
+		this.message = this.describeFiles();
+		this.publish();
+	}
+
 	// Photo IDs in display order, so the review keeps the arranged sequence.
 	photoIds(): string[] {
 		return this.files
@@ -170,8 +185,16 @@ export class ReviewPhotosController {
 
 	private describeFiles(): string {
 		const selected = this.files.filter((row) => row.outcome !== 'Rejected');
+		if (selected.length === 0 && this.files.length > 0) {
+			return "These photos can't be used. Remove them to submit your review without photos.";
+		}
 		if (selected.length === 0) return '';
 		if (selected.every((row) => row.outcome === 'Succeeded')) {
+			if (selected.length < this.files.length) {
+				// Rejected rows still block submission; name them instead of
+				// claiming everything is ready.
+				return "Some photos can't be used. Remove them to submit your review.";
+			}
 			return 'Photos ready. Submit your review when you are done.';
 		}
 		if (selected.some((row) => row.outcome === 'Pending')) {

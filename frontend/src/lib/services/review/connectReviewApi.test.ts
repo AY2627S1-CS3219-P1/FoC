@@ -2,8 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
-import { ReviewAlreadyExistsError, ReviewLimitedError, ReviewRejectedError } from './reviewApi.ts';
+import { ReviewAlreadyExistsError, ReviewLimitedError, ReviewNotReadyError, ReviewRejectedError } from './reviewApi.ts';
+import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
 import { ConnectReviewApi } from './connectReviewApi.ts';
+
+function errorWithDetail(reason: string, message: string, photoIds: string[] = []): ConnectError {
+	const detail = {
+		reason,
+		message,
+		fieldViolations: photoIds.map((id) => ({ field: 'photo_ids', description: `${id}: ${message}` }))
+	};
+	return new ConnectError(message, Code.Internal, undefined, [
+		{ desc: ErrorDetailSchema, value: detail }
+	]);
+}
 
 function scenario() {
 	const client = {
@@ -75,15 +87,38 @@ describe('ConnectReviewApi', () => {
 
 	it('maps AlreadyExists to the duplicate-review error, still a rejection', async () => {
 		const { client, api } = scenario();
-		vi.mocked(client.submitReview).mockRejectedValueOnce(new ConnectError('duplicate', Code.AlreadyExists));
-		// A duplicate means a prior submission likely committed; the dialog
-		// distinguishes it from a generic retryable failure.
+		vi.mocked(client.submitReview).mockRejectedValueOnce(errorWithDetail('REVIEW_ALREADY_EXISTS', 'You already reviewed this request.'));
 		const error = await api.submit({ from: 'r', to: 'e', orderId: 'o', rating: 1, comment: 'x', photoIds: [] }, new AbortController().signal)
 			.catch((cause: unknown) => cause);
 		expect(error).toBeInstanceOf(ReviewAlreadyExistsError);
-		// The duplicate error is a review rejection subclass, so existing
-		// rejection handling keeps working.
 		expect(error).toBeInstanceOf(ReviewRejectedError);
+	});
+
+	it('maps backend reasons to retryable and permanent outcomes', async () => {
+		const { client, api } = scenario();
+		vi.mocked(client.createReviewPhotoUpload).mockRejectedValueOnce(
+			errorWithDetail('UPLOAD_TEMPORARILY_UNAVAILABLE', 'Photo uploads are temporarily unavailable. Try again, or submit your review without photos.')
+		);
+		await expect(api.createPhotoUpload({ contentType: 'image/png', sizeBytes: 1 }, new AbortController().signal))
+			.rejects.toBeInstanceOf(ReviewLimitedError);
+		vi.mocked(client.createReviewPhotoUpload).mockRejectedValueOnce(
+			errorWithDetail('UPLOAD_UNAVAILABLE', 'Photo uploads are not available. You can still submit your review without photos.')
+		);
+		await expect(api.createPhotoUpload({ contentType: 'image/png', sizeBytes: 1 }, new AbortController().signal))
+			.rejects.toBeInstanceOf(ReviewRejectedError);
+	});
+
+	it('names the offending photo when the backend cannot attach it', async () => {
+		const { client, api } = scenario();
+		const photoId = '0b8a4b5e-6c1d-4a2b-9e3f-1a2b3c4d5e6f';
+		vi.mocked(client.submitReview).mockRejectedValueOnce(
+			errorWithDetail('PHOTO_NOT_READY', 'Photo upload is missing; upload it again.', [photoId])
+		);
+		const error = await api.submit({ from: 'r', to: 'e', orderId: 'o', rating: 1, comment: 'x', photoIds: [photoId] }, new AbortController().signal)
+			.catch((cause: unknown) => cause);
+		expect(error).toBeInstanceOf(ReviewNotReadyError);
+		expect((error as ReviewNotReadyError).photoIds).toEqual([photoId]);
+		expect((error as ReviewNotReadyError).message).toBe('Photo upload is missing; upload it again.');
 	});
 
 	it('does not hand out a grant when the response is incomplete', async () => {

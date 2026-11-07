@@ -8,7 +8,7 @@
 		ReviewPhotosController,
 		type ReviewPhotosSnapshot
 	} from '$lib/features/review-photos/controller';
-	import { ReviewAlreadyExistsError } from '$lib/services/review/reviewApi';
+	import { ReviewAlreadyExistsError, ReviewLimitedError, ReviewNotReadyError, ReviewRejectedError } from '$lib/services/review/reviewApi';
 	import type { ReviewApi } from '$lib/services/review/reviewApi';
 	import { reviewSchema } from '$lib/services/review/reviewSchema';
 	import { statusLabel } from '$lib/services/order/presentation';
@@ -57,9 +57,16 @@
 				setMessage(validated, 'Upload your photos or remove them before submitting.');
 				return;
 			}
-			const failed = photoView.files.filter((row) => row.outcome === 'Failed' || row.outcome === 'Rejected');
+			const failed = photoView.files.filter((row) => row.outcome === 'Failed');
 			if (failed.length > 0) {
 				setMessage(validated, 'Some photos did not upload. Remove them to submit without, or try uploading again.');
+				return;
+			}
+			const rejected = photoView.files.filter((row) => row.outcome === 'Rejected');
+			if (rejected.length > 0) {
+				// Rejected rows are never retried; advertising "try again" would
+				// send the user in a circle.
+				setMessage(validated, "Some photos can't be used. Remove them to submit without photos.");
 				return;
 			}
 			try {
@@ -78,7 +85,23 @@
 				if (cause instanceof ReviewAlreadyExistsError) {
 					// A prior attempt likely committed despite an ambiguous
 					// response; resubmitting cannot succeed.
-					setMessage(validated, 'This request already has a review.');
+					setMessage(validated, cause.message);
+					snackbarService.show(cause.message, { severity: 'info' });
+				} else if (cause instanceof ReviewLimitedError) {
+					setMessage(validated, cause.message);
+					snackbarService.show(cause.message, { severity: 'warning', timeout: 8000 });
+				} else if (cause instanceof ReviewNotReadyError) {
+					photoController?.markNotReady(
+						cause.photoIds,
+						"This photo didn't make it. Remove and re-add it, or submit without it."
+					);
+					setMessage(
+						validated,
+						'Some photos did not make it. Re-add them, or submit without them.'
+					);
+				} else if (cause instanceof ReviewRejectedError && cause.reason === 'UPLOAD_UNAVAILABLE') {
+					setMessage(validated, cause.message);
+					snackbarService.show(cause.message, { severity: 'error', timeout: 8000 });
 				} else {
 					setMessage(validated, 'We could not submit your review. Your photos are kept; please try again.');
 				}

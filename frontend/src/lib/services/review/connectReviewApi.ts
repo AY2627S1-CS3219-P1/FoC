@@ -2,8 +2,10 @@ import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { ReviewService, type Review as ProtoReview } from '$lib/gen/user/review/v1/review_pb';
+import { parseRpcError } from '$lib/services/rpc/errors';
 import {
 	ReviewLimitedError,
+	ReviewNotReadyError,
 	ReviewRejectedError,
 	ReviewAlreadyExistsError,
 	type ReviewApi,
@@ -16,7 +18,8 @@ import {
 type ReviewClient = Client<typeof ReviewService>;
 
 // Authentication, cancellation, deadlines and transport failures can hide a
-// committed result. Only explicit application rejection releases saved input.
+// committed result. Only explicit application rejection releases saved input;
+// the backend dictates the message via its ErrorDetail.
 function rethrow(cause: unknown): never {
 	if (cause instanceof ConnectError) {
 		if (cause.code === Code.ResourceExhausted) {
@@ -26,17 +29,28 @@ function rethrow(cause: unknown): never {
 				'Photo uploads are temporarily limited. Keep this photo and try again later.'
 			);
 		}
-		if (cause.code === Code.AlreadyExists) {
-			// A prior submission likely committed despite an ambiguous response;
-			// the review exists, so a blind retry would loop forever.
-			throw new ReviewAlreadyExistsError('This request already has a review.');
+		const parsed = parseRpcError(cause);
+		if (parsed?.reason === 'UPLOAD_TEMPORARILY_UNAVAILABLE') {
+			throw new ReviewLimitedError(parsed.message);
 		}
-		if ([
-			Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound
-		].includes(cause.code)) {
-			throw new ReviewRejectedError(
-				'This action could not be completed. Check the review details and photos, then try again.'
-			);
+		if (parsed?.reason === 'PHOTO_NOT_READY') {
+			throw new ReviewNotReadyError(parsed.message, {
+				reason: parsed.reason,
+				photoIds: parsed.photoIds
+			});
+		}
+		if (parsed?.reason === 'REVIEW_ALREADY_EXISTS') {
+			throw new ReviewAlreadyExistsError(parsed.message);
+		}
+		if (parsed?.reason === 'UPLOAD_UNAVAILABLE') {
+			throw new ReviewRejectedError(parsed.message, { reason: parsed.reason });
+		}
+		if (
+			parsed?.reason === 'INVALID_REVIEW' ||
+			parsed?.reason === 'INVALID_PHOTO' ||
+			parsed?.reason === 'PHOTO_NOT_STAGED'
+		) {
+			throw new ReviewRejectedError(parsed.message, { reason: parsed.reason });
 		}
 	}
 	throw cause;

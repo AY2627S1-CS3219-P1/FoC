@@ -1,11 +1,28 @@
 // The adapter marks only authoritative server rejections as Rejected.
 // Transport failures and ambiguous responses remain Failed/unknown.
-export class ReviewRejectedError extends Error {}
+export class ReviewRejectedError extends Error {
+	readonly reason?: string;
+	readonly photoIds: string[];
+
+	constructor(message: string, options?: { reason?: string; photoIds?: string[] }) {
+		super(message);
+		this.reason = options?.reason;
+		this.photoIds = options?.photoIds ?? [];
+	}
+}
+
+// A photo the backend could not attach: it must be removed and re-added under
+// a fresh grant, not blindly resubmitted.
+export class ReviewNotReadyError extends ReviewRejectedError {}
 
 // The request already carries a review. For submit this usually means a prior
 // attempt committed despite an ambiguous response, so the review exists and
 // must not be resubmitted.
-export class ReviewAlreadyExistsError extends ReviewRejectedError {}
+export class ReviewAlreadyExistsError extends ReviewRejectedError {
+	constructor(message: string) {
+		super(message, { reason: 'REVIEW_ALREADY_EXISTS' });
+	}
+}
 
 // A temporary server-side limit (e.g. upload quota). The photo stays selected
 // and a later retry can succeed; never treated as a permanent rejection.
