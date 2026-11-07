@@ -17,7 +17,7 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
 
 function grant(): ProfilePictureGrant {
 	return {
-		uploadId: 'upload-1',
+		pictureId: 'picture-1',
 		uploadUrl: 'https://storage.invalid/put',
 		uploadHeaders: {},
 		expiresAt: 0
@@ -68,7 +68,7 @@ describe('ProfileService', () => {
 		const api = createApi();
 		const service = new ProfileService(api, { updateDisplayName: vi.fn() });
 
-		const updated = await service.updateMyProfilePicture('upload-1', new AbortController().signal);
+		const updated = await service.updateMyProfilePicture('picture-1', new AbortController().signal);
 		expect(updated.profilePictureUrl).toBe('https://picture');
 		expect(service.profile).toEqual(updated);
 
@@ -85,7 +85,7 @@ describe('ProfileService', () => {
 		vi.mocked(api.updateMyProfilePicture).mockRejectedValueOnce(new Error('down'));
 
 		await expect(
-			service.updateMyProfilePicture('upload-1', new AbortController().signal)
+			service.updateMyProfilePicture('picture-1', new AbortController().signal)
 		).rejects.toThrow('down');
 		expect(service.profile).toEqual(previous);
 	});

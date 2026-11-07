@@ -14,7 +14,7 @@ export type ProfilePictureApi = {
 		input: { contentType: string; sizeBytes: number },
 		signal: AbortSignal
 	): Promise<ProfilePictureGrant>;
-	updateMyProfilePicture(uploadId: string, signal: AbortSignal): Promise<UserProfile>;
+	updateMyProfilePicture(pictureId: string, signal: AbortSignal): Promise<UserProfile>;
 	removeMyProfilePicture(signal: AbortSignal): Promise<UserProfile>;
 };
 
@@ -127,7 +127,7 @@ export class ProfilePictureController {
 			this.#outcome = 'Saving';
 			this.#message = 'Saving your picture…';
 			this.#publish();
-			const profile = await this.#apply(grant.uploadId);
+			const profile = await this.#apply(grant.pictureId);
 			this.#outcome = 'Succeeded';
 			this.#message = 'Your profile picture has been updated.';
 			return profile;
@@ -162,12 +162,12 @@ export class ProfilePictureController {
 		}
 	}
 
-	async #apply(uploadId: string): Promise<UserProfile> {
+	async #apply(pictureId: string): Promise<UserProfile> {
 		try {
-			return await this.#bounded((signal) => this.api.updateMyProfilePicture(uploadId, signal));
+			return await this.#bounded((signal) => this.api.updateMyProfilePicture(pictureId, signal));
 		} catch (cause) {
 			if (!isAmbiguous(cause)) throw cause;
-			return this.#bounded((signal) => this.api.updateMyProfilePicture(uploadId, signal));
+			return this.#bounded((signal) => this.api.updateMyProfilePicture(pictureId, signal));
 		}
 	}
 

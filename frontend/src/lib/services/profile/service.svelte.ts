@@ -46,8 +46,8 @@ export class ProfileService {
 		return this.#api.createProfilePictureUpload(input, signal);
 	}
 
-	async updateMyProfilePicture(uploadId: string, signal: AbortSignal): Promise<UserProfile> {
-		const profile = await this.#api.updateMyProfilePicture(uploadId, signal);
+	async updateMyProfilePicture(pictureId: string, signal: AbortSignal): Promise<UserProfile> {
+		const profile = await this.#api.updateMyProfilePicture(pictureId, signal);
 		this.profile = profile;
 		return profile;
 	}

@@ -23,7 +23,7 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
 
 function grant(): ProfilePictureGrant {
 	return {
-		uploadId: 'upload-1',
+		pictureId: 'picture-1',
 		uploadUrl: 'https://storage.invalid/put',
 		uploadHeaders: { 'If-None-Match': '*' },
 		expiresAt: 0
@@ -53,7 +53,7 @@ describe('profile picture controller', () => {
 			expect.anything()
 		);
 		expect(put).toHaveBeenCalledWith(grant(), expect.any(File), expect.anything());
-		expect(api.updateMyProfilePicture).toHaveBeenCalledWith('upload-1', expect.anything());
+		expect(api.updateMyProfilePicture).toHaveBeenCalledWith('picture-1', expect.anything());
 		expect(controller.snapshot()).toMatchObject({ outcome: 'Succeeded', busy: false });
 	});
 
@@ -88,7 +88,7 @@ describe('profile picture controller', () => {
 		expect(api.updateMyProfilePicture).toHaveBeenCalledOnce();
 	});
 
-	it('retries an ambiguous update once with the same upload id', async () => {
+	it('retries an ambiguous update once with the same picture id', async () => {
 		const { api, controller } = scenario();
 		vi.mocked(api.updateMyProfilePicture)
 			.mockRejectedValueOnce(new ConnectError('lost', Code.Unavailable))
@@ -96,8 +96,8 @@ describe('profile picture controller', () => {
 		const updated = await controller.upload(file());
 		expect(updated?.profilePictureUrl).toBe('https://picture');
 		expect(api.updateMyProfilePicture).toHaveBeenCalledTimes(2);
-		expect(api.updateMyProfilePicture).toHaveBeenNthCalledWith(1, 'upload-1', expect.anything());
-		expect(api.updateMyProfilePicture).toHaveBeenNthCalledWith(2, 'upload-1', expect.anything());
+		expect(api.updateMyProfilePicture).toHaveBeenNthCalledWith(1, 'picture-1', expect.anything());
+		expect(api.updateMyProfilePicture).toHaveBeenNthCalledWith(2, 'picture-1', expect.anything());
 	});
 
 	it('does not retry a definitive rejection', async () => {

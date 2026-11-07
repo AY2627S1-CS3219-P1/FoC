@@ -12,6 +12,7 @@ const profile = {
 	description: 'Hello',
 	phoneNumber: '+6591234567',
 	role: UserRole.USER,
+	profilePictureId: 'picture-1',
 	profilePictureUrl: 'https://storage.invalid/get',
 	profilePictureExpiresAt: { seconds: 1700003600n, nanos: 0 }
 };
@@ -21,7 +22,7 @@ function scenario() {
 		getMyProfile: vi.fn(async () => ({ profile })),
 		updateMyProfile: vi.fn(async () => ({ profile })),
 		createProfilePictureUpload: vi.fn(async () => ({
-			uploadId: 'upload-1',
+			pictureId: 'picture-1',
 			uploadUrl: 'https://storage.invalid/put',
 			uploadHeaders: { 'If-None-Match': '*' },
 			expiresAt: { seconds: 1700000000n, nanos: 0 }
@@ -38,6 +39,7 @@ describe('ConnectProfileApi', () => {
 	it('maps picture grants and expiry timestamps', async () => {
 		const { client, api } = scenario();
 		const loaded = await api.getMyProfile();
+		expect(loaded.profilePictureId).toBe('picture-1');
 		expect(loaded.profilePictureUrl).toBe('https://storage.invalid/get');
 		expect(loaded.profilePictureExpiresAt).toBe(1700003600000);
 		expect(await api.updateMyProfile({
@@ -55,7 +57,7 @@ describe('ConnectProfileApi', () => {
 			new AbortController().signal
 		);
 		expect(grant).toEqual({
-			uploadId: 'upload-1',
+			pictureId: 'picture-1',
 			uploadUrl: 'https://storage.invalid/put',
 			uploadHeaders: { 'If-None-Match': '*' },
 			expiresAt: 1700000000000
@@ -66,13 +68,13 @@ describe('ConnectProfileApi', () => {
 		);
 	});
 
-	it('applies and removes a picture through the upload id', async () => {
+	it('applies and removes a picture through the picture id', async () => {
 		const { client, api } = scenario();
-		expect(await api.updateMyProfilePicture('upload-1', new AbortController().signal)).toMatchObject({
+		expect(await api.updateMyProfilePicture('picture-1', new AbortController().signal)).toMatchObject({
 			profilePictureUrl: 'https://storage.invalid/get'
 		});
 		expect(client.updateMyProfilePicture).toHaveBeenCalledWith(
-			{ uploadId: 'upload-1' },
+			{ pictureId: 'picture-1' },
 			expect.anything()
 		);
 		const removed = await api.removeMyProfilePicture(new AbortController().signal);
@@ -83,7 +85,7 @@ describe('ConnectProfileApi', () => {
 	it('does not hand out a grant when the response is incomplete', async () => {
 		const { client, api } = scenario();
 		vi.mocked(client.createProfilePictureUpload).mockResolvedValueOnce({
-			uploadId: '', uploadUrl: ''
+			pictureId: '', uploadUrl: ''
 		} as never);
 		await expect(
 			api.createProfilePictureUpload(
@@ -99,7 +101,7 @@ describe('ConnectProfileApi', () => {
 			new ConnectError('rejected', Code.FailedPrecondition)
 		);
 		await expect(
-			api.updateMyProfilePicture('upload-1', new AbortController().signal)
+			api.updateMyProfilePicture('picture-1', new AbortController().signal)
 		).rejects.toBeInstanceOf(ConnectError);
 	});
 });

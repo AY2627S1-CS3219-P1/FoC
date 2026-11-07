@@ -23,6 +23,7 @@ function toProfile(profile: ProtoProfile | undefined): UserProfile {
 		description: profile.description,
 		phoneNumber: profile.phoneNumber,
 		role: profile.role,
+		profilePictureId: profile.profilePictureId || undefined,
 		profilePictureUrl,
 		profilePictureExpiresAt:
 			profilePictureUrl && profile.profilePictureExpiresAt
@@ -60,20 +61,20 @@ export class ConnectProfileApi implements ProfileApi {
 			{ contentType: input.contentType, sizeBytes: BigInt(input.sizeBytes) },
 			{ signal, timeoutMs: 15000 }
 		);
-		if (!response.uploadId || !response.uploadUrl) {
+		if (!response.pictureId || !response.uploadUrl) {
 			throw new Error('Profile picture upload grant result is unknown');
 		}
 		return {
-			uploadId: response.uploadId,
+			pictureId: response.pictureId,
 			uploadUrl: response.uploadUrl,
 			uploadHeaders: response.uploadHeaders,
 			expiresAt: response.expiresAt ? timestampDate(response.expiresAt).getTime() : 0
 		};
 	}
 
-	async updateMyProfilePicture(uploadId: string, signal: AbortSignal): Promise<UserProfile> {
+	async updateMyProfilePicture(pictureId: string, signal: AbortSignal): Promise<UserProfile> {
 		const response = await this.#client.updateMyProfilePicture(
-			{ uploadId },
+			{ pictureId },
 			{ signal, timeoutMs: 15000 }
 		);
 		return toProfile(response.profile);
