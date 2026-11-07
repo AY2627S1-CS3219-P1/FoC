@@ -17,6 +17,8 @@ erDiagram
     roles ||--o{ role_changes : "from/to"
     users ||--o{ account_warnings : receives
     users ||--o{ favourite_suppliers : saves
+    users ||--o{ profile_pictures : owns
+    users ||--o| profile_pictures : "current picture"
 
     users {
         uuid id PK
@@ -24,8 +26,17 @@ erDiagram
         text display_name "1-100 chars"
         text description "max 500"
         text phone_number "max 20"
-        text profile_picture_key
+        uuid profile_picture_id FK "active picture"
         text role FK "roles.name"
+    }
+    profile_pictures {
+        uuid id PK "application reference"
+        uuid user_id FK
+        text object_key UK "storage key"
+        text content_type "jpeg|png|webp|heic|heif"
+        bigint size_bytes "1-10000000"
+        text state "pending|active|deleting"
+        timestamptz created_at
     }
     roles {
         text name PK "super_admin|admin|user|suspended"

@@ -203,7 +203,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		ContentType: "image/png", SizeBytes: 1,
 	})
 	createPicture.Header().Set("Authorization", "Bearer "+token)
-	updatePicture := connect.NewRequest(&userv1.UpdateMyProfilePictureRequest{UploadId: uuid.NewString()})
+	updatePicture := connect.NewRequest(&userv1.UpdateMyProfilePictureRequest{PictureId: uuid.NewString()})
 	updatePicture.Header().Set("Authorization", "Bearer "+token)
 	removePicture := connect.NewRequest(&userv1.RemoveMyProfilePictureRequest{})
 	removePicture.Header().Set("Authorization", "Bearer "+token)

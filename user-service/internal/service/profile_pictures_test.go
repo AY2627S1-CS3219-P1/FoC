@@ -38,66 +38,80 @@ func (f *fakeProfileUsers) UpdateActiveProfile(_ context.Context, user *models.U
 }
 
 type fakeProfilePictureStore struct {
-	inserted    *models.ProfilePictureUpload
-	insertErr   error
-	upload      *models.ProfilePictureUpload
-	getErr      error
-	oldKey      *string
-	setErr      error
-	clearOldKey *string
-	clearErr    error
-	claimed     []models.ProfilePictureUpload
-	claimErr    error
-	deletedIDs  []uuid.UUID
-	deleteErr   error
-	onSet       func()
+	inserted      *models.ProfilePicture
+	insertErr     error
+	pending       *models.ProfilePicture
+	getPendingErr error
+	current       *models.ProfilePicture
+	getByIDErr    error
+	oldKey        *string
+	activateErr   error
+	onActivate    func()
+	deactivateKey *string
+	deactivateErr error
+	claimed       []models.ProfilePicture
+	claimErr      error
+	deleting      []models.ProfilePicture
+	listErr       error
+	deletedIDs    []uuid.UUID
+	deleteErr     error
 }
 
-func (f *fakeProfilePictureStore) InsertUpload(_ context.Context, upload *models.ProfilePictureUpload) error {
-	f.inserted = upload
+func (f *fakeProfilePictureStore) InsertPending(_ context.Context, picture *models.ProfilePicture) error {
+	f.inserted = picture
 	return f.insertErr
 }
 
-func (f *fakeProfilePictureStore) GetUpload(
+func (f *fakeProfilePictureStore) GetPending(
 	context.Context,
 	uuid.UUID,
 	uuid.UUID,
-) (*models.ProfilePictureUpload, error) {
-	if f.getErr != nil {
-		return nil, f.getErr
+) (*models.ProfilePicture, error) {
+	if f.getPendingErr != nil {
+		return nil, f.getPendingErr
 	}
-	return f.upload, nil
+	return f.pending, nil
 }
 
-func (f *fakeProfilePictureStore) SetUserPicture(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*string, error) {
-	if f.onSet != nil {
-		f.onSet()
+func (f *fakeProfilePictureStore) GetPictureByID(context.Context, uuid.UUID) (*models.ProfilePicture, error) {
+	if f.getByIDErr != nil {
+		return nil, f.getByIDErr
 	}
-	return f.oldKey, f.setErr
+	return f.current, nil
 }
 
-func (f *fakeProfilePictureStore) ClearUserPicture(context.Context, uuid.UUID, uuid.UUID) (*string, error) {
-	return f.clearOldKey, f.clearErr
+func (f *fakeProfilePictureStore) Activate(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*string, error) {
+	if f.onActivate != nil {
+		f.onActivate()
+	}
+	return f.oldKey, f.activateErr
 }
 
-func (f *fakeProfilePictureStore) ClaimExpiredUploads(
+func (f *fakeProfilePictureStore) Deactivate(context.Context, uuid.UUID, uuid.UUID) (*string, error) {
+	return f.deactivateKey, f.deactivateErr
+}
+
+func (f *fakeProfilePictureStore) ClaimExpiredPending(
 	context.Context,
 	time.Time,
 	int,
-) ([]models.ProfilePictureUpload, error) {
+) ([]models.ProfilePicture, error) {
 	return f.claimed, f.claimErr
 }
 
-func (f *fakeProfilePictureStore) DeleteUploads(_ context.Context, ids []uuid.UUID) error {
-	f.deletedIDs = ids
+func (f *fakeProfilePictureStore) ListDeleting(context.Context, int) ([]models.ProfilePicture, error) {
+	return f.deleting, f.listErr
+}
+
+func (f *fakeProfilePictureStore) DeletePicture(_ context.Context, id uuid.UUID) error {
+	f.deletedIDs = append(f.deletedIDs, id)
 	return f.deleteErr
 }
 
 type fakeProfilePictureStorage struct {
-	grants    map[string]images.UploadGrant
-	objects   map[string]images.ObjectInfo
-	downloads map[string]images.DownloadGrant
-
+	grants      map[string]images.UploadGrant
+	objects     map[string]images.ObjectInfo
+	downloads   map[string]images.DownloadGrant
 	createErr   error
 	inspectErr  error
 	downloadErr error
@@ -162,12 +176,12 @@ func profilePictureTestUser(role models.RoleName) *models.User {
 
 func profilePictureTestService(
 	user *models.User,
-	photos *fakeProfilePictureStore,
+	pictures *fakeProfilePictureStore,
 	storage *fakeProfilePictureStorage,
 ) *ProfileService {
 	return &ProfileService{
 		Users:    &fakeProfileUsers{user: user},
-		Pictures: photos,
+		Pictures: pictures,
 		Storage:  storage,
 		Now:      func() time.Time { return time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC) },
 	}
@@ -181,11 +195,13 @@ func assertExternalStatus(t *testing.T, err error, want int) {
 	}
 }
 
+func ptrID(id uuid.UUID) *uuid.UUID { return &id }
+
 func TestCreateProfilePictureUpload(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
-	photos := &fakeProfilePictureStore{}
+	pictures := &fakeProfilePictureStore{}
 	storage := &fakeProfilePictureStorage{}
-	svc := profilePictureTestService(user, photos, storage)
+	svc := profilePictureTestService(user, pictures, storage)
 
 	upload, grant, err := svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1234)
 	if err != nil {
@@ -194,8 +210,9 @@ func TestCreateProfilePictureUpload(t *testing.T) {
 	if upload.ID == uuid.Nil || upload.ObjectKey != profilePictureKey(user.ID, upload.ID) {
 		t.Fatalf("unexpected upload: %+v", upload)
 	}
-	if photos.inserted == nil || photos.inserted.UserID != user.ID || photos.inserted.SizeBytes != 1234 {
-		t.Fatalf("pending upload not stored: %+v", photos.inserted)
+	if pictures.inserted == nil || pictures.inserted.UserID != user.ID ||
+		pictures.inserted.SizeBytes != 1234 || pictures.inserted.State != models.ProfilePicturePending {
+		t.Fatalf("pending row not stored: %+v", pictures.inserted)
 	}
 	if grant.URL != "https://storage.test/"+upload.ObjectKey {
 		t.Fatalf("grant = %+v", grant)
@@ -231,27 +248,29 @@ func TestCreateProfilePictureUploadUnavailableAndSuspended(t *testing.T) {
 
 func TestUpdateMyProfilePicture(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
+	oldID := uuid.New()
 	oldKey := "profile/picture/old"
-	user.ProfilePictureKey = &oldKey
-	uploadID := uuid.New()
-	key := profilePictureKey(user.ID, uploadID)
-	photos := &fakeProfilePictureStore{
-		upload: &models.ProfilePictureUpload{ID: uploadID, UserID: user.ID, ObjectKey: key,
-			ContentType: "image/png", SizeBytes: 4},
-		oldKey: &oldKey,
-	}
+	user.ProfilePictureID = ptrID(oldID)
+	pictureID := uuid.New()
+	key := profilePictureKey(user.ID, pictureID)
+	pending := &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+		ContentType: "image/png", SizeBytes: 4, State: models.ProfilePicturePending}
+	pictures := &fakeProfilePictureStore{pending: pending, oldKey: &oldKey}
 	storage := &fakeProfilePictureStorage{
 		objects: map[string]images.ObjectInfo{key: {Exists: true, Size: 4, ContentType: "image/png"}},
 	}
-	svc := profilePictureTestService(user, photos, storage)
-	// The store consumes the row and the next read must expose the new key.
-	photos.onSet = func() { user.ProfilePictureKey = &key }
+	pictures.onActivate = func() {
+		user.ProfilePictureID = ptrID(pictureID)
+		pictures.current = &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+			ContentType: "image/png", SizeBytes: 4, State: models.ProfilePictureActive}
+	}
+	svc := profilePictureTestService(user, pictures, storage)
 
-	view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+	view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.PictureURL == "" || view.ProfilePictureKey == nil || *view.ProfilePictureKey != key {
+	if view.PictureURL == "" || view.ProfilePictureID == nil || *view.ProfilePictureID != pictureID {
 		t.Fatalf("profile view = %+v", view)
 	}
 	if len(storage.deleted) != 1 || storage.deleted[0] != oldKey {
@@ -261,82 +280,86 @@ func TestUpdateMyProfilePicture(t *testing.T) {
 
 func TestUpdateMyProfilePictureRejectsInvalidUploads(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
-	uploadID := uuid.New()
-	key := profilePictureKey(user.ID, uploadID)
+	pictureID := uuid.New()
+	key := profilePictureKey(user.ID, pictureID)
 	base := func() (*fakeProfilePictureStore, *fakeProfilePictureStorage) {
 		return &fakeProfilePictureStore{
-			upload: &models.ProfilePictureUpload{ID: uploadID, UserID: user.ID, ObjectKey: key,
-				ContentType: "image/png", SizeBytes: 4},
+			pending: &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+				ContentType: "image/png", SizeBytes: 4, State: models.ProfilePicturePending},
 		}, &fakeProfilePictureStorage{objects: map[string]images.ObjectInfo{
 			key: {Exists: true, Size: 4, ContentType: "image/png"},
 		}}
 	}
 
 	t.Run("foreign upload", func(t *testing.T) {
-		photos, storage := base()
-		photos.getErr = store.ErrUploadNotFound
-		_, err := profilePictureTestService(user, photos, storage).
-			UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		pictures, storage := base()
+		pictures.getPendingErr = store.ErrPictureNotFound
+		_, err := profilePictureTestService(user, pictures, storage).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		assertExternalStatus(t, err, http.StatusBadRequest)
 	})
 	t.Run("missing object", func(t *testing.T) {
-		photos, storage := base()
+		pictures, storage := base()
 		storage.objects = map[string]images.ObjectInfo{}
-		_, err := profilePictureTestService(user, photos, storage).
-			UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		_, err := profilePictureTestService(user, pictures, storage).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		assertExternalStatus(t, err, http.StatusBadRequest)
 	})
 	t.Run("metadata mismatch", func(t *testing.T) {
-		photos, storage := base()
+		pictures, storage := base()
 		storage.objects[key] = images.ObjectInfo{Exists: true, Size: 5, ContentType: "image/png"}
-		_, err := profilePictureTestService(user, photos, storage).
-			UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		_, err := profilePictureTestService(user, pictures, storage).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		assertExternalStatus(t, err, http.StatusBadRequest)
 	})
 	t.Run("suspended", func(t *testing.T) {
-		photos, storage := base()
+		pictures, storage := base()
 		user.Role = models.RoleSuspended
 		defer func() { user.Role = models.RoleUser }()
-		_, err := profilePictureTestService(user, photos, storage).
-			UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		_, err := profilePictureTestService(user, pictures, storage).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		assertExternalStatus(t, err, http.StatusForbidden)
 	})
 }
 
 func TestUpdateMyProfilePictureIsIdempotent(t *testing.T) {
-	t.Run("already consumed before the read", func(t *testing.T) {
+	t.Run("already active before the read", func(t *testing.T) {
 		user := profilePictureTestUser(models.RoleUser)
-		uploadID := uuid.New()
-		key := profilePictureKey(user.ID, uploadID)
-		user.ProfilePictureKey = &key
-		svc := profilePictureTestService(
-			user, &fakeProfilePictureStore{getErr: store.ErrUploadNotFound}, &fakeProfilePictureStorage{},
-		)
-
-		view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		pictureID := uuid.New()
+		key := profilePictureKey(user.ID, pictureID)
+		user.ProfilePictureID = ptrID(pictureID)
+		pictures := &fakeProfilePictureStore{
+			getPendingErr: store.ErrPictureNotFound,
+			current: &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+				ContentType: "image/png", SizeBytes: 4, State: models.ProfilePictureActive},
+		}
+		view, err := profilePictureTestService(user, pictures, &fakeProfilePictureStorage{}).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		if err != nil || view.PictureURL == "" {
 			t.Fatalf("idempotent retry = %+v, %v", view, err)
 		}
 	})
 
-	t.Run("consumed between the read and the update", func(t *testing.T) {
+	t.Run("activated between the read and the update", func(t *testing.T) {
 		user := profilePictureTestUser(models.RoleUser)
-		uploadID := uuid.New()
-		key := profilePictureKey(user.ID, uploadID)
-		user.ProfilePictureKey = &key
-		photos := &fakeProfilePictureStore{
-			upload: &models.ProfilePictureUpload{ID: uploadID, UserID: user.ID, ObjectKey: key,
-				ContentType: "image/png", SizeBytes: 4},
-			setErr: store.ErrUploadNotFound,
+		pictureID := uuid.New()
+		key := profilePictureKey(user.ID, pictureID)
+		pending := &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+			ContentType: "image/png", SizeBytes: 4, State: models.ProfilePicturePending}
+		pictures := &fakeProfilePictureStore{
+			pending:     pending,
+			activateErr: store.ErrPictureNotFound,
+			current: &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
+				ContentType: "image/png", SizeBytes: 4, State: models.ProfilePictureActive},
 		}
 		storage := &fakeProfilePictureStorage{objects: map[string]images.ObjectInfo{
 			key: {Exists: true, Size: 4, ContentType: "image/png"},
 		}}
-		svc := profilePictureTestService(user, photos, storage)
-
-		view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		user.ProfilePictureID = ptrID(pictureID)
+		view, err := profilePictureTestService(user, pictures, storage).
+			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		if err != nil || view.PictureURL == "" {
-			t.Fatalf("idempotent retry after lost row = %+v, %v", view, err)
+			t.Fatalf("idempotent retry after lost activation = %+v, %v", view, err)
 		}
 	})
 }
@@ -344,10 +367,9 @@ func TestUpdateMyProfilePictureIsIdempotent(t *testing.T) {
 func TestRemoveMyProfilePicture(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
 	oldKey := "profile/picture/old"
-	user.ProfilePictureKey = &oldKey
-	photos := &fakeProfilePictureStore{clearOldKey: &oldKey}
+	pictures := &fakeProfilePictureStore{deactivateKey: &oldKey}
 	storage := &fakeProfilePictureStorage{}
-	svc := profilePictureTestService(user, photos, storage)
+	svc := profilePictureTestService(user, pictures, storage)
 
 	if _, err := svc.RemoveMyProfilePicture(context.Background(), user.ID); err != nil {
 		t.Fatal(err)
@@ -356,16 +378,19 @@ func TestRemoveMyProfilePicture(t *testing.T) {
 		t.Fatalf("old picture not deleted: %v", storage.deleted)
 	}
 
-	photos.clearErr = store.ErrRoleConflict
+	pictures.deactivateErr = store.ErrRoleConflict
 	_, err := svc.RemoveMyProfilePicture(context.Background(), user.ID)
 	assertExternalStatus(t, err, http.StatusForbidden)
 }
 
 func TestGetMyProfileSignsPictureURL(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
+	pictureID := uuid.New()
 	key := "profile/picture/current"
-	user.ProfilePictureKey = &key
-	svc := profilePictureTestService(user, &fakeProfilePictureStore{}, &fakeProfilePictureStorage{})
+	user.ProfilePictureID = ptrID(pictureID)
+	pictures := &fakeProfilePictureStore{current: &models.ProfilePicture{ID: pictureID, UserID: user.ID,
+		ObjectKey: key, ContentType: "image/png", SizeBytes: 4, State: models.ProfilePictureActive}}
+	svc := profilePictureTestService(user, pictures, &fakeProfilePictureStorage{})
 	view, err := svc.GetMyProfile(context.Background(), user.ID)
 	if err != nil || view.PictureURL == "" {
 		t.Fatalf("signed profile = %+v, %v", view, err)
@@ -376,27 +401,38 @@ func TestGetMyProfileSignsPictureURL(t *testing.T) {
 	if err != nil || view.PictureURL != "" {
 		t.Fatalf("degraded profile = %+v, %v", view, err)
 	}
+
+	pictures.current.State = models.ProfilePictureDeleting
+	view, err = svc.GetMyProfile(context.Background(), user.ID)
+	if err != nil || view.PictureURL != "" {
+		t.Fatalf("non-active picture = %+v, %v", view, err)
+	}
 }
 
 func TestCleanupOnce(t *testing.T) {
 	key := "profile/picture/orphan"
-	photos := &fakeProfilePictureStore{claimed: []models.ProfilePictureUpload{{ID: uuid.New(), ObjectKey: key}}}
+	pictureID := uuid.New()
+	pictures := &fakeProfilePictureStore{
+		claimed:  []models.ProfilePicture{{ID: pictureID, ObjectKey: key}},
+		deleting: []models.ProfilePicture{{ID: pictureID, ObjectKey: key}},
+	}
 	storage := &fakeProfilePictureStorage{}
-	svc := &ProfileService{Pictures: photos, Storage: storage}
+	svc := &ProfileService{Pictures: pictures, Storage: storage}
 
 	if err := svc.CleanupOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(storage.deleted) != 1 || storage.deleted[0] != key || len(photos.deletedIDs) != 1 {
-		t.Fatalf("cleanup: deleted=%v rows=%v", storage.deleted, photos.deletedIDs)
+	if len(storage.deleted) != 1 || storage.deleted[0] != key ||
+		len(pictures.deletedIDs) != 1 || pictures.deletedIDs[0] != pictureID {
+		t.Fatalf("cleanup: deleted=%v rows=%v", storage.deleted, pictures.deletedIDs)
 	}
 
-	photos = &fakeProfilePictureStore{
-		claimed: []models.ProfilePictureUpload{{ID: uuid.New(), ObjectKey: key}},
+	pictures = &fakeProfilePictureStore{
+		deleting: []models.ProfilePicture{{ID: pictureID, ObjectKey: key}},
 	}
 	storage = &fakeProfilePictureStorage{deleteErr: errors.New("down")}
-	svc = &ProfileService{Pictures: photos, Storage: storage}
-	if err := svc.CleanupOnce(context.Background()); err == nil || len(photos.deletedIDs) != 0 {
-		t.Fatalf("failed cleanup should keep rows: %v %v", err, photos.deletedIDs)
+	svc = &ProfileService{Pictures: pictures, Storage: storage}
+	if err := svc.CleanupOnce(context.Background()); err == nil || len(pictures.deletedIDs) != 0 {
+		t.Fatalf("failed cleanup should keep rows: %v %v", err, pictures.deletedIDs)
 	}
 }

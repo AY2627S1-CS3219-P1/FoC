@@ -87,7 +87,7 @@ func (h *Handler) CreateProfilePictureUpload(
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&userv1.CreateProfilePictureUploadResponse{
-		UploadId:      upload.ID.String(),
+		PictureId:     upload.ID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
@@ -103,11 +103,11 @@ func (h *Handler) UpdateMyProfilePicture(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	uploadID, err := uuid.Parse(req.Msg.GetUploadId())
-	if err != nil || uploadID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid upload ID"))
+	pictureID, err := uuid.Parse(req.Msg.GetPictureId())
+	if err != nil || pictureID == uuid.Nil {
+		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid picture ID"))
 	}
-	profile, err := h.Logic.UpdateMyProfilePicture(ctx, actorID, uploadID)
+	profile, err := h.Logic.UpdateMyProfilePicture(ctx, actorID, pictureID)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

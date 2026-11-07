@@ -1,4 +1,4 @@
-# ADR: Profile picture uploads use direct-to-storage grants
+# ADR: Profile pictures use row-referenced direct-to-storage uploads
 
 Date: 7 Nov 2026
 Status: implemented on the profile-picture backend branch; stacks on the review
@@ -7,38 +7,55 @@ photo upload work.
 ## Context
 
 Users need to upload, replace and remove a profile picture. User Service already
-has `users.profile_picture_key` and the review photo work introduced the
-provider-independent `pkg/images` port plus the `user-images` bucket. Profile
-pictures are low-stakes UI data, so the review photo staging machine would be
-more machinery than the feature needs.
+has the provider-independent `pkg/images` port and the `user-images` bucket from
+the review photo work. Review photos already establish the repository's
+row-as-reference model: the row ID is the stable application reference and the
+storage key is only an attribute of that row.
 
 ## Decision
 
-The browser uploads directly to object storage and the final profile update is
-also the verification step:
+Profile pictures use the same model. A `profile_pictures` row moves through
+`pending` -> `active` -> `deleting`:
 
-1. `CreateProfilePictureUpload` validates the caller and requested shape, records
-   one pending upload row and returns a pre-signed PUT grant.
-2. The browser PUTs the bytes using that grant.
-3. `UpdateMyProfilePicture` inspects the stored object (`HeadObject`), requires
-   the observed content type and size to match the pending row, then atomically
-   deletes the pending row and sets `users.profile_picture_key`.
+- `users.profile_picture_id` points at the active row.
+- `object_key` is storage metadata on the row, never the API reference.
+- The client sees the row ID as `picture_id`.
+- No separate deletion table: a superseded or removed picture is the durable
+  `deleting` row that cleanup uses to retry object deletion.
+
+The browser uploads directly to object storage:
+
+1. `CreateProfilePictureUpload` records a pending row and returns a pre-signed
+   PUT grant.
+2. The browser PUTs the bytes.
+3. `UpdateMyProfilePicture` inspects the stored object, requires the observed
+   content type and size to match the row, then moves the pending row to
+   `active`, the previous active row to `deleting`, and the user pointer to the
+   new row in one transaction.
+4. `RemoveMyProfilePicture` moves the active row to `deleting` and clears the
+   pointer.
 
 There are at most three round trips: grant, PUT and update. There is no separate
-verify or confirm RPC. `RemoveMyProfilePicture` clears the key in one call.
+verify or confirm RPC.
 
-### Pending uploads
+### Cleanup
 
-`profile_picture_uploads` holds only grants, not the current picture. It gives
-the submit an ownership anchor and lets cleanup reap abandoned uploads. Rows are
-created with a deterministic key,
-`profile/picture/<user-id>/<upload-id>`, which also makes a lost-response retry
-idempotent: if the row is gone but the user's current key already matches the
-deterministic key, the submit succeeds.
+- Pending rows older than 24 hours are moved to `deleting`.
+- Rows in `deleting` are claimed by cleanup, their objects are deleted, then the
+  rows are deleted.
+- A failed object delete leaves the row in `deleting`, so the next pass retries.
+- A row is therefore the durable reference for its object at every stage; no
+  object is orphaned without a row.
 
-The `deleting` boolean is a cleanup claim, not a state machine. Cleanup claims
-expired rows, deletes their objects and then deletes the rows. A failed object
-delete leaves the claim in place for the next pass.
+The `profile_pictures_one_active` partial unique index keeps at most one active
+picture per user.
+
+### Idempotent submit
+
+The object key is deterministic,
+`profile/picture/<user-id>/<picture-id>`. If a submit response is lost, a retry
+sees the user already pointing at that picture and returns success without
+changing state again.
 
 ### Validation
 
@@ -49,29 +66,29 @@ the repository's other image workflows.
 
 ### Read path
 
-Profile reads mint a short-lived pre-signed GET URL per response. Responses
-carrying it are marked `Cache-Control: no-store`. If storage is unavailable the
-profile is returned without a URL rather than failing the whole read.
+Profile reads resolve the active row and mint a short-lived pre-signed GET URL
+per response. Responses carrying it are marked `Cache-Control: no-store`. A
+missing or unreadable picture degrades to a profile without a URL.
 
 ## Alternatives considered
 
-- **No pending table, key derived only from the caller and upload ID:** simpler,
-  but abandoned uploads have no durable record for cleanup.
-- **Copy from a temporary prefix to a stable key at submit:** avoids the table,
-  but needs a new storage port operation and bucket lifecycle configuration.
+- **Pending-only table plus an S3 key on the user:** the reference becomes
+  platform-specific, the active picture has no durable metadata row, and a
+  replaced object has nothing to point at for cleanup. Rejected.
+- **Pending table plus a separate deletion queue:** works, but duplicates the
+  row lifecycle the review photo model already establishes.
+- **Copy from a temporary prefix to a stable key at submit:** avoids a table but
+  needs a new storage port operation and bucket lifecycle configuration.
 - **Fold the picture into `UpdateMyProfile`:** fewer RPCs, but couples every
   profile form save to picture upload state and makes onboarding harder.
-- **Review-photo staging and attach machine:** supports ordered multi-photo
-  attachment; profile pictures have one slot, so this is unnecessary.
+- **Review-photo staging and attach with ordinals:** supports ordered
+  multi-photo attachment; profile pictures have one slot.
 
 ## Operational notes
 
 - The feature reuses the `user-images` bucket, CORS and upload headers added by
-  the review photo work. Deployments without `USER_S3_BUCKET` keep the profile
-  read/write paths but report picture changes as unavailable.
-- Replacing or removing a picture deletes the previous object after the database
-  commit best-effort. A failed delete leaves an unreferenced old object with no
-  retry record; only pending (never-applied) uploads are reaped by the minute
-  cleanup job. This is accepted because profile pictures are small and replaced
-  infrequently.
+  the review photo work. Deployments without `USER_S3_BUCKET` keep profile reads
+  but report picture changes as unavailable.
+- Replacement and removal delete the old object immediately as an optimization;
+  if that fails, the `deleting` row remains and the minute cleanup job retries.
 - Onboarding uses the same RPCs and is tracked separately.

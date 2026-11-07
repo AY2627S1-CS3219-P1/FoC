@@ -1,5 +1,5 @@
-// Store tests for pending profile-picture uploads; see auth_integration_test.go
-// for the throwaway-database setup.
+// Store tests for profile-picture rows; see auth_integration_test.go for the
+// throwaway-database setup.
 
 package store
 
@@ -14,8 +14,8 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 )
 
-func profilePictureUpload(userID uuid.UUID, createdAt time.Time) *models.ProfilePictureUpload {
-	return &models.ProfilePictureUpload{
+func profilePictureRow(userID uuid.UUID, createdAt time.Time) *models.ProfilePicture {
+	return &models.ProfilePicture{
 		ID:          uuid.New(),
 		UserID:      userID,
 		ObjectKey:   "profile/picture/" + userID.String() + "/" + uuid.NewString(),
@@ -31,112 +31,119 @@ func TestProfilePicturesPersistence(t *testing.T) {
 	user := createStoreUser(t, store, "pictures@example.com")
 	other := createStoreUser(t, store, "other@example.com")
 
-	upload := profilePictureUpload(user.ID, time.Now().UTC())
-	if err := store.ProfilePictures.InsertUpload(ctx, upload); err != nil {
+	first := profilePictureRow(user.ID, time.Now().UTC())
+	if err := store.ProfilePictures.InsertPending(ctx, first); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := store.ProfilePictures.GetUpload(ctx, user.ID, upload.ID); err != nil ||
-		got.ObjectKey != upload.ObjectKey {
-		t.Fatalf("get upload: %+v, %v", got, err)
+	if got, err := store.ProfilePictures.GetPending(ctx, user.ID, first.ID); err != nil ||
+		got.ObjectKey != first.ObjectKey || got.State != models.ProfilePicturePending {
+		t.Fatalf("get pending: %+v, %v", got, err)
 	}
-	if _, err := store.ProfilePictures.GetUpload(ctx, other.ID, upload.ID); !errors.Is(err, ErrUploadNotFound) {
-		t.Fatalf("foreign upload lookup: %v", err)
+	if _, err := store.ProfilePictures.GetPending(ctx, other.ID, first.ID); !errors.Is(err, ErrPictureNotFound) {
+		t.Fatalf("foreign pending lookup: %v", err)
 	}
-	if _, err := store.ProfilePictures.SetUserPicture(
+	if _, err := store.ProfilePictures.Activate(
 		ctx,
 		other.ID,
-		upload.ID,
+		first.ID,
 		other.ID,
 	); !errors.Is(
 		err,
-		ErrUploadNotFound,
+		ErrPictureNotFound,
 	) {
-		t.Fatalf("foreign upload apply: %v", err)
+		t.Fatalf("foreign activate: %v", err)
 	}
 
-	oldKey, err := store.ProfilePictures.SetUserPicture(ctx, user.ID, upload.ID, user.ID)
+	oldKey, err := store.ProfilePictures.Activate(ctx, user.ID, first.ID, user.ID)
 	if err != nil || oldKey != nil {
-		t.Fatalf("apply picture: %v, %v", oldKey, err)
+		t.Fatalf("activate first: %v, %v", oldKey, err)
 	}
 	got, err := store.GetByID(ctx, user.ID)
-	if err != nil || got.ProfilePictureKey == nil || *got.ProfilePictureKey != upload.ObjectKey {
-		t.Fatalf("current picture: %+v, %v", got, err)
+	if err != nil || got.ProfilePictureID == nil || *got.ProfilePictureID != first.ID {
+		t.Fatalf("current pointer: %+v, %v", got, err)
 	}
-	if _, err := store.ProfilePictures.GetUpload(ctx, user.ID, upload.ID); !errors.Is(err, ErrUploadNotFound) {
-		t.Fatalf("consumed upload still visible: %v", err)
+	if picture, err := store.ProfilePictures.GetPictureByID(ctx, first.ID); err != nil ||
+		picture.State != models.ProfilePictureActive {
+		t.Fatalf("active row: %+v, %v", picture, err)
 	}
 
-	oldKey, err = store.ProfilePictures.ClearUserPicture(ctx, user.ID, user.ID)
-	if err != nil || oldKey == nil || *oldKey != upload.ObjectKey {
-		t.Fatalf("clear picture: %v, %v", oldKey, err)
+	second := profilePictureRow(user.ID, time.Now().UTC())
+	if err := store.ProfilePictures.InsertPending(ctx, second); err != nil {
+		t.Fatal(err)
 	}
-	if got, err := store.GetByID(ctx, user.ID); err != nil || got.ProfilePictureKey != nil {
-		t.Fatalf("cleared picture: %+v, %v", got, err)
+	oldKey, err = store.ProfilePictures.Activate(ctx, user.ID, second.ID, user.ID)
+	if err != nil || oldKey == nil || *oldKey != first.ObjectKey {
+		t.Fatalf("replace: %v, %v", oldKey, err)
+	}
+	oldRow, err := store.ProfilePictures.GetPictureByID(ctx, first.ID)
+	if err != nil || oldRow.State != models.ProfilePictureDeleting {
+		t.Fatalf("old row: %+v, %v", oldRow, err)
+	}
+	if got, err := store.GetByID(ctx, user.ID); err != nil ||
+		got.ProfilePictureID == nil || *got.ProfilePictureID != second.ID {
+		t.Fatalf("replacement pointer: %+v, %v", got, err)
+	}
+
+	oldKey, err = store.ProfilePictures.Deactivate(ctx, user.ID, user.ID)
+	if err != nil || oldKey == nil || *oldKey != second.ObjectKey {
+		t.Fatalf("remove: %v, %v", oldKey, err)
+	}
+	if got, err := store.GetByID(ctx, user.ID); err != nil || got.ProfilePictureID != nil {
+		t.Fatalf("cleared pointer: %+v, %v", got, err)
 	}
 }
 
-func TestProfilePicturesSuspendedUserCannotApply(t *testing.T) {
+func TestProfilePicturesSuspendedUserCannotChange(t *testing.T) {
 	ctx := context.Background()
 	store, db := setupAuthStore(t)
 	user := createStoreUser(t, store, "suspended@example.com")
-	upload := profilePictureUpload(user.ID, time.Now().UTC())
-	if err := store.ProfilePictures.InsertUpload(ctx, upload); err != nil {
+	picture := profilePictureRow(user.ID, time.Now().UTC())
+	if err := store.ProfilePictures.InsertPending(ctx, picture); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Model(&models.User{}).Where("id = ?", user.ID).
 		Update("role", models.RoleSuspended).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.ProfilePictures.SetUserPicture(
-		ctx,
-		user.ID,
-		upload.ID,
-		user.ID,
-	); !errors.Is(
-		err,
-		ErrRoleConflict,
-	) {
-		t.Fatalf("suspended apply: %v", err)
+	if _, err := store.ProfilePictures.Activate(ctx, user.ID, picture.ID, user.ID); !errors.Is(err, ErrRoleConflict) {
+		t.Fatalf("suspended activate: %v", err)
 	}
-	if _, err := store.ProfilePictures.ClearUserPicture(ctx, user.ID, user.ID); !errors.Is(err, ErrRoleConflict) {
-		t.Fatalf("suspended clear: %v", err)
+	if _, err := store.ProfilePictures.Deactivate(ctx, user.ID, user.ID); !errors.Is(err, ErrRoleConflict) {
+		t.Fatalf("suspended remove: %v", err)
 	}
 }
 
-func TestProfilePicturesCleanupClaimsExpiredUploads(t *testing.T) {
+func TestProfilePicturesCleanupClaimsExpiredPending(t *testing.T) {
 	ctx := context.Background()
 	store, _ := setupAuthStore(t)
 	user := createStoreUser(t, store, "cleanup@example.com")
-	old := profilePictureUpload(user.ID, time.Now().UTC().Add(-48*time.Hour))
-	fresh := profilePictureUpload(user.ID, time.Now().UTC())
-	for _, upload := range []*models.ProfilePictureUpload{old, fresh} {
-		if err := store.ProfilePictures.InsertUpload(ctx, upload); err != nil {
+	old := profilePictureRow(user.ID, time.Now().UTC().Add(-48*time.Hour))
+	fresh := profilePictureRow(user.ID, time.Now().UTC())
+	for _, picture := range []*models.ProfilePicture{old, fresh} {
+		if err := store.ProfilePictures.InsertPending(ctx, picture); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	claimed, err := store.ProfilePictures.ClaimExpiredUploads(ctx, time.Now().UTC().Add(-24*time.Hour), 50)
-	if err != nil || len(claimed) != 1 || claimed[0].ID != old.ID || !claimed[0].Deleting {
+	claimed, err := store.ProfilePictures.ClaimExpiredPending(ctx, time.Now().UTC().Add(-24*time.Hour), 50)
+	if err != nil || len(claimed) != 1 || claimed[0].ID != old.ID ||
+		claimed[0].State != models.ProfilePictureDeleting {
 		t.Fatalf("claim: %+v, %v", claimed, err)
 	}
-	if _, err := store.ProfilePictures.GetUpload(ctx, user.ID, old.ID); !errors.Is(err, ErrUploadNotFound) {
-		t.Fatalf("claimed upload still applyable: %v", err)
+	if _, err := store.ProfilePictures.GetPending(ctx, user.ID, old.ID); !errors.Is(err, ErrPictureNotFound) {
+		t.Fatalf("claimed row still pending: %v", err)
 	}
-	reclaimed, err := store.ProfilePictures.ClaimExpiredUploads(ctx, time.Now().UTC().Add(-24*time.Hour), 50)
-	if err != nil || len(reclaimed) != 1 || reclaimed[0].ID != old.ID {
-		t.Fatalf("re-claim after failed delete: %+v, %v", reclaimed, err)
+	deleting, err := store.ProfilePictures.ListDeleting(ctx, 50)
+	if err != nil || len(deleting) != 1 || deleting[0].ID != old.ID {
+		t.Fatalf("list deleting: %+v, %v", deleting, err)
 	}
-	if err := store.ProfilePictures.DeleteUploads(ctx, []uuid.UUID{old.ID}); err != nil {
+	if err := store.ProfilePictures.DeletePicture(ctx, old.ID); err != nil {
 		t.Fatal(err)
 	}
-	var count int64
-	if err := store.db.Model(&models.ProfilePictureUpload{}).Where("id = ?", old.ID).Count(&count).Error; err != nil {
-		t.Fatal(err)
+	if _, err := store.ProfilePictures.GetPictureByID(ctx, old.ID); !errors.Is(err, ErrPictureNotFound) {
+		t.Fatalf("claimed row retained: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("claimed row retained: %d", count)
-	}
-	if _, err := store.ProfilePictures.GetUpload(ctx, user.ID, fresh.ID); err != nil {
+	if _, err := store.ProfilePictures.GetPending(ctx, user.ID, fresh.ID); err != nil {
 		t.Fatalf("fresh upload was reaped: %v", err)
 	}
 }

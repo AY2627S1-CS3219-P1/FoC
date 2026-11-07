@@ -16,7 +16,7 @@ var (
 	ErrRoleConflict      = errors.New("role changed concurrently")
 	ErrChallengeRejected = errors.New("challenge invalid, expired, or used")
 	ErrSessionRejected   = errors.New("session invalid, expired, or revoked")
-	ErrUploadNotFound    = errors.New("profile picture upload not found")
+	ErrPictureNotFound   = errors.New("profile picture not found")
 	// ErrInUse: the user is still referenced with ON DELETE RESTRICT
 	// (e.g. the admin_bootstrap row), so it cannot be deleted.
 	ErrInUse = errors.New("user cannot be deleted")

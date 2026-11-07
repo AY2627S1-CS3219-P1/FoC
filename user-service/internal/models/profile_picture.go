@@ -6,14 +6,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// ProfilePictureUpload is one pending direct-to-storage grant. ObjectKey is the
-// durable object identity; signed URLs are never persisted.
-type ProfilePictureUpload struct {
+const (
+	ProfilePicturePending  = "pending"
+	ProfilePictureActive   = "active"
+	ProfilePictureDeleting = "deleting"
+)
+
+// ProfilePicture is one profile picture row. The row is the application-level
+// reference; object_key is only the storage attribute for these bytes.
+type ProfilePicture struct {
 	ID          uuid.UUID `gorm:"primaryKey"`
 	UserID      uuid.UUID
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
-	Deleting    bool
+	State       string
 	CreatedAt   time.Time
 }

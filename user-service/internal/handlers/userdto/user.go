@@ -76,6 +76,9 @@ func ProfileWithPicture(user models.User, url string, expiresAt time.Time) *user
 	profile := &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
 		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role),
 		ProfilePictureUrl: url}
+	if user.ProfilePictureID != nil {
+		profile.ProfilePictureId = user.ProfilePictureID.String()
+	}
 	if !expiresAt.IsZero() {
 		profile.ProfilePictureExpiresAt = timestamppb.New(expiresAt)
 	}

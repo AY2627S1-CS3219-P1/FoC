@@ -1,11 +1,10 @@
 -- +goose Up
--- Pending profile-picture uploads. A row is created when a signed PUT grant is
--- issued and removed when the caller submits the upload. The current picture
--- itself lives in users.profile_picture_key; this table only records grants so
--- a submit can prove ownership and abandoned uploads can be reaped.
--- `deleting` claims a row for cleanup, making object deletion retryable and
--- preventing a concurrent submit from applying an object that is being removed.
-CREATE TABLE profile_picture_uploads (
+-- Profile pictures use the same row-as-reference model as review photos.
+-- A row is created pending when its PUT grant is issued, becomes active when
+-- the caller submits it, and becomes deleting when it is replaced or removed.
+-- users.profile_picture_id points at the active row; the storage key stays an
+-- attribute of the row and is never the application-level reference.
+CREATE TABLE profile_pictures (
     id           UUID        PRIMARY KEY,
     user_id      UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     object_key   TEXT        NOT NULL UNIQUE,
@@ -14,14 +13,24 @@ CREATE TABLE profile_picture_uploads (
                                  'image/heic', 'image/heif'
                              )),
     size_bytes   BIGINT      NOT NULL CHECK (size_bytes BETWEEN 1 AND 10000000),
-    deleting     BOOLEAN     NOT NULL DEFAULT false,
+    state        TEXT        NOT NULL DEFAULT 'pending'
+                             CHECK (state IN ('pending', 'active', 'deleting')),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Unfiltered: cleanup re-claims rows marked deleting so a failed object
--- deletion is retried on the next pass.
-CREATE INDEX profile_picture_uploads_cleanup
-    ON profile_picture_uploads (created_at);
+-- At most one active picture per user.
+CREATE UNIQUE INDEX profile_pictures_one_active
+    ON profile_pictures (user_id) WHERE state = 'active';
+
+CREATE INDEX profile_pictures_cleanup
+    ON profile_pictures (created_at) WHERE state <> 'active';
+
+ALTER TABLE users
+    ADD COLUMN profile_picture_id UUID REFERENCES profile_pictures (id) ON DELETE SET NULL;
+
+ALTER TABLE users DROP COLUMN profile_picture_key;
 
 -- +goose Down
-DROP TABLE profile_picture_uploads;
+ALTER TABLE users ADD COLUMN profile_picture_key TEXT;
+ALTER TABLE users DROP COLUMN profile_picture_id;
+DROP TABLE profile_pictures;
