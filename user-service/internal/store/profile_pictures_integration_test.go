@@ -122,6 +122,10 @@ func TestProfilePicturesCleanupClaimsExpiredUploads(t *testing.T) {
 	if _, err := store.ProfilePictures.GetUpload(ctx, user.ID, old.ID); !errors.Is(err, ErrUploadNotFound) {
 		t.Fatalf("claimed upload still applyable: %v", err)
 	}
+	reclaimed, err := store.ProfilePictures.ClaimExpiredUploads(ctx, time.Now().UTC().Add(-24*time.Hour), 50)
+	if err != nil || len(reclaimed) != 1 || reclaimed[0].ID != old.ID {
+		t.Fatalf("re-claim after failed delete: %+v, %v", reclaimed, err)
+	}
 	if err := store.ProfilePictures.DeleteUploads(ctx, []uuid.UUID{old.ID}); err != nil {
 		t.Fatal(err)
 	}

@@ -71,10 +71,6 @@ func UserSummary(user models.User) *userv1.UserSummary {
 		DisplayName: user.DisplayName, Role: Role(user.Role)}
 }
 
-func Profile(user models.User) *userv1.Profile {
-	return ProfileWithPicture(user, "", time.Time{})
-}
-
 // ProfileWithPicture adds a short-lived download grant to the profile.
 func ProfileWithPicture(user models.User, url string, expiresAt time.Time) *userv1.Profile {
 	profile := &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,

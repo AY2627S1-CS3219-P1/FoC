@@ -224,7 +224,8 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	}
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		if err := s.Storage.Delete(ctx, row.ObjectKey); err != nil {
+		if err := s.Storage.Delete(ctx, row.ObjectKey); err != nil &&
+			!errors.Is(err, images.ErrObjectNotFound) {
 			return fmt.Errorf("delete orphan profile picture object: %w", err)
 		}
 		ids = append(ids, row.ID)
