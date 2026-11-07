@@ -165,13 +165,15 @@ and initialize one authenticator at startup. The authenticator fetches keys
 through `PublicKeyService.GetPublicKeys`. Register its `Authenticate` method on protected routes and
 read `AccessClaims` with `ClaimsFromContext`. The
 authenticator fetches keys at startup, refreshes its cache every hour,
-and fetches early when a token names an unknown key ID. The base URL must use
-HTTPS unless `APP_ENV=local`; local mode permits the Compose network's HTTP URL.
+and fetches early when a token names an unknown key ID. The base URL must be a
+bare origin (`http` or `https`); transport security is the deployment
+environment's responsibility (the Istio mesh provides mTLS in Kubernetes, and
+the Compose network isolates local traffic).
 The authenticator also consults the shared revocation dictionary and requires
 `REDIS_ADDR`; see "Access-token revocation" above.
 
 ```go
-import authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/pkg/middleware"
+import authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 
 authenticator, err := authmiddleware.NewUserServiceAuthenticator(ctx)
 if err != nil {
