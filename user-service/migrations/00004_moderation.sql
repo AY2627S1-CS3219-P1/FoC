@@ -38,7 +38,7 @@ CREATE TABLE account_warnings (
     updated_by      UUID REFERENCES users (id) ON DELETE SET NULL,
     CHECK ((status = 'removed') = (removed_at IS NOT NULL))
 );
-CREATE INDEX idx_warnings_user ON account_warnings (user_id, created_at DESC, id DESC);
+CREATE INDEX idx_warnings_user ON account_warnings (user_id, created_at DESC);
 
 -- +goose Down
 DROP TABLE IF EXISTS account_warnings;

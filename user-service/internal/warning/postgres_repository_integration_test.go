@@ -1,6 +1,7 @@
 package warning
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -110,20 +111,20 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	repository, _, actor, user := setupWarningRepository(t)
 	ctx := context.Background()
 	updater := actor.ID
-	adminTime := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
-	courierTime := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+	// Equal timestamps force the id DESC tiebreaker to decide the order.
+	listTime := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
 	eventID := uuid.New()
 	if _, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: uuid.New(), Reason: "admin recorded", Status: StatusActive,
-		CreatedBy: &updater, UpdatedBy: &updater, CreatedAt: adminTime,
+		CreatedBy: &updater, UpdatedBy: &updater, CreatedAt: listTime,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// Created later, so it must sort first; it has no updater, but it came
-	// from a courier event and therefore carries its source event ID.
+	// It has no updater, but it came from a courier event and therefore
+	// carries its source event ID.
 	if _, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: uuid.New(), Reason: "courier event", Status: StatusActive,
-		SourceEventID: &eventID, CreatedAt: courierTime,
+		SourceEventID: &eventID, CreatedAt: listTime,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,25 +133,39 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	if err != nil || len(warnings) != 2 {
 		t.Fatalf("admin warnings=%+v err=%v", warnings, err)
 	}
-	// Ordering must follow created_at DESC, id DESC: the newer courier event first.
-	if warnings[0].Reason != "courier event" || warnings[1].Reason != "admin recorded" {
-		t.Fatalf("admin list order = [%s, %s], want courier event first",
-			warnings[0].Reason, warnings[1].Reason)
+	// Equal timestamps mean id DESC decides the order (Postgres uuid byte
+	// order, matching bytes.Compare).
+	if bytes.Compare(warnings[0].ID[:], warnings[1].ID[:]) < 0 {
+		t.Fatalf("admin list not sorted by id DESC: [%s, %s]", warnings[0].ID, warnings[1].ID)
+	}
+	// Both rows must be present, in either order (id DESC decides with equal
+	// timestamps and UUIDs are random).
+	var courier, recorded AdminWarning
+	for _, warning := range warnings {
+		switch warning.Reason {
+		case "courier event":
+			courier = warning
+		case "admin recorded":
+			recorded = warning
+		default:
+			t.Fatalf("unexpected admin list row: %+v", warning)
+		}
+	}
+	if courier.Reason != "courier event" || recorded.Reason != "admin recorded" {
+		t.Fatalf("admin list rows = [%s, %s]", warnings[0].Reason, warnings[1].Reason)
 	}
 
-	courier := warnings[0]
-	if courier.CreatedAt.Equal(courierTime) == false || courier.UpdatedBy != nil || courier.UpdatedByName != nil ||
+	if courier.CreatedAt.Equal(listTime) == false || courier.UpdatedBy != nil || courier.UpdatedByName != nil ||
 		courier.CreatedBy != nil || courier.SourceEventID == nil || *courier.SourceEventID != eventID ||
 		courier.Status != StatusActive || courier.RemovedAt != nil || courier.RemovedReason != nil ||
 		courier.ReportID != nil || courier.AppealID != nil || courier.DeletedAt != nil {
-		t.Fatalf("system-created projection: %+v", courier.Warning)
+		t.Fatalf("system-created projection: %+v", courier)
 	}
-	recorded := warnings[1]
 	if recorded.CreatedBy == nil || *recorded.CreatedBy != actor.ID ||
 		recorded.UpdatedBy == nil || *recorded.UpdatedBy != actor.ID ||
 		recorded.UpdatedByName == nil || *recorded.UpdatedByName != actor.DisplayName ||
-		recorded.SourceEventID != nil || !recorded.CreatedAt.Equal(adminTime) {
-		t.Fatalf("admin-recorded projection: %+v", recorded.Warning)
+		recorded.SourceEventID != nil || !recorded.CreatedAt.Equal(listTime) {
+		t.Fatalf("admin-recorded projection: %+v", recorded)
 	}
 }
 

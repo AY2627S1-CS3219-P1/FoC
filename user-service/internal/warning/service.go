@@ -112,8 +112,17 @@ func (s *Service) MarkWarningAsRemoved(
 	if warningID == uuid.Nil || actorID == uuid.Nil || (appealID != nil && *appealID == uuid.Nil) {
 		return errs.NewBadRequestError("invalid warning removal")
 	}
-	if removedReason != nil && utf8.RuneCountInString(*removedReason) > 2000 {
-		return errs.NewBadRequestError("removal reason must not exceed 2000 characters")
+	// Mirror review.RemoveReview: a present-but-blank reason is as good as no
+	// reason and must not reach the audit trail as an empty string.
+	if removedReason != nil {
+		trimmed := strings.TrimSpace(*removedReason)
+		if trimmed == "" {
+			return errs.NewBadRequestError("removal reason must not be blank")
+		}
+		if utf8.RuneCountInString(trimmed) > 2000 {
+			return errs.NewBadRequestError("removal reason must not exceed 2000 characters")
+		}
+		removedReason = &trimmed
 	}
 
 	_, err := s.repository.Remove(ctx, warningID, time.Now().UTC(), removedReason, appealID, &actorID)

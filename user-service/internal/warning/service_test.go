@@ -3,10 +3,12 @@ package warning
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
@@ -22,6 +24,7 @@ type repositoryStub struct {
 	listUserID   uuid.UUID
 	listOffset   int64
 	listLimit    int64
+	listCalls    int
 	removeID     uuid.UUID
 	removedAt    time.Time
 	removeReason *string
@@ -46,6 +49,7 @@ func (r *repositoryStub) ListByUser(
 	r.listUserID = userID
 	r.listOffset = offset
 	r.listLimit = limit
+	r.listCalls++
 	return r.list, r.err
 }
 
@@ -57,6 +61,7 @@ func (r *repositoryStub) ListForAdmin(
 	r.listUserID = userID
 	r.listOffset = offset
 	r.listLimit = limit
+	r.listCalls++
 	return r.adminList, r.err
 }
 
@@ -248,8 +253,8 @@ func TestListWarningsRejectsInvalidUserWithoutTouchingTheRepository(t *testing.T
 	if !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("invalid user error = %v, want ErrInvalidRequest", err)
 	}
-	if repository.listUserID != uuid.Nil {
-		t.Fatalf("repository reached with user %s", repository.listUserID)
+	if repository.listCalls != 0 {
+		t.Fatalf("repository reached %d times", repository.listCalls)
 	}
 }
 
@@ -306,8 +311,8 @@ func TestListWarningsForAdminRejectsInvalidUserWithoutTouchingTheRepository(t *t
 	if !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("invalid user error = %v, want ErrInvalidRequest", err)
 	}
-	if repository.listUserID != uuid.Nil {
-		t.Fatalf("repository reached with user %s", repository.listUserID)
+	if repository.listCalls != 0 {
+		t.Fatalf("repository reached %d times", repository.listCalls)
 	}
 }
 
@@ -345,17 +350,21 @@ func TestMarkWarningAsRemovedPassesAuditMetadata(t *testing.T) {
 func TestMarkWarningAsRemovedValidatesAndMapsRepositoryErrors(t *testing.T) {
 	actorID, warningID := uuid.New(), uuid.New()
 	service := NewService(&repositoryStub{removeErr: ErrNotFound})
-	if err := service.MarkWarningAsRemoved(
+	err := service.MarkWarningAsRemoved(
 		context.Background(),
 		warningID,
 		nil,
 		nil,
 		actorID,
-	); !errors.Is(
-		err,
-		ErrNotFound,
-	) {
+	)
+	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing warning error = %v, want ErrNotFound", err)
+	}
+	// The service must translate the sentinel into the shared external
+	// NotFound error, or the handler would surface it as CodeInternal.
+	var external api.ExternalError
+	if !errors.As(err, &external) || external.Code() != http.StatusNotFound {
+		t.Fatalf("missing warning error = %v, want external NotFound", err)
 	}
 
 	for _, tc := range []struct {
