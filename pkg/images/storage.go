@@ -12,6 +12,12 @@ import (
 // Delete treats a missing object as success.
 var ErrObjectNotFound = errors.New("image object not found")
 
+// ErrStorageUnavailable is retryable without any change on the caller's side.
+var ErrStorageUnavailable = errors.New("image storage is temporarily unavailable")
+
+// ErrStorageMisconfigured is permanent; retrying cannot succeed.
+var ErrStorageMisconfigured = errors.New("image storage is misconfigured")
+
 // UploadRequest uses an application-generated stable key as object identity.
 // Temporary URLs returned by grants are credentials and must never be stored
 // in place of this key.

@@ -1,0 +1,22 @@
+// Shared RPC error vocabulary. FoC RPCs attach a google.rpc.ErrorInfo carrying
+// the service domain and a stable reason, plus the ErrorDetail below so
+// clients can read the reason, a backend-dictated user-facing message and
+// input locations without interpreting provider error strings. Branch on the
+// reason, not on the message.
+syntax = "proto3";
+
+package common.v1;
+
+import "google/rpc/error_details.proto";
+
+message ErrorDetail {
+  // Stable, neutral token, e.g. UPLOAD_TEMPORARILY_UNAVAILABLE. Callers branch
+  // on this, never on the message.
+  string reason = 1;
+  // Backend-dictated user-facing text. Safe to display; never names internal
+  // components.
+  string message = 2;
+  // Input locations the client should surface, e.g. the photo id that failed
+  // to attach.
+  repeated google.rpc.BadRequest.FieldViolation field_violations = 3;
+}
