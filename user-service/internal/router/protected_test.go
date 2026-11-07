@@ -42,12 +42,40 @@ func (p *protectedUsers) GetByID(_ context.Context, id uuid.UUID) (*models.User,
 
 type profileStub struct{ user models.User }
 
-func (p profileStub) GetMyProfile(context.Context, uuid.UUID) (models.User, error) {
-	return p.user, nil
+func (p profileStub) GetMyProfile(context.Context, uuid.UUID) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
 }
 
-func (p profileStub) UpdateMyProfile(context.Context, uuid.UUID, service.ProfileInput) (models.User, error) {
-	return p.user, nil
+func (p profileStub) UpdateMyProfile(
+	context.Context,
+	uuid.UUID,
+	service.ProfileInput,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
+}
+
+func (p profileStub) CreateProfilePictureUpload(
+	context.Context,
+	uuid.UUID,
+	string,
+	int64,
+) (service.ProfilePictureUpload, images.UploadGrant, error) {
+	return service.ProfilePictureUpload{}, images.UploadGrant{}, nil
+}
+
+func (p profileStub) UpdateMyProfilePicture(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
+}
+
+func (p profileStub) RemoveMyProfilePicture(
+	context.Context,
+	uuid.UUID,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
 }
 
 type adminStub struct{ user models.User }
@@ -170,6 +198,32 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	update.Header().Set("Authorization", "Bearer "+token)
 	if _, err := profileClient.UpdateMyProfile(ctx, update); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("suspended update with stale user token: %v", err)
+	}
+	createPicture := connect.NewRequest(&userv1.CreateProfilePictureUploadRequest{
+		ContentType: "image/png", SizeBytes: 1,
+	})
+	createPicture.Header().Set("Authorization", "Bearer "+token)
+	updatePicture := connect.NewRequest(&userv1.UpdateMyProfilePictureRequest{UploadId: uuid.NewString()})
+	updatePicture.Header().Set("Authorization", "Bearer "+token)
+	removePicture := connect.NewRequest(&userv1.RemoveMyProfilePictureRequest{})
+	removePicture.Header().Set("Authorization", "Bearer "+token)
+	for name, call := range map[string]func() error{
+		"create": func() error {
+			_, err := profileClient.CreateProfilePictureUpload(ctx, createPicture)
+			return err
+		},
+		"update": func() error {
+			_, err := profileClient.UpdateMyProfilePicture(ctx, updatePicture)
+			return err
+		},
+		"remove": func() error {
+			_, err := profileClient.RemoveMyProfilePicture(ctx, removePicture)
+			return err
+		},
+	} {
+		if code := connect.CodeOf(call()); code != connect.CodePermissionDenied {
+			t.Fatalf("suspended %s picture: %v", name, code)
+		}
 	}
 	actor.Role = models.RoleAdmin
 	users.users[actorID] = actor

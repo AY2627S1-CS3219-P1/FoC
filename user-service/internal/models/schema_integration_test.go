@@ -127,6 +127,47 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("profile_picture_uploads: shape checks and cascade", func(t *testing.T) {
+		upload := &m.ProfilePictureUpload{ID: uuid.New(), UserID: alice.ID,
+			ObjectKey: "profile/picture/" + uuid.NewString(), ContentType: "image/png",
+			SizeBytes: 1, CreatedAt: now}
+		if err := db.Create(upload).Error; err != nil {
+			t.Fatal(err)
+		}
+		badType := *upload
+		badType.ID = uuid.New()
+		badType.ObjectKey = "profile/picture/" + uuid.NewString()
+		badType.ContentType = "text/plain"
+		if err := db.Create(&badType).Error; err == nil {
+			t.Fatal("expected unsupported content type to fail")
+		}
+		badSize := *upload
+		badSize.ID = uuid.New()
+		badSize.ObjectKey = "profile/picture/" + uuid.NewString()
+		badSize.SizeBytes = 0
+		if err := db.Create(&badSize).Error; err == nil {
+			t.Fatal("expected zero size to fail")
+		}
+
+		cascaded := newUser(t, db, "cascade@u.nus.edu")
+		orphan := &m.ProfilePictureUpload{ID: uuid.New(), UserID: cascaded.ID,
+			ObjectKey: "profile/picture/" + uuid.NewString(), ContentType: "image/jpeg",
+			SizeBytes: 1, CreatedAt: now}
+		if err := db.Create(orphan).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec("DELETE FROM users WHERE id = ?", cascaded.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		var count int64
+		if err := db.Model(&m.ProfilePictureUpload{}).Where("id = ?", orphan.ID).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("profile picture upload survived its user: %d", count)
+		}
+	})
+
 	t.Run("users: soft delete frees the email", func(t *testing.T) {
 		gone := newUser(t, db, "gone@u.nus.edu")
 		if err := db.Delete(gone).Error; err != nil {
