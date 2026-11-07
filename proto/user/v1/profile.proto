@@ -28,6 +28,8 @@ message Profile {
   // has no profile picture. Responses carrying this URL must not be cached.
   string profile_picture_url = 8;
   google.protobuf.Timestamp profile_picture_expires_at = 9;
+  // Stable application reference for the current picture. Empty when none.
+  string profile_picture_id = 10;
 }
 
 message GetMyProfileRequest {}
@@ -71,17 +73,19 @@ message CreateProfilePictureUploadRequest {
 }
 
 message CreateProfilePictureUploadResponse {
-  string upload_id = 1;
+  // Stable row ID that is also returned in Profile.profile_picture_id once
+  // the picture is active. The browser never sees the storage key.
+  string picture_id = 1;
   string upload_url = 2;
   // Headers the browser must send with the PUT.
   map<string, string> upload_headers = 3;
   google.protobuf.Timestamp expires_at = 4;
 }
 
-// Applies a previously uploaded picture. The upload ID must belong to the
+// Applies a previously uploaded picture. The picture ID must belong to the
 // authenticated caller. Repeating the same call is idempotent.
 message UpdateMyProfilePictureRequest {
-  string upload_id = 1 [(buf.validate.field).string.uuid = true];
+  string picture_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message UpdateMyProfilePictureResponse {
