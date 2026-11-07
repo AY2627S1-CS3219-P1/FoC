@@ -76,29 +76,42 @@ func newPostgresStore(ctx context.Context, dsn string, ttl time.Duration) (*post
 	return &postgresStore{pool: pool, ttl: ttl}, nil
 }
 
-// ensureSchema creates the revoked_access_tokens table if it doesn't exist.
-// It is idempotent and safe to call on every connection.
+// ensureSchema makes the revoked_access_tokens table usable. Provisioned
+// environments create the table and grants up front (docker/postgres/
+// init-dbs.sh, the k8s provisioning job), so the common path is a single
+// existence probe — which also lets SELECT-only reader roles start without
+// any DDL privilege. When the table is missing (fresh development databases),
+// the DDL runs, and a concurrent creator's table is accepted instead of
+// racing.
 func ensureSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS revoked_access_tokens (
+	const (
+		createTable = `CREATE TABLE IF NOT EXISTS revoked_access_tokens (
 			sid        TEXT PRIMARY KEY,
 			revoked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			expires_at TIMESTAMPTZ NOT NULL
-		)
-	`)
-	if err != nil {
+		)`
+		createIndex = `CREATE INDEX IF NOT EXISTS revoked_access_tokens_expires_at_idx
+			ON revoked_access_tokens (expires_at)`
+		present = `SELECT to_regclass('revoked_access_tokens') IS NOT NULL`
+	)
+	var exists bool
+	if err := pool.QueryRow(ctx, present).Scan(&exists); err != nil {
+		return fmt.Errorf("look up revocation table: %w", err)
+	}
+	if exists {
+		return nil
+	}
+	if _, err := pool.Exec(ctx, createTable); err != nil {
+		// A concurrent writer may have created the table between the probe
+		// and the DDL; only report a failure when it is still missing.
+		if retryErr := pool.QueryRow(ctx, present).Scan(&exists); retryErr == nil && exists {
+			return nil
+		}
 		return fmt.Errorf("create table: %w", err)
 	}
-
-	// Create index for cleanup only; readers use the primary key lookup.
-	_, err = pool.Exec(ctx, `
-		CREATE INDEX IF NOT EXISTS revoked_access_tokens_expires_at_idx
-			ON revoked_access_tokens (expires_at)
-	`)
-	if err != nil {
+	if _, err := pool.Exec(ctx, createIndex); err != nil {
 		return fmt.Errorf("create index: %w", err)
 	}
-
 	return nil
 }
 

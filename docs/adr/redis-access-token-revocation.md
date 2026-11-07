@@ -72,8 +72,13 @@ is configured with `TOKEN_REVOCATION_BASE_URL`, a `postgresql://` DSN.
   what PostgreSQL durability already guarantees.
 - Local development gains one `revocation_dev` database on the shared Postgres
   (`docker/postgres/init-dbs.sh`, `compose.yaml`); all services require
-  `TOKEN_REVOCATION_BASE_URL`. Kubernetes overlays provision a dedicated
-  `revocation` role/database and inject the same variable as a secret.
+  `TOKEN_REVOCATION_BASE_URL`. The store is least-privilege split: the User
+  Service holds the writer role (SELECT/INSERT/UPDATE/DELETE), every other
+  service connects through a SELECT-only `revocation_reader` role, so a
+  compromised reader cannot forge or erase revocations, and the table is
+  provisioned up front so readers need no DDL and can boot first. Kubernetes
+  overlays provision the same writer/reader pair and inject the matching DSNs
+  as secrets.
 - Credit's internal reservation listener remains unauthenticated (issue #29);
   it performs no revocation check because it performs no authentication.
 

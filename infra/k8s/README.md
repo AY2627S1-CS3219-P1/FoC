@@ -137,7 +137,7 @@ clusters, and production-overlay setup, see the
 | `base/initialization/kafka-init.yaml` | Topic-creation Job driven by `infra/kafka/topics.conf`. |
 | `base/mailpit/`, `base/floci/` | Local-only dev mailbox and S3-compatible image store (Floci adds its own gateway route). |
 | `overlays/local/dependencies/postgres.yaml` | Local-only PostgreSQL/PostGIS StatefulSet with its PVC; production pre-provisions its database. |
-| `overlays/local/provisioning/db-provision.yaml` + `provision.sh` | Local-only Job creating per-service database roles and installing PostGIS extensions on the ephemeral shared instance. Production pre-provisions instead. |
+| `overlays/local/provisioning/db-provision.yaml` + `provision.sh` | Local-only Job creating per-service database roles, installing PostGIS extensions, and provisioning the shared revocation store (writer role plus SELECT-only reader role and its table) on the ephemeral shared instance. Production pre-provisions instead. |
 | `overlays/local/`, `overlays/production/` | Kustomize patches: local forwards, storage and Postgres; production hostname, certificate, and origins (template). |
 
 Environments are layered with Kustomize: `base/` holds the shared resources

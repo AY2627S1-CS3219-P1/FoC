@@ -2,9 +2,12 @@ package revocation
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -255,6 +258,77 @@ func TestIsRevokedEmptySessionID(t *testing.T) {
 	if revoked {
 		t.Fatal("empty session ID should not be revoked")
 	}
+}
+
+// TestReaderRoleCanReadButCannotWrite pins the least-privilege deployment
+// split: a SELECT-only role answers IsRevoked without needing DDL privileges,
+// and a write through such a role fails closed at the database.
+func TestReaderRoleCanReadButCannotWrite(t *testing.T) {
+	ctx := context.Background()
+
+	container, dsn, err := postgresContainer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = container.Terminate(ctx) }()
+
+	writer, err := NewStore(ctx, Config{Address: dsn, TTL: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Close() }()
+	if err := writer.Revoke(ctx, "revoked-session"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Provision a SELECT-only reader the way the deployment jobs do.
+	raw, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	if _, err := raw.Exec(ctx, `CREATE ROLE revocation_reader_test LOGIN PASSWORD 'reader-pw'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(ctx, `GRANT SELECT ON revoked_access_tokens TO revocation_reader_test`); err != nil {
+		t.Fatal(err)
+	}
+
+	readerDSN, err := withCredentials(dsn, "revocation_reader_test", "reader-pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Booting the reader against the existing table must not attempt DDL.
+	reader, err := NewStore(ctx, Config{Address: readerDSN, TTL: time.Minute})
+	if err != nil {
+		t.Fatalf("open reader store: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	revoked, err := reader.IsRevoked(ctx, "revoked-session")
+	if err != nil {
+		t.Fatalf("reader IsRevoked: %v", err)
+	}
+	if !revoked {
+		t.Fatal("reader could not see the revocation written by the writer")
+	}
+
+	// A reader misconfigured with a write TTL still fails closed at the
+	// database instead of recording a revocation.
+	if err := reader.Revoke(ctx, "another-session"); err == nil {
+		t.Fatal("SELECT-only role must not be able to record revocations")
+	}
+}
+
+// withCredentials returns dsn with the user and password replaced, so tests
+// can connect through a secondary role.
+func withCredentials(dsn, user, password string) (string, error) {
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse dsn: %w", err)
+	}
+	parsed.User = url.UserPassword(user, password)
+	return parsed.String(), nil
 }
 
 // TestRevokeIdempotent verifies that re-revoking the same session updates expiry.

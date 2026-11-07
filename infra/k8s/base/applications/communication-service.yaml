@@ -30,7 +30,7 @@ spec:
             - secretRef:
                 name: communication-db
             - secretRef:
-                name: revocation-db
+                name: revocation-db-reader
             - secretRef:
                 name: telegram
           ports:

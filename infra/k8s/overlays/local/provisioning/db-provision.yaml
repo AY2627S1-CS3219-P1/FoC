@@ -37,6 +37,7 @@ spec:
             - {name: credit, mountPath: /secrets/credit, readOnly: true}
             - {name: communication, mountPath: /secrets/communication, readOnly: true}
             - {name: revocation, mountPath: /secrets/revocation, readOnly: true}
+            - {name: revocation-reader, mountPath: /secrets/revocation-reader, readOnly: true}
       volumes:
         - name: script
           configMap:
@@ -59,3 +60,6 @@ spec:
         - name: revocation
           secret:
             secretName: revocation-db
+        - name: revocation-reader
+          secret:
+            secretName: revocation-db-reader

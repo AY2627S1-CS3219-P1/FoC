@@ -198,7 +198,9 @@ services:
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
-      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
+      # Reader DSN: revocation_reader holds SELECT only, so a compromised
+      # reader service cannot forge or delete revocations (User Service writes).
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
@@ -229,7 +231,9 @@ services:
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
-      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
+      # Reader DSN: revocation_reader holds SELECT only, so a compromised
+      # reader service cannot forge or delete revocations (User Service writes).
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
       CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL-http://credit-service:8081}
@@ -266,7 +270,9 @@ services:
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
-      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
+      # Reader DSN: revocation_reader holds SELECT only, so a compromised
+      # reader service cannot forge or delete revocations (User Service writes).
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -304,7 +310,9 @@ services:
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${CREDIT_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CREDIT_DB:-credit_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
-      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
+      # Reader DSN: revocation_reader holds SELECT only, so a compromised
+      # reader service cannot forge or delete revocations (User Service writes).
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
     volumes:

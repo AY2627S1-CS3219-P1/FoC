@@ -69,7 +69,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	defer removeTemporary(lock)
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "revocation-password", "kafka-ui-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "revocation-password", "revocation-reader-password", "kafka-ui-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -238,6 +238,24 @@ func (o *operator) generateLocalSecrets() error {
 	if err := persistValue(directory, "revocation-database-url", revocationURL, false); err != nil {
 		return err
 	}
+	// Reader credentials for the revocation store: a SELECT-only role used by
+	// every service except the User Service (the writer).
+	if err := persistValue(directory, "revocation-reader-db-user", "revocation_reader", false); err != nil {
+		return err
+	}
+	var readerFields []string
+	for _, suffix := range []string{"-reader-db-user", "-reader-password"} {
+		value, err := os.ReadFile(filepath.Join(directory, "revocation"+suffix))
+		if err != nil {
+			return err
+		}
+		readerFields = append(readerFields, strings.TrimSpace(string(value)))
+	}
+	readerURL := "postgres://" + readerFields[0] + ":" + readerFields[1] +
+		"@postgres:5432/" + revocationFields[1] + "?sslmode=disable"
+	if err := persistValue(directory, "revocation-reader-database-url", readerURL, false); err != nil {
+		return err
+	}
 	fromFile := func(key, file string) string { return "--from-file=" + key + "=" + filepath.Join(directory, file) }
 	if err := o.applySecret(
 		"foc",
@@ -266,6 +284,15 @@ func (o *operator) generateLocalSecrets() error {
 		fromFile("DB_NAME", "revocation-db-name"),
 		fromFile("DB_PASSWORD", "revocation-password"),
 		fromFile("TOKEN_REVOCATION_BASE_URL", "revocation-database-url"),
+	); err != nil {
+		return err
+	}
+	if err := o.applySecret(
+		"foc",
+		"revocation-db-reader",
+		fromFile("DB_USER", "revocation-reader-db-user"),
+		fromFile("DB_PASSWORD", "revocation-reader-password"),
+		fromFile("TOKEN_REVOCATION_BASE_URL", "revocation-reader-database-url"),
 	); err != nil {
 		return err
 	}

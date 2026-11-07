@@ -119,11 +119,16 @@ fails closed with `Unavailable` rather than accepting tokens of unknown
 revocation state.
 
 `TOKEN_REVOCATION_BASE_URL` (a `postgresql://` DSN) is required in every Go
-service. Compose points every service at the shared `revocation_dev` database
-on the dev Postgres; host development uses the published Postgres port. The
-table holds no user data beyond session UUIDs and revocation timestamps, the
-read path ignores expired rows, and the User Service periodically deletes
-expired entries to keep the table small. Token issuance reads the
+service. The store is least-privilege split: the User Service connects through
+the writer role (full read/write on `revoked_access_tokens`), while every other
+service reads through the SELECT-only `revocation_reader` role — a compromised
+reader cannot forge or delete revocations. Compose points the User Service at
+the shared `revocation_dev` database on the dev Postgres and the other services
+at the reader role (`REVOCATION_READER_PASSWORD` in `.env.example`); host
+development uses the published Postgres port. The table holds no user data
+beyond session UUIDs and revocation timestamps, the read path ignores expired
+rows, and the User Service periodically deletes expired entries to keep the
+table small. Token issuance reads the
 user row under a lock, so a session created while an admin changes that user's
 role either carries the new role or is swept into the change's revocation.
 

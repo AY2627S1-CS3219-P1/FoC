@@ -30,7 +30,7 @@ spec:
             - secretRef:
                 name: order-db
             - secretRef:
-                name: revocation-db
+                name: revocation-db-reader
           ports:
             - {name: http2-public, containerPort: 8080}
             - {name: http2-internal, containerPort: 8081}
