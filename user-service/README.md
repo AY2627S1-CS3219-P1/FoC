@@ -163,7 +163,7 @@ outstanding access tokens.
 Other Go services set `USER_SERVICE_BASE_URL` to the Connect server base URL
 and initialize one authenticator at startup. The authenticator fetches keys
 through `PublicKeyService.GetPublicKeys`. Register its `Authenticate` method on protected routes and
-read `AccessClaims` with `ClaimsFromContext`. The
+read the verified caller with `auth.CallerFromContext`. The
 authenticator fetches keys at startup, refreshes its cache every hour,
 and fetches early when a token names an unknown key ID. The base URL must be a
 bare origin (`http` or `https`); transport security is the deployment

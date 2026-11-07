@@ -47,7 +47,6 @@ func TestAccessMiddleware(t *testing.T) {
 	mux.Handle(path, keyHandler)
 	userService := httptest.NewServer(mux)
 	defer userService.Close()
-	t.Setenv("APP_ENV", "local")
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
 	redisServer := miniredis.RunT(t)
 	t.Setenv("REDIS_ADDR", redisServer.Addr())

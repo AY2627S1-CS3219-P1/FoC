@@ -188,7 +188,6 @@ func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 }
 
 func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -237,18 +236,13 @@ func TestNewAuthenticatorAllowsHTTPServiceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
-	for _, environment := range []string{"", "production"} {
-		t.Run(environment, func(t *testing.T) {
-			t.Setenv("APP_ENV", environment)
-			_, err := NewAuthenticator(context.Background(), AuthConfig{
-				UserServiceURL: server.URL,
-				Issuer:         TokenIssuer, Audience: TokenAudience,
-				Revocations: &revocationCheckerStub{},
-			})
-			if err != nil {
-				t.Fatalf("HTTP service URL should be accepted: %v", err)
-			}
-		})
+	_, err = NewAuthenticator(context.Background(), AuthConfig{
+		UserServiceURL: server.URL,
+		Issuer:         TokenIssuer, Audience: TokenAudience,
+		Revocations: &revocationCheckerStub{},
+	})
+	if err != nil {
+		t.Fatalf("HTTP service URL should be accepted: %v", err)
 	}
 }
 
@@ -272,7 +266,6 @@ func TestAuthenticatorRejectsNonOriginURLs(t *testing.T) {
 }
 
 func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -300,7 +293,6 @@ func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
 }
 
 func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	firstKey := testSigningKey(t)
 	secondKey := testSigningKey(t)
 	firstCodec, err := newTestCodec(firstKey, "key-1", TokenIssuer, TokenAudience)
@@ -365,7 +357,6 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 }
 
 func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	knownKey := testSigningKey(t)
 	unknownKey := testSigningKey(t)
 	knownCodec, err := newTestCodec(knownKey, "known", TokenIssuer, TokenAudience)
@@ -429,7 +420,6 @@ func testSigningKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 func TestNewAuthenticatorRequiresRevocationChecker(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -445,7 +435,6 @@ func TestNewAuthenticatorRequiresRevocationChecker(t *testing.T) {
 }
 
 func TestAuthenticateRejectsRevokedSession(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {

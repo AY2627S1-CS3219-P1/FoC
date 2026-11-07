@@ -71,7 +71,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		return config{}, errors.New("DATABASE_URL must be a database URL")
 	}
 	if c.RedisAddr == "" {
-		return config{}, errors.New("REDIS_ADDR is required")
+		return config{}, errors.New("REDIS_ADDR is not set")
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)

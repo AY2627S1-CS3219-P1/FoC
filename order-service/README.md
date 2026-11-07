@@ -69,6 +69,7 @@ Host-run configuration:
 ```sh
 export DATABASE_URL='postgresql://foc:changeme@localhost:5432/order_dev?sslmode=disable'
 export USER_SERVICE_BASE_URL=http://localhost:8081
+export REDIS_ADDR=localhost:6379
 export SUPPLIER_SERVICE_BASE_URL=http://localhost:8082
 export APP_ENV=local
 export PORT=8080
