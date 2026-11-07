@@ -22,6 +22,9 @@ CREATE TABLE profile_pictures (
 CREATE UNIQUE INDEX profile_pictures_one_active
     ON profile_pictures (user_id) WHERE state = 'active';
 
+-- Supports user deletion cascades for pending/deleting rows.
+CREATE INDEX profile_pictures_user ON profile_pictures (user_id);
+
 CREATE INDEX profile_pictures_cleanup
     ON profile_pictures (created_at) WHERE state <> 'active';
 

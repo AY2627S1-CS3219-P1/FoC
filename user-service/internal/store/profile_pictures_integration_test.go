@@ -91,6 +91,18 @@ func TestProfilePicturesPersistence(t *testing.T) {
 	if got, err := store.GetByID(ctx, user.ID); err != nil || got.ProfilePictureID != nil {
 		t.Fatalf("cleared pointer: %+v, %v", got, err)
 	}
+	before, err := store.GetByID(ctx, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldKey, err = store.ProfilePictures.Deactivate(ctx, user.ID, user.ID)
+	if err != nil || oldKey != nil {
+		t.Fatalf("repeated remove: %v, %v", oldKey, err)
+	}
+	after, err := store.GetByID(ctx, user.ID)
+	if err != nil || !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("no-op remove touched the user: %+v, %v", after, err)
+	}
 }
 
 func TestProfilePicturesSuspendedUserCannotChange(t *testing.T) {

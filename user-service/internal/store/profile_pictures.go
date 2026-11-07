@@ -145,22 +145,23 @@ func (s *ProfilePictures) Deactivate(
 		if user.IsSuspended() {
 			return ErrRoleConflict
 		}
-		if user.ProfilePictureID != nil {
-			var current models.ProfilePicture
-			err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-				Take(&current, "id = ? AND state = ?", *user.ProfilePictureID, models.ProfilePictureActive).Error
-			switch {
-			case errors.Is(err, gorm.ErrRecordNotFound):
-				// Stale pointer: clear it below.
-			case err != nil:
+		if user.ProfilePictureID == nil {
+			return nil
+		}
+		var current models.ProfilePicture
+		err = tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Take(&current, "id = ? AND state = ?", *user.ProfilePictureID, models.ProfilePictureActive).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// Stale pointer: clear it below.
+		case err != nil:
+			return err
+		default:
+			oldKey = &current.ObjectKey
+			if err := tx.WithContext(ctx).Model(&models.ProfilePicture{}).
+				Where("id = ? AND state = ?", current.ID, models.ProfilePictureActive).
+				Update("state", models.ProfilePictureDeleting).Error; err != nil {
 				return err
-			default:
-				oldKey = &current.ObjectKey
-				if err := tx.WithContext(ctx).Model(&models.ProfilePicture{}).
-					Where("id = ? AND state = ?", current.ID, models.ProfilePictureActive).
-					Update("state", models.ProfilePictureDeleting).Error; err != nil {
-					return err
-				}
 			}
 		}
 		return tx.WithContext(ctx).Model(&models.User{}).

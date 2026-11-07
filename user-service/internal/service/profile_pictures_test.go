@@ -16,6 +16,7 @@ import (
 
 type fakeProfileUsers struct {
 	user      *models.User
+	queue     []*models.User
 	getErr    error
 	updateErr error
 	updated   *models.User
@@ -24,6 +25,11 @@ type fakeProfileUsers struct {
 func (f *fakeProfileUsers) GetByID(context.Context, uuid.UUID) (*models.User, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
+	}
+	if len(f.queue) > 0 {
+		user := f.queue[0]
+		f.queue = f.queue[1:]
+		return user, nil
 	}
 	return f.user, nil
 }
@@ -109,14 +115,15 @@ func (f *fakeProfilePictureStore) DeletePicture(_ context.Context, id uuid.UUID)
 }
 
 type fakeProfilePictureStorage struct {
-	grants      map[string]images.UploadGrant
-	objects     map[string]images.ObjectInfo
-	downloads   map[string]images.DownloadGrant
-	createErr   error
-	inspectErr  error
-	downloadErr error
-	deleteErr   error
-	deleted     []string
+	grants        map[string]images.UploadGrant
+	objects       map[string]images.ObjectInfo
+	downloads     map[string]images.DownloadGrant
+	createErr     error
+	inspectErr    error
+	downloadErr   error
+	deleteErr     error
+	deleteErrKeys map[string]error
+	deleted       []string
 }
 
 func (f *fakeProfilePictureStorage) CreateUpload(
@@ -163,6 +170,9 @@ func (f *fakeProfilePictureStorage) CreateDownload(
 }
 
 func (f *fakeProfilePictureStorage) Delete(_ context.Context, key string) error {
+	if err := f.deleteErrKeys[key]; err != nil {
+		return err
+	}
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
@@ -283,12 +293,14 @@ func TestUpdateMyProfilePictureRejectsInvalidUploads(t *testing.T) {
 	pictureID := uuid.New()
 	key := profilePictureKey(user.ID, pictureID)
 	base := func() (*fakeProfilePictureStore, *fakeProfilePictureStorage) {
-		return &fakeProfilePictureStore{
+		pictures := &fakeProfilePictureStore{
 			pending: &models.ProfilePicture{ID: pictureID, UserID: user.ID, ObjectKey: key,
 				ContentType: "image/png", SizeBytes: 4, State: models.ProfilePicturePending},
-		}, &fakeProfilePictureStorage{objects: map[string]images.ObjectInfo{
+		}
+		storage := &fakeProfilePictureStorage{objects: map[string]images.ObjectInfo{
 			key: {Exists: true, Size: 4, ContentType: "image/png"},
 		}}
+		return pictures, storage
 	}
 
 	t.Run("foreign upload", func(t *testing.T) {
@@ -337,6 +349,29 @@ func TestUpdateMyProfilePictureIsIdempotent(t *testing.T) {
 			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
 		if err != nil || view.PictureURL == "" {
 			t.Fatalf("idempotent retry = %+v, %v", view, err)
+		}
+	})
+
+	t.Run("committed after the first user read", func(t *testing.T) {
+		pictureID := uuid.New()
+		userID := uuid.New()
+		key := profilePictureKey(userID, pictureID)
+		stale := &models.User{ID: userID, DisplayName: "Person", Role: models.RoleUser}
+		fresh := &models.User{ID: userID, DisplayName: "Person", Role: models.RoleUser,
+			ProfilePictureID: ptrID(pictureID)}
+		pictures := &fakeProfilePictureStore{
+			getPendingErr: store.ErrPictureNotFound,
+			current: &models.ProfilePicture{ID: pictureID, UserID: userID, ObjectKey: key,
+				ContentType: "image/png", SizeBytes: 4, State: models.ProfilePictureActive},
+		}
+		svc := &ProfileService{
+			Users:    &fakeProfileUsers{queue: []*models.User{stale, fresh}, user: fresh},
+			Pictures: pictures,
+			Storage:  &fakeProfilePictureStorage{},
+		}
+		view, err := svc.UpdateMyProfilePicture(context.Background(), userID, pictureID)
+		if err != nil || view.PictureURL == "" {
+			t.Fatalf("idempotent retry after stale read = %+v, %v", view, err)
 		}
 	})
 
@@ -434,5 +469,28 @@ func TestCleanupOnce(t *testing.T) {
 	svc = &ProfileService{Pictures: pictures, Storage: storage}
 	if err := svc.CleanupOnce(context.Background()); err == nil || len(pictures.deletedIDs) != 0 {
 		t.Fatalf("failed cleanup should keep rows: %v %v", err, pictures.deletedIDs)
+	}
+}
+
+func TestCleanupOnceContinuesPastFailedObject(t *testing.T) {
+	firstID, secondID := uuid.New(), uuid.New()
+	firstKey, secondKey := "profile/picture/first", "profile/picture/second"
+	pictures := &fakeProfilePictureStore{deleting: []models.ProfilePicture{
+		{ID: firstID, ObjectKey: firstKey},
+		{ID: secondID, ObjectKey: secondKey},
+	}}
+	storage := &fakeProfilePictureStorage{deleteErrKeys: map[string]error{
+		firstKey: errors.New("down"),
+	}}
+	svc := &ProfileService{Pictures: pictures, Storage: storage}
+
+	if err := svc.CleanupOnce(context.Background()); err == nil {
+		t.Fatal("expected the failed object to be reported")
+	}
+	if len(pictures.deletedIDs) != 1 || pictures.deletedIDs[0] != secondID {
+		t.Fatalf("later rows should still be deleted: %v", pictures.deletedIDs)
+	}
+	if len(storage.deleted) != 1 || storage.deleted[0] != secondKey {
+		t.Fatalf("deleted objects = %v", storage.deleted)
 	}
 }

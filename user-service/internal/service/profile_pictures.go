@@ -137,7 +137,10 @@ func (s *ProfileService) UpdateMyProfilePicture(
 	}
 	picture, err := s.Pictures.GetPending(ctx, actorID, pictureID)
 	if errors.Is(err, store.ErrPictureNotFound) {
-		if user.ProfilePictureID != nil && *user.ProfilePictureID == pictureID {
+		// Re-read in case a concurrent original submit committed after our
+		// first user read but before this lookup.
+		if current, getErr := s.userByID(ctx, actorID); getErr == nil &&
+			current.ProfilePictureID != nil && *current.ProfilePictureID == pictureID {
 			return s.GetMyProfile(ctx, actorID)
 		}
 		return ProfileView{}, errs.WrapBadRequestError(err, "picture was not uploaded by this user")
@@ -226,16 +229,18 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list deleting profile pictures: %w", err)
 	}
+	var errs []error
 	for _, row := range rows {
 		if err := s.Storage.Delete(ctx, row.ObjectKey); err != nil &&
 			!errors.Is(err, images.ErrObjectNotFound) {
-			return fmt.Errorf("delete profile picture object: %w", err)
+			errs = append(errs, fmt.Errorf("delete profile picture object %s: %w", row.ID, err))
+			continue
 		}
 		if err := s.Pictures.DeletePicture(ctx, row.ID); err != nil {
-			return fmt.Errorf("delete profile picture row: %w", err)
+			errs = append(errs, fmt.Errorf("delete profile picture row %s: %w", row.ID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // profileView mints a fresh download grant for the active row. A missing or
