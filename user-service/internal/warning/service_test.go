@@ -331,19 +331,40 @@ func TestListWarningsForAdminMapsRepositoryAndCountErrors(t *testing.T) {
 
 func TestMarkWarningAsRemovedPassesAuditMetadata(t *testing.T) {
 	warningID, actorID, appealID := uuid.New(), uuid.New(), uuid.New()
-	reason := "appeal overturned"
+	reason := "  appeal overturned  "
 	repository := &repositoryStub{}
 	service := NewService(repository)
 
 	if err := service.MarkWarningAsRemoved(context.Background(), warningID, &reason, &appealID, actorID); err != nil {
 		t.Fatal(err)
 	}
-	if repository.removeID != warningID || repository.removeReason == nil || *repository.removeReason != reason ||
-		repository.appealID == nil || *repository.appealID != appealID ||
-		repository.actorID == nil || *repository.actorID != actorID || repository.removedAt.IsZero() ||
+	if repository.removeID != warningID || repository.removeReason == nil ||
+		*repository.removeReason != "appeal overturned" ||
+		repository.appealID == nil ||
+		*repository.appealID != appealID ||
+		repository.actorID == nil ||
+		*repository.actorID != actorID ||
+		repository.removedAt.IsZero() ||
 		repository.removedAt.Location() != time.UTC {
 		t.Fatalf("remove arguments: id=%s at=%s reason=%v appeal=%v actor=%v", repository.removeID,
 			repository.removedAt, repository.removeReason, repository.appealID, repository.actorID)
+	}
+}
+
+func TestMarkWarningAsRemovedRejectsBlankReason(t *testing.T) {
+	for _, reason := range []string{"", " ", " \t "} {
+		repository := &repositoryStub{}
+		service := NewService(repository)
+		err := service.MarkWarningAsRemoved(
+			context.Background(), uuid.New(), &reason, nil, uuid.New(),
+		)
+		var external api.ExternalError
+		if !errors.As(err, &external) || external.Code() != http.StatusBadRequest {
+			t.Fatalf("blank reason %q: err = %v, want external BadRequest", reason, err)
+		}
+		if repository.removeID != uuid.Nil {
+			t.Fatalf("blank reason %q: repository reached with warning %s", reason, repository.removeID)
+		}
 	}
 }
 
