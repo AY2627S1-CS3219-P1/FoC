@@ -66,6 +66,16 @@ describe('profile picture controller', () => {
 		expect(controller.snapshot()).toMatchObject({ outcome: 'Failed', busy: false });
 	});
 
+	it('infers a missing HEIC content type from the extension', async () => {
+		const { api, controller } = scenario();
+		const heic = new File(['photo'], 'phone.heic', { type: '' });
+		expect(await controller.upload(heic)).not.toBeNull();
+		expect(api.createProfilePictureUpload).toHaveBeenCalledWith(
+			{ contentType: 'image/heic', sizeBytes: 5 },
+			expect.anything()
+		);
+	});
+
 	it('stops before the update when the PUT fails, and can retry with a fresh grant', async () => {
 		const { api, put, controller } = scenario();
 		put.mockRejectedValueOnce(new Error('storage down'));

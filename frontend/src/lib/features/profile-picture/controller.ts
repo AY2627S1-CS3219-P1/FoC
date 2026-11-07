@@ -21,10 +21,26 @@ export type ProfilePictureApi = {
 type PutPicture = (grant: ProfilePictureGrant, file: File, signal: AbortSignal) => Promise<void>;
 
 const acceptedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
+const extensions: Record<string, string> = {
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	png: 'image/png',
+	webp: 'image/webp',
+	heic: 'image/heic',
+	heif: 'image/heif'
+};
 const maxBytes = 10_000_000;
 const apiTimeoutMs = 15_000;
 // Allow 64 KiB/s plus API-sized overhead for a bounded direct upload.
 const uploadBytesPerSecond = 64 * 1024;
+
+// Chrome and Firefox leave File.type empty for HEIC/HEIF files; infer the
+// type from the extension rather than blocking a file the backend accepts.
+function contentTypeFor(file: File): string | undefined {
+	if (file.type) return file.type;
+	const extension = file.name.split('.').pop()?.toLowerCase();
+	return extension ? extensions[extension] : undefined;
+}
 
 async function putPicture(grant: ProfilePictureGrant, file: File, signal: AbortSignal): Promise<void> {
 	const response = await fetch(grant.uploadUrl, {
@@ -86,7 +102,8 @@ export class ProfilePictureController {
 
 	async upload(file: File): Promise<UserProfile | null> {
 		if (this.#busy || this.#disposed) return null;
-		if (!acceptedTypes.has(file.type) || file.size < 1 || file.size > maxBytes) {
+		const contentType = contentTypeFor(file);
+		if (!contentType || !acceptedTypes.has(contentType) || file.size < 1 || file.size > maxBytes) {
 			this.#outcome = 'Failed';
 			this.#message = 'Choose a JPEG, PNG, WebP, HEIC or HEIF file up to 10MB.';
 			this.#publish();
@@ -100,7 +117,7 @@ export class ProfilePictureController {
 		try {
 			const grant = await this.#bounded((signal) =>
 				this.api.createProfilePictureUpload(
-					{ contentType: file.type, sizeBytes: file.size },
+					{ contentType, sizeBytes: file.size },
 					signal
 				)
 			);
