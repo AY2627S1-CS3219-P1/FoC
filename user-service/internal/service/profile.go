@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
@@ -32,7 +33,21 @@ type ProfileUsers interface {
 	UpdateActiveProfile(context.Context, *models.User) error
 }
 
-type ProfileService struct{ Users ProfileUsers }
+type ProfileService struct {
+	Users    ProfileUsers
+	Pictures ProfilePictureStore
+	Storage  ProfilePictureStorage
+	Now      func() time.Time
+}
+
+// ProfileView is a profile plus a freshly minted picture download grant.
+// PictureURL and PictureExpiresAt are zero when no picture is set or storage
+// is unavailable.
+type ProfileView struct {
+	models.User
+	PictureURL       string
+	PictureExpiresAt time.Time
+}
 
 // ProfileInput is the complete editable profile state. The phone number is
 // required.
@@ -42,55 +57,65 @@ type ProfileInput struct {
 	PhoneNumber string
 }
 
-func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (models.User, error) {
-	if actorID == uuid.Nil {
-		return models.User{}, ErrUnauthenticated
-	}
-	user, err := s.Users.GetByID(ctx, actorID)
-	if errors.Is(err, store.ErrNotFound) {
-		return models.User{}, ErrUnauthenticated
-	}
+func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (ProfileView, error) {
+	user, err := s.userByID(ctx, actorID)
 	if err != nil {
-		return models.User{}, fmt.Errorf("get profile: %w", err)
+		return ProfileView{}, err
 	}
-	return *user, nil
+	return s.profileView(ctx, *user), nil
 }
 
 func (s *ProfileService) UpdateMyProfile(
 	ctx context.Context,
 	actorID uuid.UUID,
 	input ProfileInput,
-) (models.User, error) {
+) (ProfileView, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	if input.DisplayName == "" || utf8.RuneCountInString(input.DisplayName) > MaxDisplayNameLength ||
 		utf8.RuneCountInString(input.Description) > 500 {
-		return models.User{}, ErrInvalidProfile
+		return ProfileView{}, ErrInvalidProfile
 	}
 	phone, ok := normalizedPhoneNumber(input.PhoneNumber)
 	if !ok {
-		return models.User{}, ErrInvalidProfile
+		return ProfileView{}, ErrInvalidProfile
 	}
-	user, err := s.GetMyProfile(ctx, actorID)
+	user, err := s.userByID(ctx, actorID)
 	if err != nil {
-		return models.User{}, err
+		return ProfileView{}, err
 	}
-	if user.Role == models.RoleSuspended {
-		return models.User{}, ErrPermissionDenied
+	if user.IsSuspended() {
+		return ProfileView{}, ErrPermissionDenied
 	}
 	user.DisplayName = input.DisplayName
 	user.Description = input.Description
 	user.PhoneNumber = &phone
 	user.UpdatedBy = &actorID
-	if err := s.Users.UpdateActiveProfile(ctx, &user); err != nil {
+	if err := s.Users.UpdateActiveProfile(ctx, user); err != nil {
 		if errors.Is(err, store.ErrRoleConflict) {
-			return models.User{}, ErrPermissionDenied
+			return ProfileView{}, ErrPermissionDenied
 		}
 		if errors.Is(err, store.ErrNotFound) {
-			return models.User{}, ErrUnauthenticated
+			return ProfileView{}, ErrUnauthenticated
 		}
-		return models.User{}, fmt.Errorf("update profile: %w", err)
+		return ProfileView{}, fmt.Errorf("update profile: %w", err)
 	}
 	return s.GetMyProfile(ctx, actorID)
+}
+
+// userByID resolves the caller's live user row, mapping a missing row to an
+// unauthenticated response.
+func (s *ProfileService) userByID(ctx context.Context, actorID uuid.UUID) (*models.User, error) {
+	if actorID == uuid.Nil {
+		return nil, ErrUnauthenticated
+	}
+	user, err := s.Users.GetByID(ctx, actorID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get profile: %w", err)
+	}
+	return user, nil
 }
 
 // DefaultPhoneRegion is assumed for numbers entered without a country code.

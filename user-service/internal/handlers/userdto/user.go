@@ -2,6 +2,7 @@ package userdto
 
 import (
 	"context"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -9,6 +10,7 @@ import (
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var ErrMissingActor = errs.NewUnauthorizedError("invalid or missing access token")
@@ -70,6 +72,16 @@ func UserSummary(user models.User) *userv1.UserSummary {
 }
 
 func Profile(user models.User) *userv1.Profile {
-	return &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
-		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role)}
+	return ProfileWithPicture(user, "", time.Time{})
+}
+
+// ProfileWithPicture adds a short-lived download grant to the profile.
+func ProfileWithPicture(user models.User, url string, expiresAt time.Time) *userv1.Profile {
+	profile := &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
+		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role),
+		ProfilePictureUrl: url}
+	if !expiresAt.IsZero() {
+		profile.ProfilePictureExpiresAt = timestamppb.New(expiresAt)
+	}
+	return profile
 }
