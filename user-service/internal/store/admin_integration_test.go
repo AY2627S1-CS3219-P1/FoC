@@ -32,7 +32,7 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 	store, db := setupAuthStore(t)
 
 	admin := bootstrapUser("admin@example.com")
-	outcome, err := store.Admin.Bootstrap(ctx, admin)
+	outcome, _, err := store.Admin.Bootstrap(ctx, admin, time.Now().UTC())
 	if err != nil || outcome != BootstrapCreated || admin.ID == uuid.Nil || admin.Role != models.RoleSuperAdmin {
 		t.Fatalf("bootstrap: %v, %v, %+v", outcome, err, admin)
 	}
@@ -45,9 +45,10 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, email := range []string{"admin@example.com", "other@example.com"} {
-		if outcome, err := store.Admin.Bootstrap(
+		if outcome, _, err := store.Admin.Bootstrap(
 			ctx,
 			bootstrapUser(email),
+			time.Now().UTC(),
 		); err != nil ||
 			outcome != BootstrapAlreadyDone {
 			t.Fatalf("rerun %s: %v, %v", email, outcome, err)
@@ -63,13 +64,31 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 
 func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	ctx := context.Background()
-	store, _ := setupAuthStore(t)
+	store, db := setupAuthStore(t)
 	user := createStoreUser(t, store, "user@example.com")
 
+	// The promoted user's live sessions must be revoked in the same
+	// transaction as the role change.
+	sessionHash := testDigest("promoted-device")
+	session := models.Session{UserID: user.ID, TokenHash: sessionHash[:],
+		LastSeenAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
+	if err := store.Sessions.Create(ctx, &session); err != nil {
+		t.Fatal(err)
+	}
+
 	got := bootstrapUser("user@example.com")
-	outcome, err := store.Admin.Bootstrap(ctx, got)
+	outcome, revoked, err := store.Admin.Bootstrap(ctx, got, time.Now().UTC())
 	if err != nil || outcome != BootstrapPromoted || got.ID != user.ID || got.Role != models.RoleSuperAdmin {
 		t.Fatalf("promote: %v, %v, %+v", outcome, err, got)
+	}
+	if len(revoked) != 1 || revoked[0] != session.ID {
+		t.Fatalf("revoked sessions = %v, want [%s]", revoked, session.ID)
+	}
+	var revokedCount int64
+	if err := db.Model(&models.Session{}).
+		Where("id = ? AND revoked_at IS NOT NULL", session.ID).
+		Count(&revokedCount).Error; err != nil || revokedCount != 1 {
+		t.Fatalf("session not revoked in the bootstrap transaction: count=%d err=%v", revokedCount, err)
 	}
 	changes, err := store.RoleChanges(ctx, user.ID)
 	if err != nil || len(changes) != 1 || changes[0].FromRole != models.RoleUser ||
@@ -77,6 +96,42 @@ func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 		t.Fatalf("role changes: %+v, %v", changes, err)
 	}
 	if row := bootstrapRow(t, store); row.UserID != user.ID {
+		t.Fatalf("bootstrap row: %+v", row)
+	}
+}
+
+func TestAdminBootstrapUnchangedSuperAdmin(t *testing.T) {
+	ctx := context.Background()
+	store, db := setupAuthStore(t)
+	superAdmin := createStoreUser(t, store, "admin@example.com")
+	if err := db.Model(&models.User{}).Where("id = ?", superAdmin.ID).
+		Update("role", models.RoleSuperAdmin).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// An existing super admin has no role change, so no session revocation.
+	sessionHash := testDigest("unchanged-device")
+	session := models.Session{UserID: superAdmin.ID, TokenHash: sessionHash[:],
+		LastSeenAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
+	if err := store.Sessions.Create(ctx, &session); err != nil {
+		t.Fatal(err)
+	}
+
+	got := bootstrapUser("admin@example.com")
+	outcome, revoked, err := store.Admin.Bootstrap(ctx, got, time.Now().UTC())
+	if err != nil || outcome != BootstrapUnchanged || got.ID != superAdmin.ID {
+		t.Fatalf("unchanged: %v, %v, %+v", outcome, err, got)
+	}
+	if len(revoked) != 0 {
+		t.Fatalf("unchanged bootstrap revoked sessions: %v", revoked)
+	}
+	var revokedCount int64
+	if err := db.Model(&models.Session{}).
+		Where("id = ? AND revoked_at IS NOT NULL", session.ID).
+		Count(&revokedCount).Error; err != nil || revokedCount != 0 {
+		t.Fatalf("unchanged bootstrap revoked sessions: count=%d err=%v", revokedCount, err)
+	}
+	if row := bootstrapRow(t, store); row.UserID != superAdmin.ID {
 		t.Fatalf("bootstrap row: %+v", row)
 	}
 }
@@ -109,7 +164,7 @@ func TestAdminBootstrapConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("admin@example.com"))
+			outcome, _, err := store.Admin.Bootstrap(ctx, bootstrapUser("admin@example.com"), time.Now().UTC())
 			mu.Lock()
 			defer mu.Unlock()
 			outcomes = append(outcomes, outcome)

@@ -1,5 +1,5 @@
-#!/bin/bash
 # Creates one database per service on the shared dev postgres server.
+# Also creates the dedicated revocation_dev database for the shared revocation store.
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
@@ -8,4 +8,5 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
   SELECT 'CREATE DATABASE "${ORDER_DB:-order_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${ORDER_DB:-order_dev}')\gexec
   SELECT 'CREATE DATABASE "${CREDIT_DB:-credit_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${CREDIT_DB:-credit_dev}')\gexec
   SELECT 'CREATE DATABASE "${COMMUNICATION_DB:-communication_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${COMMUNICATION_DB:-communication_dev}')\gexec
+  SELECT 'CREATE DATABASE "${REVOCATION_DB:-revocation_dev}"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${REVOCATION_DB:-revocation_dev}')\gexec
 EOSQL

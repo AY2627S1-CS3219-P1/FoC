@@ -11,34 +11,36 @@ import (
 )
 
 type config struct {
-	Port               string
-	InternalPort       string
-	DatabaseURL        string
-	UserServiceURL     string
-	RunMigrations      bool
-	SupplierServiceURL string
-	CreditServiceURL   string
-	KafkaBrokers       string
-	S3Bucket           string
-	S3Endpoint         string
-	S3PublicEndpoint   string
-	AWSRegion          string
+	Port                 string
+	InternalPort         string
+	DatabaseURL          string
+	UserServiceURL       string
+	RevocationServiceURL string
+	RunMigrations        bool
+	SupplierServiceURL   string
+	CreditServiceURL     string
+	KafkaBrokers         string
+	S3Bucket             string
+	S3Endpoint           string
+	S3PublicEndpoint     string
+	AWSRegion            string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
-		Port:               strings.TrimSpace(getenv("PORT")),
-		InternalPort:       strings.TrimSpace(getenv("INTERNAL_PORT")),
-		DatabaseURL:        strings.TrimSpace(getenv("DATABASE_URL")),
-		UserServiceURL:     strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
-		RunMigrations:      true,
-		SupplierServiceURL: strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
-		CreditServiceURL:   strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
-		KafkaBrokers:       strings.TrimSpace(getenv("KAFKA_BROKERS")),
-		S3Bucket:           strings.TrimSpace(getenv("ORDER_S3_BUCKET")),
-		S3Endpoint:         strings.TrimSpace(getenv("ORDER_S3_ENDPOINT")),
-		S3PublicEndpoint:   strings.TrimSpace(getenv("ORDER_S3_PUBLIC_ENDPOINT")),
-		AWSRegion:          strings.TrimSpace(getenv("AWS_REGION")),
+		Port:                 strings.TrimSpace(getenv("PORT")),
+		InternalPort:         strings.TrimSpace(getenv("INTERNAL_PORT")),
+		DatabaseURL:          strings.TrimSpace(getenv("DATABASE_URL")),
+		UserServiceURL:       strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
+		RevocationServiceURL: strings.TrimSpace(getenv("TOKEN_REVOCATION_BASE_URL")),
+		RunMigrations:        true,
+		SupplierServiceURL:   strings.TrimSpace(getenv("SUPPLIER_SERVICE_BASE_URL")),
+		CreditServiceURL:     strings.TrimSpace(getenv("CREDIT_SERVICE_BASE_URL")),
+		KafkaBrokers:         strings.TrimSpace(getenv("KAFKA_BROKERS")),
+		S3Bucket:             strings.TrimSpace(getenv("ORDER_S3_BUCKET")),
+		S3Endpoint:           strings.TrimSpace(getenv("ORDER_S3_ENDPOINT")),
+		S3PublicEndpoint:     strings.TrimSpace(getenv("ORDER_S3_PUBLIC_ENDPOINT")),
+		AWSRegion:            strings.TrimSpace(getenv("AWS_REGION")),
 	}
 
 	if c.Port == "" {
@@ -67,6 +69,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if _, err := pgxpool.ParseConfig(c.DatabaseURL); err != nil {
 		return config{}, errors.New("DATABASE_URL must be a database URL")
+	}
+	if c.RevocationServiceURL == "" {
+		return config{}, errors.New("TOKEN_REVOCATION_BASE_URL is not set")
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)

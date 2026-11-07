@@ -40,6 +40,7 @@ which restarts with backoff and redelivers the uncommitted event.
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Credit's PostgreSQL database. |
 | `USER_SERVICE_BASE_URL` | Yes | Origin used to fetch JWT keys; may use HTTP for internal service discovery. |
+| `TOKEN_REVOCATION_BASE_URL` | Yes | Address of the shared access-token revocation store (a `postgresql://` DSN). |
 | `PORT` | No | Public listener port; defaults to 8080. |
 | `INTERNAL_PORT` | Yes | Private reservation listener; required and must differ from `PORT`. |
 | `RUN_MIGRATIONS` | No | `true` by default. |

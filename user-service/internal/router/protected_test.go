@@ -100,6 +100,13 @@ func (s *allowedDomainStub) RemoveAllowedDomain(context.Context, uuid.UUID) erro
 	return nil
 }
 
+type protectedRevocations struct{ revoked map[string]struct{} }
+
+func (p *protectedRevocations) IsRevoked(_ context.Context, sessionID string) (bool, error) {
+	_, hit := p.revoked[sessionID]
+	return hit, nil
+}
+
 func TestProtectedConnectRoutes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -117,10 +124,12 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	users := &protectedUsers{users: map[uuid.UUID]models.User{actorID: actor, targetID: target}}
 	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
 		router.ProtectedRoutes{
-			Profile:      &profilehandler.Handler{Logic: profileStub{actor}},
-			Admin:        &adminhandler.Handler{Logic: adminStub{target}},
-			Review:       &review.Handler{Logic: reviewStub{}},
-			Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+			Profile:        &profilehandler.Handler{Logic: profileStub{actor}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
+			Review:         &review.Handler{Logic: reviewStub{}},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess, &protectedRevocations{}),
+			Users:          users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -202,7 +211,8 @@ func TestAllowedDomainAuthorization(t *testing.T) {
 			Profile:        &profilehandler.Handler{Logic: profileStub{}},
 			Admin:          &adminhandler.Handler{Logic: adminStub{}},
 			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: logic},
-			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess, &protectedRevocations{}),
+			Users:          users,
 		})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)

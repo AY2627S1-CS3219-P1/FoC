@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"os"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 
@@ -253,8 +255,8 @@ func TestSessionsRevokeAllForUser(t *testing.T) {
 		}
 		return session
 	}
-	createSession(user, "laptop")
-	createSession(user, "phone")
+	laptop := createSession(user, "laptop")
+	phone := createSession(user, "phone")
 	revoked := createSession(user, "revoked")
 	if err := store.Sessions.Revoke(ctx, revoked.ID, testDigest("revoked"), now); err != nil {
 		t.Fatal(err)
@@ -262,8 +264,15 @@ func TestSessionsRevokeAllForUser(t *testing.T) {
 	otherSession := createSession(other, "other")
 
 	count, err := store.Sessions.RevokeAllForUser(ctx, user.ID, now)
-	if err != nil || count != 2 {
-		t.Fatalf("revoke all: count=%d err=%v", count, err)
+	if err != nil {
+		t.Fatalf("revoke all: %v", err)
+	}
+	revokedIDs := append([]uuid.UUID(nil), count...)
+	sort.Slice(revokedIDs, func(i, j int) bool { return revokedIDs[i].String() < revokedIDs[j].String() })
+	expectedIDs := []uuid.UUID{laptop.ID, phone.ID}
+	sort.Slice(expectedIDs, func(i, j int) bool { return expectedIDs[i].String() < expectedIDs[j].String() })
+	if !slices.Equal(revokedIDs, expectedIDs) {
+		t.Fatalf("revoked sessions = %v, want %v", revokedIDs, expectedIDs)
 	}
 	var live int64
 	if err := db.Model(&models.Session{}).
@@ -276,7 +285,7 @@ func TestSessionsRevokeAllForUser(t *testing.T) {
 	if err := store.Sessions.Revoke(ctx, otherSession.ID, testDigest("other"), now); err != nil {
 		t.Fatalf("other user's session was revoked: %v", err)
 	}
-	if count, err := store.Sessions.RevokeAllForUser(ctx, user.ID, now); err != nil || count != 0 {
-		t.Fatalf("repeated revoke all: count=%d err=%v", count, err)
+	if ids, err := store.Sessions.RevokeAllForUser(ctx, user.ID, now); err != nil || len(ids) != 0 {
+		t.Fatalf("repeated revoke all: ids=%v err=%v", ids, err)
 	}
 }

@@ -12,22 +12,24 @@ import (
 
 type config struct {
 	// Port serves users; InternalPort serves Order and must not be published.
-	Port           string
-	InternalPort   string
-	DatabaseURL    string
-	UserServiceURL string
-	RunMigrations  bool
+	Port                 string
+	InternalPort         string
+	DatabaseURL          string
+	UserServiceURL       string
+	RevocationServiceURL string
+	RunMigrations        bool
 	// Empty disables the consumers; settlement then waits until it is set.
 	KafkaBrokers []string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
-		Port:           strings.TrimSpace(getenv("PORT")),
-		InternalPort:   strings.TrimSpace(getenv("INTERNAL_PORT")),
-		DatabaseURL:    strings.TrimSpace(getenv("DATABASE_URL")),
-		UserServiceURL: strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
-		RunMigrations:  true,
+		Port:                 strings.TrimSpace(getenv("PORT")),
+		InternalPort:         strings.TrimSpace(getenv("INTERNAL_PORT")),
+		DatabaseURL:          strings.TrimSpace(getenv("DATABASE_URL")),
+		UserServiceURL:       strings.TrimSpace(getenv("USER_SERVICE_BASE_URL")),
+		RevocationServiceURL: strings.TrimSpace(getenv("TOKEN_REVOCATION_BASE_URL")),
+		RunMigrations:        true,
 	}
 
 	// Listeners
@@ -53,6 +55,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if _, err := pgxpool.ParseConfig(c.DatabaseURL); err != nil {
 		return config{}, errors.New("DATABASE_URL must be a database URL")
+	}
+	if c.RevocationServiceURL == "" {
+		return config{}, errors.New("TOKEN_REVOCATION_BASE_URL is not set")
 	}
 
 	parsed, err := url.Parse(c.UserServiceURL)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -14,8 +15,20 @@ import (
 type accountFixture struct {
 	users        map[uuid.UUID]models.User
 	changes      []models.RoleChange
+	sessions     map[uuid.UUID][]uuid.UUID
+	revocations  *fakeRevocations
 	writeErr     error
 	profileError error
+}
+
+// RevokeAllForUser revokes the fixture's sessions of userID inside the
+// role-change transaction.
+func (f *accountFixture) RevokeAllForUser(
+	_ context.Context,
+	userID uuid.UUID,
+	_ time.Time,
+) ([]uuid.UUID, error) {
+	return append([]uuid.UUID(nil), f.sessions[userID]...), nil
 }
 
 func (f *accountFixture) GetByID(_ context.Context, id uuid.UUID) (*models.User, error) {
@@ -238,13 +251,13 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			f := &accountFixture{users: map[uuid.UUID]models.User{
 				actorID:  {ID: actorID, Email: "actor@example.com", Role: tc.actor},
 				targetID: {ID: targetID, Email: "target@example.com", Role: tc.target},
-			}}
+			}, revocations: &fakeRevocations{}}
 			if tc.self {
 				f.users[actorID] = models.User{ID: actorID, Email: "actor@example.com", Role: tc.actor}
 			}
 			s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-				return fn(RoleStore{Users: f, Admin: f})
-			}}
+				return fn(RoleStore{Users: f, Admin: f, Sessions: f})
+			}, Revocations: f.revocations}
 			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
@@ -257,6 +270,13 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			} else if len(f.changes) != 0 {
 				t.Fatalf("denied action was audited: %+v", f.changes)
 			}
+			if tc.wantErr == nil && len(f.sessions[targetID]) > 0 {
+				ids := make([]string, 0, len(f.sessions[targetID]))
+				for _, sessionID := range f.sessions[targetID] {
+					ids = append(ids, sessionID.String())
+				}
+				assertRevokedSessions(t, f.revocations, ids...)
+			}
 		})
 	}
 }
@@ -266,10 +286,10 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 	f := &accountFixture{users: map[uuid.UUID]models.User{
 		actorID:  {ID: actorID, Role: models.RoleSuperAdmin},
 		targetID: {ID: targetID, Role: models.RoleUser},
-	}, writeErr: store.ErrRoleConflict}
+	}, revocations: &fakeRevocations{}, writeErr: store.ErrRoleConflict}
 	s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-		return fn(RoleStore{Users: f, Admin: f})
-	}}
+		return fn(RoleStore{Users: f, Admin: f, Sessions: f})
+	}, Revocations: f.revocations}
 	if _, err := s.ChangeUserRole(
 		context.Background(),
 		actorID,
@@ -285,4 +305,33 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 	if len(f.changes) != 0 || f.users[targetID].Role != models.RoleUser {
 		t.Fatal("conflict mutated role or audit")
 	}
+	if recorded := f.revocations.recorded(); len(recorded) != 0 {
+		t.Fatalf("conflict recorded revocations: %v", recorded)
+	}
+}
+
+func TestRoleChangeRevokesTargetSessions(t *testing.T) {
+	actorID, targetID := uuid.New(), uuid.New()
+	laptop, phone := uuid.New(), uuid.New()
+	f := &accountFixture{
+		users: map[uuid.UUID]models.User{
+			actorID:  {ID: actorID, Role: models.RoleSuperAdmin},
+			targetID: {ID: targetID, Role: models.RoleUser},
+		},
+		sessions:    map[uuid.UUID][]uuid.UUID{targetID: {laptop, phone}},
+		revocations: &fakeRevocations{},
+	}
+	s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+		return fn(RoleStore{Users: f, Admin: f, Sessions: f})
+	}, Revocations: f.revocations}
+
+	changed, err := s.ChangeUserRole(context.Background(), actorID, targetID, models.RoleSuspended, "abuse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Role != models.RoleSuspended {
+		t.Fatalf("unexpected change: %+v", changed)
+	}
+	// Suspension kills the target's outstanding access tokens on every device.
+	assertRevokedSessions(t, f.revocations, laptop.String(), phone.String())
 }

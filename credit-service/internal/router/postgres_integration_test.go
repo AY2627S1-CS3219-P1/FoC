@@ -55,7 +55,7 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	}
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
 		return auth.Caller{ID: token}, nil
-	})
+	}, revocationStub{})
 
 	public := httptest.NewServer(router.Public(services, authenticate))
 	internal := httptest.NewServer(router.Internal(services))

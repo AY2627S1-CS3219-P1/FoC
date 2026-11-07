@@ -28,6 +28,12 @@ const (
 	requesterID = "22222222-2222-4222-8222-222222222222"
 )
 
+// revocationStub accepts every token; revocation behavior is covered by
+// pkg/auth/httpauth's own tests.
+type revocationStub struct{}
+
+func (revocationStub) IsRevoked(context.Context, string) (bool, error) { return false, nil }
+
 // Fakes of the handlers' interfaces
 
 type fakeReservations struct {
@@ -129,7 +135,7 @@ func start(t *testing.T) servers {
 			return auth.Caller{}, errors.New("invalid token")
 		}
 		return auth.Caller{ID: id}, nil
-	})
+	}, revocationStub{})
 
 	s.public = httptest.NewServer(router.Public(services, authenticate))
 	s.internal = httptest.NewServer(router.Internal(services))

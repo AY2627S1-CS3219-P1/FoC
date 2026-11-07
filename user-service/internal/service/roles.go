@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
@@ -22,9 +23,16 @@ type RoleChanges interface {
 	ChangeRole(context.Context, *models.RoleChange) error
 }
 
+// RoleSessions revokes the target's sessions inside the role-change
+// transaction; the returned IDs feed the revocation dictionary.
+type RoleSessions interface {
+	RevokeAllForUser(context.Context, uuid.UUID, time.Time) ([]uuid.UUID, error)
+}
+
 type RoleStore struct {
-	Users RoleUsers
-	Admin RoleChanges
+	Users    RoleUsers
+	Admin    RoleChanges
+	Sessions RoleSessions
 }
 
 type RoleTransaction func(context.Context, func(RoleStore) error) error
@@ -32,6 +40,7 @@ type RoleTransaction func(context.Context, func(RoleStore) error) error
 type RoleService struct {
 	Users           RoleUsers
 	WithTransaction RoleTransaction
+	Revocations     AccessTokenRevocations
 }
 
 func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, email string) (models.User, error) {
@@ -69,6 +78,7 @@ func (s *RoleService) ChangeUserRole(
 		return models.User{}, ErrInvalidRoleChange
 	}
 	var changed models.User
+	var revoked []uuid.UUID
 	err := s.WithTransaction(ctx, func(tx RoleStore) error {
 		actor, err := tx.Users.GetByIDForUpdate(ctx, actorID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -115,6 +125,13 @@ func (s *RoleService) ChangeUserRole(
 			}
 			return err
 		}
+		// The role lives in outstanding access tokens, so every session of the
+		// target dies with the change. Revocation shares the transaction so the
+		// role change and its sign-out commit atomically.
+		revoked, err = tx.Sessions.RevokeAllForUser(ctx, targetID, time.Now().UTC())
+		if err != nil {
+			return fmt.Errorf("revoke sessions: %w", err)
+		}
 		changed = *target
 		changed.Role = to
 		changed.UpdatedAt = change.CreatedAt
@@ -123,6 +140,7 @@ func (s *RoleService) ChangeUserRole(
 	if err != nil {
 		return models.User{}, fmt.Errorf("change user role: %w", err)
 	}
+	RecordRevokedSessions(ctx, s.Revocations, revoked)
 	return changed, nil
 }
 

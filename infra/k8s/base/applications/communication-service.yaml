@@ -30,6 +30,8 @@ spec:
             - secretRef:
                 name: communication-db
             - secretRef:
+                name: revocation-db
+            - secretRef:
                 name: telegram
           ports:
             - {name: http2-public, containerPort: 8080}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/revocation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
@@ -33,11 +35,20 @@ type AccessClaims struct {
 	TokenID   string
 }
 
+// RevocationChecker consults the shared revocation dictionary. An error means
+// the check itself failed; middleware must fail closed, never accept the token.
+type RevocationChecker interface {
+	IsRevoked(ctx context.Context, sessionID string) (bool, error)
+}
+
 type AuthConfig struct {
 	UserServiceURL string
 	Issuer         string
 	Audience       string
 	Client         *http.Client
+	// Revocations rejects access tokens of revoked sessions. Required: a
+	// missing checker would silently keep revoked tokens valid.
+	Revocations RevocationChecker
 }
 
 const (
@@ -58,6 +69,9 @@ type Authenticator struct {
 	cache     atomic.Pointer[keyCache]
 	refreshMu sync.Mutex
 	lastMiss  time.Time
+	// ownedRevocations is set only when this authenticator constructed its
+	// own revocation store; Close releases it.
+	ownedRevocations io.Closer
 }
 
 // NewAuthenticator fetches the initial key set before protected routes are served.
@@ -67,6 +81,9 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") ||
 		config.Issuer == "" || config.Audience == "" {
 		return nil, errors.New("invalid authenticator configuration")
+	}
+	if config.Revocations == nil {
+		return nil, errors.New("access-token revocation checker is required")
 	}
 	client := config.Client
 	if client == nil {
@@ -87,8 +104,19 @@ func NewAuthenticator(ctx context.Context, config AuthConfig) (*Authenticator, e
 	return a, nil
 }
 
-// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and fetches keys
-// through the user service's generated Connect client.
+// Close releases resources the authenticator owns. Composition roots with a
+// graceful-shutdown path defer it; it is a no-op when the revocation store is
+// owned externally.
+func (a *Authenticator) Close() error {
+	if a.ownedRevocations == nil {
+		return nil
+	}
+	return a.ownedRevocations.Close()
+}
+
+// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and TOKEN_REVOCATION_BASE_URL,
+// fetching signing keys through the user service's generated Connect client
+// and consulting the shared revocation dictionary on every request.
 func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 	baseURL := strings.TrimSpace(os.Getenv("USER_SERVICE_BASE_URL"))
 	if baseURL == "" {
@@ -102,8 +130,22 @@ func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 	if parsed.Path != "" && parsed.Path != "/" {
 		return nil, errors.New("user service URL must not include a path")
 	}
-	return NewAuthenticator(ctx, AuthConfig{UserServiceURL: baseURL,
-		Issuer: TokenIssuer, Audience: TokenAudience})
+	revocations, err := revocation.NewStore(ctx, revocation.Config{
+		Address: strings.TrimSpace(os.Getenv("TOKEN_REVOCATION_BASE_URL")),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("initialize access-token revocation store: %w", err)
+	}
+	authenticator, err := NewAuthenticator(ctx, AuthConfig{UserServiceURL: baseURL,
+		Issuer: TokenIssuer, Audience: TokenAudience, Revocations: revocations})
+	if err != nil {
+		// Startup retries construct a new store each attempt; never leak this
+		// one when the signing keys cannot be fetched.
+		_ = revocations.Close()
+		return nil, err
+	}
+	authenticator.ownedRevocations = revocations
+	return authenticator, nil
 }
 
 func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
@@ -122,6 +164,10 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			}
 			return
 		}
+		if err := a.ensureNotRevoked(r.Context(), claims.SessionID); err != nil {
+			api.WriteError(err, w, r.Context())
+			return
+		}
 		ctx := auth.WithCaller(r.Context(), callerFromClaims(claims))
 		ctx = auth.WithUserBearer(ctx, "Bearer "+parts[1])
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -135,9 +181,23 @@ func callerFromClaims(claims AccessClaims) auth.Caller {
 }
 
 var (
-	errInvalidAccessToken = errors.New("invalid access token")
-	errKeysUnavailable    = errors.New("authentication keys unavailable")
+	errInvalidAccessToken    = errors.New("invalid access token")
+	errKeysUnavailable       = errors.New("authentication keys unavailable")
+	errRevocationUnavailable = errors.New("access-token revocation check unavailable")
 )
+
+// ensureNotRevoked fails closed: while the revocation store is unreachable,
+// no request is authenticated rather than revoked tokens being accepted.
+func (a *Authenticator) ensureNotRevoked(ctx context.Context, sessionID string) error {
+	revoked, err := a.config.Revocations.IsRevoked(ctx, sessionID)
+	if err != nil {
+		return revocationUnavailableError{}
+	}
+	if revoked {
+		return revokedTokenError{}
+	}
+	return nil
+}
 
 func (a *Authenticator) verify(ctx context.Context, token string) (AccessClaims, error) {
 	if len(token) > 8192 {
@@ -275,4 +335,26 @@ func (e keysUnavailableError) ErrorTrace() string { return e.Error() }
 func (keysUnavailableError) Code() int            { return http.StatusServiceUnavailable }
 func (keysUnavailableError) GetConnectCode() connect.Code {
 	return connect.CodeUnavailable
+}
+
+// revocationUnavailableError maps to 503 so clients retry instead of treating
+// the failure as an authentication problem.
+type revocationUnavailableError struct{}
+
+func (revocationUnavailableError) Error() string        { return errRevocationUnavailable.Error() }
+func (e revocationUnavailableError) ErrorTrace() string { return e.Error() }
+func (revocationUnavailableError) Code() int            { return http.StatusServiceUnavailable }
+func (revocationUnavailableError) GetConnectCode() connect.Code {
+	return connect.CodeUnavailable
+}
+
+// revokedTokenError distinguishes a signature-valid token whose session was
+// revoked from an invalid token.
+type revokedTokenError struct{}
+
+func (revokedTokenError) Error() string        { return "access token has been revoked" }
+func (e revokedTokenError) ErrorTrace() string { return e.Error() }
+func (revokedTokenError) Code() int            { return http.StatusUnauthorized }
+func (revokedTokenError) GetConnectCode() connect.Code {
+	return connect.CodeUnauthenticated
 }

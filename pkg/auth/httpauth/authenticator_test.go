@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/golang-jwt/jwt/v5"
@@ -65,6 +66,34 @@ func connectKeyServer(t *testing.T, service userv1connect.PublicKeyServiceHandle
 	return server
 }
 
+// revocationCheckerStub simulates the shared revocation dictionary in tests.
+type revocationCheckerStub struct {
+	mu      sync.Mutex
+	revoked map[string]struct{}
+	err     error
+}
+
+func (s *revocationCheckerStub) IsRevoked(_ context.Context, sessionID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return false, s.err
+	}
+	_, hit := s.revoked[sessionID]
+	return hit, nil
+}
+
+func (s *revocationCheckerStub) revoke(sessionIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.revoked == nil {
+		s.revoked = map[string]struct{}{}
+	}
+	for _, sessionID := range sessionIDs {
+		s.revoked[sessionID] = struct{}{}
+	}
+}
+
 func protoKeys(set testJWKSet) []*userv1.JsonWebKey {
 	keys := make([]*userv1.JsonWebKey, 0, len(set.Keys))
 	for _, key := range set.Keys {
@@ -80,6 +109,7 @@ func newAuthenticator(t *testing.T, baseURL string) *Authenticator {
 	t.Helper()
 	a, err := NewAuthenticator(context.Background(), AuthConfig{
 		UserServiceURL: baseURL, Issuer: TokenIssuer, Audience: TokenAudience,
+		Revocations: &revocationCheckerStub{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +188,6 @@ func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 }
 
 func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -191,6 +220,7 @@ func TestNewAuthenticatorRejectsInvalidJWKS(t *testing.T) {
 			server := connectKeyServer(t, &publicKeyServiceStub{keys: tc.keys})
 			_, err := NewAuthenticator(context.Background(), AuthConfig{
 				UserServiceURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+				Revocations: &revocationCheckerStub{},
 			})
 			if err == nil {
 				t.Fatal("expected invalid key response to be rejected")
@@ -206,17 +236,13 @@ func TestNewAuthenticatorAllowsHTTPServiceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
-	for _, environment := range []string{"", "production"} {
-		t.Run(environment, func(t *testing.T) {
-			t.Setenv("APP_ENV", environment)
-			_, err := NewAuthenticator(context.Background(), AuthConfig{
-				UserServiceURL: server.URL,
-				Issuer:         TokenIssuer, Audience: TokenAudience,
-			})
-			if err != nil {
-				t.Fatalf("HTTP service URL should be accepted: %v", err)
-			}
-		})
+	_, err = NewAuthenticator(context.Background(), AuthConfig{
+		UserServiceURL: server.URL,
+		Issuer:         TokenIssuer, Audience: TokenAudience,
+		Revocations: &revocationCheckerStub{},
+	})
+	if err != nil {
+		t.Fatalf("HTTP service URL should be accepted: %v", err)
 	}
 }
 
@@ -240,7 +266,6 @@ func TestAuthenticatorRejectsNonOriginURLs(t *testing.T) {
 }
 
 func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	key := testSigningKey(t)
 	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
 	if err != nil {
@@ -255,6 +280,7 @@ func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
 
 	_, err = NewAuthenticator(context.Background(), AuthConfig{
 		UserServiceURL: redirect.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+		Revocations: &revocationCheckerStub{},
 	})
 	if err == nil {
 		t.Fatal("expected redirecting user service endpoint to be rejected")
@@ -267,7 +293,6 @@ func TestNewAuthenticatorDoesNotFollowRedirects(t *testing.T) {
 }
 
 func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	firstKey := testSigningKey(t)
 	secondKey := testSigningKey(t)
 	firstCodec, err := newTestCodec(firstKey, "key-1", TokenIssuer, TokenAudience)
@@ -332,7 +357,6 @@ func TestAuthenticatorKeyRotationAndUnavailableRefresh(t *testing.T) {
 }
 
 func TestKnownKeyDoesNotWaitForUnknownKeyRefresh(t *testing.T) {
-	t.Setenv("APP_ENV", "local")
 	knownKey := testSigningKey(t)
 	unknownKey := testSigningKey(t)
 	knownCodec, err := newTestCodec(knownKey, "known", TokenIssuer, TokenAudience)
@@ -393,6 +417,88 @@ func testSigningKey(t *testing.T) *ecdsa.PrivateKey {
 		t.Fatal(err)
 	}
 	return key
+}
+
+func TestNewAuthenticatorRequiresRevocationChecker(t *testing.T) {
+	key := testSigningKey(t)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
+	_, err = NewAuthenticator(context.Background(), AuthConfig{
+		UserServiceURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience,
+	})
+	if err == nil || !strings.Contains(err.Error(), "revocation checker is required") {
+		t.Fatalf("got %v, want missing revocation checker rejection", err)
+	}
+}
+
+func TestAuthenticateRejectsRevokedSession(t *testing.T) {
+	key := testSigningKey(t)
+	codec, err := newTestCodec(key, "key-1", TokenIssuer, TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := connectKeyServer(t, &publicKeyServiceStub{keys: protoKeys(codec.PublicKeys())})
+	checker := &revocationCheckerStub{revoked: map[string]struct{}{"revoked-session": {}}}
+	a, err := NewAuthenticator(context.Background(), AuthConfig{
+		UserServiceURL: server.URL, Issuer: TokenIssuer, Audience: TokenAudience, Revocations: checker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	token := func(sessionID, tokenID string) string {
+		t.Helper()
+		signed, err := codec.Sign(testClaims{Type: "access", Subject: "user-1", SessionID: sessionID,
+			Role: "user", IssuedAt: now, ExpiresAt: now.Add(time.Minute), TokenID: tokenID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return signed
+	}
+
+	for _, tc := range []struct {
+		name    string
+		session string
+		want    int
+	}{
+		{name: "live session accepted", session: "session-1", want: http.StatusNoContent},
+		{name: "revoked session rejected", session: "revoked-session", want: http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			protected := a.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				caller, ok := auth.CallerFromContext(r.Context())
+				if !ok || caller.SessionID != tc.session {
+					t.Fatal("verified caller missing")
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			request.Header.Set("Authorization", "Bearer "+token(tc.session, "token-1"))
+			response := httptest.NewRecorder()
+			protected.ServeHTTP(response, request)
+			if response.Code != tc.want || called != (tc.want == http.StatusNoContent) {
+				t.Fatalf("status=%d, handler called=%v", response.Code, called)
+			}
+		})
+	}
+
+	// Fail closed: an unreachable revocation store rejects with 503, never
+	// accepts the token.
+	checker.err = errors.New("redis unavailable")
+	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	request.Header.Set("Authorization", "Bearer "+token("session-1", "token-2"))
+	response := httptest.NewRecorder()
+	a.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Fatal("request authenticated while revocation store was down")
+	})).ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got HTTP %d, want 503", response.Code)
+	}
 }
 
 func validTestClaims(now time.Time) jwt.MapClaims {

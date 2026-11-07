@@ -42,6 +42,9 @@ services:
       retries: 5
     restart: unless-stopped
 
+# Shared revocation table for access tokens. All services must agree on the
+# revoked_access_tokens table. PostgreSQL runs directly; no Redis container.
+
   kafka:
     image: apache/kafka:4.2.2
     container_name: foc-kafka
@@ -162,6 +165,7 @@ services:
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
       KAFKA_BROKERS: kafka:9092
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
       BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-}
       BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: ${BOOTSTRAP_SUPERADMIN_DISPLAY_NAME:-}
       SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
@@ -194,6 +198,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
@@ -224,6 +229,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
       CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL-http://credit-service:8081}
@@ -260,6 +266,7 @@ services:
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -297,6 +304,7 @@ services:
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${CREDIT_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CREDIT_DB:-credit_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
     volumes:

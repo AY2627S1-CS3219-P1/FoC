@@ -30,6 +30,8 @@ spec:
             - secretRef:
                 name: user-db
             - secretRef:
+                name: revocation-db
+            - secretRef:
                 name: smtp
           ports:
             - {name: http2-public, containerPort: 8080}

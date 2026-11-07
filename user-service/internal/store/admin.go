@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,6 +54,9 @@ type BootstrapOutcome int
 const (
 	BootstrapCreated BootstrapOutcome = iota + 1
 	BootstrapPromoted
+	// BootstrapUnchanged reports that the matching user was already a
+	// super_admin, so nothing but the bootstrap row was written.
+	BootstrapUnchanged
 	BootstrapAlreadyDone
 )
 
@@ -62,6 +66,8 @@ func (o BootstrapOutcome) String() string {
 		return "created"
 	case BootstrapPromoted:
 		return "promoted"
+	case BootstrapUnchanged:
+		return "unchanged"
 	case BootstrapAlreadyDone:
 		return "already_done"
 	default:
@@ -73,12 +79,21 @@ const bootstrapReason = "admin bootstrap"
 
 // Bootstrap makes u the first super_admin and claims the admin_bootstrap row
 // in one transaction. It creates u, or promotes the live user with u.Email
-// (recording a role change) and loads them into u. Once the row exists it
-// returns BootstrapAlreadyDone without touching any user, so a demoted
-// bootstrap admin is never restored. The table lock serialises concurrent
-// callers across instances.
-func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome, error) {
-	var outcome BootstrapOutcome
+// (recording a role change and revoking their sessions in the same
+// transaction, so a crash cannot leave a promoted user signed in, and
+// returning the revoked session IDs) and loads them into u. Once the row
+// exists it returns BootstrapAlreadyDone without touching any user, so a
+// demoted bootstrap admin is never restored. The table lock serialises
+// concurrent callers across instances.
+func (s *Admin) Bootstrap(
+	ctx context.Context,
+	u *models.User,
+	now time.Time,
+) (BootstrapOutcome, []uuid.UUID, error) {
+	var (
+		outcome BootstrapOutcome
+		revoked []uuid.UUID
+	)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("LOCK TABLE admin_bootstrap IN EXCLUSIVE MODE").Error; err != nil {
 			return err
@@ -111,16 +126,24 @@ func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome
 					return err
 				}
 				existing.Role = models.RoleSuperAdmin
+				// The promotion changed the role stored in the user's
+				// outstanding access tokens, so their sessions die with it.
+				revoked, err = NewSessions(tx).RevokeAllForUser(ctx, existing.ID, now)
+				if err != nil {
+					return fmt.Errorf("revoke sessions: %w", err)
+				}
+				outcome = BootstrapPromoted
+			} else {
+				outcome = BootstrapUnchanged
 			}
 			*u = existing
-			outcome = BootstrapPromoted
 		}
 		return tx.Create(&models.AdminBootstrap{Singleton: true, UserID: u.ID}).Error
 	})
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return outcome, nil
+	return outcome, revoked, nil
 }
 
 func (s *Admin) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.RoleChange, error) {

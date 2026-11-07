@@ -23,7 +23,9 @@ Protected Location RPCs accept User Service access tokens. Set
 `USER_SERVICE_BASE_URL` to the User Service URL so Supplier Service can fetch
 its public signing keys at startup. Authentication and user profiles live in
 User Service; the old Supplier Service REST auth and user creation endpoints
-have been removed.
+have been removed. Set `TOKEN_REVOCATION_BASE_URL` to the shared revocation
+store so the authenticator rejects revoked access tokens immediately; see
+`docs/adr/redis-access-token-revocation.md`.
 
 ## Seed data
 

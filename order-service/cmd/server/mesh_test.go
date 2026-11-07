@@ -30,6 +30,12 @@ func (s *orderProbe) GetOrder(
 	return connect.NewResponse(&orderv1.GetOrderResponse{}), nil
 }
 
+// noRevocations accepts every session so the mesh test exercises transport
+// behavior, not revocation lookups.
+type noRevocations struct{}
+
+func (noRevocations) IsRevoked(context.Context, string) (bool, error) { return false, nil }
+
 func TestHTTPSBrowserSameOriginRetainsJWT(t *testing.T) {
 	services := testRPCServices()
 	services.Order = &orderProbe{t: t}
@@ -38,7 +44,7 @@ func TestHTTPSBrowserSameOriginRetainsJWT(t *testing.T) {
 			return auth.Caller{}, errors.New("invalid token")
 		}
 		return auth.Caller{ID: "user-1", Role: "user"}, nil
-	})
+	}, noRevocations{})
 	handler := getCorsConfig().Handler(router.Setup(services, authenticate))
 	server := httptest.NewTLSServer(handler)
 	defer server.Close()

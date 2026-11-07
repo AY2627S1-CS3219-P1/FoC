@@ -24,6 +24,7 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/revocation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
@@ -50,20 +51,21 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port                 string
+	internalPort         string
+	databaseURL          string
+	dbMaxOpen            int
+	dbMaxIdle            int
+	runMigrations        bool
+	appEnv               string
+	frontendURL          string
+	privateKey           string
+	kafkaBrokers         string
+	revocationServiceURL string
+	accessTokenTTL       time.Duration
+	refreshTokenTTL      time.Duration
+	smtp                 email.SMTPSender
+	bootstrap            bootstrap.Config
 }
 
 func main() {
@@ -81,6 +83,44 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// The revocation dictionary TTL must match the effective access-token
+	// lifetime; EffectiveAccessTokenLifetime applies the same default NewService
+	// applies when the TTL is unset.
+	accessTTL := service.EffectiveAccessTokenLifetime(cfg.accessTokenTTL)
+	revocations, err := revocation.NewStore(ctx, revocation.Config{
+		Address: cfg.revocationServiceURL, TTL: accessTTL,
+	})
+	if err != nil {
+		fatal("initialize access-token revocation store", err)
+	}
+	defer func() { _ = revocations.Close() }()
+
+	// Periodically delete expired revocation entries so the table and its
+	// index stay bounded; reads already ignore expired entries, this only
+	// reclaims space. One clean-up per TTL keeps the sweep proportional to
+	// the write rate.
+	cleanupCtx, stopCleanup := context.WithCancel(ctx)
+	defer stopCleanup()
+	go func() {
+		ticker := time.NewTicker(accessTTL)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cleanupCtx.Done():
+				return
+			case <-ticker.C:
+				deleted, err := revocations.DeleteExpired(cleanupCtx)
+				if err != nil {
+					log.Warn("delete expired revocation entries", "err", err)
+					continue
+				}
+				if deleted > 0 {
+					log.Info("deleted expired revocation entries", "count", deleted)
+				}
+			}
+		}
+	}()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -100,13 +140,18 @@ func main() {
 	}
 
 	if cfg.bootstrap.Email != "" {
-		admin, outcome, err := (&bootstrap.Bootstrapper{Store: store.NewAdmin(db)}).Run(ctx, cfg.bootstrap)
+		admin, outcome, err := (&bootstrap.Bootstrapper{
+			Store: store.NewAdmin(db), Revocations: revocations,
+		}).Run(ctx, cfg.bootstrap)
 		if err != nil {
 			fatal("admin bootstrap", err)
 		}
-		if outcome == store.BootstrapAlreadyDone {
+		switch outcome {
+		case store.BootstrapAlreadyDone:
 			log.Info("admin already bootstrapped; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
-		} else {
+		case store.BootstrapUnchanged:
+			log.Info("admin is already a super admin; BOOTSTRAP_SUPERADMIN_EMAIL ignored")
+		default:
 			log.Info("admin bootstrapped", "outcome", outcome.String(), "user_id", admin.ID)
 		}
 	}
@@ -124,7 +169,7 @@ func main() {
 		}
 	}()
 
-	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic, revocations)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
@@ -140,9 +185,10 @@ func main() {
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
+				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Sessions: tx.Sessions})
 			})
 		},
+		Revocations: revocations,
 	}
 	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
@@ -150,7 +196,7 @@ func main() {
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
 		Review:         &review.Handler{Logic: reviewLogic},
-		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess, revocations),
 		Users:          persistence.Users,
 	}
 	cors := getCorsConfig(auth.AllowedOrigin)
@@ -244,18 +290,19 @@ func loadConfig() (config, error) {
 
 	var errs []error
 	cfg := config{
-		port:            envString("PORT", "8080"),
-		internalPort:    envString("INTERNAL_PORT", ""),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		port:                 envString("PORT", "8080"),
+		internalPort:         envString("INTERNAL_PORT", ""),
+		databaseURL:          envString("DATABASE_URL", ""),
+		dbMaxOpen:            envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:            envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations:        envBool("RUN_MIGRATIONS", true, &errs),
+		appEnv:               envString("APP_ENV", ""),
+		frontendURL:          envString("FRONTEND_BASE_URL", ""),
+		privateKey:           envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:         envString("KAFKA_BROKERS", ""),
+		revocationServiceURL: envString("TOKEN_REVOCATION_BASE_URL", ""),
+		accessTokenTTL:       envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
+		refreshTokenTTL:      envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -299,6 +346,9 @@ func loadConfig() (config, error) {
 				break
 			}
 		}
+	}
+	if cfg.revocationServiceURL == "" {
+		errs = append(errs, errors.New("TOKEN_REVOCATION_BASE_URL is not set"))
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
@@ -396,6 +446,7 @@ func newAuthServices(
 	db *gorm.DB,
 	cfg config,
 	domainPolicy service.EmailDomainPolicy,
+	revocations service.AccessTokenRevocations,
 ) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
@@ -418,7 +469,7 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec, EmailSender: cfg.smtp, Revocations: revocations,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

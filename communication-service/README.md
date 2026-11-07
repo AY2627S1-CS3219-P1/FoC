@@ -60,6 +60,7 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 | `INTERNAL_PORT` | required | Internal listener port (`8081`). Every service runs the listener split; until private routes are split, it serves the public handler. |
 | `DATABASE_URL` | required | Postgres URL. Compose sets it from `COMMUNICATION_DATABASE_URL`. |
 | `USER_SERVICE_BASE_URL` | required | User Service URL, for verifying access tokens. |
+| `TOKEN_REVOCATION_BASE_URL` | required | Address of the shared access-token revocation store (a `postgresql://` DSN) checked on every authenticated call. |
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |
 | `TELEGRAM_BOT_TOKEN` | empty | Bot token from BotFather. Empty disables Telegram. |
 | `TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL, for pointing tests at a fake server. |

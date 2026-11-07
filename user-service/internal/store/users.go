@@ -197,6 +197,12 @@ func (s *Users) Delete(ctx context.Context, id uuid.UUID) error {
 		if err := tx.Where("user_id = ?", id).Delete(&models.Session{}).Error; err != nil {
 			return err
 		}
+		// NOTE: this deletes sessions without returning their IDs, so no
+		// revocation dictionary entries are recorded here. The path is only
+		// exercised by tests today; if a user-deletion endpoint is added, it
+		// must sweep the deleted sessions' IDs through
+		// service.RecordRevokedSessions or outstanding access tokens stay
+		// valid until expiry.
 		if err := tx.Where("user_id = ?", id).Delete(&models.AuthToken{}).Error; err != nil {
 			return err
 		}

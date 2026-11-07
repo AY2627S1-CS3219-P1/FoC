@@ -11,8 +11,9 @@ func env(values map[string]string) func(string) string {
 
 func validEnv() map[string]string {
 	return map[string]string{
-		"DATABASE_URL":          "postgres://credit:credit@localhost:5432/credit_dev",
-		"USER_SERVICE_BASE_URL": "https://user.example",
+		"DATABASE_URL":              "postgres://credit:credit@localhost:5432/credit_dev",
+		"USER_SERVICE_BASE_URL":     "https://user.example",
+		"TOKEN_REVOCATION_BASE_URL": "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable",
 	}
 }
 
@@ -38,13 +39,14 @@ func TestLoadConfigReadsKafkaBrokers(t *testing.T) {
 
 func TestLoadConfigRejectsInvalidSettings(t *testing.T) {
 	tests := map[string]map[string]string{
-		"shared port":       {"PORT": "9000", "INTERNAL_PORT": "9000"},
-		"default port":      {"INTERNAL_PORT": "8080"},
-		"bad internal port": {"INTERNAL_PORT": "70000"},
-		"missing database":  {"DATABASE_URL": ""},
-		"bad user scheme":   {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},
-		"user service path": {"USER_SERVICE_BASE_URL": "https://user.example/api"},
-		"migrations flag":   {"RUN_MIGRATIONS": "sometimes"},
+		"shared port":              {"PORT": "9000", "INTERNAL_PORT": "9000"},
+		"default port":             {"INTERNAL_PORT": "8080"},
+		"bad internal port":        {"INTERNAL_PORT": "70000"},
+		"missing database":         {"DATABASE_URL": ""},
+		"missing revocation store": {"TOKEN_REVOCATION_BASE_URL": ""},
+		"bad user scheme":          {"USER_SERVICE_BASE_URL": "ftp://user-service:8080"},
+		"user service path":        {"USER_SERVICE_BASE_URL": "https://user.example/api"},
+		"migrations flag":          {"RUN_MIGRATIONS": "sometimes"},
 	}
 	for name, overrides := range tests {
 		t.Run(name, func(t *testing.T) {

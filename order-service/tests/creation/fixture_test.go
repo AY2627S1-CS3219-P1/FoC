@@ -290,10 +290,10 @@ func (r *remotes) adapters(t *testing.T) (*clients.Supplier, *clients.Credit) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &clients.Supplier{
-		Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
-	}, &clients.Credit{
-		Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
-	}
+			Client: locationv1connect.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
+		}, &clients.Credit{
+			Client: creditv1connect.NewCreditReservationServiceClient(server.Client(), server.URL),
+		}
 }
 
 func mount(t *testing.T, f *fixture, creator *app.Creator) orderv1connect.OrderServiceClient {
