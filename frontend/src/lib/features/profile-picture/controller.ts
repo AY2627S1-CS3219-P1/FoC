@@ -76,7 +76,7 @@ function errorMessage(cause: unknown): string {
  * Uploads one profile picture and immediately applies it. There is no separate
  * verify or confirm step: the update call validates the stored object and
  * updates the profile in one round trip. A lost update response is retried once
- * because the backend treats the same upload ID idempotently.
+ * because the backend treats the same picture ID idempotently.
  */
 export class ProfilePictureController {
 	#outcome: ProfilePictureOutcome = 'Idle';
