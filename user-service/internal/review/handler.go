@@ -99,12 +99,14 @@ func (h *Handler) CreateReviewPhotoUpload(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
+	resp := connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
 		PhotoId:       upload.ID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
-	}), nil
+	})
+	noStore(resp)
+	return resp, nil
 }
 
 // ListReviewsForUser lists the reviews a user received; a suspended caller may
@@ -159,7 +161,8 @@ func (h *Handler) ListMyReviews(
 }
 
 // noStore marks responses that may embed short-lived pre-signed photo URLs as
-// non-cacheable, so temporary download credentials never sit in a cache.
+// non-cacheable, so temporary upload and download credentials never sit in a
+// cache.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
 }

@@ -65,9 +65,10 @@ type PhotoUpload struct {
 	ObjectKey string
 }
 
-// CreateReviewPhotoUpload validates the request, persists a staging row owned
-// by the caller and returns the pre-signed PUT grant. The grant's exact
-// content type and size come from the stored row, so the storage-enforced
+// CreateReviewPhotoUpload validates the request, signs a pre-signed PUT grant
+// and persists a staging row owned by the caller. Signing happens first so a
+// failed sign leaves nothing for the reaper to clean up; the stored row
+// records the grant's exact content type and size, so the storage-enforced
 // shape matches what attachment later verifies against.
 func (s *Service) CreateReviewPhotoUpload(
 	ctx context.Context,
@@ -95,27 +96,29 @@ func (s *Service) CreateReviewPhotoUpload(
 	if err != nil {
 		return PhotoUpload{}, images.UploadGrant{}, err
 	}
-	photo := ReviewPhotoInput{
-		ID:          id,
-		OwnerID:     ownerID,
-		ObjectKey:   photoKeyPrefix + id.String(),
-		ContentType: contentType,
-		SizeBytes:   sizeBytes,
-	}
-	now := time.Now().UTC()
-	photo.UploadExpiresAt = now.Add(photoUploadLifetime)
-	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, err
-	}
+	// Sign before persisting the staging row: a failed sign then leaves no
+	// orphan row behind for the reaper to clean up.
+	key := photoKeyPrefix + id.String()
 	grant, err := s.photos.CreateUpload(ctx, images.UploadRequest{
-		Key:         photo.ObjectKey,
+		Key:         key,
 		ContentType: contentType,
 		SizeBytes:   sizeBytes,
 	})
 	if err != nil {
 		return PhotoUpload{}, images.UploadGrant{}, fmt.Errorf("sign photo upload grant: %w", err)
 	}
-	return PhotoUpload{ID: id, ObjectKey: photo.ObjectKey}, grant, nil
+	photo := ReviewPhotoInput{
+		ID:          id,
+		OwnerID:     ownerID,
+		ObjectKey:   key,
+		ContentType: contentType,
+		SizeBytes:   sizeBytes,
+	}
+	photo.UploadExpiresAt = time.Now().UTC().Add(photoUploadLifetime)
+	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
+		return PhotoUpload{}, images.UploadGrant{}, err
+	}
+	return PhotoUpload{ID: id, ObjectKey: key}, grant, nil
 }
 
 // preparePhotos resolves the caller's staged photo IDs before the submission

@@ -47,6 +47,7 @@ type fakeRepository struct {
 
 	// Review photo surface, exercised by the photos tests.
 	insertedPhoto      ReviewPhotoInput
+	insertPhotoCalls   int
 	insertPhotoErr     error
 	photosByKey        map[uuid.UUID]ReviewPhoto
 	photosForReviews   []ReviewPhotoAttached

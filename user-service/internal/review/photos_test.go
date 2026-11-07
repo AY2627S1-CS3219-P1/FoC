@@ -80,6 +80,7 @@ func (f *fakeRepository) InsertReviewPhoto(_ context.Context, input ReviewPhotoI
 	if f.insertPhotoErr != nil {
 		return f.insertPhotoErr
 	}
+	f.insertPhotoCalls++
 	f.insertedPhoto = input
 	if f.photosByKey == nil {
 		f.photosByKey = map[uuid.UUID]ReviewPhoto{}
@@ -205,6 +206,21 @@ func TestCreateReviewPhotoUploadWithoutStorage(t *testing.T) {
 
 	_, _, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 100)
 	assertExternal(t, err, http.StatusPreconditionFailed)
+}
+
+func TestCreateReviewPhotoUploadSigningFailureLeavesNoOrphanRow(t *testing.T) {
+	fake := &fakeRepository{exists: map[uuid.UUID]bool{}}
+	storage := &fakeStorage{createUploadErr: errors.New("storage unavailable")}
+	service := newTestServiceWithPhotos(fake, storage)
+
+	if _, _, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 100); err == nil {
+		t.Fatal("signing failure must surface an error")
+	}
+	// The grant is signed before the staging row is persisted, so a failed
+	// sign must not leave a row for the orphan reaper to collect.
+	if fake.insertPhotoCalls != 0 {
+		t.Fatalf("staging row inserted despite signing failure: %d insert calls", fake.insertPhotoCalls)
+	}
 }
 
 func TestPreparePhotosRejectsForeignAndStale(t *testing.T) {
