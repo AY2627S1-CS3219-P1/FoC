@@ -36,8 +36,10 @@ type Profile struct {
 	// has no profile picture. Responses carrying this URL must not be cached.
 	ProfilePictureUrl       string                 `protobuf:"bytes,8,opt,name=profile_picture_url,json=profilePictureUrl,proto3" json:"profile_picture_url,omitempty"`
 	ProfilePictureExpiresAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=profile_picture_expires_at,json=profilePictureExpiresAt,proto3" json:"profile_picture_expires_at,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Stable application reference for the current picture. Empty when none.
+	ProfilePictureId string `protobuf:"bytes,10,opt,name=profile_picture_id,json=profilePictureId,proto3" json:"profile_picture_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Profile) Reset() {
@@ -124,6 +126,13 @@ func (x *Profile) GetProfilePictureExpiresAt() *timestamppb.Timestamp {
 		return x.ProfilePictureExpiresAt
 	}
 	return nil
+}
+
+func (x *Profile) GetProfilePictureId() string {
+	if x != nil {
+		return x.ProfilePictureId
+	}
+	return ""
 }
 
 type GetMyProfileRequest struct {
@@ -369,9 +378,11 @@ func (x *CreateProfilePictureUploadRequest) GetSizeBytes() int64 {
 }
 
 type CreateProfilePictureUploadResponse struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	UploadId  string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	UploadUrl string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Stable row ID that is also returned in Profile.profile_picture_id once
+	// the picture is active. The browser never sees the storage key.
+	PictureId string `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
+	UploadUrl string `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	// Headers the browser must send with the PUT.
 	UploadHeaders map[string]string      `protobuf:"bytes,3,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -409,9 +420,9 @@ func (*CreateProfilePictureUploadResponse) Descriptor() ([]byte, []int) {
 	return file_user_v1_profile_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *CreateProfilePictureUploadResponse) GetUploadId() string {
+func (x *CreateProfilePictureUploadResponse) GetPictureId() string {
 	if x != nil {
-		return x.UploadId
+		return x.PictureId
 	}
 	return ""
 }
@@ -437,11 +448,11 @@ func (x *CreateProfilePictureUploadResponse) GetExpiresAt() *timestamppb.Timesta
 	return nil
 }
 
-// Applies a previously uploaded picture. The upload ID must belong to the
+// Applies a previously uploaded picture. The picture ID must belong to the
 // authenticated caller. Repeating the same call is idempotent.
 type UpdateMyProfilePictureRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	PictureId     string                 `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -476,9 +487,9 @@ func (*UpdateMyProfilePictureRequest) Descriptor() ([]byte, []int) {
 	return file_user_v1_profile_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *UpdateMyProfilePictureRequest) GetUploadId() string {
+func (x *UpdateMyProfilePictureRequest) GetPictureId() string {
 	if x != nil {
-		return x.UploadId
+		return x.PictureId
 	}
 	return ""
 }
@@ -611,7 +622,7 @@ var File_user_v1_profile_proto protoreflect.FileDescriptor
 
 const file_user_v1_profile_proto_rawDesc = "" +
 	"\n" +
-	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x12user/v1/auth.proto\"\xf4\x02\n" +
+	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x12user/v1/auth.proto\"\xa2\x03\n" +
 	"\aProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
@@ -620,7 +631,9 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01\x12%\n" +
 	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04role\x12.\n" +
 	"\x13profile_picture_url\x18\b \x01(\tR\x11profilePictureUrl\x12W\n" +
-	"\x1aprofile_picture_expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x17profilePictureExpiresAtB\x0f\n" +
+	"\x1aprofile_picture_expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x17profilePictureExpiresAt\x12,\n" +
+	"\x12profile_picture_id\x18\n" +
+	" \x01(\tR\x10profilePictureIdB\x0f\n" +
 	"\r_phone_numberJ\x04\b\x05\x10\x06R\x0ftelegram_handle\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
@@ -638,9 +651,10 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"image/heicR\n" +
 	"image/heifR\vcontentType\x12+\n" +
 	"\n" +
-	"size_bytes\x18\x02 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\"\xc4\x02\n" +
-	"\"CreateProfilePictureUploadResponse\x12\x1b\n" +
-	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1d\n" +
+	"size_bytes\x18\x02 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\"\xc6\x02\n" +
+	"\"CreateProfilePictureUploadResponse\x12\x1d\n" +
+	"\n" +
+	"picture_id\x18\x01 \x01(\tR\tpictureId\x12\x1d\n" +
 	"\n" +
 	"upload_url\x18\x02 \x01(\tR\tuploadUrl\x12e\n" +
 	"\x0eupload_headers\x18\x03 \x03(\v2>.user.v1.CreateProfilePictureUploadResponse.UploadHeadersEntryR\ruploadHeaders\x129\n" +
@@ -648,9 +662,10 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x1a@\n" +
 	"\x12UploadHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"F\n" +
-	"\x1dUpdateMyProfilePictureRequest\x12%\n" +
-	"\tupload_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\"L\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"H\n" +
+	"\x1dUpdateMyProfilePictureRequest\x12'\n" +
+	"\n" +
+	"picture_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tpictureId\"L\n" +
 	"\x1eUpdateMyProfilePictureResponse\x12*\n" +
 	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\x1f\n" +
 	"\x1dRemoveMyProfilePictureRequest\"L\n" +
