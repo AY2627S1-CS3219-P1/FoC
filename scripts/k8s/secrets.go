@@ -69,7 +69,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	defer removeTemporary(lock)
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -79,7 +79,7 @@ func (o *operator) generateLocalSecrets() error {
 		}
 	}
 	for _, entry := range []struct{ name, value string }{
-		{"postgres-user", "foc"}, {"kafka-ui-user", "operator"}, {"SMTP_ADDR", "mailpit:1025"}, {"SMTP_FROM", "FoC <no-reply@foc.local>"},
+		{"grafana-user", "operator"}, {"postgres-user", "foc"}, {"kafka-ui-user", "operator"}, {"SMTP_ADDR", "mailpit:1025"}, {"SMTP_FROM", "FoC <no-reply@foc.local>"},
 	} {
 		if err := persistValue(directory, entry.name, entry.value, false); err != nil {
 			return err
@@ -280,6 +280,14 @@ func (o *operator) generateLocalSecrets() error {
 		"--type=kubernetes.io/tls",
 		fromFile("tls.crt", "tls.crt"),
 		fromFile("tls.key", "tls.key"),
+	); err != nil {
+		return err
+	}
+	if err := o.applySecret(
+		"foc-observability",
+		"grafana-admin",
+		fromFile("username", "grafana-user"),
+		fromFile("password", "grafana-password"),
 	); err != nil {
 		return err
 	}

@@ -4,5 +4,6 @@ resources:
   - gateway
   - dependencies
   - provisioning
+  - observability
   - initialization
   - applications

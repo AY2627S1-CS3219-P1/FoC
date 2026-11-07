@@ -1,0 +1,37 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alloy-logs
+  namespace: foc
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alloy-logs
+  namespace: foc
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: alloy-logs}
+subjects:
+  - {kind: ServiceAccount, name: alloy, namespace: foc-observability}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alloy-logs
+  namespace: istio-ingress
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alloy-logs
+  namespace: istio-ingress
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: alloy-logs}
+subjects:
+  - {kind: ServiceAccount, name: alloy, namespace: foc-observability}

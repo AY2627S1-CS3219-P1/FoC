@@ -1,9 +1,9 @@
 # Kubernetes bootstrap verification
 
-The results below are a historical record for the stated October revision.
-The November Go CLI port replaces its Bun-based tooling; these results do not
-claim verification of that port. Its current checks run through `make k8s-test`
-and the Kubernetes workflow.
+The October sections below are a historical record for that revision's
+Bun-based tooling and do not claim verification of the November Go port. The
+November logging acceptance section records separate live checks of the current
+Go workflow.
 
 Verified on 2026-10-21 (Asia/Singapore), on Linux amd64 with Docker 29.7.2,
 Bun 1.4.3, kind 0.33.0, Kubernetes 1.35.0 and Istio 1.31.2.
@@ -180,3 +180,59 @@ or run a live `k8s-smoke` check.
 - Communication's shutdown cleanup test passed ten consecutive focused runs
   and its Go module suite passed after the test server gained an explicit
   release signal for its long-poll handler.
+
+
+## November logging acceptance
+
+Verified on 2026-11-07 (Asia/Singapore), on Linux amd64 with Docker 29.9.3,
+kind 0.33.0, Kubernetes 1.35.0 and Istio 1.31.2. These checks exercised the
+working-tree logging implementation with Helm chart `grafana-community/loki`
+21.0.0, Loki 3.7.9, Grafana 13.3.0 and Alloy 1.21.3.
+
+- Created a fresh isolated `foc-logging-check` cluster with one control-plane
+  and two worker nodes using `infra/k8s/observability/kind.yaml`. Built all eight
+  application/initialization images and completed the Go operator's `up`
+  command, with all operator forwards disabled. The existing Compose stack
+  continued running on its original ports.
+- Both local and production configurations passed Helm lint/template,
+  Kustomize rendering and the exact pinned Loki/Alloy image validators.
+  Production validation used fixture bucket/region/role/StorageClass values;
+  it did not contact AWS or deploy production resources.
+- Live workloads passed mandatory native-sidecar admission. Server-side
+  dry-run tests accepted the explicit Loki UID 10001 security context and
+  rejected injection opt-out, a UID inherited only from the pod, and an extra
+  application initializer. No dry-run Pod was started.
+- The logging smoke test spread two real User Service replicas over distinct
+  worker nodes, checked Helm ownership of Loki, and queried their application
+  logs, dependency/frontend logs, and native application/ingress Envoy logs
+  through authenticated Grafana. Stream metadata included namespace, service, pod, container and node.
+  Grafana's anonymous data-source API returned HTTP 401.
+- Unauthorized application and gateway mesh identities could not reach Loki.
+  A correctly signed request from the gateway identity received HTTP 403 for
+  the private `foc-loki` bucket. The existing mesh smoke test also passed its
+  public Loki/log-bucket 404 checks, internal RPC restrictions, plaintext
+  rejection, query-free Envoy logging, and browser authentication flow.
+- Flushing Loki produced objects visible through a signed Floci S3 listing.
+  Historical queries still succeeded after Loki, Floci and Alloy restarts.
+  Both replacement application pods produced fresh queryable logs after an
+  additional application restart; old pod names could not satisfy this check.
+  A focused regression verifies that temporary topology spread, replica count
+  and rollout settings are restored exactly and the deployment is Ready before
+  the check reports success.
+- Regenerating local credentials preserved both Grafana credential files and
+  the Kubernetes Secret data. Loki's 5 GiB claim retained its identity across
+  scale-down to zero and Helm uninstall; the operator then reinstalled Loki
+  with that claim. Grafana and Alloy claims were bound at 1 GiB each.
+- After the Floci restart, the existing `storage-smoke` check passed signed
+  image upload/download, unsigned/tampered-request rejection, object metadata
+  inspection, gateway bucket-root restrictions and cleanup.
+
+Command output is kept in the ignored `.tools/logging-acceptance/` directory.
+The disposable `foc-logging-check` cluster was removed after final logging,
+mesh and image-storage checks passed. Private test credentials are retained
+under `/tmp/foc-logging-acceptance-state`; the user's normal `.local/k8s` and
+Compose credentials were not changed. The original nine Compose containers
+remained running after cleanup.
+AWS integration and arm64 runtime behavior were not tested on this host. CI
+includes both architecture runners. Seven-day retention was configuration-
+validated, without claiming a seven-day elapsed test or loss-free collection.
