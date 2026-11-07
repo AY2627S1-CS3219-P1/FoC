@@ -18,8 +18,10 @@ CREATE TABLE profile_picture_uploads (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Unfiltered: cleanup re-claims rows marked deleting so a failed object
+-- deletion is retried on the next pass.
 CREATE INDEX profile_picture_uploads_cleanup
-    ON profile_picture_uploads (created_at) WHERE NOT deleting;
+    ON profile_picture_uploads (created_at);
 
 -- +goose Down
 DROP TABLE profile_picture_uploads;

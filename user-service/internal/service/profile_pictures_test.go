@@ -304,17 +304,41 @@ func TestUpdateMyProfilePictureRejectsInvalidUploads(t *testing.T) {
 }
 
 func TestUpdateMyProfilePictureIsIdempotent(t *testing.T) {
-	user := profilePictureTestUser(models.RoleUser)
-	uploadID := uuid.New()
-	key := profilePictureKey(user.ID, uploadID)
-	user.ProfilePictureKey = &key
-	photos := &fakeProfilePictureStore{getErr: store.ErrUploadNotFound}
-	svc := profilePictureTestService(user, photos, &fakeProfilePictureStorage{})
+	t.Run("already consumed before the read", func(t *testing.T) {
+		user := profilePictureTestUser(models.RoleUser)
+		uploadID := uuid.New()
+		key := profilePictureKey(user.ID, uploadID)
+		user.ProfilePictureKey = &key
+		svc := profilePictureTestService(
+			user, &fakeProfilePictureStore{getErr: store.ErrUploadNotFound}, &fakeProfilePictureStorage{},
+		)
 
-	view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
-	if err != nil || view.PictureURL == "" {
-		t.Fatalf("idempotent retry = %+v, %v", view, err)
-	}
+		view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		if err != nil || view.PictureURL == "" {
+			t.Fatalf("idempotent retry = %+v, %v", view, err)
+		}
+	})
+
+	t.Run("consumed between the read and the update", func(t *testing.T) {
+		user := profilePictureTestUser(models.RoleUser)
+		uploadID := uuid.New()
+		key := profilePictureKey(user.ID, uploadID)
+		user.ProfilePictureKey = &key
+		photos := &fakeProfilePictureStore{
+			upload: &models.ProfilePictureUpload{ID: uploadID, UserID: user.ID, ObjectKey: key,
+				ContentType: "image/png", SizeBytes: 4},
+			setErr: store.ErrUploadNotFound,
+		}
+		storage := &fakeProfilePictureStorage{objects: map[string]images.ObjectInfo{
+			key: {Exists: true, Size: 4, ContentType: "image/png"},
+		}}
+		svc := profilePictureTestService(user, photos, storage)
+
+		view, err := svc.UpdateMyProfilePicture(context.Background(), user.ID, uploadID)
+		if err != nil || view.PictureURL == "" {
+			t.Fatalf("idempotent retry after lost row = %+v, %v", view, err)
+		}
+	})
 }
 
 func TestRemoveMyProfilePicture(t *testing.T) {

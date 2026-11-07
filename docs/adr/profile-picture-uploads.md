@@ -70,6 +70,8 @@ profile is returned without a URL rather than failing the whole read.
   the review photo work. Deployments without `USER_S3_BUCKET` keep the profile
   read/write paths but report picture changes as unavailable.
 - Replacing or removing a picture deletes the previous object after the database
-  commit best-effort. A failed delete can leave an unreferenced object; pending
-  uploads are still reaped by the minute cleanup job.
+  commit best-effort. A failed delete leaves an unreferenced old object with no
+  retry record; only pending (never-applied) uploads are reaped by the minute
+  cleanup job. This is accepted because profile pictures are small and replaced
+  infrequently.
 - Onboarding uses the same RPCs and is tracked separately.
