@@ -176,6 +176,11 @@ func TestLocalCredentialsSurviveRedeploy(t *testing.T) {
 			t.Errorf("credential %s permissions: %o", entry.Name(), info.Mode().Perm())
 		}
 	}
+	for _, name := range []string{"grafana-user", "grafana-password"} {
+		if _, ok := before[name]; !ok {
+			t.Fatalf("missing persisted %s", name)
+		}
+	}
 	t.Setenv("K8S_TELEGRAM_BOT_TOKEN", "replacement-token")
 	if err := op.generateLocalSecrets(); err != nil {
 		t.Fatal(err)
@@ -350,7 +355,9 @@ func TestCLIReadsDotEnvWithoutOverridingExports(t *testing.T) {
 }
 
 func TestProductionDeploySkipsLocalDatabaseProvisioning(t *testing.T) {
+	productionLoggingEnv(t)
 	op := testOperator(t)
+	fakeCommand(t, "helm", `printf '%s\n' "$*" >> "$K8S_TEST_LOG"`)
 	op.existing, op.overlayExplicit = true, true
 	op.overlay = filepath.Join(op.root, "infra/k8s/overlays/production")
 	op.imagePrefix, op.imageTag = "registry.test/foc", "commit123"
@@ -363,6 +370,7 @@ case "$*" in
  *'config get-contexts'*) printf 'kind-foc-test';;
  *'kustomize'*) printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture\n';;
  *'get job'*'jsonpath={.status.succeeded}'*) printf '1:';;
+ *'get secret grafana-admin'*) printf 'dXNlcg==:cGFzcw==';;
  *'get httproute'*) printf '%s' '{"status":{"parents":[{"parentRef":{"name":"foc-public"},"controllerName":"istio.io/gateway-controller","conditions":[{"type":"Accepted","status":"True"},{"type":"ResolvedRefs","status":"True"}]}]}}';;
 esac`)
 	if err := op.deployAll(); err != nil {
