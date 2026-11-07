@@ -39,12 +39,24 @@ const (
 	// ProfileServiceUpdateMyProfileProcedure is the fully-qualified name of the ProfileService's
 	// UpdateMyProfile RPC.
 	ProfileServiceUpdateMyProfileProcedure = "/user.v1.ProfileService/UpdateMyProfile"
+	// ProfileServiceCreateProfilePictureUploadProcedure is the fully-qualified name of the
+	// ProfileService's CreateProfilePictureUpload RPC.
+	ProfileServiceCreateProfilePictureUploadProcedure = "/user.v1.ProfileService/CreateProfilePictureUpload"
+	// ProfileServiceUpdateMyProfilePictureProcedure is the fully-qualified name of the ProfileService's
+	// UpdateMyProfilePicture RPC.
+	ProfileServiceUpdateMyProfilePictureProcedure = "/user.v1.ProfileService/UpdateMyProfilePicture"
+	// ProfileServiceRemoveMyProfilePictureProcedure is the fully-qualified name of the ProfileService's
+	// RemoveMyProfilePicture RPC.
+	ProfileServiceRemoveMyProfilePictureProcedure = "/user.v1.ProfileService/RemoveMyProfilePicture"
 )
 
 // ProfileServiceClient is a client for the user.v1.ProfileService service.
 type ProfileServiceClient interface {
 	GetMyProfile(context.Context, *connect.Request[v1.GetMyProfileRequest]) (*connect.Response[v1.GetMyProfileResponse], error)
 	UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error)
+	CreateProfilePictureUpload(context.Context, *connect.Request[v1.CreateProfilePictureUploadRequest]) (*connect.Response[v1.CreateProfilePictureUploadResponse], error)
+	UpdateMyProfilePicture(context.Context, *connect.Request[v1.UpdateMyProfilePictureRequest]) (*connect.Response[v1.UpdateMyProfilePictureResponse], error)
+	RemoveMyProfilePicture(context.Context, *connect.Request[v1.RemoveMyProfilePictureRequest]) (*connect.Response[v1.RemoveMyProfilePictureResponse], error)
 }
 
 // NewProfileServiceClient constructs a client for the user.v1.ProfileService service. By default,
@@ -70,13 +82,34 @@ func NewProfileServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(profileServiceMethods.ByName("UpdateMyProfile")),
 			connect.WithClientOptions(opts...),
 		),
+		createProfilePictureUpload: connect.NewClient[v1.CreateProfilePictureUploadRequest, v1.CreateProfilePictureUploadResponse](
+			httpClient,
+			baseURL+ProfileServiceCreateProfilePictureUploadProcedure,
+			connect.WithSchema(profileServiceMethods.ByName("CreateProfilePictureUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		updateMyProfilePicture: connect.NewClient[v1.UpdateMyProfilePictureRequest, v1.UpdateMyProfilePictureResponse](
+			httpClient,
+			baseURL+ProfileServiceUpdateMyProfilePictureProcedure,
+			connect.WithSchema(profileServiceMethods.ByName("UpdateMyProfilePicture")),
+			connect.WithClientOptions(opts...),
+		),
+		removeMyProfilePicture: connect.NewClient[v1.RemoveMyProfilePictureRequest, v1.RemoveMyProfilePictureResponse](
+			httpClient,
+			baseURL+ProfileServiceRemoveMyProfilePictureProcedure,
+			connect.WithSchema(profileServiceMethods.ByName("RemoveMyProfilePicture")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // profileServiceClient implements ProfileServiceClient.
 type profileServiceClient struct {
-	getMyProfile    *connect.Client[v1.GetMyProfileRequest, v1.GetMyProfileResponse]
-	updateMyProfile *connect.Client[v1.UpdateMyProfileRequest, v1.UpdateMyProfileResponse]
+	getMyProfile               *connect.Client[v1.GetMyProfileRequest, v1.GetMyProfileResponse]
+	updateMyProfile            *connect.Client[v1.UpdateMyProfileRequest, v1.UpdateMyProfileResponse]
+	createProfilePictureUpload *connect.Client[v1.CreateProfilePictureUploadRequest, v1.CreateProfilePictureUploadResponse]
+	updateMyProfilePicture     *connect.Client[v1.UpdateMyProfilePictureRequest, v1.UpdateMyProfilePictureResponse]
+	removeMyProfilePicture     *connect.Client[v1.RemoveMyProfilePictureRequest, v1.RemoveMyProfilePictureResponse]
 }
 
 // GetMyProfile calls user.v1.ProfileService.GetMyProfile.
@@ -89,10 +122,28 @@ func (c *profileServiceClient) UpdateMyProfile(ctx context.Context, req *connect
 	return c.updateMyProfile.CallUnary(ctx, req)
 }
 
+// CreateProfilePictureUpload calls user.v1.ProfileService.CreateProfilePictureUpload.
+func (c *profileServiceClient) CreateProfilePictureUpload(ctx context.Context, req *connect.Request[v1.CreateProfilePictureUploadRequest]) (*connect.Response[v1.CreateProfilePictureUploadResponse], error) {
+	return c.createProfilePictureUpload.CallUnary(ctx, req)
+}
+
+// UpdateMyProfilePicture calls user.v1.ProfileService.UpdateMyProfilePicture.
+func (c *profileServiceClient) UpdateMyProfilePicture(ctx context.Context, req *connect.Request[v1.UpdateMyProfilePictureRequest]) (*connect.Response[v1.UpdateMyProfilePictureResponse], error) {
+	return c.updateMyProfilePicture.CallUnary(ctx, req)
+}
+
+// RemoveMyProfilePicture calls user.v1.ProfileService.RemoveMyProfilePicture.
+func (c *profileServiceClient) RemoveMyProfilePicture(ctx context.Context, req *connect.Request[v1.RemoveMyProfilePictureRequest]) (*connect.Response[v1.RemoveMyProfilePictureResponse], error) {
+	return c.removeMyProfilePicture.CallUnary(ctx, req)
+}
+
 // ProfileServiceHandler is an implementation of the user.v1.ProfileService service.
 type ProfileServiceHandler interface {
 	GetMyProfile(context.Context, *connect.Request[v1.GetMyProfileRequest]) (*connect.Response[v1.GetMyProfileResponse], error)
 	UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error)
+	CreateProfilePictureUpload(context.Context, *connect.Request[v1.CreateProfilePictureUploadRequest]) (*connect.Response[v1.CreateProfilePictureUploadResponse], error)
+	UpdateMyProfilePicture(context.Context, *connect.Request[v1.UpdateMyProfilePictureRequest]) (*connect.Response[v1.UpdateMyProfilePictureResponse], error)
+	RemoveMyProfilePicture(context.Context, *connect.Request[v1.RemoveMyProfilePictureRequest]) (*connect.Response[v1.RemoveMyProfilePictureResponse], error)
 }
 
 // NewProfileServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -114,12 +165,36 @@ func NewProfileServiceHandler(svc ProfileServiceHandler, opts ...connect.Handler
 		connect.WithSchema(profileServiceMethods.ByName("UpdateMyProfile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	profileServiceCreateProfilePictureUploadHandler := connect.NewUnaryHandler(
+		ProfileServiceCreateProfilePictureUploadProcedure,
+		svc.CreateProfilePictureUpload,
+		connect.WithSchema(profileServiceMethods.ByName("CreateProfilePictureUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	profileServiceUpdateMyProfilePictureHandler := connect.NewUnaryHandler(
+		ProfileServiceUpdateMyProfilePictureProcedure,
+		svc.UpdateMyProfilePicture,
+		connect.WithSchema(profileServiceMethods.ByName("UpdateMyProfilePicture")),
+		connect.WithHandlerOptions(opts...),
+	)
+	profileServiceRemoveMyProfilePictureHandler := connect.NewUnaryHandler(
+		ProfileServiceRemoveMyProfilePictureProcedure,
+		svc.RemoveMyProfilePicture,
+		connect.WithSchema(profileServiceMethods.ByName("RemoveMyProfilePicture")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.ProfileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ProfileServiceGetMyProfileProcedure:
 			profileServiceGetMyProfileHandler.ServeHTTP(w, r)
 		case ProfileServiceUpdateMyProfileProcedure:
 			profileServiceUpdateMyProfileHandler.ServeHTTP(w, r)
+		case ProfileServiceCreateProfilePictureUploadProcedure:
+			profileServiceCreateProfilePictureUploadHandler.ServeHTTP(w, r)
+		case ProfileServiceUpdateMyProfilePictureProcedure:
+			profileServiceUpdateMyProfilePictureHandler.ServeHTTP(w, r)
+		case ProfileServiceRemoveMyProfilePictureProcedure:
+			profileServiceRemoveMyProfilePictureHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +210,16 @@ func (UnimplementedProfileServiceHandler) GetMyProfile(context.Context, *connect
 
 func (UnimplementedProfileServiceHandler) UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.ProfileService.UpdateMyProfile is not implemented"))
+}
+
+func (UnimplementedProfileServiceHandler) CreateProfilePictureUpload(context.Context, *connect.Request[v1.CreateProfilePictureUploadRequest]) (*connect.Response[v1.CreateProfilePictureUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.ProfileService.CreateProfilePictureUpload is not implemented"))
+}
+
+func (UnimplementedProfileServiceHandler) UpdateMyProfilePicture(context.Context, *connect.Request[v1.UpdateMyProfilePictureRequest]) (*connect.Response[v1.UpdateMyProfilePictureResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.ProfileService.UpdateMyProfilePicture is not implemented"))
+}
+
+func (UnimplementedProfileServiceHandler) RemoveMyProfilePicture(context.Context, *connect.Request[v1.RemoveMyProfilePictureRequest]) (*connect.Response[v1.RemoveMyProfilePictureResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.ProfileService.RemoveMyProfilePicture is not implemented"))
 }

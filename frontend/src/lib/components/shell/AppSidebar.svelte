@@ -13,8 +13,9 @@
 	import iconSuppliers from '@ktibow/iconset-material-symbols/storefront';
 	import type { IconifyIcon } from '@iconify/types';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { authService } from '$lib/services';
+	import { authService, profileService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
+	import ProfileAvatar from '$lib/components/profile/ProfileAvatar.svelte';
 	import OngoingRequests from './OngoingRequests.svelte';
 
 	let {
@@ -79,7 +80,16 @@
 	</div>
 
 	<div class="account">
-		<span class="name">{authService.user?.displayName}</span>
+		<div class="identity">
+			<ProfileAvatar
+				url={profileService.profile?.profilePictureUrl}
+				name={authService.user?.displayName ?? ''}
+				size={32}
+				expiresAt={profileService.profile?.profilePictureExpiresAt}
+				onerror={() => void profileService.getMyProfile().catch(() => {})}
+			/>
+			<span class="name">{authService.user?.displayName}</span>
+		</div>
 		<CreditBalance />
 	</div>
 
@@ -163,10 +173,17 @@
 
 	.account {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
 		gap: 0.5rem;
 		padding: 0 0.75rem;
+	}
+
+	.identity {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
 	}
 
 	.name {

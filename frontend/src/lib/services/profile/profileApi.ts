@@ -8,6 +8,12 @@ export interface UserProfile {
 	/** E.164. Absent only for the bootstrapped admin until they add one. */
 	phoneNumber?: string;
 	role: UserRole;
+	/** Stable application reference for the current picture. */
+	profilePictureId?: string;
+	/** Short-lived pre-signed GET URL; absent when no picture is set. */
+	profilePictureUrl?: string;
+	/** Epoch milliseconds for the signed URL above. */
+	profilePictureExpiresAt?: number;
 }
 
 export interface UpdateProfileInput {
@@ -16,7 +22,20 @@ export interface UpdateProfileInput {
 	phoneNumber: string;
 }
 
+export type ProfilePictureGrant = {
+	pictureId: string;
+	uploadUrl: string;
+	uploadHeaders: Record<string, string>;
+	expiresAt: number;
+};
+
 export interface ProfileApi {
 	getMyProfile(): Promise<UserProfile>;
 	updateMyProfile(input: UpdateProfileInput): Promise<UserProfile>;
+	createProfilePictureUpload(
+		input: { contentType: string; sizeBytes: number },
+		signal: AbortSignal
+	): Promise<ProfilePictureGrant>;
+	updateMyProfilePicture(pictureId: string, signal: AbortSignal): Promise<UserProfile>;
+	removeMyProfilePicture(signal: AbortSignal): Promise<UserProfile>;
 }
