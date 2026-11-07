@@ -391,10 +391,11 @@ const file_user_warning_v1_admin_proto_rawDesc = "" +
 	"\bwarnings\x18\x01 \x03(\v2$.user.warning.v1.AdminAccountWarningR\bwarnings\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination\"\xba\x01\n" +
+	"pagination\"\xbc\x01\n" +
 	"\x1bMarkWarningAsRemovedRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x124\n" +
-	"\x0eremoved_reason\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fH\x00R\rremovedReason\x88\x01\x01\x12*\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x126\n" +
+	"\x0eremoved_reason\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fH\x00R\rremovedReason\x88\x01\x01\x12*\n" +
 	"\tappeal_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\bappealId\x88\x01\x01B\x11\n" +
 	"\x0f_removed_reasonB\f\n" +
 	"\n" +

@@ -260,6 +260,16 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if _, err := adminWarningClient.ListWarningsForUser(ctx, otherWarnings); err != nil || warnings.userID != targetID {
 		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
 	}
+	emptyReason := connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
+		Id: warningID.String(), RemovedReason: ptr(""),
+	})
+	emptyReason.Header().Set("Authorization", "Bearer "+adminWarningToken)
+	if _, err := adminWarningClient.MarkWarningAsRemoved(
+		ctx,
+		emptyReason,
+	); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty removal reason: %v", err)
+	}
 	markRemoved = connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
 		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
 	})
