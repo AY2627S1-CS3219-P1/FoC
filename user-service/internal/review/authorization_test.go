@@ -35,6 +35,13 @@ func TestAuthorizeCaller(t *testing.T) {
 		{"super admin may submit", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuperAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceSubmitReviewProcedure, true},
 
+		// Photo upload grants follow the submission gate: suspended callers
+		// must not stage storage for reviews they cannot submit.
+		{"suspended cannot upload photos", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
+			reviewv1connect.ReviewServiceCreateReviewPhotoUploadProcedure, false},
+		{"user may upload photos", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
+			reviewv1connect.ReviewServiceCreateReviewPhotoUploadProcedure, true},
+
 		// Listing reviews received or given carries no gate.
 		{"list received open to suspended", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
 			reviewv1connect.ReviewServiceListReviewsForUserProcedure, true},

@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - ../../../base/initialization
   - order-storage-init.yaml
+  - user-storage-init.yaml

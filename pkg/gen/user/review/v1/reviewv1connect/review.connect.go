@@ -39,6 +39,9 @@ const (
 	// ReviewServiceSubmitReviewProcedure is the fully-qualified name of the ReviewService's
 	// SubmitReview RPC.
 	ReviewServiceSubmitReviewProcedure = "/user.review.v1.ReviewService/SubmitReview"
+	// ReviewServiceCreateReviewPhotoUploadProcedure is the fully-qualified name of the ReviewService's
+	// CreateReviewPhotoUpload RPC.
+	ReviewServiceCreateReviewPhotoUploadProcedure = "/user.review.v1.ReviewService/CreateReviewPhotoUpload"
 	// ReviewServiceListReviewsForUserProcedure is the fully-qualified name of the ReviewService's
 	// ListReviewsForUser RPC.
 	ReviewServiceListReviewsForUserProcedure = "/user.review.v1.ReviewService/ListReviewsForUser"
@@ -56,6 +59,7 @@ const (
 // ReviewServiceClient is a client for the user.review.v1.ReviewService service.
 type ReviewServiceClient interface {
 	SubmitReview(context.Context, *connect.Request[v1.SubmitReviewRequest]) (*connect.Response[v1.SubmitReviewResponse], error)
+	CreateReviewPhotoUpload(context.Context, *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error)
 	ListReviewsForUser(context.Context, *connect.Request[v1.ListReviewsForUserRequest]) (*connect.Response[v1.ListReviewsForUserResponse], error)
 	ListMyReviews(context.Context, *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error)
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
@@ -77,6 +81,12 @@ func NewReviewServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+ReviewServiceSubmitReviewProcedure,
 			connect.WithSchema(reviewServiceMethods.ByName("SubmitReview")),
+			connect.WithClientOptions(opts...),
+		),
+		createReviewPhotoUpload: connect.NewClient[v1.CreateReviewPhotoUploadRequest, v1.CreateReviewPhotoUploadResponse](
+			httpClient,
+			baseURL+ReviewServiceCreateReviewPhotoUploadProcedure,
+			connect.WithSchema(reviewServiceMethods.ByName("CreateReviewPhotoUpload")),
 			connect.WithClientOptions(opts...),
 		),
 		listReviewsForUser: connect.NewClient[v1.ListReviewsForUserRequest, v1.ListReviewsForUserResponse](
@@ -108,16 +118,22 @@ func NewReviewServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // reviewServiceClient implements ReviewServiceClient.
 type reviewServiceClient struct {
-	submitReview       *connect.Client[v1.SubmitReviewRequest, v1.SubmitReviewResponse]
-	listReviewsForUser *connect.Client[v1.ListReviewsForUserRequest, v1.ListReviewsForUserResponse]
-	listMyReviews      *connect.Client[v1.ListMyReviewsRequest, v1.ListMyReviewsResponse]
-	removeReview       *connect.Client[v1.RemoveReviewRequest, v1.RemoveReviewResponse]
-	listReviewRemovals *connect.Client[v1.ListReviewRemovalsRequest, v1.ListReviewRemovalsResponse]
+	submitReview            *connect.Client[v1.SubmitReviewRequest, v1.SubmitReviewResponse]
+	createReviewPhotoUpload *connect.Client[v1.CreateReviewPhotoUploadRequest, v1.CreateReviewPhotoUploadResponse]
+	listReviewsForUser      *connect.Client[v1.ListReviewsForUserRequest, v1.ListReviewsForUserResponse]
+	listMyReviews           *connect.Client[v1.ListMyReviewsRequest, v1.ListMyReviewsResponse]
+	removeReview            *connect.Client[v1.RemoveReviewRequest, v1.RemoveReviewResponse]
+	listReviewRemovals      *connect.Client[v1.ListReviewRemovalsRequest, v1.ListReviewRemovalsResponse]
 }
 
 // SubmitReview calls user.review.v1.ReviewService.SubmitReview.
 func (c *reviewServiceClient) SubmitReview(ctx context.Context, req *connect.Request[v1.SubmitReviewRequest]) (*connect.Response[v1.SubmitReviewResponse], error) {
 	return c.submitReview.CallUnary(ctx, req)
+}
+
+// CreateReviewPhotoUpload calls user.review.v1.ReviewService.CreateReviewPhotoUpload.
+func (c *reviewServiceClient) CreateReviewPhotoUpload(ctx context.Context, req *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error) {
+	return c.createReviewPhotoUpload.CallUnary(ctx, req)
 }
 
 // ListReviewsForUser calls user.review.v1.ReviewService.ListReviewsForUser.
@@ -143,6 +159,7 @@ func (c *reviewServiceClient) ListReviewRemovals(ctx context.Context, req *conne
 // ReviewServiceHandler is an implementation of the user.review.v1.ReviewService service.
 type ReviewServiceHandler interface {
 	SubmitReview(context.Context, *connect.Request[v1.SubmitReviewRequest]) (*connect.Response[v1.SubmitReviewResponse], error)
+	CreateReviewPhotoUpload(context.Context, *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error)
 	ListReviewsForUser(context.Context, *connect.Request[v1.ListReviewsForUserRequest]) (*connect.Response[v1.ListReviewsForUserResponse], error)
 	ListMyReviews(context.Context, *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error)
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
@@ -160,6 +177,12 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 		ReviewServiceSubmitReviewProcedure,
 		svc.SubmitReview,
 		connect.WithSchema(reviewServiceMethods.ByName("SubmitReview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	reviewServiceCreateReviewPhotoUploadHandler := connect.NewUnaryHandler(
+		ReviewServiceCreateReviewPhotoUploadProcedure,
+		svc.CreateReviewPhotoUpload,
+		connect.WithSchema(reviewServiceMethods.ByName("CreateReviewPhotoUpload")),
 		connect.WithHandlerOptions(opts...),
 	)
 	reviewServiceListReviewsForUserHandler := connect.NewUnaryHandler(
@@ -190,6 +213,8 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 		switch r.URL.Path {
 		case ReviewServiceSubmitReviewProcedure:
 			reviewServiceSubmitReviewHandler.ServeHTTP(w, r)
+		case ReviewServiceCreateReviewPhotoUploadProcedure:
+			reviewServiceCreateReviewPhotoUploadHandler.ServeHTTP(w, r)
 		case ReviewServiceListReviewsForUserProcedure:
 			reviewServiceListReviewsForUserHandler.ServeHTTP(w, r)
 		case ReviewServiceListMyReviewsProcedure:
@@ -209,6 +234,10 @@ type UnimplementedReviewServiceHandler struct{}
 
 func (UnimplementedReviewServiceHandler) SubmitReview(context.Context, *connect.Request[v1.SubmitReviewRequest]) (*connect.Response[v1.SubmitReviewResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.SubmitReview is not implemented"))
+}
+
+func (UnimplementedReviewServiceHandler) CreateReviewPhotoUpload(context.Context, *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.CreateReviewPhotoUpload is not implemented"))
 }
 
 func (UnimplementedReviewServiceHandler) ListReviewsForUser(context.Context, *connect.Request[v1.ListReviewsForUserRequest]) (*connect.Response[v1.ListReviewsForUserResponse], error) {

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
@@ -17,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
@@ -26,7 +28,15 @@ import (
 type handlerLogicStub struct {
 	submitted ReviewSubmission
 	submitter uuid.UUID
+	photoIDs  []uuid.UUID
 	submitErr error
+
+	uploadOwner  uuid.UUID
+	uploadType   string
+	uploadSize   int64
+	uploadGrant  images.UploadGrant
+	uploadUpload PhotoUpload
+	uploadErr    error
 
 	listedFor   uuid.UUID
 	forUserPage ReviewPage
@@ -46,10 +56,24 @@ func (s *handlerLogicStub) SubmitReview(
 	_ context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
+	photoIDs []uuid.UUID,
 ) error {
 	s.submitter = reviewerID
 	s.submitted = submission
+	s.photoIDs = photoIDs
 	return s.submitErr
+}
+
+func (s *handlerLogicStub) CreateReviewPhotoUpload(
+	_ context.Context,
+	callerID uuid.UUID,
+	contentType string,
+	sizeBytes int64,
+) (PhotoUpload, images.UploadGrant, error) {
+	s.uploadOwner = callerID
+	s.uploadType = contentType
+	s.uploadSize = sizeBytes
+	return s.uploadUpload, s.uploadGrant, s.uploadErr
 }
 
 func (s *handlerLogicStub) ListReviewsForUser(
@@ -98,6 +122,30 @@ func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect
 	return reviewv1connect.NewReviewServiceClient(server.Client(), server.URL)
 }
 
+func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
+	stub := &handlerLogicStub{
+		uploadUpload: PhotoUpload{ID: uuid.New()},
+		uploadGrant:  images.UploadGrant{URL: "https://storage.test/upload", ExpiresAt: time.Now().Add(time.Minute)},
+	}
+	client := reviewClient(t, stub, auth.Caller{ID: uuid.New().String()})
+
+	resp, err := client.CreateReviewPhotoUpload(
+		context.Background(),
+		connect.NewRequest(&reviewv1.CreateReviewPhotoUploadRequest{
+			ContentType: "image/jpeg",
+			SizeBytes:   200,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	// The response carries a short-lived pre-signed PUT grant, so it must not
+	// be cached.
+	if got := resp.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+}
+
 func TestSubmitReviewRPC(t *testing.T) {
 	caller := uuid.New()
 	submitter, target, order := uuid.New(), uuid.New(), uuid.New()
@@ -119,6 +167,43 @@ func TestSubmitReviewRPC(t *testing.T) {
 		}
 		if stub.submitted.Rating != 5 || stub.submitted.Comment != "excellent" {
 			t.Fatalf("submission not mapped: %+v", stub.submitted)
+		}
+	})
+
+	t.Run("passes ordered photo IDs through to the logic", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		first, second := uuid.New(), uuid.New()
+		_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+			From:       caller.String(),
+			To:         target.String(),
+			OrderId:    order.String(),
+			Submission: &reviewv1.ReviewSubmission{Rating: 4, Comment: "with photos"},
+			PhotoIds:   []string{first.String(), second.String()},
+		}))
+		if err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		if len(stub.photoIDs) != 2 || stub.photoIDs[0] != first || stub.photoIDs[1] != second {
+			t.Fatalf("photo IDs not mapped in order: %v", stub.photoIDs)
+		}
+	})
+
+	t.Run("a zero or malformed photo ID is rejected instead of dropped", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+			From:       caller.String(),
+			To:         target.String(),
+			OrderId:    order.String(),
+			Submission: &reviewv1.ReviewSubmission{Rating: 4, Comment: "bad photo id"},
+			PhotoIds:   []string{uuid.Nil.String()},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("expected invalid argument, got %v", err)
+		}
+		if len(stub.photoIDs) != 0 {
+			t.Fatal("the logic must not run when a photo ID is invalid")
 		}
 	})
 

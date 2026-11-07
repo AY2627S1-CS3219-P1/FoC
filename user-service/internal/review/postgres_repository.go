@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -177,6 +179,103 @@ func (r *PostgresRepository) CheckReviewParticipants(
 	}, nil
 }
 
+func (r *PostgresRepository) ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
+	exists, err := r.queries.ReviewExists(ctx, reviewdb.ReviewExistsParams{
+		ReviewerID: reviewerID,
+		OrderID:    orderID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("check review exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *PostgresRepository) InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error {
+	err := r.queries.InsertReviewPhoto(ctx, reviewdb.InsertReviewPhotoParams{
+		ID:              input.ID,
+		OwnerID:         input.OwnerID,
+		ObjectKey:       input.ObjectKey,
+		ContentType:     input.ContentType,
+		SizeBytes:       input.SizeBytes,
+		UploadExpiresAt: input.UploadExpiresAt,
+	})
+	return mapPhotoError("insert review photo", err)
+}
+
+func (r *PostgresRepository) GetReviewPhoto(ctx context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error) {
+	row, err := r.queries.GetReviewPhoto(ctx, reviewdb.GetReviewPhotoParams{ID: id, OwnerID: ownerID})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ReviewPhoto{}, errPhotoNotFound
+		}
+		return ReviewPhoto{}, fmt.Errorf("get review photo: %w", err)
+	}
+	return toReviewPhoto(row), nil
+}
+
+func (r *PostgresRepository) AttachReviewPhoto(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	ownerID, reviewID uuid.UUID,
+	ordinal int,
+	photo ReviewPhoto,
+) (int64, error) {
+	n, err := q.AttachReviewPhoto(ctx, reviewdb.AttachReviewPhotoParams{
+		ReviewID:    reviewID,
+		Ordinal:     sql.NullInt32{Int32: int32(ordinal), Valid: true},
+		ID:          photo.ID,
+		OwnerID:     ownerID,
+		ObjectKey:   photo.ObjectKey,
+		ContentType: photo.ContentType,
+		SizeBytes:   photo.SizeBytes,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("attach review photo: %w", err)
+	}
+	return n, nil
+}
+
+func (r *PostgresRepository) ListReviewPhotosForReviews(
+	ctx context.Context,
+	reviewIDs []uuid.UUID,
+) ([]ReviewPhotoAttached, error) {
+	rows, err := r.queries.ListReviewPhotosForReviews(ctx, reviewIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list review photos: %w", err)
+	}
+	out := make([]ReviewPhotoAttached, len(rows))
+	for i, row := range rows {
+		out[i] = toReviewPhotoAttached(row)
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) ClaimOrphanReviewPhotos(
+	ctx context.Context,
+	createdBefore, now time.Time,
+) ([]ClaimedReviewPhoto, error) {
+	rows, err := r.queries.ClaimOrphanReviewPhotos(ctx, reviewdb.ClaimOrphanReviewPhotosParams{
+		CreatedBefore: createdBefore,
+		NowAt:         now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("claim orphan review photos: %w", err)
+	}
+	out := make([]ClaimedReviewPhoto, len(rows))
+	for i, row := range rows {
+		out[i] = ClaimedReviewPhoto{ID: row.ID, ObjectKey: row.ObjectKey}
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error) {
+	n, err := r.queries.DeleteOrphanReviewPhoto(ctx, id)
+	if err != nil {
+		return 0, fmt.Errorf("delete orphan review photo row: %w", err)
+	}
+	return n, nil
+}
+
 func toReview(row reviewdb.Review) Review {
 	return Review{
 		ID:         row.ID,
@@ -256,4 +355,52 @@ func mapReviewError(operation string, err error) error {
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
+}
+
+// mapPhotoError translates persistence failures of photo rows. Unlike reviews,
+// a missing photo row is an expected client-outcome ("not staged"), not a
+// review lookup miss.
+func mapPhotoError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return errPhotoNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			// owner_id references a missing user.
+			return errPhotoNotFound
+		case "23514", "23P01":
+			return errs.NewBadRequestError("photo metadata violates the accepted limits")
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func toReviewPhoto(row reviewdb.ReviewPhoto) ReviewPhoto {
+	return ReviewPhoto{
+		ID:              row.ID,
+		OwnerID:         row.OwnerID,
+		ObjectKey:       row.ObjectKey,
+		ContentType:     row.ContentType,
+		SizeBytes:       row.SizeBytes,
+		State:           row.State,
+		ReviewID:        row.ReviewID.UUID,
+		Ordinal:         int(row.Ordinal.Int32),
+		CreatedAt:       row.CreatedAt,
+		UploadExpiresAt: row.UploadExpiresAt,
+	}
+}
+
+func toReviewPhotoAttached(row reviewdb.ListReviewPhotosForReviewsRow) ReviewPhotoAttached {
+	return ReviewPhotoAttached{
+		ID:          row.ID,
+		ReviewID:    row.ReviewID.UUID,
+		ObjectKey:   row.ObjectKey,
+		ContentType: row.ContentType,
+		Ordinal:     int(row.Ordinal.Int32),
+	}
 }

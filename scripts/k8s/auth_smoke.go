@@ -22,6 +22,7 @@ import (
 const authPath = "/user.v1.AuthService/"
 const profilePath = "/user.v1.ProfileService/GetMyProfile"
 const supplierPath = "/supplier.location.v1.LocationDiscoveryService/ListLocations"
+const reviewPath = "/user.review.v1.ReviewService/ListMyReviews"
 const refreshCookie = "foc-refresh-token"
 
 type authProbe struct {
@@ -234,6 +235,11 @@ func (a *authProbe) loginToken() (string, error) {
 		map[string]any{},
 		authOptions{unauthenticated: true, middleware: true},
 	); err != nil {
+		return "", err
+	}
+	// A deleted review gateway route falls through to the catch-all 404
+	// instead of this 401, so the pin catches a route reverted since #155.
+	if _, err := a.rpc(reviewPath, map[string]any{}, authOptions{unauthenticated: true}); err != nil {
 		return "", err
 	}
 	requestedAt := time.Now()

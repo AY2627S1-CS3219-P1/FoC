@@ -231,7 +231,7 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
-	for _, job := range append([]string{"db-provision", "order-storage-init"}, jobs...) {
+	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, jobs...) {
 		if err := o.waitJob(job); err != nil {
 			return err
 		}

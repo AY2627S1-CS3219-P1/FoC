@@ -358,6 +358,9 @@ func (o *operator) deployAll() error {
 		if err := o.prepareJob("order-storage-init"); err != nil {
 			return err
 		}
+		if err := o.prepareJob("user-storage-init"); err != nil {
+			return err
+		}
 	}
 	for _, job := range jobs {
 		if err := o.prepareJob(job); err != nil {
@@ -374,6 +377,9 @@ func (o *operator) deployAll() error {
 	}
 	if o.isLocal() {
 		if err := o.waitJob("order-storage-init"); err != nil {
+			return err
+		}
+		if err := o.waitJob("user-storage-init"); err != nil {
 			return err
 		}
 	}

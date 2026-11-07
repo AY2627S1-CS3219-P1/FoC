@@ -25,6 +25,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
@@ -50,20 +51,24 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port             string
+	internalPort     string
+	databaseURL      string
+	dbMaxOpen        int
+	dbMaxIdle        int
+	runMigrations    bool
+	appEnv           string
+	frontendURL      string
+	privateKey       string
+	kafkaBrokers     string
+	accessTokenTTL   time.Duration
+	refreshTokenTTL  time.Duration
+	smtp             email.SMTPSender
+	bootstrap        bootstrap.Config
+	s3Bucket         string
+	s3Endpoint       string
+	s3PublicEndpoint string
+	awsRegion        string
 }
 
 func main() {
@@ -144,7 +149,7 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB)
+	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -160,6 +165,25 @@ func main() {
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 	servers := []*http.Server{public, internal}
+
+	if reviewPhotos != nil {
+		// Orphan staging rows are reaped on a minute ticker; the domain's
+		// claim/delete steps are retryable and idempotent.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
@@ -220,9 +244,32 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func newReviewService(sqlDB *sql.DB) *review.Service {
+// newReviewService builds the review domain over the shared database pool.
+// The second return is nil unless review photo storage is configured.
+func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+	var photos *images.S3
+	if cfg.s3Bucket != "" {
+		storage, err := images.NewS3(context.Background(), images.S3Config{
+			Bucket:         cfg.s3Bucket,
+			Endpoint:       cfg.s3Endpoint,
+			PublicEndpoint: cfg.s3PublicEndpoint,
+			Region:         cfg.awsRegion,
+		})
+		if err != nil {
+			slog.Error("review photo storage disabled: invalid configuration", "err", err)
+		} else {
+			photos = storage
+		}
+	}
+	// A typed-nil *images.S3 would make the PhotoStorage interface non-nil and
+	// bypass the domain's availability checks, so the adapter is assigned to
+	// the interface only when storage is actually configured.
+	var reviewStorage review.PhotoStorage
+	if photos != nil {
+		reviewStorage = photos
+	}
+	service := review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
 			return err
@@ -232,7 +279,8 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	})
+	}, reviewStorage)
+	return service, photos
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -267,6 +315,12 @@ func loadConfig() (config, error) {
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
 		},
+		// Review photo storage is optional: without a bucket the photo RPCs
+		// report unavailability and reviews submit without photos.
+		s3Bucket:         envString("USER_S3_BUCKET", ""),
+		s3Endpoint:       envString("USER_S3_ENDPOINT", ""),
+		s3PublicEndpoint: envString("USER_S3_PUBLIC_ENDPOINT", ""),
+		awsRegion:        strings.TrimSpace(envString("AWS_REGION", "")),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
