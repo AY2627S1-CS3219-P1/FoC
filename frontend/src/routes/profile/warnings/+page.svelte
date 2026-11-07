@@ -60,7 +60,7 @@
 					<header class="warning-top">
 						<span class="status-chip">{warning.status === 'removed' ? 'Removed' : 'Active'}</span>
 						<p class="warning-reason">{warning.reason}</p>
-						<a class="view-order" href={`/orders/${warning.requestId}`}>
+						<a class="view-order" href={`/orders/${encodeURIComponent(warning.requestId)}`}>
 							View order <span class="arrow" aria-hidden="true">→</span>
 						</a>
 					</header>
@@ -155,6 +155,10 @@
 	}
 	.view-order .arrow { font-size: 0.9rem; line-height: 1; }
 	.view-order:hover { filter: brightness(0.97); }
+	.view-order:focus-visible {
+		outline: 2px solid var(--m3c-primary);
+		outline-offset: 2px;
+	}
 
 	.warning-meta {
 		display: flex;
