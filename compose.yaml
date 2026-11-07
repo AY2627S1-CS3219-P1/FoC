@@ -30,6 +30,10 @@ services:
       ORDER_DB: ${ORDER_DB:-order_dev}
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
+      # Forwarded so init-dbs.sh provisions the reader role with the same
+      # password the reader services connect with.
+      REVOCATION_DB: ${REVOCATION_DB:-revocation_dev}
+      REVOCATION_READER_PASSWORD: ${REVOCATION_READER_PASSWORD:-revocation_reader_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

@@ -290,7 +290,7 @@ func TestReaderRoleCanReadButCannotWrite(t *testing.T) {
 	if _, err := raw.Exec(ctx, `CREATE ROLE revocation_reader_test LOGIN PASSWORD 'reader-pw'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(ctx, `GRANT SELECT ON revoked_access_tokens TO revocation_reader_test`); err != nil {
+	if _, err := raw.Exec(ctx, `GRANT SELECT ON public.revoked_access_tokens TO revocation_reader_test`); err != nil {
 		t.Fatal(err)
 	}
 

@@ -22,18 +22,19 @@ const (
 
 	// revokedAccessTokenQuery checks if a session's access tokens have been revoked.
 	// The expires_at > now() predicate ensures expired entries are invisible, so
-	// entries need no active deletion to stop matching reads.
-	revokedAccessTokenQuery = `SELECT 1 FROM revoked_access_tokens WHERE sid = $1 AND expires_at > now() LIMIT 1`
+	// entries need no active deletion to stop matching reads. The table is
+	// schema-qualified so no connection's search_path can redirect the lookup.
+	revokedAccessTokenQuery = `SELECT 1 FROM public.revoked_access_tokens WHERE sid = $1 AND expires_at > now() LIMIT 1`
 
 	// insertRevocationQuery durably records a fresh revocation. now()+ttl is the expiry.
 	// ON CONFLICT (sid) DO UPDATE makes re-revoking idempotent and refreshes the expiry.
-	insertRevocationQuery = `INSERT INTO revoked_access_tokens (sid, expires_at)
+	insertRevocationQuery = `INSERT INTO public.revoked_access_tokens (sid, expires_at)
 		VALUES ($1, now() + $2) ON CONFLICT (sid) DO UPDATE SET expires_at = EXCLUDED.expires_at`
 
 	// deleteExpiredQuery removes rows where expires_at <= now(), bounding the
 	// table and index size. The read predicate already filters expired entries,
 	// so this only bounds stale data, not correctness.
-	deleteExpiredQuery = `DELETE FROM revoked_access_tokens WHERE expires_at <= now()`
+	deleteExpiredQuery = `DELETE FROM public.revoked_access_tokens WHERE expires_at <= now()`
 )
 
 // postgresStore is the PostgreSQL-backed revocation implementation.
@@ -85,14 +86,14 @@ func newPostgresStore(ctx context.Context, dsn string, ttl time.Duration) (*post
 // racing.
 func ensureSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	const (
-		createTable = `CREATE TABLE IF NOT EXISTS revoked_access_tokens (
+		createTable = `CREATE TABLE IF NOT EXISTS public.revoked_access_tokens (
 			sid        TEXT PRIMARY KEY,
 			revoked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			expires_at TIMESTAMPTZ NOT NULL
 		)`
 		createIndex = `CREATE INDEX IF NOT EXISTS revoked_access_tokens_expires_at_idx
-			ON revoked_access_tokens (expires_at)`
-		present = `SELECT to_regclass('revoked_access_tokens') IS NOT NULL`
+			ON public.revoked_access_tokens (expires_at)`
+		present = `SELECT to_regclass('public.revoked_access_tokens') IS NOT NULL`
 	)
 	var exists bool
 	if err := pool.QueryRow(ctx, present).Scan(&exists); err != nil {
@@ -107,7 +108,9 @@ func ensureSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		if retryErr := pool.QueryRow(ctx, present).Scan(&exists); retryErr == nil && exists {
 			return nil
 		}
-		return fmt.Errorf("create table: %w", err)
+		return fmt.Errorf("create table (is the revocation table provisioned? a "+
+			"SELECT-only reader cannot create it and must not boot before "+
+			"provisioning): %w", err)
 	}
 	if _, err := pool.Exec(ctx, createIndex); err != nil {
 		return fmt.Errorf("create index: %w", err)
