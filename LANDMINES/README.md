@@ -7,6 +7,7 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Go line formatting can need multiple passes](golines-multiple-passes.md) | `golangci-lint` v2.14.0 runs `golines` at 120 characters on long boolean expressions. |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
 | [Recreated services rebuild Go dependencies](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |
+| [Air can exhaust a shared Linux inotify quota](air-inotify-exhaustion.md) | Multiple development stacks share a Linux host and Air exits before watching files with `too many open files`. |
 | [Compose creates a root-owned local state directory](compose-owned-local-directory.md) | Kubernetes bootstrap uses `.local/k8s` after Compose created `.local` as root. |
 | [Buf cannot run the TypeScript generator on Windows](buf-generate-windows.md) | `buf generate` runs on native Windows. |
 | [Locking a row does not refresh relationship subqueries](locked-row-relationship-snapshots.md) | A PostgreSQL locking query reads relationships that another transaction can change while holding the parent row lock. |
