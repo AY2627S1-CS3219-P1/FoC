@@ -179,6 +179,17 @@ func (r *PostgresRepository) CheckReviewParticipants(
 	}, nil
 }
 
+func (r *PostgresRepository) ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
+	exists, err := r.queries.ReviewExists(ctx, reviewdb.ReviewExistsParams{
+		ReviewerID: reviewerID,
+		OrderID:    orderID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("check review exists: %w", err)
+	}
+	return exists, nil
+}
+
 func (r *PostgresRepository) InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error {
 	err := r.queries.InsertReviewPhoto(ctx, reviewdb.InsertReviewPhotoParams{
 		ID:              input.ID,

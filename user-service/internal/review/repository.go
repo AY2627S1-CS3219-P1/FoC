@@ -29,6 +29,10 @@ type Repository interface {
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
+	// ReviewExists reports whether the reviewer already has a review for the
+	// order, including removed ones; it mirrors the reviewer/order unique
+	// index so the duplicate pre-check and the insert agree.
+	ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error)
 
 	// Review photos. Single-statement operations (staging insert, reads,
 	// cleanup claim/delete) run on the repository's own connection; only

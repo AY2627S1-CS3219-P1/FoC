@@ -41,6 +41,10 @@ type fakeRepository struct {
 	softDeleted    uuid.UUID
 	recalculated   uuid.UUID
 
+	// Existing reviews per (reviewer, order), exercised by the duplicate
+	// pre-check in SubmitReview.
+	existingReviews map[uuid.UUID][]uuid.UUID // reviewerID -> orderIDs
+
 	// Review photo surface, exercised by the photos tests.
 	insertedPhoto      ReviewPhotoInput
 	insertPhotoErr     error
@@ -75,6 +79,15 @@ func (f *fakeRepository) CheckReviewParticipants(
 		ReviewerExists: f.exists[reviewerID],
 		RevieweeExists: f.exists[revieweeID],
 	}, nil
+}
+
+func (f *fakeRepository) ReviewExists(_ context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
+	for _, existing := range f.existingReviews[reviewerID] {
+		if existing == orderID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, input ReviewInput) error {
@@ -230,6 +243,31 @@ func TestSubmitReview(t *testing.T) {
 		assertExternal(t, err, http.StatusConflict)
 		if fake.recalcCount != 0 {
 			t.Fatal("stats must not be recomputed when the insert fails")
+		}
+	})
+	t.Run("pre-check rejects a retry after a committed submission with 409", func(t *testing.T) {
+		// A lost-response retry: the first submission committed and its photos
+		// are attached. The duplicate pre-check must return the canonical 409
+		// before photo preparation can reject the stale photo state with 400.
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			exists:          map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			existingReviews: map[uuid.UUID][]uuid.UUID{reviewer: {order}},
+		}
+		svc := newTestService(fake)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 3, Comment: "again"}, nil,
+		)
+		assertExternal(t, err, http.StatusConflict)
+		if fake.insertedID != uuid.Nil {
+			t.Fatal("no new review must be inserted for a duplicate submission")
+		}
+		if fake.recalcCount != 0 {
+			t.Fatal("stats must not be recomputed for a duplicate submission")
 		}
 	})
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {

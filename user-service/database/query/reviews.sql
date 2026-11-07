@@ -6,6 +6,17 @@ SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewee_id::UUID
        ) AS reviewee_exists;
 
+-- A live-row check for the duplicate-review pre-check in SubmitReview. It must
+-- mirror idx_reviews_reviewer_order exactly — no deleted_at filter — so a
+-- removed review still blocks re-reviewing the same request, like the insert's
+-- unique-violation path does. The check runs before photo preparation so a
+-- lost-response retry gets the canonical 409 instead of a photo-state error.
+-- name: ReviewExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reviews
+    WHERE reviewer_id = @reviewer_id::UUID AND order_id = @order_id::UUID
+);
+
 -- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());

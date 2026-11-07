@@ -309,6 +309,30 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 	return err
 }
 
+const reviewExists = `-- name: ReviewExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reviews
+    WHERE reviewer_id = $1::UUID AND order_id = $2::UUID
+)
+`
+
+type ReviewExistsParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+// A live-row check for the duplicate-review pre-check in SubmitReview. It must
+// mirror idx_reviews_reviewer_order exactly — no deleted_at filter — so a
+// removed review still blocks re-reviewing the same request, like the insert's
+// unique-violation path does. The check runs before photo preparation so a
+// lost-response retry gets the canonical 409 instead of a photo-state error.
+func (q *Queries) ReviewExists(ctx context.Context, arg ReviewExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, reviewExists, arg.ReviewerID, arg.OrderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
            SELECT 1 FROM users WHERE id = $1::UUID
