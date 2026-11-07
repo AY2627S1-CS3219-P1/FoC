@@ -132,7 +132,7 @@ func run(ctx context.Context) error {
 
 	// Access-token revocation dictionary; readers need no TTL.
 	var revocations *revocation.Store
-	revocations, err = revocation.NewStore(startupCtx, revocation.Config{Addr: config.RedisAddr})
+	revocations, err = revocation.NewStore(startupCtx, revocation.Config{Address: config.RevocationServiceURL})
 	if err != nil {
 		return fmt.Errorf("initialize access-token revocation store: %w", err)
 	}

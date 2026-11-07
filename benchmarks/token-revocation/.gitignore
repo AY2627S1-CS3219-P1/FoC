@@ -1,6 +1,0 @@
-# Built benchmark binary (regenerated, never committed).
-/benchmark
-
-# Per-run result directories (results/main-ladder/, results/pool-sweep/,
-# results/smoke/, results/write-sweep/) are committed as reproducible artifacts
-# of the documented runs; the explanation docs link to them by path.

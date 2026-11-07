@@ -51,21 +51,21 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	redisAddr       string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port                 string
+	internalPort         string
+	databaseURL          string
+	dbMaxOpen            int
+	dbMaxIdle            int
+	runMigrations        bool
+	appEnv               string
+	frontendURL          string
+	privateKey           string
+	kafkaBrokers         string
+	revocationServiceURL string
+	accessTokenTTL       time.Duration
+	refreshTokenTTL      time.Duration
+	smtp                 email.SMTPSender
+	bootstrap            bootstrap.Config
 }
 
 func main() {
@@ -91,7 +91,7 @@ func main() {
 		accessTTL = service.AccessTokenLifetime
 	}
 	revocations, err := revocation.NewStore(ctx, revocation.Config{
-		Addr: cfg.redisAddr, TTL: accessTTL,
+		Address: cfg.revocationServiceURL, TTL: accessTTL,
 	})
 	if err != nil {
 		fatal("initialize access-token revocation store", err)
@@ -266,19 +266,19 @@ func loadConfig() (config, error) {
 
 	var errs []error
 	cfg := config{
-		port:            envString("PORT", "8080"),
-		internalPort:    envString("INTERNAL_PORT", ""),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
-		redisAddr:       envString("REDIS_ADDR", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		port:                 envString("PORT", "8080"),
+		internalPort:         envString("INTERNAL_PORT", ""),
+		databaseURL:          envString("DATABASE_URL", ""),
+		dbMaxOpen:            envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:            envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations:        envBool("RUN_MIGRATIONS", true, &errs),
+		appEnv:               envString("APP_ENV", ""),
+		frontendURL:          envString("FRONTEND_BASE_URL", ""),
+		privateKey:           envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:         envString("KAFKA_BROKERS", ""),
+		revocationServiceURL: envString("TOKEN_REVOCATION_BASE_URL", ""),
+		accessTokenTTL:       envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
+		refreshTokenTTL:      envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -323,8 +323,8 @@ func loadConfig() (config, error) {
 			}
 		}
 	}
-	if cfg.redisAddr == "" {
-		errs = append(errs, errors.New("REDIS_ADDR is not set"))
+	if cfg.revocationServiceURL == "" {
+		errs = append(errs, errors.New("TOKEN_REVOCATION_BASE_URL is not set"))
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))

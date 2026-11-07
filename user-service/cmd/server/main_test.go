@@ -55,9 +55,9 @@ func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
 
 func TestLoadConfigRequiresRedisAddress(t *testing.T) {
 	setValidConfigEnv(t)
-	t.Setenv("REDIS_ADDR", "")
-	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "REDIS_ADDR is not set") {
-		t.Fatalf("loadConfig error = %v, want missing REDIS_ADDR", err)
+	t.Setenv("TOKEN_REVOCATION_BASE_URL", "")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "TOKEN_REVOCATION_BASE_URL is not set") {
+		t.Fatalf("loadConfig error = %v, want missing TOKEN_REVOCATION_BASE_URL", err)
 	}
 }
 
@@ -89,7 +89,7 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
 		"KAFKA_BROKERS":                     "kafka:9092",
-		"REDIS_ADDR":                        "localhost:6379",
+		"TOKEN_REVOCATION_BASE_URL":         "localhost:6379",
 		"SMTP_ADDR":                         "smtp.example.test:25",
 		"SMTP_FROM":                         "FoC <no-reply@example.test>",
 		"SMTP_USERNAME":                     "",

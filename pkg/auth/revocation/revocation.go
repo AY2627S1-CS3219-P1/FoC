@@ -1,68 +1,76 @@
-// Package revocation tracks revoked access-token sessions in Redis so every
-// service can reject outstanding access tokens promptly after their session is
-// revoked, instead of waiting for the tokens to expire.
+// Package revocation tracks revoked access-token sessions so every service can
+// reject outstanding access tokens promptly after their session is revoked,
+// instead of waiting for the tokens to expire.
 //
-// Each revoked session is one dictionary entry, `revoked_access_tokens:<sid>`,
-// with a per-entry TTL equal to the maximum access-token lifetime. Because a
-// revoked session can never be revived and refresh always mints a new session
-// ID, every access token an entry could cover is guaranteed expired by the time
-// the entry lapses.
+// The shared revocation store can be backed by any storage backend. The
+// constructor returns a concrete implementation based on the address scheme;
+// today's implementation is a direct PostgreSQL connection to a dedicated
+// revocation table.
 package revocation
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
+	"net/url"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
-// KeyPrefix namespaces the per-session revocation entries. All services must
-// agree on it; it is the "revoked_access_tokens" dictionary.
-const KeyPrefix = "revoked_access_tokens:"
-
-// Config constructs a Store. Readers only need Addr; writers must set TTL to
-// the maximum access-token lifetime so entries outlive every token they cover.
+// Config identifies the revocation store and, for writers, the lifetime an
+// entry must outlive. Address is an opaque locator: for the current
+// implementation, a postgres:// or postgresql:// URL pointing to a dedicated
+// database.
 type Config struct {
-	Addr string
-	TTL  time.Duration
+	Address string
+	TTL     time.Duration
 }
 
-// Store is the Redis-backed revocation dictionary shared by the User Service
-// (writer) and every token-verifying service (reader).
+// Store is the shared revocation store used by the User Service (writer) and
+// every token-verifying service (reader).
 type Store struct {
-	client *redis.Client
-	ttl    time.Duration
+	impl RevocationStore
+	ttl  time.Duration
 }
 
-// NewStore connects to Redis and verifies the connection eagerly so a missing
-// or unreachable revocation store fails at startup, not on the first request.
+// RevocationStore is the internal interface implemented by the backends.
+// It is intentionally unexported so consumers only see the public API.
+type RevocationStore interface {
+	Revoke(ctx context.Context, sessionIDs ...string) error
+	IsRevoked(ctx context.Context, sessionID string) (bool, error)
+	DeleteExpired(ctx context.Context) (int64, error)
+	Close() error
+}
+
+// NewStore connects to the revocation store and verifies the connection eagerly
+// so a missing or unreachable store fails at startup, not on the first request.
+// Address must be a scheme:// URL; the scheme selects the backend (e.g.
+// postgres:// or postgresql:// for the current PostgreSQL implementation).
 func NewStore(ctx context.Context, config Config) (*Store, error) {
-	if config.Addr == "" {
-		return nil, errors.New("redis address is required")
+	if config.Address == "" {
+		return nil, errors.New("revocation store address is required")
 	}
 	if config.TTL < 0 {
 		return nil, errors.New("revocation TTL must not be negative")
 	}
-	client := redis.NewClient(&redis.Options{
-		Addr: config.Addr,
-		// Fail fast so fail-closed verification rejects quickly instead of
-		// hanging the request until the handler timeout.
-		DialTimeout:  3 * time.Second,
-		ReadTimeout:  2 * time.Second,
-		WriteTimeout: 2 * time.Second,
-	})
-	if err := client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
-		return nil, fmt.Errorf("connect to redis: %w", err)
-	}
-	return &Store{client: client, ttl: config.TTL}, nil
-}
 
-// Key is the dictionary entry for one session's access tokens.
-func Key(sessionID string) string { return KeyPrefix + sessionID }
+	u, err := url.Parse(config.Address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid revocation store address: %w", err)
+	}
+
+	var impl RevocationStore
+	switch u.Scheme {
+	case "postgres", "postgresql":
+		impl, err = newPostgresStore(ctx, config.Address, config.TTL)
+	default:
+		return nil, fmt.Errorf("unsupported revocation store scheme: %s", u.Scheme)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &Store{impl: impl, ttl: config.TTL}, nil
+}
 
 // Revoke records sessions whose access tokens must stop being accepted. The
 // caller invokes it after the database session revocation committed; entries
@@ -75,30 +83,27 @@ func (s *Store) Revoke(ctx context.Context, sessionIDs ...string) error {
 	if s.ttl <= 0 {
 		return errors.New("revocation store is not configured for writes")
 	}
-	revokedAt := strconv.FormatInt(time.Now().UTC().Unix(), 10)
-	pipe := s.client.Pipeline()
-	for _, sessionID := range sessionIDs {
-		pipe.Set(ctx, Key(sessionID), revokedAt, s.ttl)
-	}
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("record revoked access tokens: %w", err)
-	}
-	return nil
+	return s.impl.Revoke(ctx, sessionIDs...)
 }
 
 // IsRevoked reports whether any access token of the session was revoked. An
-// error means Redis is unreachable; callers must treat that as unavailable,
+// error means the store is unreachable; callers must treat that as unavailable,
 // never as "not revoked".
 func (s *Store) IsRevoked(ctx context.Context, sessionID string) (bool, error) {
 	if sessionID == "" {
 		return false, nil
 	}
-	count, err := s.client.Exists(ctx, Key(sessionID)).Result()
-	if err != nil {
-		return false, fmt.Errorf("check revoked access tokens: %w", err)
-	}
-	return count > 0, nil
+	return s.impl.IsRevoked(ctx, sessionID)
 }
 
-// Close releases the Redis connection.
-func (s *Store) Close() error { return s.client.Close() }
+// DeleteExpired removes expired entries from the store. It is called by the
+// User Service to bound the size of the underlying table/index. Readers do not
+// need to call this; the IsRevoked predicate filters expired entries.
+func (s *Store) DeleteExpired(ctx context.Context) (int64, error) {
+	return s.impl.DeleteExpired(ctx)
+}
+
+// Close releases the store's resources.
+func (s *Store) Close() error {
+	return s.impl.Close()
+}

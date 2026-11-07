@@ -12,9 +12,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
-	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
-	"github.com/alicebob/miniredis/v2"
 )
 
 func TestAccessMiddleware(t *testing.T) {
@@ -48,8 +47,7 @@ func TestAccessMiddleware(t *testing.T) {
 	userService := httptest.NewServer(mux)
 	defer userService.Close()
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
-	redisServer := miniredis.RunT(t)
-	t.Setenv("REDIS_ADDR", redisServer.Addr())
+	t.Setenv("TOKEN_REVOCATION_BASE_URL", "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable")
 	authenticator, err := NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)

@@ -7,8 +7,8 @@ func TestTransportConfigurationPreservesComposeDefaults(t *testing.T) {
 	for key, value := range map[string]string{
 		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
 		"PORT": "", "INTERNAL_PORT": "8081", "RUN_MIGRATIONS": "",
-		"REDIS_ADDR":        "redis:6379",
-		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "",
+		"TOKEN_REVOCATION_BASE_URL": "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable",
+		"FRONTEND_BASE_URL":         "", "JWT_PRIVATE_KEY_FILE": "",
 		"SMTP_ADDR": "", "SMTP_FROM": "",
 		"DB_MAX_OPEN": "", "DB_MAX_IDLE": "", "SMTP_TIMEOUT": "",
 		"JWT_ACCESS_TOKEN_TTL": "", "JWT_REFRESH_TOKEN_TTL": "",

@@ -114,7 +114,7 @@ func (a *Authenticator) Close() error {
 	return a.ownedRevocations.Close()
 }
 
-// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and REDIS_ADDR,
+// NewUserServiceAuthenticator reads USER_SERVICE_BASE_URL and TOKEN_REVOCATION_BASE_URL,
 // fetching signing keys through the user service's generated Connect client
 // and consulting the shared revocation dictionary on every request.
 func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
@@ -131,7 +131,7 @@ func NewUserServiceAuthenticator(ctx context.Context) (*Authenticator, error) {
 		return nil, errors.New("user service URL must not include a path")
 	}
 	revocations, err := revocation.NewStore(ctx, revocation.Config{
-		Addr: strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		Address: strings.TrimSpace(os.Getenv("TOKEN_REVOCATION_BASE_URL")),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize access-token revocation store: %w", err)

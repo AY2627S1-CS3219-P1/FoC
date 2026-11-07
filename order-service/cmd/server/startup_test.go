@@ -62,11 +62,11 @@ func TestAuthenticationRetrySucceeds(t *testing.T) {
 
 func TestConfiguration(t *testing.T) {
 	valid := map[string]string{
-		"DATABASE_URL":          "postgresql://foc:password@localhost:5432/order_dev",
-		"USER_SERVICE_BASE_URL": "http://localhost:8081",
-		"REDIS_ADDR":            "localhost:6379",
-		"APP_ENV":               "local",
-		"INTERNAL_PORT":         "8081",
+		"DATABASE_URL":              "postgresql://foc:password@localhost:5432/order_dev",
+		"USER_SERVICE_BASE_URL":     "http://localhost:8081",
+		"TOKEN_REVOCATION_BASE_URL": "localhost:6379",
+		"APP_ENV":                   "local",
+		"INTERNAL_PORT":             "8081",
 	}
 	for _, tc := range []struct{ name, key, value string }{
 		{"missing database", "DATABASE_URL", ""},
@@ -74,7 +74,7 @@ func TestConfiguration(t *testing.T) {
 		{"missing auth", "USER_SERVICE_BASE_URL", ""},
 		{"auth path", "USER_SERVICE_BASE_URL", "http://localhost/api"},
 		{"auth credentials", "USER_SERVICE_BASE_URL", "http://user:secret@localhost"},
-		{"missing redis", "REDIS_ADDR", ""},
+		{"missing revocation store", "TOKEN_REVOCATION_BASE_URL", ""},
 		{"unsupported auth scheme", "USER_SERVICE_BASE_URL", "ftp://localhost"},
 		{"invalid port", "PORT", "-1"},
 		{"missing internal port", "INTERNAL_PORT", ""},
@@ -124,11 +124,11 @@ func TestCreationConfiguration(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := map[string]string{
-				"DATABASE_URL":          "postgresql://order:example@localhost:5432/order_test",
-				"USER_SERVICE_BASE_URL": "http://user:8080",
-				"REDIS_ADDR":            "redis:6379",
-				"APP_ENV":               "local",
-				"INTERNAL_PORT":         "8081",
+				"DATABASE_URL":              "postgresql://order:example@localhost:5432/order_test",
+				"USER_SERVICE_BASE_URL":     "http://user:8080",
+				"TOKEN_REVOCATION_BASE_URL": "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable",
+				"APP_ENV":                   "local",
+				"INTERNAL_PORT":             "8081",
 			}
 			for key, value := range tc.values {
 				base[key] = value
@@ -143,10 +143,10 @@ func TestCreationConfiguration(t *testing.T) {
 
 func TestHTTPUserServiceOriginWorksOutsideLocalMode(t *testing.T) {
 	values := map[string]string{
-		"DATABASE_URL":          "postgresql://localhost/order_dev",
-		"USER_SERVICE_BASE_URL": "http://user-service:8081",
-		"REDIS_ADDR":            "redis:6379",
-		"APP_ENV":               "production", "RUN_MIGRATIONS": "false", "INTERNAL_PORT": "8081",
+		"DATABASE_URL":              "postgresql://localhost/order_dev",
+		"USER_SERVICE_BASE_URL":     "http://user-service:8081",
+		"TOKEN_REVOCATION_BASE_URL": "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable",
+		"APP_ENV":                   "production", "RUN_MIGRATIONS": "false", "INTERNAL_PORT": "8081",
 	}
 	cfg, err := loadConfig(func(key string) string { return values[key] })
 	if err != nil || cfg.RunMigrations {
@@ -158,7 +158,7 @@ func TestMeshInternalOriginsAndPublicStorageTLS(t *testing.T) {
 	values := map[string]string{
 		"DATABASE_URL":              "postgresql://localhost/order_test",
 		"USER_SERVICE_BASE_URL":     "http://user-service-internal:8080",
-		"REDIS_ADDR":                "redis:6379",
+		"TOKEN_REVOCATION_BASE_URL": "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable",
 		"SUPPLIER_SERVICE_BASE_URL": "http://supplier-service-internal:8080",
 		"ORDER_S3_ENDPOINT":         "http://floci:4566",
 		"ORDER_S3_PUBLIC_ENDPOINT":  "https://localhost:5173",
