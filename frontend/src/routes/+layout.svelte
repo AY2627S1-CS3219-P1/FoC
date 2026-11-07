@@ -7,7 +7,7 @@
 	import { page } from '$app/state';
 	import { Button, Card, Icon, LoadingIndicator } from 'm3-svelte';
 	import iconMenu from '@ktibow/iconset-material-symbols/menu';
-	import { authService } from '$lib/services';
+	import { authService, profileService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import AppSidebar from '$lib/components/shell/AppSidebar.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
@@ -17,8 +17,15 @@
 		const currentUser = authService.user?.id;
 		if (previousUser && previousUser !== currentUser) {
 			try { clearSubmittedOrders(sessionStorage); } catch { /* Storage may be disabled. */ }
+			profileService.clear();
 		}
 		previousUser = currentUser;
+	});
+
+	$effect(() => {
+		if (authService.isAuthenticated && !profileService.profile) {
+			void profileService.ensureProfile().catch(() => {});
+		}
 	});
 
 	let { children } = $props();

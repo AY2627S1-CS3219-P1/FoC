@@ -18,11 +18,13 @@
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
+	import ProfileAvatar from '$lib/components/profile/ProfileAvatar.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
 	import ReviewsCard from './ReviewsCard.svelte';
 	import LeaveReviewDialog from './LeaveReviewDialog.svelte';
+	import ProfilePictureEditor from './ProfilePictureEditor.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -104,9 +106,23 @@
 
 <section class="page-content profile-page" aria-labelledby="profile-title">
 	<header class="page-heading">
-		<div>
-			<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
-			{#if profile}<p>{profile.email}</p>{/if}
+		<div class="identity">
+			{#if profile}
+				{#if profile.role === UserRole.SUSPENDED_USER}
+					<ProfileAvatar
+						url={profile.profilePictureUrl}
+						name={profile.displayName}
+						size={72}
+						onerror={() => void loadProfile()}
+					/>
+				{:else}
+					<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />
+				{/if}
+			{/if}
+			<div class="identity-copy">
+				<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
+				{#if profile}<p>{profile.email}</p>{/if}
+			</div>
 		</div>
 		{#if profile}<span class="role-chip">{roleLabel(profile.role)}</span>{/if}
 	</header>
@@ -228,6 +244,23 @@
 {/if}
 
 <style>
+	.identity {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 1rem;
+		min-width: 0;
+	}
+
+	.identity-copy {
+		min-width: 0;
+	}
+
+	.identity-copy p {
+		margin: 0.25rem 0 0;
+		color: var(--m3c-on-surface-variant);
+	}
+
 	/* Wireframe: current credits and request history sit beside each other. */
 	.activity {
 		display: grid;
