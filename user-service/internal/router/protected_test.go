@@ -316,6 +316,11 @@ func TestProtectedConnectRoutes(t *testing.T) {
 			err,
 		)
 	}
+	staleLookup := connect.NewRequest(&warningv1.ListWarningsForUserRequest{UserId: targetID.String()})
+	staleLookup.Header().Set("Authorization", "Bearer "+staleAdminToken)
+	if _, err := adminWarningClient.ListWarningsForUser(ctx, staleLookup); err != nil || warnings.userID != targetID {
+		t.Fatalf("stale admin token warning lookup: user=%s err=%v", warnings.userID, err)
+	}
 }
 
 func ptr(value string) *string { return &value }

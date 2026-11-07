@@ -91,7 +91,7 @@ publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
 
-`user.v1.WarningService.ListMyWarnings` returns the authenticated caller's
+`user.warning.v1.WarningService.ListMyWarnings` returns the authenticated caller's
 warnings. Both warning list RPCs use shared offset pagination and include page
 metadata. `ListWarningsForUser` and `MarkWarningAsRemoved` are restricted to
 admins; marking a warning as removed records the admin and optional removal

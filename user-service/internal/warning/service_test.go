@@ -214,7 +214,9 @@ func TestListWarningsUsesOffsetAndReturnsPageInfo(t *testing.T) {
 	warnings := []Warning{{ID: uuid.New()}, {ID: uuid.New()}}
 	repository := &repositoryStub{list: warnings, total: 7}
 	service := NewService(repository)
-	page, err := pagination.New(2, 2)
+	// Page 3 with size 2 gives offset 4, so the assertion cannot pass by the
+	// page number and size coincidentally equaling the offset.
+	page, err := pagination.New(3, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,17 +226,39 @@ func TestListWarningsUsesOffsetAndReturnsPageInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got.Warnings) != 2 || got.Warnings[0].ID != warnings[0].ID ||
-		got.PageInfo.Page() != 2 || got.PageInfo.PageSize() != 2 ||
+		got.PageInfo.Page() != 3 || got.PageInfo.PageSize() != 2 ||
 		got.PageInfo.TotalItems() != 7 || got.PageInfo.TotalPages() != 4 {
 		t.Fatalf("warning page = %+v", got)
 	}
-	if repository.listUserID != userID || repository.listOffset != 2 || repository.listLimit != 2 {
+	if repository.listUserID != userID || repository.listOffset != 4 || repository.listLimit != 2 {
 		t.Fatalf(
 			"repository page = user %s offset %d limit %d",
 			repository.listUserID,
 			repository.listOffset,
 			repository.listLimit,
 		)
+	}
+}
+
+func TestListWarningsRejectsInvalidUserWithoutTouchingTheRepository(t *testing.T) {
+	repository := &repositoryStub{}
+	service := NewService(repository)
+	page, _ := pagination.New(1, 20)
+	_, err := service.ListWarnings(context.Background(), uuid.Nil, page)
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("invalid user error = %v, want ErrInvalidRequest", err)
+	}
+	if repository.listUserID != uuid.Nil {
+		t.Fatalf("repository reached with user %s", repository.listUserID)
+	}
+}
+
+func TestListWarningsMapsCountErrors(t *testing.T) {
+	wantErr := errors.New("count unavailable")
+	service := NewService(&repositoryStub{countErr: wantErr})
+	page, _ := pagination.New(1, 20)
+	if _, err := service.ListWarnings(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
+		t.Fatalf("count error = %v, want wrapped database error", err)
 	}
 }
 
@@ -247,7 +271,9 @@ func TestListWarningsForAdminReturnsReadProjectionPage(t *testing.T) {
 	}}
 	repository := &repositoryStub{adminList: adminWarnings, total: 7}
 	service := NewService(repository)
-	page, err := pagination.New(2, 2)
+	// Page 3 with size 2 gives offset 4, so the assertion cannot pass by the
+	// page number and size coincidentally equaling the offset.
+	page, err := pagination.New(3, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,11 +284,11 @@ func TestListWarningsForAdminReturnsReadProjectionPage(t *testing.T) {
 	}
 	if len(got.Warnings) != 1 || got.Warnings[0].ID != adminWarnings[0].ID ||
 		got.Warnings[0].UpdatedByName == nil || *got.Warnings[0].UpdatedByName != updaterName ||
-		got.PageInfo.Page() != 2 || got.PageInfo.PageSize() != 2 ||
+		got.PageInfo.Page() != 3 || got.PageInfo.PageSize() != 2 ||
 		got.PageInfo.TotalItems() != 7 || got.PageInfo.TotalPages() != 4 {
 		t.Fatalf("admin warning page = %+v", got)
 	}
-	if repository.listUserID != userID || repository.listOffset != 2 || repository.listLimit != 2 {
+	if repository.listUserID != userID || repository.listOffset != 4 || repository.listLimit != 2 {
 		t.Fatalf(
 			"repository page = user %s offset %d limit %d",
 			repository.listUserID,
@@ -272,15 +298,29 @@ func TestListWarningsForAdminReturnsReadProjectionPage(t *testing.T) {
 	}
 }
 
-func TestListWarningsForAdminRejectsInvalidUserAndMapsRepositoryErrors(t *testing.T) {
-	wantErr := errors.New("database unavailable")
-	service := NewService(&repositoryStub{err: wantErr})
+func TestListWarningsForAdminRejectsInvalidUserWithoutTouchingTheRepository(t *testing.T) {
+	repository := &repositoryStub{}
+	service := NewService(repository)
 	page, _ := pagination.New(1, 20)
-	if _, err := service.ListWarningsForAdmin(context.Background(), uuid.Nil, page); err == nil {
-		t.Fatal("expected invalid user ID rejection")
+	_, err := service.ListWarningsForAdmin(context.Background(), uuid.Nil, page)
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("invalid user error = %v, want ErrInvalidRequest", err)
 	}
-	if _, err := service.ListWarningsForAdmin(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
+	if repository.listUserID != uuid.Nil {
+		t.Fatalf("repository reached with user %s", repository.listUserID)
+	}
+}
+
+func TestListWarningsForAdminMapsRepositoryAndCountErrors(t *testing.T) {
+	wantErr := errors.New("database unavailable")
+	page, _ := pagination.New(1, 20)
+	if _, err := NewService(&repositoryStub{err: wantErr}).
+		ListWarningsForAdmin(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
 		t.Fatalf("admin list error = %v, want wrapped database error", err)
+	}
+	if _, err := NewService(&repositoryStub{countErr: wantErr}).
+		ListWarningsForAdmin(context.Background(), uuid.New(), page); !errors.Is(err, wantErr) {
+		t.Fatalf("admin count error = %v, want wrapped database error", err)
 	}
 }
 

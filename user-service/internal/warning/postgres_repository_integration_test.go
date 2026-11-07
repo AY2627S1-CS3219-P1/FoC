@@ -110,15 +110,20 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	repository, _, actor, user := setupWarningRepository(t)
 	ctx := context.Background()
 	updater := actor.ID
+	adminTime := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
+	courierTime := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+	eventID := uuid.New()
 	if _, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: uuid.New(), Reason: "admin recorded", Status: StatusActive,
-		CreatedBy: &updater, UpdatedBy: &updater,
+		CreatedBy: &updater, UpdatedBy: &updater, CreatedAt: adminTime,
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Created later, so it must sort first; it has no updater, but it came
+	// from a courier event and therefore carries its source event ID.
 	if _, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: uuid.New(), Reason: "courier event", Status: StatusActive,
-		SourceEventID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+		SourceEventID: &eventID, CreatedAt: courierTime,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -127,20 +132,62 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	if err != nil || len(warnings) != 2 {
 		t.Fatalf("admin warnings=%+v err=%v", warnings, err)
 	}
+	// Ordering must follow created_at DESC, id DESC: the newer courier event first.
+	if warnings[0].Reason != "courier event" || warnings[1].Reason != "admin recorded" {
+		t.Fatalf("admin list order = [%s, %s], want courier event first",
+			warnings[0].Reason, warnings[1].Reason)
+	}
 
-	byReason := make(map[string]AdminWarning, len(warnings))
-	for _, warning := range warnings {
-		byReason[warning.Reason] = warning
+	courier := warnings[0]
+	if courier.CreatedAt.Equal(courierTime) == false || courier.UpdatedBy != nil || courier.UpdatedByName != nil ||
+		courier.CreatedBy != nil || courier.SourceEventID == nil || *courier.SourceEventID != eventID ||
+		courier.Status != StatusActive || courier.RemovedAt != nil || courier.RemovedReason != nil ||
+		courier.ReportID != nil || courier.AppealID != nil || courier.DeletedAt != nil {
+		t.Fatalf("system-created projection: %+v", courier.Warning)
 	}
-	adminRecorded, ok := byReason["admin recorded"]
-	if !ok || adminRecorded.UpdatedBy == nil || *adminRecorded.UpdatedBy != actor.ID ||
-		adminRecorded.UpdatedByName == nil || *adminRecorded.UpdatedByName != actor.DisplayName {
-		t.Fatalf("updater join missing: %+v", adminRecorded)
+	recorded := warnings[1]
+	if recorded.CreatedBy == nil || *recorded.CreatedBy != actor.ID ||
+		recorded.UpdatedBy == nil || *recorded.UpdatedBy != actor.ID ||
+		recorded.UpdatedByName == nil || *recorded.UpdatedByName != actor.DisplayName ||
+		recorded.SourceEventID != nil || !recorded.CreatedAt.Equal(adminTime) {
+		t.Fatalf("admin-recorded projection: %+v", recorded.Warning)
 	}
-	courierEvent, ok := byReason["courier event"]
-	if !ok || courierEvent.UpdatedBy != nil || courierEvent.UpdatedByName != nil ||
-		courierEvent.SourceEventID == nil {
-		t.Fatalf("system-created warning must have no updater: %+v", courierEvent)
+}
+
+func TestPostgresRepositoryListForAdminShowsRemovedWarnings(t *testing.T) {
+	repository, _, actor, user := setupWarningRepository(t)
+	ctx := context.Background()
+	warningID := uuid.New()
+	if _, err := repository.Create(ctx, Warning{
+		UserID: user.ID, RequestID: warningID, Reason: "appealed warning", Status: StatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := repository.ListByUser(ctx, user.ID, 0, 100)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("listed warnings=%+v err=%v", listed, err)
+	}
+	warningID = listed[0].ID
+
+	removedAt := time.Date(2026, time.November, 3, 9, 0, 0, 0, time.UTC)
+	removedReason, appealID := "appeal overturned", uuid.New()
+	removed, err := repository.Remove(ctx, warningID, removedAt, &removedReason, &appealID, &actor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	warnings, err := repository.ListForAdmin(ctx, user.ID, 0, 100)
+	if err != nil || len(warnings) != 1 {
+		t.Fatalf("admin warnings=%+v err=%v", warnings, err)
+	}
+	got := warnings[0]
+	if got.ID != removed.ID || got.Status != StatusRemoved || got.RemovedAt == nil ||
+		!got.RemovedAt.Equal(removedAt) || got.RemovedReason == nil || *got.RemovedReason != removedReason ||
+		got.AppealID == nil || *got.AppealID != appealID ||
+		got.UpdatedBy == nil || *got.UpdatedBy != actor.ID ||
+		got.UpdatedByName == nil || *got.UpdatedByName != actor.DisplayName ||
+		got.DeletedAt != nil {
+		t.Fatalf("removed warning audit view: %+v", got)
 	}
 }
 
