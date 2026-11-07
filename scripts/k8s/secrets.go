@@ -69,7 +69,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	defer removeTemporary(lock)
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "moderation-password", "kafka-ui-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -87,6 +87,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	for _, entry := range []struct{ name, value string }{
 		{"SMTP_USERNAME", ""}, {"SMTP_PASSWORD", ""}, {"TELEGRAM_BOT_TOKEN", os.Getenv("K8S_TELEGRAM_BOT_TOKEN")},
+		{"CMS_LLM_API_KEY", os.Getenv("K8S_LLM_API_KEY")},
 	} {
 		if err := persistValue(directory, entry.name, entry.value, true); err != nil {
 			return err
@@ -197,7 +198,7 @@ func (o *operator) generateLocalSecrets() error {
 		return errors.New("local TLS certificate and key do not match")
 	}
 
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
 		if err := persistValue(directory, service+"-db-user", service+"_app", false); err != nil {
 			return err
 		}
@@ -226,7 +227,7 @@ func (o *operator) generateLocalSecrets() error {
 	); err != nil {
 		return err
 	}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
 		if err := o.applySecret(
 			"foc",
 			service+"-db",
@@ -256,6 +257,11 @@ func (o *operator) generateLocalSecrets() error {
 		return err
 	}
 	if err := o.applySecret("foc", "telegram", fromFile("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN")); err != nil {
+		return err
+	}
+	// The model API key stays server-side. An empty key deploys CMS degraded:
+	// submissions queue and admin APIs work, no inference attempts are burned.
+	if err := o.applySecret("foc", "moderation-llm", fromFile("CMS_LLM_API_KEY", "CMS_LLM_API_KEY")); err != nil {
 		return err
 	}
 	if err := o.applySecret(

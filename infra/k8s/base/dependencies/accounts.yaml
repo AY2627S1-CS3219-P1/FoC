@@ -113,6 +113,22 @@ automountServiceAccountToken: false
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: moderation-migrate
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: content-moderation-service
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: communication-migrate
   labels:
     foc.dev/stage: dependencies

@@ -13,6 +13,7 @@ services:
       PUBLIC_USER_SERVICE_URL: ${PUBLIC_USER_SERVICE_URL:-http://localhost:${USER_PORT:-8081}}
       PUBLIC_SUPPLIER_SERVICE_URL: ${PUBLIC_SUPPLIER_SERVICE_URL:-http://localhost:${SUPPLIER_PORT:-8082}}
       PUBLIC_COMMUNICATION_SERVICE_URL: ${PUBLIC_COMMUNICATION_SERVICE_URL:-http://localhost:${COMMUNICATION_PORT:-8084}}
+      PUBLIC_MODERATION_SERVICE_URL: ${PUBLIC_MODERATION_SERVICE_URL:-http://localhost:${MODERATION_PORT:-8086}}
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
@@ -30,6 +31,7 @@ services:
       ORDER_DB: ${ORDER_DB:-order_dev}
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
+      MODERATION_DB: ${MODERATION_DB:-moderation_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -301,6 +303,42 @@ services:
       KAFKA_BROKERS: kafka:9092
     volumes:
       - ./credit-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      user-service:
+        condition: service_started
+    restart: unless-stopped
+
+  content-moderation-service:
+    build:
+      context: .
+      dockerfile: content-moderation-service/Dockerfile.dev
+    container_name: foc-content-moderation-service
+    # Only the public listener is published. No service calls CMS internally.
+    ports:
+      - "${MODERATION_PORT:-8086}:${PORT:-8080}"
+    environment:
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
+      APP_ENV: ${APP_ENV:-local}
+      # Defaults to the shared Postgres so existing .env files keep working.
+      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      KAFKA_BROKERS: kafka:9092
+      # OpenAI-compatible inference. The key stays server-side; an empty key
+      # starts the service degraded: submissions queue, admin APIs and setup
+      # status still work, no inference attempts are burned.
+      CMS_LLM_BASE_URL: ${CMS_LLM_BASE_URL:-https://soclaas-api.comp.nus.edu.sg/v1}
+      CMS_LLM_API_KEY: ${CMS_LLM_API_KEY:-}
+    volumes:
+      - ./content-moderation-service:/app
       - ./pkg:/pkg
       - go-modules:/go/pkg/mod
       - /app/tmp

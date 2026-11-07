@@ -255,6 +255,7 @@ var originKeys = []string{
 	"PUBLIC_ORDER_SERVICE_URL",
 	"PUBLIC_COMMUNICATION_SERVICE_URL",
 	"PUBLIC_CREDIT_SERVICE_URL",
+	"PUBLIC_MODERATION_SERVICE_URL",
 	"ORDER_S3_PUBLIC_ENDPOINT",
 }
 
@@ -302,7 +303,7 @@ func (o *operator) deployAll() error {
 			return err
 		}
 	} else {
-		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"} {
+		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "moderation-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"} {
 			if _, err := o.query("-n", "foc", "get", "secret", name); err != nil {
 				return err
 			}
