@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
-import { ReviewLimitedError, ReviewRejectedError } from './reviewApi.ts';
+import { ReviewAlreadyExistsError, ReviewLimitedError, ReviewRejectedError } from './reviewApi.ts';
 import { ConnectReviewApi } from './connectReviewApi.ts';
 
 function scenario() {
@@ -71,6 +71,19 @@ describe('ConnectReviewApi', () => {
 			.rejects.toBeInstanceOf(ReviewLimitedError);
 		await expect(api.submit({ from: 'r', to: 'e', orderId: 'o', rating: 1, comment: 'x', photoIds: [] }, new AbortController().signal))
 			.rejects.not.toBeInstanceOf(ReviewRejectedError);
+	});
+
+	it('maps AlreadyExists to the duplicate-review error, still a rejection', async () => {
+		const { client, api } = scenario();
+		vi.mocked(client.submitReview).mockRejectedValueOnce(new ConnectError('duplicate', Code.AlreadyExists));
+		// A duplicate means a prior submission likely committed; the dialog
+		// distinguishes it from a generic retryable failure.
+		const error = await api.submit({ from: 'r', to: 'e', orderId: 'o', rating: 1, comment: 'x', photoIds: [] }, new AbortController().signal)
+			.catch((cause: unknown) => cause);
+		expect(error).toBeInstanceOf(ReviewAlreadyExistsError);
+		// The duplicate error is a review rejection subclass, so existing
+		// rejection handling keeps working.
+		expect(error).toBeInstanceOf(ReviewRejectedError);
 	});
 
 	it('does not hand out a grant when the response is incomplete', async () => {

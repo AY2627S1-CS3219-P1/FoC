@@ -5,6 +5,7 @@ import { ReviewService, type Review as ProtoReview } from '$lib/gen/user/review/
 import {
 	ReviewLimitedError,
 	ReviewRejectedError,
+	ReviewAlreadyExistsError,
 	type ReviewApi,
 	type ReviewPage,
 	type ReviewPhotoGrant,
@@ -25,9 +26,13 @@ function rethrow(cause: unknown): never {
 				'Photo uploads are temporarily limited. Keep this photo and try again later.'
 			);
 		}
+		if (cause.code === Code.AlreadyExists) {
+			// A prior submission likely committed despite an ambiguous response;
+			// the review exists, so a blind retry would loop forever.
+			throw new ReviewAlreadyExistsError('This request already has a review.');
+		}
 		if ([
-			Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound,
-			Code.AlreadyExists
+			Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound
 		].includes(cause.code)) {
 			throw new ReviewRejectedError(
 				'This action could not be completed. Check the review details and photos, then try again.'

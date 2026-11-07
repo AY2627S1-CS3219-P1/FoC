@@ -2,6 +2,11 @@
 // Transport failures and ambiguous responses remain Failed/unknown.
 export class ReviewRejectedError extends Error {}
 
+// The request already carries a review. For submit this usually means a prior
+// attempt committed despite an ambiguous response, so the review exists and
+// must not be resubmitted.
+export class ReviewAlreadyExistsError extends ReviewRejectedError {}
+
 // A temporary server-side limit (e.g. upload quota). The photo stays selected
 // and a later retry can succeed; never treated as a permanent rejection.
 export class ReviewLimitedError extends Error {}

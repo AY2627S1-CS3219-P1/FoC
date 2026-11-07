@@ -3,10 +3,12 @@
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
+	import { snackbarService } from '$lib/services';
 	import {
 		ReviewPhotosController,
 		type ReviewPhotosSnapshot
 	} from '$lib/features/review-photos/controller';
+	import { ReviewAlreadyExistsError } from '$lib/services/review/reviewApi';
 	import type { ReviewApi } from '$lib/services/review/reviewApi';
 	import { reviewSchema } from '$lib/services/review/reviewSchema';
 	import { statusLabel } from '$lib/services/order/presentation';
@@ -69,16 +71,47 @@
 					comment: validated.data.comment,
 					photoIds: photoController?.photoIds() ?? []
 				}, AbortSignal.timeout(15000));
+				snackbarService.show('Review submitted.', { severity: 'success' });
 				onsubmitted();
 				open = false;
-			} catch {
-				setMessage(validated, 'We could not submit your review. Your photos are kept; please try again.');
+			} catch (cause) {
+				if (cause instanceof ReviewAlreadyExistsError) {
+					// A prior attempt likely committed despite an ambiguous
+					// response; resubmitting cannot succeed.
+					setMessage(validated, 'This request already has a review.');
+				} else {
+					setMessage(validated, 'We could not submit your review. Your photos are kept; please try again.');
+				}
 			}
 		}
 	});
 
 	// Ratings are chosen with five chips; 1 is the lowest, 5 the highest.
 	const ratings = [1, 2, 3, 4, 5];
+	let ratingChips: HTMLButtonElement[] = [];
+
+	// The chips carry the ARIA radiogroup pattern: arrow keys (and Home/End)
+	// move focus and select, with a roving tabindex so Tab reaches the group
+	// once instead of stopping at every chip.
+	function onRatingKeydown(event: KeyboardEvent) {
+		if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+			return;
+		}
+		event.preventDefault();
+		const current = Number((event.target as HTMLElement).getAttribute('data-rating') ?? 1);
+		let next: number;
+		if (event.key === 'Home') {
+			next = 1;
+		} else if (event.key === 'End') {
+			next = ratings.length;
+		} else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+			next = current === 1 ? ratings.length : current - 1;
+		} else {
+			next = current === ratings.length ? 1 : current + 1;
+		}
+		$form.rating = next;
+		ratingChips[next - 1]?.focus();
+	}
 </script>
 
 <Dialog bind:open headline="Leave a review" onclose={onclose}>
@@ -100,7 +133,7 @@
 			<fieldset class="rating">
 				<legend>Rating</legend>
 				<div class="rating-options" role="radiogroup" aria-label="Rating from 1 to 5 stars">
-					{#each ratings as value (value)}
+					{#each ratings as value, index (value)}
 						<button
 							type="button"
 							class="rating-chip"
@@ -108,7 +141,11 @@
 							role="radio"
 							aria-checked={$form.rating === value}
 							aria-label={`${value} star${value > 1 ? 's' : ''}`}
+							tabindex={($form.rating ?? 1) === value ? 0 : -1}
+							data-rating={value}
+							bind:this={ratingChips[index]}
 							onclick={() => ($form.rating = value)}
+							onkeydown={onRatingKeydown}
 						>
 							{value}
 						</button>
