@@ -29,6 +29,8 @@ spec:
                 name: foc-config
             - secretRef:
                 name: order-db
+            - secretRef:
+                name: revocation-db
           ports:
             - {name: http2-public, containerPort: 8080}
             - {name: http2-internal, containerPort: 8081}

@@ -85,11 +85,9 @@ func main() {
 	defer stop()
 
 	// The revocation dictionary TTL must match the effective access-token
-	// lifetime; NewService applies the same default when the TTL is unset.
-	accessTTL := cfg.accessTokenTTL
-	if accessTTL == 0 {
-		accessTTL = service.AccessTokenLifetime
-	}
+	// lifetime; EffectiveAccessTokenLifetime applies the same default NewService
+	// applies when the TTL is unset.
+	accessTTL := service.EffectiveAccessTokenLifetime(cfg.accessTokenTTL)
 	revocations, err := revocation.NewStore(ctx, revocation.Config{
 		Address: cfg.revocationServiceURL, TTL: accessTTL,
 	})
@@ -97,6 +95,32 @@ func main() {
 		fatal("initialize access-token revocation store", err)
 	}
 	defer func() { _ = revocations.Close() }()
+
+	// Periodically delete expired revocation entries so the table and its
+	// index stay bounded; reads already ignore expired entries, this only
+	// reclaims space. One clean-up per TTL keeps the sweep proportional to
+	// the write rate.
+	cleanupCtx, stopCleanup := context.WithCancel(ctx)
+	defer stopCleanup()
+	go func() {
+		ticker := time.NewTicker(accessTTL)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cleanupCtx.Done():
+				return
+			case <-ticker.C:
+				deleted, err := revocations.DeleteExpired(cleanupCtx)
+				if err != nil {
+					log.Warn("delete expired revocation entries", "err", err)
+					continue
+				}
+				if deleted > 0 {
+					log.Info("deleted expired revocation entries", "count", deleted)
+				}
+			}
+		}
+	}()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {

@@ -2,31 +2,36 @@ package revocation
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
+	// connectTimeout bounds dialing a new pool connection so an unreachable
+	// store fails fast instead of stalling startup or request handling.
+	connectTimeout = 3 * time.Second
+
 	// statementTimeout bounds any single query so a stuck backend cannot hang
-	// the load generator; revocation writes are far below it.
-	statementTimeout = 30 * time.Second
+	// an authenticated request; revocation lookups are single-index probes,
+	// far below it.
+	statementTimeout = 5 * time.Second
 
 	// revokedAccessTokenQuery checks if a session's access tokens have been revoked.
-	// The expires_at > now() predicate ensures expired entries are invisible, exactly
-	// as Redis would be once the entry lapses.
+	// The expires_at > now() predicate ensures expired entries are invisible, so
+	// entries need no active deletion to stop matching reads.
 	revokedAccessTokenQuery = `SELECT 1 FROM revoked_access_tokens WHERE sid = $1 AND expires_at > now() LIMIT 1`
 
-	// insertRevocationQuery durably records a fresh revocation. now()+ttl is the expiry,
-	// mirroring Redis SET … EX. ON CONFLICT (sid) DO UPDATE ensures idempotency (a stray
-	// reuse of an ID updates the expiry, not a duplicate).
+	// insertRevocationQuery durably records a fresh revocation. now()+ttl is the expiry.
+	// ON CONFLICT (sid) DO UPDATE makes re-revoking idempotent and refreshes the expiry.
 	insertRevocationQuery = `INSERT INTO revoked_access_tokens (sid, expires_at)
 		VALUES ($1, now() + $2) ON CONFLICT (sid) DO UPDATE SET expires_at = EXCLUDED.expires_at`
 
 	// deleteExpiredQuery removes rows where expires_at <= now(), bounding the
-	// table and index size. Read predicate already filters expired entries,
+	// table and index size. The read predicate already filters expired entries,
 	// so this only bounds stale data, not correctness.
 	deleteExpiredQuery = `DELETE FROM revoked_access_tokens WHERE expires_at <= now()`
 )
@@ -47,7 +52,8 @@ func newPostgresStore(ctx context.Context, dsn string, ttl time.Duration) (*post
 
 	cfg.MaxConns = 5 // small pool: only revocation queries, not load-bearing
 
-	// Set statement timeout via RuntimeParams on the ConnConfig
+	// Fail fast on dial and per-statement execution.
+	cfg.ConnConfig.ConnectTimeout = connectTimeout
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] = statementTimeout.String()
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
@@ -96,7 +102,9 @@ func ensureSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	return nil
 }
 
-// Revoke durably records a fresh revocation and returns only after the commit.
+// Revoke durably records fresh revocations and returns only after the commit.
+// All inserts run in one transaction: either every session is recorded or none
+// is, so a failure cannot leave a multi-session logout-all half-applied.
 func (p *postgresStore) Revoke(ctx context.Context, sessionIDs ...string) error {
 	if len(sessionIDs) == 0 {
 		return nil
@@ -105,17 +113,21 @@ func (p *postgresStore) Revoke(ctx context.Context, sessionIDs ...string) error 
 		return fmt.Errorf("revocation store is not configured for writes")
 	}
 
-	// Execute all inserts in a single transaction to reduce round trips.
-	// Each insert uses ON CONFLICT to update, so idempotent re-revoke is safe.
-	var total int64
+	batch := &pgx.Batch{}
 	for _, sid := range sessionIDs {
-		_, err := p.pool.Exec(ctx, insertRevocationQuery, sid, p.ttl)
-		if err != nil {
-			return fmt.Errorf("revoke postgres session %q: %w", sid, err)
-		}
-		total++
+		batch.Queue(insertRevocationQuery, sid, p.ttl)
 	}
-
+	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin revocation transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := tx.SendBatch(ctx, batch).Close(); err != nil {
+		return fmt.Errorf("record revoked access tokens: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit revoked access tokens: %w", err)
+	}
 	return nil
 }
 
@@ -127,10 +139,12 @@ func (p *postgresStore) IsRevoked(ctx context.Context, sessionID string) (bool, 
 
 	var found int
 	err := p.pool.QueryRow(ctx, revokedAccessTokenQuery, sessionID).Scan(&found)
-	switch {
-	case err == sql.ErrNoRows:
+	// pgx returns its own ErrNoRows which wraps database/sql.ErrNoRows, so the
+	// comparison must go through errors.Is — identity (==) never matches.
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
-	case err != nil:
+	}
+	if err != nil {
 		return false, fmt.Errorf("check postgres revocation for session %q: %w", sessionID, err)
 	}
 

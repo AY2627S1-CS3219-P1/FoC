@@ -23,6 +23,7 @@ func TestRevocationPostgresStoreIntegration(t *testing.T) {
 		postgres.WithDatabase("test_revocation"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
+		postgres.BasicWaitStrategies(),
 	)
 	if err != nil {
 		t.Fatal(err)

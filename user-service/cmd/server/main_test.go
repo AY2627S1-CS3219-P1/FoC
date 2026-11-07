@@ -89,7 +89,7 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
 		"KAFKA_BROKERS":                     "kafka:9092",
-		"TOKEN_REVOCATION_BASE_URL":         "localhost:6379",
+		"TOKEN_REVOCATION_BASE_URL":         "postgresql://foc:changeme@localhost:5432/revocation_dev?sslmode=disable",
 		"SMTP_ADDR":                         "smtp.example.test:25",
 		"SMTP_FROM":                         "FoC <no-reply@example.test>",
 		"SMTP_USERNAME":                     "",

@@ -47,7 +47,7 @@ func TestAccessMiddleware(t *testing.T) {
 	userService := httptest.NewServer(mux)
 	defer userService.Close()
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
-	t.Setenv("TOKEN_REVOCATION_BASE_URL", "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable")
+	t.Setenv("TOKEN_REVOCATION_BASE_URL", revocationDSN(t))
 	authenticator, err := NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)

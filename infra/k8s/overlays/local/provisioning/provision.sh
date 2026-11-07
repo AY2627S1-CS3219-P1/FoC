@@ -1,8 +1,9 @@
 #!/bin/sh
 # Operator-only Job: create isolated service roles/databases without dropping data.
+# The revocation store is one shared role/database every service connects to.
 set -eu
 export PGHOST=postgres PGPORT=5432 PGDATABASE=postgres PGUSER="$POSTGRES_USER" PGPASSWORD="$POSTGRES_PASSWORD"
-for service in user supplier order credit communication; do
+for service in user supplier order credit communication revocation; do
   DB_USER=$(cat "/secrets/$service/DB_USER")
   DB_PASSWORD=$(cat "/secrets/$service/DB_PASSWORD")
   DB_NAME=$(cat "/secrets/$service/DB_NAME")

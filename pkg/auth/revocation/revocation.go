@@ -32,8 +32,9 @@ type Store struct {
 	ttl  time.Duration
 }
 
-// RevocationStore is the internal interface implemented by the backends.
-// It is intentionally unexported so consumers only see the public API.
+// RevocationStore is the internal contract implemented by the backends.
+// It is exported only so test doubles in other packages can implement it;
+// production consumers receive the concrete *Store.
 type RevocationStore interface {
 	Revoke(ctx context.Context, sessionIDs ...string) error
 	IsRevoked(ctx context.Context, sessionID string) (bool, error)

@@ -59,6 +59,7 @@ func postgresContainer(ctx context.Context) (*postgres.PostgresContainer, string
 		postgres.WithDatabase("test_revocation"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
+		postgres.BasicWaitStrategies(),
 	)
 	if err != nil {
 		return nil, "", err
@@ -176,19 +177,18 @@ func TestDeleteExpiredImmediateCleanup(t *testing.T) {
 	}
 	defer func() { _ = container.Terminate(ctx) }()
 
-	store, err := NewStore(ctx, Config{Address: dsn, TTL: time.Second})
+	store, err := NewStore(ctx, Config{Address: dsn, TTL: 100 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = store.Close() }()
 
-	// Write entries that expire in 100ms.
 	if err := store.Revoke(ctx, "a", "b", "c"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Wait for them to expire.
-	time.Sleep(200 * time.Millisecond)
+	// Wait past the entries' 100ms expiry.
+	time.Sleep(300 * time.Millisecond)
 
 	// DeleteExpired should remove all expired rows.
 	deleted, err := store.DeleteExpired(ctx)
@@ -244,23 +244,11 @@ func TestReaderWithoutTTLCannotRevoke(t *testing.T) {
 	}
 }
 
-// TestIsRevokedEmptySessionID verifies empty session ID is not revoked.
+// TestIsRevokedEmptySessionID verifies the empty-session-ID guard short-circuits
+// before any store access; no backend is needed.
 func TestIsRevokedEmptySessionID(t *testing.T) {
-	ctx := context.Background()
-
-	container, dsn, err := postgresContainer(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = container.Terminate(ctx) }()
-
-	store, err := NewStore(ctx, Config{Address: dsn, TTL: time.Minute})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = store.Close() }()
-
-	revoked, err := store.IsRevoked(ctx, "")
+	store := &Store{}
+	revoked, err := store.IsRevoked(context.Background(), "")
 	if err != nil {
 		t.Fatalf("empty session ID: err=%v", err)
 	}

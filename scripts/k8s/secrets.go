@@ -217,6 +217,27 @@ func (o *operator) generateLocalSecrets() error {
 			return err
 		}
 	}
+	// The revocation store is one shared role/database every service connects
+	// to; its secret carries the env var the services read.
+	if err := persistValue(directory, "revocation-db-user", "revocation_app", false); err != nil {
+		return err
+	}
+	if err := persistValue(directory, "revocation-db-name", "revocation_db", false); err != nil {
+		return err
+	}
+	var revocationFields []string
+	for _, suffix := range []string{"-db-user", "-db-name", "-password"} {
+		value, err := os.ReadFile(filepath.Join(directory, "revocation"+suffix))
+		if err != nil {
+			return err
+		}
+		revocationFields = append(revocationFields, strings.TrimSpace(string(value)))
+	}
+	revocationURL := "postgres://" + revocationFields[0] + ":" + revocationFields[2] +
+		"@postgres:5432/" + revocationFields[1] + "?sslmode=disable"
+	if err := persistValue(directory, "revocation-database-url", revocationURL, false); err != nil {
+		return err
+	}
 	fromFile := func(key, file string) string { return "--from-file=" + key + "=" + filepath.Join(directory, file) }
 	if err := o.applySecret(
 		"foc",
@@ -237,6 +258,16 @@ func (o *operator) generateLocalSecrets() error {
 		); err != nil {
 			return err
 		}
+	}
+	if err := o.applySecret(
+		"foc",
+		"revocation-db",
+		fromFile("DB_USER", "revocation-db-user"),
+		fromFile("DB_NAME", "revocation-db-name"),
+		fromFile("DB_PASSWORD", "revocation-password"),
+		fromFile("TOKEN_REVOCATION_BASE_URL", "revocation-database-url"),
+	); err != nil {
+		return err
 	}
 	if err := o.applySecret(
 		"foc",

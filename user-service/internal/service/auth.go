@@ -33,6 +33,16 @@ const (
 	RefreshTokenLifetime = 30 * 24 * time.Hour
 )
 
+// EffectiveAccessTokenLifetime resolves the access-token lifetime the service
+// applies, so the revocation store TTL in main stays in lockstep with
+// NewService's defaulting instead of duplicating it.
+func EffectiveAccessTokenLifetime(configured time.Duration) time.Duration {
+	if configured == 0 {
+		return AccessTokenLifetime
+	}
+	return configured
+}
+
 func (s *Service) RequestLink(ctx context.Context, email string) error {
 	normalizedEmail, err := NormalizeEmail(email)
 	if err != nil {

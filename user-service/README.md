@@ -109,19 +109,21 @@ Revoking a session also revokes its outstanding access tokens within one
 request, instead of letting them live out their remaining lifetime (NFR-05.4.1,
 issue #57; see `docs/adr/redis-access-token-revocation.md`). After a logout,
 refresh rotation, logout-all, or role change commits, the User Service records
-the revoked session IDs in a Redis dictionary named
-`revoked_access_tokens:<session_id>`, one entry per session with a TTL equal to
-the maximum access-token lifetime. Every service's authentication middleware
-consults that dictionary after verifying the signature: a revoked session's
-access token is rejected with `Unauthenticated`, even though it is still
-cryptographically valid. If Redis is unreachable, verification fails closed
-with `Unavailable` rather than accepting tokens of unknown revocation state.
+the revoked session IDs in a shared PostgreSQL table `revoked_access_tokens`
+(one row per session, keyed by session ID), with an `expires_at` equal to the
+maximum access-token lifetime. Every service's authentication middleware
+consults that table after verifying the signature: a revoked session's access
+token is rejected with `Unauthenticated`, even though it is still
+cryptographically valid. If the revocation store is unreachable, verification
+fails closed with `Unavailable` rather than accepting tokens of unknown
+revocation state.
 
-`REDIS_ADDR` (`host:port`) is required in every Go service. Compose starts the
-dictionary with append-only persistence and points services at `redis:6379`;
-host development uses `localhost:6379` against the published port. The
-dictionary holds no user data beyond session UUIDs and revocation timestamps,
-and entries expire with the access tokens they cover. Token issuance reads the
+`TOKEN_REVOCATION_BASE_URL` (a `postgresql://` DSN) is required in every Go
+service. Compose points every service at the shared `revocation_dev` database
+on the dev Postgres; host development uses the published Postgres port. The
+table holds no user data beyond session UUIDs and revocation timestamps, the
+read path ignores expired rows, and the User Service periodically deletes
+expired entries to keep the table small. Token issuance reads the
 user row under a lock, so a session created while an admin changes that user's
 role either carries the new role or is swept into the change's revocation.
 
@@ -169,8 +171,8 @@ and fetches early when a token names an unknown key ID. The base URL must be a
 bare origin (`http` or `https`); transport security is the deployment
 environment's responsibility (the Istio mesh provides mTLS in Kubernetes, and
 the Compose network isolates local traffic).
-The authenticator also consults the shared revocation dictionary and requires
-`REDIS_ADDR`; see "Access-token revocation" above.
+The authenticator also consults the shared revocation store and requires
+`TOKEN_REVOCATION_BASE_URL`; see "Access-token revocation" above.
 
 ```go
 import authmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"

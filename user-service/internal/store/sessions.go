@@ -59,25 +59,24 @@ func (s *Sessions) Revoke(
 // RevokeAllForUser revokes every unrevoked session of userID and returns their
 // IDs so the caller can record each session's access tokens in the revocation
 // dictionary. Expired sessions are included; revoking them is harmless.
+//
+// The revoke and the ID list come from one UPDATE … RETURNING, so a session
+// committed by a concurrent login/refresh cannot be revoked without appearing
+// in the returned IDs (which would leave its access token valid until expiry).
 func (s *Sessions) RevokeAllForUser(
 	ctx context.Context,
 	userID uuid.UUID,
 	now time.Time,
 ) ([]uuid.UUID, error) {
 	var sessionIDs []uuid.UUID
-	if err := s.db.WithContext(ctx).Model(&models.Session{}).
-		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Pluck("id", &sessionIDs).Error; err != nil {
+	err := s.db.WithContext(ctx).Raw(
+		`UPDATE sessions SET revoked_at = ?, updated_at = ?
+		 WHERE user_id = ? AND revoked_at IS NULL
+		 RETURNING id`,
+		now, now, userID,
+	).Scan(&sessionIDs).Error
+	if err != nil {
 		return nil, err
-	}
-	if len(sessionIDs) == 0 {
-		return nil, nil
-	}
-	result := s.db.WithContext(ctx).Model(&models.Session{}).
-		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Updates(map[string]any{"revoked_at": now, "updated_at": now})
-	if result.Error != nil {
-		return nil, result.Error
 	}
 	return sessionIDs, nil
 }

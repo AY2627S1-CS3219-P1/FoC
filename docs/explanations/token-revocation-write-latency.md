@@ -1,5 +1,12 @@
 # Access-token revocation under concurrent durable writes: Redis vs Postgres vs Postgres-via-HTTP
 
+> **Status (8 Nov 2026):** the benchmark module that produced these numbers was
+> removed from the repository; the figures below are preserved as a record of
+> the experiment. The shipped backend is now **PostgreSQL (variant B)** — the
+> "Redis (shipped production path)" labels below describe the state at
+> measurement time, not the current implementation.
+
+
 ## Scope
 
 The companion to

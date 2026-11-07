@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,9 +17,46 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
 const testKeyID = "test-key"
+
+var (
+	revocationDSNOnce sync.Once
+	revocationDSNVal  string
+	revocationDSNErr  error
+)
+
+// revocationDSN returns the DSN of one throwaway PostgreSQL shared by every
+// test that builds the real authenticator. NewStore dials eagerly, so a fake
+// address cannot stand in for the revocation store.
+func revocationDSN(t *testing.T) string {
+	t.Helper()
+	revocationDSNOnce.Do(func() {
+		ctx := context.Background()
+		container, err := postgres.Run(ctx, "postgres:18-alpine",
+			postgres.WithDatabase("revocation_test"),
+			postgres.WithUsername("test"),
+			postgres.WithPassword("test"),
+			postgres.BasicWaitStrategies(),
+		)
+		if err != nil {
+			revocationDSNErr = err
+			return
+		}
+		dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			revocationDSNErr = err
+			return
+		}
+		revocationDSNVal = dsn
+	})
+	if revocationDSNErr != nil {
+		t.Fatalf("start shared revocation postgres: %v", revocationDSNErr)
+	}
+	return revocationDSNVal
+}
 
 // Auth signs access tokens the way User Service does and serves the
 // matching public key, so tests exercise the real Authenticator.
@@ -44,7 +82,7 @@ func New(t *testing.T) *Auth {
 
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("USER_SERVICE_BASE_URL", userService.URL)
-	t.Setenv("TOKEN_REVOCATION_BASE_URL", "postgresql://test:test@localhost:5432/revocation_dev?sslmode=disable")
+	t.Setenv("TOKEN_REVOCATION_BASE_URL", revocationDSN(t))
 	authenticator, err := httpauth.NewUserServiceAuthenticator(context.Background())
 	if err != nil {
 		t.Fatal(err)

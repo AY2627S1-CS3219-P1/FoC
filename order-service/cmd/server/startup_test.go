@@ -64,7 +64,7 @@ func TestConfiguration(t *testing.T) {
 	valid := map[string]string{
 		"DATABASE_URL":              "postgresql://foc:password@localhost:5432/order_dev",
 		"USER_SERVICE_BASE_URL":     "http://localhost:8081",
-		"TOKEN_REVOCATION_BASE_URL": "localhost:6379",
+		"TOKEN_REVOCATION_BASE_URL": "postgresql://foc:changeme@localhost:5432/revocation_dev?sslmode=disable",
 		"APP_ENV":                   "local",
 		"INTERNAL_PORT":             "8081",
 	}
