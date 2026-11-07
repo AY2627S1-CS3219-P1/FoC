@@ -6,6 +6,7 @@ package review
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -205,7 +206,7 @@ func TestCreateReviewPhotoUploadWithoutStorage(t *testing.T) {
 	service := newTestServiceWithPhotos(fake, nil)
 
 	_, _, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 100)
-	assertExternal(t, err, http.StatusPreconditionFailed)
+	assertExternal(t, err, http.StatusInternalServerError)
 }
 
 func TestCreateReviewPhotoUploadSigningFailureLeavesNoOrphanRow(t *testing.T) {
@@ -318,7 +319,55 @@ func TestPreparePhotosVerifiesStoredObjectShape(t *testing.T) {
 			storage := &fakeStorage{objects: tc.info}
 			service := fake.withPhotos(storage)
 			_, err := service.preparePhotos(context.Background(), tc.owner, []uuid.UUID{staged.ID})
-			assertExternal(t, err, http.StatusBadRequest)
+			assertExternal(t, err, http.StatusPreconditionFailed)
+		})
+	}
+}
+
+func TestPreparePhotosClassifiesStorageFaults(t *testing.T) {
+	owner := uuid.New()
+	staged := ReviewPhoto{
+		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
+	}
+	cases := []struct {
+		name       string
+		inspectErr error
+		status     int
+		reason     string
+	}{
+		{
+			name:       "transient storage fault is 503",
+			inspectErr: fmt.Errorf("%w: %w", images.ErrStorageUnavailable, errors.New("dial tcp: refused")),
+			status:     http.StatusServiceUnavailable,
+			reason:     reasonUploadTemporarilyUnavailable,
+		},
+		{
+			name:       "misconfigured storage is 500",
+			inspectErr: fmt.Errorf("%w: %w", images.ErrStorageMisconfigured, errors.New("AccessDenied")),
+			status:     http.StatusInternalServerError,
+			reason:     reasonUploadUnavailable,
+		},
+		{
+			name:       "unclassified storage fault is 500",
+			inspectErr: errors.New("something odd"),
+			status:     http.StatusInternalServerError,
+			reason:     reasonUploadUnavailable,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeRepository{
+				exists:      map[uuid.UUID]bool{},
+				photosByKey: map[uuid.UUID]ReviewPhoto{staged.ID: staged},
+			}
+			storage := &fakeStorage{inspectErr: tc.inspectErr}
+			service := fake.withPhotos(storage)
+			_, err := service.preparePhotos(context.Background(), owner, []uuid.UUID{staged.ID})
+			assertExternal(t, err, tc.status)
+			if got := reasonOf(t, toConnectError(context.Background(), err)); got != tc.reason {
+				t.Fatalf("reason = %q, want %q", got, tc.reason)
+			}
 		})
 	}
 }
@@ -405,7 +454,7 @@ func TestSubmitReviewFailsWhenAttachmentLost(t *testing.T) {
 		context.Background(), reviewer, reviewee, uuid.New(),
 		ReviewSubmission{Rating: 4, Comment: "ok"}, []uuid.UUID{staged.ID},
 	)
-	assertExternal(t, err, http.StatusBadRequest)
+	assertExternal(t, err, http.StatusPreconditionFailed)
 }
 
 func TestSubmitReviewWithoutStorageAndWithoutPhotos(t *testing.T) {

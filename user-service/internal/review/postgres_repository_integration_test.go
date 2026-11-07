@@ -237,7 +237,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "with photo"}, nil); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "with photo"},
+			nil,
+		); err != nil {
 			t.Fatalf("submit review for attachment: %v", err)
 		}
 		reviewed, err := service.ListReviewsFromUser(ctx, reviewer, mustPage(t, 1, 1))
