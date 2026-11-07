@@ -52,6 +52,9 @@
 		<div class="warning-list">
 			{#each warnings as warning (warning.id)}
 				{@const isRemoved = warning.status === 'removed'}
+				<!-- Application-owned card rather than m3 Card: Card hardcodes
+				     var(--m3c-surface) with no background prop, so tinted
+				     active/removed states cannot be themed through it. -->
 				<article
 					class="warning-card"
 					class:is-active={!isRemoved}
@@ -110,6 +113,7 @@
 	   palette in app.css, which may align with these in a future theme pass. */
 	.warning-card.is-active {
 		--warning-container: #fffbeb;
+		--warning-chip-container: #fef3c7;
 		--warning-on-container: #92400e;
 		--warning-outline: #fcd34d;
 		border-color: var(--warning-outline);
@@ -134,7 +138,7 @@
 		letter-spacing: 0.02em;
 	}
 	.is-active .status-chip {
-		background: #fef3c7;
+		background: var(--warning-chip-container);
 		color: var(--warning-on-container);
 		border: 1px solid var(--warning-outline);
 	}
