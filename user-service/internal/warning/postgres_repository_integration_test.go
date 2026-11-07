@@ -120,8 +120,7 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// It has no updater, but it came from a courier event and therefore
-	// carries its source event ID.
+	// Courier event row: no updater, carries its source event ID.
 	if _, err := repository.Create(ctx, Warning{
 		UserID: user.ID, RequestID: uuid.New(), Reason: "courier event", Status: StatusActive,
 		SourceEventID: &eventID, CreatedAt: listTime,
@@ -138,8 +137,7 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 	if bytes.Compare(warnings[0].ID[:], warnings[1].ID[:]) < 0 {
 		t.Fatalf("admin list not sorted by id DESC: [%s, %s]", warnings[0].ID, warnings[1].ID)
 	}
-	// Both rows must be present, in either order (id DESC decides with equal
-	// timestamps and UUIDs are random).
+	// Both rows must be present; which comes first is random (UUIDv4).
 	var courier, recorded AdminWarning
 	for _, warning := range warnings {
 		switch warning.Reason {

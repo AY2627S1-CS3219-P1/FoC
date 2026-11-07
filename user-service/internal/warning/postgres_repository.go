@@ -144,9 +144,8 @@ func warningFromRow(row warningdb.AccountWarning) Warning {
 	return warning
 }
 
-// adminWarningFromRow maps the admin query's row onto the read projection.
-// The row carries every table column plus the joined updater name, so the
-// common columns feed the shared table mapping and only the name is added.
+// adminWarningFromRow reuses the table mapping and adds only the joined
+// updater name.
 func adminWarningFromRow(row warningdb.ListAccountWarningsForAdminRow) AdminWarning {
 	admin := AdminWarning{Warning: warningFromRow(warningdb.AccountWarning{
 		ID: row.ID, UserID: row.UserID, RequestID: row.RequestID, ReportID: row.ReportID,

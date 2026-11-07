@@ -7,18 +7,15 @@ import "google/protobuf/timestamp.proto";
 import "pagination/v1/pagination.proto";
 import "user/warning/v1/warning.proto";
 
-// WarningAdminService is the admin-only warning sub-service. It is mounted
-// behind RequireAdmin, so every method is administrator-gated at the service
-// boundary rather than per-method.
+// WarningAdminService is the admin-only warning sub-service, mounted behind
+// RequireAdmin so every method is administrator-gated at the boundary.
 service WarningAdminService {
   rpc ListWarningsForUser(ListWarningsForUserRequest) returns (ListWarningsForUserResponse) {}
   rpc MarkWarningAsRemoved(MarkWarningAsRemovedRequest) returns (MarkWarningAsRemovedResponse) {}
 }
 
-// AdminAccountWarning is the admin read view of a warning. It repeats the
-// user-facing AccountWarning fields and adds the audit context that only the
-// admin sub-service ever populates; the user view physically lacks these
-// fields.
+// AdminAccountWarning is the admin read view of a warning: the user-facing
+// AccountWarning fields plus audit context only the admin service populates.
 message AdminAccountWarning {
   string id = 1;
   string request_id = 2;
@@ -48,7 +45,7 @@ message ListWarningsForUserResponse {
 
 message MarkWarningAsRemovedRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
-  optional string removed_reason = 2 [(buf.validate.field).string = {
+  string removed_reason = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 2000
   }];

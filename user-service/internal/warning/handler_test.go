@@ -2,6 +2,7 @@ package warning
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,12 +50,13 @@ func (s *handlerLogicStub) ListWarningsForAdmin(
 func (s *handlerLogicStub) MarkWarningAsRemoved(
 	_ context.Context,
 	warningID uuid.UUID,
-	removedReason *string,
+	removedReason string,
 	appealID *uuid.UUID,
 	actorID uuid.UUID,
 ) error {
+	trimmed := strings.TrimSpace(removedReason)
 	s.removeID = warningID
-	s.removeText = removedReason
+	s.removeText = &trimmed
 	s.appealID = appealID
 	s.actorID = actorID
 	return s.removeErr
@@ -134,7 +136,6 @@ func TestWarningListHandlersReturnPagination(t *testing.T) {
 func TestAdminHandlerOmitsAbsentAuditFields(t *testing.T) {
 	actorID := uuid.New()
 	logic := &handlerLogicStub{adminResult: AdminWarningPage{
-		// A system-created courier warning: no removal, no updater, no event.
 		Warnings: []AdminWarning{{Warning: Warning{
 			ID: uuid.New(), RequestID: uuid.New(), Reason: "test warning",
 			Status: StatusActive, CreatedAt: time.Now().UTC(),
@@ -168,7 +169,7 @@ func TestMarkWarningAsRemovedHandlerMapsNotFound(t *testing.T) {
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
 
 	_, err := adminHandler.MarkWarningAsRemoved(ctx, connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
-		Id: warningID.String(),
+		Id: warningID.String(), RemovedReason: "appeal overturned",
 	}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("not-found removal error = %v, want CodeNotFound", err)
@@ -183,7 +184,7 @@ func TestMarkWarningAsRemovedHandlerPassesOptionalMetadataAndActor(t *testing.T)
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
 
 	_, err := adminHandler.MarkWarningAsRemoved(ctx, connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
-		Id: warningID.String(), RemovedReason: &reason, AppealId: &appealText,
+		Id: warningID.String(), RemovedReason: reason, AppealId: &appealText,
 	}))
 	if err != nil {
 		t.Fatal(err)

@@ -78,8 +78,8 @@ func (s *Service) ListWarnings(
 	}, nil
 }
 
-// ListWarningsForAdmin returns the admin read projection of a user's warnings:
-// the same records plus the display name of the user who last updated each.
+// ListWarningsForAdmin returns the admin read projection: the user's warnings
+// plus the last updater's display name.
 func (s *Service) ListWarningsForAdmin(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -105,27 +105,23 @@ func (s *Service) ListWarningsForAdmin(
 func (s *Service) MarkWarningAsRemoved(
 	ctx context.Context,
 	warningID uuid.UUID,
-	removedReason *string,
+	removedReason string,
 	appealID *uuid.UUID,
 	actorID uuid.UUID,
 ) error {
 	if warningID == uuid.Nil || actorID == uuid.Nil || (appealID != nil && *appealID == uuid.Nil) {
 		return errs.NewBadRequestError("invalid warning removal")
 	}
-	// Mirror review.RemoveReview: a present-but-blank reason is as good as no
-	// reason and must not reach the audit trail as an empty string.
-	if removedReason != nil {
-		trimmed := strings.TrimSpace(*removedReason)
-		if trimmed == "" {
-			return errs.NewBadRequestError("removal reason must not be blank")
-		}
-		if utf8.RuneCountInString(trimmed) > 2000 {
-			return errs.NewBadRequestError("removal reason must not exceed 2000 characters")
-		}
-		removedReason = &trimmed
+	// Mirror review.RemoveReview: trim, and never persist a blank audit reason.
+	trimmed := strings.TrimSpace(removedReason)
+	if trimmed == "" {
+		return errs.NewBadRequestError("removal reason must not be blank")
+	}
+	if utf8.RuneCountInString(trimmed) > 2000 {
+		return errs.NewBadRequestError("removal reason must not exceed 2000 characters")
 	}
 
-	_, err := s.repository.Remove(ctx, warningID, time.Now().UTC(), removedReason, appealID, &actorID)
+	_, err := s.repository.Remove(ctx, warningID, time.Now().UTC(), &trimmed, appealID, &actorID)
 	if errors.Is(err, ErrNotFound) {
 		return errs.WrapNotFoundError(ErrNotFound, "warning not found")
 	}

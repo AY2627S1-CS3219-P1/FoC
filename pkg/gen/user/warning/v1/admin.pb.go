@@ -24,10 +24,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AdminAccountWarning is the admin read view of a warning. It repeats the
-// user-facing AccountWarning fields and adds the audit context that only the
-// admin sub-service ever populates; the user view physically lacks these
-// fields.
+// AdminAccountWarning is the admin read view of a warning: the user-facing
+// AccountWarning fields plus audit context only the admin service populates.
 type AdminAccountWarning struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -262,7 +260,7 @@ func (x *ListWarningsForUserResponse) GetPagination() *v1.PageInfo {
 type MarkWarningAsRemovedRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	RemovedReason *string                `protobuf:"bytes,2,opt,name=removed_reason,json=removedReason,proto3,oneof" json:"removed_reason,omitempty"`
+	RemovedReason string                 `protobuf:"bytes,2,opt,name=removed_reason,json=removedReason,proto3" json:"removed_reason,omitempty"`
 	AppealId      *string                `protobuf:"bytes,3,opt,name=appeal_id,json=appealId,proto3,oneof" json:"appeal_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -306,8 +304,8 @@ func (x *MarkWarningAsRemovedRequest) GetId() string {
 }
 
 func (x *MarkWarningAsRemovedRequest) GetRemovedReason() string {
-	if x != nil && x.RemovedReason != nil {
-		return *x.RemovedReason
+	if x != nil {
+		return x.RemovedReason
 	}
 	return ""
 }
@@ -391,13 +389,12 @@ const file_user_warning_v1_admin_proto_rawDesc = "" +
 	"\bwarnings\x18\x01 \x03(\v2$.user.warning.v1.AdminAccountWarningR\bwarnings\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination\"\xbc\x01\n" +
+	"pagination\"\xa4\x01\n" +
 	"\x1bMarkWarningAsRemovedRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x126\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x121\n" +
 	"\x0eremoved_reason\x18\x02 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fH\x00R\rremovedReason\x88\x01\x01\x12*\n" +
-	"\tappeal_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\bappealId\x88\x01\x01B\x11\n" +
-	"\x0f_removed_reasonB\f\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fR\rremovedReason\x12*\n" +
+	"\tappeal_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\bappealId\x88\x01\x01B\f\n" +
 	"\n" +
 	"_appeal_id\"\x1e\n" +
 	"\x1cMarkWarningAsRemovedResponse2\x80\x02\n" +

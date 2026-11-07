@@ -15,8 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// WarningLogic is the read operation the user-facing WarningService adapter
-// calls.
+// WarningLogic is the read operation the user-facing WarningService adapter calls.
 type WarningLogic interface {
 	ListWarnings(context.Context, uuid.UUID, pagination.Pagination) (WarningPage, error)
 }
@@ -50,11 +49,11 @@ func (h *Handler) ListMyWarnings(
 }
 
 // AdminWarningLogic is the operations the admin-only WarningAdminService
-// adapter calls. It is mounted behind auth.RequireAdmin(), so every method is
-// administrator-gated at the service boundary rather than per-method.
+// adapter calls; the service is administrator-gated at the mount
+// (auth.RequireAdmin()) rather than per-method.
 type AdminWarningLogic interface {
 	ListWarningsForAdmin(context.Context, uuid.UUID, pagination.Pagination) (AdminWarningPage, error)
-	MarkWarningAsRemoved(context.Context, uuid.UUID, *string, *uuid.UUID, uuid.UUID) error
+	MarkWarningAsRemoved(context.Context, uuid.UUID, string, *uuid.UUID, uuid.UUID) error
 }
 
 // AdminHandler is the admin-only WarningAdminService adapter.
@@ -63,8 +62,7 @@ type AdminHandler struct {
 	Logic AdminWarningLogic
 }
 
-// ListWarningsForUser returns the admin read view of the warnings held against
-// an arbitrary user.
+// ListWarningsForUser returns the admin read view of a user's warnings.
 func (h *AdminHandler) ListWarningsForUser(
 	ctx context.Context,
 	req *connect.Request[warningv1.ListWarningsForUserRequest],
@@ -89,7 +87,7 @@ func (h *AdminHandler) ListWarningsForUser(
 	return response, nil
 }
 
-// MarkWarningAsRemoved records an audit row for a warning. Admin-only.
+// MarkWarningAsRemoved records an audit row for a warning.
 func (h *AdminHandler) MarkWarningAsRemoved(
 	ctx context.Context,
 	req *connect.Request[warningv1.MarkWarningAsRemovedRequest],
@@ -111,13 +109,7 @@ func (h *AdminHandler) MarkWarningAsRemoved(
 		}
 		appealID = &parsed
 	}
-
-	var removedReason *string
-	if req.Msg.RemovedReason != nil {
-		value := req.Msg.GetRemovedReason()
-		removedReason = &value
-	}
-	if err := h.Logic.MarkWarningAsRemoved(ctx, warningID, removedReason, appealID, actorID); err != nil {
+	if err := h.Logic.MarkWarningAsRemoved(ctx, warningID, req.Msg.GetRemovedReason(), appealID, actorID); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&warningv1.MarkWarningAsRemovedResponse{}), nil
@@ -187,7 +179,6 @@ func adminWarningDTOs(warnings []AdminWarning) []*warningv1.AdminAccountWarning 
 	return result
 }
 
-// removalFields converts the soft-delete record shared by both read views.
 func removalFields(warning Warning) (*timestamppb.Timestamp, *string) {
 	var removedAt *timestamppb.Timestamp
 	if warning.RemovedAt != nil {

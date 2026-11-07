@@ -139,12 +139,13 @@ func (s *warningStub) ListWarningsForAdmin(
 func (s *warningStub) MarkWarningAsRemoved(
 	_ context.Context,
 	warningID uuid.UUID,
-	removedReason *string,
+	removedReason string,
 	appealID *uuid.UUID,
 	actorID uuid.UUID,
 ) error {
 	s.warningID = warningID
-	s.removedText = removedReason
+	trimmed := removedReason
+	s.removedText = &trimmed
 	s.appealID = appealID
 	s.removedBy = actorID
 	s.removeCalls.Add(1)
@@ -208,7 +209,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	warningID, appealID := uuid.New(), uuid.New()
 	removedReason := "appeal overturned"
 	markRemoved := connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
-		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
+		Id: warningID.String(), RemovedReason: removedReason, AppealId: ptr(appealID.String()),
 	})
 	markRemoved.Header().Set("Authorization", "Bearer "+token)
 	if _, err := adminWarningClient.MarkWarningAsRemoved(
@@ -261,7 +262,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		t.Fatalf("admin warning lookup: user=%s err=%v", warnings.userID, err)
 	}
 	emptyReason := connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
-		Id: warningID.String(), RemovedReason: ptr(""),
+		Id: warningID.String(), RemovedReason: "",
 	})
 	emptyReason.Header().Set("Authorization", "Bearer "+adminWarningToken)
 	if _, err := adminWarningClient.MarkWarningAsRemoved(
@@ -271,7 +272,7 @@ func TestProtectedConnectRoutes(t *testing.T) {
 		t.Fatalf("empty removal reason: %v", err)
 	}
 	markRemoved = connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{
-		Id: warningID.String(), RemovedReason: &removedReason, AppealId: ptr(appealID.String()),
+		Id: warningID.String(), RemovedReason: removedReason, AppealId: ptr(appealID.String()),
 	})
 	markRemoved.Header().Set("Authorization", "Bearer "+adminWarningToken)
 	if _, err := adminWarningClient.MarkWarningAsRemoved(
@@ -303,7 +304,9 @@ func TestProtectedConnectRoutes(t *testing.T) {
 	if _, err := adminClient.ChangeUserRole(ctx, change); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("stale admin token: %v", err)
 	}
-	markRemoved = connect.NewRequest(&warningv1.MarkWarningAsRemovedRequest{Id: warningID.String()})
+	markRemoved = connect.NewRequest(
+		&warningv1.MarkWarningAsRemovedRequest{Id: warningID.String(), RemovedReason: "stale-token replay"},
+	)
 	markRemoved.Header().Set("Authorization", "Bearer "+staleAdminToken)
 	if _, err := adminWarningClient.MarkWarningAsRemoved(
 		ctx,

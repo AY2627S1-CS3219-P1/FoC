@@ -219,8 +219,7 @@ func TestListWarningsUsesOffsetAndReturnsPageInfo(t *testing.T) {
 	warnings := []Warning{{ID: uuid.New()}, {ID: uuid.New()}}
 	repository := &repositoryStub{list: warnings, total: 7}
 	service := NewService(repository)
-	// Page 3 with size 2 gives offset 4, so the assertion cannot pass by the
-	// page number and size coincidentally equaling the offset.
+	// Page 3 with size 2 gives offset 4, which equals neither page nor size.
 	page, err := pagination.New(3, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -276,8 +275,7 @@ func TestListWarningsForAdminReturnsReadProjectionPage(t *testing.T) {
 	}}
 	repository := &repositoryStub{adminList: adminWarnings, total: 7}
 	service := NewService(repository)
-	// Page 3 with size 2 gives offset 4, so the assertion cannot pass by the
-	// page number and size coincidentally equaling the offset.
+	// Page 3 with size 2 gives offset 4, which equals neither page nor size.
 	page, err := pagination.New(3, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +333,7 @@ func TestMarkWarningAsRemovedPassesAuditMetadata(t *testing.T) {
 	repository := &repositoryStub{}
 	service := NewService(repository)
 
-	if err := service.MarkWarningAsRemoved(context.Background(), warningID, &reason, &appealID, actorID); err != nil {
+	if err := service.MarkWarningAsRemoved(context.Background(), warningID, reason, &appealID, actorID); err != nil {
 		t.Fatal(err)
 	}
 	if repository.removeID != warningID || repository.removeReason == nil ||
@@ -356,7 +354,7 @@ func TestMarkWarningAsRemovedRejectsBlankReason(t *testing.T) {
 		repository := &repositoryStub{}
 		service := NewService(repository)
 		err := service.MarkWarningAsRemoved(
-			context.Background(), uuid.New(), &reason, nil, uuid.New(),
+			context.Background(), uuid.New(), reason, nil, uuid.New(),
 		)
 		var external api.ExternalError
 		if !errors.As(err, &external) || external.Code() != http.StatusBadRequest {
@@ -374,7 +372,7 @@ func TestMarkWarningAsRemovedValidatesAndMapsRepositoryErrors(t *testing.T) {
 	err := service.MarkWarningAsRemoved(
 		context.Background(),
 		warningID,
-		nil,
+		"appeal overturned",
 		nil,
 		actorID,
 	)
@@ -392,11 +390,11 @@ func TestMarkWarningAsRemovedValidatesAndMapsRepositoryErrors(t *testing.T) {
 		name        string
 		warningID   uuid.UUID
 		actorID     uuid.UUID
-		removedText *string
+		removedText string
 	}{
 		{name: "nil warning ID", warningID: uuid.Nil, actorID: actorID},
 		{name: "nil actor ID", warningID: warningID, actorID: uuid.Nil},
-		{name: "reason too long", warningID: warningID, actorID: actorID, removedText: stringPointer(strings.Repeat("界", 2001))},
+		{name: "reason too long", warningID: warningID, actorID: actorID, removedText: strings.Repeat("界", 2001)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repository := &repositoryStub{}
