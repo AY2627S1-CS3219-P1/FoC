@@ -90,6 +90,16 @@ describe('profile picture controller', () => {
 		expect(api.updateMyProfilePicture).toHaveBeenNthCalledWith(2, 'upload-1', expect.anything());
 	});
 
+	it('does not retry a definitive rejection', async () => {
+		const { api, controller } = scenario();
+		vi.mocked(api.updateMyProfilePicture).mockRejectedValueOnce(
+			new ConnectError('rejected', Code.FailedPrecondition)
+		);
+		expect(await controller.upload(file())).toBeNull();
+		expect(api.updateMyProfilePicture).toHaveBeenCalledOnce();
+		expect(controller.snapshot().outcome).toBe('Failed');
+	});
+
 	it('removes the picture and reports rejection', async () => {
 		const { api, controller } = scenario();
 		expect(await controller.remove()).not.toBeNull();

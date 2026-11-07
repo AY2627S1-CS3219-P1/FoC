@@ -60,6 +60,7 @@
 		url={profile.profilePictureUrl}
 		name={profile.displayName}
 		size={72}
+		expiresAt={profile.profilePictureExpiresAt}
 		onerror={() => void refresh()}
 	/>
 	<div class="picture-actions">
@@ -69,7 +70,9 @@
 			class="file-input"
 			type="file"
 			accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+			aria-label="Choose profile picture"
 			aria-describedby="profile-picture-help"
+			tabindex="-1"
 			disabled={view.busy}
 			onchange={(event) => {
 				const file = event.currentTarget.files?.[0];

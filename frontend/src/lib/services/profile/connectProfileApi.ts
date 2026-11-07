@@ -15,6 +15,7 @@ type ProfileClient = Client<typeof ProfileServiceDefinition>;
 
 function toProfile(profile: ProtoProfile | undefined): UserProfile {
 	if (!profile) throw new Error('Profile response did not include a profile');
+	const profilePictureUrl = profile.profilePictureUrl || undefined;
 	return {
 		id: profile.id,
 		email: profile.email,
@@ -22,10 +23,11 @@ function toProfile(profile: ProtoProfile | undefined): UserProfile {
 		description: profile.description,
 		phoneNumber: profile.phoneNumber,
 		role: profile.role,
-		profilePictureUrl: profile.profilePictureUrl || undefined,
-		profilePictureExpiresAt: profile.profilePictureExpiresAt
-			? timestampDate(profile.profilePictureExpiresAt).getTime()
-			: undefined
+		profilePictureUrl,
+		profilePictureExpiresAt:
+			profilePictureUrl && profile.profilePictureExpiresAt
+				? timestampDate(profile.profilePictureExpiresAt).getTime()
+				: undefined
 	};
 }
 

@@ -91,6 +91,16 @@
 		}
 	}
 
+	// An expired signed avatar URL is refreshed without replacing the whole
+	// profile view with a loading state.
+	async function refreshPicture() {
+		try {
+			profile = await profileService.getMyProfile();
+		} catch {
+			// The initials fallback remains until the next page load.
+		}
+	}
+
 	onMount(() => {
 		void (async () => {
 			if (!authService.isAuthenticated) {
@@ -113,7 +123,8 @@
 						url={profile.profilePictureUrl}
 						name={profile.displayName}
 						size={72}
-						onerror={() => void loadProfile()}
+						expiresAt={profile.profilePictureExpiresAt}
+						onerror={() => void refreshPicture()}
 					/>
 				{:else}
 					<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />

@@ -1,15 +1,20 @@
 <script lang="ts">
-	// Signed profile-picture URLs expire. The caller may refresh the profile
-	// once when the image fails; the initials remain the fallback meanwhile.
+	import { shouldRefreshPicture } from './avatar.ts';
+
+	// Signed profile-picture URLs expire. Refresh only when the current URL is
+	// at or near expiry; otherwise the initials remain the fallback and a broken
+	// fresh URL cannot cause an endless refresh loop.
 	let {
 		url,
 		name,
 		size = 40,
+		expiresAt,
 		onerror
 	}: {
 		url?: string;
 		name: string;
 		size?: number;
+		expiresAt?: number;
 		onerror?: () => void;
 	} = $props();
 
@@ -41,7 +46,7 @@
 		referrerpolicy="no-referrer"
 		onerror={() => {
 			broken = true;
-			onerror?.();
+			if (shouldRefreshPicture(expiresAt)) onerror?.();
 		}}
 	/>
 {:else}

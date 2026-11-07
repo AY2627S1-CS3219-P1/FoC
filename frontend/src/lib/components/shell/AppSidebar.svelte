@@ -85,6 +85,7 @@
 				url={profileService.profile?.profilePictureUrl}
 				name={authService.user?.displayName ?? ''}
 				size={32}
+				expiresAt={profileService.profile?.profilePictureExpiresAt}
 				onerror={() => void profileService.getMyProfile().catch(() => {})}
 			/>
 			<span class="name">{authService.user?.displayName}</span>
