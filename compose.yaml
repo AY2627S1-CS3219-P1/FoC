@@ -49,7 +49,7 @@ services:
   redis:
     image: redis:8-alpine
     container_name: foc-redis
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:

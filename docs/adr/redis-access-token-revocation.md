@@ -63,7 +63,10 @@ per-entry TTL equal to the maximum access-token lifetime.
   Compose therefore health-checks Redis, orders services after it, and
   persists the dictionary with append-only files: a wiped dictionary would let
   already-revoked tokens pass again until their expiry. The client uses short
-  dial/read/write timeouts so failures fail fast.
+  dial/read/write timeouts so failures fail fast. Redis fsyncs every
+  acknowledged append (`appendfsync always`), so a crash cannot drop
+  acknowledged revocations and revive their tokens; deployments that relax
+  this accept a bounded window where the same tokens pass after a crash.
 - Local development gains one Redis container (`compose.yaml`); all services
   require `REDIS_ADDR`.
 - Credit's internal reservation listener remains unauthenticated (issue #29);
