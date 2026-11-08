@@ -19,16 +19,12 @@ var ErrStorageUnavailable = errors.New("image storage is temporarily unavailable
 var ErrStorageMisconfigured = errors.New("image storage is misconfigured")
 
 // UploadRequest uses an application-generated stable key as object identity.
-// Temporary URLs returned by grants are credentials and must never be stored
-// in place of this key.
 type UploadRequest struct {
 	Key         string
 	ContentType string
 	SizeBytes   int64
 }
 
-// UploadGrant contains the temporary upload URL and the exact request
-// requirements supplied by the storage provider.
 type UploadGrant struct {
 	URL       string
 	Method    string
@@ -36,16 +32,13 @@ type UploadGrant struct {
 	ExpiresAt time.Time
 }
 
-// ObjectInfo reports observed metadata. Business limits such as maximum size
-// and accepted media types belong to the image workflow, not the provider.
 type ObjectInfo struct {
 	Exists      bool
 	Size        int64
 	ContentType string
 }
 
-// DownloadGrant is temporary access to an object; persist its stable key
-// instead of this URL.
+// DownloadGrant is temporary access to an object
 type DownloadGrant struct {
 	URL       string
 	ExpiresAt time.Time
