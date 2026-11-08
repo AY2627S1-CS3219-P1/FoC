@@ -14,22 +14,26 @@ Exporter/consumer commit handoffs are required; an export does not transfer owne
 - `orderApi`: `getOrder(id)`, `listOpenOrders(query)`, `listMyOrders(query)`,
   `createOrder(input, idempotencyKey)` and `createItemImageUpload(type, size)`.
   These methods retain generated Order response values and bigint totals/credits.
-- `$lib/components/order`: `OrderDetailShell`, `OrderCard`, `LocationPicker`.
-- `OrderDetailShell` props: `order: Order`, `refresh: () => Promise<void>` and
-  optional `actions: Snippet<[Order, () => Promise<void>]>`. OrderUI composes the
-  snippet from feature-local controls in the detail route. This is not a registry
-  or generic lifecycle-action framework. A successful mutation must refresh even
-  when its response contains an Order, because creation retries can replay an
-  earlier result and other participants can change current state.
-- `LocationPicker` props: `label`, bindable `value` (Location UUID), `disabled`
-  and optional `onchange(location)`. It searches active Supplier Locations and
-  keeps disabled-but-selectable warnings. Archiving remains backend-authoritative.
+- `$lib/components/order`: `LocationPicker` and the delivery proof components.
+  Import each component by path. Route-only components (the order route map,
+  progress and payout chart) live beside their routes.
+- After a successful mutation, refresh the order even when the response
+  contains one: creation retries can replay an earlier result and other
+  participants can change current state.
+- `LocationPicker` props: `label`, bindable `value` (Location UUID), `disabled`,
+  and optional `onchange(location)` (user choice), `onresolve(location)` (the
+  selected location is known) and `onclear()` (user removed the selection). It
+  searches active Supplier Locations and keeps disabled-but-selectable warnings.
+  Archiving remains backend-authoritative.
 
 ## Routes
 
-- `/orders`: open browsing; query keys `pickup`, `destination` and `page`.
-- `/orders/mine`: participation history; query keys `role`, `status` and `page`.
-- `/orders/[id]`: shared detail/read shell with active-page refresh.
+- `/orders`: open browsing beside the selected request; query keys `pickup`,
+  `destination`, `selected` and `page`.
+- `/orders/mine`: participation history; query keys `view` (`active` uses
+  `active_only`; `all`), `role`, `status` (`all` only) and `page`.
+- `/orders/[id]`: order status with progress, payout estimate and actions, with
+  active-page refresh.
 - `/orders/new`: creation, optional item uploads and submitted recovery.
 
 Destination filtering uses `ListOpenOrdersRequest.delivery_building_name = 5`.

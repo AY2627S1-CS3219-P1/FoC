@@ -34,3 +34,16 @@ func (d *PostgresDeliveries) RecordSent(ctx context.Context, eventID, userID uui
 	}
 	return nil
 }
+
+// Start returns when notifications first started in this environment,
+// recording now if they never have.
+func (d *PostgresDeliveries) Start(ctx context.Context, now time.Time) (time.Time, error) {
+	if err := d.Queries.RecordNotificationsStart(ctx, now); err != nil {
+		return time.Time{}, fmt.Errorf("record notifications start: %w", err)
+	}
+	start, err := d.Queries.NotificationsStart(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("get notifications start: %w", err)
+	}
+	return start, nil
+}
