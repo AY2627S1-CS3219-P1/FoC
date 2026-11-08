@@ -4,9 +4,8 @@
 // 	protoc        (unknown)
 // source: user/review/v1/review.proto
 
-// Review feature contract for user-service. A review lets one participant of a
-// Completed request rate the other; removals are soft deletes recorded with an
-// audit row.
+// Review feature contract for user-service: one participant of a Completed
+// request rates the other; removals are soft deletes with an audit row.
 
 package reviewv1
 
@@ -28,22 +27,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// A review given by one participant about another for a single request.
 type Review struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
 	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
-	// Opaque request id owned by the order service; no foreign key here.
-	OrderId   string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Rating    int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
-	Comment   string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// display_name of the reviewer and reviewee, joined at read time.
-	ReviewerName string `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
-	RevieweeName string `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
-	// Attached photos in display order. URL is a short-lived pre-signed GET
-	// grant; treat responses carrying it as non-cacheable.
+	// Owned by order-service; no foreign key.
+	OrderId      string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Rating       int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment      string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
+	CreatedAt    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ReviewerName string                 `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
+	RevieweeName string                 `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
+	// Pre-signed GET URLs; responses carrying them are not cacheable.
 	Photos        []*ReviewPhoto `protobuf:"bytes,10,rep,name=photos,proto3" json:"photos,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -149,8 +145,6 @@ func (x *Review) GetPhotos() []*ReviewPhoto {
 	return nil
 }
 
-// One attached review photo. The URL is a temporary credential minted per
-// response, never a stable object address.
 type ReviewPhoto struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -219,7 +213,6 @@ func (x *ReviewPhoto) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// The rating and comment a caller submits about a reviewee.
 type ReviewSubmission struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Rating        int32                  `protobuf:"varint,1,opt,name=rating,proto3" json:"rating,omitempty"`
@@ -274,14 +267,12 @@ func (x *ReviewSubmission) GetComment() string {
 
 type SubmitReviewRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The reviewer. Must be the authenticated caller; impersonation is rejected.
-	From string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-	// The reviewee; must be an existing user and differ from `from`.
+	// Must be the authenticated caller.
+	From       string            `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
 	To         string            `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
 	OrderId    string            `protobuf:"bytes,3,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	Submission *ReviewSubmission `protobuf:"bytes,4,opt,name=submission,proto3" json:"submission,omitempty"`
-	// IDs returned by CreateReviewPhotoUpload, in display order. Attachment is
-	// authorized and verified inside the submission transaction.
+	// Ordered IDs returned by CreateReviewPhotoUpload.
 	PhotoIds      []string `protobuf:"bytes,5,rep,name=photo_ids,json=photoIds,proto3" json:"photo_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -388,13 +379,11 @@ func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{4}
 }
 
-// Requests one pre-signed PUT grant for a review photo. Bytes upload directly
-// from the browser to object storage; the service never carries them.
+// Requests a pre-signed PUT grant; bytes never pass through the service.
 type CreateReviewPhotoUploadRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ContentType string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	// Decimal bytes; matches the repository-wide image limit.
-	SizeBytes     int64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -618,7 +607,7 @@ func (x *ListMyReviewsResponse) GetPagination() *v1.PageInfo {
 
 type ListReviewsForUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A suspended caller may only request their own id; the handler enforces this.
+	// A suspended caller may only request their own id.
 	UserId        string         `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Pagination    *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -713,13 +702,10 @@ func (x *ListMyReviewsRequest) GetPagination() *v1.Pagination {
 	return nil
 }
 
-// Checks which of the given requests the caller has already reviewed. Exists
-// so order lists can render "Leave a review" vs "View review" without one
-// lookup per order.
+// Which of the given requests the caller has already reviewed.
 type ListMyReviewsForOrdersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Capped and validated; at most 50 ids per call.
-	OrderIds      []string `protobuf:"bytes,1,rep,name=order_ids,json=orderIds,proto3" json:"order_ids,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderIds      []string               `protobuf:"bytes,1,rep,name=order_ids,json=orderIds,proto3" json:"order_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -762,9 +748,8 @@ func (x *ListMyReviewsForOrdersRequest) GetOrderIds() []string {
 }
 
 type ListMyReviewsForOrdersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The subset of order_ids the caller has reviewed.
-	ReviewedOrderIds []string `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ReviewedOrderIds []string               `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -806,7 +791,6 @@ func (x *ListMyReviewsForOrdersResponse) GetReviewedOrderIds() []string {
 	return nil
 }
 
-// Fetches the caller's review for one request, if any.
 type GetMyReviewForOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
@@ -897,10 +881,9 @@ func (x *GetMyReviewForOrderResponse) GetReview() *Review {
 }
 
 type RemoveReviewRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Recorded on the audit row.
-	Reason        string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -986,16 +969,15 @@ func (*RemoveReviewResponse) Descriptor() ([]byte, []int) {
 }
 
 type ReviewRemoval struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
-	OrderId    string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Reason     string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
-	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CreatedBy  string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	// display_name of the user who created this audit row, joined at read time.
-	CreatedByName string `protobuf:"bytes,8,opt,name=created_by_name,json=createdByName,proto3" json:"created_by_name,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReviewerId    string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	RevieweeId    string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
+	OrderId       string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CreatedBy     string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedByName string                 `protobuf:"bytes,8,opt,name=created_by_name,json=createdByName,proto3" json:"created_by_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
