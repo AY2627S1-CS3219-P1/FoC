@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foc-config
+  labels:
+    foc.dev/stage: dependencies
+data:
+  # Application runtime. INTERNAL_PORT is read only by services with private
+  # routes (User, Credit); RUN_MIGRATIONS is false because schema migrations
+  # run as separate Jobs before applications start.
+  APP_ENV: production
+  PORT: "8080"
+  INTERNAL_PORT: "8081"
+  RUN_MIGRATIONS: "false"
+  KAFKA_BROKERS: kafka:9092
+
+  # Browser-facing origins: shipped to the browser with the rendered shell
+  # ($env/dynamic/public), so they must be reachable from outside the cluster.
+  # All RPCs share the one gateway origin; local overlays patch these to the
+  # configured forward port (see scripts/k8s patchLocalConfig).
+  FRONTEND_BASE_URL: https://localhost:5173
+  ORIGIN: https://localhost:5173
+  PUBLIC_USER_SERVICE_URL: https://localhost:5173
+  PUBLIC_SUPPLIER_SERVICE_URL: https://localhost:5173
+  PUBLIC_ORDER_SERVICE_URL: https://localhost:5173
+  PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
+  PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
+
+  # Service-to-service addresses: in-cluster DNS names read by backend
+  # processes; browsers never see them. Plain HTTP is fine because Istio
+  # STRICT mTLS encrypts and authenticates the hop. Internal listeners
+  # (user-service-internal, credit-service-internal) host the private RPCs.
+  USER_SERVICE_BASE_URL: http://user-service-internal:8080
+  SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
+  CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080
+
+  # Secret locations and one-time bootstrap inputs. An empty
+  # BOOTSTRAP_SUPERADMIN_EMAIL skips superadmin creation; deployments set it
+  # via K8S_BOOTSTRAP_SUPERADMIN_EMAIL, which patchBootstrap() merges here.
+  JWT_PRIVATE_KEY_FILE: /var/run/foc/auth/jwt-signing-private.pem
+  BOOTSTRAP_SUPERADMIN_EMAIL: ""
+  BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: Admin

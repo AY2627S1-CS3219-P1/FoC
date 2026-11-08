@@ -140,6 +140,10 @@ message ListMyOrdersRequest {
     gte: 0
     lte: 100
   }];
+  // Only orders the caller is part of now and whose lifecycle has not ended:
+  // not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+  // withdrew from as a courier are excluded. Combines with status and role.
+  bool active_only = 5;
 }
 
 // Starts one immutable acceptance attempt at the current reward. The caller

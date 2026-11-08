@@ -147,10 +147,14 @@ func run(ctx context.Context) error {
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
 
-	server := newServer(":"+config.Port, handler)
-	server.BaseContext = func(net.Listener) context.Context { return ctx }
+	// The internal listener serves the public handler until private routes are
+	// split out; binding it keeps every service on the same listener shape.
+	public := newServer(":"+config.Port, handler)
+	public.BaseContext = func(net.Listener) context.Context { return ctx }
+	internal := newServer(":"+config.InternalPort, handler)
+	internal.BaseContext = func(net.Listener) context.Context { return ctx }
 
-	return serve(ctx, server)
+	return serve(ctx, public, internal)
 }
 
 func getCorsConfig() *cors.Cors {
@@ -194,10 +198,12 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func serve(ctx context.Context, server *http.Server) error {
-	stopped := make(chan error, 1)
-	go func() { stopped <- server.ListenAndServe() }()
-	slog.InfoContext(ctx, "Listening", "address", server.Addr)
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.InfoContext(ctx, "Listening", "address", server.Addr)
+	}
 
 	select {
 	case err := <-stopped:
@@ -211,13 +217,21 @@ func serve(ctx context.Context, server *http.Server) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
-			return fmt.Errorf("shutdown server: %w", err)
+		var failures []error
+		for _, server := range servers {
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				_ = server.Close()
+				failures = append(failures, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+			}
+		}
+		if len(failures) > 0 {
+			return errors.Join(failures...)
 		}
 
-		if err := <-stopped; !errors.Is(err, http.ErrServerClosed) {
-			return err
+		for range servers {
+			if err := <-stopped; !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
 		}
 
 		return nil

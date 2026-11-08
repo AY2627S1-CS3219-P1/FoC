@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -29,12 +30,14 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -48,6 +51,7 @@ const (
 
 type config struct {
 	port            string
+	internalPort    string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -140,41 +144,68 @@ func main() {
 			})
 		},
 	}
+	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Review:         &review.Handler{Logic: reviewLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	// Every service runs the listener split: public routes on PORT, private
+	// routes on INTERNAL_PORT. Services without private routes yet still bind
+	// the internal listener so local and deployed behaviour stay identical.
+	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	servers := []*http.Server{public, internal}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
+	if err := serve(ctx, servers...); err != nil {
+		fatal("serve", err)
+	}
+	stop()
+	<-relayDone
+}
 
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
 	select {
-	case err := <-errCh:
-		if err != nil {
-			fatal("serve", err)
-		}
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
 	}
-	stop()
-	<-relayDone
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -189,6 +220,21 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
+func newReviewService(sqlDB *sql.DB) *review.Service {
+	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
 // loadConfig reads .env (if present) and the environment once, applying
 // defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
@@ -199,6 +245,7 @@ func loadConfig() (config, error) {
 	var errs []error
 	cfg := config{
 		port:            envString("PORT", "8080"),
+		internalPort:    envString("INTERNAL_PORT", ""),
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
@@ -255,6 +302,16 @@ func loadConfig() (config, error) {
 	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.internalPort == "" {
+		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
+	} else {
+		port, err := strconv.Atoi(cfg.internalPort)
+		if err != nil || port < 1 || port > 65535 {
+			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))
+		} else if cfg.internalPort == cfg.port {
+			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
+		}
 	}
 	if cfg.smtp.From == "" {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))

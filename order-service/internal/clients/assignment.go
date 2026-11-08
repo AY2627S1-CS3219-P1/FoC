@@ -15,9 +15,6 @@ func (c *Credit) Adjust(ctx context.Context, intent app.AdjustmentIntent) error 
 		CourierId:   intent.CourierID,
 		OfferAmount: intent.Amount,
 	})
-	if err := authorize(ctx, request, c.Tokens); err != nil {
-		return err
-	}
 	response, err := c.Client.AdjustReservation(ctx, request)
 	if err != nil {
 		if hasCreditReason(err, connect.CodeFailedPrecondition, "INSUFFICIENT_CREDITS") {
@@ -34,9 +31,6 @@ func (c *Credit) Adjust(ctx context.Context, intent app.AdjustmentIntent) error 
 
 func (c *Credit) Revert(ctx context.Context, orderID, attemptID string) error {
 	request := connect.NewRequest(&creditpb.RevertAdjustmentRequest{RequestId: orderID, OfferId: attemptID})
-	if err := authorize(ctx, request, c.Tokens); err != nil {
-		return err
-	}
 	response, err := c.Client.RevertAdjustment(ctx, request)
 	if err != nil || response == nil || response.Msg == nil || response.Msg.Reservation == nil ||
 		response.Msg.Reservation.RequestId != orderID {
@@ -49,9 +43,6 @@ func (c *Credit) Revert(ctx context.Context, orderID, attemptID string) error {
 // describe an adjustment that has since been compensated or settled.
 func (c *Credit) AssignmentReservation(ctx context.Context, orderID string) (app.AssignmentReservation, error) {
 	request := connect.NewRequest(&creditpb.GetReservationRequest{RequestId: orderID})
-	if err := authorize(ctx, request, c.Tokens); err != nil {
-		return app.AssignmentReservation{}, err
-	}
 	response, err := c.Client.GetReservation(ctx, request)
 	if err != nil || response == nil || response.Msg == nil || response.Msg.Reservation == nil {
 		return app.AssignmentReservation{}, app.ErrUnavailable

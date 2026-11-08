@@ -5,7 +5,10 @@
 	import { telegramLinkApi } from '$lib/services';
 	import { pollUntilLinked, type TelegramLinkCode, type TelegramLinkStatus } from '$lib/services/telegram';
 
-	let { onLinked }: { onLinked?: (status: TelegramLinkStatus) => void } = $props();
+	// autoConnect creates the link as soon as the user is known to be unlinked,
+	// so the first tap opens Telegram.
+	let { onLinked, autoConnect = false }: { onLinked?: (status: TelegramLinkStatus) => void; autoConnect?: boolean } =
+		$props();
 
 	type State =
 		| { kind: 'loading' }
@@ -17,6 +20,8 @@
 	let busy = $state(false);
 	let message = $state('');
 	let polling: AbortController | null = null;
+	// A link request can finish after the card is gone, such as after Skip.
+	let destroyed = false;
 
 	function describe(cause: unknown): string {
 		if (cause instanceof ConnectError && cause.code === Code.Unavailable) {
@@ -35,7 +40,9 @@
 		message = '';
 		try {
 			const status = await telegramLinkApi.getStatus();
-			view = status.linked ? { kind: 'linked', status } : { kind: 'unlinked' };
+			if (status.linked) view = { kind: 'linked', status };
+			else if (autoConnect) await connect();
+			else view = { kind: 'unlinked' };
 		} catch (cause) {
 			view = { kind: 'unlinked' };
 			message = describe(cause);
@@ -48,9 +55,11 @@
 		message = '';
 		try {
 			const link = await telegramLinkApi.createLink();
+			if (destroyed) return;
 			view = { kind: 'waiting', link };
 			void waitForLink(link);
 		} catch (cause) {
+			view = { kind: 'unlinked' };
 			message = describe(cause);
 		} finally {
 			busy = false;
@@ -95,7 +104,10 @@
 	onMount(() => {
 		void load();
 	});
-	onDestroy(stopPolling);
+	onDestroy(() => {
+		destroyed = true;
+		stopPolling();
+	});
 </script>
 
 <div class="telegram-link">
