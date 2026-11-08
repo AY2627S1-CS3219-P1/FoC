@@ -354,12 +354,8 @@ const lockReviewee = `-- name: LockReviewee :exec
 SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 `
 
-// Lock the reviewee row first, then read the aggregate in a separate statement,
-// so a concurrent submit/remove about the same reviewee converges on the count
-// and mean. A locking query must not also read the aggregate (see LANDMINES).
-// FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
-// the FOR KEY SHARE locks InsertReview's foreign-key checks take on the same
-// users rows.
+// Lock the row before the aggregate read; FOR NO KEY UPDATE avoids conflicting
+// with the key-share locks InsertReview's foreign keys take.
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
 	return err

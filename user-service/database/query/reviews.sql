@@ -89,12 +89,8 @@ LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 SELECT COUNT(*)
 FROM review_removals;
 
--- Lock the reviewee row first, then read the aggregate in a separate statement,
--- so a concurrent submit/remove about the same reviewee converges on the count
--- and mean. A locking query must not also read the aggregate (see LANDMINES).
--- FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
--- the FOR KEY SHARE locks InsertReview's foreign-key checks take on the same
--- users rows.
+-- Lock the row before the aggregate read; FOR NO KEY UPDATE avoids conflicting
+-- with the key-share locks InsertReview's foreign keys take.
 -- name: LockReviewee :exec
 SELECT id FROM users WHERE id = @reviewee_id::UUID FOR NO KEY UPDATE;
 

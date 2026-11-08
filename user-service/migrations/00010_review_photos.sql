@@ -1,11 +1,6 @@
 -- +goose Up
--- Review photos: zero to five images per review. Rows are created as staging
--- while the reviewer composes, then promoted (state 'attached', review_id and
--- ordinal set) inside the submission transaction. content_type and size_bytes
--- record what the upload grant signed; attachment re-checks them against the
--- stored object, closing the gap between upload and submit.
--- Photos are soft-deleted with their review: reviews are never hard-deleted,
--- so no ON DELETE action is needed on review_id.
+-- Review photos: zero to five per review, staged while composing and promoted
+-- inside the submission transaction.
 CREATE TABLE review_photos (
     id                UUID        PRIMARY KEY,
     owner_id          UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
