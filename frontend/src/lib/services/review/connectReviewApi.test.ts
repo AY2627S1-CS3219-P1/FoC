@@ -120,6 +120,21 @@ describe('ConnectReviewApi', () => {
 		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).resolves.toBeNull();
 	});
 
+	it('treats a not-found review as null, not an error', async () => {
+		// The backend reports "not reviewed yet" as NotFound/REVIEW_NOT_FOUND;
+		// the UI must see the same null it sees for an empty response.
+		const { client, api } = scenario();
+		vi.mocked(client.getMyReviewForOrder).mockRejectedValueOnce(
+			new ConnectError('Review not found.', Code.NotFound, undefined, [
+				{
+					desc: ErrorDetailSchema,
+					value: { reason: 'REVIEW_NOT_FOUND', message: 'Review not found.', fieldViolations: [] }
+				}
+			])
+		);
+		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).resolves.toBeNull();
+	});
+
 	it('maps backend reasons to retryable and permanent outcomes', async () => {
 		const { client, api } = scenario();
 		vi.mocked(client.createReviewPhotoUpload).mockRejectedValueOnce(

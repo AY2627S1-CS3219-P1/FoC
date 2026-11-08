@@ -110,6 +110,14 @@ export class ConnectReviewApi implements ReviewApi {
 			const response = await this.#client.getMyReviewForOrder({ orderId }, { signal, timeoutMs: 15000 });
 			return response.review ? toReview(response.review) : null;
 		} catch (cause) {
+			// An unreviewed order is a normal state, not a failure: the backend
+			// reports it as NotFound/REVIEW_NOT_FOUND.
+			if (
+				cause instanceof ConnectError &&
+				(cause.code === Code.NotFound || parseRpcError(cause)?.reason === 'REVIEW_NOT_FOUND')
+			) {
+				return null;
+			}
 			rethrow(cause);
 		}
 	}

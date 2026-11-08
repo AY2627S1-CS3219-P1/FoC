@@ -395,8 +395,6 @@ export const GetMyReviewForOrderRequestSchema: GenMessage<GetMyReviewForOrderReq
  */
 export type GetMyReviewForOrderResponse = Message<"user.review.v1.GetMyReviewForOrderResponse"> & {
   /**
-   * Absent when the caller has not reviewed this request.
-   *
    * @generated from field: user.review.v1.Review review = 1;
    */
   review?: Review | undefined;
