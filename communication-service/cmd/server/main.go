@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/mail"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/notify"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/realtime"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/users"
@@ -216,6 +218,12 @@ func main() {
 		emailQueue = queue
 		startEmailWorker(ctx, log, queue, mailer, &workers)
 	}
+	liveHub := realtime.NewHub()
+	if len(cfg.kafkaBrokers) > 0 {
+		fanout := &realtime.Fanout{Pool: pool, Hub: liveHub}
+		workers.Go(func() { fanout.Run(ctx) })
+		workers.Go(func() { (&realtime.Consumer{Fanout: fanout}).Run(ctx, cfg.kafkaBrokers, "communication-realtime") })
+	}
 	workers.Go(func() {
 		chat.RunCleanup(ctx, chats, log, time.Now)
 	})
@@ -240,9 +248,13 @@ func main() {
 		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 		Email:        &accountemail.Handler{Sender: mailer, Log: log},
+		Realtime:     &realtime.Handler{Hub: liveHub},
 	}
 	public := newServer(":"+cfg.port, corsConfig().Handler(router.New(services, authenticator.Authenticate)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(services))
+	for _, srv := range []*http.Server{public, internal} {
+		srv.BaseContext = func(net.Listener) context.Context { return ctx }
+	}
 	for _, srv := range []*http.Server{public, internal} {
 		go func() {
 			log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")

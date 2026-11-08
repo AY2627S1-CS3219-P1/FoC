@@ -2,6 +2,16 @@
 
 Sends FoC's messages to users. It runs the FoC Telegram bot, which links FoC accounts to Telegram chats, sends order updates and relays chat between an order's requester and courier. It also sends all FoC email: magic links for User Service, and order outcomes to users Telegram can't reach.
 
+Also serves authenticated browser updates through
+`RealtimeService.WatchChanges`. A separate `communication-realtime` Kafka group
+consumes Credit and Order changes and fans out resource invalidations across
+replicas using PostgreSQL LISTEN/NOTIFY. This runs without a Telegram token.
+Browsers refetch through domain RPCs and recover missed hints on reconnect,
+focus, and a slow fallback poll. Without `KAFKA_BROKERS`, the stream reports
+`unavailable` and browser fallback reads continue. See the
+[architecture](../docs/adr/realtime-invalidation.md) and
+[verification](../docs/testing/realtime-invalidation.md) notes.
+
 Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: with the default SMTP provider and no `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
 
 ## Email
@@ -99,7 +109,7 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |
 | `TELEGRAM_BOT_TOKEN` | empty | Bot token from BotFather. Empty disables Telegram. |
 | `TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL, for pointing tests at a fake server. |
-| `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications. |
+| `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications and browser change streams. |
 | `EMAIL_PROVIDER` | `smtp` | Email transport: `smtp` or `ses`. |
 | `EMAIL_FROM` | required for SES | Verified SES sender address. |
 | `AWS_REGION` | required for SES | Region containing the verified sender. |

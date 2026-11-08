@@ -115,6 +115,11 @@ func TestPostgresCancellationMigrationRefusesPendingWithdrawal(t *testing.T) {
 	if err != nil || current.PendingCancellationID == nil || *current.PendingCancellationID != pending.OperationID {
 		t.Fatalf("downgrade lost pending reference: %+v %v", current, err)
 	}
+	// The failed multi-migration downgrade already removed newer migrations.
+	// Restore the current application schema before exercising live operations.
+	if _, err := provider.Up(f.ctx); err != nil {
+		t.Fatal(err)
+	}
 	closed, err := NewCanceller(
 		f.repo,
 		nil,

@@ -349,6 +349,9 @@ func (a *authProbe) verifySession() error {
 		}
 	}
 	previous := a.cookie
+	if err := a.verifyRealtime(access); err != nil {
+		return err
+	}
 	refreshed, err := a.rpc(authPath+"Refresh", map[string]any{}, authOptions{session: true})
 	if err != nil {
 		return err

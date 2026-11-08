@@ -26,6 +26,7 @@ async function open(path, { authenticated = true, overrides = {}, viewport = { w
 	await page.route(/tile\.openstreetmap\.org/, route => route.abort());
 	await page.route(/localhost:808\d\//, async route => {
 		const method = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (method === 'WatchChanges') return route.fulfill({ status: 501, json: { code: 'unimplemented', message: 'Streaming is covered by check-realtime.mjs' } });
 		if (method === 'Refresh' && !authenticated) {
 			return route.fulfill({ status: 401, json: { code: 'unauthenticated', message: 'No session' } });
 		}

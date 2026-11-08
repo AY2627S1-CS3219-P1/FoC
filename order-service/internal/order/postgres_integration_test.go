@@ -181,7 +181,11 @@ func (f *fixture) counts(t *testing.T, id string) (audit, outbox, offers int) {
 		table  string
 		target *int
 	}{{"order_audit", &audit}, {"order_outbox", &outbox}, {"offers", &offers}} {
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM "+v.table+" WHERE order_id=$1", id).
+		query := "SELECT count(*) FROM " + v.table + " WHERE order_id=$1"
+		if v.table == "order_outbox" {
+			query += " AND kind<>'order.changed'"
+		}
+		if err := f.pool.QueryRow(f.ctx, query, id).
 			Scan(v.target); err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +209,7 @@ func TestPostgresFoundation(t *testing.T) {
 			t.Fatal(a, n)
 		}
 		var payload []byte
-		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1", o.ID).
+		if err = f.pool.QueryRow(f.ctx, "SELECT payload FROM order_outbox WHERE order_id=$1 AND kind='order.status_changed'", o.ID).
 			Scan(&payload); err != nil {
 			t.Fatal(err)
 		}
