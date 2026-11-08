@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { warningService } from '$lib/services';
+	import { Button, Card, Icon, LoadingIndicator } from 'm3-svelte';
+	import { snackbarService, warningService } from '$lib/services';
 	import type { AccountWarning } from '$lib/services/warning/warningApi';
+	import iconView from '@ktibow/iconset-material-symbols/visibility';
+	import iconCopy from '@ktibow/iconset-material-symbols/content-copy';
 
 	let warnings = $state<AccountWarning[]>([]);
 	let page = $state(1);
@@ -12,6 +14,22 @@
 	let error = $state('');
 
 	const dateFormat = new Intl.DateTimeFormat('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
+
+	// Show only the first and last four characters so the ID stays readable
+	// without exposing the full value.
+	function formatOrderId(id: string): string {
+		if (id.length <= 8) return id;
+		return `${id.slice(0, 4)}.....${id.slice(-4)}`;
+	}
+
+	async function copyOrderId(requestId: string): Promise<void> {
+		try {
+			await navigator.clipboard.writeText(requestId);
+			snackbarService.show('Order ID copied to clipboard', { severity: 'success' });
+		} catch {
+			snackbarService.show('We could not copy the order ID. Select it and copy it manually.', { severity: 'error', timeout: 8000 });
+		}
+	}
 
 	async function loadWarnings(requestedPage = page) {
 		loading = true;
@@ -62,21 +80,38 @@
 					aria-label={`Warning, ${isRemoved ? 'removed' : 'active'}: ${warning.reason}`}
 				>
 					<header class="warning-top">
-						<span class="status-chip">{isRemoved ? 'Removed' : 'Active'}</span>
 						<p class="warning-reason">{warning.reason}</p>
 						<span class="view-order">
 							<Button
 								variant="text"
-								size="xs"
-								href={`/orders/${encodeURIComponent(warning.requestId)}`}
+								iconType="full"
+								square
 								aria-label={`View order ${warning.requestId}`}
+								title={`View order ${warning.requestId}`}
+								href={`/orders/${encodeURIComponent(warning.requestId)}`}
 							>
-								View order <span class="arrow" aria-hidden="true">→</span>
+								<Icon icon={iconView} size={20} aria-hidden="true" />
 							</Button>
 						</span>
 					</header>
 					<dl class="warning-meta">
-						<div><dt>Order ID</dt><dd>{warning.requestId}</dd></div>
+						<div class="order-id-field">
+							<dt>Order ID</dt>
+							<dd class="order-id-value">
+								<span class="order-id-masked">{formatOrderId(warning.requestId)}</span>
+								<Button
+									variant="text"
+									iconType="full"
+									square
+									size="xs"
+									aria-label="Copy order ID"
+									title="Copy order ID"
+									onclick={() => void copyOrderId(warning.requestId)}
+								>
+									<Icon icon={iconCopy} size={18} aria-hidden="true" />
+								</Button>
+							</dd>
+						</div>
 						<div><dt>Issued</dt><dd>{dateFormat.format(warning.createdAt)}</dd></div>
 						{#if warning.removedAt}<div><dt>Removed</dt><dd>{dateFormat.format(warning.removedAt)}</dd></div>{/if}
 						{#if warning.removedReason}<div class="removal-reason"><dt>Removal reason</dt><dd>{warning.removedReason}</dd></div>{/if}
@@ -113,8 +148,6 @@
 	   palette in app.css, which may align with these in a future theme pass. */
 	.warning-card.is-active {
 		--warning-container: #fffbeb;
-		--warning-chip-container: #fef3c7;
-		--warning-on-container: #92400e;
 		--warning-outline: #fcd34d;
 		border-color: var(--warning-outline);
 		background: var(--warning-container);
@@ -126,25 +159,7 @@
 	.warning-top {
 		display: flex;
 		align-items: center;
-		flex-wrap: wrap;
-		gap: 0.6rem;
-	}
-	.status-chip {
-		flex: none;
-		padding: 0.15rem 0.65rem;
-		border-radius: 999px;
-		font-size: 0.75rem;
-		font-weight: 600;
-		letter-spacing: 0.02em;
-	}
-	.is-active .status-chip {
-		background: var(--warning-chip-container);
-		color: var(--warning-on-container);
-		border: 1px solid var(--warning-outline);
-	}
-	.is-removed .status-chip {
-		background: var(--m3c-surface-container-highest);
-		color: var(--m3c-on-surface-variant);
+		gap: 0.4rem;
 	}
 
 	.warning-reason {
@@ -157,7 +172,6 @@
 	.is-removed .warning-reason { color: var(--m3c-on-surface-variant); }
 
 	.view-order { flex: none; margin-left: auto; }
-	.arrow { font-size: 0.9rem; line-height: 1; }
 
 	.warning-meta {
 		display: flex;
@@ -169,6 +183,12 @@
 	.warning-meta dt { color: var(--m3c-on-surface-variant); font-size: 0.75rem; }
 	.warning-meta dd { margin: 0.1rem 0 0; font-size: 0.875rem; overflow-wrap: anywhere; }
 	.warning-meta .removal-reason dd { color: var(--m3c-on-surface-variant); }
+	.order-id-field { display: grid; gap: 0.15rem; }
+	.order-id-value { display: flex; align-items: center; gap: 0.4rem; }
+	.order-id-masked {
+		font-family: var(--m3-font-mono);
+		font-variant-numeric: tabular-nums;
+	}
 
 	.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
 
