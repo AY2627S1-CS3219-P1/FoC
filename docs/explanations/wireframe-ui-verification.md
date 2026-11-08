@@ -1,8 +1,9 @@
 # Wireframe UI verification
 
 Verified on 4 November 2026 from the `yihao/feat/wireframe-ui` worktree.
-PR #241 remains a draft on #231. This is local verification, not evidence of a
-merged or deployed change.
+At verification time, PR #241 was a draft on #231. This is local verification,
+not evidence of a merged or deployed change. The image links below now point to
+the published screenshot commit, since the duplicate local images were removed.
 
 ## Reproduce the browser regression checks
 
@@ -67,7 +68,7 @@ These are local diagnostic scripts, not repository test entry points.
 | Receipt | Requester confirmed receipt; Order reached Completed; profile credit history loaded |
 | Settlement | Credit's courier payout ledger entry was 13 credits, matching the frontend estimate computed from the actual pickup/delivery timestamps in integer nanoseconds |
 
-The settled delivery's [phone payout graph](assets/wireframe-ui/late-payout-phone.png)
+The settled delivery's [phone payout graph](https://raw.githubusercontent.com/AY2627S1-CS3219-P1/FoC/55505e01d8ced33290e86c9cd9033392e8f3b4c2/pr-241/real-late-payout-phone.png)
 was captured against the real services before proof submission. Settlement was
 checked after Credit consumed the completion event; immediate reads can precede
 account creation/settlement. The local `real-settlement.mjs` driver records the
@@ -79,8 +80,8 @@ These phone captures use the same mocked data on the baseline and current UI.
 
 | Screen | Before | After |
 | --- | --- | --- |
-| Login | [Before](assets/wireframe-ui/before-login-phone.png) | [After](assets/wireframe-ui/after-login-phone.png) |
-| Registration | [Before](assets/wireframe-ui/before-register-phone.png) | [After](assets/wireframe-ui/after-register-phone.png) |
+| Login | [Before](https://raw.githubusercontent.com/AY2627S1-CS3219-P1/FoC/55505e01d8ced33290e86c9cd9033392e8f3b4c2/pr-241/before-login-phone.png) | [After](https://raw.githubusercontent.com/AY2627S1-CS3219-P1/FoC/55505e01d8ced33290e86c9cd9033392e8f3b4c2/pr-241/after-login-phone.png) |
+| Registration | [Before](https://raw.githubusercontent.com/AY2627S1-CS3219-P1/FoC/55505e01d8ced33290e86c9cd9033392e8f3b4c2/pr-241/before-register-phone.png) | [After](https://raw.githubusercontent.com/AY2627S1-CS3219-P1/FoC/55505e01d8ced33290e86c9cd9033392e8f3b4c2/pr-241/after-register-phone.png) |
 
 ## Limits and release preparation
 
