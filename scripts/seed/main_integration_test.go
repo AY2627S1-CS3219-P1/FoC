@@ -100,7 +100,7 @@ func TestRunnerPSQLRepeatabilityResetAndFailure(t *testing.T) {
 		return output
 	}
 	mustSQL("postgres", "CREATE DATABASE supplier_seed_test;")
-	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}

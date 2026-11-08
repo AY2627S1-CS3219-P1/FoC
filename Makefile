@@ -110,12 +110,12 @@ k8s-mailpit: k8s-tools $(K8S_CLI)
 # User owns user/event transactions; the SQL manifest owns Supplier fixtures.
 seed-demo:
 	@docker compose exec -T user-service go run ./cmd/seed --fixtures - < data/seeds/users.json
-	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
+	@go run ./scripts/seed --manifest data/seeds/manifest.json
 
 # Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
 	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
-	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
+	@go run ./scripts/seed --manifest data/seeds/manifest.json --reset
 
 .PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
 k8s-test: k8s-tools $(K8S_CLI)
