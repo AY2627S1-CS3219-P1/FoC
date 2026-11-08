@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
@@ -39,11 +38,11 @@ func (h *Handler) GetMyProfile(
 ) (*connect.Response[userv1.GetMyProfileResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	profile, err := h.Logic.GetMyProfile(ctx, actorID)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.GetMyProfileResponse{Profile: toProtoProfile(profile)})
 	response.Header().Set("Cache-Control", "no-store")
@@ -56,14 +55,14 @@ func (h *Handler) UpdateMyProfile(
 ) (*connect.Response[userv1.UpdateMyProfileResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	profile, err := h.Logic.UpdateMyProfile(ctx, actorID, service.ProfileInput{
 		DisplayName: req.Msg.DisplayName, Description: req.Msg.Description,
 		PhoneNumber: req.Msg.PhoneNumber,
 	})
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.UpdateMyProfileResponse{Profile: toProtoProfile(profile)})
 	response.Header().Set("Cache-Control", "no-store")
@@ -78,13 +77,13 @@ func (h *Handler) CreateProfilePictureUpload(
 ) (*connect.Response[userv1.CreateProfilePictureUploadResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	upload, grant, err := h.Logic.CreateProfilePictureUpload(
 		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
 	)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.CreateProfilePictureUploadResponse{
 		PictureId:     upload.ID.String(),
@@ -103,15 +102,15 @@ func (h *Handler) UpdateMyProfilePicture(
 ) (*connect.Response[userv1.UpdateMyProfilePictureResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	pictureID, err := uuid.Parse(req.Msg.GetPictureId())
 	if err != nil || pictureID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid picture ID"))
+		return nil, service.ProfileConnectError(ctx, errs.NewBadRequestError("invalid picture ID"))
 	}
 	profile, err := h.Logic.UpdateMyProfilePicture(ctx, actorID, pictureID)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.UpdateMyProfilePictureResponse{Profile: toProtoProfile(profile)})
 	response.Header().Set("Cache-Control", "no-store")
@@ -125,11 +124,11 @@ func (h *Handler) RemoveMyProfilePicture(
 ) (*connect.Response[userv1.RemoveMyProfilePictureResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	profile, err := h.Logic.RemoveMyProfilePicture(ctx, actorID)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, service.ProfileConnectError(ctx, err)
 	}
 	response := connect.NewResponse(&userv1.RemoveMyProfilePictureResponse{Profile: toProtoProfile(profile)})
 	response.Header().Set("Cache-Control", "no-store")

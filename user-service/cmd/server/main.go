@@ -68,6 +68,7 @@ type config struct {
 	s3Bucket         string
 	s3Endpoint       string
 	s3PublicEndpoint string
+	awsRegion        string
 }
 
 func main() {
@@ -261,7 +262,7 @@ func newImageStorage(cfg config) *images.S3 {
 		Bucket:         cfg.s3Bucket,
 		Endpoint:       cfg.s3Endpoint,
 		PublicEndpoint: cfg.s3PublicEndpoint,
-		Region:         "us-east-1",
+		Region:         cfg.awsRegion,
 	})
 	if err != nil {
 		slog.Error("image storage disabled: invalid configuration", "err", err)
@@ -273,9 +274,9 @@ func newImageStorage(cfg config) *images.S3 {
 // newReviewService builds the review domain over the shared database pool.
 func newReviewService(sqlDB *sql.DB, storage *images.S3) *review.Service {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	var photos review.PhotoStorage
+	var reviewStorage review.PhotoStorage
 	if storage != nil {
-		photos = storage
+		reviewStorage = storage
 	}
 	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
@@ -287,7 +288,7 @@ func newReviewService(sqlDB *sql.DB, storage *images.S3) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	}, photos)
+	}, reviewStorage)
 }
 
 // profilePictureStorage keeps a true nil interface when storage is absent;
@@ -336,6 +337,7 @@ func loadConfig() (config, error) {
 		s3Bucket:         envString("USER_S3_BUCKET", ""),
 		s3Endpoint:       envString("USER_S3_ENDPOINT", ""),
 		s3PublicEndpoint: envString("USER_S3_PUBLIC_ENDPOINT", ""),
+		awsRegion:        strings.TrimSpace(envString("AWS_REGION", "")),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"

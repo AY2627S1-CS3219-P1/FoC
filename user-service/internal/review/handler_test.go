@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
@@ -119,6 +120,30 @@ func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect
 	}))
 	t.Cleanup(server.Close)
 	return reviewv1connect.NewReviewServiceClient(server.Client(), server.URL)
+}
+
+func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
+	stub := &handlerLogicStub{
+		uploadUpload: PhotoUpload{ID: uuid.New()},
+		uploadGrant:  images.UploadGrant{URL: "https://storage.test/upload", ExpiresAt: time.Now().Add(time.Minute)},
+	}
+	client := reviewClient(t, stub, auth.Caller{ID: uuid.New().String()})
+
+	resp, err := client.CreateReviewPhotoUpload(
+		context.Background(),
+		connect.NewRequest(&reviewv1.CreateReviewPhotoUploadRequest{
+			ContentType: "image/jpeg",
+			SizeBytes:   200,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	// The response carries a short-lived pre-signed PUT grant, so it must not
+	// be cached.
+	if got := resp.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
 }
 
 func TestSubmitReviewRPC(t *testing.T) {

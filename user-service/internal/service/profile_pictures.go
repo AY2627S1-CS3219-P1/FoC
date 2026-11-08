@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -52,17 +51,17 @@ func (s *ProfileService) CreateProfilePictureUpload(
 	sizeBytes int64,
 ) (ProfilePictureUpload, images.UploadGrant, error) {
 	if s.Pictures == nil || s.Storage == nil {
-		return ProfilePictureUpload{}, images.UploadGrant{}, errs.WrapFailedPreconditionError(
-			errProfilePictureStorageDisabled, "profile picture uploads are not available",
+		return ProfilePictureUpload{}, images.UploadGrant{}, profilePictureUnavailable(
+			errProfilePictureStorageDisabled,
 		)
 	}
 	if !validProfilePictureContentType(contentType) {
-		return ProfilePictureUpload{}, images.UploadGrant{}, errs.NewBadRequestError(
+		return ProfilePictureUpload{}, images.UploadGrant{}, invalidProfilePicture(
 			"content type must be image/jpeg, image/png, image/webp, image/heic or image/heif",
 		)
 	}
 	if sizeBytes < 1 || sizeBytes > MaxProfilePictureBytes {
-		return ProfilePictureUpload{}, images.UploadGrant{}, errs.NewBadRequestError(
+		return ProfilePictureUpload{}, images.UploadGrant{}, invalidProfilePicture(
 			"picture size must be between 1 and 10000000 bytes",
 		)
 	}
@@ -79,6 +78,19 @@ func (s *ProfileService) CreateProfilePictureUpload(
 		return ProfilePictureUpload{}, images.UploadGrant{}, fmt.Errorf("generate picture id: %w", err)
 	}
 	key := profilePictureKey(actorID, id)
+	// Sign before persisting: a failed sign leaves no orphan pending row.
+	grant, err := s.Storage.CreateUpload(ctx, images.UploadRequest{
+		Key:         key,
+		ContentType: contentType,
+		SizeBytes:   sizeBytes,
+	})
+	if err != nil {
+		wrapped := fmt.Errorf("sign profile picture upload grant: %w", err)
+		if errors.Is(err, images.ErrStorageUnavailable) {
+			return ProfilePictureUpload{}, images.UploadGrant{}, profilePictureTemporarilyUnavailable(wrapped)
+		}
+		return ProfilePictureUpload{}, images.UploadGrant{}, profilePictureUnavailable(wrapped)
+	}
 	picture := &models.ProfilePicture{
 		ID:          id,
 		UserID:      actorID,
@@ -91,16 +103,6 @@ func (s *ProfileService) CreateProfilePictureUpload(
 	if err := s.Pictures.InsertPending(ctx, picture); err != nil {
 		return ProfilePictureUpload{}, images.UploadGrant{}, fmt.Errorf("store profile picture: %w", err)
 	}
-	grant, err := s.Storage.CreateUpload(ctx, images.UploadRequest{
-		Key:         key,
-		ContentType: contentType,
-		SizeBytes:   sizeBytes,
-	})
-	if err != nil {
-		return ProfilePictureUpload{}, images.UploadGrant{}, errs.WrapUnavailableError(
-			err, "profile picture storage is unavailable",
-		)
-	}
 	return ProfilePictureUpload{ID: id}, grant, nil
 }
 
@@ -112,9 +114,7 @@ func (s *ProfileService) UpdateMyProfilePicture(
 	actorID, pictureID uuid.UUID,
 ) (ProfileView, error) {
 	if s.Pictures == nil || s.Storage == nil {
-		return ProfileView{}, errs.WrapFailedPreconditionError(
-			errProfilePictureStorageDisabled, "profile picture uploads are not available",
-		)
+		return ProfileView{}, profilePictureUnavailable(errProfilePictureStorageDisabled)
 	}
 	user, err := s.userByID(ctx, actorID)
 	if err != nil {
@@ -128,8 +128,8 @@ func (s *ProfileService) UpdateMyProfilePicture(
 		if s.alreadyActive(ctx, actorID, pictureID) {
 			return s.GetMyProfile(ctx, actorID)
 		}
-		return ProfileView{}, errs.WrapBadRequestError(
-			err, "picture was not uploaded by this user or is no longer pending",
+		return ProfileView{}, profilePictureNotReady(
+			err, pictureID, "picture was not uploaded by this user or is no longer pending",
 		)
 	}
 	if err != nil {
@@ -138,15 +138,21 @@ func (s *ProfileService) UpdateMyProfilePicture(
 
 	info, err := s.Storage.Inspect(ctx, picture.ObjectKey)
 	if errors.Is(err, images.ErrObjectNotFound) {
-		return ProfileView{}, errs.WrapBadRequestError(err, "picture upload is missing; upload it again")
+		return ProfileView{}, profilePictureNotReady(
+			err, pictureID, "picture upload is missing; upload it again",
+		)
 	}
 	if err != nil {
-		return ProfileView{}, errs.WrapUnavailableError(err, "profile picture storage is unavailable")
+		wrapped := fmt.Errorf("inspect profile picture object: %w", err)
+		if errors.Is(err, images.ErrStorageUnavailable) {
+			return ProfileView{}, profilePictureTemporarilyUnavailable(wrapped)
+		}
+		return ProfileView{}, profilePictureUnavailable(wrapped)
 	}
 	if !info.Exists || info.Size != picture.SizeBytes || info.ContentType != picture.ContentType ||
 		!validProfilePictureContentType(info.ContentType) || info.Size < 1 || info.Size > MaxProfilePictureBytes {
-		return ProfileView{}, errs.NewBadRequestError(
-			"picture upload is incomplete or invalid; upload it again",
+		return ProfileView{}, profilePictureNotReady(
+			errInvalidProfilePicture, pictureID, "picture upload is incomplete or invalid; upload it again",
 		)
 	}
 
@@ -157,8 +163,8 @@ func (s *ProfileService) UpdateMyProfilePicture(
 			if s.alreadyActive(ctx, actorID, pictureID) {
 				return s.GetMyProfile(ctx, actorID)
 			}
-			return ProfileView{}, errs.WrapBadRequestError(
-				err, "picture is no longer available; upload it again",
+			return ProfileView{}, profilePictureNotReady(
+				err, pictureID, "picture is no longer available; upload it again",
 			)
 		case errors.Is(err, store.ErrRoleConflict):
 			return ProfileView{}, ErrPermissionDenied
@@ -181,9 +187,7 @@ func (s *ProfileService) RemoveMyProfilePicture(
 	actorID uuid.UUID,
 ) (ProfileView, error) {
 	if s.Pictures == nil || s.Storage == nil {
-		return ProfileView{}, errs.WrapFailedPreconditionError(
-			errProfilePictureStorageDisabled, "profile pictures are not available",
-		)
+		return ProfileView{}, profilePictureUnavailable(errProfilePictureStorageDisabled)
 	}
 	oldKey, err := s.Pictures.Deactivate(ctx, actorID, actorID)
 	switch {

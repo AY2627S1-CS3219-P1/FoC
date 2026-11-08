@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
@@ -49,26 +48,26 @@ func (h *Handler) SubmitReview(
 ) (*connect.Response[reviewv1.SubmitReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	from, err := uuid.Parse(req.Msg.GetFrom())
 	if err != nil || from == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
 	}
 	if from != actorID {
-		return nil, api.ToConnectError(ctx, errs.NewForbiddenError("reviewer must be the authenticated caller"))
+		return nil, toConnectError(ctx, errs.NewForbiddenError("reviewer must be the authenticated caller"))
 	}
 	to, err := uuid.Parse(req.Msg.GetTo())
 	if err != nil || to == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewee ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid reviewee ID"))
 	}
 	orderID, err := uuid.Parse(req.Msg.GetOrderId())
 	if err != nil || orderID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
 	}
 	photoIDs, err := reviewv1PhotoIDsToDomain(req.Msg.GetPhotoIds())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid photo ID"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid photo ID"))
 	}
 	if err := h.Logic.SubmitReview(
 		ctx,
@@ -78,7 +77,7 @@ func (h *Handler) SubmitReview(
 		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
 		photoIDs,
 	); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
 }
@@ -91,20 +90,22 @@ func (h *Handler) CreateReviewPhotoUpload(
 ) (*connect.Response[reviewv1.CreateReviewPhotoUploadResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	upload, grant, err := h.Logic.CreateReviewPhotoUpload(
 		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
 	)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
+	resp := connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
 		PhotoId:       upload.ID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
-	}), nil
+	})
+	noStore(resp)
+	return resp, nil
 }
 
 // ListReviewsForUser lists the reviews a user received; a suspended caller may
@@ -115,22 +116,22 @@ func (h *Handler) ListReviewsForUser(
 ) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
 	caller, err := userdto.Actor(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	userID, err := uuid.Parse(req.Msg.GetUserId())
 	if err != nil || userID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
 	}
 	if err := authorizeSelfReviews(caller, userID); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewsForUser(ctx, userID, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	resp := connect.NewResponse(toListReviewsForUserResponse(pageResult))
 	noStore(resp)
@@ -143,15 +144,15 @@ func (h *Handler) ListMyReviews(
 ) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewsFromUser(ctx, actorID, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	resp := connect.NewResponse(toListMyReviewsResponse(pageResult))
 	noStore(resp)
@@ -159,7 +160,8 @@ func (h *Handler) ListMyReviews(
 }
 
 // noStore marks responses that may embed short-lived pre-signed photo URLs as
-// non-cacheable, so temporary download credentials never sit in a cache.
+// non-cacheable, so temporary upload and download credentials never sit in a
+// cache.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
 }
@@ -172,14 +174,14 @@ func (h *Handler) RemoveReview(
 ) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	id, err := uuid.Parse(req.Msg.GetId())
 	if err != nil || id == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
 	}
 	if err := h.Logic.RemoveReview(ctx, id, req.Msg.GetReason(), actorID); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.RemoveReviewResponse{}), nil
 }
@@ -190,11 +192,11 @@ func (h *Handler) ListReviewRemovals(
 ) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewRemovals(ctx, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }

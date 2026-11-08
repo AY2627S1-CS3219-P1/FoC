@@ -65,9 +65,10 @@ type PhotoUpload struct {
 	ObjectKey string
 }
 
-// CreateReviewPhotoUpload validates the request, persists a staging row owned
-// by the caller and returns the pre-signed PUT grant. The grant's exact
-// content type and size come from the stored row, so the storage-enforced
+// CreateReviewPhotoUpload validates the request, signs a pre-signed PUT grant
+// and persists a staging row owned by the caller. Signing happens first so a
+// failed sign leaves nothing for the reaper to clean up; the stored row
+// records the grant's exact content type and size, so the storage-enforced
 // shape matches what attachment later verifies against.
 func (s *Service) CreateReviewPhotoUpload(
 	ctx context.Context,
@@ -76,17 +77,15 @@ func (s *Service) CreateReviewPhotoUpload(
 	sizeBytes int64,
 ) (PhotoUpload, images.UploadGrant, error) {
 	if s.photos == nil {
-		return PhotoUpload{}, images.UploadGrant{}, errs.WrapFailedPreconditionError(
-			errPhotoStorageDisabled, "photo uploads are not available",
-		)
+		return PhotoUpload{}, images.UploadGrant{}, uploadUnavailable(errPhotoStorageDisabled)
 	}
 	if !validPhotoContentType(contentType) {
-		return PhotoUpload{}, images.UploadGrant{}, errs.NewBadRequestError(
+		return PhotoUpload{}, images.UploadGrant{}, invalidPhoto(
 			"content type must be image/jpeg, image/png, image/webp, image/heic or image/heif",
 		)
 	}
 	if sizeBytes < 1 || sizeBytes > maxReviewPhotoBytes {
-		return PhotoUpload{}, images.UploadGrant{}, errs.NewBadRequestError(
+		return PhotoUpload{}, images.UploadGrant{}, invalidPhoto(
 			"photo size must be between 1 and 10000000 bytes",
 		)
 	}
@@ -95,27 +94,29 @@ func (s *Service) CreateReviewPhotoUpload(
 	if err != nil {
 		return PhotoUpload{}, images.UploadGrant{}, err
 	}
-	photo := ReviewPhotoInput{
-		ID:          id,
-		OwnerID:     ownerID,
-		ObjectKey:   photoKeyPrefix + id.String(),
-		ContentType: contentType,
-		SizeBytes:   sizeBytes,
-	}
-	now := time.Now().UTC()
-	photo.UploadExpiresAt = now.Add(photoUploadLifetime)
-	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, err
-	}
+	// Sign before persisting the staging row: a failed sign then leaves no
+	// orphan row behind for the reaper to clean up.
+	key := photoKeyPrefix + id.String()
 	grant, err := s.photos.CreateUpload(ctx, images.UploadRequest{
-		Key:         photo.ObjectKey,
+		Key:         key,
 		ContentType: contentType,
 		SizeBytes:   sizeBytes,
 	})
 	if err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, fmt.Errorf("sign photo upload grant: %w", err)
+		return PhotoUpload{}, images.UploadGrant{}, uploadUnavailable(fmt.Errorf("sign photo upload grant: %w", err))
 	}
-	return PhotoUpload{ID: id, ObjectKey: photo.ObjectKey}, grant, nil
+	photo := ReviewPhotoInput{
+		ID:          id,
+		OwnerID:     ownerID,
+		ObjectKey:   key,
+		ContentType: contentType,
+		SizeBytes:   sizeBytes,
+	}
+	photo.UploadExpiresAt = time.Now().UTC().Add(photoUploadLifetime)
+	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
+		return PhotoUpload{}, images.UploadGrant{}, err
+	}
+	return PhotoUpload{ID: id, ObjectKey: key}, grant, nil
 }
 
 // preparePhotos resolves the caller's staged photo IDs before the submission
@@ -132,16 +133,16 @@ func (s *Service) preparePhotos(
 		return nil, nil
 	}
 	if s.photos == nil {
-		return nil, errs.WrapFailedPreconditionError(errPhotoStorageDisabled, "photo uploads are not available")
+		return nil, uploadUnavailable(errPhotoStorageDisabled)
 	}
 	if len(photoIDs) > MaxReviewPhotos {
-		return nil, errs.NewBadRequestError("a review may have at most 5 photos")
+		return nil, errs.WrapBadRequestError(errInvalidReview, "a review may have at most 5 photos")
 	}
 	prepared := make([]ReviewPhoto, 0, len(photoIDs))
 	seen := make(map[uuid.UUID]bool, len(photoIDs))
 	for _, id := range photoIDs {
 		if seen[id] {
-			return nil, errs.NewBadRequestError("photo IDs must be unique")
+			return nil, errs.WrapBadRequestError(errInvalidReview, "photo IDs must be unique")
 		}
 		seen[id] = true
 		photo, err := s.repo.GetReviewPhoto(ctx, ownerID, id)
@@ -152,17 +153,21 @@ func (s *Service) preparePhotos(
 			return nil, err
 		}
 		if photo.State != photoStateUploading {
-			return nil, errs.NewBadRequestError("photo is no longer pending upload")
+			return nil, photoNotReady(errPhotoNotReady, id, "photo is no longer pending upload")
 		}
 		info, err := s.photos.Inspect(ctx, photo.ObjectKey)
 		if errors.Is(err, images.ErrObjectNotFound) {
-			return nil, errs.NewBadRequestError("photo upload is missing; upload it again")
+			return nil, photoNotReady(errPhotoNotReady, id, "photo upload is missing; upload it again")
 		}
 		if err != nil {
-			return nil, fmt.Errorf("inspect photo object: %w", err)
+			wrapped := fmt.Errorf("inspect photo object: %w", err)
+			if errors.Is(err, images.ErrStorageUnavailable) {
+				return nil, uploadTemporarilyUnavailable(wrapped)
+			}
+			return nil, uploadUnavailable(wrapped)
 		}
 		if !info.Exists || info.Size != photo.SizeBytes || info.ContentType != photo.ContentType {
-			return nil, errs.NewBadRequestError("photo upload is incomplete or invalid; upload it again")
+			return nil, photoNotReady(errPhotoNotReady, id, "photo upload is incomplete or invalid; upload it again")
 		}
 		prepared = append(prepared, photo)
 	}
@@ -185,7 +190,11 @@ func (s *Service) attachPhotos(
 			return err
 		}
 		if n != 1 {
-			return errs.NewBadRequestError("a photo is no longer available; remove it and submit again")
+			return photoNotReady(
+				errPhotoNotReady,
+				photo.ID,
+				"a photo is no longer available; remove it and submit again",
+			)
 		}
 	}
 	return nil

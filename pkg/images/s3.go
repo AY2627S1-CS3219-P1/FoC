@@ -3,6 +3,8 @@ package images
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +15,52 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 )
+
+var misconfiguredCodes = map[string]bool{
+	"AccessDenied":                       true,
+	"NoSuchBucket":                       true,
+	"InvalidAccessKeyId":                 true,
+	"SignatureDoesNotMatch":              true,
+	"AuthorizationHeaderMalformed":       true,
+	"AuthorizationQueryParametersError":  true,
+	"PermanentRedirect":                  true,
+	"InvalidToken":                       true,
+	"ExpiredToken":                       true,
+	"IllegalLocationConstraintException": true,
+}
+
+var transientCodes = map[string]bool{
+	"SlowDown":           true,
+	"ServiceUnavailable": true,
+	"InternalError":      true,
+	"RequestTimeout":     true,
+}
+
+// Caller cancellation and unclassified errors pass through unchanged.
+func classifyStorageError(err error) error {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
+	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		switch {
+		case transientCodes[code]:
+			return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
+		case misconfiguredCodes[code]:
+			return fmt.Errorf("%w: %w", ErrStorageMisconfigured, err)
+		}
+		return err
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
+	}
+	return err
+}
 
 type S3Config struct{ Bucket, Region, Endpoint, PublicEndpoint string }
 
@@ -77,7 +125,7 @@ func (s *S3) CreateUpload(ctx context.Context, in UploadRequest) (UploadGrant, e
 		IfNoneMatch:   aws.String("*"),
 	}, func(o *s3.PresignOptions) { o.Expires = 10 * time.Minute })
 	if err != nil {
-		return UploadGrant{}, err
+		return UploadGrant{}, classifyStorageError(err)
 	}
 	headers := map[string]string{}
 	for key, values := range grant.SignedHeader {
@@ -104,7 +152,7 @@ func (s *S3) Inspect(ctx context.Context, key string) (ObjectInfo, error) {
 		if errors.As(err, &api) && (api.ErrorCode() == "NotFound" || api.ErrorCode() == "NoSuchKey") {
 			return ObjectInfo{}, ErrObjectNotFound
 		}
-		return ObjectInfo{}, err
+		return ObjectInfo{}, classifyStorageError(err)
 	}
 	return ObjectInfo{
 		Exists:      true,
@@ -120,7 +168,7 @@ func (s *S3) CreateDownload(ctx context.Context, key string) (DownloadGrant, err
 		func(o *s3.PresignOptions) { o.Expires = 5 * time.Minute },
 	)
 	if err != nil {
-		return DownloadGrant{}, err
+		return DownloadGrant{}, classifyStorageError(err)
 	}
 	return DownloadGrant{URL: out.URL, ExpiresAt: time.Now().Add(5 * time.Minute)}, nil
 }

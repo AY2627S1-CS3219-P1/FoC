@@ -52,6 +52,18 @@ func (s *Service) SubmitReview(
 	if !participants.RevieweeExists {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
 	}
+	// A prior submission for the same request committed — usually a
+	// lost-response retry. The duplicate pre-check runs before photo
+	// preparation so the retry gets the canonical 409 the ADR documents
+	// instead of a photo-state rejection; the unique index would reject the
+	// insert anyway if a concurrent submission slips past this check.
+	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
 	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
 	if err != nil {
 		return err

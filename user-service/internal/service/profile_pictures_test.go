@@ -7,11 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	commonv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/common/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
 type fakeProfileUsers struct {
@@ -211,6 +214,35 @@ func assertExternalStatus(t *testing.T, err error, want int) {
 
 func ptrID(id uuid.UUID) *uuid.UUID { return &id }
 
+func TestProfileConnectErrorDetails(t *testing.T) {
+	connectErr := ProfileConnectError(context.Background(), invalidProfilePicture("bad picture"))
+	if connect.CodeOf(connectErr) != connect.CodeInvalidArgument {
+		t.Fatalf("code = %v", connect.CodeOf(connectErr))
+	}
+	var ce *connect.Error
+	if !errors.As(connectErr, &ce) {
+		t.Fatalf("not a connect error: %T", connectErr)
+	}
+	var reason string
+	var detail *commonv1.ErrorDetail
+	for _, d := range ce.Details() {
+		msg, err := d.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch value := msg.(type) {
+		case *errdetails.ErrorInfo:
+			reason = value.GetReason()
+		case *commonv1.ErrorDetail:
+			detail = value
+		}
+	}
+	if reason != reasonInvalidProfilePicture || detail == nil ||
+		detail.GetReason() != reasonInvalidProfilePicture || detail.GetMessage() != "bad picture" {
+		t.Fatalf("details: reason=%q detail=%+v", reason, detail)
+	}
+}
+
 func TestCreateProfilePictureUpload(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
 	pictures := &fakeProfilePictureStore{}
@@ -252,7 +284,7 @@ func TestCreateProfilePictureUploadUnavailableAndSuspended(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
 	svc := &ProfileService{Users: &fakeProfileUsers{user: user}}
 	_, _, err := svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1)
-	assertExternalStatus(t, err, http.StatusPreconditionFailed)
+	assertExternalStatus(t, err, http.StatusInternalServerError)
 
 	user.Role = models.RoleSuspended
 	svc = profilePictureTestService(user, &fakeProfilePictureStore{}, &fakeProfilePictureStorage{})
@@ -272,10 +304,15 @@ func TestCreateProfilePictureUploadErrors(t *testing.T) {
 	}
 
 	pictures = &fakeProfilePictureStore{}
-	storage = &fakeProfilePictureStorage{createErr: errors.New("storage")}
+	storage = &fakeProfilePictureStorage{createErr: images.ErrStorageUnavailable}
 	svc = profilePictureTestService(user, pictures, storage)
 	_, _, err := svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1)
 	assertExternalStatus(t, err, http.StatusServiceUnavailable)
+
+	storage = &fakeProfilePictureStorage{createErr: errors.New("storage")}
+	svc = profilePictureTestService(user, pictures, storage)
+	_, _, err = svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1)
+	assertExternalStatus(t, err, http.StatusInternalServerError)
 }
 
 func TestCleanupOnceErrors(t *testing.T) {
@@ -309,7 +346,7 @@ func TestRemoveMyProfilePictureWithoutStorage(t *testing.T) {
 	user := profilePictureTestUser(models.RoleUser)
 	svc := &ProfileService{Users: &fakeProfileUsers{user: user}, Pictures: &fakeProfilePictureStore{}}
 	_, err := svc.RemoveMyProfilePicture(context.Background(), user.ID)
-	assertExternalStatus(t, err, http.StatusPreconditionFailed)
+	assertExternalStatus(t, err, http.StatusInternalServerError)
 }
 
 func TestUpdateMyProfilePicture(t *testing.T) {
@@ -364,21 +401,21 @@ func TestUpdateMyProfilePictureRejectsInvalidUploads(t *testing.T) {
 		pictures.getPendingErr = store.ErrPictureNotFound
 		_, err := profilePictureTestService(user, pictures, storage).
 			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
-		assertExternalStatus(t, err, http.StatusBadRequest)
+		assertExternalStatus(t, err, http.StatusPreconditionFailed)
 	})
 	t.Run("missing object", func(t *testing.T) {
 		pictures, storage := base()
 		storage.objects = map[string]images.ObjectInfo{}
 		_, err := profilePictureTestService(user, pictures, storage).
 			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
-		assertExternalStatus(t, err, http.StatusBadRequest)
+		assertExternalStatus(t, err, http.StatusPreconditionFailed)
 	})
 	t.Run("metadata mismatch", func(t *testing.T) {
 		pictures, storage := base()
 		storage.objects[key] = images.ObjectInfo{Exists: true, Size: 5, ContentType: "image/png"}
 		_, err := profilePictureTestService(user, pictures, storage).
 			UpdateMyProfilePicture(context.Background(), user.ID, pictureID)
-		assertExternalStatus(t, err, http.StatusBadRequest)
+		assertExternalStatus(t, err, http.StatusPreconditionFailed)
 	})
 	t.Run("suspended", func(t *testing.T) {
 		pictures, storage := base()

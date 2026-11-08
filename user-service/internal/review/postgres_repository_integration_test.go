@@ -228,6 +228,146 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	// The guarded attachment and cleanup-claim statements are the photo
+	// consistency boundary; fakes cannot exercise their SQL predicates, so
+	// they run against the real database here.
+	t.Run("guarded attachment claims a staged photo exactly once", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "with photo"},
+			nil,
+		); err != nil {
+			t.Fatalf("submit review for attachment: %v", err)
+		}
+		reviewed, err := service.ListReviewsFromUser(ctx, reviewer, mustPage(t, 1, 1))
+		if err != nil || len(reviewed.Reviews) != 1 {
+			t.Fatalf("list submitted review: reviews=%v err=%v", reviewed.Reviews, err)
+		}
+		reviewID := reviewed.Reviews[0].ID
+
+		insertPhoto := func(t *testing.T) ReviewPhoto {
+			t.Helper()
+			input := ReviewPhotoInput{
+				ID:              uuid.New(),
+				OwnerID:         reviewer,
+				ObjectKey:       "review/photo/" + uuid.New().String(),
+				ContentType:     "image/png",
+				SizeBytes:       1234,
+				UploadExpiresAt: time.Now().Add(time.Hour),
+			}
+			if err := repo.InsertReviewPhoto(ctx, input); err != nil {
+				t.Fatalf("stage photo: %v", err)
+			}
+			staged, err := repo.GetReviewPhoto(ctx, reviewer, input.ID)
+			if err != nil {
+				t.Fatalf("load staged photo: %v", err)
+			}
+			return staged
+		}
+		q := reviewdb.New(sqlDB)
+
+		staged := insertPhoto(t)
+		// Attachment is transactional in production; the plain pool handle
+		// exercises the same guarded UPDATE.
+		rows, err := repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 0, staged)
+		if err != nil || rows != 1 {
+			t.Fatalf("first attach: rows=%d err=%v, want 1 and nil", rows, err)
+		}
+		attached, err := repo.ListReviewPhotosForReviews(ctx, []uuid.UUID{reviewID})
+		if err != nil || len(attached) != 1 {
+			t.Fatalf("list attached: photos=%v err=%v", attached, err)
+		}
+		if attached[0].Ordinal != 0 || attached[0].ObjectKey != staged.ObjectKey {
+			t.Fatalf("attached photo mismatch: %+v", attached[0])
+		}
+
+		// The state guard blocks a second attachment of the same photo.
+		rows, err = repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 1, staged)
+		if err != nil || rows != 0 {
+			t.Fatalf("second attach: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+
+		// A shape mismatch — the stored object replaced between inspection and
+		// attach — also matches zero rows and must fail the submission.
+		replaced := staged
+		replaced.SizeBytes = staged.SizeBytes + 1
+		rows, err = repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 1, replaced)
+		if err != nil || rows != 0 {
+			t.Fatalf("attach with drifted shape: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+
+		// A photo staged by another user is never attachable.
+		stranger := uuid.New()
+		insertUser(t, ctx, sqlDB, stranger)
+		foreign := insertPhoto(t)
+		foreign.OwnerID = stranger
+		rows, err = repo.AttachReviewPhoto(ctx, q, stranger, reviewID, 1, foreign)
+		if err != nil || rows != 0 {
+			t.Fatalf("attach of a foreign photo: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("cleanup claims expired orphan staging rows only", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+
+		stage := func(t *testing.T, expiresAt time.Time) ReviewPhotoInput {
+			t.Helper()
+			input := ReviewPhotoInput{
+				ID:              uuid.New(),
+				OwnerID:         owner,
+				ObjectKey:       "review/photo/" + uuid.New().String(),
+				ContentType:     "image/jpeg",
+				SizeBytes:       42,
+				UploadExpiresAt: expiresAt,
+			}
+			if err := repo.InsertReviewPhoto(ctx, input); err != nil {
+				t.Fatalf("stage photo: %v", err)
+			}
+			return input
+		}
+		now := time.Now().UTC()
+		expired := stage(t, now.Add(-time.Hour))
+		live := stage(t, now.Add(time.Hour))
+
+		// The claim horizon sits slightly ahead of the inserts, like the
+		// production ticker running after the rows were created.
+		horizon := now.Add(time.Minute)
+		claimed, err := repo.ClaimOrphanReviewPhotos(ctx, horizon, horizon)
+		if err != nil {
+			t.Fatalf("claim orphans: %v", err)
+		}
+		claimedIDs := map[uuid.UUID]bool{}
+		for _, row := range claimed {
+			claimedIDs[row.ID] = true
+		}
+		if !claimedIDs[expired.ID] {
+			t.Fatal("expired orphan staging row was not claimed")
+		}
+		if claimedIDs[live.ID] {
+			t.Fatal("unexpired staging row must not be claimed")
+		}
+
+		rows, err := repo.DeleteOrphanReviewPhoto(ctx, expired.ID)
+		if err != nil || rows != 1 {
+			t.Fatalf("delete claimed orphan: rows=%d err=%v, want 1 and nil", rows, err)
+		}
+		// A claimed row is only deletable in the deleting state; the live row
+		// stays untouched.
+		if rows, err := repo.DeleteOrphanReviewPhoto(ctx, live.ID); err != nil || rows != 0 {
+			t.Fatalf("delete unclaimed row: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
 	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		for _, id := range []uuid.UUID{reviewer, reviewee} {

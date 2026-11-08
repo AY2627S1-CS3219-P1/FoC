@@ -91,6 +91,12 @@ func TestAuthSmokeLoginRefreshLogoutAndProtectedRoutes(t *testing.T) {
 				return
 			}
 			write(map[string]any{"page": 1, "pageSize": 1, "locations": []any{}})
+		case reviewPath:
+			if r.Header.Get("Authorization") == "" {
+				unauthorized()
+				return
+			}
+			write(map[string]any{"page": 1, "pageSize": 20, "reviews": []any{}})
 		case authPath + "Refresh":
 			if revoked || r.Header.Get("Cookie") == "" {
 				unauthorized()
