@@ -19,6 +19,21 @@ func outcomeFor(terminal bool, approved bool) moderationevents.ModerationOutcome
 	return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
 }
 
+// outcomeTypeFor maps a terminal assessment outcome to the published enum.
+// Rejections must publish REJECTED (with their reason codes): user-service
+// drops an ERROR event that carries content reasons, so mapping a rejection to
+// ERROR would silently discard every rejection.
+func outcomeTypeFor(outcome ModerationOutcome) moderationevents.ModerationOutcomeType {
+	switch outcome {
+	case OutcomeApproved:
+		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED
+	case OutcomeRejected:
+		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
+	default:
+		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
+	}
+}
+
 // moderationoutcomeTypeError is the published enum for a terminal error.
 func moderationoutcomeTypeError() moderationevents.ModerationOutcomeType {
 	return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR

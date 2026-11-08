@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
@@ -38,7 +39,10 @@ type JobStore = jobStore
 type jobStore struct {
 	pool   *pgxpool.Pool
 	policy Policy
-	rng    *rand.Rand
+	// rngMu guards rng: one jobStore is shared by every pool worker, and
+	// math/rand.Rand is not safe for concurrent use.
+	rngMu sync.Mutex
+	rng   *rand.Rand
 }
 
 // claimOutcome reports what a claim cycle produced.
@@ -87,11 +91,12 @@ func (s *jobStore) Heartbeat(
 	return rows > 0, nil
 }
 
-// Release returns owned work on shutdown, clearing the claim so a later cycle
-// can retry it.
-func (s *jobStore) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) error {
+// Release returns owned work on shutdown, requeueing it so a later cycle
+// retries promptly. The boolean is false when the claim was already gone.
+func (s *jobStore) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) (bool, error) {
 	q := moderationdb.New(s.pool)
-	return q.ReleaseJob(ctx, moderationdb.ReleaseJobParams{ID: jobID, ClaimToken: &claimToken})
+	rows, err := q.ReleaseJob(ctx, moderationdb.ReleaseJobParams{ID: jobID, ClaimToken: &claimToken})
+	return rows > 0, err
 }
 
 // Claim performs the short claim transaction: lock the oldest eligible job, pin
@@ -177,7 +182,6 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 // Complete runs a valid assessment to a terminal completed outcome, finishing
 // the attempt and enqueuing the outbox event atomically, fenced by claim token.
 func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assessment) error {
-	approved := assessment.Outcome == OutcomeApproved
 	reasonCodes := reasonCodesFor(assessment.Outcome, assessment.ReasonCodes)
 	outcomeStr := string(assessment.Outcome)
 	finishedAt := time.Now()
@@ -185,7 +189,7 @@ func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assess
 	policyVersion := assessment.PolicyVersion
 
 	payload, err := buildOutboxPayload(eventID, c.Job,
-		outcomeFor(true, approved), reasonCodes, finishedAt)
+		outcomeTypeFor(assessment.Outcome), reasonCodes, finishedAt)
 	if err != nil {
 		return err
 	}
@@ -243,7 +247,11 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 			return err
 		}
 
+		// The shared generator must be mutex-guarded: workers finalize failures
+		// concurrently and math/rand.Rand is not goroutine-safe.
+		s.rngMu.Lock()
 		decision := s.policy.decide(kind, int(c.AttemptNumber), int(invalidCount), int(filterCount), s.rng)
+		s.rngMu.Unlock()
 		wait := decision.wait
 		if kind == kindDurable && retryAfter > 0 {
 			wait = retryAfter
@@ -262,11 +270,18 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 
 		if decision.retry {
 			nextAttemptAt := finishedAt.Add(wait)
-			if _, err := q.ScheduleJobRetry(ctx, moderationdb.ScheduleJobRetryParams{
+			rows, err := q.ScheduleJobRetry(ctx, moderationdb.ScheduleJobRetryParams{
 				ID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ClaimToken: &c.ClaimToken,
 				ErrorClass: &errorClassPtr, NextAttemptAt: &nextAttemptAt,
-			}); err != nil {
+			})
+			if err != nil {
 				return err
+			}
+			if rows == 0 {
+				// The claim was lost (another worker reclaimed the job); this
+				// attempt's failure was recorded but the schedule write belongs
+				// to the current owner.
+				return ErrFenced
 			}
 			return nil
 		}
@@ -275,10 +290,17 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 		if err != nil {
 			return err
 		}
-		if _, err := q.ErrorJob(ctx, moderationdb.ErrorJobParams{
+		rows, err := q.ErrorJob(ctx, moderationdb.ErrorJobParams{
 			ID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ClaimToken: &c.ClaimToken, ErrorClass: &errorClassPtr,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
+		}
+		if rows == 0 {
+			// Fenced out: never enqueue the terminal event for a generation a
+			// stale claim no longer owns — the outbox row would block the
+			// rightful owner's terminal write on the unique constraint.
+			return ErrFenced
 		}
 		return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{
 			EventID: eventID, JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration,

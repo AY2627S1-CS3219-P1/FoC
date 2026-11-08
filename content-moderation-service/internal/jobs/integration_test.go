@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -592,6 +593,220 @@ func TestClaimWithoutConfigurationQueuesWithoutAttempts(t *testing.T) {
 	if n := countWhere(t, pool,
 		`SELECT count(*) FROM moderation_attempts WHERE job_id = $1`, job.ID); n != 0 {
 		t.Fatalf("unconfigured claim must not burn an attempt: %d rows", n)
+	}
+}
+
+func TestRetryThenSucceedCompletesCleanly(t *testing.T) {
+	// Regression for the completed_decision_is_present violation: a job that
+	// failed once (error_class set by ScheduleJobRetry) must complete after a
+	// successful retry — CompleteJob clears error_class and next_attempt_at.
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("retry then succeed")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "worker-a")
+	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapConnectionError(errors.New("transient"))); err != nil {
+		t.Fatalf("finalize failed: %v", err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "retry_wait" || job.ErrorClass == nil {
+		t.Fatalf("precondition: status=%q errorClass=%v", job.Status, job.ErrorClass)
+	}
+
+	claimed = claimDue(t, store, pool)
+	if err := store.Complete(ctx, *claimed, jobs.Assessment{
+		Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1",
+	}); err != nil {
+		t.Fatalf("complete after retry: %v", err)
+	}
+	job = jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "completed" || job.Outcome == nil || *job.Outcome != "approved" {
+		t.Fatalf("retry-then-succeed did not complete: %+v", job)
+	}
+	if job.ErrorClass != nil {
+		t.Fatalf("completed job must carry no error_class: %v", *job.ErrorClass)
+	}
+	if job.NextAttemptAt != nil {
+		t.Fatalf("completed job must carry no next_attempt_at: %v", job.NextAttemptAt)
+	}
+	if countOutbox(t, pool, job.ID, job.RunGeneration) != 1 {
+		t.Fatalf("terminal completion must enqueue exactly one outbox event")
+	}
+}
+
+func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
+	// Regression for the rejected-outcome mapping: a rejected assessment must
+	// publish MODERATION_OUTCOME_TYPE_REJECTED with its reason codes — user-
+	// service drops an ERROR event carrying content reasons, so mapping a
+	// rejection to ERROR silently discarded every rejection.
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("this is harassment")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "worker-a")
+	if err := store.Complete(ctx, *claimed, jobs.Assessment{
+		Outcome:       jobs.OutcomeRejected,
+		ReasonCodes:   []string{jobs.ReasonHarassment},
+		PolicyVersion: "review-text-v1",
+	}); err != nil {
+		t.Fatalf("complete rejected: %v", err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "completed" || job.Outcome == nil || *job.Outcome != "rejected" {
+		t.Fatalf("job = %+v, want completed/rejected", job)
+	}
+	if len(job.ReasonCodes) != 1 || job.ReasonCodes[0] != jobs.ReasonHarassment {
+		t.Fatalf("reason codes = %v, want [HARASSMENT]", job.ReasonCodes)
+	}
+
+	// The published event payload must carry REJECTED + the codes.
+	var payload string
+	if err := pool.QueryRow(ctx,
+		`SELECT payload FROM moderation_outbox WHERE job_id = $1`, job.ID).Scan(&payload); err != nil {
+		t.Fatalf("load payload: %v", err)
+	}
+	if !strings.Contains(payload, "MODERATION_OUTCOME_TYPE_REJECTED") {
+		t.Fatalf("payload outcome is not REJECTED: %s", payload)
+	}
+	if !strings.Contains(payload, "HARASSMENT") {
+		t.Fatalf("payload missing rejection reason code: %s", payload)
+	}
+}
+
+func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
+	// Regression for the unfenced terminal finalize: a stale worker whose
+	// claim was reclaimed must not schedule a retry or enqueue the terminal
+	// outbox row — the phantom row would block the rightful owner's terminal
+	// write on UNIQUE(job_id, run_generation) forever.
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("stale finalize target")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	stale := mustClaim(t, store, "stale-worker")
+
+	// The winner reclaims (simulating lease-expiry recovery): steal the claim
+	// the way a new claim would.
+	jobID := jobIDByRequest(t, pool, in.ModerationRequestID)
+	winnerToken := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		UPDATE moderation_jobs
+		SET claim_token = $1, worker_id = 'winner', lease_until = now() + interval '30 s'
+		WHERE id = $2`, winnerToken, jobID); err != nil {
+		t.Fatalf("steal claim: %v", err)
+	}
+
+	// Stale worker reaches the terminal branch: must be fenced, and the outbox
+	// must stay empty.
+	err := store.FinalizeFailed(ctx, *stale, jobs.WrapConnectionError(errors.New("late failure")))
+	if !errors.Is(err, jobs.ErrFenced) {
+		t.Fatalf("stale terminal finalize error = %v, want ErrFenced", err)
+	}
+	if n := countOutbox(t, pool, jobID, 1); n != 0 {
+		t.Fatalf("stale worker enqueued %d phantom outbox rows", n)
+	}
+
+	// Stale worker reaching the retry branch: fenced too, job untouched.
+	staleRetry := *stale
+	if err := store.FinalizeFailed(ctx, staleRetry, jobs.WrapConnectionError(errors.New("late failure"))); !errors.Is(err, jobs.ErrFenced) {
+		t.Fatalf("stale retry finalize error = %v, want ErrFenced", err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM moderation_jobs WHERE id = $1`, jobID).Scan(&status); err != nil {
+		t.Fatalf("load job: %v", err)
+	}
+	if status != "processing" {
+		t.Fatalf("stale finalize mutated the job: status=%q", status)
+	}
+}
+
+func TestReleaseRequeuesForPromptRetry(t *testing.T) {
+	// Regression for the broken Release: releasing a claimed job must requeue
+	// it (queued, claim cleared) instead of failing the processing_is_claimed
+	// CHECK and silently waiting out the lease.
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("release me")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "shutdown-worker")
+	jobID := jobIDByRequest(t, pool, in.ModerationRequestID)
+
+	released, err := store.Release(ctx, jobID, claimed.ClaimToken)
+	if err != nil || !released {
+		t.Fatalf("release: released=%v err=%v", released, err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "queued" {
+		t.Fatalf("released job status = %q, want queued", job.Status)
+	}
+	if job.ClaimToken != nil || job.LeaseUntil != nil {
+		t.Fatalf("released job must carry no claim: %+v", job)
+	}
+	// And it must be immediately claimable again.
+	outcome, again, err := store.Claim(ctx, "next-worker", 30*time.Second)
+	if err != nil || outcome != jobs.ClaimReady || again == nil || again.Job.ID != jobID {
+		t.Fatalf("released job not reclaimable: %v %v %v", outcome, again, err)
+	}
+}
+
+func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
+	// The shutdown path releases with an already-cancelled context; the pool
+	// must detach the context so the write still lands and the job is
+	// promptly requeued instead of waiting out the lease.
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+
+	in := ingestInput("cancel then release")
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	if _, err := store.Ingest(context.Background(), in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+
+	eval := newBlockingEvaluator()
+	p := jobs.NewPool(pool, eval, jobs.NewLimiter(1), jobs.PoolConfig{
+		Concurrency:       1,
+		Lease:             30 * time.Second,
+		HeartbeatInterval: 5 * time.Second,
+		PollInterval:      10 * time.Millisecond,
+		LLMRequestTimeout: 10 * time.Second,
+		Policy:            jobs.DefaultPolicy(),
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	p.Start(ctx)
+
+	// Worker is inside the (blocking) evaluation; cancel to trigger shutdown.
+	eval.waitEntered(t, 1)
+	cancel()
+	eval.release(1)
+	p.Wait()
+
+	var status string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status FROM moderation_jobs WHERE moderation_request_id = $1`,
+		in.ModerationRequestID).Scan(&status); err != nil {
+		t.Fatalf("load job: %v", err)
+	}
+	if status != "queued" {
+		t.Fatalf("status = %q after shutdown release, want queued", status)
 	}
 }
 

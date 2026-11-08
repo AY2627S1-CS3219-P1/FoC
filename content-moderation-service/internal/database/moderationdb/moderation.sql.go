@@ -189,6 +189,8 @@ SET status = 'completed',
     outcome = $1,
     reason_codes = $2,
     policy_version = $3,
+    error_class = NULL,
+    next_attempt_at = NULL,
     finished_at = now(),
     claim_token = NULL,
     worker_id = NULL,
@@ -211,6 +213,9 @@ type CompleteJobParams struct {
 }
 
 // Fenced: only a live claim of the expected generation may terminal-complete.
+// Clears error_class and next_attempt_at: a retried job carries both from
+// ScheduleJobRetry, and completed_decision_is_present requires a completed row
+// to have no error class.
 func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (int64, error) {
 	result, err := q.db.Exec(ctx, completeJob,
 		arg.Outcome,
@@ -864,9 +869,10 @@ func (q *Queries) Quarantine(ctx context.Context, arg QuarantineParams) error {
 	return err
 }
 
-const releaseJob = `-- name: ReleaseJob :exec
+const releaseJob = `-- name: ReleaseJob :execrows
 UPDATE moderation_jobs
-SET claim_token = NULL,
+SET status = 'queued',
+    claim_token = NULL,
     worker_id = NULL,
     lease_until = NULL,
     heartbeat_at = NULL,
@@ -881,10 +887,15 @@ type ReleaseJobParams struct {
 	ClaimToken *uuid.UUID
 }
 
-// Returns owned work on shutdown: clear the claim, leave it reclaimable.
-func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) error {
-	_, err := q.db.Exec(ctx, releaseJob, arg.ID, arg.ClaimToken)
-	return err
+// Returns owned work on shutdown: requeue it so a later cycle retries promptly
+// instead of waiting out the lease. Clearing the claim while the row stays
+// 'processing' would violate processing_is_claimed, so the status moves too.
+func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseJob, arg.ID, arg.ClaimToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const releaseOutboxLease = `-- name: ReleaseOutboxLease :execrows

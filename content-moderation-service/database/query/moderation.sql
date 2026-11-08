@@ -69,10 +69,13 @@ WHERE id = sqlc.arg(id)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing';
 
--- name: ReleaseJob :exec
--- Returns owned work on shutdown: clear the claim, leave it reclaimable.
+-- name: ReleaseJob :execrows
+-- Returns owned work on shutdown: requeue it so a later cycle retries promptly
+-- instead of waiting out the lease. Clearing the claim while the row stays
+-- 'processing' would violate processing_is_claimed, so the status moves too.
 UPDATE moderation_jobs
-SET claim_token = NULL,
+SET status = 'queued',
+    claim_token = NULL,
     worker_id = NULL,
     lease_until = NULL,
     heartbeat_at = NULL,
@@ -105,11 +108,16 @@ WHERE job_id = sqlc.arg(job_id)
 
 -- name: CompleteJob :execrows
 -- Fenced: only a live claim of the expected generation may terminal-complete.
+-- Clears error_class and next_attempt_at: a retried job carries both from
+-- ScheduleJobRetry, and completed_decision_is_present requires a completed row
+-- to have no error class.
 UPDATE moderation_jobs
 SET status = 'completed',
     outcome = sqlc.arg(outcome),
     reason_codes = sqlc.arg(reason_codes),
     policy_version = sqlc.arg(policy_version),
+    error_class = NULL,
+    next_attempt_at = NULL,
     finished_at = now(),
     claim_token = NULL,
     worker_id = NULL,

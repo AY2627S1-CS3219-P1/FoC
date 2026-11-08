@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
@@ -147,11 +148,18 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
+// truncate bounds s to n bytes without splitting a UTF-8 rune: a split rune
+// makes the stored text invalid UTF-8, which PostgreSQL rejects, failing the
+// whole write (an attempt or quarantine row) permanently.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n]
+	cut := s[:n]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1]
+	}
+	return cut
 }
 
 // strPtr returns a pointer to s so nullable *string query fields can be bound

@@ -85,6 +85,16 @@ func (p *Pool) Start(ctx context.Context) {
 // Wait blocks until all workers have exited.
 func (p *Pool) Wait() { p.workers.Wait() }
 
+// release returns an owned job to the queue after a shutdown or a terminal-
+// write failure. The shutdown path calls it with an already-cancelled context,
+// so the store write must run on a detached context; a failed release is
+// logged (the lease machinery remains the safety net).
+func (p *Pool) release(ctx context.Context, claimed *ClaimedJob) {
+	if _, err := p.store.Release(context.WithoutCancel(ctx), claimed.Job.ID, claimed.ClaimToken); err != nil {
+		p.logger.Error("release job", "error", err, "job", claimed.Job.ID.String())
+	}
+}
+
 // Ingest stores a submitted review as a durable moderation job, deduplicating on
 // moderation_request_id. It returns nil when the event is durably handled —
 // newly inserted, deduplicated, or quarantined as a conflict or malformed — and
@@ -151,7 +161,7 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 
 	if ctx.Err() != nil {
 		// Shutting down: return the owned job so a later cycle retries it.
-		_ = p.store.Release(ctx, claimed.Job.ID, claimed.ClaimToken)
+		p.release(ctx, claimed)
 		return
 	}
 	select {
@@ -180,7 +190,7 @@ func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment Ass
 			return
 		}
 		p.logger.Error("complete job", "error", err, "job", claimed.Job.ID.String())
-		_ = p.store.Release(ctx, claimed.Job.ID, claimed.ClaimToken)
+		p.release(ctx, claimed)
 		return
 	}
 	p.stats.completed.Add(1)
@@ -198,12 +208,12 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		return
 	}
 	if ctx.Err() != nil {
-		_ = p.store.Release(ctx, claimed.Job.ID, claimed.ClaimToken)
+		p.release(ctx, claimed)
 		return
 	}
 	if err := p.store.FinalizeFailed(ctx, *claimed, evalErr); err != nil {
 		p.logger.Error("finalize failed attempt", "error", err, "job", claimed.Job.ID.String())
-		_ = p.store.Release(ctx, claimed.Job.ID, claimed.ClaimToken)
+		p.release(ctx, claimed)
 		return
 	}
 
