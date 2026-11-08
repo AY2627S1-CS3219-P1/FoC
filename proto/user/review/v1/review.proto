@@ -179,4 +179,6 @@ message UnpublishedReview {
   repeated string moderation_reason_codes = 13;
   // When the latest moderation result was applied, when present.
   optional google.protobuf.Timestamp moderated_at = 14;
+  // Generation of the last result applied by User, for distinguishing newer CMS retries.
+  int32 applied_run_generation = 15;
 }

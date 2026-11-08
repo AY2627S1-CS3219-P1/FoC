@@ -633,3 +633,10 @@ func TestReviewRPCErrorMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestUnpublishedReviewCarriesLastAppliedGeneration(t *testing.T) {
+	message := toUnpublishedReviewProto(UnpublishedReview{AppliedRunGeneration: 3})
+	if message.GetAppliedRunGeneration() != 3 {
+		t.Fatalf("applied generation = %d", message.GetAppliedRunGeneration())
+	}
+}

@@ -3,7 +3,6 @@ package jobs
 import (
 	"context"
 	"errors"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
@@ -170,11 +169,3 @@ func truncate(s string, n int) string {
 // strPtr returns a pointer to s so nullable *string query fields can be bound
 // from plain strings (a quoted, possibly-empty summary, not NULL).
 func strPtr(s string) *string { return &s }
-
-// maskDiag neutralizes line breaks so a stored diagnostic stays one line.
-func maskDiag(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", " ")
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", " ")
-	return truncate(s, maxQuarantineSummary)
-}

@@ -175,7 +175,7 @@ func (h *Handler) ActivateModerationConfiguration(
 		expected = &parsed
 	}
 
-	if err := h.service.Activate(ctx, versionID, caller, expected); err != nil {
+	if err := h.service.Activate(ctx, versionID, caller, expected, req.Msg.GetResumePausedJobs()); err != nil {
 		if errors.Is(err, config.ErrConfigurationConflict) {
 			return nil, connect.NewError(
 				connect.CodeFailedPrecondition,
@@ -230,16 +230,16 @@ func parametersProto(p config.InferenceParameters) *moderationv1.ModerationInfer
 		AdvancedParameters: p.Advanced,
 	}
 	if p.Temperature != nil {
-		params.Temperature = *p.Temperature
+		params.Temperature = p.Temperature
 	}
 	if p.TopP != nil {
-		params.TopP = *p.TopP
+		params.TopP = p.TopP
 	}
 	if p.PresencePenalty != nil {
-		params.PresencePenalty = *p.PresencePenalty
+		params.PresencePenalty = p.PresencePenalty
 	}
 	if p.FrequencyPenalty != nil {
-		params.FrequencyPenalty = *p.FrequencyPenalty
+		params.FrequencyPenalty = p.FrequencyPenalty
 	}
 	params.MaxCompletionTokens = p.MaxCompletionTokens
 	params.MaxTokens = p.MaxTokens
@@ -254,10 +254,10 @@ func parametersFromProto(p *moderationv1.ModerationInferenceParameters) (config.
 		return config.InferenceParameters{}, nil
 	}
 	return config.InferenceParameters{
-		Temperature:         pdr(p.Temperature),
-		TopP:                pdr(p.TopP),
-		PresencePenalty:     pdr(p.PresencePenalty),
-		FrequencyPenalty:    pdr(p.FrequencyPenalty),
+		Temperature:         p.Temperature,
+		TopP:                p.TopP,
+		PresencePenalty:     p.PresencePenalty,
+		FrequencyPenalty:    p.FrequencyPenalty,
 		MaxCompletionTokens: p.MaxCompletionTokens,
 		MaxTokens:           p.MaxTokens,
 		Stop:                p.Stop,
@@ -288,8 +288,6 @@ func outputModeString(mode moderationv1.ModerationOutputMode) string {
 		return ""
 	}
 }
-
-func pdr(v float64) *float64 { return &v }
 
 func derefString(s *string) string {
 	if s == nil {

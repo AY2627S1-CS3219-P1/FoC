@@ -344,6 +344,7 @@ func toUnpublishedReviewProto(review UnpublishedReview) *reviewv1.UnpublishedRev
 		ModerationRequestId:   review.ModerationRequestID.String(),
 		ContentRevision:       int32(review.ContentRevision),
 		ModerationReasonCodes: review.ModerationReasonCodes,
+		AppliedRunGeneration:  review.AppliedRunGeneration,
 	}
 	if !review.ModeratedAt.IsZero() {
 		out.ModeratedAt = timestamppb.New(review.ModeratedAt)

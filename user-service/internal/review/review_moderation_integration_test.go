@@ -295,7 +295,7 @@ func TestReviewModerationIntegration(t *testing.T) {
 		}
 		if len(list.Reviews) != 1 || list.Reviews[0].ModerationStatus != ModerationRejected ||
 			len(list.Reviews[0].ModerationReasonCodes) != 1 || list.Reviews[0].ModerationReasonCodes[0] != "hate" ||
-			list.Reviews[0].ModeratedAt.IsZero() {
+			list.Reviews[0].ModeratedAt.IsZero() || list.Reviews[0].AppliedRunGeneration != 1 {
 			t.Fatalf("unpublished list = %+v", list.Reviews)
 		}
 	})

@@ -67,7 +67,7 @@ WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status 
 -- reviews are never in this collection.
 -- name: ListUnpublishedReviewsForUser :many
 SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
-       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at,
+       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r

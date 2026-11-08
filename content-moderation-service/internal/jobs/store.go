@@ -232,7 +232,7 @@ func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assess
 func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr error) error {
 	errorClass, kind, retryAfter := Classify(evalErr)
 	finishedAt := time.Now()
-	diagnostic := maskDiag(evalErr.Error())
+	diagnostic := errorClass
 	eventID := uuid.New()
 
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
@@ -286,6 +286,9 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 				// attempt's failure was recorded but the schedule write belongs
 				// to the current owner.
 				return ErrFenced
+			}
+			if kind == kindConfiguration {
+				return q.PauseConfiguration(ctx, c.Config.VersionID)
 			}
 			return nil
 		}

@@ -35,7 +35,7 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 	pool := database.Connect(url)
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-		moderation_quarantine, moderation_config_versions, moderation_config_state, moderation_admin_audit`); err != nil {
+		moderation_quarantine, moderation_config_pauses, moderation_config_versions, moderation_config_state, moderation_admin_audit`); err != nil {
 		t.Fatal(err)
 	}
 	store := config.NewStore(pool)
@@ -65,22 +65,31 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Activate(ctx, first, "admin", nil); err != nil {
+	if err := service.Activate(ctx, first, "admin", nil, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Activate(ctx, second, "admin", nil); !errors.Is(err, config.ErrConfigurationConflict) {
+	if err := service.Activate(ctx, second, "admin", nil, false); !errors.Is(err, config.ErrConfigurationConflict) {
 		t.Fatalf("stale first activation: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO moderation_config_pauses(version_id) VALUES ($1)`, first); err != nil {
+		t.Fatal(err)
+	}
 	eval.fail = true
-	if err := service.Activate(ctx, second, "admin", &first); err == nil {
+	if err := service.Activate(ctx, second, "admin", &first, true); err == nil {
 		t.Fatal("failed provider validation activated draft")
 	}
 	active, err := service.ActiveConfiguration(ctx)
 	if err != nil || active.VersionID != first {
 		t.Fatalf("failed validation changed active config: %+v, %v", active, err)
 	}
+	var pauses int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_config_pauses`).
+		Scan(&pauses); err != nil ||
+		pauses != 1 {
+		t.Fatalf("failed validation released pause: %d, %v", pauses, err)
+	}
 	eval.fail = false
-	if err := service.Activate(ctx, second, "admin", &first); err != nil {
+	if err := service.Activate(ctx, second, "admin", &first, false); err != nil {
 		t.Fatal(err)
 	}
 	var audits int

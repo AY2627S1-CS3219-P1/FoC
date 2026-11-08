@@ -160,9 +160,8 @@ func TestEvaluateRefusal(t *testing.T) {
 	if !errors.As(err, &refusal) {
 		t.Fatalf("error = %v, want *ErrRefusal", err)
 	}
-	// A refusal carries no verdict: the reason is captured but bounded so raw
-	// provider diagnostics cannot grow without bound.
-	if refusal.Reason == "" || len([]rune(refusal.Reason)) > maxDiagnosticLength {
+	// A refusal carries no verdict and exposes only a short generic diagnostic.
+	if refusal.Reason == "" || len([]rune(refusal.Reason)) > 100 {
 		t.Errorf("refusal reason = %q, want non-empty and bounded", refusal.Reason)
 	}
 }
@@ -309,5 +308,37 @@ func assertInvalid(t *testing.T, err error) {
 	var invalid *ErrInvalidOutput
 	if !errors.As(err, &invalid) {
 		t.Fatalf("error = %v, want *ErrInvalidOutput", err)
+	}
+}
+
+func TestSchemaRejectsMissingNullDuplicateAndIncorrectlyTypedFields(t *testing.T) {
+	for _, content := range []string{
+		`{"decision":"approve"}`, `{"decision":"approve","reason_codes":null}`,
+		`{"decision":null,"reason_codes":[]}`, `{"decision":"approve","reason_codes":[null]}`,
+		`{"Decision":"approve","reason_codes":[]}`, `{"decision":"approve","reason_codes":{}}`,
+		`{"decision":"reject","decision":"approve","reason_codes":[]}`,
+		`{"decision":"approve","reason_codes":[],"reason_codes":[]}`, `null`, `[]`,
+	} {
+		t.Run(content, func(t *testing.T) {
+			assessment, err := assess(t, &CompletionResponse{Content: content}, nil)
+			var invalid *ErrInvalidOutput
+			if !errors.As(err, &invalid) || assessment.Outcome != "" {
+				t.Fatalf("schema-invalid response yielded %+v, %v", assessment, err)
+			}
+		})
+	}
+}
+
+func TestUntrustedModelTextDoesNotEnterDiagnostics(t *testing.T) {
+	secret := "private-review-text-sk-secret"
+	for _, response := range []*CompletionResponse{
+		{Refusal: secret},
+		{Content: `{"decision":"` + secret + `","reason_codes":[]}`},
+		{Content: `{"decision":"reject","reason_codes":["` + secret + `"]}`},
+	} {
+		_, err := assess(t, response, nil)
+		if err == nil || strings.Contains(err.Error(), secret) {
+			t.Fatalf("unsafe diagnostic: %v", err)
+		}
 	}
 }

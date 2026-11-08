@@ -283,3 +283,25 @@ func TestNewRejectsMissingKeyAndBadURL(t *testing.T) {
 		t.Error("expected error for invalid base URL")
 	}
 }
+
+func TestProviderEchoCannotLeakCredentialsOrReview(t *testing.T) {
+	for _, status := range []int{400, 401, 429, 500} {
+		secret := "sk-private-secret private-review private-prompt"
+		body, _ := json.Marshal(map[string]any{"error": map[string]string{"type": secret, "message": secret}})
+		srv, _ := runServer(t, status, "", string(body))
+		adapter, err := New(Config{BaseURL: srv.URL, APIKey: "sk-private-secret"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = adapter.Complete(context.Background(), testRequest("json_object"))
+		srv.Close()
+		if err == nil {
+			t.Fatal("expected provider error")
+		}
+		for _, value := range strings.Fields(secret) {
+			if strings.Contains(err.Error(), value) {
+				t.Fatalf("HTTP %d leaked %q: %v", status, value, err)
+			}
+		}
+	}
+}

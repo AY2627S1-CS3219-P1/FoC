@@ -1,14 +1,16 @@
 <script lang="ts">
-	import { Button, Card, LoadingIndicator, SelectOutlined, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
+	import { onMount } from 'svelte';
+	import { Button, Card, Checkbox, LoadingIndicator, SelectOutlined, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
+	import { defaults, superForm } from 'sveltekit-superforms';
+	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { moderationConfigFormSchema, hydrateModerationConfig, moderationParametersFromForm } from './moderationConfigForm';
 	import { ModerationOutputMode } from '$lib/gen/moderation/v1/config_pb';
 	import {
 		moderationConfigService,
 		snackbarService
 	} from '$lib/services';
 	import {
-		buildModerationParameters,
-		ParameterValidationError,
-		type ModerationParameterInput
+		ParameterValidationError
 	} from '$lib/services/moderation-config/parameters';
 	import { describeModerationConfigError, extractValidationMessages } from '$lib/services/moderation-config/errors';
 
@@ -16,22 +18,8 @@
 	// parameters, with the draft save → test → activate flow. Values live in
 	// immutable versions server-side; this card never edits the active
 	// configuration in place. Credentials never appear here.
-	let modelId = $state('');
-	let temperatureText = $state('');
-	let topPText = $state('');
-	let presencePenaltyText = $state('');
-	let frequencyPenaltyText = $state('');
-	let budgetKind = $state<'none' | 'max_completion_tokens' | 'max_tokens'>('none');
-	let budgetText = $state('');
-	let stopText = $state('');
-	let seedText = $state('');
-	let reasoningEffort = $state('');
-	let advancedText = $state('');
-	let outputMode = $state(String(ModerationOutputMode.JSON_SCHEMA));
+	const { form } = superForm(defaults(zod4(moderationConfigFormSchema)), { SPA: true, resetForm: false, validators: zod4Client(moderationConfigFormSchema) });
 	let draftVersionId = $state('');
-	let sampleComment = $state(
-		'The courier arrived on time and handled the parcel carefully. Highly recommended.'
-	);
 	let formError = $state('');
 
 	const isLoading = $derived(moderationConfigService.isBusy);
@@ -40,52 +28,15 @@
 	const active = $derived(moderationConfigService.activeConfiguration);
 	const testResult = $derived(moderationConfigService.testResult);
 
-	function numberOrNull(text: string): number | undefined {
-		const trimmed = text.trim();
-		if (trimmed === '') return undefined;
-		const value = Number(trimmed);
-		return Number.isFinite(value) ? value : undefined;
-	}
-
-	function currentInput(): ModerationParameterInput {
-		const budget = budgetText.trim() === '' ? undefined : Number(budgetText.trim());
-		return {
-			temperature: numberOrNull(temperatureText),
-			topP: numberOrNull(topPText),
-			presencePenalty: numberOrNull(presencePenaltyText),
-			frequencyPenalty: numberOrNull(frequencyPenaltyText),
-			maxCompletionTokens: budgetKind === 'max_completion_tokens' && budget !== undefined ? budget : undefined,
-			maxTokens: budgetKind === 'max_tokens' && budget !== undefined ? budget : undefined,
-			seed: seedText.trim() === '' ? undefined : Number(seedText.trim()),
-			stop: stopText.trim() === '' ? undefined : stopText.split(','),
-			reasoningEffort: reasoningEffort.trim() === '' ? undefined : reasoningEffort.trim(),
-			advancedParameters: parseAdvanced(advancedText)
-		};
-	}
-
-	function parseAdvanced(text: string): { [key: string]: string } | undefined {
-		const trimmed = text.trim();
-		if (trimmed === '') return undefined;
-		const parsed: { [key: string]: string } = {};
-		for (const pair of trimmed.split('\n')) {
-			const line = pair.trim();
-			if (line === '') continue;
-			const index = line.indexOf('=');
-			if (index <= 0) throw new ParameterValidationError('advancedParameters', `Advanced parameter "${line}" must look like name=value.`);
-			parsed[line.slice(0, index).trim()] = line.slice(index + 1).trim();
-		}
-		return parsed;
-	}
-
 	async function loadAll(): Promise<void> {
 		try {
 			await moderationConfigService.loadAll();
-			if (moderationConfigService.activeConfiguration) {
-				modelId = moderationConfigService.activeConfiguration.modelId;
-				outputMode = String(moderationConfigService.activeConfiguration.outputMode);
-			}
 		} catch {
 			formError = describeModerationConfigError(moderationConfigService.error);
+		} finally {
+			if (moderationConfigService.activeConfiguration) {
+				$form = hydrateModerationConfig(moderationConfigService.activeConfiguration);
+			}
 		}
 	}
 
@@ -93,20 +44,20 @@
 		formError = '';
 		let parameters;
 		try {
-			parameters = buildModerationParameters(currentInput());
+			parameters = moderationParametersFromForm($form);
 		} catch (cause) {
 			formError = cause instanceof ParameterValidationError ? cause.message : describeModerationConfigError(cause);
 			return;
 		}
-		if (modelId.trim() === '') {
+		if ($form.modelId.trim() === '') {
 			formError = 'Choose a model before saving a draft.';
 			return;
 		}
 		try {
 			draftVersionId = await moderationConfigService.saveDraft(
-				modelId.trim(),
+				$form.modelId.trim(),
 				parameters,
-				Number(outputMode) as ModerationOutputMode
+				Number($form.outputMode) as ModerationOutputMode
 			);
 			snackbarService.show('Draft saved. Test it before activating.', { severity: 'success' });
 		} catch {
@@ -120,12 +71,12 @@
 			formError = 'Save a draft first, then test it.';
 			return;
 		}
-		if (sampleComment.trim() === '') {
+		if ($form.sampleComment.trim() === '') {
 			formError = 'Provide a short sample comment for the test.';
 			return;
 		}
 		try {
-			await moderationConfigService.testDraft(draftVersionId, sampleComment.trim());
+			await moderationConfigService.testDraft(draftVersionId, $form.sampleComment.trim());
 		} catch {
 			formError = describeModerationConfigError(moderationConfigService.error);
 		}
@@ -138,7 +89,7 @@
 			return;
 		}
 		try {
-			await moderationConfigService.activateDraft(draftVersionId, active?.versionId ?? '');
+			await moderationConfigService.activateDraft(draftVersionId, active?.versionId ?? '', $form.resumePausedJobs);
 			draftVersionId = '';
 			snackbarService.show('Configuration activated.', { severity: 'success' });
 		} catch {
@@ -157,7 +108,7 @@
 		return `Decision: ${result.decision}${result.reasonCodes.length ? ` (${result.reasonCodes.join(', ')})` : ''} · ${result.durationMs}ms`;
 	}
 
-	$effect(() => {
+	onMount(() => {
 		void loadAll();
 	});
 </script>
@@ -174,8 +125,7 @@
 		{:else if setup}
 			{#if !setup.hasProviderCredential}
 				<p class="notice" role="status">
-					No server-side model credential is configured. You can still save drafts, but tests and
-					worker assessments will fail until an operator sets the credential.
+					No server-side model credential is configured. You can still save drafts. Reviews remain queued without consuming attempts until an operator sets the credential.
 				</p>
 			{:else if !setup.hasActiveConfiguration}
 				<p class="notice" role="status">
@@ -194,7 +144,7 @@
 				<div class="field">
 					<SelectOutlined
 						label="Model"
-						bind:value={modelId}
+						bind:value={$form.modelId}
 						options={models.map((model) => ({ value: model.modelId, text: model.modelId }))}
 					/>
 					<div class="form-actions">
@@ -205,17 +155,17 @@
 				</div>
 
 				<div class="field-grid">
-					<TextFieldOutlined label="Temperature" name="temperature" bind:value={temperatureText} placeholder="provider default" />
-					<TextFieldOutlined label="top_p" name="topP" bind:value={topPText} placeholder="provider default" />
-					<TextFieldOutlined label="Presence penalty" name="presencePenalty" bind:value={presencePenaltyText} placeholder="provider default" />
-					<TextFieldOutlined label="Frequency penalty" name="frequencyPenalty" bind:value={frequencyPenaltyText} placeholder="provider default" />
+					<TextFieldOutlined label="Temperature" name="temperature" bind:value={$form.temperatureText} placeholder="provider default" />
+					<TextFieldOutlined label="top_p" name="topP" bind:value={$form.topPText} placeholder="provider default" />
+					<TextFieldOutlined label="Presence penalty" name="presencePenalty" bind:value={$form.presencePenaltyText} placeholder="provider default" />
+					<TextFieldOutlined label="Frequency penalty" name="frequencyPenalty" bind:value={$form.frequencyPenaltyText} placeholder="provider default" />
 				</div>
 
 				<div class="field-grid">
 					<div class="field">
 						<SelectOutlined
 							label="Token budget field"
-							bind:value={budgetKind}
+							bind:value={$form.budgetKind}
 							options={[
 								{ value: 'none', text: 'Not set' },
 								{ value: 'max_completion_tokens', text: 'max_completion_tokens' },
@@ -223,19 +173,19 @@
 							]}
 						/>
 					</div>
-					{#if budgetKind !== 'none'}
-						<TextFieldOutlined label="Token budget" name="budget" bind:value={budgetText} />
+					{#if $form.budgetKind !== 'none'}
+						<TextFieldOutlined label="Token budget" name="budget" bind:value={$form.budgetText} />
 					{/if}
-					<TextFieldOutlined label="Seed" name="seed" bind:value={seedText} placeholder="provider default" />
-					<TextFieldOutlined label="Reasoning effort" name="reasoningEffort" bind:value={reasoningEffort} placeholder="provider default" />
+					<TextFieldOutlined label="Seed" name="seed" bind:value={$form.seedText} placeholder="provider default" />
+					<TextFieldOutlined label="Reasoning effort" name="reasoningEffort" bind:value={$form.reasoningEffort} placeholder="provider default" />
 				</div>
 
-				<TextFieldOutlined label="Stop sequences (comma-separated)" name="stop" bind:value={stopText} placeholder="provider default" />
+				<TextFieldOutlined label="Stop sequences (JSON array)" name="stop" bind:value={$form.stopText} placeholder="provider default" />
 
 				<div class="field">
 					<SelectOutlined
 						label="Output mode"
-						bind:value={outputMode}
+						bind:value={$form.outputMode}
 						options={[
 							{ value: String(ModerationOutputMode.JSON_SCHEMA), text: 'Strict JSON schema (preferred)' },
 							{ value: String(ModerationOutputMode.JSON_OBJECT), text: 'JSON mode (locally validated)' }
@@ -250,10 +200,13 @@
 					label="Advanced parameters (name=value per line, allowlisted)"
 					name="advanced"
 					rows={3}
-					bind:value={advancedText}
-					placeholder={"top_k=40\ndialog_examples=true"}
+					bind:value={$form.advancedText}
+					placeholder={"top_k=40\nmin_p=0.1"}
 				/>
 
+				<label><Checkbox><input type="checkbox" bind:checked={$form.resumePausedJobs} /></Checkbox>
+					Resume jobs paused by configuration errors with this version (starts a new generation)
+				</label>
 				<div class="field-actions">
 					<Button type="button" disabled={moderationConfigService.isLoading('save')} onclick={() => void saveDraft()}>
 						{moderationConfigService.isLoading('save') ? 'Saving…' : 'Save draft'}
@@ -264,7 +217,7 @@
 				</div>
 
 				<div class="field">
-					<TextFieldOutlinedMultiline label="Sample comment for test" name="sample" rows={2} bind:value={sampleComment} />
+					<TextFieldOutlinedMultiline label="Sample comment for test" name="sample" rows={2} bind:value={$form.sampleComment} />
 					<div class="field-actions">
 						<Button type="button" variant="outlined" disabled={moderationConfigService.isLoading('test') || draftVersionId === ''} onclick={() => void testDraft()}>
 							{moderationConfigService.isLoading('test') ? 'Testing…' : 'Test draft'}

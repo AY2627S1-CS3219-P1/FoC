@@ -37,12 +37,17 @@ func (q *Queries) ActivateConfigVersion(ctx context.Context, arg ActivateConfigV
 }
 
 const claimEligibleJob = `-- name: ClaimEligibleJob :one
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
-WHERE (
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j
+WHERE ((
         status IN ('queued','retry_wait')
         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
     )
-   OR (status = 'processing' AND lease_until <= now())
+   OR (status = 'processing' AND lease_until <= now()))
+AND NOT EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+)
 ORDER BY created_at ASC, id ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1
@@ -175,6 +180,15 @@ func (q *Queries) ClaimOutboxRow(ctx context.Context) (ModerationOutbox, error) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const clearConfigurationPause = `-- name: ClearConfigurationPause :exec
+DELETE FROM moderation_config_pauses WHERE version_id = $1
+`
+
+func (q *Queries) ClearConfigurationPause(ctx context.Context, versionID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearConfigurationPause, versionID)
+	return err
 }
 
 const completeJob = `-- name: CompleteJob :execrows
@@ -841,6 +855,16 @@ func (q *Queries) MarkOutboxPublished(ctx context.Context, arg MarkOutboxPublish
 	return result.RowsAffected(), nil
 }
 
+const pauseConfiguration = `-- name: PauseConfiguration :exec
+INSERT INTO moderation_config_pauses (version_id) VALUES ($1)
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) PauseConfiguration(ctx context.Context, versionID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, pauseConfiguration, versionID)
+	return err
+}
+
 const pinActiveConfig = `-- name: PinActiveConfig :exec
 UPDATE moderation_jobs
 SET config_version_id = $1,
@@ -940,6 +964,42 @@ func (q *Queries) ReleaseOutboxLease(ctx context.Context, arg ReleaseOutboxLease
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const resumeConfigurationPausedJobs = `-- name: ResumeConfigurationPausedJobs :many
+UPDATE moderation_jobs j
+SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
+    config_version_id = $1, policy_version = $2,
+    next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
+    finished_at = NULL, updated_at = now()
+WHERE j.status = 'retry_wait' AND j.error_class = 'configuration'
+  AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
+RETURNING j.id
+`
+
+type ResumeConfigurationPausedJobsParams struct {
+	ConfigVersionID *string
+	PolicyVersion   *string
+}
+
+func (q *Queries) ResumeConfigurationPausedJobs(ctx context.Context, arg ResumeConfigurationPausedJobsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, resumeConfigurationPausedJobs, arg.ConfigVersionID, arg.PolicyVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const retryErroredJob = `-- name: RetryErroredJob :execrows

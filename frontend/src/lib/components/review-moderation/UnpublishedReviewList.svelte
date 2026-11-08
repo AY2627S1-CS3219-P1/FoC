@@ -3,82 +3,13 @@
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import type { Timestamp } from '@bufbuild/protobuf/wkt';
 	import type { ReviewModerationRecord } from '$lib/services/review-moderation/reviewModerationApi';
-	import { ModerationJobStatus, ModerationOutcomeType } from '$lib/gen/moderation/review/v1/review_moderation_pb';
-	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
+	import { presentReviewModeration } from '$lib/services/review-moderation/presentation';
 
 	// Shared presentation for one page of unpublished reviews. Pure display:
 	// both the owner page and the admin reviewer-inspection page render it, and
 	// neither may assume the other's authorization.
 	let { records }: { records: readonly ReviewModerationRecord[] } = $props();
 
-	interface Presentation {
-		label: string;
-		tone: 'pending' | 'rejected' | 'error' | 'approved';
-		detail: string;
-	}
-
-	function present(record: ReviewModerationRecord): Presentation {
-		const { review, job } = record;
-		if (review.moderationStatus === ModerationStatus.REJECTED) {
-			return {
-				label: 'Rejected',
-				tone: 'rejected',
-				detail: record.reasonMessages.join(' ')
-			};
-		}
-		if (review.moderationStatus === ModerationStatus.MODERATION_ERROR) {
-			return {
-				label: 'Assessment error',
-				tone: 'error',
-				detail:
-					'We could not complete an assessment for this review. An administrator can retry it; the review is not published.'
-			};
-		}
-		// Pending on User Service; the CMS job explains what is happening.
-		if (!job) {
-			return {
-				label: 'Awaiting assessment',
-				tone: 'pending',
-				detail: 'Your review was submitted and is waiting to be assessed.'
-			};
-		}
-		switch (job.status) {
-			case ModerationJobStatus.QUEUED:
-				return { label: 'Assessment queued', tone: 'pending', detail: 'Your review is in the assessment queue.' };
-			case ModerationJobStatus.PROCESSING:
-				return { label: 'Being assessed', tone: 'pending', detail: 'Your review is being assessed right now.' };
-			case ModerationJobStatus.RETRY_WAIT:
-				return {
-					label: 'Assessment retry scheduled',
-					tone: 'pending',
-					detail: 'An assessment attempt did not finish; the next one is scheduled.'
-				};
-			case ModerationJobStatus.COMPLETED:
-				if (job.outcome === ModerationOutcomeType.APPROVED) {
-					return {
-						label: 'Approved · publishing shortly',
-						tone: 'approved',
-						detail: 'The assessment approved your review; publication follows automatically.'
-					};
-				}
-				if (job.outcome === ModerationOutcomeType.REJECTED) {
-					return { label: 'Rejected', tone: 'rejected', detail: record.reasonMessages.join(' ') };
-				}
-				return {
-					label: 'Assessment error',
-					tone: 'error',
-					detail: 'The assessment ended without a verdict. An administrator can retry it.'
-				};
-			case ModerationJobStatus.ERRORED:
-				return {
-					label: 'Assessment error',
-					tone: 'error',
-					detail: 'The assessment ended without a verdict. An administrator can retry it.'
-				};
-			default:
-				return { label: 'Awaiting assessment', tone: 'pending', detail: 'Your review is waiting to be assessed.' };
-		}
-	}
 
 	function formatDate(value: Timestamp | undefined): string {
 		if (!value) return '—';
@@ -88,7 +19,7 @@
 
 <ul class="unpublished-list" aria-label="Unpublished reviews">
 	{#each records as record (record.review.id)}
-		{@const view = present(record)}
+		{@const view = presentReviewModeration(record)}
 		<li>
 			<Card variant="outlined">
 				<div class="review-body" data-tone={view.tone}>

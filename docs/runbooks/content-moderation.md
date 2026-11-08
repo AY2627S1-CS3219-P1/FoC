@@ -117,3 +117,25 @@ through both transactional outboxes and the User completion consumer:
 
 This verifies transport and persistence with a fake provider; live SoCLaaS
 model/output-mode compatibility still requires an explicitly supplied local key.
+
+## Recovering configuration-paused work
+
+A provider configuration failure durably pauses the configuration version across
+replicas. Already running calls may finish, but workers do not claim more work
+using that version, even after restart or passage of the retry delay. Other
+validated configurations continue processing. The failing attempt is recorded;
+waiting on a pause consumes no further attempts.
+
+After rotating server credentials, successfully test and reactivate the same
+version to clear its pause; its jobs retain their pinned configuration and run
+generation. Alternatively save, test and activate a corrected version. Check
+**Resume jobs paused by configuration errors with this version** to explicitly
+move paused jobs to the corrected configuration. This starts a new generation,
+resets its attempt count and records the acting admin per job in the same
+activation transaction. Leaving the checkbox unchecked preserves pinned jobs;
+failed validation or stale expected-version checks cannot resume anything.
+
+Apply CMS migration 00002 before deploying binaries that use configuration
+pauses. Deploy the updated optional-field RPC clients and server together:
+older clients cannot distinguish omitted floating-point settings from zero.
+New clients preserve unset settings and explicit zero independently.

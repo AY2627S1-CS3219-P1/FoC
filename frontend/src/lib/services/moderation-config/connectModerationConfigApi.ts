@@ -64,11 +64,13 @@ export class ConnectModerationConfigApi implements ModerationConfigApi {
 
 	async activateDraft(
 		draftVersionId: string,
-		expectedActiveVersionId: string
+		expectedActiveVersionId: string,
+		resumePausedJobs = false
 	): Promise<ModerationConfiguration | undefined> {
 		const response = await this.#client.activateModerationConfiguration({
 			draftVersionId,
-			expectedActiveVersionId
+			expectedActiveVersionId,
+			resumePausedJobs
 		});
 		return response.configuration;
 	}

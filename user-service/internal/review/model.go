@@ -68,6 +68,7 @@ type UnpublishedReview struct {
 	ContentRevision       int
 	ModerationReasonCodes []string
 	ModeratedAt           time.Time
+	AppliedRunGeneration  int32
 }
 
 // SubmissionResult reports the committed submission so the caller can recover

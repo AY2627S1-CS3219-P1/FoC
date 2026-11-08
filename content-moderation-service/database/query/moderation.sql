@@ -27,12 +27,17 @@ VALUES (
 
 -- name: ClaimEligibleJob :one
 -- Oldest-first among due queued/retry-wait jobs, plus expired-lease recovery.
-SELECT * FROM moderation_jobs
-WHERE (
+SELECT j.* FROM moderation_jobs j
+WHERE ((
         status IN ('queued','retry_wait')
         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
     )
-   OR (status = 'processing' AND lease_until <= now())
+   OR (status = 'processing' AND lease_until <= now()))
+AND NOT EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+)
 ORDER BY created_at ASC, id ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1;
@@ -317,3 +322,20 @@ SELECT
     (SELECT count(*) FROM moderation_jobs WHERE status = 'errored') AS exhausted_jobs,
     (SELECT count(*) FROM moderation_outbox WHERE published_at IS NULL) AS pending_outbox,
     COALESCE((SELECT min(created_at) FROM moderation_outbox WHERE published_at IS NULL), now()) AS oldest_outbox_at;
+
+-- name: PauseConfiguration :exec
+INSERT INTO moderation_config_pauses (version_id) VALUES (sqlc.arg(version_id))
+ON CONFLICT DO NOTHING;
+
+-- name: ClearConfigurationPause :exec
+DELETE FROM moderation_config_pauses WHERE version_id = sqlc.arg(version_id);
+
+-- name: ResumeConfigurationPausedJobs :many
+UPDATE moderation_jobs j
+SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
+    config_version_id = sqlc.arg(config_version_id), policy_version = sqlc.arg(policy_version),
+    next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
+    finished_at = NULL, updated_at = now()
+WHERE j.status = 'retry_wait' AND j.error_class = 'configuration'
+  AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
+RETURNING j.id;

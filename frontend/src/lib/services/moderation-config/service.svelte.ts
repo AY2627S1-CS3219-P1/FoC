@@ -107,7 +107,9 @@ export class ModerationConfigService {
 
 	// Convenience so a route can populate the three independent reads at once.
 	async loadAll(): Promise<void> {
-		await Promise.all([this.loadSetup(), this.loadModels(), this.loadActiveConfiguration()]);
+		const results = await Promise.allSettled([this.loadSetup(), this.loadModels(), this.loadActiveConfiguration()]);
+		const failure = results.find((result) => result.status === 'rejected');
+		if (failure?.status === 'rejected') throw failure.reason;
 	}
 
 	async saveDraft(
@@ -142,11 +144,11 @@ export class ModerationConfigService {
 		}
 	}
 
-	async activateDraft(draftVersionId: string, expectedActiveVersionId: string): Promise<ModerationConfiguration | undefined> {
+	async activateDraft(draftVersionId: string, expectedActiveVersionId: string, resumePausedJobs?: boolean): Promise<ModerationConfiguration | undefined> {
 		this.#setLoading('activate', true);
 		this.#error = null;
 		try {
-			const configuration = await this.#api.activateDraft(draftVersionId, expectedActiveVersionId);
+			const configuration = await this.#api.activateDraft(draftVersionId, expectedActiveVersionId, resumePausedJobs);
 			// Reflect the newly activated configuration in the loaded state.
 			this.#activeConfiguration = configuration;
 			return configuration;

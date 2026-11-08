@@ -8,6 +8,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -115,15 +116,21 @@ func validateFloat(name string, v *float64, min, max float64) error {
 	if v == nil {
 		return nil
 	}
-	if *v < min || *v > max {
+	if math.IsNaN(*v) || math.IsInf(*v, 0) || *v < min || *v > max {
 		return fmt.Errorf("%s must be within [%v, %v]", name, min, max)
 	}
 	return nil
 }
 
 func validateStop(stop []string) error {
+	if len(stop) > 4 {
+		return fmt.Errorf("at most four stop sequences are supported")
+	}
 	seen := make(map[string]struct{}, len(stop))
 	for _, s := range stop {
+		if len(s) > 256 {
+			return fmt.Errorf("stop sequence must not exceed 256 bytes")
+		}
 		if strings.TrimSpace(s) == "" {
 			return fmt.Errorf("stop sequence must not be empty")
 		}
@@ -157,8 +164,26 @@ func validateAdvanced(advanced map[string]string) error {
 		if _, allowed := advancedAllowlist[key]; !allowed {
 			return fmt.Errorf("advanced parameter %q is not in the allowlist", key)
 		}
-		if err := json.Unmarshal([]byte(raw), new(any)); err != nil {
-			return fmt.Errorf("advanced parameter %q must be valid JSON: %w", key, err)
+		if len(raw) > 64 || strings.TrimSpace(raw) == "null" {
+			return fmt.Errorf("advanced parameter %q must be a bounded number", key)
+		}
+		var number float64
+		if err := json.Unmarshal([]byte(raw), &number); err != nil || math.IsNaN(number) || math.IsInf(number, 0) {
+			return fmt.Errorf("advanced parameter %q must be a finite number", key)
+		}
+		switch key {
+		case "top_k":
+			if number < 1 || number > 1000 || math.Trunc(number) != number {
+				return fmt.Errorf("top_k must be an integer from 1 to 1000")
+			}
+		case "min_p", "typical_p":
+			if number < 0 || number > 1 {
+				return fmt.Errorf("%s must be between 0 and 1", key)
+			}
+		case "repetition_penalty":
+			if number <= 0 || number > 2 {
+				return fmt.Errorf("repetition_penalty must be greater than 0 and at most 2")
+			}
 		}
 		names = append(names, key)
 	}

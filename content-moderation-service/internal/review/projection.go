@@ -72,6 +72,8 @@ func Summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSumm
 	if job.FinishedAt != nil {
 		summary.FinishedAt = timestamppb.New(*job.FinishedAt)
 	}
+	summary.ConfigurationPaused = job.Status == "retry_wait" && job.ErrorClass != nil &&
+		*job.ErrorClass == "configuration"
 	summary.Outcome = outcomeFor(job)
 	if job.Status == "completed" && job.Outcome != nil && *job.Outcome == "rejected" {
 		summary.ReasonCodes = job.ReasonCodes

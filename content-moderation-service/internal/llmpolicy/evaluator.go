@@ -16,10 +16,6 @@ import (
 // whole exchange, including response reads.
 const defaultRequestTimeout = 90 * time.Second
 
-// maxDiagnosticLength caps any provider-derived text (refusals, error details)
-// copied into an error so raw diagnostics cannot grow without bound.
-const maxDiagnosticLength = 500
-
 // Evaluator applies one review assessment against the versioned policy using an
 // OpenAI-compatible completion backend. It implements jobs.Evaluator. The
 // completion client is injected; the Evaluator is safe for concurrent use.
@@ -82,7 +78,7 @@ func evaluateResponse(resp *CompletionResponse) (jobs.Assessment, error) {
 		return jobs.Assessment{}, ErrEmptyResponse
 	}
 	if reason := strings.TrimSpace(resp.Refusal); reason != "" {
-		return jobs.Assessment{}, &ErrRefusal{Reason: bound(reason)}
+		return jobs.Assessment{}, &ErrRefusal{Reason: "provider declined to assess the content"}
 	}
 	content := strings.TrimSpace(resp.Content)
 	if content == "" {
@@ -99,18 +95,9 @@ func evaluateResponse(resp *CompletionResponse) (jobs.Assessment, error) {
 // parseAssessment decodes exactly one JSON object and validates it against the
 // policy schema, rejecting trailing data and unknown fields.
 func parseAssessment(content string) (jobs.Assessment, error) {
-	decoder := json.NewDecoder(strings.NewReader(content))
-	decoder.DisallowUnknownFields()
-
-	var payload assessmentPayload
-	if err := decoder.Decode(&payload); err != nil {
-		return jobs.Assessment{}, &ErrInvalidOutput{
-			Detail: "response is not a valid JSON object: " + bound(err.Error()),
-		}
-	}
-	// Reject trailing garbage or a second JSON object after the verdict.
-	if _, err := decoder.Token(); err != io.EOF {
-		return jobs.Assessment{}, &ErrInvalidOutput{Detail: "response contains more than one JSON object"}
+	payload, err := decodeAssessment(content)
+	if err != nil {
+		return jobs.Assessment{}, err
 	}
 
 	switch payload.Decision {
@@ -131,9 +118,69 @@ func parseAssessment(content string) (jobs.Assessment, error) {
 
 	default:
 		return jobs.Assessment{}, &ErrInvalidOutput{
-			Detail: fmt.Sprintf("invalid decision %q: want \"approve\" or \"reject\"", payload.Decision),
+			Detail: "decision must be approve or reject",
 		}
 	}
+}
+
+// decodeAssessment enforces presence, exact field names, types and uniqueness.
+// encoding/json alone accepts missing/null fields and duplicate object keys.
+func decodeAssessment(content string) (assessmentPayload, error) {
+	var payload assessmentPayload
+	invalid := func() (assessmentPayload, error) {
+		return payload, &ErrInvalidOutput{Detail: "response does not match the assessment schema"}
+	}
+	decoder := json.NewDecoder(strings.NewReader(content))
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return invalid()
+	}
+	fields := make(map[string]json.RawMessage, 2)
+	for decoder.More() {
+		token, err = decoder.Token()
+		if err != nil {
+			return invalid()
+		}
+		key, ok := token.(string)
+		if !ok || (key != "decision" && key != "reason_codes") {
+			return invalid()
+		}
+		if _, exists := fields[key]; exists {
+			return invalid()
+		}
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
+			return invalid()
+		}
+		fields[key] = raw
+	}
+	if token, err = decoder.Token(); err != nil || token != json.Delim('}') {
+		return invalid()
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return invalid()
+	}
+	if len(fields) != 2 || string(fields["decision"]) == "null" {
+		return invalid()
+	}
+	if err := json.Unmarshal(fields["decision"], &payload.Decision); err != nil {
+		return invalid()
+	}
+	var codes []json.RawMessage
+	if err := json.Unmarshal(fields["reason_codes"], &codes); err != nil || codes == nil {
+		return invalid()
+	}
+	for _, raw := range codes {
+		if string(raw) == "null" {
+			return invalid()
+		}
+		var code string
+		if err := json.Unmarshal(raw, &code); err != nil {
+			return invalid()
+		}
+		payload.ReasonCodes = append(payload.ReasonCodes, code)
+	}
+	return payload, nil
 }
 
 // validateReasonCodes checks the reject codes against the known set: bounded
@@ -151,29 +198,18 @@ func validateReasonCodes(codes []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(codes))
 	for _, code := range codes {
 		if _, ok := knownReasonCode[code]; !ok {
-			return nil, &ErrInvalidOutput{Detail: fmt.Sprintf("unknown reason code %q", code)}
+			return nil, &ErrInvalidOutput{Detail: "unknown reason code"}
 		}
 		if _, dup := seen[code]; dup {
-			return nil, &ErrInvalidOutput{Detail: fmt.Sprintf("duplicate reason code %q", code)}
+			return nil, &ErrInvalidOutput{Detail: "duplicate reason code"}
 		}
 		seen[code] = struct{}{}
 	}
 	return codes, nil
 }
 
-// bound shortens a provider-derived string so error text cannot grow without
-// bound, while never surfacing the evaluated content itself.
-func bound(s string) string {
-	const runeLimit = maxDiagnosticLength
-	runes := []rune(s)
-	if len(runes) > runeLimit {
-		return string(runes[:runeLimit]) + "…"
-	}
-	return s
-}
-
 // assessmentPayload is the subset of the schema the evaluator decodes. An
-// unknown field is rejected by the decoder's DisallowUnknownFields setting.
+// field set and JSON types are checked explicitly by decodeAssessment.
 type assessmentPayload struct {
 	Decision    string   `json:"decision"`
 	ReasonCodes []string `json:"reason_codes"`

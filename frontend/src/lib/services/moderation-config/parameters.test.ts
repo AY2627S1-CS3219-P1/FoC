@@ -15,7 +15,7 @@ describe('buildModerationParameters', () => {
 			frequencyPenalty: 0.2,
 			maxCompletionTokens: 256,
 			seed: 42n,
-			stop: ['END', 'END', '', '   '],
+			stop: ['END', ' other '],
 			reasoningEffort: 'high',
 			advancedParameters: { 'some_key': 'v' }
 		};
@@ -28,14 +28,18 @@ describe('buildModerationParameters', () => {
 		expect(params.maxCompletionTokens).toBe(256n);
 		expect(params.seed).toBe(42n);
 		expect(params.reasoningEffort).toBe('high');
-		// Stop sequences are trimmed, de-duplicated and have empties dropped.
-		expect(params.stop).toEqual(['END']);
+		// Preserve stop sequences exactly; the backend validates their shape.
+		expect(params.stop).toEqual(['END', ' other ']);
 		expect(params.advancedParameters).toEqual({ some_key: 'v' });
 	});
 
 	it('omits every field left unset, so zero does not win a provider default', () => {
 		const params = buildModerationParameters({});
-		expect(params.maxCompletionTokens).toBeUndefined();
+		expect(params.temperature).toBeUndefined();
+expect(params.topP).toBeUndefined();
+expect(params.presencePenalty).toBeUndefined();
+expect(params.frequencyPenalty).toBeUndefined();
+expect(params.maxCompletionTokens).toBeUndefined();
 		expect(params.maxTokens).toBeUndefined();
 		expect(params.seed).toBeUndefined();
 		expect(params.reasoningEffort).toBeUndefined();
@@ -65,4 +69,14 @@ describe('buildModerationParameters', () => {
 		expect(() => buildModerationParameters({ maxTokens: 1.5 })).toThrow(ParameterValidationError);
 		expect(() => buildModerationParameters({ seed: Number.NaN })).toThrow(ParameterValidationError);
 	});
+});
+
+it('preserves explicit floating-point zero independently of omission', () => {
+	const fields = ['temperature', 'topP', 'presencePenalty', 'frequencyPenalty'] as const;
+	const absent = buildModerationParameters({});
+	const explicit = buildModerationParameters({temperature:0,topP:0,presencePenalty:0,frequencyPenalty:0});
+	for (const field of fields) {
+		expect(absent[field]).toBeUndefined();
+		expect(explicit[field]).toBe(0);
+	}
 });

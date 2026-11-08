@@ -479,6 +479,7 @@ func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (Unpubli
 		ModerationRequestID:   row.ModerationRequestID.UUID,
 		ContentRevision:       int(row.ContentRevision),
 		ModerationReasonCodes: codes,
+		AppliedRunGeneration:  row.AppliedRunGeneration,
 		ModeratedAt:           row.ModeratedAt.Time,
 	}, nil
 }

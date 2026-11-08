@@ -1031,9 +1031,11 @@ type UnpublishedReview struct {
 	// Known rejection reason codes when rejected; empty otherwise.
 	ModerationReasonCodes []string `protobuf:"bytes,13,rep,name=moderation_reason_codes,json=moderationReasonCodes,proto3" json:"moderation_reason_codes,omitempty"`
 	// When the latest moderation result was applied, when present.
-	ModeratedAt   *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=moderated_at,json=moderatedAt,proto3,oneof" json:"moderated_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ModeratedAt *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=moderated_at,json=moderatedAt,proto3,oneof" json:"moderated_at,omitempty"`
+	// Generation of the last result applied by User, for distinguishing newer CMS retries.
+	AppliedRunGeneration int32 `protobuf:"varint,15,opt,name=applied_run_generation,json=appliedRunGeneration,proto3" json:"applied_run_generation,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UnpublishedReview) Reset() {
@@ -1164,6 +1166,13 @@ func (x *UnpublishedReview) GetModeratedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *UnpublishedReview) GetAppliedRunGeneration() int32 {
+	if x != nil {
+		return x.AppliedRunGeneration
+	}
+	return 0
+}
+
 var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
@@ -1255,7 +1264,7 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\areviews\x18\x01 \x03(\v2!.user.review.v1.UnpublishedReviewR\areviews\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination\"\xf2\x04\n" +
+	"pagination\"\xa8\x05\n" +
 	"\x11UnpublishedReview\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -1274,7 +1283,8 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x15moderation_request_id\x18\v \x01(\tR\x13moderationRequestId\x12)\n" +
 	"\x10content_revision\x18\f \x01(\x05R\x0fcontentRevision\x126\n" +
 	"\x17moderation_reason_codes\x18\r \x03(\tR\x15moderationReasonCodes\x12B\n" +
-	"\fmoderated_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampH\x00R\vmoderatedAt\x88\x01\x01B\x0f\n" +
+	"\fmoderated_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampH\x00R\vmoderatedAt\x88\x01\x01\x124\n" +
+	"\x16applied_run_generation\x18\x0f \x01(\x05R\x14appliedRunGenerationB\x0f\n" +
 	"\r_moderated_at*\xc7\x01\n" +
 	"\x10ModerationStatus\x12!\n" +
 	"\x1dMODERATION_STATUS_UNSPECIFIED\x10\x00\x12(\n" +

@@ -80,10 +80,10 @@ message ModerationConfiguration {
 }
 
 message ModerationInferenceParameters {
-  double temperature = 1;
-  double top_p = 2;
-  double presence_penalty = 3;
-  double frequency_penalty = 4;
+  optional double temperature = 1;
+  optional double top_p = 2;
+  optional double presence_penalty = 3;
+  optional double frequency_penalty = 4;
   // Mutually exclusive token budget spellings.
   optional int64 max_completion_tokens = 5;
   optional int64 max_tokens = 6;
@@ -139,6 +139,8 @@ message ActivateModerationConfigurationRequest {
   // Optimistic concurrency: empty means no active version is expected (first
   // activation or deliberate replacement after re-reading state).
   string expected_active_version_id = 2;
+  // Explicitly start a new generation for configuration-paused jobs using this version.
+  bool resume_paused_jobs = 3;
 }
 
 message ActivateModerationConfigurationResponse {

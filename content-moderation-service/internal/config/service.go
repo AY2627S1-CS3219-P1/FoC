@@ -209,6 +209,7 @@ func (s *Service) Activate(
 	versionID uuid.UUID,
 	createdBy string,
 	expectedVersionID *uuid.UUID,
+	resumePausedJobs bool,
 ) error {
 	// Validate the immutable draft through the same policy and concurrency gate
 	// before changing the active pointer. Provider failure leaves it untouched.
@@ -219,7 +220,7 @@ func (s *Service) Activate(
 	if result.ErrorClass != "" || result.Decision == "" {
 		return fmt.Errorf("config: draft validation failed (%s)", result.ErrorClass)
 	}
-	return s.store.ActivateConfigVersion(ctx, versionID, createdBy, expectedVersionID)
+	return s.store.ActivateAndResume(ctx, versionID, createdBy, expectedVersionID, resumePausedJobs)
 }
 
 // Version is the admin-visible shape of an immutable configuration version.

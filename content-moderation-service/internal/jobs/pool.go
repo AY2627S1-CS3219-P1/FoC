@@ -218,14 +218,14 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		return
 	}
 
-	_, kind, _ := Classify(evalErr)
+	errorClass, kind, _ := Classify(evalErr)
 	switch kind {
 	case kindConfiguration:
 		p.stats.configPaused.Add(1)
-		p.logger.Warn("job paused on configuration error", "job", claimed.Job.ID.String(), "error", evalErr.Error())
+		p.logger.Warn("job paused on configuration error", "job", claimed.Job.ID.String(), "error_class", errorClass)
 	case kindDurable:
 		p.stats.errored.Add(1)
-		p.logger.Error("job errored terminally", "job", claimed.Job.ID.String(), "error", evalErr.Error())
+		p.logger.Error("job errored terminally", "job", claimed.Job.ID.String(), "error_class", errorClass)
 	}
 }
 

@@ -70,9 +70,9 @@ func (p Policy) decide(
 	}
 	switch kind {
 	case kindConfiguration:
-		// Pause far enough in the future to avoid a retry storm, but never
-		// exhaust the budget: a fixed configuration error cannot error the job.
-		return decision{retry: true, wait: p.MaxDelay}
+		// The fenced failure transaction blocks this configuration in the database.
+		// Only successful admin revalidation can make it eligible again.
+		return decision{retry: true}
 	case kindInvalidOutput:
 		if invalidCount >= p.InvalidBudget {
 			return decision{retry: false}

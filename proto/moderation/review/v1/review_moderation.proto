@@ -68,6 +68,8 @@ message ReviewModerationJobSummary {
   string policy_version = 10;
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp finished_at = 12;
+  // Processing awaits successful configuration revalidation, rather than a timed retry.
+  bool configuration_paused = 13;
 }
 
 message GetReviewModerationJobRequest {

@@ -22,5 +22,5 @@ export interface ModerationConfigApi {
 	getActiveConfiguration(): Promise<ModerationConfiguration | undefined>;
 	saveDraft(modelId: string, parameters: ModerationParameterInput, outputMode: ModerationOutputMode): Promise<string>;
 	testDraft(draftVersionId: string, sampleComment: string): Promise<TestModerationConfigurationDraftResponse>;
-	activateDraft(draftVersionId: string, expectedActiveVersionId: string): Promise<ModerationConfiguration | undefined>;
+	activateDraft(draftVersionId: string, expectedActiveVersionId: string, resumePausedJobs?: boolean): Promise<ModerationConfiguration | undefined>;
 }

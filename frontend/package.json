@@ -17,7 +17,8 @@
 		"test:watch": "vitest",
 		"test:wireframe": "node scripts/check-wireframe.mjs",
 		"buf:lint": "cd .. && buf lint",
-		"buf:generate": "cd .. && buf generate"
+		"buf:generate": "cd .. && buf generate",
+		"test:moderation": "node scripts/check-moderation.mjs"
 	},
 	"devDependencies": {
 		"@bufbuild/protoc-gen-es": "2.15.0",

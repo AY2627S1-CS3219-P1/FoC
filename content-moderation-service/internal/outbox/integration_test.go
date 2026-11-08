@@ -63,7 +63,7 @@ func setup(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-			moderation_quarantine, moderation_config_versions,
+			moderation_quarantine, moderation_config_pauses, moderation_config_versions,
 			moderation_config_state, moderation_admin_audit`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}

@@ -258,8 +258,10 @@ type ReviewModerationJobSummary struct {
 	PolicyVersion string                 `protobuf:"bytes,10,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Processing awaits successful configuration revalidation, rather than a timed retry.
+	ConfigurationPaused bool `protobuf:"varint,13,opt,name=configuration_paused,json=configurationPaused,proto3" json:"configuration_paused,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ReviewModerationJobSummary) Reset() {
@@ -374,6 +376,13 @@ func (x *ReviewModerationJobSummary) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *ReviewModerationJobSummary) GetConfigurationPaused() bool {
+	if x != nil {
+		return x.ConfigurationPaused
+	}
+	return false
 }
 
 type GetReviewModerationJobRequest struct {
@@ -695,7 +704,7 @@ const file_moderation_review_v1_review_moderation_proto_rawDesc = "" +
 	"reviewerId\x12I\n" +
 	"\x16moderation_request_ids\x18\x02 \x03(\tB\x13\xbaH\x10\x92\x01\r\b\x01\x10d\x18\x01\"\x05r\x03\xb0\x01\x01R\x14moderationRequestIds\"r\n" +
 	"*GetReviewModerationJobsForReviewerResponse\x12D\n" +
-	"\x04jobs\x18\x01 \x03(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x04jobs\"\xdc\x04\n" +
+	"\x04jobs\x18\x01 \x03(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x04jobs\"\x8f\x05\n" +
 	"\x1aReviewModerationJobSummary\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x122\n" +
 	"\x15moderation_request_id\x18\x02 \x01(\tR\x13moderationRequestId\x12\x1b\n" +
@@ -711,7 +720,8 @@ const file_moderation_review_v1_review_moderation_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12;\n" +
 	"\vfinished_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\"@\n" +
+	"finishedAt\x121\n" +
+	"\x14configuration_paused\x18\r \x01(\bR\x13configurationPaused\"@\n" +
 	"\x1dGetReviewModerationJobRequest\x12\x1f\n" +
 	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\"\xa9\x01\n" +
 	"\x1eGetReviewModerationJobResponse\x12B\n" +

@@ -516,10 +516,10 @@ func (x *ModerationConfiguration) GetActivatedAt() *timestamppb.Timestamp {
 
 type ModerationInferenceParameters struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	Temperature      float64                `protobuf:"fixed64,1,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	TopP             float64                `protobuf:"fixed64,2,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
-	PresencePenalty  float64                `protobuf:"fixed64,3,opt,name=presence_penalty,json=presencePenalty,proto3" json:"presence_penalty,omitempty"`
-	FrequencyPenalty float64                `protobuf:"fixed64,4,opt,name=frequency_penalty,json=frequencyPenalty,proto3" json:"frequency_penalty,omitempty"`
+	Temperature      *float64               `protobuf:"fixed64,1,opt,name=temperature,proto3,oneof" json:"temperature,omitempty"`
+	TopP             *float64               `protobuf:"fixed64,2,opt,name=top_p,json=topP,proto3,oneof" json:"top_p,omitempty"`
+	PresencePenalty  *float64               `protobuf:"fixed64,3,opt,name=presence_penalty,json=presencePenalty,proto3,oneof" json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64               `protobuf:"fixed64,4,opt,name=frequency_penalty,json=frequencyPenalty,proto3,oneof" json:"frequency_penalty,omitempty"`
 	// Mutually exclusive token budget spellings.
 	MaxCompletionTokens *int64   `protobuf:"varint,5,opt,name=max_completion_tokens,json=maxCompletionTokens,proto3,oneof" json:"max_completion_tokens,omitempty"`
 	MaxTokens           *int64   `protobuf:"varint,6,opt,name=max_tokens,json=maxTokens,proto3,oneof" json:"max_tokens,omitempty"`
@@ -567,29 +567,29 @@ func (*ModerationInferenceParameters) Descriptor() ([]byte, []int) {
 }
 
 func (x *ModerationInferenceParameters) GetTemperature() float64 {
-	if x != nil {
-		return x.Temperature
+	if x != nil && x.Temperature != nil {
+		return *x.Temperature
 	}
 	return 0
 }
 
 func (x *ModerationInferenceParameters) GetTopP() float64 {
-	if x != nil {
-		return x.TopP
+	if x != nil && x.TopP != nil {
+		return *x.TopP
 	}
 	return 0
 }
 
 func (x *ModerationInferenceParameters) GetPresencePenalty() float64 {
-	if x != nil {
-		return x.PresencePenalty
+	if x != nil && x.PresencePenalty != nil {
+		return *x.PresencePenalty
 	}
 	return 0
 }
 
 func (x *ModerationInferenceParameters) GetFrequencyPenalty() float64 {
-	if x != nil {
-		return x.FrequencyPenalty
+	if x != nil && x.FrequencyPenalty != nil {
+		return *x.FrequencyPenalty
 	}
 	return 0
 }
@@ -885,8 +885,10 @@ type ActivateModerationConfigurationRequest struct {
 	// Optimistic concurrency: empty means no active version is expected (first
 	// activation or deliberate replacement after re-reading state).
 	ExpectedActiveVersionId string `protobuf:"bytes,2,opt,name=expected_active_version_id,json=expectedActiveVersionId,proto3" json:"expected_active_version_id,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Explicitly start a new generation for configuration-paused jobs using this version.
+	ResumePausedJobs bool `protobuf:"varint,3,opt,name=resume_paused_jobs,json=resumePausedJobs,proto3" json:"resume_paused_jobs,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ActivateModerationConfigurationRequest) Reset() {
@@ -931,6 +933,13 @@ func (x *ActivateModerationConfigurationRequest) GetExpectedActiveVersionId() st
 		return x.ExpectedActiveVersionId
 	}
 	return ""
+}
+
+func (x *ActivateModerationConfigurationRequest) GetResumePausedJobs() bool {
+	if x != nil {
+		return x.ResumePausedJobs
+	}
+	return false
 }
 
 type ActivateModerationConfigurationResponse struct {
@@ -1014,23 +1023,27 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12!\n" +
 	"\factivated_by\x18\t \x01(\tR\vactivatedBy\x12=\n" +
 	"\factivated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\vactivatedAt\"\xed\x04\n" +
-	"\x1dModerationInferenceParameters\x12 \n" +
-	"\vtemperature\x18\x01 \x01(\x01R\vtemperature\x12\x13\n" +
-	"\x05top_p\x18\x02 \x01(\x01R\x04topP\x12)\n" +
-	"\x10presence_penalty\x18\x03 \x01(\x01R\x0fpresencePenalty\x12+\n" +
-	"\x11frequency_penalty\x18\x04 \x01(\x01R\x10frequencyPenalty\x127\n" +
-	"\x15max_completion_tokens\x18\x05 \x01(\x03H\x00R\x13maxCompletionTokens\x88\x01\x01\x12\"\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vactivatedAt\"\xc6\x05\n" +
+	"\x1dModerationInferenceParameters\x12%\n" +
+	"\vtemperature\x18\x01 \x01(\x01H\x00R\vtemperature\x88\x01\x01\x12\x18\n" +
+	"\x05top_p\x18\x02 \x01(\x01H\x01R\x04topP\x88\x01\x01\x12.\n" +
+	"\x10presence_penalty\x18\x03 \x01(\x01H\x02R\x0fpresencePenalty\x88\x01\x01\x120\n" +
+	"\x11frequency_penalty\x18\x04 \x01(\x01H\x03R\x10frequencyPenalty\x88\x01\x01\x127\n" +
+	"\x15max_completion_tokens\x18\x05 \x01(\x03H\x04R\x13maxCompletionTokens\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"max_tokens\x18\x06 \x01(\x03H\x01R\tmaxTokens\x88\x01\x01\x12\x12\n" +
+	"max_tokens\x18\x06 \x01(\x03H\x05R\tmaxTokens\x88\x01\x01\x12\x12\n" +
 	"\x04stop\x18\a \x03(\tR\x04stop\x12\x17\n" +
-	"\x04seed\x18\b \x01(\x03H\x02R\x04seed\x88\x01\x01\x12u\n" +
+	"\x04seed\x18\b \x01(\x03H\x06R\x04seed\x88\x01\x01\x12u\n" +
 	"\x13advanced_parameters\x18\t \x03(\v2D.moderation.v1.ModerationInferenceParameters.AdvancedParametersEntryR\x12advancedParameters\x12.\n" +
 	"\x10reasoning_effort\x18\n" +
-	" \x01(\tH\x03R\x0freasoningEffort\x88\x01\x01\x1aE\n" +
+	" \x01(\tH\aR\x0freasoningEffort\x88\x01\x01\x1aE\n" +
 	"\x17AdvancedParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x18\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0e\n" +
+	"\f_temperatureB\b\n" +
+	"\x06_top_pB\x13\n" +
+	"\x11_presence_penaltyB\x14\n" +
+	"\x12_frequency_penaltyB\x18\n" +
 	"\x16_max_completion_tokensB\r\n" +
 	"\v_max_tokensB\a\n" +
 	"\x05_seedB\x13\n" +
@@ -1059,10 +1072,11 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"\vduration_ms\x18\x05 \x01(\x03R\n" +
 	"durationMs\x12\x1f\n" +
 	"\verror_class\x18\x06 \x01(\tR\n" +
-	"errorClass\"\x99\x01\n" +
+	"errorClass\"\xc7\x01\n" +
 	"&ActivateModerationConfigurationRequest\x122\n" +
 	"\x10draft_version_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0edraftVersionId\x12;\n" +
-	"\x1aexpected_active_version_id\x18\x02 \x01(\tR\x17expectedActiveVersionId\"w\n" +
+	"\x1aexpected_active_version_id\x18\x02 \x01(\tR\x17expectedActiveVersionId\x12,\n" +
+	"\x12resume_paused_jobs\x18\x03 \x01(\bR\x10resumePausedJobs\"w\n" +
 	"'ActivateModerationConfigurationResponse\x12L\n" +
 	"\rconfiguration\x18\x01 \x01(\v2&.moderation.v1.ModerationConfigurationR\rconfiguration*\x8e\x01\n" +
 	"\x14ModerationOutputMode\x12&\n" +

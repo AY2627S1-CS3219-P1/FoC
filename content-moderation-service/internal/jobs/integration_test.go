@@ -19,6 +19,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -50,7 +51,7 @@ func truncateAll(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-			moderation_quarantine, moderation_config_versions,
+			moderation_quarantine, moderation_config_pauses, moderation_config_versions,
 			moderation_config_state, moderation_admin_audit`)
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
@@ -961,5 +962,145 @@ func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 	); err != nil ||
 		ok {
 		t.Fatalf("expired owner renewed: %v, %v", ok, err)
+	}
+}
+
+func TestConfigurationPauseSurvivesRestartAndRequiresValidatedAdminRecovery(t *testing.T) {
+	pool := newTestPool(t)
+	first := activateTestConfig(t, pool)
+	ctx := context.Background()
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	input := ingestInput("private review")
+	if _, err := store.Ingest(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	claimed := mustClaim(t, store, "worker")
+	if err := store.FinalizeFailed(
+		ctx,
+		*claimed,
+		jobs.WrapConfigurationError(errors.New("sk-private-secret private-review")),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(
+		ctx,
+		`UPDATE moderation_jobs SET next_attempt_at=now() - interval '1 day' WHERE moderation_request_id=$1`,
+		input.ModerationRequestID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	// No wall-clock backoff or process restart can retry an unchanged broken config.
+	for range 3 {
+		store = jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+		if outcome, _, err := store.Claim(ctx, "restarted", time.Minute); err != nil || outcome != jobs.ClaimNone {
+			t.Fatalf("paused configuration claimed again: %v, %v", outcome, err)
+		}
+	}
+	job := jobByRequest(t, pool, input.ModerationRequestID)
+	if job.AttemptCount != 1 {
+		t.Fatalf("paused job consumed attempts: %d", job.AttemptCount)
+	}
+	summary, err := review.NewStore(pool).GetJobByID(ctx, job.ID)
+	if err != nil || !summary.GetConfigurationPaused() {
+		t.Fatalf("pause not exposed to owner: %+v, %v", summary, err)
+	}
+
+	var detail string
+	if err := pool.QueryRow(ctx, `SELECT detail FROM moderation_attempts WHERE job_id=$1`, job.ID).
+		Scan(&detail); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(detail, "private") {
+		t.Fatalf("unsafe persisted diagnostic: %q", detail)
+	}
+
+	configs := config.NewStore(pool)
+	second, err := configs.InsertConfigVersion(
+		ctx,
+		"corrected",
+		[]byte(`{}`),
+		config.OutputModeJSONObject,
+		"review-text-v1",
+		"test",
+		"admin",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := configs.ActivateAndResume(ctx, second, "admin", &first, false); err != nil {
+		t.Fatal(err)
+	}
+	// Ordinary activation does not silently rebind old pinned jobs.
+	if outcome, _, err := store.Claim(ctx, "worker", time.Minute); err != nil || outcome != jobs.ClaimNone {
+		t.Fatalf("old configuration unexpectedly resumed: %v, %v", outcome, err)
+	}
+	fresh := ingestInput("fresh work uses new configuration")
+	if _, err := store.Ingest(ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	ready := mustClaim(t, store, "worker")
+	if ready.Job.ModerationRequestID != fresh.ModerationRequestID || ready.Config.VersionID != second {
+		t.Fatal("paused work starved new configuration")
+	}
+	if err := store.Complete(
+		ctx,
+		*ready,
+		jobs.Assessment{Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := configs.ActivateAndResume(
+		ctx,
+		second,
+		"admin",
+		&first,
+		true,
+	); !errors.Is(
+		err,
+		config.ErrConfigurationConflict,
+	) {
+		t.Fatalf("stale activation resumed work: %v", err)
+	}
+	if err := configs.ActivateAndResume(ctx, second, "admin", &second, true); err != nil {
+		t.Fatal(err)
+	}
+	recovered := mustClaim(t, store, "worker")
+	if recovered.Job.ID != job.ID || recovered.Job.RunGeneration != 2 || recovered.AttemptNumber != 1 ||
+		recovered.Config.VersionID != second {
+		t.Fatalf("explicit recovery = %+v", recovered)
+	}
+	var audits int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_admin_audit WHERE action='RESUME_CONFIGURATION_PAUSED_JOB' AND job_id=$1`, job.ID).
+		Scan(&audits); err != nil {
+		t.Fatal(err)
+	}
+	if audits != 1 {
+		t.Fatalf("recovery audit count = %d", audits)
+	}
+}
+
+func TestRevalidatingSameConfigurationResumesPinnedJob(t *testing.T) {
+	pool := newTestPool(t)
+	version := activateTestConfig(t, pool)
+	ctx := context.Background()
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	in := ingestInput("credentials rotated")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	claimed := mustClaim(t, store, "worker")
+	if err := store.FinalizeFailed(
+		ctx,
+		*claimed,
+		jobs.WrapConfigurationError(errors.New("bad credential")),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.NewStore(pool).ActivateConfigVersion(ctx, version, "admin", &version); err != nil {
+		t.Fatal(err)
+	}
+	recovered := mustClaim(t, store, "worker")
+	if recovered.Config.VersionID != version || recovered.Job.RunGeneration != 1 || recovered.AttemptNumber != 2 {
+		t.Fatalf("same-config revalidation = %+v", recovered)
 	}
 }

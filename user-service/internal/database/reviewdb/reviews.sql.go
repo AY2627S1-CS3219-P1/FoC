@@ -318,7 +318,7 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 
 const listUnpublishedReviewsForUser = `-- name: ListUnpublishedReviewsForUser :many
 SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
-       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at,
+       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
@@ -343,20 +343,21 @@ type ListUnpublishedReviewsForUserParams struct {
 }
 
 type ListUnpublishedReviewsForUserRow struct {
-	ID                  uuid.UUID
-	ReviewerID          uuid.UUID
-	RevieweeID          uuid.UUID
-	OrderID             uuid.UUID
-	Rating              int32
-	Comment             string
-	CreatedAt           time.Time
-	ModerationStatus    string
-	ModerationRequestID uuid.NullUUID
-	ContentRevision     int32
-	ReasonCodes         json.RawMessage
-	ModeratedAt         sql.NullTime
-	ReviewerName        string
-	RevieweeName        string
+	ID                   uuid.UUID
+	ReviewerID           uuid.UUID
+	RevieweeID           uuid.UUID
+	OrderID              uuid.UUID
+	Rating               int32
+	Comment              string
+	CreatedAt            time.Time
+	ModerationStatus     string
+	ModerationRequestID  uuid.NullUUID
+	ContentRevision      int32
+	ReasonCodes          json.RawMessage
+	ModeratedAt          sql.NullTime
+	AppliedRunGeneration int32
+	ReviewerName         string
+	RevieweeName         string
 }
 
 // The author's own view of their not-yet-published reviews: pending, rejected
@@ -390,6 +391,7 @@ func (q *Queries) ListUnpublishedReviewsForUser(ctx context.Context, arg ListUnp
 			&i.ContentRevision,
 			&i.ReasonCodes,
 			&i.ModeratedAt,
+			&i.AppliedRunGeneration,
 			&i.ReviewerName,
 			&i.RevieweeName,
 		); err != nil {

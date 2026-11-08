@@ -64,3 +64,48 @@ make test                                      # unit tests
 make test-integration                          # needs TEST_DATABASE_URL pointing at a throwaway database
 make sqlc                                      # after changing database/query or database/schema
 ```
+
+## Initial inference capability profile
+
+The [SoCLaaS API guide](https://soclaas.comp.nus.edu.sg/guides/api.html)
+documents Chat Completions and authenticated model discovery. It does not
+promise that every model supports every inference parameter or strict schema
+output. Model IDs are discovered, not interpreted as capability declarations.
+CMS omits all unset parameters, including floating-point fields; explicit zero
+is preserved. A configuration must pass a bounded request using its exact
+model, parameters and output mode before activation. No unsupported parameter
+is silently dropped, and strict schema mode never falls back to JSON mode.
+
+The following bounds are CMS's initial application profile, not a claim about
+all provider models. Enable an optional setting only when the selected model
+accepts it in the draft test; otherwise unset it and save a new draft.
+
+| Parameter | CMS validation |
+| --- | --- |
+| temperature / top_p | Finite numbers in [0, 2] / [0, 1] |
+| presence_penalty / frequency_penalty | Finite numbers in [-2, 2] |
+| max_completion_tokens / max_tokens | Positive integers; mutually exclusive |
+| stop | At most four nonempty, unique strings, each at most 256 bytes |
+| seed | Nonnegative integer |
+| reasoning_effort | Optional low, medium or high; acceptance is model-specific |
+| advanced top_k | JSON integer in [1, 1000] |
+| advanced min_p / typical_p | JSON numbers in [0, 1] |
+| advanced repetition_penalty | JSON number greater than 0 and at most 2 |
+
+Advanced values are numeric JSON scalars of at most 64 bytes. Objects, arrays,
+null, booleans, unknown parameter names and application-owned fields are
+rejected. The four-name allowlist bounds the object size. Credentials remain
+server-side. Provider error bodies, refusals and review text are excluded from
+logs and persisted attempt diagnostics; safe HTTP classifications are retained.
+
+The browser regression suite intercepts every RPC and tests the real settings
+card plus retry rendering. With the frontend dev server running:
+
+```sh
+frontend/node_modules/.bin/playwright install chromium --only-shell
+MODERATION_TEST_BASE_URL=http://localhost:5173 npm --prefix frontend run test:moderation
+```
+
+It checks hydration and saving of every inference setting (including explicit
+zero and a large int64 seed), explicit paused-job recovery consent, and newer
+retry generations while publication still holds the previous error result.

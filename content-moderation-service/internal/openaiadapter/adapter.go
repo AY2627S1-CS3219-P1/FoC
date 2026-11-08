@@ -31,8 +31,6 @@ const (
 	// defaultTimeout bounds a request when neither the caller nor the evaluator
 	// supplies a timeout.
 	defaultTimeout = 90 * time.Second
-	// maxDiagnosticLength caps provider-derived text copied into errors.
-	maxDiagnosticLength = 500
 )
 
 // reservedRequestFields are provider fields the Advanced parameter allowlist
@@ -217,7 +215,7 @@ func advancedOptions(paramsIn llmpolicy.CompletionParameters) ([]option.RequestO
 		var value any
 		if err := json.Unmarshal([]byte(raw), &value); err != nil {
 			return nil, &llmpolicy.ErrConfiguration{
-				Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, bound(err.Error())),
+				Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, "provider transport failed"),
 			}
 		}
 		opts = append(opts, option.WithJSONSet(key, value))
@@ -275,9 +273,9 @@ func mapTransportError(err error) error {
 		if netErr.Timeout() {
 			return &llmpolicy.ErrTimeout{Detail: "provider request timed out at the transport layer"}
 		}
-		return &llmpolicy.ErrConnection{Detail: bound(netErr.Error())}
+		return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
 	}
-	return &llmpolicy.ErrConnection{Detail: bound(err.Error())}
+	return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
 }
 
 // rateLimitedError builds an ErrRateLimited, honouring a Retry-After header when
@@ -326,20 +324,12 @@ func parseIntSeconds(s string) (int, error) {
 // classifyMessage renders a short, sanitized provider error summary. It never
 // leaks the API key or request headers.
 func classifyMessage(apiErr *openai.Error) string {
-	msg := apiErr.Message
-	if apiErr.Type != "" {
-		msg = apiErr.Type + ": " + msg
+	switch apiErr.StatusCode {
+	case 401, 403:
+		return "provider rejected server credentials (HTTP 401/403)"
+	case 400, 404, 422:
+		return "provider rejected the selected model, parameters or output mode"
+	default:
+		return fmt.Sprintf("provider returned HTTP %d", apiErr.StatusCode)
 	}
-	return bound(msg)
-}
-
-// bound shortens a provider-derived string so error text cannot grow without
-// bound.
-func bound(s string) string {
-	const runeLimit = maxDiagnosticLength
-	runes := []rune(s)
-	if len(runes) > runeLimit {
-		return string(runes[:runeLimit]) + "…"
-	}
-	return s
 }

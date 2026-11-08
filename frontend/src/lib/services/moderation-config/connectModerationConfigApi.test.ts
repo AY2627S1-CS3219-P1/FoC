@@ -65,11 +65,11 @@ describe('ConnectModerationConfigApi', () => {
 		expect(request.outputMode).toBe(ModerationOutputMode.JSON_OBJECT);
 		// The parameters are built by the shared builder: defaults fill the unset
 		// doubles and the token budget is converted to an int64.
-		expect(request.parameters).toMatchObject({
+		expect(request.parameters?.topP).toBeUndefined();
+expect(request.parameters?.presencePenalty).toBeUndefined();
+expect(request.parameters?.frequencyPenalty).toBeUndefined();
+expect(request.parameters).toMatchObject({
 			temperature: 0.3,
-			topP: 0,
-			presencePenalty: 0,
-			frequencyPenalty: 0,
 			stop: [],
 			maxTokens: 512n,
 			advancedParameters: {}
@@ -103,7 +103,7 @@ describe('ConnectModerationConfigApi', () => {
 
 		const config = await api.activateDraft('draft-1', 'v-1');
 		expect((config as ModerationConfiguration | undefined)?.versionId).toBe('v-2');
-		expect(activate).toHaveBeenCalledWith({ draftVersionId: 'draft-1', expectedActiveVersionId: 'v-1' });
+		expect(activate).toHaveBeenCalledWith({ draftVersionId: 'draft-1', expectedActiveVersionId: 'v-1', resumePausedJobs: false });
 	});
 
 	it('preserves API errors for the caller', async () => {

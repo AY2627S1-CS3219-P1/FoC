@@ -51,7 +51,7 @@ export class ParameterValidationError extends Error {
 }
 
 function normalizeStop(stop: string[]): string[] {
-	return [...new Set(stop.map((s) => s.trim()).filter((s) => s.length > 0))];
+	return [...stop];
 }
 
 function toInt64(field: string, value: number | bigint): bigint {
@@ -87,10 +87,10 @@ export function buildModerationParameters(input: ModerationParameterInput): Mode
 	}
 
 	const params = create(ModerationInferenceParametersSchema, {
-		temperature: input.temperature ?? 0,
-		topP: input.topP ?? 0,
-		presencePenalty: input.presencePenalty ?? 0,
-		frequencyPenalty: input.frequencyPenalty ?? 0,
+		temperature: input.temperature,
+		topP: input.topP,
+		presencePenalty: input.presencePenalty,
+		frequencyPenalty: input.frequencyPenalty,
 		stop: input.stop ? normalizeStop(input.stop) : [],
 		advancedParameters: { ...(input.advancedParameters ?? {}) }
 	});

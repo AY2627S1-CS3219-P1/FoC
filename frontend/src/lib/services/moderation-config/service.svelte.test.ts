@@ -119,3 +119,17 @@ describe('ModerationConfigService', () => {
 		expect(service.isLoading('active')).toBe(false);
 	});
 });
+
+it('keeps saved configuration available when model discovery is unavailable', async () => {
+	const saved = deferred<Awaited<ReturnType<ModerationConfigApi['getActiveConfiguration']>>>();
+	const unavailable = new ConnectError('Provider unavailable', Code.Unavailable);
+	const service = new ModerationConfigService(createApi({
+		listModels: vi.fn(async () => { throw unavailable; }),
+		getActiveConfiguration: vi.fn(() => saved.promise)
+	}));
+	const loading = service.loadAll();
+	const failure = expect(loading).rejects.toBe(unavailable);
+	saved.resolve({versionId: 'saved-version'} as NonNullable<Awaited<ReturnType<ModerationConfigApi['getActiveConfiguration']>>>);
+	await failure;
+	expect(service.activeConfiguration?.versionId).toBe('saved-version');
+});

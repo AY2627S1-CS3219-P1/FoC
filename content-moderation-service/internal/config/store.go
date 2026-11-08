@@ -95,6 +95,12 @@ func (s *Store) ActivateConfigVersion(
 	activatedBy string,
 	expectedVersionID *uuid.UUID,
 ) error {
+	return s.ActivateAndResume(ctx, versionID, activatedBy, expectedVersionID, false)
+}
+
+// ActivateAndResume records explicit admin consent before rebinding paused jobs.
+func (s *Store) ActivateAndResume(ctx context.Context, versionID uuid.UUID, activatedBy string,
+	expectedVersionID *uuid.UUID, resumePausedJobs bool) error {
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		rows, err := q.ActivateConfigVersion(ctx, moderationdb.ActivateConfigVersionParams{
 			ActiveVersionID:   &versionID,
@@ -106,6 +112,30 @@ func (s *Store) ActivateConfigVersion(
 		}
 		if rows == 0 {
 			return ErrConfigurationConflict
+		}
+		if resumePausedJobs {
+			version, err := q.GetConfigVersionById(ctx, versionID)
+			if err != nil {
+				return err
+			}
+			id := versionID.String()
+			jobIDs, err := q.ResumeConfigurationPausedJobs(ctx, moderationdb.ResumeConfigurationPausedJobsParams{
+				ConfigVersionID: &id, PolicyVersion: &version.PolicyVersion,
+			})
+			if err != nil {
+				return err
+			}
+			for _, jobID := range jobIDs {
+				if err := q.InsertAdminAudit(ctx, moderationdb.InsertAdminAuditParams{
+					Action: "RESUME_CONFIGURATION_PAUSED_JOB", JobID: &jobID,
+					ConfigVersionID: &versionID, Actor: activatedBy, Detail: []byte(`{}`),
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		if err := q.ClearConfigurationPause(ctx, versionID); err != nil {
+			return err
 		}
 		return q.InsertAdminAudit(ctx, moderationdb.InsertAdminAuditParams{
 			Action:          "ACTIVATE_CONFIG",
