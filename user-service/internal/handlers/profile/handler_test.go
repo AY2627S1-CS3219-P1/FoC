@@ -122,6 +122,9 @@ func TestCreateProfilePictureUploadMapsGrant(t *testing.T) {
 		msg.GetExpiresAt() == nil || !msg.GetExpiresAt().AsTime().Equal(expiresAt) {
 		t.Fatalf("grant mapping = %+v", msg)
 	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q", got)
+	}
 }
 
 func TestUpdateMyProfilePictureMapsCallerAndPicture(t *testing.T) {

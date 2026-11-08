@@ -168,7 +168,7 @@ func (s *ProfileService) UpdateMyProfilePicture(
 			return ProfileView{}, fmt.Errorf("activate profile picture: %w", err)
 		}
 	}
-	if oldKey != nil && *oldKey != picture.ObjectKey {
+	if oldKey != nil {
 		s.deletePictureObject(ctx, *oldKey)
 	}
 	return s.GetMyProfile(ctx, actorID)

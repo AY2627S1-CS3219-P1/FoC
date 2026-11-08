@@ -86,12 +86,14 @@ func (h *Handler) CreateProfilePictureUpload(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&userv1.CreateProfilePictureUploadResponse{
+	response := connect.NewResponse(&userv1.CreateProfilePictureUploadResponse{
 		PictureId:     upload.ID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
-	}), nil
+	})
+	response.Header().Set("Cache-Control", "no-store")
+	return response, nil
 }
 
 // UpdateMyProfilePicture validates and applies the pending upload in one call.

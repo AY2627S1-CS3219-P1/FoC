@@ -44,8 +44,9 @@ verify or confirm RPC.
 - Rows in `deleting` are claimed by cleanup, their objects are deleted, then the
   rows are deleted.
 - A failed object delete leaves the row in `deleting`, so the next pass retries.
-- A row is therefore the durable reference for its object at every stage; no
-  object is orphaned without a row.
+- A row is therefore the durable reference for its object while the user exists;
+  no picture-lifecycle object is orphaned without a row. Hard-deleting a user
+  cascades its rows and is not a production path (the service soft-deletes).
 
 The `profile_pictures_one_active` partial unique index keeps at most one active
 picture per user.

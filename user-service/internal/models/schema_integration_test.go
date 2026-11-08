@@ -409,7 +409,8 @@ func TestSchema(t *testing.T) {
 		if err := db.Unscoped().Delete(&m.User{}, alice.ID).Error; err != nil {
 			t.Fatal(err)
 		}
-		for _, tbl := range []string{"sessions", "auth_tokens", "favourite_suppliers", "account_warnings", "role_changes"} {
+		for _, tbl := range []string{"sessions", "auth_tokens", "favourite_suppliers",
+			"account_warnings", "role_changes", "profile_pictures"} {
 			var n int64
 			if err := db.Table(tbl).Where("user_id = ?", alice.ID).Count(&n).Error; err != nil {
 				t.Fatal(err)
