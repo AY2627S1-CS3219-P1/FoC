@@ -6,11 +6,7 @@ SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewee_id::UUID
        ) AS reviewee_exists;
 
--- A live-row check for the duplicate-review pre-check in SubmitReview. It must
--- mirror idx_reviews_reviewer_order exactly — no deleted_at filter — so a
--- removed review still blocks re-reviewing the same request, like the insert's
--- unique-violation path does. The check runs before photo preparation so a
--- lost-response retry gets the canonical 409 instead of a photo-state error.
+-- A removed review still blocks re-review, matching the insert's unique rule.
 -- name: ReviewExists :one
 SELECT EXISTS (
     SELECT 1 FROM reviews
@@ -21,9 +17,7 @@ SELECT EXISTS (
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
 
--- The update locks the row and returns the data needed for the removal audit.
--- A concurrent removal waits, then finds no live row and reports not found.
--- The row is retained so review_removals can keep referencing it.
+-- Locks the row; a concurrent removal sees no live row and reports not found.
 -- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
@@ -66,16 +60,13 @@ SELECT COUNT(*)
 FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
--- Existence lookup for a batch of requests: which of them the reviewer has
--- already reviewed (live rows only). Order lists render one CTA per order
--- from this, without a lookup each.
+-- Which of these requests the reviewer has already reviewed.
 -- name: ListReviewedOrderIds :many
 SELECT order_id::TEXT
 FROM reviews
 WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[])
   AND deleted_at IS NULL;
 
--- The reviewer's live review for one request, if any.
 -- name: GetReviewByReviewerAndOrder :one
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,

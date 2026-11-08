@@ -31,9 +31,7 @@ type AttachReviewPhotoParams struct {
 	SizeBytes   int64
 }
 
-// The guarded predicate mirrors the inspected metadata: a photo whose stored
-// object was deleted, replaced or claimed between inspection and attach
-// matches zero rows and fails the submission precondition.
+// Zero rows means the photo was claimed, deleted or replaced since inspection.
 func (q *Queries) AttachReviewPhoto(ctx context.Context, arg AttachReviewPhotoParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, attachReviewPhoto,
 		arg.ReviewID,
@@ -76,8 +74,7 @@ type ClaimOrphanReviewPhotosRow struct {
 	ObjectKey string
 }
 
-// Claims expire orphan staging rows in bulk. SKIP LOCKED keeps concurrent
-// cleanup replicas from fighting over the same rows.
+// SKIP LOCKED lets concurrent replicas claim different rows.
 func (q *Queries) ClaimOrphanReviewPhotos(ctx context.Context, arg ClaimOrphanReviewPhotosParams) ([]ClaimOrphanReviewPhotosRow, error) {
 	rows, err := q.db.QueryContext(ctx, claimOrphanReviewPhotos, arg.CreatedBefore, arg.NowAt)
 	if err != nil {
@@ -105,7 +102,6 @@ const deleteOrphanReviewPhoto = `-- name: DeleteOrphanReviewPhoto :execrows
 DELETE FROM review_photos WHERE id = $1::UUID AND state = 'deleting'
 `
 
-// Deletion completes only after the stored object is gone; retryable.
 func (q *Queries) DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOrphanReviewPhoto, id)
 	if err != nil {
@@ -125,7 +121,6 @@ type GetReviewPhotoParams struct {
 	OwnerID uuid.UUID
 }
 
-// The owner check makes the staged photo attachable only by its uploader.
 func (q *Queries) GetReviewPhoto(ctx context.Context, arg GetReviewPhotoParams) (ReviewPhoto, error) {
 	row := q.db.QueryRowContext(ctx, getReviewPhoto, arg.ID, arg.OwnerID)
 	var i ReviewPhoto
@@ -145,7 +140,6 @@ func (q *Queries) GetReviewPhoto(ctx context.Context, arg GetReviewPhotoParams) 
 }
 
 const insertReviewPhoto = `-- name: InsertReviewPhoto :exec
-
 INSERT INTO review_photos (
     id, owner_id, object_key, content_type, size_bytes, state, created_at, upload_expires_at
 )
@@ -164,9 +158,6 @@ type InsertReviewPhotoParams struct {
 	UploadExpiresAt time.Time
 }
 
-// Review photo persistence. Staging rows are created by the upload RPC;
-// attachment happens inside the review submission transaction, guarded so a
-// photo claimed by cleanup or attached by a racing request fails the update.
 func (q *Queries) InsertReviewPhoto(ctx context.Context, arg InsertReviewPhotoParams) error {
 	_, err := q.db.ExecContext(ctx, insertReviewPhoto,
 		arg.ID,
@@ -194,8 +185,6 @@ type ListReviewPhotosForReviewsRow struct {
 	Ordinal     sql.NullInt32
 }
 
-// Photos for a page of reviews, in display order. object_key feeds the
-// download grant; the URL itself is never persisted.
 func (q *Queries) ListReviewPhotosForReviews(ctx context.Context, reviewIds []uuid.UUID) ([]ListReviewPhotosForReviewsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewPhotosForReviews, pq.Array(reviewIds))
 	if err != nil {

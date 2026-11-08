@@ -81,7 +81,6 @@ type GetReviewByReviewerAndOrderRow struct {
 	RevieweeName string
 }
 
-// The reviewer's live review for one request, if any.
 func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReviewByReviewerAndOrderParams) (GetReviewByReviewerAndOrderRow, error) {
 	row := q.db.QueryRowContext(ctx, getReviewByReviewerAndOrder, arg.ReviewerID, arg.OrderID)
 	var i GetReviewByReviewerAndOrderRow
@@ -197,9 +196,7 @@ type ListReviewedOrderIdsParams struct {
 	OrderIds   []uuid.UUID
 }
 
-// Existence lookup for a batch of requests: which of them the reviewer has
-// already reviewed (live rows only). Order lists render one CTA per order
-// from this, without a lookup each.
+// Which of these requests the reviewer has already reviewed.
 func (q *Queries) ListReviewedOrderIds(ctx context.Context, arg ListReviewedOrderIdsParams) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewedOrderIds, arg.ReviewerID, pq.Array(arg.OrderIds))
 	if err != nil {
@@ -408,11 +405,7 @@ type ReviewExistsParams struct {
 	OrderID    uuid.UUID
 }
 
-// A live-row check for the duplicate-review pre-check in SubmitReview. It must
-// mirror idx_reviews_reviewer_order exactly — no deleted_at filter — so a
-// removed review still blocks re-reviewing the same request, like the insert's
-// unique-violation path does. The check runs before photo preparation so a
-// lost-response retry gets the canonical 409 instead of a photo-state error.
+// A removed review still blocks re-review, matching the insert's unique rule.
 func (q *Queries) ReviewExists(ctx context.Context, arg ReviewExistsParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, reviewExists, arg.ReviewerID, arg.OrderID)
 	var exists bool
@@ -471,9 +464,7 @@ WHERE id = $1::UUID AND deleted_at IS NULL
 RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 `
 
-// The update locks the row and returns the data needed for the removal audit.
-// A concurrent removal waits, then finds no live row and reports not found.
-// The row is retained so review_removals can keep referencing it.
+// Locks the row; a concurrent removal sees no live row and reports not found.
 func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, error) {
 	row := q.db.QueryRowContext(ctx, softDeleteReview, id)
 	var i Review
