@@ -1,3 +1,4 @@
+import type { PageInfo } from '$lib/gen/pagination/v1/pagination_pb';
 import type { ReviewModerationApi, ReviewModerationRecord, LoadReviewsForUserParams } from './reviewModerationApi.ts';
 
 // Rune-state wrapper around the review-moderation API. It owns the loading,
@@ -6,6 +7,9 @@ import type { ReviewModerationApi, ReviewModerationRecord, LoadReviewsForUserPar
 export class ReviewModerationService {
 	readonly #api: ReviewModerationApi;
 	#records = $state<ReviewModerationRecord[]>([]);
+	#pageInfo = $state<PageInfo | undefined>(undefined);
+	#cmsAvailable = $state(true);
+	#cmsError = $state<string | undefined>(undefined);
 	#isLoading = $state(false);
 	#hasLoaded = $state(false);
 	#loadError = $state<unknown>(null);
@@ -16,6 +20,19 @@ export class ReviewModerationService {
 
 	get records(): ReviewModerationRecord[] {
 		return this.#records;
+	}
+
+	get pageInfo(): PageInfo | undefined {
+		return this.#pageInfo;
+	}
+
+	/** False after a load whose CMS job lookup degraded; the records stand. */
+	get cmsAvailable(): boolean {
+		return this.#cmsAvailable;
+	}
+
+	get cmsError(): string | undefined {
+		return this.#cmsError;
 	}
 
 	get isLoading(): boolean {
@@ -34,10 +51,13 @@ export class ReviewModerationService {
 		this.#isLoading = true;
 		this.#loadError = null;
 		try {
-			const records = await this.#api.loadReviewsForUser(params);
-			this.#records = records;
+			const page = await this.#api.loadReviewsForUser(params);
+			this.#records = page.records;
+			this.#pageInfo = page.pageInfo;
+			this.#cmsAvailable = page.cmsAvailable;
+			this.#cmsError = page.cmsError;
 			this.#hasLoaded = true;
-			return records;
+			return page.records;
 		} catch (error) {
 			this.#loadError = error;
 			throw error;
@@ -48,6 +68,9 @@ export class ReviewModerationService {
 
 	clear(): void {
 		this.#records = [];
+		this.#pageInfo = undefined;
+		this.#cmsAvailable = true;
+		this.#cmsError = undefined;
 		this.#hasLoaded = false;
 		this.#loadError = null;
 	}

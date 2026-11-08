@@ -5,7 +5,8 @@ import {
 	ReviewService as ReviewServiceDefinition,
 	type UnpublishedReview
 } from '$lib/gen/user/review/v1/review_pb';
-import {
+import { create } from '@bufbuild/protobuf';
+import { PaginationSchema, PageInfoSchema } from '$lib/gen/pagination/v1/pagination_pb';import {
 	ModerationJobStatus,
 	ModerationOutcomeType,
 	ReviewModerationService as ReviewModerationServiceDefinition,
@@ -62,7 +63,15 @@ function makeApi(
 				listUnpublishedReviewsForUser(request) {
 					reviewCalls.push(request);
 					if (opts.reviewThrow) throw opts.reviewThrow;
-					return { reviews };
+					return {
+						reviews,
+						pagination: create(PageInfoSchema, {
+							page: 1n,
+							pageSize: 20n,
+							totalItems: BigInt(reviews.length),
+							totalPages: 1n
+						})
+					};
 				}
 			})
 		)
@@ -95,10 +104,27 @@ describe('review moderation batch merge API', () => {
 			review('b', { moderationRequestId: 'req-b' })
 		];
 		const { api, moderationCalls } = makeApi(reviews, []);
-		const records = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		const { records } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(moderationCalls).toHaveLength(1);
 		expect(moderationCalls[0].moderationRequestIds).toEqual(['req-a', 'req-b']);
 		expect(records).toHaveLength(2);
+	});
+
+	it('passes User page parameters through and returns the page summary', async () => {
+		const { api, reviewCalls } = makeApi([review('a')], []);
+		const pagination = create(PaginationSchema, { page: 2n, pageSize: 10n });
+		const { records, pageInfo } = await api.loadReviewsForUser({
+			reviewerId: 'rev-1',
+			pagination,
+			moderationStatusFilter: ModerationStatus.PENDING_MODERATION
+		});
+		expect(reviewCalls[0]).toMatchObject({
+			reviewerId: 'rev-1',
+			moderationStatusFilter: ModerationStatus.PENDING_MODERATION
+		});
+		expect((reviewCalls[0] as { pagination?: { page: bigint } }).pagination?.page).toBe(2n);
+		expect(records).toHaveLength(1);
+		expect(pageInfo?.totalItems).toBe(1n);
 	});
 
 	it('merges CMS grading status into each review without a job', async () => {
@@ -119,7 +145,7 @@ describe('review moderation batch merge API', () => {
 			})
 		];
 		const { api } = makeApi(reviews, jobs);
-		const records = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		const { records } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 
 		const pending = records.find((r) => r.review.id === 'pending')!;
 		expect(pending.job).toBeUndefined();
@@ -142,7 +168,7 @@ describe('review moderation batch merge API', () => {
 	it('treats a missing job as not-yet-ingested rather than approval', async () => {
 		const reviews = [review('orphan', { moderationStatus: ModerationStatus.PENDING_MODERATION })];
 		const { api } = makeApi(reviews, []);
-		const [record] = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(record.job).toBeUndefined();
 		expect(record.publicationStatus).toBe(ModerationStatus.PENDING_MODERATION);
 		expect(record.isAwaitingModeration).toBe(true);
@@ -152,7 +178,7 @@ describe('review moderation batch merge API', () => {
 		const reviews = [review('mid', { moderationStatus: ModerationStatus.PENDING_MODERATION })];
 		const jobs = [job('mid', { status: ModerationJobStatus.RETRY_WAIT })];
 		const { api } = makeApi(reviews, jobs);
-		const [record] = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(record.jobStatus).toBe(ModerationJobStatus.RETRY_WAIT);
 		expect(record.isAwaitingModeration).toBe(true);
 	});
@@ -164,7 +190,7 @@ describe('review moderation batch merge API', () => {
 			job('dup', { runGeneration: 3, outcome: ModerationOutcomeType.APPROVED })
 		];
 		const { api } = makeApi(reviews, jobs);
-		const [record] = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(record.outcome).toBe(ModerationOutcomeType.APPROVED);
 		expect(record.job!.runGeneration).toBe(3);
 	});
@@ -178,10 +204,21 @@ describe('review moderation batch merge API', () => {
 		expect(moderationCalls[0].moderationRequestIds).toHaveLength(MAX_MODERATION_REQUEST_IDS_PER_BATCH);
 	});
 
-	it('propagates a CMS ConnectError instead of masking it', async () => {
+	it('propagates a CMS authorization ConnectError instead of masking it', async () => {
 		const denied = new ConnectError('Denied', Code.PermissionDenied);
 		const { api } = makeApi([review('a')], [], { moderationThrow: denied });
 		await expect(api.loadReviewsForUser({ reviewerId: 'rev-1' })).rejects.toBeInstanceOf(ConnectError);
+	});
+
+	it('degrades a CMS outage to records without grading progress', async () => {
+		const down = new ConnectError('connection refused', Code.Unavailable);
+		const { api } = makeApi([review('a')], [], { moderationThrow: down });
+		const { records, cmsAvailable, cmsError } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+		expect(records).toHaveLength(1);
+		expect(records[0].job).toBeUndefined();
+		expect(records[0].isAwaitingModeration).toBe(true);
+		expect(cmsAvailable).toBe(false);
+		expect(cmsError).toBeTruthy();
 	});
 
 	it('propagates the User Service ConnectError', async () => {

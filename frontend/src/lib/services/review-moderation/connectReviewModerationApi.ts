@@ -1,3 +1,4 @@
+import { Code, ConnectError, createClient, createRouterTransport } from '@connectrpc/connect';
 import type { Client } from '@connectrpc/connect';
 import type { Pagination } from '$lib/gen/pagination/v1/pagination_pb';
 import {
@@ -9,11 +10,28 @@ import {
 	ReviewModerationService as ReviewModerationServiceDefinition,
 	type ReviewModerationJobSummary
 } from '$lib/gen/moderation/review/v1/review_moderation_pb';
-import type { LoadReviewsForUserParams, ReviewModerationApi, ReviewModerationRecord } from './reviewModerationApi.ts';
+import type {
+	LoadReviewsForUserParams,
+	ReviewModerationApi,
+	ReviewModerationPage,
+	ReviewModerationRecord
+} from './reviewModerationApi.ts';
 import { batchedModerationRequestIds, mergeReviewModeration } from './reviewModerationApi.ts';
 
 type ReviewClient = Client<typeof ReviewServiceDefinition>;
 type ModerationClient = Client<typeof ReviewModerationServiceDefinition>;
+
+// CMS failures that degrade to "no job progress shown" instead of failing the
+// whole page. Unauthenticated, permission-denied and invalid-argument errors
+// still propagate so the transport-layer interceptors and the caller see them.
+const DEGRADABLE_CMS_CODES: readonly Code[] = [
+	Code.Unavailable,
+	Code.DeadlineExceeded,
+	Code.Internal,
+	Code.Unknown,
+	Code.NotFound,
+	Code.DataLoss
+];
 
 // The raw Connect adapter over User Service's review listing and the CMS
 // owner-job listing. It performs one batched CMS call per page and merges the
@@ -31,17 +49,42 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 		reviewerId,
 		moderationStatusFilter,
 		pagination
-	}: LoadReviewsForUserParams): Promise<ReviewModerationRecord[]> {
-		const { reviews } = await this.#review.listUnpublishedReviewsForUser({
+	}: LoadReviewsForUserParams): Promise<ReviewModerationPage> {
+		const { reviews, pagination: pageInfo } = await this.#review.listUnpublishedReviewsForUser({
 			reviewerId,
 			moderationStatusFilter,
 			pagination
 		});
-		const { jobs } = await this.#moderation.getReviewModerationJobsForReviewer({
-			reviewerId,
-			moderationRequestIds: batchedModerationRequestIds(reviews)
-		});
-		return reviews.map((review) => mergeReviewModeration(review, jobById(jobs, review.moderationRequestId)));
+
+		// A CMS outage must not erase User's canonical collection: transport
+		// failures degrade to records without job progress, while authorization
+		// and request-shape errors still propagate to the transport layer.
+		let jobs: ReviewModerationJobSummary[] = [];
+		let cmsAvailable = true;
+		let cmsError: string | undefined;
+		try {
+			jobs = (
+				await this.#moderation.getReviewModerationJobsForReviewer({
+					reviewerId,
+					moderationRequestIds: batchedModerationRequestIds(reviews)
+				})
+			).jobs;
+		} catch (error) {
+			if (error instanceof ConnectError && DEGRADABLE_CMS_CODES.includes(error.code)) {
+				cmsAvailable = false;
+				cmsError = error.rawMessage || 'Moderation progress is temporarily unavailable.';
+			} else {
+				throw error;
+			}
+		}
+		return {
+			records: reviews.map((review) =>
+				mergeReviewModeration(review, jobById(jobs, review.moderationRequestId))
+			),
+			pageInfo,
+			cmsAvailable,
+			cmsError
+		};
 	}
 }
 

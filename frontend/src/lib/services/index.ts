@@ -16,6 +16,8 @@ import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 import { createTelegramLinkApi } from './telegram/index.ts';
+import { createReviewModerationService } from './review-moderation/index.ts';
+import { createModerationConfigService } from './moderation-config/index.ts';
 import { SnackbarService } from './snackbar/service.ts';
 
 export const snackbarService = new SnackbarService();
@@ -75,3 +77,17 @@ const communicationTransport = createCustomTransport({
 });
 
 export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
+
+// The CMS transport carries protected reviewer-scoped job lookups and admin
+// configuration; User's review RPCs share the existing protected user
+// transport.
+const moderationServiceBaseUrl = env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086';
+const moderationTransport = createCustomTransport({
+	baseUrl: moderationServiceBaseUrl,
+	interceptors: [authRedirectInterceptor, authService.interceptor]
+});
+export const reviewModerationService = createReviewModerationService(
+	protectedUserTransport,
+	moderationTransport
+);
+export const moderationConfigService = createModerationConfigService(moderationTransport);

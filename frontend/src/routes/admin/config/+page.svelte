@@ -6,6 +6,7 @@
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { allowedDomainService, authService, snackbarService } from '$lib/services';
 	import AllowedDomainsCard from './AllowedDomainsCard.svelte';
+	import ModerationConfigCard from './ModerationConfigCard.svelte';
 
 	let canView = $derived(authService.user?.role === UserRole.ADMIN || authService.user?.role === UserRole.SUPER_ADMIN);
 
@@ -50,6 +51,7 @@
 			{/if}
 		{:else}
 			<AllowedDomainsCard />
+			<ModerationConfigCard />
 		{/if}
 	</section>
 {/if}

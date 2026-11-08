@@ -1,4 +1,7 @@
-import type { Pagination } from '$lib/gen/pagination/v1/pagination_pb';
+import type {
+	Pagination,
+	PageInfo
+} from '$lib/gen/pagination/v1/pagination_pb';
 import {
 	ModerationJobStatus,
 	ModerationOutcomeType,
@@ -57,13 +60,27 @@ export interface LoadReviewsForUserParams {
 	pagination?: Pagination;
 }
 
+/** One loaded page: merged records plus User Service's page summary. */
+export interface ReviewModerationPage {
+	records: ReviewModerationRecord[];
+	/** Response-side page summary; undefined when the backend omitted it. */
+	pageInfo?: PageInfo;
+	/**
+	 * False when the CMS job lookup degraded (outage) and records carry no
+	 * grading progress this load. User's list is authoritative either way.
+	 */
+	cmsAvailable: boolean;
+	/** User-facing degradation message when cmsAvailable is false. */
+	cmsError?: string;
+}
+
 // The consumer-owned API: it lists a reviewer's unpublished reviews and
 // enriches each with the CMS grading progress for its current request, in a
 // single batched CMS call. Connect transport errors (for example requesting
 // another reviewer without authorization) propagate so the transport-layer auth
 // interceptor can handle them.
 export interface ReviewModerationApi {
-	loadReviewsForUser(params: LoadReviewsForUserParams): Promise<ReviewModerationRecord[]>;
+	loadReviewsForUser(params: LoadReviewsForUserParams): Promise<ReviewModerationPage>;
 }
 
 // Merge a review with its CMS job: derive the status/outcome, the effective
