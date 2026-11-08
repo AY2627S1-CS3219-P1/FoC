@@ -111,7 +111,10 @@ func New(cfg Config) (*OpenAICompletionClient, error) {
 // Complete issues one evaluation and maps the provider response. The request
 // deadline (min of the caller's context deadline and the per-request timeout)
 // is enforced on the whole exchange, including response reads.
-func (c *OpenAICompletionClient) Complete(ctx context.Context, req *llmpolicy.CompletionRequest) (*llmpolicy.CompletionResponse, error) {
+func (c *OpenAICompletionClient) Complete(
+	ctx context.Context,
+	req *llmpolicy.CompletionRequest,
+) (*llmpolicy.CompletionResponse, error) {
 	params := buildParams(req)
 
 	timeout := req.Timeout
@@ -213,7 +216,9 @@ func advancedOptions(paramsIn llmpolicy.CompletionParameters) ([]option.RequestO
 		}
 		var value any
 		if err := json.Unmarshal([]byte(raw), &value); err != nil {
-			return nil, &llmpolicy.ErrConfiguration{Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, bound(err.Error()))}
+			return nil, &llmpolicy.ErrConfiguration{
+				Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, bound(err.Error())),
+			}
 		}
 		opts = append(opts, option.WithJSONSet(key, value))
 	}

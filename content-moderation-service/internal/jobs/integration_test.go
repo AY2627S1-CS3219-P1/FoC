@@ -1,0 +1,613 @@
+//go:build integration
+
+// Integration tests for the durable moderation engine against a real
+// PostgreSQL. Set TEST_DATABASE_URL to a throwaway database; the tests apply
+// the module migrations and truncate all tables between subtests.
+package jobs_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// newTestPool migrates the throwaway database and returns a connected pool.
+func newTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	url := envOrSkip(t)
+	ctx := context.Background()
+	if err := database.Migrate(ctx, url); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	pool := database.Connect(url)
+	t.Cleanup(pool.Close)
+	truncateAll(t, pool)
+	return pool
+}
+
+func envOrSkip(t *testing.T) string {
+	t.Helper()
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+	return url
+}
+
+func truncateAll(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
+			moderation_quarantine, moderation_config_versions,
+			moderation_config_state, moderation_admin_audit`)
+	if err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+}
+
+// activateTestConfig inserts and activates one configuration version so claims
+// can pin it.
+func activateTestConfig(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+	store := config.NewStore(pool)
+	if err := store.EnsureConfigState(context.Background()); err != nil {
+		t.Fatalf("ensure config state: %v", err)
+	}
+	id, err := store.InsertConfigVersion(
+		context.Background(), "test-model", []byte(`{}`), config.OutputModeJSONSchema,
+		"review-text-v1", "fp-test", "tester",
+	)
+	if err != nil {
+		t.Fatalf("insert config version: %v", err)
+	}
+	if err := store.ActivateConfigVersion(context.Background(), id, "tester", nil); err != nil {
+		t.Fatalf("activate config: %v", err)
+	}
+	return id
+}
+
+func ingestInput(comment string) jobs.IngestionInput {
+	return jobs.IngestionInput{
+		SourceEventID:       uuid.New(),
+		ModerationRequestID: uuid.New(),
+		ReviewID:            uuid.New(),
+		ReviewerID:          uuid.New(),
+		ContentRevision:     1,
+		Comment:             comment,
+	}
+}
+
+func jobIDByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := pool.QueryRow(context.Background(),
+		`SELECT id FROM moderation_jobs WHERE moderation_request_id = $1`, requestID).Scan(&id)
+	if err != nil {
+		t.Fatalf("load job id: %v", err)
+	}
+	return id
+}
+
+func jobByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) moderationdb.ModerationJob {
+	t.Helper()
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	job, err := store.GetJobByID(context.Background(), jobIDByRequest(t, pool, requestID))
+	if err != nil {
+		t.Fatalf("load job: %v", err)
+	}
+	return job
+}
+
+func countWhere(t *testing.T, pool *pgxpool.Pool, query string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), query, args...).Scan(&n); err != nil {
+		t.Fatalf("count (%s): %v", query, err)
+	}
+	return n
+}
+
+func countJobs(t *testing.T, pool *pgxpool.Pool) int {
+	t.Helper()
+	return countWhere(t, pool, `SELECT count(*) FROM moderation_jobs`)
+}
+
+func countQuarantined(t *testing.T, pool *pgxpool.Pool) int {
+	t.Helper()
+	return countWhere(t, pool, `SELECT count(*) FROM moderation_quarantine`)
+}
+
+func countOutbox(t *testing.T, pool *pgxpool.Pool, jobID uuid.UUID, generation int32) int {
+	t.Helper()
+	return countWhere(t, pool,
+		`SELECT count(*) FROM moderation_outbox WHERE job_id = $1 AND run_generation = $2`,
+		jobID, generation)
+}
+
+func countAttempts(t *testing.T, pool *pgxpool.Pool, jobID uuid.UUID, generation int32) int {
+	t.Helper()
+	return countWhere(t, pool,
+		`SELECT count(*) FROM moderation_attempts WHERE job_id = $1 AND run_generation = $2`,
+		jobID, generation)
+}
+
+func mustClaim(t *testing.T, store *jobs.JobStore, workerID string) *jobs.ClaimedJob {
+	t.Helper()
+	outcome, claimed, err := store.Claim(context.Background(), workerID, 30*time.Second)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if outcome != jobs.ClaimReady {
+		t.Fatalf("claim outcome = %v, want ready", outcome)
+	}
+	return claimed
+}
+
+// forceDue makes every non-terminal job immediately claimable, removing jitter
+// from the retry-policy assertions.
+func forceDue(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`UPDATE moderation_jobs SET next_attempt_at = now() - interval '1s'
+		 WHERE status IN ('queued','retry_wait')`)
+	if err != nil {
+		t.Fatalf("force due: %v", err)
+	}
+}
+
+// claimDue force-due and claims one job.
+func claimDue(t *testing.T, store *jobs.JobStore, pool *pgxpool.Pool) *jobs.ClaimedJob {
+	t.Helper()
+	forceDue(t, pool)
+	return mustClaim(t, store, "retry-worker")
+}
+
+// waitFor polls cond until it holds or the deadline passes.
+func waitFor(t *testing.T, cond func() bool, within time.Duration, what string) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("condition %q not met within %v", what, within)
+}
+
+func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
+	pool := newTestPool(t)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	t.Run("first delivery inserts one queued job", func(t *testing.T) {
+		in := ingestInput("a calm review")
+		result, err := store.Ingest(ctx, in)
+		if err != nil {
+			t.Fatalf("ingest: %v", err)
+		}
+		if result != jobs.IngestionInserted {
+			t.Fatalf("result = %v, want inserted", result)
+		}
+		job := jobByRequest(t, pool, in.ModerationRequestID)
+		if job.Status != "queued" || job.RunGeneration != 1 || job.AttemptCount != 0 {
+			t.Fatalf("seeded job wrong: %+v", job)
+		}
+		if job.Comment != in.Comment || job.ReviewerID != in.ReviewerID {
+			t.Fatalf("snapshot mismatch: %+v", job)
+		}
+	})
+
+	t.Run("duplicate delivery with agreeing fields is a no-op", func(t *testing.T) {
+		in := ingestInput("second review")
+		if _, err := store.Ingest(ctx, in); err != nil {
+			t.Fatalf("first ingest: %v", err)
+		}
+		result, err := store.Ingest(ctx, in) // same event redelivered
+		if err != nil {
+			t.Fatalf("duplicate ingest: %v", err)
+		}
+		if result != jobs.IngestionDeduplicated {
+			t.Fatalf("result = %v, want deduplicated", result)
+		}
+		if countJobs(t, pool) != 2 { // one from the first subtest + this one
+			t.Fatalf("duplicate delivery created another job: %d", countJobs(t, pool))
+		}
+		if n := countWhere(t, pool,
+			`SELECT count(*) FROM moderation_jobs WHERE moderation_request_id = $1`,
+			in.ModerationRequestID); n != 1 {
+			t.Fatalf("duplicate delivery produced %d jobs for one request id", n)
+		}
+	})
+
+	t.Run("disagreeing duplicate is quarantined", func(t *testing.T) {
+		in := ingestInput("original comment")
+		if _, err := store.Ingest(ctx, in); err != nil {
+			t.Fatalf("first ingest: %v", err)
+		}
+		conflict := in
+		conflict.ReviewerID = uuid.New()
+		result, err := store.Ingest(ctx, conflict)
+		if err != nil {
+			t.Fatalf("conflict ingest must ack: %v", err)
+		}
+		if result != jobs.IngestionConflictQuarantined {
+			t.Fatalf("result = %v, want conflict_quarantined", result)
+		}
+		if countQuarantined(t, pool) == 0 {
+			t.Fatalf("conflict was not quarantined")
+		}
+	})
+
+	t.Run("malformed event is quarantined and acknowledged", func(t *testing.T) {
+		before := countQuarantined(t, pool)
+		err := store.QuarantineMalformed(ctx, jobs.MalformedInput{
+			Topic: jobs.UsersReviewSubmittedTopic, MessageKey: "not-a-uuid",
+			EventID: "evt-1", Reason: "unparseable identifiers", Comment: "",
+		})
+		if err != nil {
+			t.Fatalf("quarantine malformed: %v", err)
+		}
+		if countQuarantined(t, pool) != before+1 {
+			t.Fatalf("malformed event was not recorded")
+		}
+	})
+}
+
+func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	const total = 6
+	requests := make([]uuid.UUID, 0, total)
+	for i := range total {
+		in := ingestInput(fmt.Sprintf("review %d", i))
+		if _, err := store.Ingest(ctx, in); err != nil {
+			t.Fatalf("ingest: %v", err)
+		}
+		requests = append(requests, in.ModerationRequestID)
+	}
+
+	// Two claim loops race over the same queue with SKIP LOCKED semantics.
+	var mu sync.Mutex
+	seen := make(map[uuid.UUID]bool)
+	var wg sync.WaitGroup
+	claimOne := func(worker string) {
+		defer wg.Done()
+		outcome, claimed, err := store.Claim(ctx, worker, 30*time.Second)
+		if err != nil {
+			t.Errorf("claim: %v", err)
+			return
+		}
+		if outcome != jobs.ClaimReady || claimed == nil {
+			t.Errorf("unexpected claim outcome %v", outcome)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if seen[claimed.Job.ModerationRequestID] {
+			t.Errorf("job %s claimed twice", claimed.Job.ModerationRequestID)
+		}
+		seen[claimed.Job.ModerationRequestID] = true
+	}
+	for i := range total {
+		wg.Add(1)
+		if i%2 == 0 {
+			go claimOne("worker-a")
+		} else {
+			claimOne("worker-b")
+		}
+	}
+	wg.Wait()
+
+	if len(seen) != total {
+		t.Fatalf("claimed %d distinct jobs, want %d", len(seen), total)
+	}
+	for _, id := range requests {
+		if !seen[id] {
+			t.Fatalf("job %s was never claimed", id)
+		}
+	}
+}
+
+func TestStaleClaimCannotFinalize(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("fencing target")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "worker-a")
+
+	// A stale worker (wrong claim token) must not complete the job.
+	stale := *claimed
+	stale.ClaimToken = uuid.New()
+	err := store.Complete(ctx, stale, jobs.Assessment{
+		Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1",
+	})
+	if !errors.Is(err, jobs.ErrFenced) {
+		t.Fatalf("stale complete error = %v, want ErrFenced", err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "processing" || job.Outcome != nil {
+		t.Fatalf("stale completion mutated the job: %+v", job)
+	}
+
+	// The rightful owner completes afterwards.
+	if err := store.Complete(ctx, *claimed, jobs.Assessment{
+		Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1",
+	}); err != nil {
+		t.Fatalf("rightful complete: %v", err)
+	}
+	job = jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "completed" || job.Outcome == nil || *job.Outcome != "approved" {
+		t.Fatalf("completion did not land: %+v", job)
+	}
+	if len(job.ReasonCodes) != 0 {
+		t.Fatalf("approval must carry no reason codes: %v", job.ReasonCodes)
+	}
+	if job.ClaimToken != nil {
+		t.Fatalf("terminal transition must clear the claim: %+v", job.ClaimToken)
+	}
+	if countOutbox(t, pool, job.ID, job.RunGeneration) != 1 {
+		t.Fatalf("terminal completion must enqueue exactly one outbox event")
+	}
+}
+
+func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("recover me")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, _, err := store.Claim(ctx, "crashed-worker", time.Minute); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	jobID := jobIDByRequest(t, pool, in.ModerationRequestID)
+	if n := countAttempts(t, pool, jobID, 1); n != 1 {
+		t.Fatalf("attempt rows after first claim = %d, want 1", n)
+	}
+
+	// Simulate a crashed worker: let the lease expire.
+	if _, err := pool.Exec(ctx,
+		`UPDATE moderation_jobs SET lease_until = now() - interval '1s' WHERE id = $1`, jobID); err != nil {
+		t.Fatalf("expire lease: %v", err)
+	}
+
+	outcome, recovered, err := store.Claim(ctx, "recovery-worker", 30*time.Second)
+	if err != nil || outcome != jobs.ClaimReady || recovered == nil {
+		t.Fatalf("recovery claim: %v %v %v", outcome, recovered, err)
+	}
+	if recovered.Job.ModerationRequestID != in.ModerationRequestID {
+		t.Fatalf("recovered the wrong job")
+	}
+	if recovered.Job.RunGeneration != 1 {
+		t.Fatalf("automatic recovery must not change the generation: %d", recovered.Job.RunGeneration)
+	}
+	// The abandoned attempt stays recorded: two attempt rows for generation 1.
+	// Both are unfinished at this point (the recovery attempt only finishes
+	// when its worker completes), but the abandoned one (attempt 1) must
+	// remain visibly unfinished so operators can identify crashed workers.
+	if n := countAttempts(t, pool, jobID, 1); n != 2 {
+		t.Fatalf("attempt rows = %d, want 2 (abandoned + recovery)", n)
+	}
+	var abandonedUnfinished int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM moderation_attempts
+		 WHERE job_id = $1 AND run_generation = 1 AND attempt_number = 1 AND finished_at IS NULL`,
+		jobID).Scan(&abandonedUnfinished); err != nil {
+		t.Fatalf("count abandoned: %v", err)
+	}
+	if abandonedUnfinished != 1 {
+		t.Fatalf("abandoned attempt must remain unfinished")
+	}
+}
+
+func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	policy := jobs.DefaultPolicy()
+	store := jobs.NewJobStore(pool, policy, nil)
+	ctx := context.Background()
+
+	in := ingestInput("doomed review")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "worker-a")
+
+	// A durable failure inside the budget schedules a delayed retry. The wait
+	// is fully jittered in [0, initial] for the first attempt, so only the
+	// bounds are asserted.
+	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapConnectionError(errors.New("boom"))); err != nil {
+		t.Fatalf("finalize failed: %v", err)
+	}
+	now := time.Now()
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "retry_wait" {
+		t.Fatalf("status = %q, want retry_wait", job.Status)
+	}
+	if job.NextAttemptAt == nil {
+		t.Fatalf("retry must carry next_attempt_at")
+	}
+	if job.NextAttemptAt.Before(now.Add(-time.Second)) ||
+		job.NextAttemptAt.After(now.Add(policy.InitialDelay+2*time.Second)) {
+		t.Fatalf("retry wait %v outside the jittered [0, initial] window relative to %v",
+			job.NextAttemptAt.Sub(now), now)
+	}
+	if job.ClaimToken != nil {
+		t.Fatalf("retry must clear the claim")
+	}
+	if countOutbox(t, pool, job.ID, job.RunGeneration) != 0 {
+		t.Fatalf("non-terminal failure must not enqueue an outbox event")
+	}
+
+	// Exhaust the budget: attempts 1..4 retry, attempt 5 (MaxAttempts) errors.
+	for attempt := 1; ; attempt++ {
+		if attempt > policy.MaxAttempts {
+			t.Fatalf("job never became errored after %d attempts", policy.MaxAttempts)
+		}
+		claimed := claimDue(t, store, pool)
+		if claimed.Job.ID != job.ID {
+			t.Fatalf("claimed unexpected job %s", claimed.Job.ID)
+		}
+		if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapConnectionError(errors.New("boom"))); err != nil {
+			t.Fatalf("finalize attempt %d: %v", attempt, err)
+		}
+		job = jobByRequest(t, pool, in.ModerationRequestID)
+		if job.Status == "errored" {
+			break
+		}
+		if job.Status != "retry_wait" {
+			t.Fatalf("unexpected status %q", job.Status)
+		}
+	}
+	if int(job.AttemptCount) != policy.MaxAttempts {
+		t.Fatalf("attempt count = %d, want %d", job.AttemptCount, policy.MaxAttempts)
+	}
+	if job.Outcome != nil {
+		t.Fatalf("errored jobs must not carry a content outcome: %v", job.Outcome)
+	}
+	if job.ErrorClass == nil || *job.ErrorClass != jobs.ErrorClassConnection {
+		t.Fatalf("errored job must record the sanitized error class: %v", job.ErrorClass)
+	}
+	if countOutbox(t, pool, job.ID, job.RunGeneration) != 1 {
+		t.Fatalf("terminal transition must commit exactly one outbox row")
+	}
+
+	// A terminal job is not claimable again even when due.
+	forceDue(t, pool)
+	outcome, claimed2, err := store.Claim(ctx, "worker-b", 30*time.Second)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if outcome == jobs.ClaimReady && claimed2 != nil && claimed2.Job.ID == job.ID {
+		t.Fatalf("terminal job was claimed again")
+	}
+}
+
+func TestInvalidOutputBudgetEndsInError(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	policy := jobs.DefaultPolicy()
+	store := jobs.NewJobStore(pool, policy, nil)
+	ctx := context.Background()
+
+	in := ingestInput("invalid output case")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+
+	// Attempts while the prior invalid count is below the budget retry; the
+	// attempt that observes invalidCount >= InvalidBudget errors the job.
+	for i := 0; i <= policy.InvalidBudget; i++ {
+		claimed := claimDue(t, store, pool)
+		if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapInvalidOutputError(errors.New("bad json"))); err != nil {
+			t.Fatalf("invalid-output finalize %d: %v", i, err)
+		}
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "errored" {
+		t.Fatalf("invalid output must terminate after the small budget: %q", job.Status)
+	}
+	if int(job.AttemptCount) != policy.InvalidBudget+1 {
+		t.Fatalf("attempt count = %d, want %d", job.AttemptCount, policy.InvalidBudget+1)
+	}
+	if countOutbox(t, pool, job.ID, job.RunGeneration) != 1 {
+		t.Fatalf("terminal errored job must enqueue its completion event")
+	}
+}
+
+func TestConfigurationErrorPausesWithoutBurningBudget(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("config error case")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	claimed := mustClaim(t, store, "worker-a")
+	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapConfigurationError(errors.New("bad key"))); err != nil {
+		t.Fatalf("finalize: %v", err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "retry_wait" {
+		t.Fatalf("status = %q, want retry_wait", job.Status)
+	}
+	if job.ErrorClass == nil || *job.ErrorClass != jobs.ErrorClassConfiguration {
+		t.Fatalf("configuration class must be surfaced: %v", job.ErrorClass)
+	}
+	// A fixed configuration error must never error the job: the policy pauses
+	// with MaxDelay instead of burning the terminal budget.
+	if int(job.AttemptCount) >= jobs.DefaultPolicy().MaxAttempts {
+		t.Fatalf("configuration errors must not burn the whole budget: %d", job.AttemptCount)
+	}
+}
+
+func TestClaimWithoutConfigurationQueuesWithoutAttempts(t *testing.T) {
+	pool := newTestPool(t) // truncated: config state exists (as at startup), no active version
+	if err := config.NewStore(pool).EnsureConfigState(context.Background()); err != nil {
+		t.Fatalf("ensure config state: %v", err)
+	}
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+
+	in := ingestInput("queued while unconfigured")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatalf("ingest must work without configuration: %v", err)
+	}
+	outcome, claimed, err := store.Claim(ctx, "worker-a", 30*time.Second)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if outcome != jobs.ClaimNoConfiguration || claimed != nil {
+		t.Fatalf("outcome = %v claimed = %v; want no-configuration", outcome, claimed)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "queued" || job.AttemptCount != 0 || job.ConfigVersionID != nil {
+		t.Fatalf("unconfigured claim must leave the job queued and untouched: %+v", job)
+	}
+	if n := countWhere(t, pool,
+		`SELECT count(*) FROM moderation_attempts WHERE job_id = $1`, job.ID); n != 0 {
+		t.Fatalf("unconfigured claim must not burn an attempt: %d rows", n)
+	}
+}
+
+func TestMigrationUpDownUp(t *testing.T) {
+	url := envOrSkip(t)
+	ctx := context.Background()
+	if err := database.MigrateDownAll(ctx, url); err != nil {
+		t.Fatalf("down: %v", err)
+	}
+	if err := database.Migrate(ctx, url); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if err := database.MigrateDownAll(ctx, url); err != nil {
+		t.Fatalf("down again: %v", err)
+	}
+	if err := database.Migrate(ctx, url); err != nil {
+		t.Fatalf("up again: %v", err)
+	}
+}

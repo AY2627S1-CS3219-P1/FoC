@@ -59,16 +59,16 @@ func buildRequest(input jobs.EvaluationInput) *CompletionRequest {
 		OutputMode: string(cfg.OutputMode),
 		SchemaJSON: SchemaJSON,
 		Parameters: CompletionParameters{
-			Temperature:       cfg.Temperature,
-			TopP:              cfg.TopP,
-			PresencePenalty:   cfg.PresencePenalty,
-			FrequencyPenalty:  cfg.FrequencyPenalty,
+			Temperature:         cfg.Temperature,
+			TopP:                cfg.TopP,
+			PresencePenalty:     cfg.PresencePenalty,
+			FrequencyPenalty:    cfg.FrequencyPenalty,
 			MaxCompletionTokens: cfg.MaxCompletionTokens,
-			MaxTokens:         cfg.MaxTokens,
-			Stop:              cfg.Stop,
-			Seed:              cfg.Seed,
-			ReasoningEffort:   cfg.ReasoningEffort,
-			Advanced:          cfg.Advanced,
+			MaxTokens:           cfg.MaxTokens,
+			Stop:                cfg.Stop,
+			Seed:                cfg.Seed,
+			ReasoningEffort:     cfg.ReasoningEffort,
+			Advanced:            cfg.Advanced,
 		},
 		Timeout: defaultRequestTimeout,
 	}
@@ -104,7 +104,9 @@ func parseAssessment(content string) (jobs.Assessment, error) {
 
 	var payload assessmentPayload
 	if err := decoder.Decode(&payload); err != nil {
-		return jobs.Assessment{}, &ErrInvalidOutput{Detail: "response is not a valid JSON object: " + bound(err.Error())}
+		return jobs.Assessment{}, &ErrInvalidOutput{
+			Detail: "response is not a valid JSON object: " + bound(err.Error()),
+		}
 	}
 	// Reject trailing garbage or a second JSON object after the verdict.
 	if _, err := decoder.Token(); err != io.EOF {

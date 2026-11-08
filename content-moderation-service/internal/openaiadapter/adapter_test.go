@@ -192,7 +192,12 @@ func TestCompleteSetsOptionalParamsWhenPresent(t *testing.T) {
 }
 
 func TestCompleteMaps429WithRetryAfter(t *testing.T) {
-	srv, _ := runServer(t, http.StatusTooManyRequests, "30", `{"error":{"type":"rate_limit_error","message":"slow down"}}`)
+	srv, _ := runServer(
+		t,
+		http.StatusTooManyRequests,
+		"30",
+		`{"error":{"type":"rate_limit_error","message":"slow down"}}`,
+	)
 	defer srv.Close()
 
 	adapter, err := New(Config{BaseURL: srv.URL, APIKey: "sk-super-secret", Timeout: 5 * time.Second})
@@ -252,7 +257,12 @@ func TestCompleteMaps5xxRetryable(t *testing.T) {
 }
 
 func TestCompleteDoesNotRetryOn429(t *testing.T) {
-	srv, rec := runServer(t, http.StatusTooManyRequests, "1", `{"error":{"type":"rate_limit_error","message":"slow down"}}`)
+	srv, rec := runServer(
+		t,
+		http.StatusTooManyRequests,
+		"1",
+		`{"error":{"type":"rate_limit_error","message":"slow down"}}`,
+	)
 	defer srv.Close()
 
 	adapter, err := New(Config{BaseURL: srv.URL, APIKey: "sk-x", Timeout: 5 * time.Second})

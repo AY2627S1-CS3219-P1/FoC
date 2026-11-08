@@ -59,7 +59,7 @@ type ErrRateLimited struct {
 	Detail string
 	// RetryAfter is the provider-advertised delay; HasRetryAfter reports whether
 	// it was provided.
-	RetryAfter  time.Duration
+	RetryAfter    time.Duration
 	HasRetryAfter bool
 }
 
@@ -101,7 +101,9 @@ type ErrConfiguration struct {
 	Detail string
 }
 
-func (e *ErrConfiguration) Error() string { return "llmpolicy: provider rejected the configuration or request: " + e.Detail }
+func (e *ErrConfiguration) Error() string {
+	return "llmpolicy: provider rejected the configuration or request: " + e.Detail
+}
 
 // IsRetryable reports that a configuration error is not worth retrying.
 func (e *ErrConfiguration) IsRetryable() bool { return false }

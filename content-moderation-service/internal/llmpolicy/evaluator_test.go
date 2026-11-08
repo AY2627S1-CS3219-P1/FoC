@@ -57,7 +57,11 @@ func TestEvaluateValidApprove(t *testing.T) {
 }
 
 func TestEvaluateValidReject(t *testing.T) {
-	assessment, err := assess(t, &CompletionResponse{Content: `{"decision":"reject","reason_codes":["HARASSMENT","SPAM"]}`}, nil)
+	assessment, err := assess(
+		t,
+		&CompletionResponse{Content: `{"decision":"reject","reason_codes":["HARASSMENT","SPAM"]}`},
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +81,11 @@ func TestEvaluateMalformedJSON(t *testing.T) {
 }
 
 func TestEvaluateTrailingGarbage(t *testing.T) {
-	_, err := assess(t, &CompletionResponse{Content: `{"decision":"approve","reason_codes":[]} but here is more text`}, nil)
+	_, err := assess(
+		t,
+		&CompletionResponse{Content: `{"decision":"approve","reason_codes":[]} but here is more text`},
+		nil,
+	)
 	assertInvalid(t, err)
 }
 
@@ -87,7 +95,13 @@ func TestEvaluateLeadingGarbage(t *testing.T) {
 }
 
 func TestEvaluateTwoObjects(t *testing.T) {
-	_, err := assess(t, &CompletionResponse{Content: `{"decision":"approve","reason_codes":[]}{"decision":"reject","reason_codes":["HATE"]}`}, nil)
+	_, err := assess(
+		t,
+		&CompletionResponse{
+			Content: `{"decision":"approve","reason_codes":[]}{"decision":"reject","reason_codes":["HATE"]}`,
+		},
+		nil,
+	)
 	assertInvalid(t, err)
 }
 
@@ -177,8 +191,8 @@ func TestEvaluateMultilingualBenignIsNotRejectedForBeingNegative(t *testing.T) {
 	fake := &fakeClient{resp: &CompletionResponse{Content: `{"decision":"approve","reason_codes":[]}`}}
 	e := NewEvaluator(fake)
 	assessment, err := e.Evaluate(context.Background(), jobs.EvaluationInput{
-		Comment:  comment,
-		Config:   jobs.EffectiveConfig{ModelID: "m", OutputMode: jobs.OutputModeJSONObject},
+		Comment: comment,
+		Config:  jobs.EffectiveConfig{ModelID: "m", OutputMode: jobs.OutputModeJSONObject},
 	})
 	if err != nil {
 		t.Fatalf("benign multilingual complaint validated as error: %v", err)
@@ -206,8 +220,8 @@ func TestPromptConstructionFreshSingleTurnAndDataFraming(t *testing.T) {
 	fake := &fakeClient{resp: &CompletionResponse{Content: `{"decision":"approve","reason_codes":[]}`}}
 	e := NewEvaluator(fake)
 	if _, err := e.Evaluate(context.Background(), jobs.EvaluationInput{
-		Comment:     comment,
-		Config:      jobs.EffectiveConfig{ModelID: "m", OutputMode: jobs.OutputModeJSONObject},
+		Comment: comment,
+		Config:  jobs.EffectiveConfig{ModelID: "m", OutputMode: jobs.OutputModeJSONObject},
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
