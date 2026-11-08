@@ -26,8 +26,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 )
 
-// newReviewService builds the review domain over the shared database pool.
-// The second return is nil unless review photo storage is configured.
+// newReviewService builds the review domain; photo storage is optional.
 func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	var photos *images.S3
@@ -46,9 +45,7 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 			photos = storage
 		}
 	}
-	// A typed-nil *images.S3 would make the PhotoStorage interface non-nil and
-	// bypass the domain's availability checks, so the adapter is assigned to
-	// the interface only when storage is actually configured.
+	// A typed-nil *images.S3 would bypass the domain's availability checks.
 	var reviewStorage review.PhotoStorage
 	if photos != nil {
 		reviewStorage = photos

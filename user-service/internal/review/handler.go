@@ -42,8 +42,7 @@ type Handler struct {
 	Logic Logic
 }
 
-// SubmitReview records the caller's review of the other participant; `from`
-// must be the caller so impersonation is rejected.
+// SubmitReview records the caller's review of the other participant.
 func (h *Handler) SubmitReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.SubmitReviewRequest],
@@ -84,8 +83,7 @@ func (h *Handler) SubmitReview(
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
 }
 
-// CreateReviewPhotoUpload grants one pre-signed PUT; the browser uploads the
-// bytes directly to storage, so the response carries the grant untouched.
+// CreateReviewPhotoUpload grants one pre-signed PUT; bytes go straight to storage.
 func (h *Handler) CreateReviewPhotoUpload(
 	ctx context.Context,
 	req *connect.Request[reviewv1.CreateReviewPhotoUploadRequest],
@@ -110,8 +108,7 @@ func (h *Handler) CreateReviewPhotoUpload(
 	return resp, nil
 }
 
-// ListReviewsForUser lists the reviews a user received; a suspended caller may
-// only list their own.
+// ListReviewsForUser lists received reviews; a suspended caller may only list their own.
 func (h *Handler) ListReviewsForUser(
 	ctx context.Context,
 	req *connect.Request[reviewv1.ListReviewsForUserRequest],
@@ -161,15 +158,12 @@ func (h *Handler) ListMyReviews(
 	return resp, nil
 }
 
-// noStore marks responses that may embed short-lived pre-signed photo URLs as
-// non-cacheable, so temporary upload and download credentials never sit in a
-// cache.
+// noStore marks responses embedding short-lived pre-signed URLs as non-cacheable.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
 }
 
-// ListMyReviewsForOrders resolves which of the given requests the caller has
-// already reviewed, so order lists render one CTA per order.
+// ListMyReviewsForOrders returns which of the requests the caller has reviewed.
 func (h *Handler) ListMyReviewsForOrders(
 	ctx context.Context,
 	req *connect.Request[reviewv1.ListMyReviewsForOrdersRequest],
@@ -197,9 +191,7 @@ func (h *Handler) ListMyReviewsForOrders(
 	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{ReviewedOrderIds: ids}), nil
 }
 
-// GetMyReviewForOrder returns the caller's review for one request; the review
-// is absent when the caller has not reviewed it. The response carries freshly
-// minted photo URLs, so it is marked non-cacheable.
+// GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
 func (h *Handler) GetMyReviewForOrder(
 	ctx context.Context,
 	req *connect.Request[reviewv1.GetMyReviewForOrderRequest],
@@ -221,8 +213,7 @@ func (h *Handler) GetMyReviewForOrder(
 	return resp, nil
 }
 
-// RemoveReview soft-deletes a review and records the removal audit row; the
-// admin-only gate lives in the interceptor.
+// RemoveReview soft-deletes a review and records the audit row.
 func (h *Handler) RemoveReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.RemoveReviewRequest],
@@ -256,9 +247,7 @@ func (h *Handler) ListReviewRemovals(
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }
 
-// authorizeSelfReviews is the ABAC rule that is too tied to the request message
-// for the token-claim interceptor: a suspended caller may only list the reviews
-// received by their own user.
+// A suspended caller may only list reviews received by their own user.
 func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	if !c.IsSuspended() {
 		return nil

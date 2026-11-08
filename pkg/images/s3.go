@@ -68,8 +68,7 @@ const (
 	DefaultDownloadTTL = 5 * time.Minute
 )
 
-// S3Config configures one bucket. UploadTTL and DownloadTTL bound how long the
-// presigned grants stay valid; zero uses the defaults, negative is rejected.
+// UploadTTL and DownloadTTL bound presigned grants; zero uses the defaults, negative is rejected.
 type S3Config struct {
 	Bucket, Region, Endpoint, PublicEndpoint string
 	UploadTTL, DownloadTTL                   time.Duration
@@ -83,9 +82,7 @@ type S3 struct {
 	downloadTTL time.Duration
 }
 
-// newS3Client builds a client for one endpoint. S3-compatible stores need
-// path-style addressing; leaving the endpoint empty keeps the SDK's default
-// regional endpoint and virtual-hosted style.
+// newS3Client uses path-style addressing whenever a custom endpoint is set.
 func newS3Client(cfg aws.Config, endpoint string) *s3.Client {
 	return s3.NewFromConfig(cfg, func(o *s3.Options) {
 		if endpoint == "" {
@@ -96,8 +93,7 @@ func newS3Client(cfg aws.Config, endpoint string) *s3.Client {
 	})
 }
 
-// NewS3 uses the standard AWS credential chain. Separate endpoints allow local
-// container traffic and browser grants to use their actual, signed hostnames.
+// NewS3 uses the standard credential chain; PublicEndpoint signs browser URLs.
 func NewS3(ctx context.Context, c S3Config) (*S3, error) {
 	if c.Bucket == "" {
 		return nil, errors.New("S3 bucket is required")
@@ -208,10 +204,7 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-// InitializeLocalBucket is an explicit local setup action, never server startup
-// behavior. Production buckets and policies are provisioned outside this service.
-// Callers pass the browser origins allowed to upload; the adapter hardcodes no
-// deployment-specific hosts.
+// InitializeLocalBucket creates the bucket and CORS policy from the caller's origins.
 func (s *S3) InitializeLocalBucket(ctx context.Context, origins ...string) error {
 	if len(origins) == 0 {
 		return errors.New("at least one browser origin is required")

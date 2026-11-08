@@ -1,7 +1,4 @@
-// Package review implements the review subdomain: participants rate each other
-// for a Completed request, and administrators remove (soft-delete) reviews and
-// audit it. The whole stack -- domain model, repository interface, transactional
-// service logic, sqlc repository and Connect handler -- lives here.
+// Package review implements review submission, listing, removal and review photos.
 package review
 
 import (
@@ -13,9 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Review is one participant's rating of the other for a single request. Reads
-// only return live rows, so DeletedAt is always the zero time in practice; the
-// field mirrors the soft-delete marker the table carries.
+// Review is one participant's rating of the other for a single request.
 type Review struct {
 	ID           uuid.UUID
 	ReviewerID   uuid.UUID
@@ -27,8 +22,7 @@ type Review struct {
 	Comment      string
 	CreatedAt    time.Time
 	DeletedAt    time.Time
-	// Photos carries freshly minted download URLs; empty when the review has
-	// no photos or storage is not configured.
+	// Photos carries freshly minted download URLs; empty without photos or storage.
 	Photos []ReviewPhotoView
 }
 
@@ -37,9 +31,7 @@ type ReviewSubmission struct {
 	Comment string
 }
 
-// ReviewPhoto is a staged or attached photo row. Grant URLs are never stored;
-// ObjectKey is the durable identity of the stored bytes. OwnerID is null once
-// the uploader's account is deleted.
+// ReviewPhoto is a staged or attached row; OwnerID is null after account deletion.
 type ReviewPhoto struct {
 	ID              uuid.UUID
 	OwnerID         uuid.NullUUID
@@ -72,15 +64,13 @@ type ReviewPhotoAttached struct {
 	Ordinal     int
 }
 
-// ClaimedReviewPhoto is a staging row claimed by cleanup, awaiting object and
-// row deletion.
+// ClaimedReviewPhoto awaits object and row deletion by cleanup.
 type ClaimedReviewPhoto struct {
 	ID        uuid.UUID
 	ObjectKey string
 }
 
-// ReviewRemoval is the audit row for a removed review; ReviewID references the
-// soft-deleted (retained) review.
+// ReviewRemoval is the audit row for a removed review.
 type ReviewRemoval struct {
 	ID            uuid.UUID
 	ReviewID      uuid.UUID
@@ -112,8 +102,7 @@ type ReviewInput struct {
 	Comment    string
 }
 
-// newID generates identifiers in Go because the database column default is
-// still gen_random_uuid() until a system-wide uuidv7 migration lands.
+// newID generates UUIDv7 identifiers until the column default catches up.
 func newID() (uuid.UUID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
