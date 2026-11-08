@@ -41,6 +41,33 @@ func recipients(e *eventsv1.OrderStatusChanged) []recipient {
 	return out
 }
 
+// delivery says how a notification is handled when it can't be sent promptly.
+type delivery int
+
+const (
+	// alwaysDeliver is sent however late, such as an order's outcome.
+	alwaysDeliver delivery = iota
+	// dropIfLate is sent only within LateWindow of the change.
+	dropIfLate
+	// ifStillCurrent is sent only while the change is the order's latest.
+	ifStillCurrent
+)
+
+// deliveryFor classifies the notification message returns for one recipient.
+func deliveryFor(e *eventsv1.OrderStatusChanged, r role) delivery {
+	switch {
+	case r == previousCourier:
+		return ifStillCurrent
+	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP && r == courier:
+		return ifStillCurrent
+	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+		e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_DELIVERING:
+		return dropIfLate
+	}
+	return alwaysDeliver
+}
+
 // message returns the text for one recipient, or "" when the change needs no
 // message for them.
 func message(e *eventsv1.OrderStatusChanged, r role) string {

@@ -34,10 +34,12 @@ jobs:
     timeout-minutes: 40
     env:
       AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+      K8S_KIND_CONFIG: infra/k8s/observability/kind.yaml
       K8S_BOOTSTRAP_SUPERADMIN_EMAIL: admin@example.test
       K8S_HTTPS_PORT: ""
       K8S_KAFKA_UI_PORT: ""
       K8S_MAILPIT_PORT: ""
+      K8S_GRAFANA_PORT: ""
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -54,6 +56,13 @@ jobs:
           make k8s-test
           .tools/bin/k8s render applications > /tmp/foc-local.yaml
           K8S_OVERLAY=infra/k8s/overlays/production .tools/bin/k8s render applications > /tmp/foc-production.yaml
+      - name: Validate logging configurations with pinned runtime images
+        run: |
+          make k8s-logging-validate
+          K8S_OVERLAY=infra/k8s/overlays/production \
+            K8S_LOKI_BUCKET=foc-ci-logs K8S_LOKI_REGION=ap-southeast-1 \
+            K8S_LOKI_IRSA_ROLE=arn:aws:iam::123456789012:role/foc-loki \
+            K8S_LOKI_STORAGE_CLASS=gp3 make k8s-logging-validate
       - name: Build and deploy into isolated kind cluster
         run: make k8s-up
       - name: Verify gateway, mTLS and private routing
@@ -76,6 +85,12 @@ jobs:
         run: make k8s-persistence-smoke
       - name: Verify signed object uploads through HTTPS
         run: make k8s-storage-smoke
+      - name: Verify logging admission, credential preservation and PVC retention
+        run: |
+          K8S_RUNTIME_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./k8s \
+            -run '^TestLogging(Admission|CredentialsAndPVCRetention|ReplicasRestore)LiveCluster$' -count=1 -v
+      - name: Verify logging collection and access
+        run: make k8s-logging-smoke
       - name: Verify application cannot start without a ready proxy
         run: make k8s-proxy-startup-smoke
       - name: Report bounded deployment status on failure

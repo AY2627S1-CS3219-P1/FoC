@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loki-bucket-init
+  namespace: foc
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loki-bucket-init
+  namespace: foc
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels: {app: loki-bucket-init}
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: loki-bucket-init
+      restartPolicy: Never
+      containers:
+        - name: bucket
+          image: curlimages/curl:8.12.1@sha256:94e9e444bcba979c2ea12e27ae39bee4cd10bc7041a472c4727a558e213744e6
+          command: [sh, -ec]
+          args:
+            - |
+              request() { curl --silent --show-error --aws-sigv4 aws:amz:us-east-1:s3 --user test:test "$@" http://floci:4566/foc-loki; }
+              code=$(request -X PUT -o /tmp/result -w '%{http_code}')
+              case "$code" in
+                200|204) ;;
+                409) request --fail -I ;;
+                *) cat /tmp/result; exit 1 ;;
+              esac
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: loki-s3
+  namespace: foc
+spec:
+  selector:
+    matchLabels: {app: floci}
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/foc-observability/sa/loki]
+      to:
+        - operation:
+            ports: ["4566"]
+            paths: ["/foc-loki", "/foc-loki/*"]

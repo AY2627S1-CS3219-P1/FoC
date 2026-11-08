@@ -61,6 +61,12 @@ func TestPostgresOrdersIgnoreOlderRevisions(t *testing.T) {
 	if _, err := s.GetOrder(ctx, uuid.New()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing order: %v", err)
 	}
+	if revision, found, err := s.Revision(ctx, o.ID); err != nil || !found || revision != 6 {
+		t.Fatalf("revision = %d, %v, %v", revision, found, err)
+	}
+	if _, found, err := s.Revision(ctx, uuid.New()); err != nil || found {
+		t.Fatalf("missing order revision: %v, %v", found, err)
+	}
 }
 
 func TestPostgresUserOrdersAndRouting(t *testing.T) {

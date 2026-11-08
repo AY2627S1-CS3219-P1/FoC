@@ -221,3 +221,6 @@ file. For the same reason the consumer-defined `PhotoStorage` port is declared
 in `photos.go` beside the code that uses it, rather than in `service.go`; only
 the composition root knows the adapter is S3. Without `USER_S3_BUCKET` the
 photo RPCs report unavailability and reviews submit without photos.
+
+Demo seeding uses the same user/event provisioning logic as registration.
+See [seed commands and reset behavior](../data/seeds/README.md).

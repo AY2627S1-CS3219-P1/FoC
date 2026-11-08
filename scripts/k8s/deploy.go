@@ -31,8 +31,7 @@ func (o *operator) createLocalCluster() error {
 	if contains(strings.Fields(result.stdout), o.cluster) {
 		return o.execute("kind", "export", "kubeconfig", "--name", o.cluster, "--kubeconfig", config)
 	}
-	return o.execute(
-		"kind",
+	args := []string{
 		"create",
 		"cluster",
 		"--name",
@@ -43,7 +42,11 @@ func (o *operator) createLocalCluster() error {
 		config,
 		"--wait",
 		o.timeout,
-	)
+	}
+	if topology := os.Getenv("K8S_KIND_CONFIG"); topology != "" {
+		args = append(args, "--config", absolute(o.root, topology))
+	}
+	return o.execute("kind", args...)
 }
 
 func (o *operator) installMesh() error {
@@ -60,11 +63,14 @@ func (o *operator) installMesh() error {
 			return fmt.Errorf("pinned Istio charts missing; run make k8s-tools: %w", err)
 		}
 	}
-	for _, file := range []string{"namespaces.yaml", "admission.yaml"} {
-		if err := o.applyManifest(filepath.Join(o.root, "infra/k8s/platform", file)); err != nil {
-			return err
-		}
+	platform, err := o.query("kustomize", filepath.Join(o.root, "infra/k8s/platform"))
+	if err != nil {
+		return err
 	}
+	if err := o.applyRendered(platform); err != nil {
+		return err
+	}
+
 	crds := []string{
 		"gatewayclasses.gateway.networking.k8s.io",
 		"gateways.gateway.networking.k8s.io",
@@ -224,6 +230,14 @@ func (o *operator) applyStage(stage string) error {
 	if err != nil {
 		return err
 	}
+	return o.applyRendered(rendered)
+}
+
+func (o *operator) applyRendered(rendered string) error {
+	if err := o.prepareState(); err != nil {
+		return err
+	}
+
 	if strings.TrimSpace(rendered) == "" {
 		return nil
 	}
@@ -277,7 +291,13 @@ func (o *operator) deployAll() error {
 	if err := o.checkOverlay(); err != nil {
 		return err
 	}
+	if _, err := o.lokiValuesArgs(); err != nil {
+		return err
+	}
 	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := o.checkGrafanaSecret(); err != nil {
 		return err
 	}
 	if !o.isLocal() {
@@ -362,6 +382,9 @@ func (o *operator) deployAll() error {
 			return err
 		}
 	}
+	if err := o.deployObservability(); err != nil {
+		return err
+	}
 	for _, job := range jobs {
 		if err := o.prepareJob(job); err != nil {
 			return err
@@ -437,6 +460,9 @@ func (o *operator) up() error {
 	if err := o.checkOverlay(); err != nil {
 		return err
 	}
+	if _, err := o.lokiValuesArgs(); err != nil {
+		return err
+	}
 	var forwards []forwardSpec
 	if o.isLocal() {
 		var err error
@@ -454,6 +480,9 @@ func (o *operator) up() error {
 		}
 	}
 	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := o.checkGrafanaSecret(); err != nil {
 		return err
 	}
 	if err := o.installMesh(); err != nil {
@@ -499,8 +528,10 @@ func (o *operator) showStatus() error {
 	}
 	for _, args := range [][]string{
 		{"-n", "foc", "get", "pods,jobs,pvc,services", "-o", "wide"},
+		{"-n", "foc-observability", "get", "pods,pvc,services", "-o", "wide"},
 		{"-n", "istio-system", "get", "pods"}, {"-n", "istio-ingress", "get", "pods,services"},
 		{"get", "gatewayclass/istio"}, {"get", "-A", "gateways,httproutes"},
+		{"-n", "foc-observability", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"},
 		{"-n", "foc", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"},
 	} {
 		if err := o.k(args...); err != nil {
