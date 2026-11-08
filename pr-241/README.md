@@ -14,3 +14,9 @@ Refreshed on 4 November 2026.
   matching the frontend estimate at the eventual delivery time.
 
 The branch is screenshot hosting only and can be deleted after PR #241 merges.
+
+## Review follow-up, 8 November 2026
+
+`review-drawer-fixed.png` and `review-supplier-filters.png` show the changes in
+PR commit `b9172917`, using mocked Connect responses and blocked map tiles.
+The drawer capture verifies that map controls stay behind the drawer and scrim.
