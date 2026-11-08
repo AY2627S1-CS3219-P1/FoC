@@ -8,6 +8,7 @@ export class AuthService {
 	#sessionRevision = 0;
 	#refreshInFlight: Promise<void> | undefined;
 	#pendingLogouts = new Set<Promise<void>>();
+	#pendingDeletions = new Set<Promise<void>>();
 	#sessionOperations = new Set<Promise<void>>();
 
 	readonly interceptor: Interceptor;
@@ -91,8 +92,8 @@ export class AuthService {
 	}
 
 	async refresh(): Promise<void> {
-		if (this.#pendingLogouts.size > 0) {
-			await Promise.all([...this.#pendingLogouts]);
+		if (this.#pendingLogouts.size > 0 || this.#pendingDeletions.size > 0) {
+			await Promise.allSettled([...this.#pendingLogouts, ...this.#pendingDeletions]);
 			return;
 		}
 		if (this.#refreshInFlight) {
@@ -145,11 +146,16 @@ export class AuthService {
 				}
 			});
 		});
+		// Register as a session barrier so a refresh started after this call
+		// waits for the restricted replacement instead of restoring an
+		// unrestricted session over it.
+		this.#pendingDeletions.add(deletion);
 		this.#sessionOperations.add(deletion);
-		void deletion.then(
-			() => this.#sessionOperations.delete(deletion),
-			() => this.#sessionOperations.delete(deletion)
-		);
+		const settled = () => {
+			this.#pendingDeletions.delete(deletion);
+			this.#sessionOperations.delete(deletion);
+		};
+		void deletion.then(settled, settled);
 		return deletion;
 	}
 
@@ -163,8 +169,8 @@ export class AuthService {
 		operation: () => Promise<AuthSession>,
 		clearOnFailure = false
 	): Promise<void> {
-		if (this.#pendingLogouts.size > 0) {
-			await Promise.allSettled([...this.#pendingLogouts]);
+		if (this.#pendingLogouts.size > 0 || this.#pendingDeletions.size > 0) {
+			await Promise.allSettled([...this.#pendingLogouts, ...this.#pendingDeletions]);
 			return this.#runSessionOperation(operation, clearOnFailure);
 		}
 

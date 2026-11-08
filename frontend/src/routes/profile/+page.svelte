@@ -16,6 +16,7 @@
 	import { authService, profileService } from '$lib/services';
 	import type { AccountDeletionStatus, UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
+	import { reasonText } from '$lib/services/profile/deletionReasons';
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
@@ -120,17 +121,6 @@
 
 	// Poll the deletion worker's status with a backoff that grows to a minute.
 	// A failed check is reported as unavailable and retried, never as empty.
-	const deletionReasons: Record<string, string> = {
-		order_outstanding: 'You still have an order that is not finished.',
-		offer_open: 'You still have an open offer. Withdraw it or let the requester decide.',
-		credit_reservation: 'Credits are still held or being settled for you.',
-		check_unavailable: 'A final check could not run yet.'
-	};
-
-	function reasonText(reason: string): string {
-		return deletionReasons[reason] ?? 'A final check is still waiting for: ' + reason + '.';
-	}
-
 	$effect(() => {
 		if (!isDeleting) return;
 		const identity = authService.user?.id;

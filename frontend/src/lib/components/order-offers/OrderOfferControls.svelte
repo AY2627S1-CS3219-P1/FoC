@@ -134,7 +134,7 @@
   <Button type="button" variant="text" disabled={busy} onclick={() => void loadOffers()}>Refresh offers</Button>
  </header>
  {#if suspended}<p>Your account is suspended. You can view history but cannot accept or make offers.</p>{/if}
- {#if deleting}<p>Account deletion was requested. You cannot make new offers or accept this order, but your existing offers and work stay usable.</p>{/if}
+ {#if deleting}<p>Account deletion was requested. You cannot make new offers or take on new work, but you can still accept an existing offer on your order and your existing work stays usable.</p>{/if}
  {#if message}<p role="status">{message}</p>{/if}
  {#if error}<p role="alert">{error}</p>{/if}
  {#if expiredProposal}<p>We cannot check this earlier offer again. Refresh offers before submitting another. A new offer may replace your open offer.</p>{/if}

@@ -485,6 +485,25 @@ describe('AuthService', () => {
 			expect(service.user?.isDeleting).toBe(true);
 		});
 
+		it('prevents a refresh started after deletion from restoring an unrestricted session', async () => {
+			const api = createAuthApi();
+			const pendingDeletion = deferred<AuthSession>();
+			api.deleteMyAccount.mockReturnValueOnce(pendingDeletion.promise);
+			const service = new AuthService(api);
+			await service.login('valid-token');
+
+			const deletion = service.deleteMyAccount();
+			// A refresh started after the deletion call must wait for the
+			// restricted replacement instead of running and overwriting it.
+			const refresh = service.refresh();
+			pendingDeletion.resolve(createSession('restricted-token', true));
+			await Promise.all([deletion, refresh]);
+
+			expect(api.refresh).not.toHaveBeenCalled();
+			expect(service.accessToken).toBe('restricted-token');
+			expect(service.user?.isDeleting).toBe(true);
+		});
+
 		it('keeps the existing session when the deletion request fails', async () => {
 			const api = createAuthApi();
 			const service = new AuthService(api);
