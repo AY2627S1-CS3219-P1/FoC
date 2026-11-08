@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -272,7 +273,10 @@ type User struct {
 	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Role        UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
 	// E.164. Absent only for the bootstrapped admin until they add one.
-	PhoneNumber   *string `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	PhoneNumber *string `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	// True once the account's irreversible deletion has been accepted. The
+	// account can still log in and finish existing work until final removal.
+	IsDeleting    bool `protobuf:"varint,7,opt,name=is_deleting,json=isDeleting,proto3" json:"is_deleting,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -340,6 +344,13 @@ func (x *User) GetPhoneNumber() string {
 		return *x.PhoneNumber
 	}
 	return ""
+}
+
+func (x *User) GetIsDeleting() bool {
+	if x != nil {
+		return x.IsDeleting
+	}
+	return false
 }
 
 type LoginResponse struct {
@@ -678,6 +689,107 @@ func (*LogoutAllResponse) Descriptor() ([]byte, []int) {
 	return file_user_v1_auth_proto_rawDescGZIP(), []int{12}
 }
 
+type DeleteMyAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMyAccountRequest) Reset() {
+	*x = DeleteMyAccountRequest{}
+	mi := &file_user_v1_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMyAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMyAccountRequest) ProtoMessage() {}
+
+func (x *DeleteMyAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMyAccountRequest.ProtoReflect.Descriptor instead.
+func (*DeleteMyAccountRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+// Returns the normal authenticated response data because acceptance rotates
+// the caller's session: the access token carries the deleting lifecycle state
+// and a fresh refresh cookie is set by the HTTP adapter.
+type DeleteMyAccountResponse struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	User        *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	AccessToken string                 `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	// The original deletion request time. Idempotent retries return the same
+	// value; it never resets.
+	RequestedAt   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=requested_at,json=requestedAt,proto3" json:"requested_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMyAccountResponse) Reset() {
+	*x = DeleteMyAccountResponse{}
+	mi := &file_user_v1_auth_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMyAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMyAccountResponse) ProtoMessage() {}
+
+func (x *DeleteMyAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_auth_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMyAccountResponse.ProtoReflect.Descriptor instead.
+func (*DeleteMyAccountResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *DeleteMyAccountResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *DeleteMyAccountResponse) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *DeleteMyAccountResponse) GetRequestedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RequestedAt
+	}
+	return nil
+}
+
 type GetPublicKeysRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -686,7 +798,7 @@ type GetPublicKeysRequest struct {
 
 func (x *GetPublicKeysRequest) Reset() {
 	*x = GetPublicKeysRequest{}
-	mi := &file_user_v1_auth_proto_msgTypes[13]
+	mi := &file_user_v1_auth_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +810,7 @@ func (x *GetPublicKeysRequest) String() string {
 func (*GetPublicKeysRequest) ProtoMessage() {}
 
 func (x *GetPublicKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[13]
+	mi := &file_user_v1_auth_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +823,7 @@ func (x *GetPublicKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeysRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicKeysRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{13}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{15}
 }
 
 type GetPublicKeysResponse struct {
@@ -723,7 +835,7 @@ type GetPublicKeysResponse struct {
 
 func (x *GetPublicKeysResponse) Reset() {
 	*x = GetPublicKeysResponse{}
-	mi := &file_user_v1_auth_proto_msgTypes[14]
+	mi := &file_user_v1_auth_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +847,7 @@ func (x *GetPublicKeysResponse) String() string {
 func (*GetPublicKeysResponse) ProtoMessage() {}
 
 func (x *GetPublicKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[14]
+	mi := &file_user_v1_auth_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +860,7 @@ func (x *GetPublicKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeysResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicKeysResponse) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{14}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetPublicKeysResponse) GetKeys() []*JsonWebKey {
@@ -773,7 +885,7 @@ type JsonWebKey struct {
 
 func (x *JsonWebKey) Reset() {
 	*x = JsonWebKey{}
-	mi := &file_user_v1_auth_proto_msgTypes[15]
+	mi := &file_user_v1_auth_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -785,7 +897,7 @@ func (x *JsonWebKey) String() string {
 func (*JsonWebKey) ProtoMessage() {}
 
 func (x *JsonWebKey) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_auth_proto_msgTypes[15]
+	mi := &file_user_v1_auth_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -798,7 +910,7 @@ func (x *JsonWebKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JsonWebKey.ProtoReflect.Descriptor instead.
 func (*JsonWebKey) Descriptor() ([]byte, []int) {
-	return file_user_v1_auth_proto_rawDescGZIP(), []int{15}
+	return file_user_v1_auth_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *JsonWebKey) GetKty() string {
@@ -854,7 +966,7 @@ var File_user_v1_auth_proto protoreflect.FileDescriptor
 
 const file_user_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/auth.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\"\x15\n" +
+	"\x12user/v1/auth.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x15\n" +
 	"\x13RequestLinkResponse\"5\n" +
 	"\x12RequestLinkRequest\x12\x1f\n" +
 	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"-\n" +
@@ -863,13 +975,15 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x0fRegisterRequest\x12\x1d\n" +
 	"\x05token\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x05token\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12!\n" +
-	"\fphone_number\x18\x04 \x01(\tR\vphoneNumberJ\x04\b\x03\x10\x04R\x0ftelegram_handle\"\xc6\x01\n" +
+	"\fphone_number\x18\x04 \x01(\tR\vphoneNumberJ\x04\b\x03\x10\x04R\x0ftelegram_handle\"\xe7\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12%\n" +
 	"\x04role\x18\x04 \x01(\x0e2\x11.user.v1.UserRoleR\x04role\x12&\n" +
-	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01B\x0f\n" +
+	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01\x12\x1f\n" +
+	"\vis_deleting\x18\a \x01(\bR\n" +
+	"isDeletingB\x0f\n" +
 	"\r_phone_numberJ\x04\b\x05\x10\x06R\x0ftelegram_handle\"U\n" +
 	"\rLoginResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\x12!\n" +
@@ -884,7 +998,12 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\rLogoutRequest\"\x10\n" +
 	"\x0eLogoutResponse\"\x12\n" +
 	"\x10LogoutAllRequest\"\x13\n" +
-	"\x11LogoutAllResponse\"\x16\n" +
+	"\x11LogoutAllResponse\"\x18\n" +
+	"\x16DeleteMyAccountRequest\"\x9e\x01\n" +
+	"\x17DeleteMyAccountResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\x12!\n" +
+	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12=\n" +
+	"\frequested_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vrequestedAt\"\x16\n" +
 	"\x14GetPublicKeysRequest\"@\n" +
 	"\x15GetPublicKeysResponse\x12'\n" +
 	"\x04keys\x18\x01 \x03(\v2\x13.user.v1.JsonWebKeyR\x04keys\"\x82\x01\n" +
@@ -902,14 +1021,15 @@ const file_user_v1_auth_proto_rawDesc = "" +
 	"\x15USER_ROLE_SUPER_ADMIN\x10\x01\x12\x13\n" +
 	"\x0fUSER_ROLE_ADMIN\x10\x02\x12\x12\n" +
 	"\x0eUSER_ROLE_USER\x10\x03\x12\x1c\n" +
-	"\x18USER_ROLE_SUSPENDED_USER\x10\x042\x99\x03\n" +
+	"\x18USER_ROLE_SUSPENDED_USER\x10\x042\xf1\x03\n" +
 	"\vAuthService\x12J\n" +
 	"\vRequestLink\x12\x1b.user.v1.RequestLinkRequest\x1a\x1c.user.v1.RequestLinkResponse\"\x00\x128\n" +
 	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x16.user.v1.LoginResponse\"\x00\x12A\n" +
 	"\bRegister\x12\x18.user.v1.RegisterRequest\x1a\x19.user.v1.RegisterResponse\"\x00\x12>\n" +
 	"\aRefresh\x12\x17.user.v1.RefreshRequest\x1a\x18.user.v1.RefreshResponse\"\x00\x12;\n" +
 	"\x06Logout\x12\x16.user.v1.LogoutRequest\x1a\x17.user.v1.LogoutResponse\"\x00\x12D\n" +
-	"\tLogoutAll\x12\x19.user.v1.LogoutAllRequest\x1a\x1a.user.v1.LogoutAllResponse\"\x002d\n" +
+	"\tLogoutAll\x12\x19.user.v1.LogoutAllRequest\x1a\x1a.user.v1.LogoutAllResponse\"\x00\x12V\n" +
+	"\x0fDeleteMyAccount\x12\x1f.user.v1.DeleteMyAccountRequest\x1a .user.v1.DeleteMyAccountResponse\"\x002d\n" +
 	"\x10PublicKeyService\x12P\n" +
 	"\rGetPublicKeys\x12\x1d.user.v1.GetPublicKeysRequest\x1a\x1e.user.v1.GetPublicKeysResponse\"\x00B\x8f\x01\n" +
 	"\vcom.user.v1B\tAuthProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
@@ -927,51 +1047,58 @@ func file_user_v1_auth_proto_rawDescGZIP() []byte {
 }
 
 var file_user_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_user_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_user_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_user_v1_auth_proto_goTypes = []any{
-	(UserRole)(0),                 // 0: user.v1.UserRole
-	(*RequestLinkResponse)(nil),   // 1: user.v1.RequestLinkResponse
-	(*RequestLinkRequest)(nil),    // 2: user.v1.RequestLinkRequest
-	(*LoginRequest)(nil),          // 3: user.v1.LoginRequest
-	(*RegisterRequest)(nil),       // 4: user.v1.RegisterRequest
-	(*User)(nil),                  // 5: user.v1.User
-	(*LoginResponse)(nil),         // 6: user.v1.LoginResponse
-	(*RegisterResponse)(nil),      // 7: user.v1.RegisterResponse
-	(*RefreshRequest)(nil),        // 8: user.v1.RefreshRequest
-	(*RefreshResponse)(nil),       // 9: user.v1.RefreshResponse
-	(*LogoutRequest)(nil),         // 10: user.v1.LogoutRequest
-	(*LogoutResponse)(nil),        // 11: user.v1.LogoutResponse
-	(*LogoutAllRequest)(nil),      // 12: user.v1.LogoutAllRequest
-	(*LogoutAllResponse)(nil),     // 13: user.v1.LogoutAllResponse
-	(*GetPublicKeysRequest)(nil),  // 14: user.v1.GetPublicKeysRequest
-	(*GetPublicKeysResponse)(nil), // 15: user.v1.GetPublicKeysResponse
-	(*JsonWebKey)(nil),            // 16: user.v1.JsonWebKey
+	(UserRole)(0),                   // 0: user.v1.UserRole
+	(*RequestLinkResponse)(nil),     // 1: user.v1.RequestLinkResponse
+	(*RequestLinkRequest)(nil),      // 2: user.v1.RequestLinkRequest
+	(*LoginRequest)(nil),            // 3: user.v1.LoginRequest
+	(*RegisterRequest)(nil),         // 4: user.v1.RegisterRequest
+	(*User)(nil),                    // 5: user.v1.User
+	(*LoginResponse)(nil),           // 6: user.v1.LoginResponse
+	(*RegisterResponse)(nil),        // 7: user.v1.RegisterResponse
+	(*RefreshRequest)(nil),          // 8: user.v1.RefreshRequest
+	(*RefreshResponse)(nil),         // 9: user.v1.RefreshResponse
+	(*LogoutRequest)(nil),           // 10: user.v1.LogoutRequest
+	(*LogoutResponse)(nil),          // 11: user.v1.LogoutResponse
+	(*LogoutAllRequest)(nil),        // 12: user.v1.LogoutAllRequest
+	(*LogoutAllResponse)(nil),       // 13: user.v1.LogoutAllResponse
+	(*DeleteMyAccountRequest)(nil),  // 14: user.v1.DeleteMyAccountRequest
+	(*DeleteMyAccountResponse)(nil), // 15: user.v1.DeleteMyAccountResponse
+	(*GetPublicKeysRequest)(nil),    // 16: user.v1.GetPublicKeysRequest
+	(*GetPublicKeysResponse)(nil),   // 17: user.v1.GetPublicKeysResponse
+	(*JsonWebKey)(nil),              // 18: user.v1.JsonWebKey
+	(*timestamppb.Timestamp)(nil),   // 19: google.protobuf.Timestamp
 }
 var file_user_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: user.v1.User.role:type_name -> user.v1.UserRole
 	5,  // 1: user.v1.LoginResponse.user:type_name -> user.v1.User
 	5,  // 2: user.v1.RegisterResponse.user:type_name -> user.v1.User
 	5,  // 3: user.v1.RefreshResponse.user:type_name -> user.v1.User
-	16, // 4: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
-	2,  // 5: user.v1.AuthService.RequestLink:input_type -> user.v1.RequestLinkRequest
-	3,  // 6: user.v1.AuthService.Login:input_type -> user.v1.LoginRequest
-	4,  // 7: user.v1.AuthService.Register:input_type -> user.v1.RegisterRequest
-	8,  // 8: user.v1.AuthService.Refresh:input_type -> user.v1.RefreshRequest
-	10, // 9: user.v1.AuthService.Logout:input_type -> user.v1.LogoutRequest
-	12, // 10: user.v1.AuthService.LogoutAll:input_type -> user.v1.LogoutAllRequest
-	14, // 11: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
-	1,  // 12: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
-	6,  // 13: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
-	7,  // 14: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
-	9,  // 15: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
-	11, // 16: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
-	13, // 17: user.v1.AuthService.LogoutAll:output_type -> user.v1.LogoutAllResponse
-	15, // 18: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
-	12, // [12:19] is the sub-list for method output_type
-	5,  // [5:12] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	5,  // 4: user.v1.DeleteMyAccountResponse.user:type_name -> user.v1.User
+	19, // 5: user.v1.DeleteMyAccountResponse.requested_at:type_name -> google.protobuf.Timestamp
+	18, // 6: user.v1.GetPublicKeysResponse.keys:type_name -> user.v1.JsonWebKey
+	2,  // 7: user.v1.AuthService.RequestLink:input_type -> user.v1.RequestLinkRequest
+	3,  // 8: user.v1.AuthService.Login:input_type -> user.v1.LoginRequest
+	4,  // 9: user.v1.AuthService.Register:input_type -> user.v1.RegisterRequest
+	8,  // 10: user.v1.AuthService.Refresh:input_type -> user.v1.RefreshRequest
+	10, // 11: user.v1.AuthService.Logout:input_type -> user.v1.LogoutRequest
+	12, // 12: user.v1.AuthService.LogoutAll:input_type -> user.v1.LogoutAllRequest
+	14, // 13: user.v1.AuthService.DeleteMyAccount:input_type -> user.v1.DeleteMyAccountRequest
+	16, // 14: user.v1.PublicKeyService.GetPublicKeys:input_type -> user.v1.GetPublicKeysRequest
+	1,  // 15: user.v1.AuthService.RequestLink:output_type -> user.v1.RequestLinkResponse
+	6,  // 16: user.v1.AuthService.Login:output_type -> user.v1.LoginResponse
+	7,  // 17: user.v1.AuthService.Register:output_type -> user.v1.RegisterResponse
+	9,  // 18: user.v1.AuthService.Refresh:output_type -> user.v1.RefreshResponse
+	11, // 19: user.v1.AuthService.Logout:output_type -> user.v1.LogoutResponse
+	13, // 20: user.v1.AuthService.LogoutAll:output_type -> user.v1.LogoutAllResponse
+	15, // 21: user.v1.AuthService.DeleteMyAccount:output_type -> user.v1.DeleteMyAccountResponse
+	17, // 22: user.v1.PublicKeyService.GetPublicKeys:output_type -> user.v1.GetPublicKeysResponse
+	15, // [15:23] is the sub-list for method output_type
+	7,  // [7:15] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_auth_proto_init() }
@@ -986,7 +1113,7 @@ func file_user_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_auth_proto_rawDesc), len(file_user_v1_auth_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

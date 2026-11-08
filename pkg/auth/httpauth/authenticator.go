@@ -25,12 +25,13 @@ import (
 
 // AccessClaims are the verified claims available to protected handlers.
 type AccessClaims struct {
-	Subject   string
-	SessionID string
-	Role      string
-	IssuedAt  time.Time
-	ExpiresAt time.Time
-	TokenID   string
+	Subject    string
+	SessionID  string
+	Role       string
+	IsDeleting bool
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	TokenID    string
 }
 
 type AuthConfig struct {
@@ -130,8 +131,9 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 
 func callerFromClaims(claims AccessClaims) auth.Caller {
 	return auth.Caller{ID: claims.Subject, SessionID: claims.SessionID, Role: claims.Role,
-		Admin:    claims.Role == "admin" || claims.Role == "super_admin",
-		IssuedAt: claims.IssuedAt, ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
+		Admin:      claims.Role == "admin" || claims.Role == "super_admin",
+		IsDeleting: claims.IsDeleting, IssuedAt: claims.IssuedAt,
+		ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}
 }
 
 var (
@@ -164,7 +166,8 @@ func (a *Authenticator) verify(ctx context.Context, token string) (AccessClaims,
 		return AccessClaims{}, errInvalidAccessToken
 	}
 	return AccessClaims{Subject: payload.Subject, SessionID: payload.SessionID, Role: string(payload.Role),
-		IssuedAt: payload.IssuedAt.Time.UTC(), ExpiresAt: payload.ExpiresAt.Time.UTC(), TokenID: payload.ID}, nil
+		IsDeleting: payload.IsDeleting, IssuedAt: payload.IssuedAt.Time.UTC(),
+		ExpiresAt: payload.ExpiresAt.Time.UTC(), TokenID: payload.ID}, nil
 }
 
 func (a *Authenticator) key(ctx context.Context, token *jwt.Token) (any, error) {

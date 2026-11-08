@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package credit.v1;
+
+import "buf/validate/validate.proto";
+
+// Service-to-service reads. Not exposed to the frontend.
+service CreditInternalService {
+  // Read-only outstanding-work check for account deletion finalization. The
+  // User Service deletion worker calls this with its service identity. It
+  // never mutates state or opens an account; a nonexistent Credit account is
+  // not outstanding. Timeouts and errors count as unknown, never as empty.
+  rpc GetUserOutstandingWork(GetUserOutstandingWorkRequest) returns (GetUserOutstandingWorkResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+message GetUserOutstandingWorkRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetUserOutstandingWorkResponse {
+  // True when the user still has outstanding financial work that blocks
+  // account finalization. The result reflects one consistent database
+  // snapshot.
+  bool has_outstanding_work = 1;
+  // Stable reason categories explaining the outstanding result. Empty when
+  // has_outstanding_work is false.
+  repeated OutstandingWorkReason reasons = 2;
+}
+
+enum OutstandingWorkReason {
+  OUTSTANDING_WORK_REASON_UNSPECIFIED = 0;
+  // The account holds a nonzero reserved amount.
+  OUTSTANDING_WORK_REASON_RESERVED_BALANCE = 1;
+  // HELD or ASSIGNED reservations involving the user as requester or courier.
+  OUTSTANDING_WORK_REASON_ACTIVE_RESERVATION = 2;
+  // Applied or pending courier assignments and their settlement obligations;
+  // reserved = 0 alone does not establish courier safety.
+  OUTSTANDING_WORK_REASON_UNSETTLED_ASSIGNMENT = 3;
+  // Unresolved refund, adjustment, settlement or recovery work that can still
+  // affect the user. Completed immutable ledger/history rows are not
+  // outstanding.
+  OUTSTANDING_WORK_REASON_PENDING_FINANCIAL_WORK = 4;
+}

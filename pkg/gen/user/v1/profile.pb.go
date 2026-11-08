@@ -10,6 +10,7 @@ import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,8 +30,10 @@ type Profile struct {
 	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	// E.164. Absent only for the bootstrapped admin until they add one.
-	PhoneNumber   *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
-	Role          UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	PhoneNumber *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
+	Role        UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
+	// True once the account's irreversible deletion has been accepted.
+	IsDeleting    bool `protobuf:"varint,8,opt,name=is_deleting,json=isDeleting,proto3" json:"is_deleting,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,6 +108,13 @@ func (x *Profile) GetRole() UserRole {
 		return x.Role
 	}
 	return UserRole_USER_ROLE_UNSPECIFIED
+}
+
+func (x *Profile) GetIsDeleting() bool {
+	if x != nil {
+		return x.IsDeleting
+	}
+	return false
 }
 
 type GetMyProfileRequest struct {
@@ -294,18 +304,130 @@ func (x *UpdateMyProfileResponse) GetProfile() *Profile {
 	return nil
 }
 
+type GetMyAccountDeletionStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMyAccountDeletionStatusRequest) Reset() {
+	*x = GetMyAccountDeletionStatusRequest{}
+	mi := &file_user_v1_profile_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMyAccountDeletionStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMyAccountDeletionStatusRequest) ProtoMessage() {}
+
+func (x *GetMyAccountDeletionStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMyAccountDeletionStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetMyAccountDeletionStatusRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{5}
+}
+
+type GetMyAccountDeletionStatusResponse struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	IsDeleting bool                   `protobuf:"varint,1,opt,name=is_deleting,json=isDeleting,proto3" json:"is_deleting,omitempty"`
+	// The original, immutable deletion request time.
+	RequestedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=requested_at,json=requestedAt,proto3" json:"requested_at,omitempty"`
+	// When the deletion worker last completed an outstanding-work check.
+	LastCheckedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_checked_at,json=lastCheckedAt,proto3" json:"last_checked_at,omitempty"`
+	// Stable reason codes explaining why finalization is still waiting, e.g.
+	// "order_outstanding", "offer_open", "credit_reservation". Empty means the
+	// worker is not currently reporting a blocker. An unavailable dependency is
+	// reported as "check_unavailable"; it never means "no outstanding work".
+	WaitingReasons []string `protobuf:"bytes,4,rep,name=waiting_reasons,json=waitingReasons,proto3" json:"waiting_reasons,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetMyAccountDeletionStatusResponse) Reset() {
+	*x = GetMyAccountDeletionStatusResponse{}
+	mi := &file_user_v1_profile_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMyAccountDeletionStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMyAccountDeletionStatusResponse) ProtoMessage() {}
+
+func (x *GetMyAccountDeletionStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_profile_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMyAccountDeletionStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetMyAccountDeletionStatusResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_profile_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetMyAccountDeletionStatusResponse) GetIsDeleting() bool {
+	if x != nil {
+		return x.IsDeleting
+	}
+	return false
+}
+
+func (x *GetMyAccountDeletionStatusResponse) GetRequestedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RequestedAt
+	}
+	return nil
+}
+
+func (x *GetMyAccountDeletionStatusResponse) GetLastCheckedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastCheckedAt
+	}
+	return nil
+}
+
+func (x *GetMyAccountDeletionStatusResponse) GetWaitingReasons() []string {
+	if x != nil {
+		return x.WaitingReasons
+	}
+	return nil
+}
+
 var File_user_v1_profile_proto protoreflect.FileDescriptor
 
 const file_user_v1_profile_proto_rawDesc = "" +
 	"\n" +
-	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"\xeb\x01\n" +
+	"\x15user/v1/profile.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x12user/v1/auth.proto\"\x8c\x02\n" +
 	"\aProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12&\n" +
 	"\fphone_number\x18\x06 \x01(\tH\x00R\vphoneNumber\x88\x01\x01\x12%\n" +
-	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04roleB\x0f\n" +
+	"\x04role\x18\a \x01(\x0e2\x11.user.v1.UserRoleR\x04role\x12\x1f\n" +
+	"\vis_deleting\x18\b \x01(\bR\n" +
+	"isDeletingB\x0f\n" +
 	"\r_phone_numberJ\x04\b\x05\x10\x06R\x0ftelegram_handle\"\x15\n" +
 	"\x13GetMyProfileRequest\"B\n" +
 	"\x14GetMyProfileResponse\x12*\n" +
@@ -315,10 +437,18 @@ const file_user_v1_profile_proto_rawDesc = "" +
 	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x12!\n" +
 	"\fphone_number\x18\x04 \x01(\tR\vphoneNumberJ\x04\b\x03\x10\x04R\x0ftelegram_handle\"E\n" +
 	"\x17UpdateMyProfileResponse\x12*\n" +
-	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile2\xb7\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"#\n" +
+	"!GetMyAccountDeletionStatusRequest\"\xf1\x01\n" +
+	"\"GetMyAccountDeletionStatusResponse\x12\x1f\n" +
+	"\vis_deleting\x18\x01 \x01(\bR\n" +
+	"isDeleting\x12=\n" +
+	"\frequested_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vrequestedAt\x12B\n" +
+	"\x0flast_checked_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rlastCheckedAt\x12'\n" +
+	"\x0fwaiting_reasons\x18\x04 \x03(\tR\x0ewaitingReasons2\xb3\x02\n" +
 	"\x0eProfileService\x12M\n" +
 	"\fGetMyProfile\x12\x1c.user.v1.GetMyProfileRequest\x1a\x1d.user.v1.GetMyProfileResponse\"\x00\x12V\n" +
-	"\x0fUpdateMyProfile\x12\x1f.user.v1.UpdateMyProfileRequest\x1a .user.v1.UpdateMyProfileResponse\"\x00B\x92\x01\n" +
+	"\x0fUpdateMyProfile\x12\x1f.user.v1.UpdateMyProfileRequest\x1a .user.v1.UpdateMyProfileResponse\"\x00\x12z\n" +
+	"\x1aGetMyAccountDeletionStatus\x12*.user.v1.GetMyAccountDeletionStatusRequest\x1a+.user.v1.GetMyAccountDeletionStatusResponse\"\x03\x90\x02\x01B\x92\x01\n" +
 	"\vcom.user.v1B\fProfileProtoP\x01Z8github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
 var (
@@ -333,28 +463,35 @@ func file_user_v1_profile_proto_rawDescGZIP() []byte {
 	return file_user_v1_profile_proto_rawDescData
 }
 
-var file_user_v1_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_user_v1_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_user_v1_profile_proto_goTypes = []any{
-	(*Profile)(nil),                 // 0: user.v1.Profile
-	(*GetMyProfileRequest)(nil),     // 1: user.v1.GetMyProfileRequest
-	(*GetMyProfileResponse)(nil),    // 2: user.v1.GetMyProfileResponse
-	(*UpdateMyProfileRequest)(nil),  // 3: user.v1.UpdateMyProfileRequest
-	(*UpdateMyProfileResponse)(nil), // 4: user.v1.UpdateMyProfileResponse
-	(UserRole)(0),                   // 5: user.v1.UserRole
+	(*Profile)(nil),                            // 0: user.v1.Profile
+	(*GetMyProfileRequest)(nil),                // 1: user.v1.GetMyProfileRequest
+	(*GetMyProfileResponse)(nil),               // 2: user.v1.GetMyProfileResponse
+	(*UpdateMyProfileRequest)(nil),             // 3: user.v1.UpdateMyProfileRequest
+	(*UpdateMyProfileResponse)(nil),            // 4: user.v1.UpdateMyProfileResponse
+	(*GetMyAccountDeletionStatusRequest)(nil),  // 5: user.v1.GetMyAccountDeletionStatusRequest
+	(*GetMyAccountDeletionStatusResponse)(nil), // 6: user.v1.GetMyAccountDeletionStatusResponse
+	(UserRole)(0),                              // 7: user.v1.UserRole
+	(*timestamppb.Timestamp)(nil),              // 8: google.protobuf.Timestamp
 }
 var file_user_v1_profile_proto_depIdxs = []int32{
-	5, // 0: user.v1.Profile.role:type_name -> user.v1.UserRole
+	7, // 0: user.v1.Profile.role:type_name -> user.v1.UserRole
 	0, // 1: user.v1.GetMyProfileResponse.profile:type_name -> user.v1.Profile
 	0, // 2: user.v1.UpdateMyProfileResponse.profile:type_name -> user.v1.Profile
-	1, // 3: user.v1.ProfileService.GetMyProfile:input_type -> user.v1.GetMyProfileRequest
-	3, // 4: user.v1.ProfileService.UpdateMyProfile:input_type -> user.v1.UpdateMyProfileRequest
-	2, // 5: user.v1.ProfileService.GetMyProfile:output_type -> user.v1.GetMyProfileResponse
-	4, // 6: user.v1.ProfileService.UpdateMyProfile:output_type -> user.v1.UpdateMyProfileResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	8, // 3: user.v1.GetMyAccountDeletionStatusResponse.requested_at:type_name -> google.protobuf.Timestamp
+	8, // 4: user.v1.GetMyAccountDeletionStatusResponse.last_checked_at:type_name -> google.protobuf.Timestamp
+	1, // 5: user.v1.ProfileService.GetMyProfile:input_type -> user.v1.GetMyProfileRequest
+	3, // 6: user.v1.ProfileService.UpdateMyProfile:input_type -> user.v1.UpdateMyProfileRequest
+	5, // 7: user.v1.ProfileService.GetMyAccountDeletionStatus:input_type -> user.v1.GetMyAccountDeletionStatusRequest
+	2, // 8: user.v1.ProfileService.GetMyProfile:output_type -> user.v1.GetMyProfileResponse
+	4, // 9: user.v1.ProfileService.UpdateMyProfile:output_type -> user.v1.UpdateMyProfileResponse
+	6, // 10: user.v1.ProfileService.GetMyAccountDeletionStatus:output_type -> user.v1.GetMyAccountDeletionStatusResponse
+	8, // [8:11] is the sub-list for method output_type
+	5, // [5:8] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_profile_proto_init() }
@@ -370,7 +507,7 @@ func file_user_v1_profile_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_profile_proto_rawDesc), len(file_user_v1_profile_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

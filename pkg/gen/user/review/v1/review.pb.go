@@ -40,10 +40,15 @@ type Review struct {
 	Comment   string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// display_name of the reviewer and reviewee, joined at read time.
-	ReviewerName  string `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
-	RevieweeName  string `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ReviewerName string `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
+	RevieweeName string `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
+	// True when the corresponding participant row no longer exists (its foreign
+	// key cleared to NULL on hard delete). The id and name are then empty, so
+	// retained history renders as a deleted account.
+	ReviewerDeleted bool `protobuf:"varint,10,opt,name=reviewer_deleted,json=reviewerDeleted,proto3" json:"reviewer_deleted,omitempty"`
+	RevieweeDeleted bool `protobuf:"varint,11,opt,name=reviewee_deleted,json=revieweeDeleted,proto3" json:"reviewee_deleted,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Review) Reset() {
@@ -137,6 +142,20 @@ func (x *Review) GetRevieweeName() string {
 		return x.RevieweeName
 	}
 	return ""
+}
+
+func (x *Review) GetReviewerDeleted() bool {
+	if x != nil {
+		return x.ReviewerDeleted
+	}
+	return false
+}
+
+func (x *Review) GetRevieweeDeleted() bool {
+	if x != nil {
+		return x.RevieweeDeleted
+	}
+	return false
 }
 
 // The rating and comment a caller submits about a reviewee.
@@ -599,8 +618,11 @@ type ReviewRemoval struct {
 	CreatedBy  string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	// display_name of the user who created this audit row, joined at read time.
 	CreatedByName string `protobuf:"bytes,8,opt,name=created_by_name,json=createdByName,proto3" json:"created_by_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// True when the auditing user row no longer exists (cleared to NULL on hard
+	// delete); created_by and created_by_name are then empty.
+	CreatedByDeleted bool `protobuf:"varint,9,opt,name=created_by_deleted,json=createdByDeleted,proto3" json:"created_by_deleted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ReviewRemoval) Reset() {
@@ -687,6 +709,13 @@ func (x *ReviewRemoval) GetCreatedByName() string {
 		return x.CreatedByName
 	}
 	return ""
+}
+
+func (x *ReviewRemoval) GetCreatedByDeleted() bool {
+	if x != nil {
+		return x.CreatedByDeleted
+	}
+	return false
 }
 
 type ListReviewRemovalsRequest struct {
@@ -789,7 +818,7 @@ var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x02\n" +
+	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x03\n" +
 	"\x06Review\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -802,7 +831,10 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
 	"\rreviewer_name\x18\b \x01(\tR\freviewerName\x12#\n" +
-	"\rreviewee_name\x18\t \x01(\tR\frevieweeName\"\\\n" +
+	"\rreviewee_name\x18\t \x01(\tR\frevieweeName\x12)\n" +
+	"\x10reviewer_deleted\x18\n" +
+	" \x01(\bR\x0freviewerDeleted\x12)\n" +
+	"\x10reviewee_deleted\x18\v \x01(\bR\x0frevieweeDeleted\"\\\n" +
 	"\x10ReviewSubmission\x12!\n" +
 	"\x06rating\x18\x01 \x01(\x05B\t\xbaH\x06\x1a\x04\x18\x05(\x01R\x06rating\x12%\n" +
 	"\acomment\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\acomment\"\xbc\x01\n" +
@@ -836,7 +868,7 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x13RemoveReviewRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12#\n" +
 	"\x06reason\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\x06reason\"\x16\n" +
-	"\x14RemoveReviewResponse\"\x96\x02\n" +
+	"\x14RemoveReviewResponse\"\xc4\x02\n" +
 	"\rReviewRemoval\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -849,7 +881,8 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"created_by\x18\a \x01(\tR\tcreatedBy\x12&\n" +
-	"\x0fcreated_by_name\x18\b \x01(\tR\rcreatedByName\"V\n" +
+	"\x0fcreated_by_name\x18\b \x01(\tR\rcreatedByName\x12,\n" +
+	"\x12created_by_deleted\x18\t \x01(\bR\x10createdByDeleted\"V\n" +
 	"\x19ListReviewRemovalsRequest\x129\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +

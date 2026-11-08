@@ -3,6 +3,8 @@ syntax = "proto3";
 package user.v1;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
 service AuthService {
   rpc RequestLink(RequestLinkRequest) returns (RequestLinkResponse) {}
   rpc Login(LoginRequest) returns (LoginResponse) {}
@@ -10,6 +12,13 @@ service AuthService {
   rpc Refresh(RefreshRequest) returns (RefreshResponse) {}
   rpc Logout(LogoutRequest) returns (LogoutResponse) {}
   rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse) {}
+  // DeleteMyAccount marks the authenticated account as permanently deleting.
+  // It authenticates with the refresh cookie and derives the account from the
+  // live session; it accepts no user ID or email. Acceptance is irreversible
+  // even when outstanding work exists: the caller receives a replacement
+  // session whose access token carries the deleting lifecycle state and can
+  // finish existing work until the background worker removes the account.
+  rpc DeleteMyAccount(DeleteMyAccountRequest) returns (DeleteMyAccountResponse) {}
 }
 
 service PublicKeyService {
@@ -51,6 +60,9 @@ message User {
   reserved "telegram_handle";
   // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
+  // True once the account's irreversible deletion has been accepted. The
+  // account can still log in and finish existing work until final removal.
+  bool is_deleting = 7;
 }
 
 enum UserRole {
@@ -85,6 +97,19 @@ message LogoutResponse {}
 message LogoutAllRequest {}
 
 message LogoutAllResponse {}
+
+message DeleteMyAccountRequest {}
+
+// Returns the normal authenticated response data because acceptance rotates
+// the caller's session: the access token carries the deleting lifecycle state
+// and a fresh refresh cookie is set by the HTTP adapter.
+message DeleteMyAccountResponse {
+  User user = 1;
+  string access_token = 2;
+  // The original deletion request time. Idempotent retries return the same
+  // value; it never resets.
+  google.protobuf.Timestamp requested_at = 3;
+}
 
 message GetPublicKeysRequest {}
 

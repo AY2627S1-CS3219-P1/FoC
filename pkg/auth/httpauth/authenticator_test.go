@@ -114,6 +114,33 @@ func testAuthenticatorVerifyTypedClaims(t *testing.T) {
 		}
 	})
 
+	t.Run("deleting lifecycle claim propagates to the caller", func(t *testing.T) {
+		claims := validTestClaims(now)
+		claims["is_del"] = true
+		verified, err := a.verify(context.Background(), signTestToken(t, key, "key-1", claims))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !verified.IsDeleting {
+			t.Fatal("is_deleting claim dropped by remote verification")
+		}
+		caller := callerFromClaims(verified)
+		if !caller.IsDeleting {
+			t.Fatal("is_deleting not carried into auth.Caller")
+		}
+	})
+
+	t.Run("access token without the claim is unrestricted", func(t *testing.T) {
+		verified, err := a.verify(context.Background(),
+			signTestToken(t, key, "key-1", validTestClaims(now)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if verified.IsDeleting {
+			t.Fatal("absent is_del must not set IsDeleting")
+		}
+	})
+
 	for _, tc := range []struct {
 		name   string
 		mutate func(jwt.MapClaims)

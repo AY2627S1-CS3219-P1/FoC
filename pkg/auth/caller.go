@@ -11,9 +11,13 @@ type Caller struct {
 	SessionID string
 	Role      string
 	Admin     bool
-	IssuedAt  time.Time
-	ExpiresAt time.Time
-	TokenID   string
+	// IsDeleting reports an access token issued after the account's
+	// irreversible deletion was accepted. Services classify their start-work
+	// methods against this state; existing-work completion stays permitted.
+	IsDeleting bool
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	TokenID    string
 }
 
 type callerKey struct{}

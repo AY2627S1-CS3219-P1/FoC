@@ -40,6 +40,10 @@ type Claims struct {
 	SessionID string   `json:"sid"`
 	TokenUse  TokenUse `json:"token_use"`
 	Role      Role     `json:"role,omitempty"`
+	// IsDeleting marks an access token issued after the account's
+	// irreversible deletion was accepted. Refresh tokens never carry it;
+	// issuance re-derives the lifecycle state from the live account.
+	IsDeleting bool `json:"is_del,omitempty"`
 
 	expectedUse TokenUse
 }
@@ -69,8 +73,8 @@ func (c Claims) Validate() error {
 	if c.expectedUse == AccessToken && !c.Role.Valid() {
 		return errors.New("invalid access token role")
 	}
-	if c.expectedUse == RefreshToken && c.Role != "" {
-		return errors.New("refresh token must not contain a role")
+	if c.expectedUse == RefreshToken && (c.Role != "" || c.IsDeleting) {
+		return errors.New("refresh token must not contain role or lifecycle state")
 	}
 	return nil
 }

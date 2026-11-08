@@ -3,11 +3,16 @@ syntax = "proto3";
 package user.v1;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 import "user/v1/auth.proto";
 
 service ProfileService {
   rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse) {}
   rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse) {}
+
+  // Deletion status for the authenticated account's pending deletion job.
+  // Reports only the caller's own state; no arbitrary-target lookup.
+  rpc GetMyAccountDeletionStatus(GetMyAccountDeletionStatusRequest) returns (GetMyAccountDeletionStatusResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
 message Profile {
@@ -20,6 +25,8 @@ message Profile {
   // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
   UserRole role = 7;
+  // True once the account's irreversible deletion has been accepted.
+  bool is_deleting = 8;
 }
 
 message GetMyProfileRequest {}
@@ -41,4 +48,19 @@ message UpdateMyProfileRequest {
 
 message UpdateMyProfileResponse {
   Profile profile = 1;
+}
+
+message GetMyAccountDeletionStatusRequest {}
+
+message GetMyAccountDeletionStatusResponse {
+  bool is_deleting = 1;
+  // The original, immutable deletion request time.
+  google.protobuf.Timestamp requested_at = 2;
+  // When the deletion worker last completed an outstanding-work check.
+  google.protobuf.Timestamp last_checked_at = 3;
+  // Stable reason codes explaining why finalization is still waiting, e.g.
+  // "order_outstanding", "offer_open", "credit_reservation". Empty means the
+  // worker is not currently reporting a blocker. An unavailable dependency is
+  // reported as "check_unavailable"; it never means "no outstanding work".
+  repeated string waiting_reasons = 4;
 }

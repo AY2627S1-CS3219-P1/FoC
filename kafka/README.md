@@ -11,12 +11,24 @@ declare messages and enums without RPC services.
 | `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
+| `users.user_deleted` | `users.events.v1.UserDeleted` | User UUID as UTF-8 text |
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
 across retries; consumers should deduplicate it. User Service publishes this
 event from its transactional outbox after registration commits. Credit consumes
 it to open the user's account with the starting credits.
+
+`users.user_deleted` announces the committed hard deletion of a live account.
+Its payload contains the event ID, user ID, the committed deletion timestamp,
+and the deletion request ID — no name, email, phone or role. The event ID is
+stable across retries; consumers deduplicate it and must treat a deleted UUID
+as permanently retired: a delayed or replayed `users.create` for the same UUID
+must not reopen an account or grant starting credits. Kafka ordering across
+topics is not guaranteed, even with identical keys, so consumers check their
+own retirement marker in both deletion handling and account-opening paths.
+User Service records the fact in the same transaction that removes the user
+row and publishes it afterward from a deletion-specific outbox with retry.
 
 Order publishes its three topics from its outbox. Topic names match the outbox
 fact kinds. `order.status_changed` drives Communication's notifications,

@@ -47,6 +47,9 @@ const (
 	AuthServiceLogoutProcedure = "/user.v1.AuthService/Logout"
 	// AuthServiceLogoutAllProcedure is the fully-qualified name of the AuthService's LogoutAll RPC.
 	AuthServiceLogoutAllProcedure = "/user.v1.AuthService/LogoutAll"
+	// AuthServiceDeleteMyAccountProcedure is the fully-qualified name of the AuthService's
+	// DeleteMyAccount RPC.
+	AuthServiceDeleteMyAccountProcedure = "/user.v1.AuthService/DeleteMyAccount"
 	// PublicKeyServiceGetPublicKeysProcedure is the fully-qualified name of the PublicKeyService's
 	// GetPublicKeys RPC.
 	PublicKeyServiceGetPublicKeysProcedure = "/user.v1.PublicKeyService/GetPublicKeys"
@@ -60,6 +63,13 @@ type AuthServiceClient interface {
 	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
+	// DeleteMyAccount marks the authenticated account as permanently deleting.
+	// It authenticates with the refresh cookie and derives the account from the
+	// live session; it accepts no user ID or email. Acceptance is irreversible
+	// even when outstanding work exists: the caller receives a replacement
+	// session whose access token carries the deleting lifecycle state and can
+	// finish existing work until the background worker removes the account.
+	DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the user.v1.AuthService service. By default, it uses
@@ -109,17 +119,24 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteMyAccount: connect.NewClient[v1.DeleteMyAccountRequest, v1.DeleteMyAccountResponse](
+			httpClient,
+			baseURL+AuthServiceDeleteMyAccountProcedure,
+			connect.WithSchema(authServiceMethods.ByName("DeleteMyAccount")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	requestLink *connect.Client[v1.RequestLinkRequest, v1.RequestLinkResponse]
-	login       *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	register    *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
-	refresh     *connect.Client[v1.RefreshRequest, v1.RefreshResponse]
-	logout      *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
-	logoutAll   *connect.Client[v1.LogoutAllRequest, v1.LogoutAllResponse]
+	requestLink     *connect.Client[v1.RequestLinkRequest, v1.RequestLinkResponse]
+	login           *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	register        *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
+	refresh         *connect.Client[v1.RefreshRequest, v1.RefreshResponse]
+	logout          *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	logoutAll       *connect.Client[v1.LogoutAllRequest, v1.LogoutAllResponse]
+	deleteMyAccount *connect.Client[v1.DeleteMyAccountRequest, v1.DeleteMyAccountResponse]
 }
 
 // RequestLink calls user.v1.AuthService.RequestLink.
@@ -152,6 +169,11 @@ func (c *authServiceClient) LogoutAll(ctx context.Context, req *connect.Request[
 	return c.logoutAll.CallUnary(ctx, req)
 }
 
+// DeleteMyAccount calls user.v1.AuthService.DeleteMyAccount.
+func (c *authServiceClient) DeleteMyAccount(ctx context.Context, req *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error) {
+	return c.deleteMyAccount.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the user.v1.AuthService service.
 type AuthServiceHandler interface {
 	RequestLink(context.Context, *connect.Request[v1.RequestLinkRequest]) (*connect.Response[v1.RequestLinkResponse], error)
@@ -160,6 +182,13 @@ type AuthServiceHandler interface {
 	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
+	// DeleteMyAccount marks the authenticated account as permanently deleting.
+	// It authenticates with the refresh cookie and derives the account from the
+	// live session; it accepts no user ID or email. Acceptance is irreversible
+	// even when outstanding work exists: the caller receives a replacement
+	// session whose access token carries the deleting lifecycle state and can
+	// finish existing work until the background worker removes the account.
+	DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -205,6 +234,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceDeleteMyAccountHandler := connect.NewUnaryHandler(
+		AuthServiceDeleteMyAccountProcedure,
+		svc.DeleteMyAccount,
+		connect.WithSchema(authServiceMethods.ByName("DeleteMyAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceRequestLinkProcedure:
@@ -219,6 +254,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceLogoutHandler.ServeHTTP(w, r)
 		case AuthServiceLogoutAllProcedure:
 			authServiceLogoutAllHandler.ServeHTTP(w, r)
+		case AuthServiceDeleteMyAccountProcedure:
+			authServiceDeleteMyAccountHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -250,6 +287,10 @@ func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[
 
 func (UnimplementedAuthServiceHandler) LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AuthService.LogoutAll is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AuthService.DeleteMyAccount is not implemented"))
 }
 
 // PublicKeyServiceClient is a client for the user.v1.PublicKeyService service.

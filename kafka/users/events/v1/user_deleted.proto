@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package users.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// UserDeleted announces the committed hard deletion of a live FoC account on
+// users.user_deleted. It is recorded in the same transaction that removes the
+// users row. It does not assert that every consumer or object cleanup job has
+// completed. The payload carries identifiers and timestamps only.
+message UserDeleted {
+  // Stable across delivery retries; consumers use this to deduplicate.
+  string event_id = 1;
+  string user_id = 2;
+  // The committed account-deletion time, not the publication time.
+  google.protobuf.Timestamp deleted_at = 3;
+  string deletion_request_id = 4;
+}
