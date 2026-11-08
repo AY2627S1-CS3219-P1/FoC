@@ -27,6 +27,8 @@ func TestLoadConfigWorkerConcurrency(t *testing.T) {
 				switch key {
 				case "CMS_WORKER_CONCURRENCY":
 					return tt.value
+				case "INTERNAL_PORT":
+					return "8081"
 				case "DATABASE_URL":
 					return "postgresql://localhost/test"
 				case "USER_SERVICE_URL":
@@ -48,5 +50,34 @@ func TestLoadConfigWorkerConcurrency(t *testing.T) {
 				t.Fatalf("WorkerConcurrency = %d, want %d", cfg.WorkerConcurrency, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRejectsInvalidDurations(t *testing.T) {
+	for _, name := range []string{
+		"CMS_LLM_REQUEST_TIMEOUT", "CMS_JOB_LEASE", "CMS_JOB_HEARTBEAT_INTERVAL",
+		"CMS_JOB_RETRY_INITIAL_DELAY", "CMS_JOB_RETRY_MAX_DELAY", "CMS_JOB_POLL_INTERVAL",
+	} {
+		for _, value := range []string{"invalid", "0s", "-1s"} {
+			t.Run(name+"/"+value, func(t *testing.T) {
+				_, err := loadConfig(func(key string) string {
+					switch key {
+					case name:
+						return value
+					case "INTERNAL_PORT":
+						return "8081"
+					case "DATABASE_URL":
+						return "postgresql://localhost/test"
+					case "USER_SERVICE_BASE_URL":
+						return "http://localhost"
+					default:
+						return ""
+					}
+				})
+				if err == nil || !strings.Contains(err.Error(), name) {
+					t.Fatalf("error = %v, want invalid %s", err, name)
+				}
+			})
+		}
 	}
 }

@@ -238,19 +238,13 @@ SELECT v.* FROM moderation_config_versions v
 JOIN moderation_config_state s ON s.active_version_id = v.version_id;
 
 -- name: ActivateConfigVersion :execrows
--- Optimistic concurrency: expected_version_id is NULL when no active version is
--- expected (first activation or deliberate replacement), which matches any
--- current state; otherwise it must equal the current active version. The IS
--- NULL arm matters: `active_version_id = active_version_id` does not match a
--- row whose active_version_id is NULL (NULL = NULL is NULL), so a bare COALESCE
--- would make first activation impossible.
+-- NULL expects no active version; all replacements must name the active version.
 UPDATE moderation_config_state
 SET active_version_id = sqlc.arg(active_version_id),
     activated_by = sqlc.arg(activated_by),
     activated_at = now(),
     updated_at = now()
-WHERE sqlc.narg(expected_version_id)::uuid IS NULL
-   OR active_version_id = sqlc.narg(expected_version_id)::uuid;
+WHERE active_version_id IS NOT DISTINCT FROM sqlc.narg(expected_version_id)::uuid;
 
 -- name: GetJobsForReviewer :many
 SELECT * FROM moderation_jobs

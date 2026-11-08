@@ -1,6 +1,6 @@
 # Content Moderation Service
 
-Content Moderation owns the review moderation workflow: ingesting review submissions from Kafka, assessing them using LLMs, and publishing completion events back to Kafka. The behaviour follows the `moderation.v1` and `review.v1` contracts in [`proto/moderation/v1`](../proto/moderation/v1) and [`proto/review/v1`](../proto/review/v1).
+Content Moderation owns the review moderation workflow: ingesting review submissions from Kafka, assessing them using LLMs, and publishing completion events back to Kafka. The behaviour follows the `moderation.v1` and `moderation.review.v1` contracts in [`proto/moderation/v1`](../proto/moderation/v1) and [`proto/moderation/review/v1`](../proto/moderation/review/v1).
 
 ## What runs
 
@@ -9,7 +9,7 @@ Kafka consumers.
 
 | Listener | Default port | Serves | Authentication |
 | --- | --- | --- |
-| Public | `PORT` (8080) | `review.v1.ReviewModerationService`, `review.v1.ReviewModerationAdminService`, `moderation.v1.ModerationAdminService`, `grpc.health.v1.Health` | User Service JWT |
+| Public | `PORT` (8080) | `moderation.review.v1.ReviewModerationService`, `moderation.review.v1.ReviewModerationAdminService`, `moderation.v1.ModerationAdminService`, `moderation.v1.HealthService`, `grpc.health.v1.Health` | Health public; other RPCs require User Service JWT |
 | Internal | `INTERNAL_PORT` (8081) | `grpc.health.v1.Health` | Istio workload principal in Kubernetes; no app credential |
 
 The internal listener serves only health checks. Kubernetes authenticates the caller with Istio mTLS.
@@ -29,7 +29,7 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | CMS's PostgreSQL database. |
-| `USER_SERVICE_URL` | Yes | User Service URL for JWT validation. |
+| `USER_SERVICE_BASE_URL` | Yes | User Service URL for JWT validation. |
 | `PORT` | No | Public listener port; defaults to 8080. |
 | `INTERNAL_PORT` | Yes | Private listener; required and must differ from `PORT`. |
 | `RUN_MIGRATIONS` | No | `true` by default. |
@@ -52,16 +52,15 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 - `internal/openaiadapter`: OpenAI API client adapter.
 - `internal/evaladapter`: Evaluator chain wrapper.
 - `internal/config`: Moderation configuration, draft versions, and activation.
-- `internal/rpc/<domain>`: Connect handlers. `internal/rpc/shared` maps domain
-  errors to Connect codes and `review.v1`/`moderation.v1` ErrorInfo reasons.
+- `internal/rpc/<domain>`: Connect handlers and domain error mapping.
 - `internal/outbox`: Outbox relay that publishes completion events to Kafka.
 - `internal/router`: mounts the public and internal listeners.
 
 ## Development
 
 ```sh
-docker compose up content-moderation-service   # public listener on CMS_PORT (8085)
+docker compose up content-moderation-service   # public listener on CMS_PORT (8086)
 make test                                      # unit tests
-make test-integration                          # needs Docker for testcontainers
+make test-integration                          # needs TEST_DATABASE_URL pointing at a throwaway database
 make sqlc                                      # after changing database/query or database/schema
 ```

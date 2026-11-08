@@ -519,9 +519,9 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 
-	// Attempts while the prior invalid count is below the budget retry; the
-	// attempt that observes invalidCount >= InvalidBudget errors the job.
-	for i := 0; i <= policy.InvalidBudget; i++ {
+	// The budget includes the current failed attempt: two invalid responses
+	// must terminate without making a third provider request.
+	for i := 0; i < policy.InvalidBudget; i++ {
 		claimed := claimDue(t, store, pool)
 		if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapInvalidOutputError(errors.New("bad json"))); err != nil {
 			t.Fatalf("invalid-output finalize %d: %v", i, err)
@@ -531,8 +531,8 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 	if job.Status != "errored" {
 		t.Fatalf("invalid output must terminate after the small budget: %q", job.Status)
 	}
-	if int(job.AttemptCount) != policy.InvalidBudget+1 {
-		t.Fatalf("attempt count = %d, want %d", job.AttemptCount, policy.InvalidBudget+1)
+	if int(job.AttemptCount) != policy.InvalidBudget {
+		t.Fatalf("attempt count = %d, want %d", job.AttemptCount, policy.InvalidBudget)
 	}
 	if countOutbox(t, pool, job.ID, job.RunGeneration) != 1 {
 		t.Fatalf("terminal errored job must enqueue its completion event")
@@ -722,7 +722,14 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 
 	// Stale worker reaching the retry branch: fenced too, job untouched.
 	staleRetry := *stale
-	if err := store.FinalizeFailed(ctx, staleRetry, jobs.WrapConnectionError(errors.New("late failure"))); !errors.Is(err, jobs.ErrFenced) {
+	if err := store.FinalizeFailed(
+		ctx,
+		staleRetry,
+		jobs.WrapConnectionError(errors.New("late failure")),
+	); !errors.Is(
+		err,
+		jobs.ErrFenced,
+	) {
 		t.Fatalf("stale retry finalize error = %v, want ErrFenced", err)
 	}
 	var status string
@@ -824,5 +831,46 @@ func TestMigrationUpDownUp(t *testing.T) {
 	}
 	if err := database.Migrate(ctx, url); err != nil {
 		t.Fatalf("up again: %v", err)
+	}
+}
+
+func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
+	pool := newTestPool(t)
+	first := activateTestConfig(t, pool)
+	store := jobs.NewJobStore(pool, jobs.PolicyFromConfig(2, time.Millisecond, time.Millisecond), nil)
+	ctx := context.Background()
+	in := ingestInput("pin my model")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	claimed := claimDue(t, store, pool)
+	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapServerError(errors.New("temporary"))); err != nil {
+		t.Fatal(err)
+	}
+	configStore := config.NewStore(pool)
+	second, err := configStore.InsertConfigVersion(
+		ctx,
+		"different-model",
+		[]byte(`{}`),
+		config.OutputModeJSONObject,
+		"review-text-v1",
+		"other",
+		"admin",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := configStore.ActivateConfigVersion(ctx, second, "admin", &first); err != nil {
+		t.Fatal(err)
+	}
+	claimed = claimDue(t, store, pool)
+	if claimed.Config.VersionID != first || *claimed.Job.ConfigVersionID != first.String() {
+		t.Fatalf("automatic retry changed configuration: %+v", claimed.Config)
+	}
+	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapServerError(errors.New("temporary"))); err != nil {
+		t.Fatal(err)
+	}
+	if job := jobByRequest(t, pool, in.ModerationRequestID); job.Status != "errored" || job.AttemptCount != 2 {
+		t.Fatalf("configured retry budget ignored: %+v", job)
 	}
 }

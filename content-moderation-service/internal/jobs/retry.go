@@ -38,6 +38,16 @@ func DefaultPolicy() Policy {
 	}
 }
 
+// PolicyFromConfig applies validated operational settings while retaining the
+// bounded output-validation and refusal budgets.
+func PolicyFromConfig(maxAttempts int, initialDelay, maxDelay time.Duration) Policy {
+	policy := DefaultPolicy()
+	policy.MaxAttempts = maxAttempts
+	policy.InitialDelay = initialDelay
+	policy.MaxDelay = maxDelay
+	return policy
+}
+
 // decision is the reschedule result for one failed attempt.
 type decision struct {
 	// retry is true when the job returns to the queue instead of erroring.
@@ -55,6 +65,9 @@ func (p Policy) decide(
 	attemptCount, invalidCount, filterCount int,
 	rng *rand.Rand,
 ) decision {
+	if kind != kindConfiguration && attemptCount >= p.MaxAttempts {
+		return decision{retry: false}
+	}
 	switch kind {
 	case kindConfiguration:
 		// Pause far enough in the future to avoid a retry storm, but never

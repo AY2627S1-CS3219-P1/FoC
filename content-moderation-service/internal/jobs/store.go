@@ -117,19 +117,25 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 			return err
 		}
 
-		active, err := q.GetActiveConfigVersion(ctx)
-		if err != nil {
-			return err
-		}
-		if active == nil {
-			// No configuration yet: leave the job queued and try again later.
-			outcome = ClaimNoConfiguration
-			return nil
-		}
-
-		config, err := q.GetActiveConfigVersionFull(ctx)
-		if err != nil {
-			return err
+		var config moderationdb.ModerationConfigVersion
+		if job.ConfigVersionID != nil {
+			pinnedID, err := uuid.Parse(*job.ConfigVersionID)
+			if err != nil {
+				return err
+			}
+			config, err = q.GetConfigVersionById(ctx, pinnedID)
+			if err != nil {
+				return err
+			}
+		} else {
+			config, err = q.GetActiveConfigVersionFull(ctx)
+			if errors.Is(err, pgx.ErrNoRows) {
+				outcome = ClaimNoConfiguration
+				return nil
+			}
+			if err != nil {
+				return err
+			}
 		}
 
 		configVersionID := config.VersionID.String()
@@ -250,7 +256,7 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 		// The shared generator must be mutex-guarded: workers finalize failures
 		// concurrently and math/rand.Rand is not goroutine-safe.
 		s.rngMu.Lock()
-		decision := s.policy.decide(kind, int(c.AttemptNumber), int(invalidCount), int(filterCount), s.rng)
+		decision := s.policy.decide(kind, int(c.AttemptNumber), int(invalidCount)+1, int(filterCount)+1, s.rng)
 		s.rngMu.Unlock()
 		wait := decision.wait
 		if kind == kindDurable && retryAfter > 0 {

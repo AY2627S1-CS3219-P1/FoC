@@ -145,6 +145,9 @@ func (s *Service) SaveDraft(
 // sample, returning the sample verdict and duration. It shares the worker
 // concurrency gate so a test cannot exhaust live assessment capacity.
 func (s *Service) TestDraft(ctx context.Context, versionID uuid.UUID, sampleComment string) (TestResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	result := TestResult{ModelID: "", OutputMode: "", DurationMs: 0}
 	if s.evaluator == nil {
 		return result, fmt.Errorf("config: moderation provider is not configured; cannot test")
@@ -207,12 +210,16 @@ func (s *Service) Activate(
 	createdBy string,
 	expectedVersionID *uuid.UUID,
 ) error {
-	if err := s.store.ActivateConfigVersion(ctx, versionID, createdBy, expectedVersionID); err != nil {
+	// Validate the immutable draft through the same policy and concurrency gate
+	// before changing the active pointer. Provider failure leaves it untouched.
+	result, err := s.TestDraft(ctx, versionID, "The delivery arrived on time. Thank you.")
+	if err != nil {
 		return err
 	}
-	_ = s.store.InsertAudit(ctx, "ACTIVATE_CONFIG", &versionID, createdBy,
-		map[string]any{"expected_active_version_id": optionalID(expectedVersionID)})
-	return nil
+	if result.ErrorClass != "" || result.Decision == "" {
+		return fmt.Errorf("config: draft validation failed (%s)", result.ErrorClass)
+	}
+	return s.store.ActivateConfigVersion(ctx, versionID, createdBy, expectedVersionID)
 }
 
 // Version is the admin-visible shape of an immutable configuration version.
@@ -297,11 +304,4 @@ func providerFingerprint(baseURL, modelID string) string {
 
 func isErrNoActive(err error) bool {
 	return err == ErrNoActiveConfiguration
-}
-
-func optionalID(id *uuid.UUID) any {
-	if id == nil {
-		return nil
-	}
-	return id.String()
 }

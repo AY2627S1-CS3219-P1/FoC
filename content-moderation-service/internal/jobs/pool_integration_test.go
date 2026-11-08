@@ -7,6 +7,7 @@ package jobs_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -179,4 +180,48 @@ func TestPoolConcurrencyOneSerializes(t *testing.T) {
 	waitFor(t, func() bool { return countTerminal(t, pool) == 3 }, 5*time.Second, "3 completed jobs")
 	cancel()
 	p.Wait()
+}
+
+func TestIndependentPoolsScaleConcurrency(t *testing.T) {
+	for _, tc := range []struct{ replicas, concurrency int }{{1, 3}, {2, 2}} {
+		t.Run(fmt.Sprintf("%d-pools-%d-workers", tc.replicas, tc.concurrency), func(t *testing.T) {
+			pool := newTestPool(t)
+			activateTestConfig(t, pool)
+			total := tc.replicas * tc.concurrency
+			ingestJobs(t, pool, total)
+			eval := newBlockingEvaluator()
+			ctx, cancel := context.WithCancel(context.Background())
+			var pools []*jobs.Pool
+			t.Cleanup(func() {
+				cancel()
+				eval.release(total)
+				for _, p := range pools {
+					p.Wait()
+				}
+			})
+			for range tc.replicas {
+				p := jobs.NewPool(pool, eval, jobs.NewLimiter(tc.concurrency), jobs.PoolConfig{
+					Concurrency: tc.concurrency, Lease: 30 * time.Second,
+					HeartbeatInterval: time.Second, PollInterval: 10 * time.Millisecond,
+					LLMRequestTimeout: 10 * time.Second, Policy: jobs.DefaultPolicy(),
+				}, nil)
+				pools = append(pools, p)
+				p.Start(ctx)
+			}
+			eval.waitEntered(t, total)
+			if peak := eval.peakConcurrency(); peak != total {
+				t.Fatalf("peak = %d, want %d", peak, total)
+			}
+			eval.release(total)
+			waitFor(
+				t,
+				func() bool { return countTerminal(t, pool) == total },
+				5*time.Second,
+				"all replica jobs completed",
+			)
+			if calls := eval.calls.Load(); calls != int64(total) {
+				t.Fatalf("calls = %d, want %d distinct jobs", calls, total)
+			}
+		})
+	}
 }

@@ -18,8 +18,7 @@ SET active_version_id = $1,
     activated_by = $2,
     activated_at = now(),
     updated_at = now()
-WHERE $3::uuid IS NULL
-   OR active_version_id = $3::uuid
+WHERE active_version_id IS NOT DISTINCT FROM $3::uuid
 `
 
 type ActivateConfigVersionParams struct {
@@ -28,12 +27,7 @@ type ActivateConfigVersionParams struct {
 	ExpectedVersionID *uuid.UUID
 }
 
-// Optimistic concurrency: expected_version_id is NULL when no active version is
-// expected (first activation or deliberate replacement), which matches any
-// current state; otherwise it must equal the current active version. The IS
-// NULL arm matters: `active_version_id = active_version_id` does not match a
-// row whose active_version_id is NULL (NULL = NULL is NULL), so a bare COALESCE
-// would make first activation impossible.
+// NULL expects no active version; all replacements must name the active version.
 func (q *Queries) ActivateConfigVersion(ctx context.Context, arg ActivateConfigVersionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, activateConfigVersion, arg.ActiveVersionID, arg.ActivatedBy, arg.ExpectedVersionID)
 	if err != nil {

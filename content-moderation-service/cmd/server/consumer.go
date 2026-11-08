@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -71,17 +72,37 @@ type ingestionHandler struct {
 	store *jobs.JobStore
 }
 
-// Handle processes a review submitted event.
+// Handle processes a review submitted event. A required identifier that is
+// empty or unparseable is malformed: quarantine the decoded event so the
+// partition advances and it is never turned into a zero-UUID job and retried.
 func (h *ingestionHandler) Handle(
 	ctx context.Context,
 	meta kafka.Metadata,
 	event *userseventsv1.ReviewSubmitted,
 ) error {
+	sourceEventID, sourceErr := parseEventID(event.EventId)
+	moderationRequestID, reqErr := parseEventID(event.ModerationRequestId)
+	reviewID, reviewErr := parseEventID(event.ReviewId)
+	reviewerID, reviewerErr := parseEventID(event.ReviewerId)
+	if sourceErr != nil || reqErr != nil || reviewErr != nil || reviewerErr != nil ||
+		event.ContentRevision <= 0 || event.OccurredAt == nil || event.OccurredAt.CheckValid() != nil {
+		if qErr := h.store.QuarantineMalformed(ctx, jobs.MalformedInput{
+			Topic:      jobs.UsersReviewSubmittedTopic,
+			MessageKey: string(meta.Key),
+			EventID:    event.EventId,
+			Reason:     "missing or malformed submission metadata",
+			Comment:    event.Comment,
+		}); qErr != nil {
+			return qErr
+		}
+		return nil
+	}
+
 	input := jobs.IngestionInput{
-		SourceEventID:       uuidFrom(event.EventId),
-		ModerationRequestID: uuidFrom(event.ModerationRequestId),
-		ReviewID:            uuidFrom(event.ReviewId),
-		ReviewerID:          uuidFrom(event.ReviewerId),
+		SourceEventID:       sourceEventID,
+		ModerationRequestID: moderationRequestID,
+		ReviewID:            reviewID,
+		ReviewerID:          reviewerID,
 		ContentRevision:     event.ContentRevision,
 		Comment:             event.Comment,
 	}
@@ -94,13 +115,15 @@ func (h *ingestionHandler) Handle(
 	return nil
 }
 
-func uuidFrom(s string) uuid.UUID {
+// parseEventID parses a required identifier. An empty or unparseable value is
+// an error so the caller quarantines the event rather than storing a zero UUID.
+func parseEventID(s string) (uuid.UUID, error) {
 	if s == "" {
-		return uuid.Nil
+		return uuid.Nil, fmt.Errorf("empty identifier")
 	}
-	u, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil
+	id, err := uuid.Parse(s)
+	if err != nil || id == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("invalid identifier")
 	}
-	return u
+	return id, nil
 }

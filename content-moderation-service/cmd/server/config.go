@@ -71,7 +71,7 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		c.Port = "8080"
 	}
 	if c.InternalPort == "" {
-		c.InternalPort = "8081"
+		return appConfig{}, errors.New("INTERNAL_PORT is required")
 	}
 	for name, value := range map[string]string{"PORT": c.Port, "INTERNAL_PORT": c.InternalPort} {
 		port, err := strconv.Atoi(value)
@@ -118,24 +118,6 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		c.WorkerConcurrency = parsed
 	}
 
-	if value := strings.TrimSpace(getenv("CMS_LLM_REQUEST_TIMEOUT")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.LLMRequestTimeout = d
-		}
-	}
-
-	if value := strings.TrimSpace(getenv("CMS_JOB_LEASE")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.JobLease = d
-		}
-	}
-
-	if value := strings.TrimSpace(getenv("CMS_JOB_HEARTBEAT_INTERVAL")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.JobHeartbeatInterval = d
-		}
-	}
-
 	if value := strings.TrimSpace(getenv("CMS_JOB_MAX_ATTEMPTS")); value != "" {
 		parsed, perr := strconv.Atoi(value)
 		if perr != nil || parsed < 1 {
@@ -144,22 +126,24 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		c.JobMaxAttempts = parsed
 	}
 
-	if value := strings.TrimSpace(getenv("CMS_JOB_RETRY_INITIAL_DELAY")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.JobRetryInitialDelay = d
+	for name, target := range map[string]*time.Duration{
+		"CMS_LLM_REQUEST_TIMEOUT":     &c.LLMRequestTimeout,
+		"CMS_JOB_LEASE":               &c.JobLease,
+		"CMS_JOB_HEARTBEAT_INTERVAL":  &c.JobHeartbeatInterval,
+		"CMS_JOB_RETRY_INITIAL_DELAY": &c.JobRetryInitialDelay,
+		"CMS_JOB_RETRY_MAX_DELAY":     &c.JobRetryMaxDelay,
+		"CMS_JOB_POLL_INTERVAL":       &c.JobPollInterval,
+	} {
+		if value := strings.TrimSpace(getenv(name)); value != "" {
+			duration, err := time.ParseDuration(value)
+			if err != nil || duration <= 0 {
+				return appConfig{}, fmt.Errorf("%s must be a positive duration", name)
+			}
+			*target = duration
 		}
 	}
-
-	if value := strings.TrimSpace(getenv("CMS_JOB_RETRY_MAX_DELAY")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.JobRetryMaxDelay = d
-		}
-	}
-
-	if value := strings.TrimSpace(getenv("CMS_JOB_POLL_INTERVAL")); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			c.JobPollInterval = d
-		}
+	if c.JobRetryInitialDelay > c.JobRetryMaxDelay {
+		return appConfig{}, errors.New("CMS_JOB_RETRY_INITIAL_DELAY must not exceed CMS_JOB_RETRY_MAX_DELAY")
 	}
 
 	if value := strings.TrimSpace(getenv("CMS_LLM_BASE_URL")); value != "" {

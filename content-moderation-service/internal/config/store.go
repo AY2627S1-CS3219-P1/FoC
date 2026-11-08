@@ -87,8 +87,8 @@ func (s *Store) GetActiveConfig(ctx context.Context) (moderationdb.ModerationCon
 
 // ActivateConfigVersion atomically points the active version at versionID and
 // records the activating admin in the audit log. The UPDATE is fenced by
-// expectedVersionID: empty means "no active version is expected", matching any
-// current state; otherwise the active version must equal expectedVersionID.
+// expectedVersionID: nil means no active version is expected; otherwise the
+// active version must equal expectedVersionID.
 func (s *Store) ActivateConfigVersion(
 	ctx context.Context,
 	versionID uuid.UUID,

@@ -10,15 +10,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// outcomeFor maps a terminal business outcome to the published enum. UNSPECIFIED
-// must never be produced: a protobuf default can never approve content.
-func outcomeFor(terminal bool, approved bool) moderationevents.ModerationOutcomeType {
-	if approved {
-		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED
-	}
-	return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
-}
-
 // outcomeTypeFor maps a terminal assessment outcome to the published enum.
 // Rejections must publish REJECTED (with their reason codes): user-service
 // drops an ERROR event that carries content reasons, so mapping a rejection to
