@@ -113,7 +113,7 @@
 	.muted { margin: 0; color: var(--m3c-on-surface-variant); }
 	.notice { margin: 0 0 0.75rem; }
 	ul { display: grid; margin: 0; padding: 0; list-style: none; }
-	li { display: grid; gap: 0.4rem; padding: 0.75rem 0; border-bottom: 1px solid var(--m3c-outline-variant); }
+	li { display: grid; gap: 0.4rem; padding: 1.1rem 0; border-bottom: 1px solid var(--m3c-outline-variant); }
 	li:last-child { border-bottom: 0; }
 	.review-head { display: grid; gap: 0.15rem; }
 	.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; }
