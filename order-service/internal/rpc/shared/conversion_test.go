@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"testing"
 	"time"
 )
@@ -75,5 +76,19 @@ func TestOrderViewsKeepsPageWhenSelectedOrderExpires(t *testing.T) {
 		if len(view.ItemImages) != 0 {
 			t.Fatal("browsing courier received private images")
 		}
+	}
+}
+
+// TestCallerCarriesIsDeleting proves the Connect boundary forwards the verified
+// token's deleting claim into the domain caller, so production enforcement is
+// not limited to hand-built callers in lifecycle tests.
+func TestCallerCarriesIsDeleting(t *testing.T) {
+	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: "u", IsDeleting: true})
+	if !Caller(ctx).IsDeleting {
+		t.Fatal("Caller dropped IsDeleting from the verified auth caller")
+	}
+	ctx = auth.WithCaller(context.Background(), auth.Caller{ID: "u"})
+	if Caller(ctx).IsDeleting {
+		t.Fatal("Caller set IsDeleting without the claim")
 	}
 }

@@ -272,6 +272,32 @@ func TestInternalDrainServesAndStaysOffThePublicListener(t *testing.T) {
 	}
 }
 
+// TestInternalDrainMapsReasonCodes proves every credit blocker category reaches
+// the wire as its specific enum rather than the unspecified zero, so the user
+// service can render a precise waiting reason.
+func TestInternalDrainMapsReasonCodes(t *testing.T) {
+	handler := &creditinternalrpc.Server{Drain: &fakeDrain{reasons: []account.OutstandingWorkReason{
+		account.OutstandingReservedBalance,
+		account.OutstandingActiveReservation,
+		account.OutstandingUnsettledAssignment,
+	}}}
+	resp, err := handler.GetUserOutstandingWork(context.Background(),
+		connect.NewRequest(&creditv1.GetUserOutstandingWorkRequest{UserId: requesterID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Msg.GetHasOutstandingWork() {
+		t.Fatal("expected outstanding work")
+	}
+	got := resp.Msg.GetReasons()
+	if len(got) != 3 ||
+		got[0] != creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_RESERVED_BALANCE ||
+		got[1] != creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_ACTIVE_RESERVATION ||
+		got[2] != creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_UNSETTLED_ASSIGNMENT {
+		t.Fatalf("reason mapping = %v", got)
+	}
+}
+
 // Account RPCs
 
 func TestAccountRPCsReadTheCallersAccount(t *testing.T) {

@@ -15,7 +15,7 @@ test-creation:
 	GOWORK=off go test -mod=readonly -race -tags=integration ./tests/creation -count=1 -timeout=10m
 
 test-integration:
-	GOWORK=off go test -mod=readonly -p 1 -tags=integration ./... -count=1 -timeout=10m
+	GOWORK=off go test -mod=readonly -race -p 1 -tags=integration ./... -count=1 -timeout=10m
 
 migrate-up:
 	goose -dir database/schema postgres "$(DATABASE_URL)" up

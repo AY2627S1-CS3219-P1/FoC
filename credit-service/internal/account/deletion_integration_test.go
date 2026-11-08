@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,12 +89,68 @@ func TestDeletedUserMarkerBlocksReprovisioning(t *testing.T) {
 	})
 
 	t.Run("replayed and superseded events change nothing", func(t *testing.T) {
+		u := uuid.NewString()
 		event := uuid.NewString()
+		deletedAt := time.Now().UTC().Truncate(time.Microsecond)
+		if err := f.accounts.RecordDeletion(ctx, u, event, deletedAt); err != nil {
+			t.Fatal(err)
+		}
+		// Replays of the same event and a distinct (superseded) event for the
+		// same user must all leave the first committed marker untouched.
 		for i := range 3 {
-			if err := f.accounts.RecordDeletion(ctx, user, event, time.Now().UTC()); err != nil {
-				t.Fatal(err)
+			if err := f.accounts.RecordDeletion(ctx, u, event, deletedAt); err != nil {
+				t.Fatalf("replay %d: %v", i, err)
 			}
-			_ = i
+		}
+		if err := f.accounts.RecordDeletion(ctx, u, uuid.NewString(), time.Now().UTC()); err != nil {
+			t.Fatalf("superseded event: %v", err)
+		}
+		uid := uuid.MustParse(u)
+		var gotEvent uuid.UUID
+		var gotAt time.Time
+		if err := f.pool.QueryRow(ctx,
+			"SELECT event_id, deleted_at FROM deleted_users WHERE user_id = $1", uid).
+			Scan(&gotEvent, &gotAt); err != nil {
+			t.Fatal(err)
+		}
+		if gotEvent.String() != event {
+			t.Fatalf("marker event changed to %s, want original %s", gotEvent, event)
+		}
+		if !gotAt.Equal(deletedAt) {
+			t.Fatalf("marker deleted_at changed to %v, want %v", gotAt, deletedAt)
+		}
+	})
+
+	t.Run("concurrent open and deletion never resurrect or regrant", func(t *testing.T) {
+		u := uuid.NewString()
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := 0; i < 8; i++ {
+			wg.Add(2)
+			go func() { defer wg.Done(); <-start; _ = f.accounts.Open(ctx, u) }()
+			go func() {
+				defer wg.Done()
+				<-start
+				_ = f.accounts.RecordDeletion(ctx, u, uuid.NewString(), time.Now().UTC())
+			}()
+		}
+		close(start)
+		wg.Wait()
+		// After the concurrent deletions recorded the marker, a later open must
+		// not create the account or grant starting credits a second time.
+		if err := f.accounts.Open(ctx, u); err != nil {
+			t.Fatal(err)
+		}
+		a, err := f.accounts.GetAccount(ctx, u)
+		if err != nil {
+			if !errors.Is(err, account.ErrAccountNotFound) {
+				t.Fatalf("get account: %v", err)
+			}
+			return
+		}
+		if a.Balance != account.StartingCredits {
+			t.Fatalf("balance after concurrent race = %d, want at most one starting grant %d",
+				a.Balance, account.StartingCredits)
 		}
 	})
 

@@ -111,8 +111,12 @@ func TestDeletingRequesterCanAcceptRetainedOffer(t *testing.T) {
 	r.key.Scope.Method = AcceptOrderMethod
 	// AcceptOffer takes the offer ID; the requester is the caller.
 	r.order.RequesterID = caller.ID
-	if _, err := NewAssigner(r, nil, AssignmentOptions{}).AcceptOffer(
-		context.Background(), caller, r.offers[0].ID); errors.Is(err, ErrDeleting) {
+	result, err := NewAssigner(r, nil, AssignmentOptions{}).AcceptOffer(
+		context.Background(), caller, r.offers[0].ID)
+	if err != nil {
 		t.Fatalf("existing-offer selection refused for a deleting requester: %v (key %s)", err, key)
+	}
+	if result.Phase != AssignmentSucceeded {
+		t.Fatalf("existing-offer selection phase = %v, want %v (key %s)", result.Phase, AssignmentSucceeded, key)
 	}
 }
