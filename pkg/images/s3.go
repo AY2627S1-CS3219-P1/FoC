@@ -62,12 +62,38 @@ func classifyStorageError(err error) error {
 	return err
 }
 
-type S3Config struct{ Bucket, Region, Endpoint, PublicEndpoint string }
+// Default lifetimes for presigned grants when the caller does not set them.
+const (
+	DefaultUploadTTL   = 10 * time.Minute
+	DefaultDownloadTTL = 5 * time.Minute
+)
+
+// S3Config configures one bucket. UploadTTL and DownloadTTL bound how long the
+// presigned grants stay valid; zero uses the defaults, negative is rejected.
+type S3Config struct {
+	Bucket, Region, Endpoint, PublicEndpoint string
+	UploadTTL, DownloadTTL                   time.Duration
+}
 
 type S3 struct {
-	client *s3.Client
-	signer *s3.PresignClient
-	bucket string
+	client      *s3.Client
+	signer      *s3.PresignClient
+	bucket      string
+	uploadTTL   time.Duration
+	downloadTTL time.Duration
+}
+
+// newS3Client builds a client for one endpoint. S3-compatible stores need
+// path-style addressing; leaving the endpoint empty keeps the SDK's default
+// regional endpoint and virtual-hosted style.
+func newS3Client(cfg aws.Config, endpoint string) *s3.Client {
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		if endpoint == "" {
+			return
+		}
+		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true
+	})
 }
 
 // NewS3 uses the standard AWS credential chain. Separate endpoints allow local
@@ -78,6 +104,17 @@ func NewS3(ctx context.Context, c S3Config) (*S3, error) {
 	}
 	if c.Region == "" {
 		c.Region = "us-east-1"
+	}
+	if c.UploadTTL < 0 || c.DownloadTTL < 0 {
+		return nil, errors.New("presign TTLs must not be negative")
+	}
+	uploadTTL := c.UploadTTL
+	if uploadTTL == 0 {
+		uploadTTL = DefaultUploadTTL
+	}
+	downloadTTL := c.DownloadTTL
+	if downloadTTL == 0 {
+		downloadTTL = DefaultDownloadTTL
 	}
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
@@ -93,23 +130,16 @@ func NewS3(ctx context.Context, c S3Config) (*S3, error) {
 		return nil, err
 	}
 	cfg.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
-	create := func(endpoint string) *s3.Client {
-		return s3.NewFromConfig(cfg, func(o *s3.Options) {
-			if endpoint != "" {
-				o.BaseEndpoint = aws.String(endpoint)
-				o.UsePathStyle = true
-			}
-		})
-	}
-	client := create(c.Endpoint)
 	public := c.PublicEndpoint
 	if public == "" {
 		public = c.Endpoint
 	}
 	return &S3{
-		client: client,
-		signer: s3.NewPresignClient(create(public)),
-		bucket: c.Bucket,
+		client:      newS3Client(cfg, c.Endpoint),
+		signer:      s3.NewPresignClient(newS3Client(cfg, public)),
+		bucket:      c.Bucket,
+		uploadTTL:   uploadTTL,
+		downloadTTL: downloadTTL,
 	}, nil
 }
 
@@ -123,7 +153,7 @@ func (s *S3) CreateUpload(ctx context.Context, in UploadRequest) (UploadGrant, e
 		ContentType:   aws.String(in.ContentType),
 		ContentLength: aws.Int64(in.SizeBytes),
 		IfNoneMatch:   aws.String("*"),
-	}, func(o *s3.PresignOptions) { o.Expires = 10 * time.Minute })
+	}, func(o *s3.PresignOptions) { o.Expires = s.uploadTTL })
 	if err != nil {
 		return UploadGrant{}, classifyStorageError(err)
 	}
@@ -141,7 +171,7 @@ func (s *S3) CreateUpload(ctx context.Context, in UploadRequest) (UploadGrant, e
 		URL:       grant.URL,
 		Method:    grant.Method,
 		Headers:   headers,
-		ExpiresAt: time.Now().Add(10 * time.Minute),
+		ExpiresAt: time.Now().Add(s.uploadTTL),
 	}, nil
 }
 
@@ -165,12 +195,12 @@ func (s *S3) CreateDownload(ctx context.Context, key string) (DownloadGrant, err
 	out, err := s.signer.PresignGetObject(
 		ctx,
 		&s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)},
-		func(o *s3.PresignOptions) { o.Expires = 5 * time.Minute },
+		func(o *s3.PresignOptions) { o.Expires = s.downloadTTL },
 	)
 	if err != nil {
 		return DownloadGrant{}, classifyStorageError(err)
 	}
-	return DownloadGrant{URL: out.URL, ExpiresAt: time.Now().Add(5 * time.Minute)}, nil
+	return DownloadGrant{URL: out.URL, ExpiresAt: time.Now().Add(s.downloadTTL)}, nil
 }
 
 func (s *S3) Delete(ctx context.Context, key string) error {
@@ -180,8 +210,12 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 
 // InitializeLocalBucket is an explicit local setup action, never server startup
 // behavior. Production buckets and policies are provisioned outside this service.
-// Browsers on the default frontend port and any extra origins may upload.
+// Callers pass the browser origins allowed to upload; the adapter hardcodes no
+// deployment-specific hosts.
 func (s *S3) InitializeLocalBucket(ctx context.Context, origins ...string) error {
+	if len(origins) == 0 {
+		return errors.New("at least one browser origin is required")
+	}
 	_, err := s.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(s.bucket)})
 	var api smithy.APIError
 	if err != nil && !(errors.As(err, &api) && api.ErrorCode() == "BucketAlreadyOwnedByYou") {
@@ -191,7 +225,7 @@ func (s *S3) InitializeLocalBucket(ctx context.Context, origins ...string) error
 		Bucket: aws.String(s.bucket),
 		CORSConfiguration: &types.CORSConfiguration{CORSRules: []types.CORSRule{{
 			AllowedMethods: []string{"PUT", "GET", "HEAD"},
-			AllowedOrigins: append([]string{"http://localhost:5173", "http://127.0.0.1:5173"}, origins...),
+			AllowedOrigins: origins,
 			AllowedHeaders: []string{"content-type", "if-none-match"},
 			ExposeHeaders:  []string{"ETag"},
 			MaxAgeSeconds:  aws.Int32(300),

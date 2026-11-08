@@ -68,6 +68,8 @@ type config struct {
 	s3Bucket         string
 	s3Endpoint       string
 	s3PublicEndpoint string
+	s3UploadTTL      time.Duration
+	s3DownloadTTL    time.Duration
 	awsRegion        string
 }
 
@@ -254,6 +256,8 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 			Bucket:         cfg.s3Bucket,
 			Endpoint:       cfg.s3Endpoint,
 			PublicEndpoint: cfg.s3PublicEndpoint,
+			UploadTTL:      cfg.s3UploadTTL,
+			DownloadTTL:    cfg.s3DownloadTTL,
 			Region:         cfg.awsRegion,
 		})
 		if err != nil {
@@ -320,7 +324,10 @@ func loadConfig() (config, error) {
 		s3Bucket:         envString("USER_S3_BUCKET", ""),
 		s3Endpoint:       envString("USER_S3_ENDPOINT", ""),
 		s3PublicEndpoint: envString("USER_S3_PUBLIC_ENDPOINT", ""),
-		awsRegion:        strings.TrimSpace(envString("AWS_REGION", "")),
+		// Zero means the adapter's default grant lifetimes.
+		s3UploadTTL:   envDuration("USER_S3_UPLOAD_TTL", 0, &errs),
+		s3DownloadTTL: envDuration("USER_S3_DOWNLOAD_TTL", 0, &errs),
+		awsRegion:     strings.TrimSpace(envString("AWS_REGION", "")),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"

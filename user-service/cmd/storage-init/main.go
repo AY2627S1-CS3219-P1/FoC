@@ -42,6 +42,12 @@ func main() {
 		}
 		origins = append(origins, origin)
 	}
+	if len(origins) == 0 {
+		// Never invent a browser origin: a missing FRONTEND_BASE_URL must fail
+		// loudly rather than silently allow a localhost-only policy to ship.
+		slog.Error("FRONTEND_BASE_URL must name the browser origin allowed to upload")
+		os.Exit(1)
+	}
 	for {
 		if err := storage.InitializeLocalBucket(ctx, origins...); err == nil {
 			slog.Info("Local review photo bucket and CORS initialized")

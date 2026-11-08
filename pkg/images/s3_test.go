@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/aws/smithy-go"
 )
@@ -51,5 +52,32 @@ func TestClassifyStorageError(t *testing.T) {
 				t.Fatalf("original error lost from the chain: %v", got)
 			}
 		})
+	}
+}
+
+func TestNewS3RejectsNegativeTTL(t *testing.T) {
+	// Validation runs before any provider configuration is loaded, so this is
+	// deterministic and never reaches the network.
+	for _, tc := range []struct {
+		name string
+		cfg  S3Config
+	}{
+		{"upload", S3Config{Bucket: "b", UploadTTL: -time.Second}},
+		{"download", S3Config{Bucket: "b", DownloadTTL: -time.Second}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewS3(context.Background(), tc.cfg); err == nil {
+				t.Fatal("negative presign TTL must be rejected")
+			}
+		})
+	}
+}
+
+func TestInitializeLocalBucketRequiresOrigin(t *testing.T) {
+	// An empty origin list would create a policy no browser can use; the
+	// adapter must refuse rather than invent a host.
+	s := &S3{}
+	if err := s.InitializeLocalBucket(context.Background()); err == nil {
+		t.Fatal("missing browser origin must be rejected")
 	}
 }
