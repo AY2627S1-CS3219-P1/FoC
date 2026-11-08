@@ -129,3 +129,14 @@ k8s-proxy-startup-smoke: k8s-tools $(K8S_CLI)
 
 k8s-storage-smoke: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_CLI)" storage-smoke
+
+.PHONY: k8s-grafana k8s-logging-smoke
+k8s-grafana: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" grafana
+
+k8s-logging-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-smoke
+
+.PHONY: k8s-logging-validate
+k8s-logging-validate: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-validate

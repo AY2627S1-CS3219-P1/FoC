@@ -29,7 +29,7 @@ var jobs = []string{
 	"communication-migrate",
 	"kafka-init",
 }
-var stages = []string{"gateway", "dependencies", "provisioning", "initialization", "applications"}
+var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}
 
 type operator struct {
 	ctx             context.Context
@@ -177,6 +177,16 @@ func configuredForwards(getenv func(string) string) ([]forwardSpec, error) {
 		{
 			"K8S_KAFKA_UI_PORT",
 			forwardSpec{name: "Kafka UI", namespace: "foc", service: "kafka-ui", remotePort: 8080, scheme: "http"},
+		},
+		{
+			"K8S_GRAFANA_PORT",
+			forwardSpec{
+				name:       "Grafana",
+				namespace:  "foc-observability",
+				service:    "grafana",
+				remotePort: 3000,
+				scheme:     "http",
+			},
 		},
 		{
 			"K8S_MAILPIT_PORT",
