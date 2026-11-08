@@ -17,6 +17,7 @@ This directory records non-obvious failures that can affect future work. Each en
 | [A new service's database is missing on existing Postgres volumes](new-service-database.md) | A service database was added to `docker/postgres/init-dbs.sh` after your `pgdata` volume was created. |
 | [Existing Compose environments use User's old public-key address](compose-user-internal-listener.md) | An existing `.env` still sets `USER_SERVICE_BASE_URL=http://user-service:8080` after the User listener split. |
 | [Supplier's old Location schema survives on existing Postgres volumes](supplier-edited-migrations.md) | Your `supplier_dev` database applied Supplier migrations before 8 October 2026, or Location requests fail with `column d.ended_at does not exist`. |
+| [An old `.env` points Compose services at User Service's public port](compose-user-service-url.md) | Your `.env` sets `USER_SERVICE_BASE_URL=http://user-service:8080`, or Compose services fail with `load authentication keys: unimplemented: 404 Not Found`. |
 | [Credit's reservation listener accepts unauthenticated calls](credit-internal-listener-unauthenticated.md) | Credit's `INTERNAL_PORT` is published, exposed through a Service or ingress, or merged into the public listener. |
 | [Stack rebases replay integrated merge history](gh-stack-merge-history.md) | `gh stack` v0.1.1 rebases imported branches with merge commits and squash-merged dependencies. |
 | [Sandbox blocks local HTTP test servers](sandbox-test-sockets.md) | Go tests use `httptest.NewServer` and the agent sandbox denies local socket creation. |
