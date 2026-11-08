@@ -57,8 +57,9 @@ def prepare(config, admin, directory):
             "SELECT pg_get_userbyid(datdba) = :'db_user' AS owner_matches FROM pg_database WHERE datname = :'db_name' \\gset",
             "\\if :owner_matches",
             "\\else",
-            "\\echo Existing database owner does not match the expected service role. Aborting.",
-            "\\quit 1",
+            # psql 17 ignores an exit-code argument to \\quit. A server error
+            # makes ON_ERROR_STOP return nonzero for both stdin and file input.
+            "DO $$ BEGIN RAISE EXCEPTION 'Existing database owner does not match the expected service role. Aborting.'; END $$;",
             "\\endif",
             "SELECT format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', :'db_name') \\gexec",
             "SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'db_user') \\gexec",

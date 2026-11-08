@@ -57,7 +57,7 @@ class PostgreSQLRoleContractTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             result = self.sql(setup, "foc_admin")
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Existing database owner does not match", result.stdout)
+            self.assertIn("Existing database owner does not match", result.stderr)
             result = self.sql("ALTER DATABASE order_db OWNER TO foc_order;")
             self.assertEqual(result.returncode, 0, result.stderr)
             result = self.sql(setup, "foc_admin")
