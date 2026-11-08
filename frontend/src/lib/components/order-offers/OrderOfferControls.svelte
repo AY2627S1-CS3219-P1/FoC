@@ -10,8 +10,8 @@
  import { clearOfferAction, loadOfferAction, saveOfferAction, isProposalRetryExpired, type OfferAction } from '$lib/services/order-offers/retry';
  import { describeOrderError } from '$lib/services/order/errors';
  import { proposalSchema } from '$lib/services/order-offers/proposalSchema';
- let { order, refresh, api, callerId, suspended }: {
-  order: Order; refresh: () => Promise<void>; api: OrderOffersApi; callerId: string; suspended: boolean
+ let { order, refresh, api, callerId, suspended, deleting = false }: {
+  order: Order; refresh: () => Promise<void>; api: OrderOffersApi; callerId: string; suspended: boolean; deleting?: boolean
  } = $props();
  let offers = $state<Offer[]>([]), action = $state<OfferAction | null>(null);
  let message = $state(''), error = $state(''), listError = $state('');
@@ -19,7 +19,10 @@
  let epoch = 0, offerRead = 0, loadedScope = '';
  const requester = $derived(order.requesterId === callerId);
  const beforeDeadline = $derived(Boolean(order.expiresAt && timestampDate(order.expiresAt).getTime() > now));
- const canStart = $derived(Boolean(callerId && !suspended && !busy && storageReady && !action && order.status === OrderStatus.AWAITING_COURIER && beforeDeadline));
+ const canStart = $derived(Boolean(callerId && !suspended && !deleting && !busy && storageReady && !action && order.status === OrderStatus.AWAITING_COURIER && beforeDeadline));
+ // Selecting an existing open offer progresses already-counted work, so it
+ // stays available to a deleting requester even though new offers do not.
+ const canAcceptOffer = $derived(canStart || Boolean(callerId && !suspended && !busy && storageReady && !action && order.status === OrderStatus.AWAITING_COURIER && beforeDeadline));
  const expiredProposal = $derived(Boolean(action && isProposalRetryExpired(action, now)));
  const resolved = $derived(action?.outcome === 'succeeded' || action?.outcome === 'rejected' || expiredProposal);
  const schema = proposalSchema(() => order.rewardCredits);
@@ -131,11 +134,12 @@
   <Button type="button" variant="text" disabled={busy} onclick={() => void loadOffers()}>Refresh offers</Button>
  </header>
  {#if suspended}<p>Your account is suspended. You can view history but cannot accept or make offers.</p>{/if}
+ {#if deleting}<p>Account deletion was requested. You cannot make new offers or accept this order, but your existing offers and work stay usable.</p>{/if}
  {#if message}<p role="status">{message}</p>{/if}
  {#if error}<p role="alert">{error}</p>{/if}
  {#if expiredProposal}<p>We cannot check this earlier offer again. Refresh offers before submitting another. A new offer may replace your open offer.</p>{/if}
  {#if action}
-  {#if resolved}<Button type="button" variant="outlined" disabled={busy || suspended} onclick={newIntent}>Start again</Button>
+  {#if resolved}<Button type="button" variant="outlined" disabled={busy || suspended || deleting} onclick={newIntent}>Start again</Button>
   {:else}<Button type="button" variant="outlined" disabled={busy || suspended || !storageReady} onclick={retrySaved}>{busy ? 'Sending…' : action.kind === 'counteroffer' ? 'Accept again (may reserve credits again)' : 'Try again'}</Button>{/if}
  {/if}
  {#if !requester}
@@ -154,7 +158,7 @@
   <ul class="record-list">{#each offers as offer (offer.id)}
    <li class="record-row"><span>{offer.credits.toString()} credits · {offerLabel(offer.status)}</span>
     {#if requester && offer.status === OfferStatus.OPEN}
-     <Button type="button" disabled={!canStart} onclick={() => void perform({kind:'counteroffer',key:crypto.randomUUID(),offerId:offer.id,outcome:'uncertain'})}>Accept {offer.credits.toString()}-credit offer</Button>
+     <Button type="button" disabled={!canAcceptOffer} onclick={() => void perform({kind:'counteroffer',key:crypto.randomUUID(),offerId:offer.id,outcome:'uncertain'})}>Accept {offer.credits.toString()}-credit offer</Button>
     {/if}
    </li>
   {/each}</ul>

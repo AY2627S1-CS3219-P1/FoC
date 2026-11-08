@@ -21,6 +21,7 @@ type RPCServices struct {
 	Health      grpchealth.Checker
 	Account     creditv1connect.CreditAccountServiceHandler
 	Reservation creditv1connect.CreditReservationServiceHandler
+	Internal    creditv1connect.CreditInternalServiceHandler
 }
 
 // Public mounts the health check and the caller's account RPCs.
@@ -37,7 +38,10 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	return mux
 }
 
-// Internal mounts the health check and Order's reservation RPCs.
+// Internal mounts the health check and Order's reservation RPCs plus the
+// service-to-service reads. Like the reservation listener it does not verify
+// workload identity yet (#29), so it must only be reachable from inside the
+// service network; see LANDMINES/credit-internal-listener-unauthenticated.md.
 func Internal(services RPCServices) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))
@@ -47,6 +51,12 @@ func Internal(services RPCServices) *http.ServeMux {
 		connect.WithInterceptors(validate.NewInterceptor()),
 	)
 	mux.Handle(reservationPath, reservationHandler)
+
+	internalPath, internalHandler := creditv1connect.NewCreditInternalServiceHandler(
+		services.Internal,
+		connect.WithInterceptors(validate.NewInterceptor()),
+	)
+	mux.Handle(internalPath, internalHandler)
 
 	return mux
 }

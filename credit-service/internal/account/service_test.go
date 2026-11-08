@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/account"
+	"github.com/google/uuid"
 )
 
 const userID = "22222222-2222-4222-8222-222222222222"
@@ -42,13 +43,17 @@ func (f *fakeStore) LedgerEntries(
 	return []account.LedgerEntry{{Kind: account.Grant, BalanceDelta: 100}}, f.total, nil
 }
 
+func (f *fakeStore) RecordDeletion(_ context.Context, _, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
 func TestGetAccountReportsAvailableCredits(t *testing.T) {
 	store := &fakeStore{}
-	a, err := account.NewService(store, store, time.Now).GetAccount(context.Background(), userID)
+	a, err := account.NewService(store, store, store, time.Now).GetAccount(context.Background(), userID)
 	if err != nil || a.Available() != 70 {
 		t.Fatalf("account: %+v %v", a, err)
 	}
-	if _, err := account.NewService(store, store, time.Now).
+	if _, err := account.NewService(store, store, store, time.Now).
 		GetAccount(context.Background(), "nope"); !errors.Is(
 		err,
 		account.ErrInvalidArgument,
@@ -59,7 +64,7 @@ func TestGetAccountReportsAvailableCredits(t *testing.T) {
 
 func TestReadsReportAMissingAccount(t *testing.T) {
 	store := &fakeStore{missing: true}
-	s := account.NewService(store, store, time.Now)
+	s := account.NewService(store, store, store, time.Now)
 
 	if _, err := s.GetAccount(context.Background(), userID); !errors.Is(err, account.ErrAccountNotFound) {
 		t.Fatalf("get: %v", err)
@@ -108,7 +113,7 @@ func TestListLedgerEntriesPages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeStore{total: tt.total}
-			got, err := account.NewService(store, store, time.Now).
+			got, err := account.NewService(store, store, store, time.Now).
 				ListLedgerEntries(context.Background(), userID, tt.page)
 			if err != nil {
 				t.Fatal(err)
@@ -120,7 +125,7 @@ func TestListLedgerEntriesPages(t *testing.T) {
 		})
 	}
 	for _, p := range []account.Page{{Number: -1}, {Size: -1}, {Size: 101}} {
-		if _, err := account.NewService(&fakeStore{}, nil, time.Now).
+		if _, err := account.NewService(&fakeStore{}, nil, nil, time.Now).
 			ListLedgerEntries(context.Background(), userID, p); !errors.Is(
 			err,
 			account.ErrInvalidArgument,
@@ -132,7 +137,7 @@ func TestListLedgerEntriesPages(t *testing.T) {
 
 func TestOpenValidatesTheUserID(t *testing.T) {
 	store := &fakeStore{}
-	s := account.NewService(store, store, time.Now)
+	s := account.NewService(store, store, store, time.Now)
 
 	if err := s.Open(context.Background(), "22222222-2222-4222-8222-222222222222"); err != nil {
 		t.Fatal(err)

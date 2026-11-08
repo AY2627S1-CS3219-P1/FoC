@@ -8,6 +8,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	creditinternalrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/creditinternal"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
@@ -16,16 +17,17 @@ import (
 
 // services are Credit's adapters over one set of domain services.
 type services struct {
-	rpc      router.RPCServices
-	outcomes *events.Outcomes
-	users    *events.Users
+	rpc       router.RPCServices
+	outcomes  *events.Outcomes
+	users     *events.Users
+	deletions *events.UserDeletions
 }
 
 func newServices(pool *pgxpool.Pool) services {
 	clock := time.Now
 
 	accountStore := account.NewPostgresStore(pool)
-	accounts := account.NewService(accountStore, accountStore, clock)
+	accounts := account.NewService(accountStore, accountStore, accountStore, clock)
 	reservations := reservation.NewService(reservation.NewPostgresRepository(pool), clock, reservation.LatenessPayout)
 
 	return services{
@@ -39,8 +41,10 @@ func newServices(pool *pgxpool.Pool) services {
 			},
 			Account:     &accountrpc.Server{Accounts: accounts},
 			Reservation: &reservationrpc.Server{Reservations: reservations},
+			Internal:    &creditinternalrpc.Server{Drain: accountStore},
 		},
-		outcomes: &events.Outcomes{Settler: reservations, Backoff: 100 * time.Millisecond},
-		users:    &events.Users{Opener: accounts},
+		outcomes:  &events.Outcomes{Settler: reservations, Backoff: 100 * time.Millisecond},
+		users:     &events.Users{Opener: accounts},
+		deletions: &events.UserDeletions{Recorder: accounts},
 	}
 }

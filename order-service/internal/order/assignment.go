@@ -148,6 +148,12 @@ func (s *Assigner) MakeOffer(
 				return nil, err
 			}
 		}
+		// A deleting courier may replay a retained offer outcome but never
+		// propose or replace one; the key stays retained because the error
+		// rolls this transaction back.
+		if !caller.CanStartWork() {
+			return nil, ErrDeleting
+		}
 		if err := s.canPropose(ctx, tx, o, now); err != nil {
 			return nil, err
 		}
@@ -257,6 +263,11 @@ func (s *Assigner) AcceptOrder(ctx context.Context, caller Caller, orderID, key 
 		now := s.now().UTC()
 		if o.Status != AwaitingCourier || !o.ExpiresAt.After(now) || o.ReservedCredits <= 0 {
 			return nil, ErrNotFound
+		}
+		// A deleting courier may replay a retained attempt but never admit a
+		// new direct acceptance.
+		if !caller.CanStartWork() {
+			return nil, ErrDeleting
 		}
 		if s.credit == nil {
 			return nil, ErrUnavailable

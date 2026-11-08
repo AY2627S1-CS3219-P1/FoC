@@ -24,6 +24,7 @@
 	let balanceRequest = 0;
 	let initialized = $state(false);
 	const suspended = $derived(authService.user?.role === UserRole.SUSPENDED_USER);
+	const deleting = $derived(authService.user?.isDeleting === true);
 
 	function localDate(value: Date) {
 		return new Date(value.getTime() - value.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -33,7 +34,7 @@
 		defaults({ pickupLocationId: '', deliveryLocationId: '', instructions: '', itemDescription: '', rewardCredits: '', deliveryMinutes: 30, expiresAt: localDate(new Date(Date.now() + 3600000)) }, zod4(creationSchema)),
 		{ SPA: true, validators: zod4Client(creationSchema), resetForm: false, multipleSubmits: 'prevent',
 			async onUpdate({ form: validated }) {
-				if (!validated.valid || submission || busy || suspended || recoveryError) return;
+				if (!validated.valid || submission || busy || suspended || deleting || recoveryError) return;
 				if (new Date(validated.data.expiresAt).getTime() <= Date.now()) {
 					setError(validated, 'expiresAt', 'Choose an expiry time in the future.');
 					return;
@@ -167,6 +168,7 @@
 	<nav><a href="/orders">Browse</a> · <a href="/orders/mine">My Orders</a></nav>
 	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to create an order.</p>
 	{:else if suspended}<p class="notice">Your account is suspended. You can still view <a href="/orders/mine">My Orders</a>.</p>
+	{:else if deleting}<p class="notice">Account deletion was requested. You cannot start new orders, but you can still finish existing work in <a href="/orders/mine">My Orders</a>.</p>
 	{:else}
 		{#if recoveryError}<p class="notice error" role="alert">{recoveryError} <a href="/orders/mine">Check My Orders</a>.</p>{/if}
 		<p class:empty={!feedback} class:failure={outcome === 'failed' || outcome === 'rejected'} class="notice" role="status" aria-live="polite">{feedback}</p>

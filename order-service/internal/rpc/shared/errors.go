@@ -28,6 +28,7 @@ func ConnectError(ctx context.Context, err error) error {
 		{app.ErrForbidden, connect.CodePermissionDenied},
 		{app.ErrInvalid, connect.CodeInvalidArgument},
 		{app.ErrPrecondition, connect.CodeFailedPrecondition},
+		{app.ErrDeleting, connect.CodeFailedPrecondition},
 		{app.ErrConflict, connect.CodeAborted},
 		{app.ErrAlreadyExists, connect.CodeAlreadyExists},
 		{app.ErrUnavailable, connect.CodeUnavailable},

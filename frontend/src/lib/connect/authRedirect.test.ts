@@ -11,14 +11,21 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn(async () => undefined) }));
 function setup() {
 	const session = {
 		accessToken: 'refreshed-token',
-		user: { id: 'admin', email: 'admin@example.com', displayName: 'Admin', role: UserRole.ADMIN }
+		user: {
+			id: 'admin',
+			email: 'admin@example.com',
+			displayName: 'Admin',
+			role: UserRole.ADMIN,
+			isDeleting: false
+		}
 	};
 	const api = {
 		requestLink: vi.fn(async () => undefined),
 		login: vi.fn(async () => session),
 		register: vi.fn(async () => session),
 		refresh: vi.fn(async () => session),
-		logout: vi.fn(async () => undefined)
+		logout: vi.fn(async () => undefined),
+		deleteMyAccount: vi.fn(async () => session)
 	};
 	const auth = new AuthService(api);
 	const request = {

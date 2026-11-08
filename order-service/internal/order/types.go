@@ -105,6 +105,17 @@ type Actor struct {
 type Caller struct {
 	ID               string
 	Admin, Suspended bool
+	// IsDeleting reports an access token issued after the account's
+	// irreversible deletion was accepted. Such a caller may only resolve the
+	// work it already has; new obligations are refused.
+	IsDeleting bool
+}
+
+// CanStartWork reports whether the caller may admit a new obligation. A
+// deleting account may finish, cancel or withdraw existing work, and repeat
+// calls that replay an already-committed outcome, but nothing else.
+func (c Caller) CanStartWork() bool {
+	return !c.IsDeleting
 }
 
 // IsRequestedBy reports whether the user created the order.
@@ -202,4 +213,7 @@ var (
 	ErrInvalid      = errors.New("invalid argument")
 	ErrPrecondition = errors.New("ineligible order action")
 	ErrConflict     = errors.New("revision conflict")
+	// ErrDeleting refuses a new obligation for an account whose irreversible
+	// deletion has been accepted. Existing work keeps its normal permissions.
+	ErrDeleting = errors.New("account deletion prevents starting new work")
 )

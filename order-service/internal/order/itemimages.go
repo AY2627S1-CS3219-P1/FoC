@@ -47,6 +47,12 @@ func (s *ItemImages) CreateUpload(
 	if caller.ID == "" || caller.Suspended {
 		return ItemImageUpload{}, images.UploadGrant{}, ErrForbidden
 	}
+	// Uploads exist only to be attached to a new order, so a deleting caller
+	// cannot mint a new grant; images already attached to admitted work stay
+	// readable through their order.
+	if !caller.CanStartWork() {
+		return ItemImageUpload{}, images.UploadGrant{}, ErrDeleting
+	}
 	owner, err := parseID(caller.ID)
 	if err != nil {
 		return ItemImageUpload{}, images.UploadGrant{}, ErrForbidden

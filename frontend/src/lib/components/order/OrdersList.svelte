@@ -21,6 +21,7 @@
 	let buildingError = $state('');
 	let pickup = $state('');
 	const suspended = $derived(authService.user?.role === UserRole.SUSPENDED_USER);
+	const deleting = $derived(authService.user?.isDeleting === true);
 	const query: OrderQuery = $derived({
 		page: Math.max(1, Number(page.url.searchParams.get('page')) || 1),
 		pickupLocationId: page.url.searchParams.get('pickup') || undefined,
@@ -73,7 +74,7 @@
 	</header>
 	<nav aria-label="Order navigation" class="links">
 		<a href="/orders">Browse</a><a href="/orders/mine">My Orders</a>
-		{#if !suspended}<a href="/orders/new">Create Order</a>{/if}
+		{#if !suspended && !deleting}<a href="/orders/new">Create Order</a>{/if}
 	</nav>
 	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to see orders.</p>
 	{:else if !history && suspended}<p class="notice">Your account is suspended. You can still read <a href="/orders/mine">My Orders</a>.</p>

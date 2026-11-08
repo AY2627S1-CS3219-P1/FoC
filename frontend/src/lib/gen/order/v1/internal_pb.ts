@@ -2,8 +2,8 @@
 // @generated from file order/v1/internal.proto (package order.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { OrderStatus } from "./shared_types_pb";
 import { file_order_v1_shared_types } from "./shared_types_pb";
@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/internal.proto.
  */
 export const file_order_v1_internal: GenFile = /*@__PURE__*/
-  fileDesc("ChdvcmRlci92MS9pbnRlcm5hbC5wcm90bxIIb3JkZXIudjEiOQobR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKVAQocR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzQg0KC19jb3VyaWVyX2lkMoIBChRPcmRlckludGVybmFsU2VydmljZRJqChRHZXRPcmRlclBhcnRpY2lwYW50cxIlLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVxdWVzdBomLm9yZGVyLnYxLkdldE9yZGVyUGFydGljaXBhbnRzUmVzcG9uc2UiA5ACAUKaAQoMY29tLm9yZGVyLnYxQg1JbnRlcm5hbFByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_order_v1_shared_types]);
+  fileDesc("ChdvcmRlci92MS9pbnRlcm5hbC5wcm90bxIIb3JkZXIudjEiOQobR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKVAQocR2V0T3JkZXJQYXJ0aWNpcGFudHNSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoCRIUCgxyZXF1ZXN0ZXJfaWQYAiABKAkSFwoKY291cmllcl9pZBgDIAEoCUgAiAEBEiUKBnN0YXR1cxgEIAEoDjIVLm9yZGVyLnYxLk9yZGVyU3RhdHVzQg0KC19jb3VyaWVyX2lkIjoKHUdldFVzZXJPdXRzdGFuZGluZ1dvcmtSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBInAKHkdldFVzZXJPdXRzdGFuZGluZ1dvcmtSZXNwb25zZRIcChRoYXNfb3V0c3RhbmRpbmdfd29yaxgBIAEoCBIwCgdyZWFzb25zGAIgAygOMh8ub3JkZXIudjEuT3V0c3RhbmRpbmdXb3JrUmVhc29uKvQBChVPdXRzdGFuZGluZ1dvcmtSZWFzb24SJwojT1VUU1RBTkRJTkdfV09SS19SRUFTT05fVU5TUEVDSUZJRUQQABItCilPVVRTVEFORElOR19XT1JLX1JFQVNPTl9OT05URVJNSU5BTF9PUkRFUhABEiYKIk9VVFNUQU5ESU5HX1dPUktfUkVBU09OX09QRU5fT0ZGRVIQAhIsCihPVVRTVEFORElOR19XT1JLX1JFQVNPTl9QRU5ESU5HX1dPUktGTE9XEAMSLQopT1VUU1RBTkRJTkdfV09SS19SRUFTT05fUEVORElOR19BRE1JU1NJT04QBDL0AQoUT3JkZXJJbnRlcm5hbFNlcnZpY2USagoUR2V0T3JkZXJQYXJ0aWNpcGFudHMSJS5vcmRlci52MS5HZXRPcmRlclBhcnRpY2lwYW50c1JlcXVlc3QaJi5vcmRlci52MS5HZXRPcmRlclBhcnRpY2lwYW50c1Jlc3BvbnNlIgOQAgEScAoWR2V0VXNlck91dHN0YW5kaW5nV29yaxInLm9yZGVyLnYxLkdldFVzZXJPdXRzdGFuZGluZ1dvcmtSZXF1ZXN0Gigub3JkZXIudjEuR2V0VXNlck91dHN0YW5kaW5nV29ya1Jlc3BvbnNlIgOQAgFCmgEKDGNvbS5vcmRlci52MUINSW50ZXJuYWxQcm90b1ABWjpnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9vcmRlci92MTtvcmRlcnYxogIDT1hYqgIIT3JkZXIuVjHKAghPcmRlclxWMeICFE9yZGVyXFYxXEdQQk1ldGFkYXRh6gIJT3JkZXI6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_order_v1_shared_types]);
 
 /**
  * Used by Communication to relay chat only between an order's participants.
@@ -69,6 +69,100 @@ export const GetOrderParticipantsResponseSchema: GenMessage<GetOrderParticipants
   messageDesc(file_order_v1_internal, 1);
 
 /**
+ * @generated from message order.v1.GetUserOutstandingWorkRequest
+ */
+export type GetUserOutstandingWorkRequest = Message<"order.v1.GetUserOutstandingWorkRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message order.v1.GetUserOutstandingWorkRequest.
+ * Use `create(GetUserOutstandingWorkRequestSchema)` to create a new message.
+ */
+export const GetUserOutstandingWorkRequestSchema: GenMessage<GetUserOutstandingWorkRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_internal, 2);
+
+/**
+ * @generated from message order.v1.GetUserOutstandingWorkResponse
+ */
+export type GetUserOutstandingWorkResponse = Message<"order.v1.GetUserOutstandingWorkResponse"> & {
+  /**
+   * True when the user still has outstanding work that blocks account
+   * finalization. The result reflects one consistent database snapshot.
+   *
+   * @generated from field: bool has_outstanding_work = 1;
+   */
+  hasOutstandingWork: boolean;
+
+  /**
+   * Stable reason categories explaining the outstanding result. Empty when
+   * has_outstanding_work is false.
+   *
+   * @generated from field: repeated order.v1.OutstandingWorkReason reasons = 2;
+   */
+  reasons: OutstandingWorkReason[];
+};
+
+/**
+ * Describes the message order.v1.GetUserOutstandingWorkResponse.
+ * Use `create(GetUserOutstandingWorkResponseSchema)` to create a new message.
+ */
+export const GetUserOutstandingWorkResponseSchema: GenMessage<GetUserOutstandingWorkResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_internal, 3);
+
+/**
+ * @generated from enum order.v1.OutstandingWorkReason
+ */
+export enum OutstandingWorkReason {
+  /**
+   * @generated from enum value: OUTSTANDING_WORK_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Requester or current courier on a nonterminal order (pending reservation,
+   * awaiting courier/pickup, delivering, delivered).
+   *
+   * @generated from enum value: OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER = 1;
+   */
+  NONTERMINAL_ORDER = 1,
+
+  /**
+   * An open or accepting offer made by or to the user that has not resolved
+   * into an assignment or been withdrawn/voided.
+   *
+   * @generated from enum value: OUTSTANDING_WORK_REASON_OPEN_OFFER = 2;
+   */
+  OPEN_OFFER = 2,
+
+  /**
+   * Unresolved creation, assignment or cancellation/recovery workflow records
+   * involving the user. A former courier's fully resolved assignment history
+   * alone is not outstanding.
+   *
+   * @generated from enum value: OUTSTANDING_WORK_REASON_PENDING_WORKFLOW = 3;
+   */
+  PENDING_WORKFLOW = 3,
+
+  /**
+   * A durable pending admission or recovery record that could still create or
+   * change the user's obligations after this query.
+   *
+   * @generated from enum value: OUTSTANDING_WORK_REASON_PENDING_ADMISSION = 4;
+   */
+  PENDING_ADMISSION = 4,
+}
+
+/**
+ * Describes the enum order.v1.OutstandingWorkReason.
+ */
+export const OutstandingWorkReasonSchema: GenEnum<OutstandingWorkReason> = /*@__PURE__*/
+  enumDesc(file_order_v1_internal, 0);
+
+/**
  * Service-to-service reads. Not exposed to the frontend.
  *
  * @generated from service order.v1.OrderInternalService
@@ -81,6 +175,20 @@ export const OrderInternalService: GenService<{
     methodKind: "unary";
     input: typeof GetOrderParticipantsRequestSchema;
     output: typeof GetOrderParticipantsResponseSchema;
+  },
+  /**
+   * Read-only outstanding-work check for account deletion finalization. The
+   * User Service deletion worker calls this with its service identity. It
+   * never mutates state, reserves the user or installs any gate; the User
+   * Service worker postpones finalization while the result is outstanding or
+   * unknown. Timeouts and errors count as unknown, never as empty.
+   *
+   * @generated from rpc order.v1.OrderInternalService.GetUserOutstandingWork
+   */
+  getUserOutstandingWork: {
+    methodKind: "unary";
+    input: typeof GetUserOutstandingWorkRequestSchema;
+    output: typeof GetUserOutstandingWorkResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_order_v1_internal, 0);

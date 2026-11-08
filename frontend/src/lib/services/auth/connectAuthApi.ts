@@ -15,7 +15,8 @@ function toUser(user: ProtoUser | undefined): AuthUser {
 		id: user.id,
 		email: user.email,
 		displayName: user.displayName,
-		role: user.role
+		role: user.role,
+		isDeleting: user.isDeleting
 	};
 }
 
@@ -55,5 +56,10 @@ export class ConnectAuthApi implements AuthApi {
 
 	async logout(): Promise<void> {
 		await this.#client.logout({});
+	}
+
+	async deleteMyAccount(): Promise<AuthSession> {
+		const response = await this.#client.deleteMyAccount({});
+		return toSession(response.accessToken, response.user);
 	}
 }

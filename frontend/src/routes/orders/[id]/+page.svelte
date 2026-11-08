@@ -93,6 +93,7 @@
 						api={orderOffersApi}
 						callerId={authService.user?.id ?? ''}
 						suspended={authService.user?.role === UserRole.SUSPENDED_USER}
+						deleting={authService.user?.isDeleting === true}
 					/>
 					{#key `${authService.user?.id}:${currentOrder.id}`}
 						<DeliveryProofPanel order={currentOrder} refresh={refreshOrder} api={deliveryProofApi} callerId={authService.user?.id ?? ''} />

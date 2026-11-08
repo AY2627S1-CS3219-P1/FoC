@@ -73,7 +73,9 @@ func run(ctx context.Context) error {
 	defer func() { stopWorkers(); workers.Wait() }()
 
 	if len(config.KafkaBrokers) > 0 {
-		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, services.outcomes, services.users) })
+		workers.Go(
+			func() { consume(workerCtx, config.KafkaBrokers, services.outcomes, services.users, services.deletions) },
+		)
 	} else {
 		slog.WarnContext(ctx, "KAFKA_BROKERS is not set; order outcomes and new users are not consumed")
 	}

@@ -61,14 +61,25 @@ func Post(ctx context.Context, q *creditdb.Queries, now time.Time, postings ...P
 
 // Open returns the user's account locked until the transaction ends. A user
 // Credit has not seen first receives the starting credits. Concurrent first
-// opens wait on the primary key, so the grant is posted once.
+// opens wait on the primary key, so the grant is posted once. Opening
+// serializes on the user's advisory lock with deletion recording, so a
+// deleted user's account never receives the starting grant.
 func Open(ctx context.Context, q *creditdb.Queries, now time.Time, userID uuid.UUID) (creditdb.Account, error) {
+	if err := q.LockUser(ctx, userID); err != nil {
+		return creditdb.Account{}, fmt.Errorf("lock user %s: %w", userID, err)
+	}
+
+	marked, err := DeletionMarked(ctx, q, userID)
+	if err != nil {
+		return creditdb.Account{}, err
+	}
+
 	created, err := q.InsertAccount(ctx, creditdb.InsertAccountParams{UserID: userID, NowAt: now})
 	if err != nil {
 		return creditdb.Account{}, fmt.Errorf("open account %s: %w", userID, err)
 	}
 
-	if created == 1 {
+	if created == 1 && !marked {
 		if err := Post(ctx, q, now, Posting{UserID: userID, Kind: Grant, BalanceDelta: StartingCredits}); err != nil {
 			return creditdb.Account{}, err
 		}

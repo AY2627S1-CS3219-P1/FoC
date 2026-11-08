@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	creditinternalrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/creditinternal"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -98,6 +99,14 @@ func (f *fakeAccounts) ListLedgerEntries(_ context.Context, userID string, p acc
 	return account.LedgerPage{PageInfo: account.PageInfo{Page: 1, PageSize: 20}}, f.err
 }
 
+type fakeDrain struct {
+	reasons []account.OutstandingWorkReason
+}
+
+func (f *fakeDrain) OutstandingWork(context.Context, string) (account.OutstandingWork, error) {
+	return account.OutstandingWork{Reasons: f.reasons}, nil
+}
+
 type pingable struct{ err error }
 
 func (p pingable) Ping(context.Context) error { return p.err }
@@ -120,6 +129,7 @@ func start(t *testing.T) servers {
 		},
 		Account:     &accountrpc.Server{Accounts: s.accounts},
 		Reservation: &reservationrpc.Server{Reservations: s.reservations},
+		Internal:    &creditinternalrpc.Server{Drain: &fakeDrain{}},
 	}
 
 	// A bearer token "user:<id>" authenticates as that user.
@@ -228,10 +238,37 @@ func TestReservationRPCsAreNotPublic(t *testing.T) {
 
 	_, err := client.GetReservation(
 		context.Background(),
-		withBearer(&creditv1.GetReservationRequest{RequestId: orderID}, "user:"+requesterID),
+		connect.NewRequest(&creditv1.GetReservationRequest{RequestId: orderID}),
 	)
 	if connect.CodeOf(err) != connect.CodeUnimplemented || len(s.reservations.calls) != 0 {
 		t.Fatalf("public reservation RPC: %v, calls %v", err, s.reservations.calls)
+	}
+}
+
+// Internal reads
+
+func TestInternalDrainServesAndStaysOffThePublicListener(t *testing.T) {
+	s := start(t)
+	ctx := context.Background()
+
+	client := creditv1connect.NewCreditInternalServiceClient(http.DefaultClient, s.internal.URL)
+	res, err := client.GetUserOutstandingWork(
+		ctx,
+		connect.NewRequest(&creditv1.GetUserOutstandingWorkRequest{UserId: requesterID}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Msg.HasOutstandingWork || len(res.Msg.Reasons) != 0 {
+		t.Fatalf("drain: %v", res.Msg)
+	}
+
+	public := creditv1connect.NewCreditInternalServiceClient(http.DefaultClient, s.public.URL)
+	if _, err = public.GetUserOutstandingWork(
+		ctx,
+		connect.NewRequest(&creditv1.GetUserOutstandingWorkRequest{UserId: requesterID}),
+	); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("public drain RPC: %v", err)
 	}
 }
 

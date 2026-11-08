@@ -17,6 +17,12 @@ type RPCServices struct {
 	Admin  orderv1connect.OrderAdminServiceHandler
 }
 
+// InternalRPCServices contains the servers for the internal listener. They are
+// reachable only inside the service network and never receive a Gateway route.
+type InternalRPCServices struct {
+	Internal orderv1connect.OrderInternalServiceHandler
+}
+
 // Setup mounts the public health RPC and the protected order RPCs.
 func Setup(services RPCServices, authenticate func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -35,6 +41,20 @@ func Setup(services RPCServices, authenticate func(http.Handler) http.Handler) *
 		connect.WithInterceptors(auth.RequireAdmin(), validate.NewInterceptor()),
 	)
 	mux.Handle(adminPath, authenticate(adminHandler))
+
+	return mux
+}
+
+// SetupInternal mounts the service-to-service reads. The internal listener is
+// unauthenticated by design; network policy keeps it off the public gateway.
+func SetupInternal(services InternalRPCServices) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	internalPath, internalHandler := orderv1connect.NewOrderInternalServiceHandler(
+		services.Internal,
+		connect.WithInterceptors(validate.NewInterceptor()),
+	)
+	mux.Handle(internalPath, internalHandler)
 
 	return mux
 }

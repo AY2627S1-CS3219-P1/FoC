@@ -10,14 +10,15 @@ import { UserRole } from '$lib/gen/user/v1/auth_pb';
 import type { AuthApi, AuthSession } from './authApi.ts';
 import { AuthService } from './service.svelte.ts';
 
-function createSession(accessToken = 'access-token'): AuthSession {
+function createSession(accessToken = 'access-token', isDeleting = false): AuthSession {
 	return {
 		accessToken,
 		user: {
 			id: 'user-1',
 			email: 'user@example.com',
 			displayName: 'Test User',
-			role: UserRole.USER
+			role: UserRole.USER,
+			isDeleting
 		}
 	};
 }
@@ -28,7 +29,8 @@ function createAuthApi() {
 		login: vi.fn(async (_token: string) => createSession()),
 		register: vi.fn(async (_token: string, _displayName: string, _phoneNumber: string) => createSession()),
 		refresh: vi.fn(async () => createSession()),
-		logout: vi.fn(async () => undefined)
+		logout: vi.fn(async () => undefined),
+		deleteMyAccount: vi.fn(async () => createSession('restricted-token', true))
 	} satisfies AuthApi;
 }
 
@@ -449,6 +451,50 @@ describe('AuthService', () => {
 			expect(service.accessToken).toBeNull();
 			expect(service.isAuthenticated).toBe(false);
 			expect(service.isLoading).toBe(false);
+		});
+	});
+
+	describe('deleteMyAccount', () => {
+		it('applies the restricted replacement session', async () => {
+			const api = createAuthApi();
+			const service = new AuthService(api);
+			await service.login('valid-token');
+
+			await service.deleteMyAccount();
+
+			expect(api.deleteMyAccount).toHaveBeenCalledOnce();
+			expect(service.accessToken).toBe('restricted-token');
+			expect(service.user?.isDeleting).toBe(true);
+			expect(service.isAuthenticated).toBe(true);
+		});
+
+		it('prevents an earlier in-flight refresh from restoring an unrestricted session', async () => {
+			const api = createAuthApi();
+			const pendingRefresh = deferred<AuthSession>();
+			api.refresh.mockReturnValueOnce(pendingRefresh.promise);
+			const service = new AuthService(api);
+			await service.login('valid-token');
+
+			const refresh = service.refresh();
+			await vi.waitFor(() => expect(api.refresh).toHaveBeenCalledOnce());
+			const deletion = service.deleteMyAccount();
+			pendingRefresh.resolve(createSession('stale-unrestricted-token'));
+			await Promise.all([refresh, deletion]);
+
+			expect(service.accessToken).toBe('restricted-token');
+			expect(service.user?.isDeleting).toBe(true);
+		});
+
+		it('keeps the existing session when the deletion request fails', async () => {
+			const api = createAuthApi();
+			const service = new AuthService(api);
+			await service.login('valid-token');
+			api.deleteMyAccount.mockRejectedValueOnce(new Error('still has work'));
+
+			await expect(service.deleteMyAccount()).rejects.toBeTruthy();
+
+			expect(service.user?.isDeleting).toBe(false);
+			expect(service.accessToken).toBe('access-token');
 		});
 	});
 });

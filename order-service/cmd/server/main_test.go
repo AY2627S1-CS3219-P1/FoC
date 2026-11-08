@@ -119,12 +119,26 @@ func testRPCServices() router.RPCServices {
 func TestInternalParticipantServiceIsNotMounted(t *testing.T) {
 	handler := router.Setup(testRPCServices(), func(next http.Handler) http.Handler { return next })
 
-	request := httptest.NewRequest(http.MethodPost, "/order.v1.OrderInternalService/GetOrderParticipants", nil)
+	request := httptest.NewRequest(http.MethodPost, "/order.v1.OrderInternalService/GetUserOutstandingWork", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
 	if response.Code != http.StatusNotFound {
-		t.Fatalf("internal route returned %d", response.Code)
+		t.Fatalf("internal route returned %d on the public listener", response.Code)
+	}
+}
+
+func TestInternalRouterServesOutstandingWork(t *testing.T) {
+	handler := router.SetupInternal(router.InternalRPCServices{
+		Internal: &orderv1connect.UnimplementedOrderInternalServiceHandler{},
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/order.v1.OrderInternalService/GetUserOutstandingWork", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code == http.StatusNotFound {
+		t.Fatal("internal route missing on the internal listener")
 	}
 }
 

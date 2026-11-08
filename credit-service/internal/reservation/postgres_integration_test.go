@@ -19,7 +19,8 @@ func TestPostgresReservations(t *testing.T) {
 	pool := postgres.Setup(t)
 	clock := func() time.Time { return time.Now().UTC() }
 	s := reservation.NewService(reservation.NewPostgresRepository(pool), clock, reservation.LatenessPayout)
-	accounts := account.NewService(account.NewPostgresStore(pool), nil, clock)
+	accountStore := account.NewPostgresStore(pool)
+	accounts := account.NewService(accountStore, accountStore, accountStore, clock)
 	ctx := context.Background()
 	t.Cleanup(func() { postgres.CheckLedger(t, pool) })
 

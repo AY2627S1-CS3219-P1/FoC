@@ -1,9 +1,15 @@
 import type { Client } from '@connectrpc/connect';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import {
 	ProfileService as ProfileServiceDefinition,
 	type Profile as ProtoProfile
 } from '$lib/gen/user/v1/profile_pb';
-import type { ProfileApi, UpdateProfileInput, UserProfile } from './profileApi.ts';
+import type {
+	AccountDeletionStatus,
+	ProfileApi,
+	UpdateProfileInput,
+	UserProfile
+} from './profileApi.ts';
 
 type ProfileClient = Client<typeof ProfileServiceDefinition>;
 
@@ -15,7 +21,8 @@ function toProfile(profile: ProtoProfile | undefined): UserProfile {
 		displayName: profile.displayName,
 		description: profile.description,
 		phoneNumber: profile.phoneNumber,
-		role: profile.role
+		role: profile.role,
+		isDeleting: profile.isDeleting
 	};
 }
 
@@ -38,5 +45,15 @@ export class ConnectProfileApi implements ProfileApi {
 			phoneNumber: input.phoneNumber.trim()
 		});
 		return toProfile(response.profile);
+	}
+
+	async getMyAccountDeletionStatus(): Promise<AccountDeletionStatus> {
+		const response = await this.#client.getMyAccountDeletionStatus({});
+		return {
+			isDeleting: response.isDeleting,
+			requestedAt: response.requestedAt ? timestampDate(response.requestedAt) : undefined,
+			lastCheckedAt: response.lastCheckedAt ? timestampDate(response.lastCheckedAt) : undefined,
+			waitingReasons: [...response.waitingReasons]
+		};
 	}
 }

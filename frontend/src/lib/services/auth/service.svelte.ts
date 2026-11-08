@@ -128,6 +128,31 @@ export class AuthService {
 		return logout;
 	}
 
+	// Accepts the irreversible deletion and applies the replacement restricted
+	// session. Like logout it first invalidates every in-flight session write —
+	// an earlier refresh must not restore unrestricted state over the restricted
+	// token — and registers itself, so a concurrent logout waits for it.
+	deleteMyAccount(): Promise<void> {
+		this.#sessionRevision += 1;
+		// Snapshot before registering this deletion, or it would wait on itself.
+		const inFlight = Promise.allSettled([...this.#sessionOperations]);
+		let deletion: Promise<void>;
+		deletion = inFlight.then(() => {
+			const revision = this.#sessionRevision;
+			return this.#api.deleteMyAccount().then((session) => {
+				if (revision === this.#sessionRevision) {
+					this.#setSession(session);
+				}
+			});
+		});
+		this.#sessionOperations.add(deletion);
+		void deletion.then(
+			() => this.#sessionOperations.delete(deletion),
+			() => this.#sessionOperations.delete(deletion)
+		);
+		return deletion;
+	}
+
 	updateDisplayName(displayName: string): void {
 		if (this.#user) {
 			this.#user = { ...this.#user, displayName };

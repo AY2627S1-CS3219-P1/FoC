@@ -20,11 +20,17 @@ const (
 // consume runs Credit's subscription until ctx ends. A failed subscriber
 // cannot restart, so each failure builds a new one after a growing delay;
 // the uncommitted delivery is then redelivered.
-func consume(ctx context.Context, brokers []string, outcomes *events.Outcomes, users *events.Users) {
+func consume(
+	ctx context.Context,
+	brokers []string,
+	outcomes *events.Outcomes,
+	users *events.Users,
+	deletions *events.UserDeletions,
+) {
 	backoff := minConsumeBackoff
 	for ctx.Err() == nil {
 		started := time.Now()
-		err := subscribe(ctx, brokers, outcomes, users)
+		err := subscribe(ctx, brokers, outcomes, users, deletions)
 		if ctx.Err() != nil {
 			return
 		}
@@ -46,7 +52,13 @@ func consume(ctx context.Context, brokers []string, outcomes *events.Outcomes, u
 	}
 }
 
-func subscribe(ctx context.Context, brokers []string, outcomes *events.Outcomes, users *events.Users) error {
+func subscribe(
+	ctx context.Context,
+	brokers []string,
+	outcomes *events.Outcomes,
+	users *events.Users,
+	deletions *events.UserDeletions,
+) error {
 	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: consumerGroup})
 	if err != nil {
 		return err
@@ -62,6 +74,13 @@ func subscribe(ctx context.Context, brokers []string, outcomes *events.Outcomes,
 	err = kafka.Register(subscriber, events.UserCreatedTopic,
 		func() *userseventsv1.UserCreated { return new(userseventsv1.UserCreated) },
 		users.Handle,
+	)
+	if err != nil {
+		return err
+	}
+	err = kafka.Register(subscriber, events.UserDeletedTopic,
+		func() *userseventsv1.UserDeleted { return new(userseventsv1.UserDeleted) },
+		deletions.Handle,
 	)
 	if err != nil {
 		return err

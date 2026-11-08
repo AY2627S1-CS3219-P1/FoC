@@ -1,4 +1,9 @@
-import type { ProfileApi, UpdateProfileInput, UserProfile } from './profileApi.ts';
+import type {
+	AccountDeletionStatus,
+	ProfileApi,
+	UpdateProfileInput,
+	UserProfile
+} from './profileApi.ts';
 export interface ProfileIdentity {
 	updateDisplayName(displayName: string): void;
 }
@@ -20,5 +25,9 @@ export class ProfileService {
 		const profile = await this.#api.updateMyProfile(input);
 		this.#auth.updateDisplayName(profile.displayName);
 		return profile;
+	}
+
+	getMyAccountDeletionStatus(): Promise<AccountDeletionStatus> {
+		return this.#api.getMyAccountDeletionStatus();
 	}
 }

@@ -21,24 +21,49 @@ type Opener interface {
 	Open(ctx context.Context, userID string, at time.Time) error
 }
 
-type Service struct {
-	store  Store
-	opener Opener
-	clock  func() time.Time
+// DeletionRecorder durably records the committed deletion of a FoC account.
+type DeletionRecorder interface {
+	RecordDeletion(ctx context.Context, userID, eventID uuid.UUID, deletedAt time.Time) error
 }
 
-func NewService(store Store, opener Opener, clock func() time.Time) *Service {
-	return &Service{store: store, opener: opener, clock: clock}
+type Service struct {
+	store    Store
+	opener   Opener
+	recorder DeletionRecorder
+	clock    func() time.Time
+}
+
+func NewService(store Store, opener Opener, recorder DeletionRecorder, clock func() time.Time) *Service {
+	return &Service{store: store, opener: opener, recorder: recorder, clock: clock}
 }
 
 // Open opens the user's account with the starting credits when Credit learns
-// of a new user. Repeating it grants nothing (C1.3.1).
+// of a new user. Repeating it grants nothing (C1.3.1). A user whose committed
+// deletion Credit has recorded is never re-provisioned.
 func (s *Service) Open(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrInvalidArgument
 	}
 	return s.opener.Open(ctx, id.String(), s.clock().UTC())
+}
+
+// RecordDeletion stores the users.user_deleted replay marker. Both IDs come
+// from the event contract; anything unparseable is refused so a malformed
+// event can never mark the wrong user.
+func (s *Service) RecordDeletion(ctx context.Context, userID, eventID string, deletedAt time.Time) error {
+	id, err := uuid.Parse(userID)
+	if err != nil || id == uuid.Nil {
+		return ErrInvalidArgument
+	}
+	event, err := uuid.Parse(eventID)
+	if err != nil || event == uuid.Nil {
+		return ErrInvalidArgument
+	}
+	if s.recorder == nil {
+		return fmt.Errorf("record deletion %s: recorder unavailable", id)
+	}
+	return s.recorder.RecordDeletion(ctx, id, event, deletedAt.UTC())
 }
 
 // GetAccount returns the user's account, or ErrAccountNotFound.

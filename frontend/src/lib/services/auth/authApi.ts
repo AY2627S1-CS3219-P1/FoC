@@ -5,6 +5,8 @@ export interface AuthUser {
 	email: string;
 	displayName: string;
 	role: UserRole;
+	/** True once the account's irreversible deletion has been accepted. */
+	isDeleting: boolean;
 }
 
 export interface AuthSession {
@@ -19,4 +21,6 @@ export interface AuthApi {
 	register(token: string, displayName: string, phoneNumber: string): Promise<AuthSession>;
 	refresh(): Promise<AuthSession>;
 	logout(): Promise<void>;
+	/** Accepts deletion and returns the replacement restricted session. */
+	deleteMyAccount(): Promise<AuthSession>;
 }

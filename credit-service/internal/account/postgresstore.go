@@ -66,7 +66,8 @@ func (s *PostgresStore) LedgerEntries(
 }
 
 // Open opens the account in its own transaction. account.Open grants the
-// starting credits only to an account it creates.
+// starting credits only to an account it creates, and never for a user whose
+// committed deletion Credit has recorded.
 func (s *PostgresStore) Open(ctx context.Context, userID string, at time.Time) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -79,11 +80,56 @@ func (s *PostgresStore) Open(ctx context.Context, userID string, at time.Time) e
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
 
-	if _, err := Open(ctx, creditdb.New(tx), at, id); err != nil {
+	q := creditdb.New(tx)
+	if err := q.LockUser(ctx, id); err != nil {
+		return fmt.Errorf("lock user %s: %w", id, err)
+	}
+
+	// A delayed users.create after users.user_deleted must not reopen the
+	// account or grant credits.
+	marked, err := DeletionMarked(ctx, q, id)
+	if err != nil {
+		return err
+	}
+	if marked {
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit open account %s: %w", id, err)
+		}
+		return nil
+	}
+
+	if _, err := Open(ctx, q, at, id); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit open account %s: %w", id, err)
+	}
+	return nil
+}
+
+// RecordDeletion stores the users.user_deleted marker in its own transaction,
+// under the same per-user lock the opening paths take. A redelivered event, or
+// a second fact for the same user, changes nothing.
+func (s *PostgresStore) RecordDeletion(ctx context.Context, userID, eventID uuid.UUID, deletedAt time.Time) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin record deletion: %w", err)
+	}
+	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
+
+	q := creditdb.New(tx)
+	if err := q.LockUser(ctx, userID); err != nil {
+		return fmt.Errorf("lock user %s: %w", userID, err)
+	}
+	if _, err := q.InsertDeletedUser(ctx, creditdb.InsertDeletedUserParams{
+		UserID:    userID,
+		EventID:   eventID,
+		DeletedAt: deletedAt,
+	}); err != nil {
+		return fmt.Errorf("record deleted user %s: %w", userID, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit record deletion %s: %w", userID, err)
 	}
 	return nil
 }
@@ -96,6 +142,7 @@ func idString(v *uuid.UUID) string {
 }
 
 var (
-	_ Store  = (*PostgresStore)(nil)
-	_ Opener = (*PostgresStore)(nil)
+	_ Store            = (*PostgresStore)(nil)
+	_ Opener           = (*PostgresStore)(nil)
+	_ DeletionRecorder = (*PostgresStore)(nil)
 )

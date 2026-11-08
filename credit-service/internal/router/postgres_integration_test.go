@@ -16,6 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	creditinternalrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/creditinternal"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/testsupport/postgres"
@@ -45,13 +46,14 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	t.Helper()
 	clock := time.Now
 	accountStore := account.NewPostgresStore(pool)
-	accounts := account.NewService(accountStore, accountStore, clock)
+	accounts := account.NewService(accountStore, accountStore, accountStore, clock)
 	reservations := reservation.NewService(reservation.NewPostgresRepository(pool), clock, reservation.LatenessPayout)
 
 	services := router.RPCServices{
 		Health:      &healthrpc.Checker{DB: pool},
 		Account:     &accountrpc.Server{Accounts: accounts},
 		Reservation: &reservationrpc.Server{Reservations: reservations},
+		Internal:    &creditinternalrpc.Server{Drain: accountStore},
 	}
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
 		return auth.Caller{ID: token}, nil

@@ -65,6 +65,11 @@ func (s *Creator) Create(ctx context.Context, caller Caller, input CreateInput) 
 	if workflow != nil {
 		return s.resume(ctx, *workflow, hash)
 	}
+	// A deleting account cannot admit a new order. A retained workflow above
+	// is already-committed work and keeps replaying its outcome.
+	if !caller.CanStartWork() {
+		return Order{}, ErrDeleting
+	}
 	if !s.enabled || s.locations == nil || s.credit == nil {
 		return Order{}, ErrUnavailable
 	}

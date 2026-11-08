@@ -14,7 +14,12 @@ import (
 
 func Caller(ctx context.Context) app.Caller {
 	c, _ := auth.CallerFromContext(ctx)
-	return app.Caller{ID: c.ID, Admin: c.Admin, Suspended: c.Role == "suspended_user"}
+	return app.Caller{
+		ID:         c.ID,
+		Admin:      c.Admin,
+		Suspended:  c.Role == "suspended_user",
+		IsDeleting: c.IsDeleting,
+	}
 }
 
 // Enum mappings keep protobuf values at the RPC boundary.
