@@ -1,8 +1,13 @@
 # Communication Service
 
-Runs the FoC Telegram bot. It links FoC accounts to Telegram chats, sends order updates, and relays chat between an order's requester and courier.
+Sends FoC's messages to users. It runs the FoC Telegram bot, which links FoC accounts to Telegram chats, sends order updates and relays chat between an order's requester and courier. It also sends all FoC email: magic links for User Service, and order outcomes to users Telegram can't reach.
 
-Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`.
+Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: without `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
+
+## Email
+
+- **Magic links.** User Service calls `EmailService.SendMagicLink` with the address, the complete link and whether it signs in or finishes sign-up. Communication writes the email. The RPC is served only on the internal listener (`INTERNAL_PORT`), never the public one, and requires no access token: the caller hasn't signed in yet. In Kubernetes, an Istio policy lets only User Service reach that port. Any send failure returns `unavailable`, which User Service reports to the user.
+- **User emails.** The notification consumer also reads `users.create` and keeps each user's email in `user_emails`. Users created before the consumer first read the topic, and outside Kafka's retention, have no stored email.
 
 ## Linking
 
@@ -14,7 +19,9 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 
 ## Order notifications
 
-The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Users without a linked chat are skipped. Notifications run only when the bot started and `KAFKA_BROKERS` is set.
+The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
+
+- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. A user with no stored email is skipped. A permanent SMTP rejection (5xx) is logged and skipped; other SMTP errors pause and retry the consumer like a Telegram outage.
 
 - **At least once.** After each send, `order_notifications_sent` records the event and recipient, and a redelivered event skips recorded recipients. A crash between sending and recording can repeat one message.
 - **Each notification has a delivery class.** It decides what happens when a message can't go out promptly, during an outage, retries or a consumer restart:
@@ -65,13 +72,17 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 | Variable | Default | Meaning |
 |---|---|---|
 | `PORT` | `8080` | Public HTTP port inside the container. Compose maps it to `COMMUNICATION_PORT` (`8084`). |
-| `INTERNAL_PORT` | required | Internal listener port (`8081`). Every service runs the listener split; until private routes are split, it serves the public handler. |
+| `INTERNAL_PORT` | required | Internal listener port (`8081`). It serves health and `EmailService`, and is never published. |
 | `DATABASE_URL` | required | Postgres URL. Compose sets it from `COMMUNICATION_DATABASE_URL`. |
 | `USER_SERVICE_BASE_URL` | required | User Service URL, for verifying access tokens. |
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |
 | `TELEGRAM_BOT_TOKEN` | empty | Bot token from BotFather. Empty disables Telegram. |
 | `TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL, for pointing tests at a fake server. |
 | `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications. |
+| `SMTP_ADDR` | empty | SMTP relay `host:port`. Compose uses Mailpit at `mailpit:1025`. Empty disables email. |
+| `SMTP_FROM` | required with `SMTP_ADDR` | Sender address, such as `FoC <no-reply@foc.local>`. |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | empty | Relay credentials, sent only when `SMTP_USERNAME` is set. STARTTLS is used when the server offers it. |
+| `SMTP_TIMEOUT` | `5s` | Bounds each SMTP exchange. |
 
 ## Health check
 
@@ -91,11 +102,14 @@ curl -X POST localhost:8084/communication.v1.HealthService/Check -H 'Content-Typ
 | `internal/telegram` | Bot API client and long-polling loop |
 | `internal/bot` | Handles `/start` and blocked chats |
 | `internal/linking` | Link codes and links, with the Postgres store |
-| `internal/notify` | Order notification recipients, messages and sent records |
+| `internal/notify` | Order notification recipients, messages, delivery classes, email fallback and sent records |
+| `internal/email` | SMTP sender and the email text Communication writes |
+| `internal/users` | Users' emails from `users.create` |
 | `internal/chat` | Order participants, chat relay, `/chat` selection and retention |
 | `internal/handlers/health` | `HealthService` Connect handler |
 | `internal/handlers/telegramlink` | `TelegramLinkService` Connect handler |
-| `internal/router` | Mounts the handlers; everything except health requires an access token |
+| `internal/handlers/accountemail` | Internal `EmailService` Connect handler |
+| `internal/router` | Mounts the handlers. On the public listener, everything except health requires an access token; the internal listener serves `EmailService` |
 
 ## Database
 

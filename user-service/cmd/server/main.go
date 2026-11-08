@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/mail"
 	"net/url"
 	"os"
 	"os/signal"
@@ -24,10 +23,10 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
@@ -47,6 +46,9 @@ import (
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
+	// Communication sends magic links synchronously; its SMTP exchange is
+	// bounded at 5s by default.
+	magicLinkTimeout = 15 * time.Second
 )
 
 type config struct {
@@ -62,8 +64,9 @@ type config struct {
 	kafkaBrokers    string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	// Communication's internal listener, which sends magic links.
+	communicationURL string
+	bootstrap        bootstrap.Config
 }
 
 func main() {
@@ -244,25 +247,19 @@ func loadConfig() (config, error) {
 
 	var errs []error
 	cfg := config{
-		port:            envString("PORT", "8080"),
-		internalPort:    envString("INTERNAL_PORT", ""),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
-		smtp: email.SMTPSender{
-			Addr:     envString("SMTP_ADDR", ""),
-			From:     envString("SMTP_FROM", ""),
-			Username: envString("SMTP_USERNAME", ""),
-			Password: os.Getenv("SMTP_PASSWORD"),
-			Timeout:  envDuration("SMTP_TIMEOUT", 5*time.Second, &errs),
-		},
+		port:             envString("PORT", "8080"),
+		internalPort:     envString("INTERNAL_PORT", ""),
+		databaseURL:      envString("DATABASE_URL", ""),
+		dbMaxOpen:        envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:        envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations:    envBool("RUN_MIGRATIONS", true, &errs),
+		appEnv:           envString("APP_ENV", ""),
+		frontendURL:      envString("FRONTEND_BASE_URL", ""),
+		privateKey:       envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:     envString("KAFKA_BROKERS", ""),
+		accessTokenTTL:   envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
+		refreshTokenTTL:  envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		communicationURL: envString("COMMUNICATION_SERVICE_BASE_URL", ""),
 		bootstrap: bootstrap.Config{
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
@@ -274,12 +271,9 @@ func loadConfig() (config, error) {
 	if cfg.privateKey == "" && cfg.appEnv == "local" {
 		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
 	}
-	// Local mail goes to Mailpit; `docker compose` overrides the host to mailpit.
-	if cfg.smtp.Addr == "" && cfg.appEnv == "local" {
-		cfg.smtp.Addr = "localhost:1025"
-	}
-	if cfg.smtp.From == "" && cfg.appEnv == "local" {
-		cfg.smtp.From = "FoC <no-reply@foc.local>"
+	// Communication's internal listener on the Compose network.
+	if cfg.communicationURL == "" && cfg.appEnv == "local" {
+		cfg.communicationURL = "http://communication-service:8081"
 	}
 	if cfg.databaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is not set"))
@@ -300,8 +294,11 @@ func loadConfig() (config, error) {
 			}
 		}
 	}
-	if cfg.smtp.Addr == "" {
-		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	if u, err := url.Parse(cfg.communicationURL); cfg.communicationURL == "" {
+		errs = append(errs, errors.New("COMMUNICATION_SERVICE_BASE_URL is not set"))
+	} else if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		errs = append(errs, fmt.Errorf("COMMUNICATION_SERVICE_BASE_URL must be an http(s) URL, got %q",
+			cfg.communicationURL))
 	}
 	if cfg.internalPort == "" {
 		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
@@ -312,11 +309,6 @@ func loadConfig() (config, error) {
 		} else if cfg.internalPort == cfg.port {
 			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
 		}
-	}
-	if cfg.smtp.From == "" {
-		errs = append(errs, errors.New("SMTP_FROM is not set"))
-	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
-		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
 	}
 	return cfg, errors.Join(errs...)
 }
@@ -418,7 +410,8 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec,
+		MagicLinks: communication.NewMagicLinks(&http.Client{Timeout: magicLinkTimeout}, cfg.communicationURL),
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

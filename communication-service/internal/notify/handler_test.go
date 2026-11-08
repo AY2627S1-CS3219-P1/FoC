@@ -6,11 +6,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/textproto"
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/users"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 	"github.com/google/uuid"
@@ -329,5 +332,132 @@ func TestHandleReplaysWhenRevisionUnreadable(t *testing.T) {
 	}
 	if len(sender.sent) != 0 {
 		t.Fatalf("sent = %+v", sender.sent)
+	}
+}
+
+type fakeMailer struct {
+	sent []email.Email
+	err  error
+}
+
+func (f *fakeMailer) Send(_ context.Context, e email.Email) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.sent = append(f.sent, e)
+	return nil
+}
+
+type fakeEmails map[uuid.UUID]string
+
+func (f fakeEmails) Email(_ context.Context, userID uuid.UUID) (string, error) {
+	if address, ok := f[userID]; ok {
+		return address, nil
+	}
+	return "", users.ErrNotFound
+}
+
+// withEmail gives the handler email, with the requester unlinked from Telegram.
+func withEmail(h *Handler, links *fakeLinks) *fakeMailer {
+	mailer := &fakeMailer{}
+	h.Email, h.Emails = mailer, fakeEmails{requesterID: "alice@foc.local", courierID: "ben@foc.local"}
+	delete(links.chats, requesterID)
+	return mailer
+}
+
+func outcome() *eventsv1.OrderStatusChanged {
+	return event(eventsv1.OrderStatus_ORDER_STATUS_DELIVERED, eventsv1.OrderStatus_ORDER_STATUS_COMPLETED, system)
+}
+
+func TestHandleEmailsOutcomesToUsersWithoutTelegram(t *testing.T) {
+	h, sender, links, deliveries := newHandler()
+	mailer := withEmail(h, links)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+		t.Fatal(err)
+	}
+	if len(mailer.sent) != 1 || mailer.sent[0].To[0] != "alice@foc.local" ||
+		mailer.sent[0].TextBody[:len("Your order from Fine Food is complete.")] != "Your order from Fine Food is complete." {
+		t.Fatalf("emails = %+v", mailer.sent)
+	}
+	if len(sender.sent) != 1 || sender.sent[0].chatID != 2 {
+		t.Fatalf("telegram = %+v", sender.sent)
+	}
+	if !deliveries[[2]uuid.UUID{eventID, requesterID}] {
+		t.Fatal("the email was not recorded as sent")
+	}
+	// A replay doesn't email again.
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil || len(mailer.sent) != 1 {
+		t.Fatalf("replay: err=%v emails=%d", err, len(mailer.sent))
+	}
+}
+
+func TestHandleDoesNotEmailProgressUpdates(t *testing.T) {
+	h, _, links, _ := newHandler()
+	mailer := withEmail(h, links)
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+		user(courierID),
+	)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil || len(mailer.sent) != 0 {
+		t.Fatalf("err=%v emails=%+v", err, mailer.sent)
+	}
+}
+
+func TestHandleEmailsEveryoneWhileTelegramIsDisabled(t *testing.T) {
+	h, _, links, _ := newHandler()
+	mailer := withEmail(h, links)
+	h.Sender = nil
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+		t.Fatal(err)
+	}
+	if len(mailer.sent) != 2 {
+		t.Fatalf("emails = %+v", mailer.sent)
+	}
+}
+
+func TestHandleEmailsWhenTheTelegramChatIsGone(t *testing.T) {
+	h, sender, links, _ := newHandler()
+	mailer := withEmail(h, links)
+	sender.errs[2] = &telegram.APIError{
+		Code:        http.StatusForbidden,
+		Description: "Forbidden: bot was blocked by the user",
+	}
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+		t.Fatal(err)
+	}
+	if len(links.unlinked) != 1 || len(mailer.sent) != 2 || mailer.sent[1].To[0] != "ben@foc.local" {
+		t.Fatalf("unlinked=%v emails=%+v", links.unlinked, mailer.sent)
+	}
+}
+
+func TestHandleEmailFailures(t *testing.T) {
+	cases := []struct {
+		name     string
+		emails   fakeEmails
+		err      error
+		wantErr  bool
+		recorded bool
+	}{
+		{"no stored email", fakeEmails{}, nil, false, false},
+		{"mail server down", nil, errors.New("email: dial mailpit:1025: connection refused"), true, false},
+		{"recipient rejected", nil, &textproto.Error{Code: 550, Msg: "no such user"}, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, _, links, deliveries := newHandler()
+			mailer := withEmail(h, links)
+			mailer.err = tc.err
+			if tc.emails != nil {
+				h.Emails = tc.emails
+			}
+			err := h.Handle(context.Background(), kafka.Metadata{}, outcome())
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if deliveries[[2]uuid.UUID{eventID, requesterID}] != tc.recorded {
+				t.Fatalf("recorded = %v", deliveries)
+			}
+		})
 	}
 }

@@ -80,11 +80,7 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_PRIVATE_KEY_FILE":              "/tmp/user-service-key.pem",
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
-		"SMTP_ADDR":                         "smtp.example.test:25",
-		"SMTP_FROM":                         "FoC <no-reply@example.test>",
-		"SMTP_USERNAME":                     "",
-		"SMTP_PASSWORD":                     "",
-		"SMTP_TIMEOUT":                      "5s",
+		"COMMUNICATION_SERVICE_BASE_URL":    "http://communication-service:8081",
 		"BOOTSTRAP_SUPERADMIN_EMAIL":        "",
 		"BOOTSTRAP_SUPERADMIN_DISPLAY_NAME": "",
 	} {
@@ -152,5 +148,18 @@ func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 				t.Fatalf("status = %q, want ok", response.Msg.Status)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRequiresTheCommunicationURL(t *testing.T) {
+	for value, want := range map[string]string{
+		"":                      "COMMUNICATION_SERVICE_BASE_URL is not set",
+		"communication-service": "COMMUNICATION_SERVICE_BASE_URL must be an http(s) URL",
+	} {
+		setValidConfigEnv(t)
+		t.Setenv("COMMUNICATION_SERVICE_BASE_URL", value)
+		if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("COMMUNICATION_SERVICE_BASE_URL=%q: err = %v, want %q", value, err, want)
+		}
 	}
 }

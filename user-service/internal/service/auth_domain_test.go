@@ -77,7 +77,7 @@ func TestAuthenticationDomainPolicy(t *testing.T) {
 					logins := cloneMap(store.logins)
 					registrations := cloneMap(store.registrations)
 					sessions := cloneMap(store.sessions)
-					sender := svc.deps.EmailSender.(*mockEmailSender)
+					sender := svc.deps.MagicLinks.(*mockMagicLinks)
 					messages := len(sender.messages)
 					err := attempt()
 					if result == "allowed" || role == models.RoleSuperAdmin {

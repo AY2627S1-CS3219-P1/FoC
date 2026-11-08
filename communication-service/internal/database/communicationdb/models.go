@@ -68,3 +68,9 @@ type TelegramLinkCode struct {
 	UsedAt    *time.Time
 	CreatedAt time.Time
 }
+
+type UserEmail struct {
+	UserID    uuid.UUID
+	Email     string
+	CreatedAt time.Time
+}
