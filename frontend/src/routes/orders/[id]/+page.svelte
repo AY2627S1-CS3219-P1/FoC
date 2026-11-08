@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { env } from '$env/dynamic/public';
-	import { Button, Card, Dialog, Icon, LoadingIndicator, TextFieldOutlinedMultiline } from 'm3-svelte';
-	import starFilled from '@ktibow/iconset-material-symbols/star-rate-rounded';
-	import starOutline from '@ktibow/iconset-material-symbols/star-rate-outline-rounded';
+	import { Button, Card, Dialog, LoadingIndicator, TextFieldOutlinedMultiline } from 'm3-svelte';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi, reviewApi, snackbarService } from '$lib/services';
@@ -450,13 +448,9 @@
 										: ''}about the {revieweeRole}
 								</p>
 							</header>
-							<div class="review-rating" role="img" aria-label={`Rated ${myReview.rating} out of 5`}>
-								{#each reviewRatings as value (value)}
-									<span class="star" class:filled={value <= myReview.rating} aria-hidden="true">
-										<Icon icon={value <= myReview.rating ? starFilled : starOutline} size={26} />
-									</span>
-								{/each}
-							</div>
+							<p class="review-rating" role="img" aria-label={`Rated ${myReview.rating} out of 5`}>
+								<span class="stars" aria-hidden="true">{'★'.repeat(myReview.rating)}{'☆'.repeat(5 - myReview.rating)}</span>
+							</p>
 							<p class="comment">{myReview.comment}</p>
 							<ReviewPhotos photos={myReview.photos} />
 						{:else}
@@ -478,7 +472,6 @@
 											<button
 												type="button"
 												class="star-chip"
-												class:filled={value <= shownRating}
 												role="radio"
 												aria-checked={$reviewForm.rating === value}
 												aria-label={`${value} star${value > 1 ? 's' : ''}`}
@@ -491,11 +484,7 @@
 												onblur={() => (hoveredRating = null)}
 												onkeydown={onRatingKeydown}
 											>
-												<Icon
-													icon={value <= shownRating ? starFilled : starOutline}
-													size={34}
-													aria-hidden="true"
-												/>
+												<span class="glyph" aria-hidden="true">{value <= shownRating ? '★' : '☆'}</span>
 											</button>
 										{/each}
 									</div>
@@ -540,24 +529,22 @@
 	.layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr); gap: 1.5rem; align-items: start; }
 	.main, .side { display: grid; gap: 1rem; min-width: 0; }
 	.side { position: sticky; top: 1rem; }
-	.panel-body.review-section { scroll-margin-top: 1rem; gap: 0.4rem; padding: 1rem; }
+	.panel-body.review-section { scroll-margin-top: 1rem; gap: 0.25rem; padding: 1rem; }
 	.review-form { display: grid; gap: 1rem; min-width: 0; }
 	.rating { display: grid; gap: 0.25rem; margin: 0; padding: 0; border: 0; }
 	.rating legend { padding: 0; margin-bottom: 0.5rem; font-weight: 600; }
 	.rating-options { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; }
-	.star-chip { display: inline-grid; place-items: center; padding: 0.15rem; border: 0; border-radius: 999px; background: transparent; color: var(--m3c-outline); line-height: 0; cursor: pointer; }
-	.star-chip.filled { color: #faaf00; }
+	.star-chip { display: inline-grid; place-items: center; min-width: 2rem; padding: 0.1rem; border: 0; border-radius: 999px; background: transparent; color: var(--m3c-primary); font-size: 1.75rem; line-height: 1; cursor: pointer; }
 	.star-chip:focus-visible { outline: 3px solid var(--m3c-primary); outline-offset: 2px; }
 	.field { display: grid; gap: 0.25rem; min-width: 0; }
 	.field-error { color: var(--m3c-error, #b3261e); }
 	.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
-	.review-rating { display: flex; align-items: center; gap: 0.3rem; }
-	.star { display: inline-grid; place-items: center; color: var(--m3c-outline); line-height: 0; }
-	.star.filled { color: #faaf00; }
+	.review-rating { margin: 0; }
+	.stars { color: var(--m3c-primary); letter-spacing: 0.1rem; }
 	.comment { margin: 0; white-space: pre-wrap; }
 	#review-heading:focus-visible { outline: 2px solid var(--m3c-primary); outline-offset: 3px; }
 
-	.title { display: grid; gap: 0.3rem; }
+	.title { display: grid; gap: 0.15rem; }
 	.status { margin: 0; font-weight: 650; color: var(--m3c-primary); }
 	h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
 	h2 { margin: 0; font-size: 1.1rem; }
