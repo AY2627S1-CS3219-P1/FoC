@@ -8,6 +8,14 @@ import (
 // OutputMode mirrors the configured structured-output selection.
 type OutputMode = string
 
+// OutputMode selection constants name the two structured-output modes. They
+// mirror jobs.OutputModeJSONSchema / jobs.OutputModeJSONObject so policy tests
+// and the adapter can reference them unqualified.
+const (
+	OutputModeJSONSchema OutputMode = "json_schema"
+	OutputModeJSONObject OutputMode = "json_object"
+)
+
 // CompletionRequest is the service-neutral chat completion input. Ports use
 // service-owned types, never generated SDK types. The evaluator builds the
 // prompt; the adapter translates the transport.
