@@ -72,6 +72,7 @@ WITH candidate AS (
     SELECT user_id
     FROM account_deletion_jobs
     WHERE next_attempt_at IS NOT NULL
+      AND next_attempt_at <= now()
       AND (lease_until IS NULL OR lease_until <= now())
     ORDER BY next_attempt_at, user_id
     LIMIT 1

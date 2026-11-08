@@ -135,6 +135,9 @@ func (s *ProfileService) UpdateMyProfile(
 	if user.Role == models.RoleSuspended {
 		return models.User{}, ErrPermissionDenied
 	}
+	if user.IsDeleting {
+		return models.User{}, ErrPermissionDenied
+	}
 	user.DisplayName = input.DisplayName
 	user.Description = input.Description
 	user.PhoneNumber = &phone

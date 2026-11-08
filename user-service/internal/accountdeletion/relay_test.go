@@ -49,10 +49,14 @@ func (f *fakeFactQueries) MarkFactPublished(_ context.Context, arg deletiondb.Ma
 type fakePublisher struct {
 	err   error
 	calls int
+	topic string
+	key   []byte
+	msg   proto.Message
 }
 
-func (p *fakePublisher) Publish(_ context.Context, _ string, _ []byte, _ proto.Message) error {
+func (p *fakePublisher) Publish(_ context.Context, topic string, key []byte, msg proto.Message) error {
 	p.calls++
+	p.topic, p.key, p.msg = topic, key, msg
 	return p.err
 }
 
@@ -76,7 +80,8 @@ func TestRelayDrain(t *testing.T) {
 
 	t.Run("publish success marks the fact published", func(t *testing.T) {
 		eventID := uuid.New()
-		fq := &fakeFactQueries{facts: []deletiondb.ClaimCommittedFactRow{freshFact(eventID)}}
+		fact := freshFact(eventID)
+		fq := &fakeFactQueries{facts: []deletiondb.ClaimCommittedFactRow{fact}}
 		pub := &fakePublisher{}
 		r := newTestRelay(fq, pub, now)
 
@@ -85,6 +90,12 @@ func TestRelayDrain(t *testing.T) {
 		}
 		if pub.calls != 1 {
 			t.Errorf("publish calls = %d, want 1", pub.calls)
+		}
+		if pub.topic != deletedTopic {
+			t.Errorf("published to topic %q, want %q", pub.topic, deletedTopic)
+		}
+		if string(pub.key) != fact.UserID.String() {
+			t.Errorf("partition key = %q, want canonical user id %q", pub.key, fact.UserID)
 		}
 		if len(fq.marked) != 1 || fq.marked[0] != eventID {
 			t.Errorf("marked = %v, want [%s]", fq.marked, eventID)

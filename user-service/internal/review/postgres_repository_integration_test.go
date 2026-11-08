@@ -93,6 +93,18 @@ func mustPage(t *testing.T, page, size int64) pagination.Pagination {
 	return p
 }
 
+// truncateReviewData isolates a database integration test from rows left by a
+// previous run (or a sibling test), so global count assertions stay
+// deterministic when TEST_DATABASE_URL points at a reused throwaway database.
+func truncateReviewData(t *testing.T, sqlDB *sql.DB) {
+	t.Helper()
+	for _, table := range []string{"review_removals", "reviews", "users"} {
+		if _, err := sqlDB.Exec("TRUNCATE " + table + " CASCADE"); err != nil {
+			t.Fatalf("truncate %s: %v", table, err)
+		}
+	}
+}
+
 func TestReviewRepositoryIntegration(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -110,6 +122,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	if err := database.Migrate(db); err != nil {
 		t.Fatal(err)
 	}
+	truncateReviewData(t, sqlDB)
 	ctx := context.Background()
 	service := buildReviewService(t, sqlDB)
 
@@ -712,15 +725,32 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		reviewID := received.Reviews[0].ID
 
-		// Soft-delete the admin (review removal creator) to simulate absence
-		if _, err := sqlDB.ExecContext(ctx, "UPDATE users SET deleted_at = now() WHERE id = $1", admin); err != nil {
-			t.Fatalf("soft-delete admin: %v", err)
-		}
-
-		// Now remove the review - the audit should still be written even though
-		// the creator's row is soft-deleted (created_by becomes NULL).
+		// Remove the review, then hard-delete the admin who created the audit;
+		// ON DELETE SET NULL clears created_by while the audit row survives.
 		if err := service.RemoveReview(ctx, reviewID, "audit creator absent", admin); err != nil {
-			t.Fatalf("remove review after creator soft-deleted: %v", err)
+			t.Fatalf("remove review: %v", err)
+		}
+		hardDeleteUser(t, ctx, sqlDB, admin)
+
+		removals, err := service.ListReviewRemovals(ctx, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list removals: %v", err)
+		}
+		var audit *ReviewRemoval
+		for i := range removals.Removals {
+			if removals.Removals[i].ReviewID == reviewID {
+				audit = &removals.Removals[i]
+				break
+			}
+		}
+		if audit == nil {
+			t.Fatalf("audit row for review %s missing after creator deletion", reviewID)
+		}
+		if !audit.CreatedByDeleted {
+			t.Fatal("absent audit creator was not flagged deleted")
+		}
+		if audit.CreatedByName != "" {
+			t.Fatalf("absent audit creator name leaked: %q", audit.CreatedByName)
 		}
 	})
 
@@ -759,21 +789,16 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("before deletion: count=%d avg=%v, want 2 and 4", count, avg)
 		}
 
-		// Second reviewer deletes their account (soft delete)
-		if _, err := sqlDB.ExecContext(
-			ctx,
-			"UPDATE users SET deleted_at = now() WHERE id = $1",
-			secondReviewer,
-		); err != nil {
-			t.Fatalf("soft-delete second reviewer: %v", err)
-		}
+		// Second reviewer is hard-deleted (as finalization does); ON DELETE SET
+		// NULL clears the retained review's reviewer reference.
+		hardDeleteUser(t, ctx, sqlDB, secondReviewer)
 
 		// Stats should remain unchanged (retained review still counted)
 		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 2 || avg != 4 {
 			t.Fatalf("after reviewer deletion: count=%d avg=%v, want 2 and 4", count, avg)
 		}
 
-		// The deleted reviewer's review should show as deleted
+		// The deleted reviewer's review is retained and flagged deleted.
 		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatalf("list reviews: %v", err)
@@ -781,6 +806,15 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		// Should still have 2 reviews, but one should show deleted
 		if len(received.Reviews) != 2 {
 			t.Fatalf("expected 2 reviews, got %d", len(received.Reviews))
+		}
+		var absent int
+		for _, rv := range received.Reviews {
+			if rv.ReviewerDeleted {
+				absent++
+			}
+		}
+		if absent != 1 {
+			t.Fatalf("absent reviewer flagged on %d reviews, want 1", absent)
 		}
 	})
 }
@@ -807,6 +841,7 @@ func TestReviewAbsentParticipants(t *testing.T) {
 	if err := database.Migrate(db); err != nil {
 		t.Fatal(err)
 	}
+	truncateReviewData(t, sqlDB)
 	ctx := context.Background()
 	service := buildReviewService(t, sqlDB)
 
@@ -843,6 +878,37 @@ func TestReviewAbsentParticipants(t *testing.T) {
 		}
 		if rv.RevieweeID != reviewee || rv.RevieweeDeleted {
 			t.Fatalf("reviewee should be present: %+v", rv)
+		}
+	})
+
+	t.Run("soft-deleted participant is flagged deleted in listings", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "r"}); err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		// A legacy/deactivated account keeps its row but sets deleted_at; it must
+		// not surface as a live participant with its name and profile link.
+		if _, err := sqlDB.ExecContext(ctx,
+			"UPDATE users SET deleted_at = now() WHERE id = $1", reviewer); err != nil {
+			t.Fatal(err)
+		}
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("want 1 retained review, got %d", len(received.Reviews))
+		}
+		rv := received.Reviews[0]
+		if !rv.ReviewerDeleted {
+			t.Fatal("soft-deleted reviewer was not flagged deleted")
+		}
+		if rv.ReviewerName != "" {
+			t.Fatalf("soft-deleted reviewer name leaked: %q", rv.ReviewerName)
 		}
 	})
 

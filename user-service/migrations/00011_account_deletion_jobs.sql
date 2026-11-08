@@ -19,12 +19,12 @@ CREATE TABLE account_deletion_jobs (
         CHECK ((lease_token IS NULL) = (lease_until IS NULL))
 );
 
--- Due jobs ordered by age so a replica drains the oldest pending work first.
--- The lease expiry is applied in the query, not the predicate, because a time
+-- Due jobs ordered by age so a replica drains the oldest pending work first. The
+-- leading column matches the claim's next_attempt_at <= now() range and the sort;
+-- the lease expiry is applied in the query, not the predicate, because a time
 -- function is not immutable and cannot appear in an index predicate.
 CREATE INDEX idx_account_deletion_jobs_due
-    ON account_deletion_jobs (next_attempt_at, created_at, user_id)
-    WHERE next_attempt_at IS NOT NULL;
+    ON account_deletion_jobs (next_attempt_at, user_id);
 
 -- +goose Down
 DROP TABLE IF EXISTS account_deletion_jobs;

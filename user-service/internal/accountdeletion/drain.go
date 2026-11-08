@@ -86,7 +86,8 @@ func (d orderDrainer) GetUserOutstandingWork(
 	if err != nil {
 		return WorkResult{Available: false}, err
 	}
-	return toWorkResult(enumNames(resp.Msg.GetReasons()), resp.Msg.GetHasOutstandingWork()), nil
+	return toWorkResult(reasonCodes(resp.Msg.GetReasons(), orderReasonCode),
+		resp.Msg.GetHasOutstandingWork()), nil
 }
 
 // creditDrainer adapts the Credit internal service client to the worker port.
@@ -105,25 +106,67 @@ func (d creditDrainer) GetUserOutstandingWork(
 	if err != nil {
 		return WorkResult{Available: false}, err
 	}
-	return toWorkResult(enumNames(resp.Msg.GetReasons()), resp.Msg.GetHasOutstandingWork()), nil
+	return toWorkResult(reasonCodes(resp.Msg.GetReasons(), creditReasonCode),
+		resp.Msg.GetHasOutstandingWork()), nil
 }
 
 func toWorkResult(reasons []string, hasWork bool) WorkResult {
 	return WorkResult{HasOutstandingWork: hasWork, Reasons: reasons, Available: true}
 }
 
-// enumNames renders a repeated protobuf enum to its stable, wire-facing string
-// code so reason categories survive service boundaries unchanged. The unnamed
-// zero value is dropped so it never surfaces as a waiting reason.
-func enumNames[E interface {
-	comparable
-	String() string
-}](reasons []E) []string {
-	var zero E
+// The waiting-reason codes below are the stable, wire-facing strings the status
+// API returns and the frontend renders. They are deliberately decoupled from the
+// protobuf enum names so an enum rename cannot silently break the UI. Unknown or
+// unspecified values are dropped so they never surface as a waiting reason.
+const (
+	reasonOrderOutstanding       = "order_outstanding"
+	reasonOfferOpen              = "offer_open"
+	reasonPendingWorkflow        = "pending_workflow"
+	reasonPendingAdmission       = "pending_admission"
+	reasonCreditReservedBalance  = "credit_reserved_balance"
+	reasonCreditReservation      = "credit_reservation"
+	reasonCreditUnsettledAssign  = "credit_unsettled_assignment"
+	reasonCreditPendingFinancial = "credit_pending_financial_work"
+)
+
+func orderReasonCode(reason orderv1.OutstandingWorkReason) (string, bool) {
+	switch reason {
+	case orderv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER:
+		return reasonOrderOutstanding, true
+	case orderv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_OPEN_OFFER:
+		return reasonOfferOpen, true
+	case orderv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_PENDING_WORKFLOW:
+		return reasonPendingWorkflow, true
+	case orderv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_PENDING_ADMISSION:
+		return reasonPendingAdmission, true
+	default:
+		return "", false
+	}
+}
+
+func creditReasonCode(reason creditv1.OutstandingWorkReason) (string, bool) {
+	switch reason {
+	case creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_RESERVED_BALANCE:
+		return reasonCreditReservedBalance, true
+	case creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_ACTIVE_RESERVATION:
+		return reasonCreditReservation, true
+	case creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_UNSETTLED_ASSIGNMENT:
+		return reasonCreditUnsettledAssign, true
+	case creditv1.OutstandingWorkReason_OUTSTANDING_WORK_REASON_PENDING_FINANCIAL_WORK:
+		return reasonCreditPendingFinancial, true
+	default:
+		return "", false
+	}
+}
+
+// reasonCodes maps each known enum value to its stable code, dropping unknown
+// values (including the unspecified zero value) so they never surface as a
+// waiting reason.
+func reasonCodes[E comparable](reasons []E, code func(E) (string, bool)) []string {
 	out := make([]string, 0, len(reasons))
 	for _, reason := range reasons {
-		if reason != zero {
-			out = append(out, reason.String())
+		if c, ok := code(reason); ok {
+			out = append(out, c)
 		}
 	}
 	return out

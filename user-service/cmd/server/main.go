@@ -366,6 +366,12 @@ func loadConfig() (config, error) {
 			}
 		}
 	}
+	if cfg.orderServiceURL == "" {
+		errs = append(errs, errors.New("ORDER_SERVICE_BASE_URL is not set"))
+	}
+	if cfg.creditServiceURL == "" {
+		errs = append(errs, errors.New("CREDIT_SERVICE_BASE_URL is not set"))
+	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
 	}

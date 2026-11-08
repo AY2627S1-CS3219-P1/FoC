@@ -74,21 +74,26 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 }
 
-// drainOnce claims one due job and processes it. No claimable job is not an
-// error; it just means nothing to do this poll.
+// drainOnce claims and processes up to the per-pass batch limit of due jobs. No
+// claimable job is not an error; it just means nothing more to do this poll.
 func (w *Worker) drainOnce(ctx context.Context) error {
-	now := w.now().UTC()
-	leaseToken := uuid.New()
-	claimed, err := w.queries.ClaimDueJob(ctx, deletiondb.ClaimDueJobParams{
-		LeaseToken: leaseToken, LeaseUntil: now.Add(w.plan.config.Lease),
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+	for processed := 0; processed < defaultDrainLimit; processed++ {
+		now := w.now().UTC()
+		leaseToken := uuid.New()
+		claimed, err := w.queries.ClaimDueJob(ctx, deletiondb.ClaimDueJobParams{
+			LeaseToken: leaseToken, LeaseUntil: now.Add(w.plan.config.Lease),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := w.processJob(ctx, claimed, leaseToken, now); err != nil {
+			return err
+		}
 	}
-	if err != nil {
-		return err
-	}
-	return w.processJob(ctx, claimed, leaseToken, now)
+	return nil
 }
 
 func (w *Worker) processJob(

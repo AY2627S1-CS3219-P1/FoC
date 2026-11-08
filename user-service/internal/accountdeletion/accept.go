@@ -136,7 +136,7 @@ func (p *Plan) Accept(ctx context.Context, user *models.User, now time.Time) (Ac
 		// session is issued below. An already-deleting account (an idempotent
 		// retry) skips the sweep: its sessions were swept when it first accepted,
 		// so the retry only rotates the caller's own session.
-		if wasDeleting {
+		if !wasDeleting {
 			sessionIDs, err := scope.Sessions.LiveSessionIDsForUser(ctx, locked.ID)
 			if err != nil {
 				sessionIDs = nil

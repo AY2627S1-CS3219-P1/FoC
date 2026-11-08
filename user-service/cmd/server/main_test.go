@@ -66,6 +66,19 @@ func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRequiresDrainBaseURLs(t *testing.T) {
+	setValidConfigEnv(t)
+	t.Setenv("ORDER_SERVICE_BASE_URL", "")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "ORDER_SERVICE_BASE_URL is not set") {
+		t.Fatalf("loadConfig error = %v, want missing ORDER_SERVICE_BASE_URL", err)
+	}
+	t.Setenv("ORDER_SERVICE_BASE_URL", "http://order-service:8081")
+	t.Setenv("CREDIT_SERVICE_BASE_URL", "")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "CREDIT_SERVICE_BASE_URL is not set") {
+		t.Fatalf("loadConfig error = %v, want missing CREDIT_SERVICE_BASE_URL", err)
+	}
+}
+
 func setValidConfigEnv(t *testing.T) {
 	t.Helper()
 	for key, value := range map[string]string{
@@ -87,6 +100,8 @@ func setValidConfigEnv(t *testing.T) {
 		"SMTP_TIMEOUT":                      "5s",
 		"BOOTSTRAP_SUPERADMIN_EMAIL":        "",
 		"BOOTSTRAP_SUPERADMIN_DISPLAY_NAME": "",
+		"ORDER_SERVICE_BASE_URL":            "http://order-service:8081",
+		"CREDIT_SERVICE_BASE_URL":           "http://credit-service:8081",
 	} {
 		t.Setenv(key, value)
 	}

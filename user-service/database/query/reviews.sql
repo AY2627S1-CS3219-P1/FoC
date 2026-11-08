@@ -9,10 +9,6 @@ SELECT EXISTS (
 -- Live eligibility for a NEW submission. A participant is eligible only when its
 -- row exists, is not soft-deleted and is not permanently deleting. Checked
 -- transactionally after the rows are locked (see LockSubmissionParticipants).
--- name: ReviewParticipantStatus :one
-SELECT id, deleted_at IS NULL AS live, NOT is_deleting AS not_deleting
-FROM users
-WHERE id = @participant_id::UUID;
 
 -- InsertReview inserts the review and recomputes the reviewee's stats in the
 -- same transaction, so the stats are current when it returns.
@@ -55,8 +51,10 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
        CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
        CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
-LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL AND NOT reviewer.is_deleting
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL AND NOT reviewee.is_deleting
 WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
@@ -68,8 +66,10 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
        CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
        CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
-LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL AND NOT reviewer.is_deleting
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL AND NOT reviewee.is_deleting
 WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
@@ -90,7 +90,8 @@ SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reas
        creator.display_name AS created_by_name,
        CASE WHEN creator.id IS NULL THEN true ELSE false END AS created_by_deleted
 FROM review_removals rr
-LEFT JOIN users creator ON creator.id = rr.created_by
+LEFT JOIN users creator
+    ON creator.id = rr.created_by AND creator.deleted_at IS NULL AND NOT creator.is_deleting
 ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 

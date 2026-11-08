@@ -107,7 +107,7 @@ func (s *Users) UpdateActiveProfile(ctx context.Context, user *models.User) erro
 		"updated_by":   user.UpdatedBy,
 	}
 	res := s.db.WithContext(ctx).Model(&models.User{}).
-		Where("id = ? AND role <> ?", user.ID, models.RoleSuspended).Updates(fields)
+		Where("id = ? AND role <> ? AND NOT is_deleting", user.ID, models.RoleSuspended).Updates(fields)
 	if res.Error != nil {
 		return res.Error
 	}

@@ -109,3 +109,23 @@ func TestGetMyAccountDeletionStatusPropagatesJobFailure(t *testing.T) {
 		t.Fatal("job failure was swallowed")
 	}
 }
+
+// TestUpdateMyProfileRejectsDeletingAccount proves the server is authoritative:
+// a deleting account cannot edit its profile even though the frontend hides the
+// form. The request is rejected before any write.
+func TestUpdateMyProfileRejectsDeletingAccount(t *testing.T) {
+	userID := uuid.New()
+	users := &accountFixture{users: map[uuid.UUID]models.User{
+		userID: {ID: userID, Email: "person@example.com", DisplayName: "P", Role: models.RoleUser,
+			IsDeleting: true},
+	}}
+	service := &ProfileService{Users: users}
+
+	_, err := service.UpdateMyProfile(context.Background(), userID, ProfileInput{
+		DisplayName: "New Name",
+		PhoneNumber: "+6591234567",
+	})
+	if !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("deleting account profile edit error = %v, want ErrPermissionDenied", err)
+	}
+}

@@ -22,7 +22,8 @@ func validDeletedFact() deletiondb.ClaimCommittedFactRow {
 
 func TestEncodeDeleted(t *testing.T) {
 	t.Run("valid fact encodes to a UserDeleted message", func(t *testing.T) {
-		msg, err := encodeDeleted(validDeletedFact())
+		fact := validDeletedFact()
+		msg, err := encodeDeleted(fact)
 		if err != nil {
 			t.Fatalf("encodeDeleted: %v", err)
 		}
@@ -30,9 +31,17 @@ func TestEncodeDeleted(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected *events.UserDeleted, got %T", msg)
 		}
-		if deleted.EventId == "" || deleted.UserId == "" || deleted.DeletedAt == nil ||
-			deleted.DeletionRequestId == "" {
-			t.Errorf("message has empty fields: %+v", deleted)
+		if deleted.EventId != fact.EventID.String() {
+			t.Errorf("EventId = %q, want %q", deleted.EventId, fact.EventID)
+		}
+		if deleted.UserId != fact.UserID.String() {
+			t.Errorf("UserId = %q, want %q", deleted.UserId, fact.UserID)
+		}
+		if deleted.DeletionRequestId != fact.DeletionRequestID.String() {
+			t.Errorf("DeletionRequestId = %q, want %q", deleted.DeletionRequestId, fact.DeletionRequestID)
+		}
+		if deleted.DeletedAt == nil || !deleted.DeletedAt.AsTime().Equal(fact.DeletedAt) {
+			t.Errorf("DeletedAt = %v, want %v", deleted.DeletedAt, fact.DeletedAt)
 		}
 	})
 

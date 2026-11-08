@@ -52,6 +52,7 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 }
 
 const insertReview = `-- name: InsertReview :exec
+
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now())
 `
@@ -65,6 +66,9 @@ type InsertReviewParams struct {
 	Comment    string
 }
 
+// Live eligibility for a NEW submission. A participant is eligible only when its
+// row exists, is not soft-deleted and is not permanently deleting. Checked
+// transactionally after the rows are locked (see LockSubmissionParticipants).
 // InsertReview inserts the review and recomputes the reviewee's stats in the
 // same transaction, so the stats are current when it returns.
 func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) error {
@@ -84,7 +88,8 @@ SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reas
        creator.display_name AS created_by_name,
        CASE WHEN creator.id IS NULL THEN true ELSE false END AS created_by_deleted
 FROM review_removals rr
-LEFT JOIN users creator ON creator.id = rr.created_by
+LEFT JOIN users creator
+    ON creator.id = rr.created_by AND creator.deleted_at IS NULL AND NOT creator.is_deleting
 ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT $2::bigint OFFSET $1::bigint
 `
@@ -149,8 +154,10 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
        CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
        CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
-LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL AND NOT reviewer.is_deleting
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL AND NOT reviewee.is_deleting
 WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -224,8 +231,10 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
        CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
        CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
-LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL AND NOT reviewer.is_deleting
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL AND NOT reviewee.is_deleting
 WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -375,28 +384,6 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 		arg.CreatedBy,
 	)
 	return err
-}
-
-const reviewParticipantStatus = `-- name: ReviewParticipantStatus :one
-SELECT id, deleted_at IS NULL AS live, NOT is_deleting AS not_deleting
-FROM users
-WHERE id = $1::UUID
-`
-
-type ReviewParticipantStatusRow struct {
-	ID          uuid.UUID
-	Live        interface{}
-	NotDeleting sql.NullBool
-}
-
-// Live eligibility for a NEW submission. A participant is eligible only when its
-// row exists, is not soft-deleted and is not permanently deleting. Checked
-// transactionally after the rows are locked (see LockSubmissionParticipants).
-func (q *Queries) ReviewParticipantStatus(ctx context.Context, participantID uuid.UUID) (ReviewParticipantStatusRow, error) {
-	row := q.db.QueryRowContext(ctx, reviewParticipantStatus, participantID)
-	var i ReviewParticipantStatusRow
-	err := row.Scan(&i.ID, &i.Live, &i.NotDeleting)
-	return i, err
 }
 
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
