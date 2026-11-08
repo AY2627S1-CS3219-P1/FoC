@@ -57,6 +57,8 @@ type fakeProfilePictureStore struct {
 	deactivateErr error
 	claimed       []models.ProfilePicture
 	claimErr      error
+	claimBefore   time.Time
+	claimLimit    int
 	deleting      []models.ProfilePicture
 	listErr       error
 	deletedIDs    []uuid.UUID
@@ -98,10 +100,12 @@ func (f *fakeProfilePictureStore) Deactivate(context.Context, uuid.UUID, uuid.UU
 }
 
 func (f *fakeProfilePictureStore) ClaimExpiredPending(
-	context.Context,
-	time.Time,
-	int,
+	_ context.Context,
+	before time.Time,
+	limit int,
 ) ([]models.ProfilePicture, error) {
+	f.claimBefore = before
+	f.claimLimit = limit
 	return f.claimed, f.claimErr
 }
 
@@ -505,10 +509,16 @@ func TestCleanupOnce(t *testing.T) {
 		deleting: []models.ProfilePicture{{ID: pictureID, ObjectKey: key}},
 	}
 	storage := &fakeProfilePictureStorage{}
-	svc := &ProfileService{Pictures: pictures, Storage: storage}
+	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+	svc := &ProfileService{Pictures: pictures, Storage: storage,
+		Now: func() time.Time { return now }}
 
 	if err := svc.CleanupOnce(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+	if !pictures.claimBefore.Equal(now.Add(-24*time.Hour)) ||
+		pictures.claimLimit != profilePictureCleanupBatch {
+		t.Fatalf("cleanup window = %v, batch = %d", pictures.claimBefore, pictures.claimLimit)
 	}
 	if len(storage.deleted) != 1 || storage.deleted[0] != key ||
 		len(pictures.deletedIDs) != 1 || pictures.deletedIDs[0] != pictureID {

@@ -27,15 +27,6 @@ const (
 
 var errProfilePictureStorageDisabled = errors.New("profile picture storage is not configured")
 
-// ProfilePictureStorage is the consumer-defined object-storage boundary. The
-// domain works with opaque keys and never imports a provider SDK.
-type ProfilePictureStorage interface {
-	CreateUpload(context.Context, images.UploadRequest) (images.UploadGrant, error)
-	Inspect(context.Context, string) (images.ObjectInfo, error)
-	CreateDownload(context.Context, string) (images.DownloadGrant, error)
-	Delete(context.Context, string) error
-}
-
 // ProfilePictureStore is the stateful picture persistence surface consumed by
 // the profile service.
 type ProfilePictureStore interface {

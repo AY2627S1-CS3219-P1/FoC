@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ type ProfileUsers interface {
 type ProfileService struct {
 	Users    ProfileUsers
 	Pictures ProfilePictureStore
-	Storage  ProfilePictureStorage
+	Storage  images.ObjectStorage
 	Now      func() time.Time
 }
 

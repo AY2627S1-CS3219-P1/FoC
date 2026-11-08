@@ -94,6 +94,36 @@ func TestGetMyProfileMapsPictureFields(t *testing.T) {
 	}
 }
 
+func TestCreateProfilePictureUploadMapsGrant(t *testing.T) {
+	actorID, pictureID := uuid.New(), uuid.New()
+	expiresAt := time.Date(2026, 11, 8, 12, 10, 0, 0, time.UTC)
+	logic := &profileLogicStub{
+		upload: service.ProfilePictureUpload{ID: pictureID},
+		grant: images.UploadGrant{
+			URL: "https://storage.test/put", Method: "PUT",
+			Headers: map[string]string{"Content-Type": "image/png"}, ExpiresAt: expiresAt,
+		},
+	}
+	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: actorID.String()})
+
+	response, err := (&Handler{Logic: logic}).CreateProfilePictureUpload(
+		ctx,
+		connect.NewRequest(&userv1.CreateProfilePictureUploadRequest{
+			ContentType: "image/png", SizeBytes: 4,
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := response.Msg
+	if msg.GetPictureId() != pictureID.String() ||
+		msg.GetUploadUrl() != "https://storage.test/put" ||
+		msg.GetUploadHeaders()["Content-Type"] != "image/png" ||
+		msg.GetExpiresAt() == nil || !msg.GetExpiresAt().AsTime().Equal(expiresAt) {
+		t.Fatalf("grant mapping = %+v", msg)
+	}
+}
+
 func TestUpdateMyProfilePictureMapsCallerAndPicture(t *testing.T) {
 	actorID, pictureID := uuid.New(), uuid.New()
 	logic := &profileLogicStub{view: service.ProfileView{
