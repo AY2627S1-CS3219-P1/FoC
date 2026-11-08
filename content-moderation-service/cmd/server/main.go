@@ -69,7 +69,16 @@ func run(ctx context.Context) error {
 	// Kafka consumers. Without them ingestion and outbox relay don't run.
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
-	defer func() { stopWorkers(); workers.Wait() }()
+	defer func() {
+		stopWorkers()
+		workers.Wait()
+		if services.pool != nil {
+			services.pool.Wait()
+		}
+		if services.relay != nil {
+			services.relay.Wait()
+		}
+	}()
 
 	if len(config.KafkaBrokers) > 0 {
 		// Create the ingestion subscriber
@@ -87,6 +96,8 @@ func run(ctx context.Context) error {
 	if services.pool != nil {
 		services.pool.Start(workerCtx)
 	}
+
+	workers.Go(func() { reportOperationalState(workerCtx, pool, services) })
 
 	// RPC listeners
 	authenticator, err := newAuthenticator(

@@ -80,10 +80,9 @@ func (s *jobStore) Heartbeat(
 ) (bool, error) {
 	q := moderationdb.New(s.pool)
 	rows, err := q.HeartbeatJob(ctx, moderationdb.HeartbeatJobParams{
-		HeartbeatAt: &heartbeatAt,
-		LeaseUntil:  &leaseUntil,
-		ID:          jobID,
-		ClaimToken:  &claimToken,
+		LeaseSeconds: leaseUntil.Sub(heartbeatAt).Seconds(),
+		ID:           jobID,
+		ClaimToken:   &claimToken,
 	})
 	if err != nil {
 		return false, err
@@ -153,15 +152,14 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 		job.PolicyVersion = &policyVersion
 
 		claimToken := uuid.New()
-		leaseUntil := time.Now().Add(lease)
 		attemptNumber := job.AttemptCount + 1
 		modelID := config.ModelID
 
 		if err := q.ClaimJob(ctx, moderationdb.ClaimJobParams{
-			ClaimToken: &claimToken,
-			WorkerID:   &workerID,
-			LeaseUntil: &leaseUntil,
-			ID:         job.ID,
+			ClaimToken:   &claimToken,
+			WorkerID:     &workerID,
+			LeaseSeconds: lease.Seconds(),
+			ID:           job.ID,
 		}); err != nil {
 			return err
 		}

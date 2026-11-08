@@ -15,6 +15,7 @@ INSERT INTO moderation_jobs (
     sqlc.arg(reviewer_id), sqlc.arg(content_revision), sqlc.arg(comment),
     sqlc.arg(run_generation), sqlc.arg(status), sqlc.arg(attempt_count)
 )
+ON CONFLICT DO NOTHING
 RETURNING *;
 
 -- name: Quarantine :exec
@@ -42,8 +43,8 @@ UPDATE moderation_jobs
 SET status = 'processing',
     claim_token = sqlc.arg(claim_token),
     worker_id = sqlc.arg(worker_id),
-    lease_until = sqlc.arg(lease_until),
-    heartbeat_at = sqlc.arg(lease_until),
+    lease_until = now() + sqlc.arg(lease_seconds)::double precision * interval '1 second',
+    heartbeat_at = now(),
     attempt_count = attempt_count + 1,
     updated_at = now()
 WHERE id = sqlc.arg(id)
@@ -63,11 +64,12 @@ WHERE id = sqlc.arg(id)
 
 -- name: HeartbeatJob :execrows
 UPDATE moderation_jobs
-SET heartbeat_at = sqlc.arg(heartbeat_at),
-    lease_until = sqlc.arg(lease_until)
+SET heartbeat_at = now(),
+    lease_until = now() + sqlc.arg(lease_seconds)::double precision * interval '1 second'
 WHERE id = sqlc.arg(id)
   AND claim_token = sqlc.arg(claim_token)
-  AND status = 'processing';
+  AND status = 'processing'
+  AND lease_until > now();
 
 -- name: ReleaseJob :execrows
 -- Returns owned work on shutdown: requeue it so a later cycle retries promptly
@@ -82,7 +84,8 @@ SET status = 'queued',
     updated_at = now()
 WHERE id = sqlc.arg(id)
   AND claim_token = sqlc.arg(claim_token)
-  AND status = 'processing';
+  AND status = 'processing'
+  AND lease_until > now();
 
 -- name: InsertAttempt :exec
 INSERT INTO moderation_attempts (
@@ -127,7 +130,8 @@ SET status = 'completed',
 WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
-  AND status = 'processing';
+  AND status = 'processing'
+  AND lease_until > now();
 
 -- name: ScheduleJobRetry :execrows
 UPDATE moderation_jobs
@@ -142,7 +146,8 @@ SET status = 'retry_wait',
 WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
-  AND status = 'processing';
+  AND status = 'processing'
+  AND lease_until > now();
 
 -- name: ErrorJob :execrows
 UPDATE moderation_jobs
@@ -157,7 +162,8 @@ SET status = 'errored',
 WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
-  AND status = 'processing';
+  AND status = 'processing'
+  AND lease_until > now();
 
 -- name: CountAttemptsByClass :one
 SELECT count(*)::int
@@ -303,3 +309,11 @@ SELECT active_version_id, activated_by, activated_at FROM moderation_config_stat
 -- before it is activated.
 SELECT * FROM moderation_config_versions
 WHERE version_id = sqlc.arg(version_id);
+
+-- name: GetOperationalStats :one
+SELECT
+    (SELECT count(*) FROM moderation_jobs WHERE status IN ('queued', 'retry_wait', 'processing')) AS queue_depth,
+    COALESCE((SELECT min(created_at) FROM moderation_jobs WHERE status IN ('queued', 'retry_wait', 'processing')), now()) AS oldest_job_at,
+    (SELECT count(*) FROM moderation_jobs WHERE status = 'errored') AS exhausted_jobs,
+    (SELECT count(*) FROM moderation_outbox WHERE published_at IS NULL) AS pending_outbox,
+    COALESCE((SELECT min(created_at) FROM moderation_outbox WHERE published_at IS NULL), now()) AS oldest_outbox_at;

@@ -874,3 +874,92 @@ func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
 		t.Fatalf("configured retry budget ignored: %+v", job)
 	}
 }
+
+func TestConcurrentIngestionVerifiesImmutableSnapshot(t *testing.T) {
+	pool := newTestPool(t)
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	ctx := context.Background()
+	in := ingestInput("original immutable text")
+	errorsC := make(chan error, 8)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() { _, err := store.Ingest(ctx, in); errorsC <- err })
+	}
+	wg.Wait()
+	close(errorsC)
+	for err := range errorsC {
+		if err != nil {
+			t.Fatalf("concurrent ingestion: %v", err)
+		}
+	}
+	if got := countJobs(t, pool); got != 1 {
+		t.Fatalf("job count = %d, want 1", got)
+	}
+	conflict := in
+	conflict.Comment = "changed text"
+	if result, err := store.Ingest(ctx, conflict); err != nil || result != jobs.IngestionConflictQuarantined {
+		t.Fatalf("changed snapshot = %v, %v", result, err)
+	}
+	conflict = in
+	conflict.ModerationRequestID = uuid.New()
+	if result, err := store.Ingest(ctx, conflict); err != nil || result != jobs.IngestionConflictQuarantined {
+		t.Fatalf("reused source event = %v, %v", result, err)
+	}
+}
+
+func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
+	pool := newTestPool(t)
+	activateTestConfig(t, pool)
+	ctx := context.Background()
+	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	in := ingestInput("clock fencing")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	claimed := mustClaim(t, store, "worker")
+	// A skewed process supplies the duration, while PostgreSQL owns the clock.
+	skewed := time.Now().Add(-24 * time.Hour)
+	if ok, err := store.Heartbeat(
+		ctx,
+		claimed.Job.ID,
+		claimed.ClaimToken,
+		skewed,
+		skewed.Add(time.Minute),
+	); err != nil ||
+		!ok {
+		t.Fatalf("heartbeat = %v, %v", ok, err)
+	}
+	var live bool
+	if err := pool.QueryRow(ctx, `SELECT lease_until > now() + interval '30 seconds' FROM moderation_jobs WHERE id = $1`, claimed.Job.ID).
+		Scan(&live); err != nil ||
+		!live {
+		t.Fatalf("lease followed process clock: %v, %v", live, err)
+	}
+	if _, err := pool.Exec(
+		ctx,
+		`UPDATE moderation_jobs SET lease_until = now() - interval '1s' WHERE id = $1`,
+		claimed.Job.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Complete(
+		ctx,
+		*claimed,
+		jobs.Assessment{Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1"},
+	); !errors.Is(
+		err,
+		jobs.ErrFenced,
+	) {
+		t.Fatalf("expired owner completed: %v", err)
+	}
+	if ok, err := store.Heartbeat(
+		ctx,
+		claimed.Job.ID,
+		claimed.ClaimToken,
+		time.Now(),
+		time.Now().Add(time.Minute),
+	); err != nil ||
+		ok {
+		t.Fatalf("expired owner renewed: %v, %v", ok, err)
+	}
+}

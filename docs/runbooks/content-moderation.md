@@ -65,16 +65,55 @@ lease.
 
 1. Deploy CMS with its database and topics (safe any time; nothing consumes
    events until User is updated).
-2. Deploy User so all active readers filter `moderation_status = 'approved'`
-   **before** gated pending submissions are accepted. Old User readers must
-   not serve reads after pending rows exist.
+2. Use a coordinated User cutover with a short maintenance window. Drain
+   public User traffic and stop every old User replica before starting updated
+   replicas and reopening traffic. For Kubernetes, keep User scaled to zero
+   while applying its migration and updated image, then restore the desired
+   replica count. For Compose, stop User before recreating it with the new image.
+   Do not use a mixed-version rolling User rollout for this release: old readers
+   do not filter pending rows. All readers must understand the approved-only
+   filter before gated pending submissions are accepted.
 3. Publish the frontend pages. Configure model + key last; until then the
    system runs in the queued/degraded mode above.
 
 ## Observability
 
-Log-based counters follow existing facilities: queue depth and oldest queued
+Every 30 seconds CMS logs database queue/outbox state and local worker counters: queue depth and oldest queued
 age, in-flight evaluations (≤ `CMS_WORKER_CONCURRENCY` × replicas), attempt
 outcomes per class, exhausted jobs, active configuration version, ingestion
 and relay failures, outbox lag. Escalate when oldest-queued age grows without
 worker progress (usually configuration or provider availability).
+
+## Repeatable checks
+
+Use separate throwaway databases for User and CMS. The suites migrate and may
+truncate or rebuild their schemas; never point them at a development database.
+From each service directory:
+
+```sh
+GOWORK=off TEST_DATABASE_URL="$TEST_DATABASE_URL" go test -mod=readonly -p 1 -race -tags=integration ./... -count=1 -timeout=10m
+```
+
+CMS provider tests use local fake HTTP servers and require no paid API key.
+Configuration activation validates the immutable draft through the shared
+inference gate (30-second bound), then atomically checks the expected active
+version and records one audit entry. A failed provider test leaves the active
+version unchanged.
+
+### Verified integration smoke (8 November 2026)
+
+An isolated Kafka broker, throwaway User/CMS databases, real service binaries
+and a local fake Chat Completions provider exercised authenticated submission
+through both transactional outboxes and the User completion consumer:
+
+- Three submissions were immediately visible through the unpublished RPC;
+  unconfigured CMS ingested all three without consuming inference attempts.
+- CMS and Kafka restarted before inference; persisted work then resumed.
+- Approval, rejection and invalid-output exhaustion became `approved`,
+  `rejected` and `moderation_error` respectively. All three durable completion
+  records were published, only approval incremented the reviewee's count, and
+  the unpublished RPC retained the other two records.
+- Separate no-key startup returned serving health and exited cleanly on SIGTERM.
+
+This verifies transport and persistence with a fake provider; live SoCLaaS
+model/output-mode compatibility still requires an explicitly supplied local key.

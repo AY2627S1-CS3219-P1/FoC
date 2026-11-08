@@ -1,6 +1,6 @@
 // Package outbox implements the CMS completion relay: claiming rows from the
 // transactional outbox and publishing to the moderation.review_moderation_finished
-// topic. Events are keyed by review UUID bytes so all events for one review
+// topic. Events are keyed by review UUID encoded as UTF-8 text so all events for one review
 // stay in order; delivery is at least once and republishes use the same
 // event_id so downstream consumers can deduplicate.
 package outbox
@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
@@ -47,6 +48,7 @@ type Relay struct {
 	publisher publisher
 	cfg       RelayConfig
 	logger    *slog.Logger
+	workers   sync.WaitGroup
 }
 
 // NewRelay constructs the outbox relay. The publisher is the only dependency;
@@ -71,7 +73,9 @@ func (r *Relay) Start(ctx context.Context) {
 		"poll_interval", r.cfg.PollInterval,
 		"lease", r.cfg.Lease,
 	)
+	r.workers.Add(1)
 	go func() {
+		defer r.workers.Done()
 		for {
 			if ctx.Err() != nil {
 				return
@@ -84,9 +88,23 @@ func (r *Relay) Start(ctx context.Context) {
 				r.logger.Error("outbox relay failed", "error", err)
 			}
 
-			time.Sleep(r.cfg.PollInterval)
+			timer := time.NewTimer(r.cfg.PollInterval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 		}
 	}()
+}
+
+// Wait drains the relay after cancellation, then closes its publisher.
+func (r *Relay) Wait() {
+	r.workers.Wait()
+	if err := r.publisher.Close(); err != nil {
+		r.logger.Warn("close outbox publisher", "error", err)
+	}
 }
 
 // relayOnce claims and publishes one outbox row if available. The lease is held
@@ -116,17 +134,17 @@ func (r *Relay) relayOnce(ctx context.Context) error {
 		return fmt.Errorf("decode outbox payload: %w", err)
 	}
 
-	// Key by the review UUID bytes so all events for one review land in order.
+	// Key by the review UUID encoded as UTF-8 text so all events for one review land in order.
 	reviewID, err := uuid.Parse(event.ReviewId)
 	if err != nil {
 		return fmt.Errorf("review_id in outbox payload: %w", err)
 	}
-	key := reviewID[:]
+	key := []byte(reviewID.String())
 
 	// Publish, then fence the published mark on the real lease token so only the
 	// owning relay (or one that stole the lease after a crash) can publish.
 	if err := r.publisher.Publish(ctx, FinishedTopic, key, &event); err != nil {
-		return r.releaseLease(ctx, outboxRow.EventID, outboxRow.LeaseToken)
+		return errors.Join(err, r.releaseLease(ctx, outboxRow.EventID, outboxRow.LeaseToken))
 	}
 	if err := r.markPublished(ctx, outboxRow.EventID, outboxRow.LeaseToken); err != nil {
 		return err

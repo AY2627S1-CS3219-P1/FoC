@@ -25,6 +25,16 @@
 			<Button href="/admin/supplier-requests">Review requests</Button>
 		</div></Card
 	>
+	<Card variant="outlined"><div class="panel-body">
+		<h2>Unpublished reviews</h2>
+		<p>Inspect a reviewer's pending, rejected and failed moderation submissions.</p>
+		<Button href="/admin/reviews/unpublished">Inspect reviews</Button>
+	</div></Card>
+	<Card variant="outlined"><div class="panel-body">
+		<h2>Configuration</h2>
+		<p>Manage allowed email domains and review moderation settings.</p>
+		<Button href="/admin/config">Manage configuration</Button>
+	</div></Card>
 </section>
 
 <style>

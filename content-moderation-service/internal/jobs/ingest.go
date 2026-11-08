@@ -10,7 +10,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // usersReviewSubmittedTopic is the ingest topic this service consumes. It is
@@ -98,10 +97,20 @@ func (s *jobStore) Ingest(ctx context.Context, in IngestionInput) (ingestionResu
 			Status:              "queued",
 			AttemptCount:        0,
 		}); err != nil {
-			if isUniqueViolation(err) {
-				// A concurrent ingestion of the same event committed first.
-				result = IngestionDeduplicated
-				return nil
+			if errors.Is(err, pgx.ErrNoRows) {
+				// ON CONFLICT avoids aborting the transaction. Re-read after
+				// the competing insert commits and verify its immutable snapshot.
+				existing, readErr := q.GetJobByModerationRequest(ctx, in.ModerationRequestID)
+				if readErr == nil && jobIdentifiesSame(existing, in) {
+					result = IngestionDeduplicated
+					return nil
+				}
+				if readErr != nil && !errors.Is(readErr, pgx.ErrNoRows) {
+					return readErr
+				}
+				result = IngestionConflictQuarantined
+				return s.quarantine(ctx, q, in.ReviewID.String(), in.SourceEventID.String(),
+					"conflicting submission identity", in.Comment)
 			}
 			return err
 		}
@@ -139,13 +148,9 @@ func (s *jobStore) quarantine(
 func jobIdentifiesSame(row moderationdb.ModerationJob, in IngestionInput) bool {
 	return row.ReviewID == in.ReviewID &&
 		row.ReviewerID == in.ReviewerID &&
-		row.ContentRevision == int32(in.ContentRevision) &&
+		row.ContentRevision == in.ContentRevision &&
+		row.Comment == in.Comment &&
 		row.SourceEventID == in.SourceEventID
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // truncate bounds s to n bytes without splitting a UTF-8 rune: a split rune

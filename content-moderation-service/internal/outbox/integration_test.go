@@ -143,6 +143,7 @@ func TestRelayPublishesExactlyOnce(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	relay.Start(ctx)
+	t.Cleanup(func() { cancel(); relay.Wait() })
 
 	waitFor(t, func() bool { return pub.count() >= 1 }, 3*time.Second, "publication")
 	// Wait for the durable published mark before stopping the relay: cancel
@@ -159,7 +160,7 @@ func TestRelayPublishesExactlyOnce(t *testing.T) {
 	cancel()
 
 	pub.mu.Lock()
-	wantKey := string(reviewID[:]) // key is the raw review UUID bytes
+	wantKey := reviewID.String() // key is the review UUID encoded as UTF-8 text
 	got := pub.published[0]
 	messages := pub.lastMessages[0]
 	pub.mu.Unlock()
@@ -176,6 +177,7 @@ func TestRelayPublishesExactlyOnce(t *testing.T) {
 	}, nil)
 	idleCtx, idleCancel := context.WithCancel(context.Background())
 	relayOnceIdle.Start(idleCtx)
+	t.Cleanup(func() { idleCancel(); relayOnceIdle.Wait() })
 	time.Sleep(100 * time.Millisecond)
 	idleCancel()
 	if n := pub.count(); n != 1 {
@@ -197,6 +199,7 @@ func TestRelayRetriesAfterPublisherFailureWithSameEvent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	relay.Start(ctx)
+	t.Cleanup(func() { cancel(); relay.Wait() })
 
 	waitFor(t, func() bool { return pub.count() >= 1 }, 3*time.Second, "eventual publication")
 	cancel()
@@ -209,7 +212,7 @@ func TestRelayRetriesAfterPublisherFailureWithSameEvent(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("publications = %d, want 1", len(got))
 	}
-	if got[0] != "moderation.review_moderation_finished|"+string(reviewID[:]) {
+	if got[0] != "moderation.review_moderation_finished|"+reviewID.String() {
 		t.Fatalf("published = %q, want the review-keyed completion event", got[0])
 	}
 }
@@ -239,4 +242,21 @@ func waitFor(t *testing.T, cond func() bool, within time.Duration, what string) 
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("condition %q not met within %v", what, within)
+}
+
+func TestIdleRelayShutdownDoesNotWaitForPollInterval(t *testing.T) {
+	pool := setup(t)
+	relay := outbox.NewRelay(pool, &fakePublisher{}, outbox.RelayConfig{
+		PollInterval: time.Minute, Lease: time.Minute,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	relay.Start(ctx)
+	cancel()
+	done := make(chan struct{})
+	go func() { relay.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("relay did not stop promptly")
+	}
 }

@@ -142,6 +142,7 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 // bounds concurrent evaluations together with the configuration test.
 func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	if err := p.limiter.Acquire(ctx); err != nil {
+		p.release(ctx, claimed)
 		return
 	}
 	defer p.limiter.Release()
@@ -253,10 +254,7 @@ func (p *Pool) heartbeat(
 			case <-ticker.C:
 				leaseUntil := time.Now().Add(p.cfg.Lease)
 				ok, err := p.store.Heartbeat(evalCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), leaseUntil)
-				if err != nil {
-					continue
-				}
-				if !ok {
+				if err != nil || !ok {
 					cancelEval()
 					select {
 					case claimLostC <- struct{}{}:
@@ -343,4 +341,11 @@ type poolStats struct {
 	completed    atomic.Int64
 	errored      atomic.Int64
 	configPaused atomic.Int64
+}
+
+// LogStatistics reports per-process counters using the service's logger.
+func (p *Pool) LogStatistics(ctx context.Context) {
+	p.logger.InfoContext(ctx, "moderation worker statistics",
+		"in_flight", p.stats.inFlight.Load(), "completed", p.stats.completed.Load(),
+		"errored_attempts", p.stats.errored.Load(), "configuration_pauses", p.stats.configPaused.Load())
 }

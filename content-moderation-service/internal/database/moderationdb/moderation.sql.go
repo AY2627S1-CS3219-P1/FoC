@@ -85,8 +85,8 @@ UPDATE moderation_jobs
 SET status = 'processing',
     claim_token = $1,
     worker_id = $2,
-    lease_until = $3,
-    heartbeat_at = $3,
+    lease_until = now() + $3::double precision * interval '1 second',
+    heartbeat_at = now(),
     attempt_count = attempt_count + 1,
     updated_at = now()
 WHERE id = $4
@@ -95,10 +95,10 @@ WHERE id = $4
 `
 
 type ClaimJobParams struct {
-	ClaimToken *uuid.UUID
-	WorkerID   *string
-	LeaseUntil *time.Time
-	ID         uuid.UUID
+	ClaimToken   *uuid.UUID
+	WorkerID     *string
+	LeaseSeconds float64
+	ID           uuid.UUID
 }
 
 // Caller must hold the row (ClaimEligibleJob) or otherwise own the claim.
@@ -106,7 +106,7 @@ func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) error {
 	_, err := q.db.Exec(ctx, claimJob,
 		arg.ClaimToken,
 		arg.WorkerID,
-		arg.LeaseUntil,
+		arg.LeaseSeconds,
 		arg.ID,
 	)
 	return err
@@ -195,6 +195,7 @@ WHERE id = $4
   AND run_generation = $5
   AND claim_token = $6
   AND status = 'processing'
+  AND lease_until > now()
 `
 
 type CompleteJobParams struct {
@@ -271,6 +272,7 @@ WHERE id = $2
   AND run_generation = $3
   AND claim_token = $4
   AND status = 'processing'
+  AND lease_until > now()
 `
 
 type ErrorJobParams struct {
@@ -576,29 +578,54 @@ func (q *Queries) GetJobsForReviewer(ctx context.Context, arg GetJobsForReviewer
 	return items, nil
 }
 
+const getOperationalStats = `-- name: GetOperationalStats :one
+SELECT
+    (SELECT count(*) FROM moderation_jobs WHERE status IN ('queued', 'retry_wait', 'processing')) AS queue_depth,
+    COALESCE((SELECT min(created_at) FROM moderation_jobs WHERE status IN ('queued', 'retry_wait', 'processing')), now()) AS oldest_job_at,
+    (SELECT count(*) FROM moderation_jobs WHERE status = 'errored') AS exhausted_jobs,
+    (SELECT count(*) FROM moderation_outbox WHERE published_at IS NULL) AS pending_outbox,
+    COALESCE((SELECT min(created_at) FROM moderation_outbox WHERE published_at IS NULL), now()) AS oldest_outbox_at
+`
+
+type GetOperationalStatsRow struct {
+	QueueDepth     int64
+	OldestJobAt    interface{}
+	ExhaustedJobs  int64
+	PendingOutbox  int64
+	OldestOutboxAt interface{}
+}
+
+func (q *Queries) GetOperationalStats(ctx context.Context) (GetOperationalStatsRow, error) {
+	row := q.db.QueryRow(ctx, getOperationalStats)
+	var i GetOperationalStatsRow
+	err := row.Scan(
+		&i.QueueDepth,
+		&i.OldestJobAt,
+		&i.ExhaustedJobs,
+		&i.PendingOutbox,
+		&i.OldestOutboxAt,
+	)
+	return i, err
+}
+
 const heartbeatJob = `-- name: HeartbeatJob :execrows
 UPDATE moderation_jobs
-SET heartbeat_at = $1,
-    lease_until = $2
-WHERE id = $3
-  AND claim_token = $4
+SET heartbeat_at = now(),
+    lease_until = now() + $1::double precision * interval '1 second'
+WHERE id = $2
+  AND claim_token = $3
   AND status = 'processing'
+  AND lease_until > now()
 `
 
 type HeartbeatJobParams struct {
-	HeartbeatAt *time.Time
-	LeaseUntil  *time.Time
-	ID          uuid.UUID
-	ClaimToken  *uuid.UUID
+	LeaseSeconds float64
+	ID           uuid.UUID
+	ClaimToken   *uuid.UUID
 }
 
 func (q *Queries) HeartbeatJob(ctx context.Context, arg HeartbeatJobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, heartbeatJob,
-		arg.HeartbeatAt,
-		arg.LeaseUntil,
-		arg.ID,
-		arg.ClaimToken,
-	)
+	result, err := q.db.Exec(ctx, heartbeatJob, arg.LeaseSeconds, arg.ID, arg.ClaimToken)
 	if err != nil {
 		return 0, err
 	}
@@ -705,6 +732,7 @@ INSERT INTO moderation_jobs (
     $4, $5, $6,
     $7, $8, $9
 )
+ON CONFLICT DO NOTHING
 RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
 `
 
@@ -874,6 +902,7 @@ SET status = 'queued',
 WHERE id = $1
   AND claim_token = $2
   AND status = 'processing'
+  AND lease_until > now()
 `
 
 type ReleaseJobParams struct {
@@ -971,6 +1000,7 @@ WHERE id = $3
   AND run_generation = $4
   AND claim_token = $5
   AND status = 'processing'
+  AND lease_until > now()
 `
 
 type ScheduleJobRetryParams struct {

@@ -41,7 +41,7 @@ func Classify(err error) string {
 	}
 	switch {
 	case errors.Is(err, llmpolicy.ErrEmptyResponse):
-		return jobs.ErrorClassServerError
+		return jobs.ErrorClassInvalidOutput
 	case errors.As(err, new(*llmpolicy.ErrInvalidOutput)):
 		return jobs.ErrorClassInvalidOutput
 	case errors.As(err, new(*llmpolicy.ErrRefusal)):
@@ -67,7 +67,7 @@ func Classify(err error) string {
 func translate(err error) error {
 	switch {
 	case errors.Is(err, llmpolicy.ErrEmptyResponse):
-		return jobs.WrapServerError(err)
+		return jobs.WrapInvalidOutputError(err)
 	case errors.As(err, new(*llmpolicy.ErrInvalidOutput)):
 		return jobs.WrapInvalidOutputError(err)
 	case errors.As(err, new(*llmpolicy.ErrRefusal)):
