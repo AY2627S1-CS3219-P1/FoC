@@ -36,7 +36,7 @@ export class ConnectOrderApi implements OrderApi {
 	async listMyOrders(query: OrderQuery): Promise<OrderPage> {
 		const response = await this.client.listMyOrders({
 			page: query.page ?? 1, pageSize: query.pageSize ?? 20,
-			role: query.role, status: query.status
+			role: query.role, status: query.status, activeOnly: query.activeOnly ?? false
 		});
 		return page(response.orders, response.pageInfo);
 	}
