@@ -51,7 +51,7 @@ func runServer(t *testing.T, status int, retryAfter string, body string) (*httpt
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if body != "" {
-			fmt.Fprint(w, body)
+			_, _ = fmt.Fprint(w, body)
 		}
 	}))
 	return srv, rec

@@ -117,8 +117,46 @@ through both transactional outboxes and the User completion consumer:
   the unpublished RPC retained the other two records.
 - Separate no-key startup returned serving health and exited cleanly on SIGTERM.
 
-This verifies transport and persistence with a fake provider; live SoCLaaS
-model/output-mode compatibility still requires an explicitly supplied local key.
+This verifies transport and persistence with a fake provider. The live-provider
+verification below additionally checks the selected SoCLaaS model and profile.
+
+### Live SoCLaaS verification (9 November 2026)
+
+Using an explicitly supplied development key, authenticated discovery and the
+production adapter/evaluator verified `ornith1.5:35b` with both `json_schema`
+and `json_object`, `temperature=0` and `max_tokens=512`:
+
+- Draft save/test/activation succeeded for both modes. Two-worker runs assessed
+  benign feedback, ordinary criticism, Chinese criticism, a quoted-threat report,
+  and spam carrying a prompt-injection instruction. The first four were approved;
+  the injected spam was rejected with `SPAM`. All ten jobs completed on attempt
+  one and each enqueued exactly one durable terminal event.
+- A separate smoke used freshly built User/CMS binaries, isolated Kafka and two
+  throwaway databases. Four authenticated submissions appeared pending before
+  configuration, with zero inference attempts and no rating contribution.
+  Admin model discovery/save/test/activation then enabled live strict-schema
+  inference. Both outboxes published all four events; User applied three
+  approvals and one spam rejection, counted three ratings, and retained only
+  the rejected review in its unpublished collection.
+- Owner/admin access checks passed. Restarting CMS and Kafka preserved all
+  outcomes without another inference or rating change. The provider key was
+  absent from RPC responses, CMS persisted data and service logs.
+
+The live database/worker checks are opt-in and never run in ordinary CI. With
+`SOCLAAS_API_KEY` already exported and `TEST_DATABASE_URL` set to a throwaway CMS
+database, run from the repository root:
+
+```sh
+GOWORK=off go -C content-moderation-service test -mod=readonly -p 1 -race \
+  -tags=integration,soclaas ./internal/jobs \
+  -run '^TestSoCLaaSLiveModeration$' -count=1 -v -timeout=10m
+```
+
+`SOCLAAS_MODEL` optionally selects another discovered model; the default is
+`ornith1.5:35b`. The suite consumes live quota, resets the supplied CMS schema,
+and sends only synthetic review fixtures. This result establishes compatibility
+for the tested model/profile; other models and optional parameters still require
+successful draft validation.
 
 ## Recovering configuration-paused work
 

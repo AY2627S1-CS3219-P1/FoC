@@ -109,3 +109,11 @@ MODERATION_TEST_BASE_URL=http://localhost:5173 npm --prefix frontend run test:mo
 It checks hydration and saving of every inference setting (including explicit
 zero and a large int64 seed), explicit paused-job recovery consent, and newer
 retry generations while publication still holds the previous error result.
+
+## Live provider verification
+
+The opt-in SoCLaaS suite uses `SOCLAAS_API_KEY` from the environment and a
+throwaway `TEST_DATABASE_URL`. It exercises authenticated discovery, both output
+modes, configuration validation/activation, two workers and durable terminal
+outboxes. It is excluded from normal integration tests and CI. See the
+[live verification command and recorded results](../docs/runbooks/content-moderation.md#live-soclaas-verification-9-november-2026).
