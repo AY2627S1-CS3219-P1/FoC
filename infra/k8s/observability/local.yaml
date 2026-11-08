@@ -1,0 +1,10 @@
+loki:
+  storage:
+    bucketNames: {chunks: foc-loki, ruler: foc-loki, admin: foc-loki}
+    s3:
+      endpoint: http://floci.foc.svc.cluster.local:4566
+      region: us-east-1
+      accessKeyId: test
+      secretAccessKey: test
+      s3ForcePathStyle: true
+      insecure: true

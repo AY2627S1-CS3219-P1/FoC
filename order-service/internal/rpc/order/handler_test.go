@@ -216,6 +216,11 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 		my.Msg.PageInfo.TotalPages != 2 {
 		t.Fatalf("mine filters/page: fake=%+v response=%v err=%v", f, my, err)
 	}
+	// The active_only flag must be forwarded from the request into the domain request.
+	my, err = c.order.ListMyOrders(ctx, connect.NewRequest(&pb.ListMyOrdersRequest{ActiveOnly: true}))
+	if err != nil || f.request.ActiveOnly != true {
+		t.Fatalf("active_only passthrough: fake=%+v response=%v err=%v", f, my, err)
+	}
 	_, err = c.order.ListOpenOrders(
 		ctx,
 		connect.NewRequest(

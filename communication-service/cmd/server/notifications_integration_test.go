@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/chat"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
 	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
@@ -91,8 +92,11 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 		Sender:     telegram.NewClient("123:token", srv.URL, srv.Client()),
 		Links:      links,
 		Deliveries: &notify.PostgresDeliveries{Queries: db.New(pool)},
-		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Now:        time.Now,
+		Orders:     &chat.PostgresStore{Pool: pool},
+		// Events from earlier runs predate this one and aren't sent.
+		Since: time.Now().Add(-time.Minute),
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now:   time.Now,
 	}
 
 	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: strings.Split(brokers, ",")})
@@ -122,7 +126,7 @@ func TestNotificationsReplayAfterTelegramFailure(t *testing.T) {
 	}
 
 	// A fresh group reads from the earliest offset. Events from earlier runs
-	// are skipped because their recipients were already recorded as sent.
+	// are skipped because they predate Since.
 	runCtx, stop := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {

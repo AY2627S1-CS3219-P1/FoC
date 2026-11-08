@@ -7,6 +7,8 @@ export interface OrderQuery {
 	deliveryBuildingName?: string;
 	role?: ParticipantRole;
 	status?: OrderStatus;
+	/** listMyOrders only: exclude Completed, Cancelled, Expired, Failed and Rejected orders. */
+	activeOnly?: boolean;
 }
 
 export interface OrderPage {

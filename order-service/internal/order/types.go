@@ -186,6 +186,8 @@ type ListRequest struct {
 	Role                 Role
 	PickupID, DeliveryID string
 	DeliveryBuildingName string
+	// ActiveOnly excludes orders with a terminal status.
+	ActiveOnly bool
 }
 
 type OrderPage struct {
