@@ -436,7 +436,7 @@
 
 			{#if reviewEligible}
 				<Card variant="outlined">
-					<div class="panel-body review-section" id="review-section">
+					<div class="review-section" id="review-section">
 						{#if reviewLoading && !myReview}
 							<div class="loading-state"><LoadingIndicator aria-label="Loading your review" /></div>
 						{:else if myReview}
@@ -452,7 +452,7 @@
 								<span class="stars" aria-hidden="true">{'★'.repeat(myReview.rating)}{'☆'.repeat(5 - myReview.rating)}</span>
 							</p>
 							<p class="comment">{myReview.comment}</p>
-							<ReviewPhotos photos={myReview.photos} />
+							<div class="photos"><ReviewPhotos photos={myReview.photos} /></div>
 						{:else}
 							<header class="title">
 								<h2 id="review-heading" tabindex="-1">Leave a review</h2>
@@ -529,8 +529,8 @@
 	.layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr); gap: 1.5rem; align-items: start; }
 	.main, .side { display: grid; gap: 1rem; min-width: 0; }
 	.side { position: sticky; top: 1rem; }
-	.panel-body.review-section { scroll-margin-top: 1rem; gap: 0.25rem; padding: 1rem; }
-	.review-form { display: grid; gap: 1rem; min-width: 0; }
+	.review-section { display: grid; gap: 0.25rem; padding: 1rem; scroll-margin-top: 1rem; }
+	.review-form { display: grid; gap: 1rem; min-width: 0; margin-top: 0.5rem; }
 	.rating { display: grid; gap: 0.25rem; margin: 0; padding: 0; border: 0; }
 	.rating legend { padding: 0; margin-bottom: 0.5rem; font-weight: 600; }
 	.rating-options { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; }
@@ -540,6 +540,7 @@
 	.field-error { color: var(--m3c-error, #b3261e); }
 	.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 	.review-rating { margin: 0; }
+	.photos { margin-top: 0.4rem; }
 	.stars { color: var(--m3c-primary); letter-spacing: 0.1rem; }
 	.comment { margin: 0; white-space: pre-wrap; }
 	#review-heading:focus-visible { outline: 2px solid var(--m3c-primary); outline-offset: 3px; }
