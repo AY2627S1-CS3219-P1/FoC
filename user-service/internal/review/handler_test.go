@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
@@ -24,13 +25,18 @@ import (
 // handlerLogicStub records the arguments the handler passes so tests can assert
 // the adapter parsed the request correctly.
 type handlerLogicStub struct {
-	submitted ReviewSubmission
-	submitter uuid.UUID
-	submitErr error
+	submitted   ReviewSubmission
+	submitter   uuid.UUID
+	submitErr   error
+	submitValue SubmissionResult
 
-	listedFor   uuid.UUID
-	forUserPage ReviewPage
-	forUserErr  error
+	listedFor    uuid.UUID
+	filterSeen   UnpublishedFilter
+	forUserPage  ReviewPage
+	unpubPage    UnpublishedReviewPage
+	forUserErr   error
+	unpubErr     error
+	unpubSubject uuid.UUID
 
 	removedID     uuid.UUID
 	removedReason string
@@ -46,10 +52,13 @@ func (s *handlerLogicStub) SubmitReview(
 	_ context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
-) error {
+) (SubmissionResult, error) {
 	s.submitter = reviewerID
 	s.submitted = submission
-	return s.submitErr
+	if s.submitErr != nil {
+		return SubmissionResult{}, s.submitErr
+	}
+	return s.submitValue, nil
 }
 
 func (s *handlerLogicStub) ListReviewsForUser(
@@ -68,6 +77,17 @@ func (s *handlerLogicStub) ListReviewsFromUser(
 ) (ReviewPage, error) {
 	s.listedFor = userID
 	return ReviewPage{}, s.forUserErr
+}
+
+func (s *handlerLogicStub) ListUnpublishedReviewsForUser(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	filter UnpublishedFilter,
+	_ pagination.Pagination,
+) (UnpublishedReviewPage, error) {
+	s.unpubSubject = reviewerID
+	s.filterSeen = filter
+	return s.unpubPage, s.unpubErr
 }
 
 func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
@@ -103,9 +123,14 @@ func TestSubmitReviewRPC(t *testing.T) {
 	submitter, target, order := uuid.New(), uuid.New(), uuid.New()
 
 	t.Run("parses the request and derives the reviewer from the caller", func(t *testing.T) {
-		stub := &handlerLogicStub{}
+		reviewID, requestID := uuid.New(), uuid.New()
+		stub := &handlerLogicStub{submitValue: SubmissionResult{
+			ReviewID:            reviewID,
+			ModerationRequestID: requestID,
+			Status:              ModerationPending,
+		}}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
-		_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+		resp, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
 			From:       caller.String(),
 			To:         target.String(),
 			OrderId:    order.String(),
@@ -119,6 +144,12 @@ func TestSubmitReviewRPC(t *testing.T) {
 		}
 		if stub.submitted.Rating != 5 || stub.submitted.Comment != "excellent" {
 			t.Fatalf("submission not mapped: %+v", stub.submitted)
+		}
+		if resp.Msg.GetReviewId() != reviewID.String() || resp.Msg.GetModerationRequestId() != requestID.String() {
+			t.Fatalf("response does not reference the committed review: %+v", resp.Msg)
+		}
+		if resp.Msg.GetModerationStatus() != reviewv1.ModerationStatus_MODERATION_STATUS_PENDING_MODERATION {
+			t.Fatalf("status = %v, want pending moderation", resp.Msg.GetModerationStatus())
 		}
 	})
 
@@ -265,6 +296,205 @@ func TestListMyReviewsRPC(t *testing.T) {
 		); connect.CodeOf(
 			err,
 		) != connect.CodeUnauthenticated {
+			t.Fatalf("missing actor: %v", err)
+		}
+	})
+}
+
+func TestListUnpublishedReviewsRPC(t *testing.T) {
+	reviewer, other := uuid.New(), uuid.New()
+	unpublished := UnpublishedReviewPage{
+		Reviews: []UnpublishedReview{{
+			ID:                    uuid.New(),
+			ReviewerID:            reviewer,
+			RevieweeID:            uuid.New(),
+			OrderID:               uuid.New(),
+			Rating:                2,
+			Comment:               "wait for moderation",
+			ModerationStatus:      ModerationRejected,
+			ModerationRequestID:   uuid.New(),
+			ContentRevision:       1,
+			ModerationReasonCodes: []string{"hate"},
+			ModeratedAt:           time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC),
+		}},
+		PageInfo: pagination.NewPageInfo(1, 20, 1),
+	}
+
+	t.Run("maps reviews, filters and page info", func(t *testing.T) {
+		stub := &handlerLogicStub{unpubPage: unpublished}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		rejected := reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED
+		orderID := uuid.New().String()
+		resp, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
+				ReviewerId:             reviewer.String(),
+				Pagination:             &paginationv1.Pagination{Page: 1, PageSize: 20},
+				ModerationStatusFilter: &rejected,
+				OrderId:                &orderID,
+			}))
+		if err != nil {
+			t.Fatalf("list unpublished: %v", err)
+		}
+		if stub.unpubSubject != reviewer {
+			t.Fatalf("wrong reviewer listed: %v", stub.unpubSubject)
+		}
+		if stub.filterSeen.Status == nil || *stub.filterSeen.Status != ModerationRejected {
+			t.Fatalf("status filter not mapped: %+v", stub.filterSeen)
+		}
+		if stub.filterSeen.OrderID == nil || stub.filterSeen.OrderID.String() != orderID {
+			t.Fatalf("order filter not mapped: %+v", stub.filterSeen)
+		}
+		if len(resp.Msg.Reviews) != 1 {
+			t.Fatalf("unexpected reviews: %+v", resp.Msg.Reviews)
+		}
+		got := resp.Msg.Reviews[0]
+		if got.GetModerationStatus() != reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED ||
+			got.GetModerationRequestId() != unpublished.Reviews[0].ModerationRequestID.String() ||
+			got.GetContentRevision() != 1 ||
+			len(got.GetModerationReasonCodes()) != 1 || got.GetModerationReasonCodes()[0] != "hate" ||
+			!got.GetModeratedAt().AsTime().Equal(unpublished.Reviews[0].ModeratedAt) {
+			t.Fatalf("unpublished review not mapped: %+v", got)
+		}
+		if resp.Msg.Pagination.GetTotalItems() != 1 {
+			t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
+		}
+	})
+
+	t.Run("ordinary caller may list their own", func(t *testing.T) {
+		stub := &handlerLogicStub{unpubPage: unpublished}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		if _, err := client.ListUnpublishedReviewsForUser(
+			context.Background(),
+			connect.NewRequest(
+				&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: reviewer.String()},
+			),
+		); err != nil {
+			t.Fatalf("own list: %v", err)
+		}
+	})
+
+	t.Run("ordinary caller may not list someone else", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: other.String()}))
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("cross-user list should be forbidden: %v", err)
+		}
+		if stub.unpubSubject != uuid.Nil {
+			t.Fatal("authorization happened after the lookup")
+		}
+	})
+
+	t.Run("admin may select any reviewer", func(t *testing.T) {
+		stub := &handlerLogicStub{unpubPage: unpublished}
+		client := reviewClient(
+			t,
+			stub,
+			auth.Caller{ID: uuid.New().String(), Role: string(tokenclaims.RoleAdmin), Admin: true},
+		)
+		if _, err := client.ListUnpublishedReviewsForUser(
+			context.Background(),
+			connect.NewRequest(
+				&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: reviewer.String()},
+			),
+		); err != nil {
+			t.Fatalf("admin list: %v", err)
+		}
+	})
+
+	t.Run("super admin may select any reviewer", func(t *testing.T) {
+		stub := &handlerLogicStub{unpubPage: unpublished}
+		client := reviewClient(t, stub, auth.Caller{
+			ID: uuid.New().String(), Role: string(tokenclaims.RoleSuperAdmin), Admin: true,
+		})
+		if _, err := client.ListUnpublishedReviewsForUser(
+			context.Background(),
+			connect.NewRequest(
+				&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: reviewer.String()},
+			),
+		); err != nil {
+			t.Fatalf("super admin list: %v", err)
+		}
+	})
+
+	t.Run("suspended caller may inspect only their own", func(t *testing.T) {
+		stub := &handlerLogicStub{unpubPage: unpublished}
+		client := reviewClient(t, stub, auth.Caller{
+			ID: reviewer.String(), Role: string(tokenclaims.RoleSuspendedUser),
+		})
+		if _, err := client.ListUnpublishedReviewsForUser(
+			context.Background(),
+			connect.NewRequest(
+				&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: reviewer.String()},
+			),
+		); err != nil {
+			t.Fatalf("suspended own list: %v", err)
+		}
+	})
+
+	t.Run("suspended caller may not inspect someone else", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{
+			ID: reviewer.String(), Role: string(tokenclaims.RoleSuspendedUser),
+		})
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: other.String()}))
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("suspended cross-user list should be forbidden: %v", err)
+		}
+	})
+
+	t.Run("approved status filter is invalid", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		approved := reviewv1.ModerationStatus_MODERATION_STATUS_APPROVED
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
+				ReviewerId:             reviewer.String(),
+				ModerationStatusFilter: &approved,
+			}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("approved filter should be invalid argument: %v", err)
+		}
+		if stub.unpubSubject != uuid.Nil {
+			t.Fatal("invalid filter reached the logic")
+		}
+	})
+
+	t.Run("unspecified status filter is invalid", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		unspecified := reviewv1.ModerationStatus_MODERATION_STATUS_UNSPECIFIED
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
+				ReviewerId:             reviewer.String(),
+				ModerationStatusFilter: &unspecified,
+			}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("unspecified filter should be invalid argument: %v", err)
+		}
+	})
+
+	t.Run("invalid order filter is rejected", func(t *testing.T) {
+		stub := &handlerLogicStub{}
+		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
+		bad := "not-a-uuid"
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
+				ReviewerId: reviewer.String(),
+				OrderId:    &bad,
+			}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("invalid order filter should be invalid argument: %v", err)
+		}
+	})
+
+	t.Run("missing actor is unauthorized", func(t *testing.T) {
+		client := reviewClient(t, &handlerLogicStub{}, auth.Caller{})
+		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
+			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: reviewer.String()}))
+		if connect.CodeOf(err) != connect.CodeUnauthenticated {
 			t.Fatalf("missing actor: %v", err)
 		}
 	})

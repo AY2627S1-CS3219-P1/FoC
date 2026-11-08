@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	events "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 // fakeRepository is a record-keeping Repository that lets a test pin the
@@ -24,6 +26,9 @@ type fakeRepository struct {
 	listFromUser    []Review
 	countForUser    int64
 	countFromUser   int64
+	unpublished     []UnpublishedReview
+	unpublishedCnt  int64
+	filterSeen      UnpublishedFilter
 	listRemovals    []ReviewRemoval
 	countRemovals   int64
 	participantsErr error
@@ -31,12 +36,15 @@ type fakeRepository struct {
 	countErr        error
 
 	insertErr      error
+	inserted       ReviewInput
+	insertedRow    InsertedReview
+	appended       []SubmittedOutboxRow
+	appendErr      error
 	reviewToDelete Review
 	softDelErr     error
 	removalErr     error
 	recalcErr      error
 	recalcCount    int
-	insertedID     uuid.UUID
 	audited        ReviewRemoval
 	softDeleted    uuid.UUID
 	recalculated   uuid.UUID
@@ -44,6 +52,7 @@ type fakeRepository struct {
 
 func (f *fakeRepository) CheckReviewParticipants(
 	_ context.Context,
+	_ *reviewdb.Queries,
 	reviewerID, revieweeID uuid.UUID,
 ) (ReviewParticipantExistence, error) {
 	if f.participantsErr != nil {
@@ -55,9 +64,35 @@ func (f *fakeRepository) CheckReviewParticipants(
 	}, nil
 }
 
-func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, input ReviewInput) error {
-	f.insertedID = input.ID
-	return f.insertErr
+func (f *fakeRepository) InsertReview(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	input ReviewInput,
+) (InsertedReview, error) {
+	f.inserted = input
+	if f.insertErr != nil {
+		return InsertedReview{}, f.insertErr
+	}
+	if f.insertedRow == (InsertedReview{}) {
+		f.insertedRow = InsertedReview{
+			CreatedAt:        time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC),
+			ModerationStatus: ModerationPending,
+			ContentRevision:  1,
+		}
+	}
+	return f.insertedRow, nil
+}
+
+func (f *fakeRepository) AppendSubmittedOutbox(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	row SubmittedOutboxRow,
+) error {
+	if f.appendErr != nil {
+		return f.appendErr
+	}
+	f.appended = append(f.appended, row)
+	return nil
 }
 
 func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
@@ -95,6 +130,24 @@ func (f *fakeRepository) CountReviewsFromUser(_ context.Context, _ uuid.UUID) (i
 	return f.countFromUser, f.countErr
 }
 
+func (f *fakeRepository) ListUnpublishedReviewsForUser(
+	_ context.Context,
+	_ uuid.UUID,
+	filter UnpublishedFilter,
+	_, _ int64,
+) ([]UnpublishedReview, error) {
+	f.filterSeen = filter
+	return f.unpublished, f.listErr
+}
+
+func (f *fakeRepository) CountUnpublishedReviewsForUser(
+	_ context.Context,
+	_ uuid.UUID,
+	_ UnpublishedFilter,
+) (int64, error) {
+	return f.unpublishedCnt, f.countErr
+}
+
 func (f *fakeRepository) ListReviewRemovals(_ context.Context, _, _ int64) ([]ReviewRemoval, error) {
 	return f.listRemovals, f.listErr
 }
@@ -124,13 +177,13 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		id := uuid.New()
 		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{id: true}})
-		err := svc.SubmitReview(context.Background(), id, id, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
+		_, err := svc.SubmitReview(context.Background(), id, id, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 	t.Run("unknown reviewer is rejected", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewee: true}})
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
@@ -142,7 +195,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("unknown reviewee is rejected", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true}})
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
@@ -153,7 +206,7 @@ func TestSubmitReview(t *testing.T) {
 	})
 	t.Run("reviewer error takes precedence when both users are missing", func(t *testing.T) {
 		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{}})
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			uuid.New(),
 			uuid.New(),
@@ -164,34 +217,82 @@ func TestSubmitReview(t *testing.T) {
 			t.Fatalf("want reviewer-not-found error first, got: %v", err)
 		}
 	})
-	t.Run("inserts the review and recomputes stats", func(t *testing.T) {
+	t.Run("inserts the pending review, queues one event and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
 		svc := newTestService(fake)
-		if err := svc.SubmitReview(
+		result, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
 			order,
 			ReviewSubmission{Rating: 4, Comment: "great"},
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("submit: %v", err)
 		}
-		if fake.insertedID == uuid.Nil {
+
+		if fake.inserted.ID == uuid.Nil {
 			t.Fatal("no review was inserted")
+		}
+		if fake.inserted.ReviewerID != reviewer || fake.inserted.RevieweeID != reviewee ||
+			fake.inserted.OrderID != order {
+			t.Fatalf("unexpected review input: %+v", fake.inserted)
+		}
+		if fake.inserted.ModerationRequestID == uuid.Nil {
+			t.Fatal("no moderation request id was generated")
+		}
+		if result.ReviewID != fake.inserted.ID || result.ModerationRequestID != fake.inserted.ModerationRequestID {
+			t.Fatalf("result does not reference the inserted review: %+v", result)
+		}
+		if result.Status != ModerationPending {
+			t.Fatalf("new submissions must be pending, got %q", result.Status)
 		}
 		if fake.recalcCount != 1 || fake.recalculated != reviewee {
 			t.Fatalf("recalculation not run for reviewee: calls=%d reviewee=%v", fake.recalcCount, fake.recalculated)
 		}
+
+		if len(fake.appended) != 1 {
+			t.Fatalf("want exactly one outbox row, got %d", len(fake.appended))
+		}
+		row := fake.appended[0]
+		if row.ReviewID != result.ReviewID || row.PayloadVersion != submittedPayloadVersion {
+			t.Fatalf("outbox row does not reference the review: %+v", row)
+		}
+		if row.EventID == uuid.Nil {
+			t.Fatal("outbox row has no event id")
+		}
+		message, err := decodeSubmittedPayload(row.PayloadVersion, row.Payload)
+		if err != nil {
+			t.Fatalf("decode outbox payload: %v", err)
+		}
+		submitted, ok := message.(*events.ReviewSubmitted)
+		if !ok {
+			t.Fatalf("outbox payload has type %T", message)
+		}
+		if submitted.GetEventId() != row.EventID.String() ||
+			submitted.GetModerationRequestId() != result.ModerationRequestID.String() ||
+			submitted.GetReviewId() != result.ReviewID.String() ||
+			submitted.GetReviewerId() != reviewer.String() ||
+			submitted.GetContentRevision() != 1 ||
+			submitted.GetComment() != "great" ||
+			!submitted.GetOccurredAt().AsTime().Equal(fake.insertedRow.CreatedAt) {
+			t.Fatalf("published payload = %+v, want the saved review's submission", submitted)
+		}
 	})
-	t.Run("duplicate maps to already exists", func(t *testing.T) {
+	t.Run("payload rejects an incomplete event", func(t *testing.T) {
+		if _, err := encodeSubmittedPayload(&events.ReviewSubmitted{}); err == nil {
+			t.Fatal("incomplete event accepted")
+		}
+	})
+	t.Run("duplicate maps to already exists and queues nothing", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{
 			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
 			insertErr: errReviewAlreadyExists,
 		}
 		svc := newTestService(fake)
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
@@ -202,12 +303,15 @@ func TestSubmitReview(t *testing.T) {
 		if fake.recalcCount != 0 {
 			t.Fatal("stats must not be recomputed when the insert fails")
 		}
+		if len(fake.appended) != 0 {
+			t.Fatal("outbox row must not be appended when the insert fails")
+		}
 	})
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errBoomTest}
 		svc := newTestService(fake)
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
@@ -221,11 +325,32 @@ func TestSubmitReview(t *testing.T) {
 			t.Fatal("stats must not be recomputed when the insert fails")
 		}
 	})
+	t.Run("outbox failure aborts the transaction", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			appendErr: errBoomTest,
+		}
+		svc := newTestService(fake)
+		_, err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "x"},
+		)
+		if !errors.Is(err, errBoomTest) {
+			t.Fatalf("outbox error should propagate: %v", err)
+		}
+		if fake.recalcCount != 0 {
+			t.Fatal("stats must not be recomputed when the outbox append fails")
+		}
+	})
 	t.Run("recalculation failure aborts the transaction", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, recalcErr: errBoomTest}
 		svc := newTestService(fake)
-		err := svc.SubmitReview(
+		_, err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
 			reviewee,
@@ -286,6 +411,59 @@ func TestListReviews(t *testing.T) {
 		}
 		if result.PageInfo.TotalItems() != 7 || result.PageInfo.PageSize() != 50 {
 			t.Fatalf("unexpected page info: %+v", result.PageInfo)
+		}
+	})
+}
+
+func TestListUnpublishedReviews(t *testing.T) {
+	reviewer := uuid.New()
+	unpublished := []UnpublishedReview{{ID: uuid.New(), ReviewerID: reviewer, Rating: 3}}
+	status := ModerationRejected
+	orderID := uuid.New()
+
+	t.Run("lists with page totals and passes the filter through", func(t *testing.T) {
+		fake := &fakeRepository{unpublished: unpublished, unpublishedCnt: 5}
+		svc := newTestService(fake)
+		page, err := pagination.New(3, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := svc.ListUnpublishedReviewsForUser(
+			context.Background(), reviewer, UnpublishedFilter{Status: &status, OrderID: &orderID}, page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Reviews) != 1 || result.Reviews[0].ReviewerID != reviewer {
+			t.Fatalf("unexpected reviews: %+v", result.Reviews)
+		}
+		if result.TotalItems() != 5 || result.Page() != 3 || result.PageSize() != 10 {
+			t.Fatalf(
+				"unexpected page info: page=%d size=%d total=%d",
+				result.Page(),
+				result.PageSize(),
+				result.TotalItems(),
+			)
+		}
+		if fake.filterSeen.Status == nil || *fake.filterSeen.Status != ModerationRejected {
+			t.Fatalf("status filter not passed through: %+v", fake.filterSeen)
+		}
+		if fake.filterSeen.OrderID == nil || *fake.filterSeen.OrderID != orderID {
+			t.Fatalf("order filter not passed through: %+v", fake.filterSeen)
+		}
+	})
+	t.Run("an empty filter stays unset", func(t *testing.T) {
+		fake := &fakeRepository{unpublishedCnt: 1}
+		svc := newTestService(fake)
+		page, err := pagination.New(1, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.ListUnpublishedReviewsForUser(
+			context.Background(), reviewer, UnpublishedFilter{}, page); err != nil {
+			t.Fatal(err)
+		}
+		if fake.filterSeen.Status != nil || fake.filterSeen.OrderID != nil {
+			t.Fatalf("empty filter should stay unset: %+v", fake.filterSeen)
 		}
 	})
 }
@@ -385,3 +563,5 @@ func TestListReviewRemovals(t *testing.T) {
 		t.Fatalf("unexpected page info: page=%d size=%d total=%d", got.Page(), got.PageSize(), got.TotalItems())
 	}
 }
+
+var _ proto.Message = (*events.ReviewSubmitted)(nil)

@@ -45,11 +45,25 @@ func TestKeyIDRejectsInvalidPublicKey(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
+// Kafka is optional: without brokers the service still serves and drains its
+// outboxes and consumes moderation completions once Kafka is configured.
+func TestLoadConfigMakesKafkaBrokersOptional(t *testing.T) {
 	setValidConfigEnv(t)
 	t.Setenv("KAFKA_BROKERS", "")
-	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "KAFKA_BROKERS is not set") {
-		t.Fatalf("loadConfig error = %v, want missing KAFKA_BROKERS", err)
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig without Kafka brokers: %v", err)
+	}
+	if cfg.kafkaBrokers != "" {
+		t.Fatalf("KAFKA_BROKERS = %q, want empty", cfg.kafkaBrokers)
+	}
+}
+
+func TestLoadConfigRejectsBlankKafkaBroker(t *testing.T) {
+	setValidConfigEnv(t)
+	t.Setenv("KAFKA_BROKERS", "kafka:9092, ")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "comma-separated") {
+		t.Fatalf("loadConfig error = %v, want a broker-address validation error", err)
 	}
 }
 

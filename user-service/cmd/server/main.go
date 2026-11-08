@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -112,28 +113,46 @@ func main() {
 	}
 
 	allowedDomainLogic := newAllowedDomainService(sqlDB)
-	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{
-		Brokers: strings.Split(cfg.kafkaBrokers, ","),
-	})
-	if err != nil {
-		fatal("initialize Kafka publisher", err)
-	}
-	defer func() {
-		if err := publisher.Close(); err != nil {
-			log.Error("close Kafka publisher", "err", err)
-		}
-	}()
 
 	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
-	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
-	relayDone := make(chan struct{})
-	go func() {
-		defer close(relayDone)
-		relay.Run(ctx)
-	}()
+
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	reviewLogic := review.NewService(reviewRepo, reviewTransactions(sqlDB))
+
+	// Kafka workers publish the registration and review outboxes and consume
+	// review moderation completions. Without brokers the service still serves;
+	// outboxes drain and moderation completes once Kafka is configured.
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+
+	var brokers []string
+	if cfg.kafkaBrokers != "" {
+		brokers = strings.Split(cfg.kafkaBrokers, ",")
+	}
+	if len(brokers) > 0 {
+		publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: brokers})
+		if err != nil {
+			fatal("initialize Kafka publisher", err)
+		}
+		defer func() {
+			if err := publisher.Close(); err != nil {
+				log.Error("close Kafka publisher", "err", err)
+			}
+		}()
+
+		workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+		workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+		completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+		workers.Go(func() { consumeReviewModeration(workerCtx, brokers, completions) })
+	} else {
+		log.Warn(
+			"KAFKA_BROKERS is not set; outboxes are not published and review moderation completions are not consumed",
+		)
+	}
 
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
@@ -144,7 +163,6 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -165,7 +183,8 @@ func main() {
 		fatal("serve", err)
 	}
 	stop()
-	<-relayDone
+	stopWorkers()
+	workers.Wait()
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts
@@ -220,9 +239,11 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func newReviewService(sqlDB *sql.DB) *review.Service {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+// reviewTransactions wires the review service's and moderation consumer's
+// transactional operations to the shared database/sql pool; every statement in
+// one operation commits or rolls back together.
+func reviewTransactions(sqlDB *sql.DB) review.WithTransaction {
+	return func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
 			return err
@@ -232,7 +253,7 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	})
+	}
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -290,9 +311,7 @@ func loadConfig() (config, error) {
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
 	}
-	if cfg.kafkaBrokers == "" {
-		errs = append(errs, errors.New("KAFKA_BROKERS is not set"))
-	} else {
+	if cfg.kafkaBrokers != "" {
 		for _, broker := range strings.Split(cfg.kafkaBrokers, ",") {
 			if strings.TrimSpace(broker) == "" {
 				errs = append(errs, errors.New("KAFKA_BROKERS must contain comma-separated broker addresses"))
