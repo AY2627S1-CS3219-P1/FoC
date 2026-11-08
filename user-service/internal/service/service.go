@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/accountdeletion"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
@@ -21,6 +22,7 @@ type Service struct {
 type UserStore interface {
 	GetByEmail(context.Context, string) (*models.User, error)
 	GetByID(context.Context, uuid.UUID) (*models.User, error)
+	GetByIDForUpdate(context.Context, uuid.UUID) (*models.User, error)
 	Create(context.Context, *models.User) error
 }
 
@@ -34,6 +36,7 @@ type SessionStore interface {
 	UpdateTokenHash(context.Context, uuid.UUID, []byte) error
 	Revoke(context.Context, uuid.UUID, [32]byte, time.Time) error
 	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
+	LiveSessionIDsForUser(context.Context, uuid.UUID) ([]uuid.UUID, error)
 }
 
 // EmailDomainPolicy reports membership in the email-domain allowlist.
@@ -62,11 +65,20 @@ type TokenCodec interface {
 	PublicKeys() jwt.JWKSet
 }
 
+// AccountDeletion is the acceptance transaction the auth service delegates to.
+// The deletion domain owns the irreversible flag change, the pending job and the
+// session sweep; this service owns authentication, error mapping and the
+// replacement tokens.
+type AccountDeletion interface {
+	Accept(context.Context, *models.User, time.Time) (accountdeletion.AcceptResult, error)
+}
+
 type Dependencies struct {
 	Resources       Resources
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
 	EmailSender     email.EmailSender
+	Deletion        AccountDeletion
 }
 
 type Config struct {

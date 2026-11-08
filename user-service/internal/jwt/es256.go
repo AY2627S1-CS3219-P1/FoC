@@ -64,7 +64,7 @@ func (c *ES256Codec) Sign(claims Claims) (string, error) {
 		(claims.Type != AccessToken && claims.Type != RefreshToken) ||
 		claims.ExpiresAt.Unix() <= claims.IssuedAt.Unix() ||
 		(claims.Type == AccessToken && !claims.Role.Valid()) ||
-		(claims.Type == RefreshToken && claims.Role != "") {
+		(claims.Type == RefreshToken && (claims.Role != "" || claims.IsDeleting)) {
 		return "", errors.New("invalid JWT claims")
 	}
 	payload := jwt.MapClaims{
@@ -75,6 +75,9 @@ func (c *ES256Codec) Sign(claims Claims) (string, error) {
 	}
 	if claims.Role != "" {
 		payload["role"] = claims.Role
+	}
+	if claims.IsDeleting {
+		payload["is_del"] = true
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, payload)
 	token.Header["kid"] = c.kid
@@ -107,7 +110,7 @@ func (c *ES256Codec) Verify(token string, expected TokenType, now time.Time) (Cl
 		return Claims{}, errInvalidJWT
 	}
 	return Claims{Type: expected, Subject: payload.Subject, SessionID: payload.SessionID,
-		Role: payload.Role, IssuedAt: payload.IssuedAt.Time.UTC(),
+		Role: payload.Role, IsDeleting: payload.IsDeleting, IssuedAt: payload.IssuedAt.Time.UTC(),
 		ExpiresAt: payload.ExpiresAt.Time.UTC(), TokenID: payload.ID}, nil
 }
 

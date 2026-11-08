@@ -42,13 +42,14 @@ const (
 )
 
 type Claims struct {
-	Type      TokenType
-	Subject   string
-	SessionID string
-	Role      Role
-	IssuedAt  time.Time
-	ExpiresAt time.Time
-	TokenID   string
+	Type       TokenType
+	Subject    string
+	SessionID  string
+	Role       Role
+	IsDeleting bool
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	TokenID    string
 }
 
 type JWK struct {

@@ -60,7 +60,7 @@ func Role(role models.RoleName) userv1.UserRole {
 
 func User(user models.User) *userv1.User {
 	return &userv1.User{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
-		Role: Role(user.Role), PhoneNumber: user.PhoneNumber}
+		Role: Role(user.Role), PhoneNumber: user.PhoneNumber, IsDeleting: user.IsDeleting}
 }
 
 // UserSummary omits contact details when an administrator inspects another user.
@@ -71,5 +71,6 @@ func UserSummary(user models.User) *userv1.UserSummary {
 
 func Profile(user models.User) *userv1.Profile {
 	return &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
-		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role)}
+		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role),
+		IsDeleting: user.IsDeleting}
 }

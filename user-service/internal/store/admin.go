@@ -30,6 +30,20 @@ func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, nil
 }
 
+// IsBootstrapped reports whether userID owns the singleton admin_bootstrap row.
+// A demoted first-admin still owns that row, so a role check alone cannot keep
+// the account from requesting deletion; callers that protect an account from
+// deletion (for example Accept) check this alongside the role.
+func (s *Admin) IsBootstrapped(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).Model(&models.AdminBootstrap{}).
+		Where("user_id = ?", userID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // ChangeRole moves the user from c.FromRole to c.ToRole and records c in one
 // transaction, or returns ErrRoleConflict if the current role differs.
 // c.CreatedBy is the actor and is also stored as the user's updated_by.

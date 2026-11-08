@@ -49,6 +49,29 @@ func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) 
 	}
 }
 
+// insertDeletingUser inserts a user that is permanently deleting (is_deleting = true)
+func insertDeletingUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
+	t.Helper()
+	if _, err := sqlDB.ExecContext(
+		ctx,
+		"INSERT INTO users (id, email, display_name, is_deleting, deletion_requested_at) VALUES ($1, $2, $3, true, now())",
+		id,
+		id.String()+"@example.com",
+		id.String(),
+	); err != nil {
+		t.Fatalf("insert deleting user %v: %v", id, err)
+	}
+}
+
+// hardDeleteUser removes the row entirely, exercising the ON DELETE SET NULL
+// retained-reference behaviour: the review's participant reference clears to NULL.
+func hardDeleteUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
+	t.Helper()
+	if _, err := sqlDB.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id); err != nil {
+		t.Fatalf("hard delete user %v: %v", id, err)
+	}
+}
+
 // userStats returns the persisted review_count and avg_rating for a user.
 func userStats(t *testing.T, ctx context.Context, sqlDB *sql.DB, userID uuid.UUID) (int64, float64) {
 	t.Helper()
@@ -495,11 +518,12 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("unknown reviewer is rejected", func(t *testing.T) {
+	t.Run("missing reviewer is unauthenticated", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		insertUser(t, ctx, sqlDB, reviewee)
 		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"})
-		assertExternal(t, err, http.StatusBadRequest)
+		// The reviewer is the authenticated author; a missing row is unauthenticated.
+		assertExternal(t, err, http.StatusUnauthorized)
 	})
 
 	t.Run("concurrent removal returns not found for the loser", func(t *testing.T) {
@@ -618,4 +642,380 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("submission rejected when reviewer is hard-deleted", func(t *testing.T) {
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		// Soft-delete the reviewer to simulate hard-deletion
+		if _, err := sqlDB.ExecContext(ctx, "UPDATE users SET deleted_at = now() WHERE id = $1", reviewer); err != nil {
+			t.Fatalf("soft-delete reviewer: %v", err)
+		}
+		// Now try to submit a new review - the reviewer's row exists but is soft-deleted
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 3, Comment: "after deletion"},
+		)
+		// The reviewer's row exists but deleted_at IS NOT NULL, so it should be rejected as deleting
+		if !errors.Is(err, errReviewerDeleting) && !errors.Is(err, errReviewerNotFound) {
+			t.Fatalf("expected reviewer deleting or not found, got: %v", err)
+		}
+	})
+
+	t.Run("submission rejected when reviewee is hard-deleted", func(t *testing.T) {
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		// Soft-delete the reviewee to simulate hard-deletion
+		if _, err := sqlDB.ExecContext(ctx, "UPDATE users SET deleted_at = now() WHERE id = $1", reviewee); err != nil {
+			t.Fatalf("soft-delete reviewee: %v", err)
+		}
+		// Now try to submit a new review - the reviewee's row exists but is soft-deleted
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 3, Comment: "after deletion"},
+		)
+		// The reviewee's row exists but deleted_at IS NOT NULL, so it should be rejected as deleting
+		if !errors.Is(err, errRevieweeDeleting) && !errors.Is(err, errRevieweeNotFound) {
+			t.Fatalf("expected reviewee deleting or not found, got: %v", err)
+		}
+	})
+
+	t.Run("removal audit written when creator is absent", func(t *testing.T) {
+		reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		orderID := uuid.New()
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			orderID,
+			ReviewSubmission{Rating: 5, Comment: "removal with absent creator"},
+		); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list reviews: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("expected 1 review, got %d", len(received.Reviews))
+		}
+		reviewID := received.Reviews[0].ID
+
+		// Soft-delete the admin (review removal creator) to simulate absence
+		if _, err := sqlDB.ExecContext(ctx, "UPDATE users SET deleted_at = now() WHERE id = $1", admin); err != nil {
+			t.Fatalf("soft-delete admin: %v", err)
+		}
+
+		// Now remove the review - the audit should still be written even though
+		// the creator's row is soft-deleted (created_by becomes NULL).
+		if err := service.RemoveReview(ctx, reviewID, "audit creator absent", admin); err != nil {
+			t.Fatalf("remove review after creator soft-deleted: %v", err)
+		}
+	})
+
+	t.Run("ratings unchanged when reviewer deletes", func(t *testing.T) {
+		secondReviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{secondReviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		order1, order2 := uuid.New(), uuid.New()
+
+		// First reviewer submits a review
+		firstReviewer := uuid.New()
+		insertUser(t, ctx, sqlDB, firstReviewer)
+		if err := service.SubmitReview(
+			ctx,
+			firstReviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 5, Comment: "first review"},
+		); err != nil {
+			t.Fatalf("submit first review: %v", err)
+		}
+		// Second reviewer submits a review
+		if err := service.SubmitReview(
+			ctx,
+			secondReviewer,
+			reviewee,
+			order2,
+			ReviewSubmission{Rating: 3, Comment: "second review"},
+		); err != nil {
+			t.Fatalf("submit second review: %v", err)
+		}
+
+		// Verify stats before deletion
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 2 || avg != 4 {
+			t.Fatalf("before deletion: count=%d avg=%v, want 2 and 4", count, avg)
+		}
+
+		// Second reviewer deletes their account (soft delete)
+		if _, err := sqlDB.ExecContext(
+			ctx,
+			"UPDATE users SET deleted_at = now() WHERE id = $1",
+			secondReviewer,
+		); err != nil {
+			t.Fatalf("soft-delete second reviewer: %v", err)
+		}
+
+		// Stats should remain unchanged (retained review still counted)
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 2 || avg != 4 {
+			t.Fatalf("after reviewer deletion: count=%d avg=%v, want 2 and 4", count, avg)
+		}
+
+		// The deleted reviewer's review should show as deleted
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list reviews: %v", err)
+		}
+		// Should still have 2 reviews, but one should show deleted
+		if len(received.Reviews) != 2 {
+			t.Fatalf("expected 2 reviews, got %d", len(received.Reviews))
+		}
+	})
+}
+
+// TestReviewAbsentParticipants exercises the retained-history behaviour end to
+// end against a real database: a participant is hard-deleted (as finalization
+// does), the review row is retained with its reference cleared to NULL, and the
+// listing, counts, removal and submission paths all handle the absent participant
+// without dropping rows, crashing, or manufacturing a user.
+func TestReviewAbsentParticipants(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	db, err := database.Open(dsn, 5, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := database.Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	service := buildReviewService(t, sqlDB)
+
+	t.Run("retained review surfaces with the reviewer flagged deleted", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "r"}); err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		hardDeleteUser(t, ctx, sqlDB, reviewer)
+
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("want 1 retained review, got %d", len(received.Reviews))
+		}
+		if received.PageInfo.TotalItems() != 1 {
+			t.Fatalf("total=%d want 1", received.PageInfo.TotalItems())
+		}
+		rv := received.Reviews[0]
+		if !rv.ReviewerDeleted {
+			t.Fatal("expected reviewer deleted flag")
+		}
+		if rv.ReviewerID != uuid.Nil {
+			t.Fatalf("expected nil reviewer id, got %v", rv.ReviewerID)
+		}
+		if rv.ReviewerName != "" {
+			t.Fatalf("expected empty reviewer name, got %q", rv.ReviewerName)
+		}
+		if rv.RevieweeID != reviewee || rv.RevieweeDeleted {
+			t.Fatalf("reviewee should be present: %+v", rv)
+		}
+	})
+
+	t.Run("retained review surfaces with the reviewee flagged deleted", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 3, Comment: "r"}); err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		hardDeleteUser(t, ctx, sqlDB, reviewee)
+
+		// The review is retained for its original reviewer and pages under that
+		// reviewer with the reviewee cleared and flagged deleted.
+		given, err := service.ListReviewsFromUser(ctx, reviewer, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list given: %v", err)
+		}
+		if len(given.Reviews) != 1 {
+			t.Fatalf("want 1 retained given review, got %d", len(given.Reviews))
+		}
+		rv := given.Reviews[0]
+		if !rv.RevieweeDeleted {
+			t.Fatal("expected reviewee deleted flag")
+		}
+		if rv.RevieweeID != uuid.Nil || rv.RevieweeName != "" {
+			t.Fatalf("reviewee should be absent: %+v", rv)
+		}
+		if rv.ReviewerID != reviewer || rv.ReviewerDeleted {
+			t.Fatalf("reviewer should be present: %+v", rv)
+		}
+	})
+
+	t.Run("counts and pagination stay stable with an absent participant", func(t *testing.T) {
+		reviewerA, reviewerB, reviewerC, reviewee := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewerA, reviewerB, reviewerC, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		ratings := map[uuid.UUID]int{reviewerA: 5, reviewerB: 4, reviewerC: 3}
+		for rv := range ratings {
+			if err := service.SubmitReview(ctx, rv, reviewee, uuid.New(),
+				ReviewSubmission{Rating: ratings[rv], Comment: "c"}); err != nil {
+				t.Fatalf("submit %v: %v", rv, err)
+			}
+		}
+		hardDeleteUser(t, ctx, sqlDB, reviewerA)
+
+		// Every page reports the same total even though reviewerA's row is
+		// retained with an absent reviewer, so counts never drop a retained review.
+		var totals []int64
+		var absentFlagged int
+		for p := int64(1); p <= 3; p++ {
+			received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, p, 1))
+			if err != nil {
+				t.Fatalf("list p%d: %v", p, err)
+			}
+			totals = append(totals, received.PageInfo.TotalItems())
+			for _, rv := range received.Reviews {
+				if rv.ReviewerDeleted {
+					absentFlagged++
+				}
+			}
+		}
+		for i, total := range totals {
+			if total != 3 {
+				t.Fatalf("page %d total=%d want 3", i+1, total)
+			}
+		}
+		if absentFlagged != 1 {
+			t.Fatalf("absent reviewer flagged on %d pages, want 1", absentFlagged)
+		}
+	})
+
+	t.Run("removes a retained review whose reviewee is absent", func(t *testing.T) {
+		reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "x"}); err != nil {
+			t.Fatalf("submit: %v", err)
+		}
+		var reviewID uuid.UUID
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT id FROM reviews WHERE reviewer_id = $1 AND reviewee_id = $2", reviewer, reviewee).
+			Scan(&reviewID); err != nil {
+			t.Fatalf("read review: %v", err)
+		}
+		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 1 {
+			t.Fatalf("pre-deletion count=%d want 1", c)
+		}
+
+		hardDeleteUser(t, ctx, sqlDB, reviewee)
+		// Removing the retained review must succeed and write the audit without
+		// trying to update the (now gone) reviewee's statistics.
+		if err := service.RemoveReview(ctx, reviewID, "abuse", admin); err != nil {
+			t.Fatalf("remove review of absent reviewee: %v", err)
+		}
+
+		var auditRows int
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM review_removals WHERE review_id = $1", reviewID).Scan(&auditRows); err != nil {
+			t.Fatalf("count audits: %v", err)
+		}
+		if auditRows != 1 {
+			t.Fatalf("audit rows = %d want 1", auditRows)
+		}
+		// The audit stores the absent reviewee as a zero id on the NOT NULL column,
+		// never NULL, so the audit field is populated without a NULL crash.
+		var auditReviewee sql.NullString
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT reviewee_id::text FROM review_removals WHERE review_id = $1", reviewID).
+			Scan(&auditReviewee); err != nil {
+			t.Fatalf("read audit reviewee: %v", err)
+		}
+		if auditReviewee.Valid && auditReviewee.String != uuid.Nil.String() {
+			t.Fatalf("audit reviewee should be absent (zero id), got %q", auditReviewee.String)
+		}
+		var deletedAt sql.NullTime
+		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", reviewID).
+			Scan(&deletedAt); err != nil {
+			t.Fatalf("read review: %v", err)
+		}
+		if !deletedAt.Valid {
+			t.Fatal("removed review not soft-deleted")
+		}
+	})
+
+	t.Run("submission against a deleting reviewer is failed precondition", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		insertDeletingUser(t, ctx, sqlDB, reviewer)
+		insertUser(t, ctx, sqlDB, reviewee)
+		err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 3, Comment: "x"})
+		if !errors.Is(err, errReviewerDeleting) {
+			t.Fatalf("expected reviewer deleting, got: %v", err)
+		}
+		assertExternal(t, err, http.StatusPreconditionFailed)
+	})
+
+	t.Run("submission against a deleting reviewee is failed precondition", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		insertUser(t, ctx, sqlDB, reviewer)
+		insertDeletingUser(t, ctx, sqlDB, reviewee)
+		err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 3, Comment: "x"})
+		if !errors.Is(err, errRevieweeDeleting) {
+			t.Fatalf("expected reviewee deleting, got: %v", err)
+		}
+		assertExternal(t, err, http.StatusPreconditionFailed)
+	})
+
+	t.Run("submission against a missing reviewer is unauthenticated", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		insertUser(t, ctx, sqlDB, reviewee)
+		err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 3, Comment: "x"})
+		if !errors.Is(err, errReviewerNotFound) {
+			t.Fatalf("expected reviewer not found, got: %v", err)
+		}
+		assertExternal(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("submission against a missing reviewee is not found", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		insertUser(t, ctx, sqlDB, reviewer)
+		err := service.SubmitReview(ctx, reviewer, reviewee, uuid.New(),
+			ReviewSubmission{Rating: 3, Comment: "x"})
+		if !errors.Is(err, errRevieweeNotFound) {
+			t.Fatalf("expected reviewee not found, got: %v", err)
+		}
+		assertExternal(t, err, http.StatusNotFound)
+	})
 }

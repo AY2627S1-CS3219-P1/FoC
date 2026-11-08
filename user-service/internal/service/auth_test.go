@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/accountdeletion"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -61,6 +62,10 @@ func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (*models.User, erro
 		return nil, storepkg.ErrNotFound
 	}
 	return &user, nil
+}
+
+func (f *fakeStore) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	return f.GetByID(ctx, id)
 }
 
 func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
@@ -173,6 +178,18 @@ func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now 
 	return count, nil
 }
 
+func (f *fakeStore) LiveUserSessionIDs(_ context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ids := make([]uuid.UUID, 0, len(f.sessions))
+	for id, session := range f.sessions {
+		if session.UserID == userID && session.RevokedAt == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 type fakeUsers struct{ *fakeStore }
 
 func (f fakeUsers) Create(ctx context.Context, user *models.User) error {
@@ -212,6 +229,10 @@ func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, no
 	return f.RevokeUserSessions(ctx, userID, now)
 }
 
+func (f fakeSessions) LiveSessionIDsForUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	return f.LiveUserSessionIDs(ctx, userID)
+}
+
 type fakeDomains struct{ *fakeStore }
 
 func (f fakeDomains) IsDomainAllowed(_ context.Context, domain string) (bool, error) {
@@ -230,6 +251,51 @@ func (f fakeUserCreatedEvents) Append(_ context.Context, event userdomain.Create
 	}
 	f.createdEvents = append(f.createdEvents, event)
 	return nil
+}
+
+// fakeDeletionAcceptor mirrors the acceptance contract: it sets the flag and
+// request time once, inserts one pending job, sweeps sessions once, and issues a
+// restricted replacement session. A retry call would observe IsDeleting and
+// leave all of that untouched.
+type fakeDeletionAcceptor struct {
+	store       *fakeStore
+	service     *Service
+	acceptCalls int
+	sweeps      int
+	jobs        int
+	err         error
+}
+
+func (f *fakeDeletionAcceptor) Accept(
+	ctx context.Context,
+	user *models.User,
+	now time.Time,
+) (accountdeletion.AcceptResult, error) {
+	f.acceptCalls++
+	if f.err != nil {
+		return accountdeletion.AcceptResult{}, f.err
+	}
+	current := f.store.users[user.ID]
+	if !current.IsDeleting {
+		current.IsDeleting = true
+		requested := now
+		current.DeletionRequestedAt = &requested
+		f.store.users[current.ID] = current
+		f.jobs++
+		if _, err := f.store.RevokeUserSessions(ctx, current.ID, now); err != nil {
+			return accountdeletion.AcceptResult{}, err
+		}
+		f.sweeps++
+	}
+	tokens, err := f.service.Issue(ctx, fakeSessions{f.store}, &current, now)
+	if err != nil {
+		return accountdeletion.AcceptResult{}, err
+	}
+	return accountdeletion.AcceptResult{
+		RequestedAt: *current.DeletionRequestedAt,
+		User:        current,
+		Tokens:      tokens,
+	}, nil
 }
 
 func (f *fakeStore) resources() Resources {
@@ -874,11 +940,6 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, "refresh") })
 	})
-	t.Run("auth store while refreshing", func(t *testing.T) {
-		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Resources.Users = nil
-		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
-	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
 		service.deps.WithTransaction = nil
@@ -904,6 +965,178 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		service.deps.TokenCodec = nil
 		assertPanics(t, func() { _, _ = service.PublicKeys() })
 	})
+}
+
+func TestDeleteMyAccountIdempotentAcceptance(t *testing.T) {
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	acceptor := &fakeDeletionAcceptor{store: store, service: service}
+	service.deps.Deletion = acceptor
+	ctx := context.Background()
+
+	first, err := service.DeleteMyAccount(ctx, refreshToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.User.IsDeleting || first.RequestedAt.IsZero() || first.Tokens.AccessToken == "" {
+		t.Fatalf("acceptance result is incomplete: %+v", first)
+	}
+	if acceptor.acceptCalls != 1 || acceptor.sweeps != 1 || acceptor.jobs != 1 {
+		t.Fatalf("acceptance side effects: calls=%d sweeps=%d jobs=%d",
+			acceptor.acceptCalls, acceptor.sweeps, acceptor.jobs)
+	}
+	firstClaims, err := service.deps.TokenCodec.Verify(first.Tokens.AccessToken, jwt.AccessToken, now)
+	if err != nil || !firstClaims.IsDeleting {
+		t.Fatalf("replacement access token lacks the deleting claim: %+v, %v", firstClaims, err)
+	}
+
+	second, err := service.DeleteMyAccount(ctx, first.Tokens.RefreshToken)
+	if err != nil {
+		t.Fatalf("idempotent retry failed: %v", err)
+	}
+	if !second.RequestedAt.Equal(first.RequestedAt) {
+		t.Fatalf("retry moved the request time: first=%v second=%v", first.RequestedAt, second.RequestedAt)
+	}
+	if acceptor.acceptCalls != 1 || acceptor.sweeps != 1 || acceptor.jobs != 1 {
+		t.Fatalf("retry repeated acceptance side effects: calls=%d sweeps=%d jobs=%d",
+			acceptor.acceptCalls, acceptor.sweeps, acceptor.jobs)
+	}
+	secondClaims, err := service.deps.TokenCodec.Verify(second.Tokens.AccessToken, jwt.AccessToken, now)
+	if err != nil || !secondClaims.IsDeleting {
+		t.Fatalf("retry token lacks the deleting claim: %+v, %v", secondClaims, err)
+	}
+}
+
+func TestDeleteMyAccountRejectsProtectedRolesBeforeMutation(t *testing.T) {
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	for _, role := range []models.RoleName{models.RoleAdmin, models.RoleSuperAdmin} {
+		t.Run(string(role), func(t *testing.T) {
+			store := newFakeStore()
+			user := testModelUser("admin@example.com", role)
+			store.users[user.ID] = user
+			service := setupService(t, store, &now, true, nil)
+			acceptor := &fakeDeletionAcceptor{store: store, service: service}
+			service.deps.Deletion = acceptor
+			ctx := context.Background()
+			tokens, err := service.createSession(ctx, store.resources(), user, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			claims, err := service.deps.TokenCodec.Verify(tokens.RefreshToken, jwt.RefreshToken, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sessionID, err := uuid.Parse(claims.SessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := service.DeleteMyAccount(ctx, tokens.RefreshToken); !errors.Is(err, ErrProtectedAccount) {
+				t.Fatalf("protected role accepted: %v", err)
+			}
+			if acceptor.acceptCalls != 0 {
+				t.Fatal("protected role reached acceptance")
+			}
+			if store.users[user.ID].IsDeleting {
+				t.Fatal("protected role was marked deleting")
+			}
+			if store.sessions[sessionID].RevokedAt != nil {
+				t.Fatal("protected role had its session revoked before rejection")
+			}
+		})
+	}
+}
+
+func TestDeleteMyAccountRejectsRevokedSession(t *testing.T) {
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	acceptor := &fakeDeletionAcceptor{store: store, service: service}
+	service.deps.Deletion = acceptor
+	claims, err := service.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RevokeSession(
+		context.Background(),
+		sessionID,
+		sha256.Sum256([]byte(refreshToken)),
+		now,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := service.DeleteMyAccount(context.Background(), refreshToken); !errors.Is(err, jwt.ErrRefreshFailed) {
+		t.Fatalf("revoked session accepted: %v", err)
+	}
+	if acceptor.acceptCalls != 0 {
+		t.Fatal("revoked session reached acceptance")
+	}
+	for _, user := range store.users {
+		if user.IsDeleting {
+			t.Fatal("revoked session marked a user deleting")
+		}
+	}
+}
+
+func TestIssuanceReflectsLiveDeletionState(t *testing.T) {
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	user := testModelUser("user@example.com", models.RoleUser)
+	store.users[user.ID] = user
+	service := setupService(t, store, &now, true, nil)
+	ctx := context.Background()
+	tokens, err := service.createSession(ctx, store.resources(), user, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeClaims, err := service.deps.TokenCodec.Verify(tokens.AccessToken, jwt.AccessToken, now)
+	if err != nil || activeClaims.IsDeleting {
+		t.Fatalf("active token carries a deleting claim: %+v, %v", activeClaims, err)
+	}
+
+	// Change the live row after token issuance: refresh must re-read it under the
+	// lock, so a stale snapshot can never mint an unrestricted token.
+	live := store.users[user.ID]
+	live.IsDeleting = true
+	requested := now
+	live.DeletionRequestedAt = &requested
+	live.Role = models.RoleAdmin
+	store.users[user.ID] = live
+
+	_, refreshed, err := service.Refresh(ctx, tokens.RefreshToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := service.deps.TokenCodec.Verify(refreshed.AccessToken, jwt.AccessToken, now)
+	if err != nil || !claims.IsDeleting || claims.Role != jwt.RoleAdmin {
+		t.Fatalf("refresh used a stale user snapshot: %+v, %v", claims, err)
+	}
+}
+
+func TestLoginReflectsLiveDeletionState(t *testing.T) {
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	service := setupService(t, store, &now, true, nil)
+	token := addLoginChallenge(t, store, now)
+	requested := now
+	for id, user := range store.users {
+		user.IsDeleting = true
+		user.DeletionRequestedAt = &requested
+		store.users[id] = user
+	}
+
+	_, tokens, err := service.Login(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := service.deps.TokenCodec.Verify(tokens.AccessToken, jwt.AccessToken, now)
+	if err != nil || !claims.IsDeleting {
+		t.Fatalf("login used a stale user snapshot: %+v, %v", claims, err)
+	}
 }
 
 func addLoginChallenge(t *testing.T, store *fakeStore, now time.Time) string {

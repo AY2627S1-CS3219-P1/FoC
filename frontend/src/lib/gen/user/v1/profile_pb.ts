@@ -5,6 +5,8 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { UserRole } from "./auth_pb";
 import { file_user_v1_auth } from "./auth_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -13,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/profile.proto.
  */
 export const file_user_v1_profile: GenFile = /*@__PURE__*/
-  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEiswEKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhkKDHBob25lX251bWJlchgGIAEoCUgAiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlQg8KDV9waG9uZV9udW1iZXJKBAgFEAZSD3RlbGVncmFtX2hhbmRsZSIVChNHZXRNeVByb2ZpbGVSZXF1ZXN0IjkKFEdldE15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiegoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSHQoLZGVzY3JpcHRpb24YAiABKAlCCLpIBXIDGPQDEhQKDHBob25lX251bWJlchgEIAEoCUoECAMQBFIPdGVsZWdyYW1faGFuZGxlIjwKF1VwZGF0ZU15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUytwEKDlByb2ZpbGVTZXJ2aWNlEk0KDEdldE15UHJvZmlsZRIcLnVzZXIudjEuR2V0TXlQcm9maWxlUmVxdWVzdBodLnVzZXIudjEuR2V0TXlQcm9maWxlUmVzcG9uc2UiABJWCg9VcGRhdGVNeVByb2ZpbGUSHy51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaIC51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlc3BvbnNlIgBCkgEKC2NvbS51c2VyLnYxQgxQcm9maWxlUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEiyAEKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhkKDHBob25lX251bWJlchgGIAEoCUgAiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlEhMKC2lzX2RlbGV0aW5nGAggASgIQg8KDV9waG9uZV9udW1iZXJKBAgFEAZSD3RlbGVncmFtX2hhbmRsZSIVChNHZXRNeVByb2ZpbGVSZXF1ZXN0IjkKFEdldE15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiegoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSHQoLZGVzY3JpcHRpb24YAiABKAlCCLpIBXIDGPQDEhQKDHBob25lX251bWJlchgEIAEoCUoECAMQBFIPdGVsZWdyYW1faGFuZGxlIjwKF1VwZGF0ZU15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiIwohR2V0TXlBY2NvdW50RGVsZXRpb25TdGF0dXNSZXF1ZXN0IrkBCiJHZXRNeUFjY291bnREZWxldGlvblN0YXR1c1Jlc3BvbnNlEhMKC2lzX2RlbGV0aW5nGAEgASgIEjAKDHJlcXVlc3RlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbGFzdF9jaGVja2VkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg93YWl0aW5nX3JlYXNvbnMYBCADKAkyswIKDlByb2ZpbGVTZXJ2aWNlEk0KDEdldE15UHJvZmlsZRIcLnVzZXIudjEuR2V0TXlQcm9maWxlUmVxdWVzdBodLnVzZXIudjEuR2V0TXlQcm9maWxlUmVzcG9uc2UiABJWCg9VcGRhdGVNeVByb2ZpbGUSHy51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaIC51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlc3BvbnNlIgASegoaR2V0TXlBY2NvdW50RGVsZXRpb25TdGF0dXMSKi51c2VyLnYxLkdldE15QWNjb3VudERlbGV0aW9uU3RhdHVzUmVxdWVzdBorLnVzZXIudjEuR2V0TXlBY2NvdW50RGVsZXRpb25TdGF0dXNSZXNwb25zZSIDkAIBQpIBCgtjb20udXNlci52MUIMUHJvZmlsZVByb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp, file_user_v1_auth]);
 
 /**
  * @generated from message user.v1.Profile
@@ -50,6 +52,13 @@ export type Profile = Message<"user.v1.Profile"> & {
    * @generated from field: user.v1.UserRole role = 7;
    */
   role: UserRole;
+
+  /**
+   * True once the account's irreversible deletion has been accepted.
+   *
+   * @generated from field: bool is_deleting = 8;
+   */
+  isDeleting: boolean;
 };
 
 /**
@@ -140,6 +149,60 @@ export const UpdateMyProfileResponseSchema: GenMessage<UpdateMyProfileResponse> 
   messageDesc(file_user_v1_profile, 4);
 
 /**
+ * @generated from message user.v1.GetMyAccountDeletionStatusRequest
+ */
+export type GetMyAccountDeletionStatusRequest = Message<"user.v1.GetMyAccountDeletionStatusRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.GetMyAccountDeletionStatusRequest.
+ * Use `create(GetMyAccountDeletionStatusRequestSchema)` to create a new message.
+ */
+export const GetMyAccountDeletionStatusRequestSchema: GenMessage<GetMyAccountDeletionStatusRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 5);
+
+/**
+ * @generated from message user.v1.GetMyAccountDeletionStatusResponse
+ */
+export type GetMyAccountDeletionStatusResponse = Message<"user.v1.GetMyAccountDeletionStatusResponse"> & {
+  /**
+   * @generated from field: bool is_deleting = 1;
+   */
+  isDeleting: boolean;
+
+  /**
+   * The original, immutable deletion request time.
+   *
+   * @generated from field: google.protobuf.Timestamp requested_at = 2;
+   */
+  requestedAt?: Timestamp | undefined;
+
+  /**
+   * When the deletion worker last completed an outstanding-work check.
+   *
+   * @generated from field: google.protobuf.Timestamp last_checked_at = 3;
+   */
+  lastCheckedAt?: Timestamp | undefined;
+
+  /**
+   * Stable reason codes explaining why finalization is still waiting, e.g.
+   * "order_outstanding", "offer_open", "credit_reservation". Empty means the
+   * worker is not currently reporting a blocker. An unavailable dependency is
+   * reported as "check_unavailable"; it never means "no outstanding work".
+   *
+   * @generated from field: repeated string waiting_reasons = 4;
+   */
+  waitingReasons: string[];
+};
+
+/**
+ * Describes the message user.v1.GetMyAccountDeletionStatusResponse.
+ * Use `create(GetMyAccountDeletionStatusResponseSchema)` to create a new message.
+ */
+export const GetMyAccountDeletionStatusResponseSchema: GenMessage<GetMyAccountDeletionStatusResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 6);
+
+/**
  * @generated from service user.v1.ProfileService
  */
 export const ProfileService: GenService<{
@@ -158,6 +221,17 @@ export const ProfileService: GenService<{
     methodKind: "unary";
     input: typeof UpdateMyProfileRequestSchema;
     output: typeof UpdateMyProfileResponseSchema;
+  },
+  /**
+   * Deletion status for the authenticated account's pending deletion job.
+   * Reports only the caller's own state; no arbitrary-target lookup.
+   *
+   * @generated from rpc user.v1.ProfileService.GetMyAccountDeletionStatus
+   */
+  getMyAccountDeletionStatus: {
+    methodKind: "unary";
+    input: typeof GetMyAccountDeletionStatusRequestSchema;
+    output: typeof GetMyAccountDeletionStatusResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_profile, 0);

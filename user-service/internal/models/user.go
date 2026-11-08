@@ -22,6 +22,11 @@ type User struct {
 	PhoneNumber       *string
 	ProfilePictureKey *string
 	Role              RoleName `gorm:"default:user"`
+	// IsDeleting is the one-way account-deletion flag. Once true it can never be
+	// cleared (see the users_deletion_irreversible trigger) and its timestamp
+	// cannot move. The flag survives profile edits, role changes and seeds.
+	IsDeleting          bool
+	DeletionRequestedAt *time.Time
 }
 
 func (u *User) IsSuspended() bool { return u.Role == RoleSuspended }

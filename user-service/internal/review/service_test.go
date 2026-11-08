@@ -18,7 +18,9 @@ import (
 // outcomes each persistence call returns. Transactional methods accept the
 // bound queries but never touch them.
 type fakeRepository struct {
-	exists map[uuid.UUID]bool
+	exists   map[uuid.UUID]bool
+	deleted  map[uuid.UUID]bool // true if soft-deleted (deleted_at IS NOT NULL)
+	deleting map[uuid.UUID]bool // true if permanently deleting (is_deleting)
 
 	listForUser     []Review
 	listFromUser    []Review
@@ -53,6 +55,28 @@ func (f *fakeRepository) CheckReviewParticipants(
 		ReviewerExists: f.exists[reviewerID],
 		RevieweeExists: f.exists[revieweeID],
 	}, nil
+}
+
+func (f *fakeRepository) LockAndCheckParticipants(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	reviewerID, revieweeID uuid.UUID,
+) (ParticipantStatus, error) {
+	status := ParticipantStatus{
+		ReviewerID: reviewerID,
+		RevieweeID: revieweeID,
+	}
+
+	if id, ok := f.exists[reviewerID]; ok {
+		status.ReviewerExists = id
+		status.ReviewerLive = id && !f.deleted[reviewerID] && !f.deleting[reviewerID]
+	}
+	if id, ok := f.exists[revieweeID]; ok {
+		status.RevieweeExists = id
+		status.RevieweeLive = id && !f.deleted[revieweeID] && !f.deleting[revieweeID]
+	}
+
+	return status, nil
 }
 
 func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, input ReviewInput) error {
@@ -123,13 +147,21 @@ var errBoomTest = errors.New("boom")
 func TestSubmitReview(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		id := uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{id: true}})
+		svc := newTestService(&fakeRepository{
+			exists:   map[uuid.UUID]bool{id: true},
+			deleted:  map[uuid.UUID]bool{},
+			deleting: map[uuid.UUID]bool{},
+		})
 		err := svc.SubmitReview(context.Background(), id, id, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
-	t.Run("unknown reviewer is rejected", func(t *testing.T) {
+	t.Run("missing reviewer is unauthenticated", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewee: true}})
+		svc := newTestService(&fakeRepository{
+			exists:   map[uuid.UUID]bool{reviewee: true},
+			deleted:  map[uuid.UUID]bool{},
+			deleting: map[uuid.UUID]bool{},
+		})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -137,11 +169,17 @@ func TestSubmitReview(t *testing.T) {
 			uuid.New(),
 			ReviewSubmission{Rating: 5, Comment: "x"},
 		)
-		assertExternal(t, err, http.StatusBadRequest)
+		// The reviewer is the authenticated author; a missing row means the
+		// caller's account is no longer live, so this is unauthenticated.
+		assertExternal(t, err, http.StatusUnauthorized)
 	})
-	t.Run("unknown reviewee is rejected", func(t *testing.T) {
+	t.Run("missing reviewee is not found", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true}})
+		svc := newTestService(&fakeRepository{
+			exists:   map[uuid.UUID]bool{reviewer: true},
+			deleted:  map[uuid.UUID]bool{},
+			deleting: map[uuid.UUID]bool{},
+		})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -149,10 +187,15 @@ func TestSubmitReview(t *testing.T) {
 			uuid.New(),
 			ReviewSubmission{Rating: 4, Comment: "ok"},
 		)
-		assertExternal(t, err, http.StatusBadRequest)
+		// The reviewee is the target; a missing account is a not-found.
+		assertExternal(t, err, http.StatusNotFound)
 	})
 	t.Run("reviewer error takes precedence when both users are missing", func(t *testing.T) {
-		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{}})
+		svc := newTestService(&fakeRepository{
+			exists:   map[uuid.UUID]bool{},
+			deleted:  map[uuid.UUID]bool{},
+			deleting: map[uuid.UUID]bool{},
+		})
 		err := svc.SubmitReview(
 			context.Background(),
 			uuid.New(),
@@ -166,7 +209,11 @@ func TestSubmitReview(t *testing.T) {
 	})
 	t.Run("inserts the review and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
-		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
+		fake := &fakeRepository{
+			exists:   map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:  map[uuid.UUID]bool{},
+			deleting: map[uuid.UUID]bool{},
+		}
 		svc := newTestService(fake)
 		if err := svc.SubmitReview(
 			context.Background(),
@@ -188,6 +235,8 @@ func TestSubmitReview(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{
 			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:   map[uuid.UUID]bool{},
+			deleting:  map[uuid.UUID]bool{},
 			insertErr: errReviewAlreadyExists,
 		}
 		svc := newTestService(fake)
@@ -205,7 +254,12 @@ func TestSubmitReview(t *testing.T) {
 	})
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errBoomTest}
+		fake := &fakeRepository{
+			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:   map[uuid.UUID]bool{},
+			deleting:  map[uuid.UUID]bool{},
+			insertErr: errBoomTest,
+		}
 		svc := newTestService(fake)
 		err := svc.SubmitReview(
 			context.Background(),
@@ -223,7 +277,12 @@ func TestSubmitReview(t *testing.T) {
 	})
 	t.Run("recalculation failure aborts the transaction", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
-		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, recalcErr: errBoomTest}
+		fake := &fakeRepository{
+			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:   map[uuid.UUID]bool{},
+			deleting:  map[uuid.UUID]bool{},
+			recalcErr: errBoomTest,
+		}
 		svc := newTestService(fake)
 		err := svc.SubmitReview(
 			context.Background(),
@@ -251,7 +310,13 @@ func TestListReviews(t *testing.T) {
 		},
 	}
 	t.Run("received reviews come with page totals", func(t *testing.T) {
-		fake := &fakeRepository{listForUser: reviews, countForUser: 3}
+		fake := &fakeRepository{
+			listForUser:  reviews,
+			countForUser: 3,
+			exists:       map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:      map[uuid.UUID]bool{},
+			deleting:     map[uuid.UUID]bool{},
+		}
 		svc := newTestService(fake)
 		page, err := pagination.New(2, 10)
 		if err != nil {
@@ -274,7 +339,13 @@ func TestListReviews(t *testing.T) {
 		}
 	})
 	t.Run("given reviews come with page totals", func(t *testing.T) {
-		fake := &fakeRepository{listFromUser: reviews, countFromUser: 7}
+		fake := &fakeRepository{
+			listFromUser:  reviews,
+			countFromUser: 7,
+			exists:        map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:       map[uuid.UUID]bool{},
+			deleting:      map[uuid.UUID]bool{},
+		}
 		svc := newTestService(fake)
 		page, err := pagination.New(1, 50)
 		if err != nil {
@@ -314,7 +385,12 @@ func TestRemoveReview(t *testing.T) {
 		})
 	}
 	t.Run("character limit accepts multibyte text", func(t *testing.T) {
-		fake := &fakeRepository{reviewToDelete: Review{ID: uuid.New()}}
+		fake := &fakeRepository{
+			reviewToDelete: Review{ID: uuid.New()},
+			exists:         map[uuid.UUID]bool{},
+			deleted:        map[uuid.UUID]bool{},
+			deleting:       map[uuid.UUID]bool{},
+		}
 		svc := newTestService(fake)
 		reason := strings.Repeat("界", 100000)
 		if err := svc.RemoveReview(
@@ -334,6 +410,9 @@ func TestRemoveReview(t *testing.T) {
 		createdBy := uuid.New()
 		fake := &fakeRepository{
 			reviewToDelete: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order},
+			exists:         map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			deleted:        map[uuid.UUID]bool{},
+			deleting:       map[uuid.UUID]bool{},
 		}
 		svc := newTestService(fake)
 		if err := svc.RemoveReview(context.Background(), id, " \tabuse\n ", createdBy); err != nil {
@@ -355,8 +434,35 @@ func TestRemoveReview(t *testing.T) {
 			t.Fatalf("stats not recomputed after removal: %+v", fake)
 		}
 	})
+	t.Run("skips stats when the reviewee is absent", func(t *testing.T) {
+		reviewer, id := uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			reviewToDelete: Review{ID: id, ReviewerID: reviewer, RevieweeID: uuid.Nil},
+			exists:         map[uuid.UUID]bool{reviewer: true},
+			deleted:        map[uuid.UUID]bool{},
+			deleting:       map[uuid.UUID]bool{},
+		}
+		svc := newTestService(fake)
+		if err := svc.RemoveReview(context.Background(), id, "abuse", uuid.New()); err != nil {
+			t.Fatalf("remove: %v", err)
+		}
+		if fake.audited.ReviewID != id {
+			t.Fatalf("audit row does not reference the removed review: %+v", fake.audited)
+		}
+		if fake.audited.RevieweeID != uuid.Nil {
+			t.Fatalf("audit should carry the absent reviewee, got: %+v", fake.audited)
+		}
+		if fake.recalcCount != 0 {
+			t.Fatalf("stats must not be recomputed for an absent reviewee, calls=%d", fake.recalcCount)
+		}
+	})
 	t.Run("unknown review is not found", func(t *testing.T) {
-		fake := &fakeRepository{softDelErr: errReviewNotFound}
+		fake := &fakeRepository{
+			softDelErr: errReviewNotFound,
+			exists:     map[uuid.UUID]bool{},
+			deleted:    map[uuid.UUID]bool{},
+			deleting:   map[uuid.UUID]bool{},
+		}
 		svc := newTestService(fake)
 		err := svc.RemoveReview(context.Background(), uuid.New(), "reason", uuid.New())
 		if !errors.Is(err, errReviewNotFound) {
@@ -368,7 +474,13 @@ func TestRemoveReview(t *testing.T) {
 
 func TestListReviewRemovals(t *testing.T) {
 	removals := []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}}
-	fake := &fakeRepository{listRemovals: removals, countRemovals: 3}
+	fake := &fakeRepository{
+		listRemovals:  removals,
+		countRemovals: 3,
+		exists:        map[uuid.UUID]bool{},
+		deleted:       map[uuid.UUID]bool{},
+		deleting:      map[uuid.UUID]bool{},
+	}
 	svc := newTestService(fake)
 	page, err := pagination.New(2, 10)
 	if err != nil {

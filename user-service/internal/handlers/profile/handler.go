@@ -11,11 +11,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Logic interface {
 	GetMyProfile(context.Context, uuid.UUID) (models.User, error)
 	UpdateMyProfile(context.Context, uuid.UUID, service.ProfileInput) (models.User, error)
+	GetMyAccountDeletionStatus(context.Context, uuid.UUID) (service.AccountDeletionStatus, error)
 }
 
 type Handler struct {
@@ -58,4 +60,31 @@ func (h *Handler) UpdateMyProfile(
 	response := connect.NewResponse(&userv1.UpdateMyProfileResponse{Profile: userdto.Profile(user)})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
+}
+
+func (h *Handler) GetMyAccountDeletionStatus(
+	ctx context.Context,
+	_ *connect.Request[userv1.GetMyAccountDeletionStatusRequest],
+) (*connect.Response[userv1.GetMyAccountDeletionStatusResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	status, err := h.Logic.GetMyAccountDeletionStatus(ctx, actorID)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	response := &userv1.GetMyAccountDeletionStatusResponse{
+		IsDeleting:     status.IsDeleting,
+		WaitingReasons: status.WaitingReasons,
+	}
+	if status.RequestedAt != nil {
+		response.RequestedAt = timestamppb.New(*status.RequestedAt)
+	}
+	if status.LastCheckedAt != nil {
+		response.LastCheckedAt = timestamppb.New(*status.LastCheckedAt)
+	}
+	result := connect.NewResponse(response)
+	result.Header().Set("Cache-Control", "no-store")
+	return result, nil
 }

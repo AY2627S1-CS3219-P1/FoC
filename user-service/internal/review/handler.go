@@ -216,29 +216,39 @@ func toProtoPageInfo(info pagination.PageInfo) *paginationv1.PageInfo {
 	}
 }
 
+func idOrEmpty(id uuid.UUID) string {
+	if id == uuid.Nil {
+		return ""
+	}
+	return id.String()
+}
+
 func toReviewProto(review Review) *reviewv1.Review {
 	return &reviewv1.Review{
-		Id:           review.ID.String(),
-		ReviewerId:   review.ReviewerID.String(),
-		ReviewerName: review.ReviewerName,
-		RevieweeId:   review.RevieweeID.String(),
-		RevieweeName: review.RevieweeName,
-		OrderId:      review.OrderID.String(),
-		Rating:       int32(review.Rating),
-		Comment:      review.Comment,
-		CreatedAt:    timestamppb.New(review.CreatedAt),
+		Id:              review.ID.String(),
+		ReviewerId:      idOrEmpty(review.ReviewerID),
+		ReviewerName:    review.ReviewerName,
+		ReviewerDeleted: review.ReviewerDeleted,
+		RevieweeId:      idOrEmpty(review.RevieweeID),
+		RevieweeName:    review.RevieweeName,
+		RevieweeDeleted: review.RevieweeDeleted,
+		OrderId:         review.OrderID.String(),
+		Rating:          int32(review.Rating),
+		Comment:         review.Comment,
+		CreatedAt:       timestamppb.New(review.CreatedAt),
 	}
 }
 
 func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 	return &reviewv1.ReviewRemoval{
-		Id:            removal.ID.String(),
-		ReviewerId:    removal.ReviewerID.String(),
-		RevieweeId:    removal.RevieweeID.String(),
-		OrderId:       removal.OrderID.String(),
-		Reason:        removal.Reason,
-		CreatedAt:     timestamppb.New(removal.CreatedAt),
-		CreatedBy:     removal.CreatedBy.String(),
-		CreatedByName: removal.CreatedByName,
+		Id:               removal.ID.String(),
+		ReviewerId:       idOrEmpty(removal.ReviewerID),
+		RevieweeId:       idOrEmpty(removal.RevieweeID),
+		OrderId:          removal.OrderID.String(),
+		Reason:           removal.Reason,
+		CreatedAt:        timestamppb.New(removal.CreatedAt),
+		CreatedBy:        idOrEmpty(removal.CreatedBy),
+		CreatedByName:    removal.CreatedByName,
+		CreatedByDeleted: removal.CreatedByDeleted,
 	}
 }

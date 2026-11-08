@@ -84,6 +84,10 @@ func (s *stubLogic) LogoutAll(_ context.Context, token string) error {
 	return s.logoutAllErr
 }
 
+func (s *stubLogic) DeleteMyAccount(_ context.Context, _ string) (service.DeleteMyAccountResult, error) {
+	return service.DeleteMyAccountResult{}, nil
+}
+
 func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
 	return jwt.JWKSet{
 		Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}},

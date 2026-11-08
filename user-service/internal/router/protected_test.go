@@ -49,6 +49,10 @@ func (p profileStub) UpdateMyProfile(context.Context, uuid.UUID, service.Profile
 	return p.user, nil
 }
 
+func (p profileStub) GetMyAccountDeletionStatus(context.Context, uuid.UUID) (service.AccountDeletionStatus, error) {
+	return service.AccountDeletionStatus{}, nil
+}
+
 type adminStub struct{ user models.User }
 
 func (a adminStub) GetUserByEmail(context.Context, uuid.UUID, string) (models.User, error) {

@@ -27,10 +27,29 @@ type Repository interface {
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
+	// CheckReviewParticipants checks whether both participants exist. For live
+	// eligibility during submission, use LockAndCheckParticipants instead.
 	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
+	// LockAndCheckParticipants locks both participants in a deterministic order
+	// and returns their live status. A participant is live if the row exists,
+	// is not soft-deleted (deleted_at IS NULL) and is not permanently deleting.
+	LockAndCheckParticipants(
+		ctx context.Context,
+		q *reviewdb.Queries,
+		reviewerID, revieweeID uuid.UUID,
+	) (ParticipantStatus, error)
 }
 
 type ReviewParticipantExistence struct {
 	ReviewerExists bool
 	RevieweeExists bool
+}
+
+type ParticipantStatus struct {
+	ReviewerExists bool
+	RevieweeExists bool
+	ReviewerLive   bool // exists AND not soft-deleted AND not deleting
+	RevieweeLive   bool // exists AND not soft-deleted AND not deleting
+	ReviewerID     uuid.UUID
+	RevieweeID     uuid.UUID
 }

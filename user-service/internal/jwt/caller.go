@@ -14,6 +14,6 @@ func (c *ES256Codec) VerifyAccess(token string) (auth.Caller, error) {
 	}
 	role := string(claims.Role)
 	return auth.Caller{ID: claims.Subject, SessionID: claims.SessionID, Role: role,
-		Admin: role == "admin" || role == "super_admin", IssuedAt: claims.IssuedAt,
-		ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}, nil
+		Admin: role == "admin" || role == "super_admin", IsDeleting: claims.IsDeleting,
+		IssuedAt: claims.IssuedAt, ExpiresAt: claims.ExpiresAt, TokenID: claims.TokenID}, nil
 }

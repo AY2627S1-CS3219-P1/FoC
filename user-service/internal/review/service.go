@@ -35,20 +35,12 @@ func (s *Service) SubmitReview(
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
 	}
-	participants, err := s.repo.CheckReviewParticipants(ctx, reviewerID, revieweeID)
-	if err != nil {
-		return err
-	}
-	if !participants.ReviewerExists {
-		return errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
-	}
-	if !participants.RevieweeExists {
-		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
-	}
+
 	id, err := newID()
 	if err != nil {
 		return err
 	}
+
 	input := ReviewInput{
 		ID:         id,
 		ReviewerID: reviewerID,
@@ -57,7 +49,37 @@ func (s *Service) SubmitReview(
 		Rating:     submission.Rating,
 		Comment:    submission.Comment,
 	}
+
 	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
+		// Lock and check participants inside the transaction to prevent a
+		// hard-deleted or deleting account from sneaking in between a
+		// pre-check and the insert. Deterministic lock order by UUID.
+		status, err := s.repo.LockAndCheckParticipants(ctx, q, reviewerID, revieweeID)
+		if err != nil {
+			return err
+		}
+
+		// The reviewer is the authenticated author, so a missing row means the
+		// caller's account is no longer live; treat that as unauthenticated.
+		if !status.ReviewerExists {
+			return errs.WrapUnauthorizedError(errReviewerNotFound, "reviewer does not exist")
+		}
+		// The reviewee is the target; a missing account is a not-found.
+		if !status.RevieweeExists {
+			return errs.WrapNotFoundError(errRevieweeNotFound, "reviewee does not exist")
+		}
+
+		// Both accounts exist. Reject a permanently deleting author or target:
+		// a deleting caller must not start new obligations. A participant that
+		// still has a row but is soft-deleted (deleted_at IS NOT NULL) or
+		// permanently deleting (is_deleting) is not live.
+		if !status.ReviewerLive {
+			return errs.WrapFailedPreconditionError(errReviewerDeleting, "reviewer is permanently deleting")
+		}
+		if !status.RevieweeLive {
+			return errs.WrapFailedPreconditionError(errRevieweeDeleting, "reviewee is permanently deleting")
+		}
+
 		if err := s.repo.InsertReview(ctx, q, input); err != nil {
 			switch {
 			case errors.Is(err, errReviewInvalid):
@@ -132,6 +154,12 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		removal.OrderID = review.OrderID
 		if err := s.repo.RecordReviewRemoval(ctx, q, removal); err != nil {
 			return err
+		}
+		// Skip the reviewee statistics update when the reviewee no longer exists:
+		// its foreign key cleared to NULL on hard delete, so there is no user
+		// row to update and none must be manufactured.
+		if review.RevieweeID == uuid.Nil {
+			return nil
 		}
 		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
 	})

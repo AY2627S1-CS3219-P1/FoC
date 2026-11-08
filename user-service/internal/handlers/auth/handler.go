@@ -10,6 +10,8 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	jwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -29,6 +31,7 @@ type Logic interface {
 	Refresh(context.Context, string) (models.User, jwt.AuthTokens, error)
 	Logout(context.Context, string) error
 	LogoutAll(context.Context, string) error
+	DeleteMyAccount(context.Context, string) (service.DeleteMyAccountResult, error)
 	PublicKeys() (jwt.JWKSet, error)
 }
 
@@ -125,6 +128,29 @@ func (h *Handler) LogoutAll(
 	return response, nil
 }
 
+func (h *Handler) DeleteMyAccount(
+	ctx context.Context,
+	req *connect.Request[userv1.DeleteMyAccountRequest],
+) (*connect.Response[userv1.DeleteMyAccountResponse], error) {
+	result, err := h.Logic.DeleteMyAccount(ctx, cookieValue(req.Header(), RefreshCookieName))
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	requestedAt := timestamppb.New(result.RequestedAt)
+	if err := requestedAt.CheckValid(); err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	response := connect.NewResponse(&userv1.DeleteMyAccountResponse{
+		User:        userMessage(result.User),
+		AccessToken: result.Tokens.AccessToken,
+		RequestedAt: requestedAt,
+	})
+	// Acceptance replaces the refresh cookie with the replacement session's
+	// cookie; it is cleared only at final deletion, never here.
+	setSessionHeaders(response, result.Tokens)
+	return response, nil
+}
+
 func (h *Handler) GetPublicKeys(
 	ctx context.Context,
 	_ *connect.Request[userv1.GetPublicKeysRequest],
@@ -153,7 +179,8 @@ func userMessage(user models.User) *userv1.User {
 		models.RoleSuspended:  userv1.UserRole_USER_ROLE_SUSPENDED_USER,
 	}[user.Role]
 	return &userv1.User{Id: user.ID.String(), Email: user.Email,
-		DisplayName: user.DisplayName, Role: role, PhoneNumber: user.PhoneNumber}
+		DisplayName: user.DisplayName, Role: role, PhoneNumber: user.PhoneNumber,
+		IsDeleting: user.IsDeleting}
 }
 
 func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {

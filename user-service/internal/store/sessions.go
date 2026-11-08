@@ -64,3 +64,14 @@ func (s *Sessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, now t
 		Updates(map[string]any{"revoked_at": now, "updated_at": now})
 	return result.RowsAffected, result.Error
 }
+
+// LiveSessionIDsForUser returns the ids of the sessions of userID that are not
+// already revoked. Acceptance reads these before the sweep so the revocation
+// hook can invalidate the matching access tokens.
+func (s *Sessions) LiveSessionIDsForUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := s.db.WithContext(ctx).Model(&models.Session{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Pluck("id", &ids).Error
+	return ids, err
+}

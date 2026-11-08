@@ -25,11 +25,15 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	creditv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
+	orderv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/accountdeletion"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/deletiondb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
@@ -50,20 +54,26 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port              string
+	internalPort      string
+	databaseURL       string
+	dbMaxOpen         int
+	dbMaxIdle         int
+	runMigrations     bool
+	appEnv            string
+	frontendURL       string
+	privateKey        string
+	kafkaBrokers      string
+	accessTokenTTL    time.Duration
+	refreshTokenTTL   time.Duration
+	orderServiceURL   string
+	creditServiceURL  string
+	deletionAdmission time.Duration
+	deletionInitial   time.Duration
+	deletionLease     time.Duration
+	deletionPoll      time.Duration
+	smtp              email.SMTPSender
+	bootstrap         bootstrap.Config
 }
 
 func main() {
@@ -124,10 +134,19 @@ func main() {
 		}
 	}()
 
-	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
+	// The account-deletion plan is built before the auth Service so it can be
+	// wired into Dependencies.Deletion; the Service is the plan's session
+	// issuer, so it is injected after construction (the two own each other).
+	deletionPlan, err := newDeletionPlan(db, cfg)
+	if err != nil {
+		fatal("initialize account deletion", err)
+	}
+
+	auth, codec, persistence, logic, err := newAuthServices(db, cfg, allowedDomainLogic, deletionPlan)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
+	deletionPlan.SetIssuer(logic)
 	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
 	relayDone := make(chan struct{})
 	go func() {
@@ -135,7 +154,27 @@ func main() {
 		relay.Run(ctx)
 	}()
 
-	profileLogic := &service.ProfileService{Users: persistence.Users}
+	// Account-deletion worker and outbox relay. The worker leases jobs, drains
+	// each account's outstanding work and finalizes it; the relay publishes
+	// committed deletions with retry. Both start once the database and publisher
+	// are ready and stop before either is closed at shutdown.
+	deletionRelay := accountdeletion.NewRelay(sqlDB, publisher, cfg.deletionPoll)
+	deletionWorker := accountdeletion.NewWorker(deletionPlan, sqlDB)
+	deletionRelayDone := make(chan struct{})
+	deletionWorkerDone := make(chan struct{})
+	go func() {
+		defer close(deletionRelayDone)
+		deletionRelay.Run(ctx)
+	}()
+	go func() {
+		defer close(deletionWorkerDone)
+		deletionWorker.Run(ctx)
+	}()
+
+	profileLogic := &service.ProfileService{
+		Users:        persistence.Users,
+		DeletionJobs: store.NewDeletionJobs(deletiondb.New(sqlDB)),
+	}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
@@ -166,6 +205,8 @@ func main() {
 	}
 	stop()
 	<-relayDone
+	<-deletionRelayDone
+	<-deletionWorkerDone
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts
@@ -235,6 +276,25 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 	})
 }
 
+// newDeletionPlan builds the account-deletion plan. The session issuer is not
+// passed here: the auth Service the issuer is built from does not yet exist when
+// the plan is constructed, so the plan is built first and its issuer is injected
+// via Plan.SetIssuer once the Service exists. The Order and Credit clients drain
+// each account's outstanding work against the configured base URLs.
+func newDeletionPlan(db *gorm.DB, cfg config) (*accountdeletion.Plan, error) {
+	accountConfig, err := accountdeletion.NewConfig(
+		cfg.deletionAdmission, cfg.deletionInitial, cfg.deletionLease, cfg.deletionPoll)
+	if err != nil {
+		return nil, fmt.Errorf("account deletion config: %w", err)
+	}
+	httpClient := &http.Client{}
+	drain := accountdeletion.NewCompositeDrainer(
+		orderv1connect.NewOrderInternalServiceClient(httpClient, cfg.orderServiceURL),
+		creditv1connect.NewCreditInternalServiceClient(httpClient, cfg.creditServiceURL),
+	)
+	return accountdeletion.NewPlan(db, accountConfig, nil, drain), nil
+}
+
 // loadConfig reads .env (if present) and the environment once, applying
 // defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
@@ -244,18 +304,24 @@ func loadConfig() (config, error) {
 
 	var errs []error
 	cfg := config{
-		port:            envString("PORT", "8080"),
-		internalPort:    envString("INTERNAL_PORT", ""),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		port:              envString("PORT", "8080"),
+		internalPort:      envString("INTERNAL_PORT", ""),
+		databaseURL:       envString("DATABASE_URL", ""),
+		dbMaxOpen:         envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:         envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations:     envBool("RUN_MIGRATIONS", true, &errs),
+		appEnv:            envString("APP_ENV", ""),
+		frontendURL:       envString("FRONTEND_BASE_URL", ""),
+		privateKey:        envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:      envString("KAFKA_BROKERS", ""),
+		accessTokenTTL:    envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
+		refreshTokenTTL:   envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		orderServiceURL:   envString("ORDER_SERVICE_BASE_URL", ""),
+		creditServiceURL:  envString("CREDIT_SERVICE_BASE_URL", ""),
+		deletionAdmission: envDuration("DELETION_ADMISSION_GRACE_PERIOD", time.Hour, &errs),
+		deletionInitial:   envDuration("DELETION_INITIAL_DRAIN_DELAY", time.Minute, &errs),
+		deletionLease:     envDuration("DELETION_LEASE", 30*time.Second, &errs),
+		deletionPoll:      envDuration("DELETION_POLL_INTERVAL", time.Minute, &errs),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -396,38 +462,39 @@ func newAuthServices(
 	db *gorm.DB,
 	cfg config,
 	domainPolicy service.EmailDomainPolicy,
-) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+	deletion service.AccountDeletion,
+) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, *service.Service, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
 	}
 	key, err := userservicejwt.LoadPrivateKeyPEM(cfg.privateKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	kid, err := keyID(&key.PublicKey)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
 	}
 	codec, err := userservicejwt.NewES256Codec(key, kid,
 		httpauth.TokenIssuer, httpauth.TokenAudience)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
 	persistence := store.New(db)
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec, EmailSender: cfg.smtp, Deletion: deletion,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
 	})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
 	}
 	allowedOrigin := frontendURL.Scheme + "://" + frontendURL.Host
-	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
+	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, logic, nil
 }
 
 func keyID(key *ecdsa.PublicKey) (string, error) {

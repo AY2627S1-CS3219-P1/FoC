@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
@@ -32,7 +33,27 @@ type ProfileUsers interface {
 	UpdateActiveProfile(context.Context, *models.User) error
 }
 
-type ProfileService struct{ Users ProfileUsers }
+// DeletionJobReader reads the caller's own pending-deletion-job status. A
+// missing job is reported as HasJob=false, never an error.
+type DeletionJobReader interface {
+	GetMyDeletionJob(context.Context, uuid.UUID) (store.DeletionJob, error)
+}
+
+type ProfileService struct {
+	Users ProfileUsers
+	// DeletionJobs is optional at construction; when absent a deleting account
+	// still receives its own flag and request time without job progress.
+	DeletionJobs DeletionJobReader
+}
+
+// AccountDeletionStatus is the caller's own deletion lifecycle view. Every
+// timestamp is nil/zero until the corresponding state exists.
+type AccountDeletionStatus struct {
+	IsDeleting     bool
+	RequestedAt    *time.Time
+	LastCheckedAt  *time.Time
+	WaitingReasons []string
+}
 
 // ProfileInput is the complete editable profile state. The phone number is
 // required.
@@ -54,6 +75,43 @@ func (s *ProfileService) GetMyProfile(ctx context.Context, actorID uuid.UUID) (m
 		return models.User{}, fmt.Errorf("get profile: %w", err)
 	}
 	return *user, nil
+}
+
+// GetMyAccountDeletionStatus returns only the authenticated caller's own
+// deletion state. A live account gets a clean not-deleting response rather than
+// an error; a deleting account also gets its pending job's last check and
+// waiting reasons when a job reader is wired.
+func (s *ProfileService) GetMyAccountDeletionStatus(
+	ctx context.Context,
+	actorID uuid.UUID,
+) (AccountDeletionStatus, error) {
+	if actorID == uuid.Nil {
+		return AccountDeletionStatus{}, ErrUnauthenticated
+	}
+	user, err := s.Users.GetByID(ctx, actorID)
+	if errors.Is(err, store.ErrNotFound) {
+		return AccountDeletionStatus{}, ErrUnauthenticated
+	}
+	if err != nil {
+		return AccountDeletionStatus{}, fmt.Errorf("get deletion status: %w", err)
+	}
+	status := AccountDeletionStatus{IsDeleting: user.IsDeleting, RequestedAt: user.DeletionRequestedAt}
+	if !user.IsDeleting || s.DeletionJobs == nil {
+		return status, nil
+	}
+	job, err := s.DeletionJobs.GetMyDeletionJob(ctx, actorID)
+	if err != nil {
+		return AccountDeletionStatus{}, fmt.Errorf("get deletion job: %w", err)
+	}
+	if !job.HasJob {
+		return status, nil
+	}
+	if !job.LastCheckedAt.IsZero() {
+		lastChecked := job.LastCheckedAt
+		status.LastCheckedAt = &lastChecked
+	}
+	status.WaitingReasons = job.WaitingReasons
+	return status, nil
 }
 
 func (s *ProfileService) UpdateMyProfile(

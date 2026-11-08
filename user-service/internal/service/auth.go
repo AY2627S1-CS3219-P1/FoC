@@ -16,13 +16,19 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/accountdeletion"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	"github.com/google/uuid"
 )
 
-var ErrEmailDomainNotAllowed = errs.NewForbiddenError("email domain is not allowed")
+var (
+	ErrEmailDomainNotAllowed = errs.NewForbiddenError("email domain is not allowed")
+	// ErrProtectedAccount rejects deletion of administrator and bootstrap
+	// accounts before acceptance changes any state.
+	ErrProtectedAccount = errs.NewFailedPreconditionError("administrator and bootstrap accounts cannot be deleted")
+)
 
 const (
 	MagicLinkLifetime = 10 * time.Minute
@@ -127,7 +133,7 @@ func (s *Service) Login(ctx context.Context, loginToken string) (models.User, jw
 		if challenge.UserID == nil {
 			return store.ErrChallengeRejected
 		}
-		storedUser, err := tx.Users.GetByID(ctx, *challenge.UserID)
+		storedUser, err := tx.Users.GetByIDForUpdate(ctx, *challenge.UserID)
 		if err != nil {
 			return err
 		}
@@ -194,6 +200,13 @@ func (s *Service) Register(
 			}
 			return err
 		}
+		// Re-read under the row lock so issuance always signs the current
+		// lifecycle state, mirroring login and refresh.
+		live, err := tx.Users.GetByIDForUpdate(ctx, user.ID)
+		if err != nil {
+			return err
+		}
+		user = *live
 		signed, err := s.createSession(ctx, tx, user, now)
 		if err != nil {
 			return err
@@ -230,35 +243,37 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (models.User
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
-	user, err := s.deps.Resources.Users.GetByID(ctx, userID)
-	if errors.Is(err, store.ErrNotFound) {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
-	}
-	if err != nil {
-		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("find refresh user: %w", err)
-	}
-	if user.ID != userID || !user.Role.Valid() {
-		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
-	}
-	var tokens jwt.AuthTokens
+	var (
+		user   models.User
+		tokens jwt.AuthTokens
+	)
 	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
-		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, user.Email, user.Role); err != nil {
+		// Lock and re-read the live row so a token minted here can never come
+		// from a pre-deletion or pre-role-change snapshot.
+		live, err := tx.Users.GetByIDForUpdate(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if live.ID != userID || !live.Role.Valid() {
+			return store.ErrSessionRejected
+		}
+		if err := requireAllowedEmailDomain(ctx, tx.DomainPolicy, live.Email, live.Role); err != nil {
 			return err
 		}
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
-		var err error
-		tokens, err = s.createSession(ctx, tx, *user, now)
+		user = *live
+		tokens, err = s.createSession(ctx, tx, user, now)
 		return err
 	})
-	if errors.Is(err, store.ErrSessionRejected) {
+	if errors.Is(err, store.ErrSessionRejected) || errors.Is(err, store.ErrNotFound) {
 		return models.User{}, jwt.AuthTokens{}, jwt.ErrRefreshFailed
 	}
 	if err != nil {
 		return models.User{}, jwt.AuthTokens{}, fmt.Errorf("replace refresh session: %w", err)
 	}
-	return *user, tokens, nil
+	return user, tokens, nil
 }
 
 // Logout is idempotent. An unrecognizable or already revoked cookie is cleared
@@ -320,6 +335,167 @@ func (s *Service) PublicKeys() (jwt.JWKSet, error) {
 	return s.deps.TokenCodec.PublicKeys(), nil
 }
 
+// DeleteMyAccountResult is the authenticated acceptance result: the original
+// immutable request time, the live account snapshot and the replacement
+// session's tokens. The access token carries the deleting lifecycle claim.
+type DeleteMyAccountResult struct {
+	RequestedAt time.Time
+	User        models.User
+	Tokens      jwt.AuthTokens
+}
+
+// DeleteMyAccount accepts permanent deletion for the account that owns the
+// refresh cookie. It derives the account from the verified live session and
+// accepts no user ID or email. Acceptance is irreversible even with outstanding
+// work, so this method never rejects on work state: the caller keeps a
+// restricted replacement session until the worker finalizes the account.
+//
+// A retry against an already-deleting account returns the original request time
+// and does not repeat the acceptance transaction or its all-session sweep; it
+// only rotates the caller's still-live session.
+func (s *Service) DeleteMyAccount(ctx context.Context, refreshToken string) (DeleteMyAccountResult, error) {
+	now := s.cfg.Now().UTC()
+	claims, err := s.deps.TokenCodec.Verify(refreshToken, jwt.RefreshToken, now)
+	if err != nil {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	userID, err := parseID(claims.Subject)
+	if err != nil {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	sessionID, err := parseID(claims.SessionID)
+	if err != nil {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	user, err := s.deps.Resources.Users.GetByID(ctx, userID)
+	if errors.Is(err, store.ErrNotFound) {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return DeleteMyAccountResult{}, fmt.Errorf("find deletion user: %w", err)
+	}
+	if user.ID != userID || !user.Role.Valid() {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	// Reject protected accounts before any session is revoked or any row changes.
+	if user.Role.IsAdmin() {
+		return DeleteMyAccountResult{}, ErrProtectedAccount
+	}
+	digest := sha256.Sum256([]byte(refreshToken))
+	if user.IsDeleting {
+		return s.rotateDeletingSession(ctx, userID, sessionID, digest, now)
+	}
+	// Authenticate the live session before accepting: a well-formed but revoked
+	// or expired refresh cookie must not be able to start deletion. The
+	// acceptance transaction re-locks the user, captures these live session ids
+	// for revocation, sweeps them and issues the replacement session.
+	live, err := s.isLiveSession(ctx, userID, sessionID)
+	if err != nil {
+		return DeleteMyAccountResult{}, fmt.Errorf("verify deletion session: %w", err)
+	}
+	if !live {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	result, err := s.deps.Deletion.Accept(ctx, user, now)
+	if errors.Is(err, accountdeletion.ErrDeletingForbidden) {
+		return DeleteMyAccountResult{}, ErrProtectedAccount
+	}
+	if errors.Is(err, accountdeletion.ErrAlreadyDeleted) || errors.Is(err, store.ErrNotFound) {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return DeleteMyAccountResult{}, fmt.Errorf("accept account deletion: %w", err)
+	}
+	return DeleteMyAccountResult{RequestedAt: result.RequestedAt, User: result.User, Tokens: result.Tokens}, nil
+}
+
+// isLiveSession reports whether sessionID is one of the user's unrevoked
+// sessions. It reads without mutating, so acceptance can capture and sweep every
+// live session itself for the access-token revocation hook.
+func (s *Service) isLiveSession(ctx context.Context, userID, sessionID uuid.UUID) (bool, error) {
+	ids, err := s.deps.Resources.Sessions.LiveSessionIDsForUser(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	for _, id := range ids {
+		if id == sessionID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// rotateDeletingSession handles an idempotent acceptance retry. It re-reads the
+// already-deleting account under the row lock so finalization cannot race the
+// replacement session, validates the presented session, and issues a new
+// restricted token pair. It deliberately leaves the pending job and its request
+// time untouched and does not sweep other sessions again.
+func (s *Service) rotateDeletingSession(
+	ctx context.Context,
+	userID, sessionID uuid.UUID,
+	digest [32]byte,
+	now time.Time,
+) (DeleteMyAccountResult, error) {
+	var (
+		user   models.User
+		tokens jwt.AuthTokens
+	)
+	err := s.deps.WithTransaction(ctx, func(tx Resources) error {
+		live, err := tx.Users.GetByIDForUpdate(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if !live.IsDeleting || live.DeletionRequestedAt == nil || !live.Role.Valid() || live.Role.IsAdmin() {
+			return store.ErrSessionRejected
+		}
+		if err := tx.Sessions.Revoke(ctx, sessionID, digest, now); err != nil {
+			return err
+		}
+		user = *live
+		tokens, err = s.Issue(ctx, tx.Sessions, &user, now)
+		return err
+	})
+	if errors.Is(err, store.ErrSessionRejected) || errors.Is(err, store.ErrNotFound) {
+		return DeleteMyAccountResult{}, jwt.ErrRefreshFailed
+	}
+	if err != nil {
+		return DeleteMyAccountResult{}, fmt.Errorf("rotate deleting session: %w", err)
+	}
+	return DeleteMyAccountResult{RequestedAt: *user.DeletionRequestedAt, User: user, Tokens: tokens}, nil
+}
+
+// Issue is the account-deletion SessionIssuer port. Acceptance revokes the
+// caller's session and needs a fresh one so the account can finish existing work
+// while it deletes; Issue creates that replacement session and signs a token pair
+// whose access token carries the deleting lifecycle claim. The refresh token
+// never carries is_deleting (the codec rejects it), so the rotated session cannot
+// be used to mint a long-lived deleting cookie.
+func (s *Service) Issue(
+	ctx context.Context,
+	sessions accountdeletion.SessionStore,
+	user *models.User,
+	now time.Time,
+) (jwt.AuthTokens, error) {
+	placeholderHash := make([]byte, sha256.Size)
+	if _, err := rand.Read(placeholderHash); err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("generate session placeholder: %w", err)
+	}
+	session := models.Session{UserID: user.ID, TokenHash: placeholderHash,
+		LastSeenAt: now, ExpiresAt: now.Add(s.cfg.RefreshTokenTTL)}
+	if err := sessions.Create(ctx, &session); err != nil {
+		return jwt.AuthTokens{}, err
+	}
+	tokens, err := s.signSessionTokens(*user, session.ID, now, true)
+	if err != nil {
+		return jwt.AuthTokens{}, err
+	}
+	digest := sha256.Sum256([]byte(tokens.RefreshToken))
+	if err := sessions.UpdateTokenHash(ctx, session.ID, digest[:]); err != nil {
+		return jwt.AuthTokens{}, fmt.Errorf("save refresh token hash: %w", err)
+	}
+	return tokens, nil
+}
+
 func (s *Service) createSession(
 	ctx context.Context,
 	tx Resources,
@@ -335,7 +511,7 @@ func (s *Service) createSession(
 	if err := tx.Sessions.Create(ctx, &session); err != nil {
 		return jwt.AuthTokens{}, err
 	}
-	tokens, err := s.signSessionTokens(user, session.ID, now)
+	tokens, err := s.signSessionTokens(user, session.ID, now, user.IsDeleting)
 	if err != nil {
 		return jwt.AuthTokens{}, err
 	}
@@ -346,7 +522,12 @@ func (s *Service) createSession(
 	return tokens, nil
 }
 
-func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now time.Time) (jwt.AuthTokens, error) {
+func (s *Service) signSessionTokens(
+	user models.User,
+	sessionID uuid.UUID,
+	now time.Time,
+	isDeleting bool,
+) (jwt.AuthTokens, error) {
 	role, ok := jwtRole(user.Role)
 	if !ok {
 		return jwt.AuthTokens{}, errors.New("user has invalid role")
@@ -364,7 +545,8 @@ func (s *Service) signSessionTokens(user models.User, sessionID uuid.UUID, now t
 	subject := user.ID.String()
 	sessionSubject := sessionID.String()
 	access, err := s.deps.TokenCodec.Sign(jwt.Claims{Type: jwt.AccessToken, Subject: subject,
-		SessionID: sessionSubject, Role: role, IssuedAt: now, ExpiresAt: accessExpiry, TokenID: accessID})
+		SessionID: sessionSubject, Role: role, IsDeleting: isDeleting, IssuedAt: now,
+		ExpiresAt: accessExpiry, TokenID: accessID})
 	if err != nil {
 		return jwt.AuthTokens{}, fmt.Errorf("sign access token: %w", err)
 	}

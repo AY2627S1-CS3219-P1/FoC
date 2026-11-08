@@ -65,6 +65,8 @@ type InsertReviewParams struct {
 	Comment    string
 }
 
+// InsertReview inserts the review and recomputes the reviewee's stats in the
+// same transaction, so the stats are current when it returns.
 func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) error {
 	_, err := q.db.ExecContext(ctx, insertReview,
 		arg.ID,
@@ -79,9 +81,10 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
-       creator.display_name AS created_by_name
+       creator.display_name AS created_by_name,
+       CASE WHEN creator.id IS NULL THEN true ELSE false END AS created_by_deleted
 FROM review_removals rr
-JOIN users creator ON creator.id = rr.created_by
+LEFT JOIN users creator ON creator.id = rr.created_by
 ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT $2::bigint OFFSET $1::bigint
 `
@@ -92,17 +95,19 @@ type ListReviewRemovalsParams struct {
 }
 
 type ListReviewRemovalsRow struct {
-	ID            uuid.UUID
-	ReviewID      uuid.UUID
-	ReviewerID    uuid.UUID
-	RevieweeID    uuid.UUID
-	OrderID       uuid.UUID
-	Reason        string
-	CreatedAt     time.Time
-	CreatedBy     uuid.UUID
-	CreatedByName string
+	ID               uuid.UUID
+	ReviewID         uuid.UUID
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Reason           string
+	CreatedAt        time.Time
+	CreatedBy        uuid.NullUUID
+	CreatedByName    sql.NullString
+	CreatedByDeleted bool
 }
 
+// Retained removals page with their cleared author flagged when gone.
 func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ListReviewRemovalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewRemovals, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -122,6 +127,7 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.CreatedByName,
+			&i.CreatedByDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -139,10 +145,12 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 const listReviewsForUser = `-- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
-       reviewee.display_name AS reviewee_name
+       reviewee.display_name AS reviewee_name,
+       CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
+       CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-JOIN users reviewer ON reviewer.id = r.reviewer_id
-JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
+LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -155,18 +163,24 @@ type ListReviewsForUserParams struct {
 }
 
 type ListReviewsForUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID              uuid.UUID
+	DeletedAt       sql.NullTime
+	ReviewerID      uuid.NullUUID
+	RevieweeID      uuid.NullUUID
+	OrderID         uuid.UUID
+	Rating          int32
+	Comment         string
+	CreatedAt       time.Time
+	ReviewerName    sql.NullString
+	RevieweeName    sql.NullString
+	ReviewerDeleted bool
+	RevieweeDeleted bool
 }
 
+// Retained reviews still page, count and paginate consistently whether or not
+// the participants survive. The LEFT JOINs clear the display name and flag the
+// participant as deleted once its row is gone. A participant is live only if
+// the row exists AND deleted_at IS NULL AND NOT is_deleting.
 func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]ListReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsForUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -187,6 +201,8 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 			&i.CreatedAt,
 			&i.ReviewerName,
 			&i.RevieweeName,
+			&i.ReviewerDeleted,
+			&i.RevieweeDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -204,10 +220,12 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
-       reviewee.display_name AS reviewee_name
+       reviewee.display_name AS reviewee_name,
+       CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
+       CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-JOIN users reviewer ON reviewer.id = r.reviewer_id
-JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
+LEFT JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -220,16 +238,18 @@ type ListReviewsFromUserParams struct {
 }
 
 type ListReviewsFromUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID              uuid.UUID
+	DeletedAt       sql.NullTime
+	ReviewerID      uuid.NullUUID
+	RevieweeID      uuid.NullUUID
+	OrderID         uuid.UUID
+	Rating          int32
+	Comment         string
+	CreatedAt       time.Time
+	ReviewerName    sql.NullString
+	RevieweeName    sql.NullString
+	ReviewerDeleted bool
+	RevieweeDeleted bool
 }
 
 func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
@@ -252,6 +272,8 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.CreatedAt,
 			&i.ReviewerName,
 			&i.RevieweeName,
+			&i.ReviewerDeleted,
+			&i.RevieweeDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -279,6 +301,52 @@ SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
 	return err
+}
+
+const lockSubmissionParticipants = `-- name: LockSubmissionParticipants :many
+SELECT id, deleted_at, is_deleting
+FROM users
+WHERE id = $1::UUID OR id = $2::UUID
+ORDER BY id
+FOR UPDATE
+`
+
+type LockSubmissionParticipantsParams struct {
+	A uuid.UUID
+	B uuid.UUID
+}
+
+type LockSubmissionParticipantsRow struct {
+	ID         uuid.UUID
+	DeletedAt  sql.NullTime
+	IsDeleting bool
+}
+
+// Lock the two submission participants in a deterministic id order so two
+// concurrent submissions about the same pair never deadlock, and so a final
+// hard delete cannot slip in between the eligibility check and the insert.
+// Returns each row that exists; callers treat a missing row as not-live.
+func (q *Queries) LockSubmissionParticipants(ctx context.Context, arg LockSubmissionParticipantsParams) ([]LockSubmissionParticipantsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockSubmissionParticipants, arg.A, arg.B)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockSubmissionParticipantsRow{}
+	for rows.Next() {
+		var i LockSubmissionParticipantsRow
+		if err := rows.Scan(&i.ID, &i.DeletedAt, &i.IsDeleting); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordReviewRemoval = `-- name: RecordReviewRemoval :exec
@@ -309,13 +377,35 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 	return err
 }
 
+const reviewParticipantStatus = `-- name: ReviewParticipantStatus :one
+SELECT id, deleted_at IS NULL AS live, NOT is_deleting AS not_deleting
+FROM users
+WHERE id = $1::UUID
+`
+
+type ReviewParticipantStatusRow struct {
+	ID          uuid.UUID
+	Live        interface{}
+	NotDeleting sql.NullBool
+}
+
+// Live eligibility for a NEW submission. A participant is eligible only when its
+// row exists, is not soft-deleted and is not permanently deleting. Checked
+// transactionally after the rows are locked (see LockSubmissionParticipants).
+func (q *Queries) ReviewParticipantStatus(ctx context.Context, participantID uuid.UUID) (ReviewParticipantStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, reviewParticipantStatus, participantID)
+	var i ReviewParticipantStatusRow
+	err := row.Scan(&i.ID, &i.Live, &i.NotDeleting)
+	return i, err
+}
+
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
-           SELECT 1 FROM users WHERE id = $1::UUID
-       ) AS reviewer_exists,
-       EXISTS (
-           SELECT 1 FROM users WHERE id = $2::UUID
-       ) AS reviewee_exists
+            SELECT 1 FROM users WHERE id = $1::UUID
+        ) AS reviewer_exists,
+        EXISTS (
+            SELECT 1 FROM users WHERE id = $2::UUID
+        ) AS reviewee_exists
 `
 
 type ReviewParticipantsExistParams struct {
@@ -346,6 +436,8 @@ type RevieweeStatisticsRow struct {
 	SumRating   int64
 }
 
+// Ratings recalc from retained, non-removed reviews regardless of whether the
+// reviewer still has an account; the LEFT-LESS count only needs the review rows.
 func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) (RevieweeStatisticsRow, error) {
 	row := q.db.QueryRowContext(ctx, revieweeStatistics, revieweeID)
 	var i RevieweeStatisticsRow

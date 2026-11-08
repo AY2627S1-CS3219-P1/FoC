@@ -27,3 +27,15 @@ sql:
         sql_package: "database/sql"
         omit_unused_structs: true
         emit_empty_slices: true
+  - name: "deletion"
+    engine: "postgresql"
+    queries: "query/deletion.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "deletiondb"
+        out: "../internal/database/deletiondb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
