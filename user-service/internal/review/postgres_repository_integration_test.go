@@ -308,10 +308,38 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		stranger := uuid.New()
 		insertUser(t, ctx, sqlDB, stranger)
 		foreign := insertPhoto(t)
-		foreign.OwnerID = stranger
+		foreign.OwnerID = uuid.NullUUID{UUID: stranger, Valid: true}
 		rows, err = repo.AttachReviewPhoto(ctx, q, stranger, reviewID, 1, foreign)
 		if err != nil || rows != 0 {
 			t.Fatalf("attach of a foreign photo: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("deleting the uploader keeps the photo with a null owner", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+		id := uuid.New()
+		if err := repo.InsertReviewPhoto(ctx, ReviewPhotoInput{
+			ID:              id,
+			OwnerID:         owner,
+			ObjectKey:       "review/photo/" + uuid.New().String(),
+			ContentType:     "image/png",
+			SizeBytes:       10,
+			UploadExpiresAt: time.Now().Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("stage photo: %v", err)
+		}
+		if _, err := sqlDB.ExecContext(ctx, "DELETE FROM users WHERE id = $1", owner); err != nil {
+			t.Fatalf("delete user: %v", err)
+		}
+		var ownerID uuid.NullUUID
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT owner_id FROM review_photos WHERE id = $1", id).Scan(&ownerID); err != nil {
+			t.Fatalf("photo must survive owner deletion: %v", err)
+		}
+		if ownerID.Valid {
+			t.Fatalf("owner_id = %v, want NULL", ownerID.UUID)
 		}
 	})
 

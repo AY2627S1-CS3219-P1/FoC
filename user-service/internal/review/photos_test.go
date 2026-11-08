@@ -88,7 +88,7 @@ func (f *fakeRepository) InsertReviewPhoto(_ context.Context, input ReviewPhotoI
 	}
 	f.photosByKey[input.ID] = ReviewPhoto{
 		ID:          input.ID,
-		OwnerID:     input.OwnerID,
+		OwnerID:     uuid.NullUUID{UUID: input.OwnerID, Valid: true},
 		ObjectKey:   input.ObjectKey,
 		ContentType: input.ContentType,
 		SizeBytes:   input.SizeBytes,
@@ -99,7 +99,7 @@ func (f *fakeRepository) InsertReviewPhoto(_ context.Context, input ReviewPhotoI
 
 func (f *fakeRepository) GetReviewPhoto(_ context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error) {
 	photo, ok := f.photosByKey[id]
-	if !ok || photo.OwnerID != ownerID {
+	if !ok || !photo.OwnerID.Valid || photo.OwnerID.UUID != ownerID {
 		return ReviewPhoto{}, errPhotoNotFound
 	}
 	return photo, nil
@@ -254,7 +254,7 @@ func TestCreateReviewPhotoUploadSigningFailureLeavesNoOrphanRow(t *testing.T) {
 func TestPreparePhotosRejectsForeignAndStale(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 
@@ -317,7 +317,7 @@ func TestPreparePhotosRejectsTooMany(t *testing.T) {
 func TestPreparePhotosVerifiesStoredObjectShape(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 
@@ -354,7 +354,7 @@ func TestPreparePhotosVerifiesStoredObjectShape(t *testing.T) {
 func TestPreparePhotosClassifiesStorageFaults(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 	cases := []struct {
@@ -464,8 +464,12 @@ func TestSubmitReviewFailsWhenAttachmentLost(t *testing.T) {
 	reviewer := uuid.New()
 	reviewee := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: reviewer, ObjectKey: photoKeyPrefix + uuid.NewString(),
-		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
+		ID:          uuid.New(),
+		OwnerID:     uuid.NullUUID{UUID: reviewer, Valid: true},
+		ObjectKey:   photoKeyPrefix + uuid.NewString(),
+		ContentType: "image/jpeg",
+		SizeBytes:   300,
+		State:       photoStateUploading,
 	}
 	fake := &fakeRepository{
 		exists:             map[uuid.UUID]bool{reviewer: true, reviewee: true},

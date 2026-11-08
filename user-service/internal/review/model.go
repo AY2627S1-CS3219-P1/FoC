@@ -38,10 +38,11 @@ type ReviewSubmission struct {
 }
 
 // ReviewPhoto is a staged or attached photo row. Grant URLs are never stored;
-// ObjectKey is the durable identity of the stored bytes.
+// ObjectKey is the durable identity of the stored bytes. OwnerID is null once
+// the uploader's account is deleted.
 type ReviewPhoto struct {
 	ID              uuid.UUID
-	OwnerID         uuid.UUID
+	OwnerID         uuid.NullUUID
 	ObjectKey       string
 	ContentType     string
 	SizeBytes       int64

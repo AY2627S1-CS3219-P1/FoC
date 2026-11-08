@@ -3,7 +3,7 @@
 -- inside the submission transaction.
 CREATE TABLE review_photos (
     id                UUID        PRIMARY KEY,
-    owner_id          UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    owner_id          UUID        REFERENCES users (id) ON DELETE SET NULL,
     object_key        TEXT        NOT NULL UNIQUE,
     content_type      TEXT        NOT NULL CHECK (content_type IN (
                           'image/jpeg', 'image/png', 'image/webp',
