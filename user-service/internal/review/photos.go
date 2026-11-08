@@ -49,36 +49,30 @@ type ReviewPhotoView struct {
 	ExpiresAt   time.Time
 }
 
-// PhotoUpload is a staged row plus the grant the browser PUTs with.
-type PhotoUpload struct {
-	ID        uuid.UUID
-	ObjectKey string
-}
-
 // CreateReviewPhotoUpload signs first, then persists the staging row with the grant's shape.
 func (s *Service) CreateReviewPhotoUpload(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	contentType string,
 	sizeBytes int64,
-) (PhotoUpload, images.UploadGrant, error) {
+) (uuid.UUID, images.UploadGrant, error) {
 	if s.photos == nil {
-		return PhotoUpload{}, images.UploadGrant{}, uploadUnavailable(errPhotoStorageDisabled)
+		return uuid.Nil, images.UploadGrant{}, uploadUnavailable(errPhotoStorageDisabled)
 	}
 	if !validPhotoContentType(contentType) {
-		return PhotoUpload{}, images.UploadGrant{}, invalidPhoto(
+		return uuid.Nil, images.UploadGrant{}, invalidPhoto(
 			"content type must be image/jpeg, image/png, image/webp, image/heic or image/heif",
 		)
 	}
 	if sizeBytes < 1 || sizeBytes > maxReviewPhotoBytes {
-		return PhotoUpload{}, images.UploadGrant{}, invalidPhoto(
+		return uuid.Nil, images.UploadGrant{}, invalidPhoto(
 			"photo size must be between 1 and 10000000 bytes",
 		)
 	}
 
 	id, err := newID()
 	if err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, err
+		return uuid.Nil, images.UploadGrant{}, err
 	}
 	key := photoKeyPrefix + id.String()
 	grant, err := s.photos.CreateUpload(ctx, images.UploadRequest{
@@ -87,7 +81,7 @@ func (s *Service) CreateReviewPhotoUpload(
 		SizeBytes:   sizeBytes,
 	})
 	if err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, uploadUnavailable(fmt.Errorf("sign photo upload grant: %w", err))
+		return uuid.Nil, images.UploadGrant{}, uploadUnavailable(fmt.Errorf("sign photo upload grant: %w", err))
 	}
 	photo := ReviewPhotoInput{
 		ID:          id,
@@ -98,9 +92,9 @@ func (s *Service) CreateReviewPhotoUpload(
 	}
 	photo.UploadExpiresAt = time.Now().UTC().Add(photoUploadLifetime)
 	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
-		return PhotoUpload{}, images.UploadGrant{}, err
+		return uuid.Nil, images.UploadGrant{}, err
 	}
-	return PhotoUpload{ID: id, ObjectKey: key}, grant, nil
+	return id, grant, nil
 }
 
 // preparePhotos validates the caller's staged photos; storage inspection runs outside the transaction.

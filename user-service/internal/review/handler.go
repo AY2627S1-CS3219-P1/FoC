@@ -27,7 +27,7 @@ type Logic interface {
 		callerID uuid.UUID,
 		contentType string,
 		sizeBytes int64,
-	) (PhotoUpload, images.UploadGrant, error)
+	) (uuid.UUID, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
@@ -92,14 +92,14 @@ func (h *Handler) CreateReviewPhotoUpload(
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
-	upload, grant, err := h.Logic.CreateReviewPhotoUpload(
+	photoID, grant, err := h.Logic.CreateReviewPhotoUpload(
 		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
 	)
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
 	resp := connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
-		PhotoId:       upload.ID.String(),
+		PhotoId:       photoID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),

@@ -71,8 +71,8 @@ func (reviewStub) SubmitReview(
 
 func (reviewStub) CreateReviewPhotoUpload(
 	context.Context, uuid.UUID, string, int64,
-) (review.PhotoUpload, images.UploadGrant, error) {
-	return review.PhotoUpload{}, images.UploadGrant{}, nil
+) (uuid.UUID, images.UploadGrant, error) {
+	return uuid.Nil, images.UploadGrant{}, nil
 }
 
 func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {

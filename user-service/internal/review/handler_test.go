@@ -31,12 +31,12 @@ type handlerLogicStub struct {
 	photoIDs  []uuid.UUID
 	submitErr error
 
-	uploadOwner  uuid.UUID
-	uploadType   string
-	uploadSize   int64
-	uploadGrant  images.UploadGrant
-	uploadUpload PhotoUpload
-	uploadErr    error
+	uploadOwner uuid.UUID
+	uploadType  string
+	uploadSize  int64
+	uploadGrant images.UploadGrant
+	uploadID    uuid.UUID
+	uploadErr   error
 
 	listedFor   uuid.UUID
 	forUserPage ReviewPage
@@ -76,11 +76,11 @@ func (s *handlerLogicStub) CreateReviewPhotoUpload(
 	callerID uuid.UUID,
 	contentType string,
 	sizeBytes int64,
-) (PhotoUpload, images.UploadGrant, error) {
+) (uuid.UUID, images.UploadGrant, error) {
 	s.uploadOwner = callerID
 	s.uploadType = contentType
 	s.uploadSize = sizeBytes
-	return s.uploadUpload, s.uploadGrant, s.uploadErr
+	return s.uploadID, s.uploadGrant, s.uploadErr
 }
 
 func (s *handlerLogicStub) ListReviewsForUser(
@@ -152,8 +152,8 @@ func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect
 
 func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
 	stub := &handlerLogicStub{
-		uploadUpload: PhotoUpload{ID: uuid.New()},
-		uploadGrant:  images.UploadGrant{URL: "https://storage.test/upload", ExpiresAt: time.Now().Add(time.Minute)},
+		uploadID:    uuid.New(),
+		uploadGrant: images.UploadGrant{URL: "https://storage.test/upload", ExpiresAt: time.Now().Add(time.Minute)},
 	}
 	client := reviewClient(t, stub, auth.Caller{ID: uuid.New().String()})
 

@@ -213,17 +213,17 @@ func TestCreateReviewPhotoUploadStoresStagingRow(t *testing.T) {
 	storage := &fakeStorage{}
 	service := newTestServiceWithPhotos(fake, storage)
 
-	upload, grant, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 200)
+	photoID, grant, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 200)
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	if upload.ObjectKey != photoKeyPrefix+upload.ID.String() {
-		t.Fatalf("object key must derive from the photo id, got %q", upload.ObjectKey)
+	if fake.insertedPhoto.ObjectKey != photoKeyPrefix+photoID.String() {
+		t.Fatalf("object key must derive from the photo id, got %q", fake.insertedPhoto.ObjectKey)
 	}
 	if grant.URL == "" {
 		t.Fatal("grant URL must be returned")
 	}
-	if fake.insertedPhoto.ID != upload.ID || fake.insertedPhoto.SizeBytes != 200 {
+	if fake.insertedPhoto.ID != photoID || fake.insertedPhoto.SizeBytes != 200 {
 		t.Fatalf("staging row mismatch: %+v", fake.insertedPhoto)
 	}
 }
@@ -413,11 +413,11 @@ func TestSubmitReviewAttachesInListOrder(t *testing.T) {
 	ctx := context.Background()
 
 	for range MaxReviewPhotos {
-		upload, _, err := service.CreateReviewPhotoUpload(ctx, reviewer, "image/jpeg", 200)
+		photoID, _, err := service.CreateReviewPhotoUpload(ctx, reviewer, "image/jpeg", 200)
 		if err != nil {
 			t.Fatalf("create upload: %v", err)
 		}
-		photo, err := fake.GetReviewPhoto(ctx, reviewer, upload.ID)
+		photo, err := fake.GetReviewPhoto(ctx, reviewer, photoID)
 		if err != nil {
 			t.Fatalf("staged photo: %v", err)
 		}
