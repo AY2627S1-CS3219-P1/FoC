@@ -90,7 +90,8 @@
 	/** Updates the URL with changes, returning to page 1 unless the page changed. */
 	function update(changes: Partial<LocationQuery>) {
 		const search = paramsFromQuery({ ...query, page: undefined, ...changes }).toString();
-		goto(search ? `?${search}` : page.url.pathname, { keepFocus: true, noScroll: true });
+		const paginating = changes.page !== undefined;
+		goto(search ? `?${search}` : page.url.pathname, { keepFocus: !paginating, noScroll: !paginating });
 	}
 
 	function selectionHref(id: string | null): string {

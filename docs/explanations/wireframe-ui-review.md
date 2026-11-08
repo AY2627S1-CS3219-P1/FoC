@@ -37,3 +37,22 @@ The committed browser check reproduces both failures on the prior code: no Recen
 | [Active courier requests appear delivered](https://github.com/AY2627S1-CS3219-P1/FoC/pull/241#discussion_r4466717549) | Already addressed: both histories use the neutral Requested/Courier/Former courier role labels. |
 | [Removed couriers appear to have withdrawn](https://github.com/AY2627S1-CS3219-P1/FoC/pull/241#discussion_r4466998638) | Already addressed: Former courier does not infer withdrawal versus admin unassignment. |
 
+
+## Follow-up on 8 November 2026
+
+Checked all 34 threads, 58 review submissions and four conversation comments;
+GitHub reports no additional pages or nested replies. The PR now targets main
+after #231 merged. Three threads remained open:
+
+| Feedback | Disposition |
+| --- | --- |
+| Verification image links | Replaced the five missing local image paths with immutable URLs on published screenshot commit `55505e0`; all five returned HTTP 200. |
+| Drawer / map-switch overlap | Confirmed with a browser screenshot regression. Page content now creates its own stacking context, keeping map switches and Leaflet controls below the drawer and scrim. The regression failed before the fix and passes afterward. |
+| Previous / Next scrolling | Pagination now uses normal navigation scroll/focus reset. Search/filter changes retain scroll and focus. Both pagination directions are exercised against a long list. |
+| Supplier filter icon suggestion | Replaced the rotating chevron with the existing Material filter-list icon. The control exposes Show/Hide filters and its expanded state. |
+| Open-order live updates / SSE discussion | Kept as a separate follow-up, as proposed in the conversation; this patch does not add a streaming API or change refresh behavior. |
+
+`npm run check`, all 221 unit tests, the production build and the complete
+`test:wireframe` browser suite passed. Browser checks use mocked Connect
+responses and blocked map tiles. Set `WIREFRAME_SCREENSHOT_DIR` to retain the
+fixed drawer/filter captures from that suite.
