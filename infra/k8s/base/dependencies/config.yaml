@@ -33,6 +33,7 @@ data:
   USER_SERVICE_BASE_URL: http://user-service-internal:8080
   SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
   CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080
+  ORDER_SERVICE_BASE_URL: http://order-service-internal:8080
 
   # Secret locations and one-time bootstrap inputs. An empty
   # BOOTSTRAP_SUPERADMIN_EMAIL skips superadmin creation; deployments set it

@@ -104,3 +104,18 @@ per-request account-fence tables.
   "Deleted account"; historical cross-service UUIDs remain opaque IDs.
 * Re-registration with the same email creates a new UUID with independent
   history; old UUIDs are never reused or relinked.
+
+### Known residual risks
+
+* **Claimed-but-unpublished `users.create` fact**: finalization cancels
+  `users.create` outbox rows that are still unpublished, but a fact the create
+  relay has *already claimed* (lease committed, `published_at` still NULL) lives
+  in the relay's memory and can still be published in the short window after the
+  hard delete commits. If Credit consumes it before the `users.user_deleted`
+  marker lands, `ledger.Open` sees no marker and could grant the starting
+  credits to the deleted UUID. The window requires the fact to have sat
+  unpublished for at least the admission grace period (a relay stall) *and* its
+  publish to complete within the ~5s publish timeout of the finalize commit.
+  Closing it fully needs cross-service atomicity (or a relay re-check that cannot
+  retract an in-flight message), so it is documented rather than fixed here.
+
