@@ -46,6 +46,21 @@ type Repository interface {
 	DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
+// ReviewPhotoAttached is an attached photo as listed for a page of reviews.
+type ReviewPhotoAttached struct {
+	ID          uuid.UUID
+	ReviewID    uuid.UUID
+	ObjectKey   string
+	ContentType string
+	Ordinal     int
+}
+
+// ClaimedReviewPhoto awaits object and row deletion by cleanup.
+type ClaimedReviewPhoto struct {
+	ID        uuid.UUID
+	ObjectKey string
+}
+
 type ReviewParticipantExistence struct {
 	ReviewerExists bool
 	RevieweeExists bool
