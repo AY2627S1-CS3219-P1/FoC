@@ -3,16 +3,11 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/mail"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -21,28 +16,21 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
-	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"gorm.io/gorm"
 )
 
 const (
@@ -246,47 +234,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// newReviewService builds the review domain over the shared database pool.
-// The second return is nil unless review photo storage is configured.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	var photos *images.S3
-	if cfg.s3Bucket != "" {
-		storage, err := images.NewS3(context.Background(), images.S3Config{
-			Bucket:         cfg.s3Bucket,
-			Endpoint:       cfg.s3Endpoint,
-			PublicEndpoint: cfg.s3PublicEndpoint,
-			UploadTTL:      cfg.s3UploadTTL,
-			DownloadTTL:    cfg.s3DownloadTTL,
-			Region:         cfg.awsRegion,
-		})
-		if err != nil {
-			slog.Error("review photo storage disabled: invalid configuration", "err", err)
-		} else {
-			photos = storage
-		}
-	}
-	// A typed-nil *images.S3 would make the PhotoStorage interface non-nil and
-	// bypass the domain's availability checks, so the adapter is assigned to
-	// the interface only when storage is actually configured.
-	var reviewStorage review.PhotoStorage
-	if photos != nil {
-		reviewStorage = photos
-	}
-	service := review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		tx, err := sqlDB.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback() }()
-		if err := operation(reviewdb.New(tx)); err != nil {
-			return err
-		}
-		return tx.Commit()
-	}, reviewStorage)
-	return service, photos
-}
-
 // loadConfig reads .env (if present) and the environment once, applying
 // defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
@@ -426,98 +373,4 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 		return fallback
 	}
 	return d
-}
-
-func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
-	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
-	return allowedadmin.NewAllowedDomainService(repo)
-}
-
-func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
-	return service.Resources{
-		Users:             persistence.Users,
-		AuthTokens:        persistence.AuthTokens,
-		Sessions:          persistence.Sessions,
-		DomainPolicy:      policy,
-		UserCreatedEvents: persistence.UserCreatedOutbox,
-	}
-}
-
-func authTransactions(db *gorm.DB) service.WithTransaction {
-	return func(ctx context.Context, operation func(service.Resources) error) error {
-		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
-			policy := newAllowedDomainService(tx.Statement.ConnPool)
-			return operation(authResources(store.New(tx), policy))
-		})
-	}
-}
-
-func newAuthServices(
-	db *gorm.DB,
-	cfg config,
-	domainPolicy service.EmailDomainPolicy,
-) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
-	frontendURL, err := url.Parse(cfg.frontendURL)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
-	}
-	key, err := userservicejwt.LoadPrivateKeyPEM(cfg.privateKey)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	kid, err := keyID(&key.PublicKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
-	}
-	codec, err := userservicejwt.NewES256Codec(key, kid,
-		httpauth.TokenIssuer, httpauth.TokenAudience)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
-	}
-	persistence := store.New(db)
-
-	logic, err := service.NewService(service.Dependencies{
-		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
-	}, service.Config{
-		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
-		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
-	})
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
-	}
-	allowedOrigin := frontendURL.Scheme + "://" + frontendURL.Host
-	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
-}
-
-func keyID(key *ecdsa.PublicKey) (string, error) {
-	point, err := key.Bytes()
-	if err != nil {
-		return "", err
-	}
-	fingerprint := sha256.Sum256(point)
-	return hex.EncodeToString(fingerprint[:]), nil
-}
-
-func getCorsConfig(allowedOrigin string) *cors.Cors {
-	return cors.New(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{
-			"Authorization",
-			"Content-Type",
-			"Connect-Protocol-Version",
-			"Connect-Timeout-Ms",
-			"Grpc-Timeout",
-			"X-Grpc-Web",
-			"X-User-Agent",
-		},
-		ExposedHeaders: []string{
-			"Grpc-Status",
-			"Grpc-Message",
-			"Grpc-Status-Details-Bin",
-		},
-	})
 }
