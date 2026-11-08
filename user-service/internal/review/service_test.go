@@ -40,6 +40,36 @@ type fakeRepository struct {
 	audited        ReviewRemoval
 	softDeleted    uuid.UUID
 	recalculated   uuid.UUID
+
+	// Existing reviews per (reviewer, order), exercised by the duplicate
+	// pre-check in SubmitReview.
+	existingReviews map[uuid.UUID][]uuid.UUID // reviewerID -> orderIDs
+
+	// Review photo surface, exercised by the photos tests.
+	insertedPhoto      ReviewPhotoInput
+	insertPhotoCalls   int
+	insertPhotoErr     error
+	photosByKey        map[uuid.UUID]ReviewPhoto
+	photosForReviews   []ReviewPhotoAttached
+	listPhotosErr      error
+	attachErr          error
+	attachRowsAffected int64
+	attached           []attachRecord
+	claimedOrphans     []ClaimedReviewPhoto
+	claimErr           error
+	deletedOrphans     []uuid.UUID
+	deleteOrphanErr    error
+
+	// Given-review lookups, exercised by the batched CTA tests.
+	reviewsForOrder []Review
+}
+
+// attachRecord pins one attachment call for assertions.
+type attachRecord struct {
+	ownerID  uuid.UUID
+	reviewID uuid.UUID
+	ordinal  int
+	photoID  uuid.UUID
 }
 
 func (f *fakeRepository) CheckReviewParticipants(
@@ -53,6 +83,15 @@ func (f *fakeRepository) CheckReviewParticipants(
 		ReviewerExists: f.exists[reviewerID],
 		RevieweeExists: f.exists[revieweeID],
 	}, nil
+}
+
+func (f *fakeRepository) ReviewExists(_ context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
+	for _, existing := range f.existingReviews[reviewerID] {
+		if existing == orderID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (f *fakeRepository) InsertReview(_ context.Context, _ *reviewdb.Queries, input ReviewInput) error {
@@ -107,7 +146,7 @@ func newTestService(repo Repository) *Service {
 	withTx := func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 		return operation(reviewdb.New(nil))
 	}
-	return NewService(repo, withTx)
+	return NewService(repo, withTx, nil)
 }
 
 func assertExternal(t *testing.T, err error, wantStatus int) {
@@ -124,7 +163,14 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		id := uuid.New()
 		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{id: true}})
-		err := svc.SubmitReview(context.Background(), id, id, uuid.New(), ReviewSubmission{Rating: 5, Comment: "x"})
+		err := svc.SubmitReview(
+			context.Background(),
+			id,
+			id,
+			uuid.New(),
+			ReviewSubmission{Rating: 5, Comment: "x"},
+			nil,
+		)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 	t.Run("unknown reviewer is rejected", func(t *testing.T) {
@@ -135,7 +181,7 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			uuid.New(),
-			ReviewSubmission{Rating: 5, Comment: "x"},
+			ReviewSubmission{Rating: 5, Comment: "x"}, nil,
 		)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
@@ -147,7 +193,7 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			uuid.New(),
-			ReviewSubmission{Rating: 4, Comment: "ok"},
+			ReviewSubmission{Rating: 4, Comment: "ok"}, nil,
 		)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
@@ -158,7 +204,7 @@ func TestSubmitReview(t *testing.T) {
 			uuid.New(),
 			uuid.New(),
 			uuid.New(),
-			ReviewSubmission{Rating: 5, Comment: "x"},
+			ReviewSubmission{Rating: 5, Comment: "x"}, nil,
 		)
 		if !errors.Is(err, errReviewerNotFound) {
 			t.Fatalf("want reviewer-not-found error first, got: %v", err)
@@ -173,7 +219,7 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			order,
-			ReviewSubmission{Rating: 4, Comment: "great"},
+			ReviewSubmission{Rating: 4, Comment: "great"}, nil,
 		); err != nil {
 			t.Fatalf("submit: %v", err)
 		}
@@ -196,11 +242,36 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			uuid.New(),
-			ReviewSubmission{Rating: 3, Comment: "again"},
+			ReviewSubmission{Rating: 3, Comment: "again"}, nil,
 		)
 		assertExternal(t, err, http.StatusConflict)
 		if fake.recalcCount != 0 {
 			t.Fatal("stats must not be recomputed when the insert fails")
+		}
+	})
+	t.Run("pre-check rejects a retry after a committed submission with 409", func(t *testing.T) {
+		// A lost-response retry: the first submission committed and its photos
+		// are attached. The duplicate pre-check must return the canonical 409
+		// before photo preparation can reject the stale photo state with 400.
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			exists:          map[uuid.UUID]bool{reviewer: true, reviewee: true},
+			existingReviews: map[uuid.UUID][]uuid.UUID{reviewer: {order}},
+		}
+		svc := newTestService(fake)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 3, Comment: "again"}, nil,
+		)
+		assertExternal(t, err, http.StatusConflict)
+		if fake.insertedID != uuid.Nil {
+			t.Fatal("no new review must be inserted for a duplicate submission")
+		}
+		if fake.recalcCount != 0 {
+			t.Fatal("stats must not be recomputed for a duplicate submission")
 		}
 	})
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
@@ -212,7 +283,7 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			uuid.New(),
-			ReviewSubmission{Rating: 3, Comment: "again"},
+			ReviewSubmission{Rating: 3, Comment: "again"}, nil,
 		)
 		if !errors.Is(err, errBoomTest) {
 			t.Fatalf("non-duplicate insert failure should propagate, got: %v", err)
@@ -230,7 +301,7 @@ func TestSubmitReview(t *testing.T) {
 			reviewer,
 			reviewee,
 			uuid.New(),
-			ReviewSubmission{Rating: 5, Comment: "x"},
+			ReviewSubmission{Rating: 5, Comment: "x"}, nil,
 		)
 		if !errors.Is(err, errBoomTest) {
 			t.Fatalf("recalculation error should propagate: %v", err)
@@ -305,7 +376,7 @@ func TestRemoveReview(t *testing.T) {
 			svc := NewService(nil, func(_ context.Context, _ func(*reviewdb.Queries) error) error {
 				transactionStarted = true
 				return nil
-			})
+			}, nil)
 			err := svc.RemoveReview(context.Background(), uuid.New(), tc.reason, uuid.New())
 			assertExternal(t, err, http.StatusBadRequest)
 			if transactionStarted {

@@ -19,10 +19,9 @@ import (
 // Topic carries OrderStatusChanged events.
 const Topic = "order.status_changed"
 
-// MaxAge is how old an event can be and still be sent. Older events are
-// skipped, so a backlog (such as the first start of a new consumer group, which
-// reads from the earliest offset) doesn't send outdated updates.
-const MaxAge = time.Hour
+// LateWindow is how long after a change a drop-if-late notification can still
+// be sent, including retries.
+const LateWindow = 15 * time.Minute
 
 // Sender is the part of the Bot API the handler needs.
 type Sender interface {
@@ -41,6 +40,13 @@ type Links interface {
 	UnlinkChat(ctx context.Context, chatID int64) error
 }
 
+// Orders reads the revision of the latest status change applied to an order's
+// participants, which the consumer updates before notifying.
+type Orders interface {
+	// Revision reports found=false for an order with no stored change.
+	Revision(ctx context.Context, orderID uuid.UUID) (revision int64, found bool, err error)
+}
+
 // Deliveries records which recipients already got an event's message, so a
 // redelivered event skips them.
 type Deliveries interface {
@@ -55,6 +61,10 @@ type Handler struct {
 	Sender     Sender
 	Links      Links
 	Deliveries Deliveries
+	Orders     Orders
+	// Since is when notifications started. Earlier events are skipped, so a new
+	// environment's backlog isn't sent.
+	Since time.Time
 	// Optional.
 	ReplyTargets ReplyTargets
 	Log          *slog.Logger
@@ -71,8 +81,8 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 		log.Error("skipping order event without a valid event ID")
 		return nil
 	}
-	if age := h.Now().Sub(e.GetOccurredAt().AsTime()); age > MaxAge {
-		log.Info("skipping stale order event", "age", age.Round(time.Second).String())
+	occurred := e.GetOccurredAt().AsTime()
+	if occurred.Before(h.Since) {
 		return nil
 	}
 
@@ -80,6 +90,23 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 		text := message(e, r.role)
 		if text == "" {
 			continue
+		}
+		switch deliveryFor(e, r.role) {
+		case dropIfLate:
+			if age := h.Now().Sub(occurred); age > LateWindow {
+				log.Info("skipping late notification", "role", r.role, "age", age.Round(time.Second).String())
+				continue
+			}
+		case ifStillCurrent:
+			current, err := h.isCurrent(ctx, e)
+			if err != nil {
+				return err
+			}
+			if !current {
+				log.Info("skipping superseded notification", "role", r.role)
+				continue
+			}
+		case alwaysDeliver:
 		}
 		userID, err := uuid.Parse(r.userID)
 		if err != nil {
@@ -91,6 +118,20 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 		}
 	}
 	return nil
+}
+
+// isCurrent reports whether no later status change has been applied to the
+// order. An order with no stored change has ended and been deleted.
+func (h *Handler) isCurrent(ctx context.Context, e *eventsv1.OrderStatusChanged) (bool, error) {
+	orderID, err := uuid.Parse(e.GetOrderId())
+	if err != nil {
+		return false, nil
+	}
+	revision, found, err := h.Orders.Revision(ctx, orderID)
+	if err != nil {
+		return false, fmt.Errorf("get order revision: %w", err)
+	}
+	return found && revision <= e.GetRevision(), nil
 }
 
 func (h *Handler) notify(

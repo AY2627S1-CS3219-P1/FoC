@@ -197,5 +197,47 @@ uses `localhost:9092`. The `kafka-init` service provisions the topic. Credit
 owns the 100-credit starting grant. Existing users are not backfilled, and
 bootstrap-created administrators do not emit registration events.
 
+## Review domain layout
+
+Review is the first sqlc-backed domain in this service, so it lives under
+`internal/review` instead of `internal/handlers/<domain>` plus `internal/store`.
+The package keeps the adapter, business rules and persistence together:
+
+| File | Contents |
+| --- | --- |
+| `handler.go` | Connect adapter: request parsing, proto conversion |
+| `service.go` | Business rules: submit, list, remove and list removals |
+| `photos.go` | Review-photo lifecycle: upload grant and staging row, pre-submit inspection, in-transaction attachment, read-path URL minting, orphan reaper; declares the `PhotoStorage` port |
+| `errors.go` | Client-facing error vocabulary: contract reasons, `google.rpc` details, storage-fault classification, domain sentinels |
+| `models.go` | Persisted rows and repository projections |
+| `dto.go` | Data crossing the service boundary: submissions, inputs and read models with minted URLs |
+| `repository.go`, `postgres_repository.go` | Persistence interface and the sqlc/PostgreSQL implementation |
+| `authorization.go` | Method-level authorization interceptor |
+
+`photos.go` is a deliberate exception to keeping a domain's rules in
+`service.go`: the photo lifecycle has its own invariants (guarded attachment,
+staging cleanup, optional storage) and would otherwise dominate the service
+file. For the same reason the consumer-defined `PhotoStorage` port is declared
+in `photos.go` beside the code that uses it, rather than in `service.go`; only
+the composition root knows the adapter is S3. Without `USER_S3_BUCKET` the
+photo RPCs report unavailability and reviews submit without photos.
+
+### Review error contract
+
+`sentinel / uploadError → errorMappings (code + reason) → clientMessage → attachDetails`
+
+- Domain code returns a sentinel or an `uploadError` carrying a `cause`. Storage
+  faults are classified in `pkg/images`: retryable `ErrStorageUnavailable`
+  (→ `503`) and permanent `ErrStorageMisconfigured` (→ `500`). `412` is only for
+  upload states the client can fix.
+- `toConnectError` looks the sentinel up in `errorMappings`; anything else that
+  implements `api.ExternalError` goes through the shared `api.ToConnectError`;
+  unknown errors become a generic `500`.
+- `clientMessage` is the only source of client-facing text. Provider and
+  configuration detail stays in the cause and is logged by `logMappedError`.
+- Replies carry `google.rpc.ErrorInfo` (domain `user.review.v1`, stable reason)
+  and `common.v1.ErrorDetail` (reason, message, field violations such as the
+  failing `photo_ids`). Clients branch on the reason, never on the message.
+
 Demo seeding uses the same user/event provisioning logic as registration.
 See [seed commands and reset behavior](../data/seeds/README.md).

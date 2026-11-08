@@ -25,7 +25,8 @@ a { color: var(--m3c-primary); }
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
 /* Signed-in pages: a sidebar column beside the page; a drawer on narrow screens. */
 .app-shell.with-sidebar { flex-direction: row; align-items: stretch; }
-.app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* Keep page/map layers below the shell drawer and scrim. */
+.app-body { isolation: isolate; flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .top-bar {
 	position: sticky;
 	top: 0;

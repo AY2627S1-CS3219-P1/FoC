@@ -1,6 +1,7 @@
 // Run against `npm run dev` (or set WIREFRAME_BASE_URL). All RPCs are mocked;
 // this checks browser state preservation, not backend integration.
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const base = process.env.WIREFRAME_BASE_URL ?? 'http://localhost:5173';
@@ -15,9 +16,11 @@ const order = {
 };
 const browser = await chromium.launch();
 const runtimeErrors = [];
+const screenshots = process.env.WIREFRAME_SCREENSHOT_DIR;
+if (screenshots) await mkdir(screenshots, { recursive: true });
 
-async function open(path, { authenticated = true, overrides = {} } = {}) {
-	const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
+async function open(path, { authenticated = true, overrides = {}, viewport = { width: 390, height: 900 } } = {}) {
+	const context = await browser.newContext({ viewport });
 	const page = await context.newPage();
 	page.on('pageerror', error => runtimeErrors.push(error.message));
 	await page.route(/tile\.openstreetmap\.org/, route => route.abort());
@@ -46,6 +49,48 @@ async function open(path, { authenticated = true, overrides = {} } = {}) {
 }
 
 try {
+	// Page controls must paint behind the modal drawer, including Leaflet controls.
+	let { page, context } = await open('/', { viewport: { width: 512, height: 685 } });
+	await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+	await page.getByText('Nothing in progress.', { exact: true }).waitFor();
+	await page.waitForTimeout(400);
+	const drawerClip = { x: 0, y: 0, width: 310, height: 650 };
+	const controlsVisible = await page.screenshot({ clip: drawerClip, animations: 'disabled' });
+	if (screenshots) await page.screenshot({ path: `${screenshots}/drawer-fixed.png`, animations: 'disabled' });
+	await page.locator('.map-toggle, .leaflet-control-container').evaluateAll(elements => {
+		for (const element of elements) element.style.visibility = 'hidden';
+	});
+	const controlsHidden = await page.screenshot({ clip: drawerClip, animations: 'disabled' });
+	assert(controlsVisible.equals(controlsHidden), 'map controls do not paint over the drawer');
+	await context.close();
+	console.log('PASS drawer paints above map switches and Leaflet controls');
+
+	({ page, context } = await open('/suppliers', { overrides: {
+		ListLocations: body => ({
+			locations: Array.from({ length: 20 }, (_, i) => ({ id: `location-${body.page}-${i}`, name: `Page ${body.page || 1} supplier ${i}` })),
+			page: body.page || 1, pageSize: 20, totalItems: '40', totalPages: 2
+		})
+	} }));
+	for (const [button, targetPage] of [['Next', 2], ['Previous', 1]]) {
+		await page.getByRole('button', { name: button, exact: true }).scrollIntoViewIfNeeded();
+		assert(await page.evaluate(() => window.scrollY > 200), 'pagination starts from the bottom of a long list');
+		await page.getByRole('button', { name: button, exact: true }).click();
+		await page.getByText(`Page ${targetPage} supplier 0`, { exact: true }).waitFor();
+		await page.waitForFunction(() => window.scrollY < 10, null, { timeout: 5000 });
+	}
+	await page.getByRole('button', { name: 'Show filters', exact: true }).click();
+	await page.getByRole('combobox', { name: 'Building', exact: true }).waitFor();
+	assert.equal(await page.getByRole('button', { name: 'Hide filters', exact: true }).getAttribute('aria-expanded'), 'true');
+	if (screenshots) await page.screenshot({ path: `${screenshots}/supplier-filters.png`, animations: 'disabled' });
+	const supplierSearch = page.getByRole('searchbox', { name: 'Search by name', exact: true });
+	await supplierSearch.fill('coffee');
+	const filterScroll = await page.evaluate(() => window.scrollY);
+	await page.waitForURL(url => url.searchParams.get('search') === 'coffee');
+	assert(await supplierSearch.evaluate(element => element === document.activeElement), 'filter typing keeps focus');
+	assert(Math.abs(await page.evaluate(() => window.scrollY) - filterScroll) < 2, 'filter changes keep scroll');
+	await context.close();
+	console.log('PASS supplier pagination returns to top; filter toggle expands its controls');
+
 	// History can name pickups outside the first supplier page, including ordinary locations.
 	const supplierPage = Array.from({ length: 100 }, (_, i) => ({ id: `supplier-${i}`, name: `Supplier ${i}` }));
 	const recent = [
@@ -54,7 +99,7 @@ try {
 		{ id: 'archived', name: 'Archived recent pickup', archivedAt: new Date().toISOString() }
 	];
 	const reads = [];
-	let { page, context } = await open('/', { overrides: {
+	({ page, context } = await open('/', { overrides: {
 		ListLocations: async () => {
 			await new Promise(resolve => setTimeout(resolve, 150));
 			return { locations: supplierPage, page: 1, pageSize: 100, totalPages: 2 };
@@ -64,7 +109,7 @@ try {
 			reads.push(body.id);
 			return { location: recent.find(location => location.id === body.id) };
 		}
-	} });
+	} }));
 	await page.getByRole('heading', { name: 'Recent', exact: true }).waitFor({ timeout: 5000 });
 	for (const location of recent) {
 		await page.getByRole('button', { name: location.name, exact: true }).waitFor();

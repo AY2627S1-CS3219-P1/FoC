@@ -37,7 +37,7 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx)
+	return NewService(repo, withTx, nil)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -123,6 +123,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order1,
 			ReviewSubmission{Rating: 4, Comment: "good"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit first review: %v", err)
 		}
@@ -136,6 +137,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order2,
 			ReviewSubmission{Rating: 2, Comment: "ok"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit second review: %v", err)
 		}
@@ -216,12 +218,216 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 				reviewee,
 				uuid.New(),
 				ReviewSubmission{Rating: rating, Comment: "fractional average"},
+				nil,
 			); err != nil {
 				t.Fatal(err)
 			}
 		}
 		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 3 || math.Abs(avg-5.0/3.0) > 1e-12 {
 			t.Fatalf("count=%d avg=%v, want 3 and 5/3", count, avg)
+		}
+	})
+
+	// The guarded attachment and cleanup-claim statements are the photo
+	// consistency boundary; fakes cannot exercise their SQL predicates, so
+	// they run against the real database here.
+	t.Run("guarded attachment claims a staged photo exactly once", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "with photo"},
+			nil,
+		); err != nil {
+			t.Fatalf("submit review for attachment: %v", err)
+		}
+		reviewed, err := service.ListReviewsFromUser(ctx, reviewer, mustPage(t, 1, 1))
+		if err != nil || len(reviewed.Reviews) != 1 {
+			t.Fatalf("list submitted review: reviews=%v err=%v", reviewed.Reviews, err)
+		}
+		reviewID := reviewed.Reviews[0].ID
+
+		insertPhoto := func(t *testing.T) ReviewPhoto {
+			t.Helper()
+			input := ReviewPhotoInput{
+				ID:              uuid.New(),
+				OwnerID:         reviewer,
+				ObjectKey:       "review/photo/" + uuid.New().String(),
+				ContentType:     "image/png",
+				SizeBytes:       1234,
+				UploadExpiresAt: time.Now().Add(time.Hour),
+			}
+			if err := repo.InsertReviewPhoto(ctx, input); err != nil {
+				t.Fatalf("stage photo: %v", err)
+			}
+			staged, err := repo.GetReviewPhoto(ctx, reviewer, input.ID)
+			if err != nil {
+				t.Fatalf("load staged photo: %v", err)
+			}
+			return staged
+		}
+		q := reviewdb.New(sqlDB)
+
+		staged := insertPhoto(t)
+		// Attachment is transactional in production; the plain pool handle
+		// exercises the same guarded UPDATE.
+		rows, err := repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 0, staged)
+		if err != nil || rows != 1 {
+			t.Fatalf("first attach: rows=%d err=%v, want 1 and nil", rows, err)
+		}
+		attached, err := repo.ListReviewPhotosForReviews(ctx, []uuid.UUID{reviewID})
+		if err != nil || len(attached) != 1 {
+			t.Fatalf("list attached: photos=%v err=%v", attached, err)
+		}
+		if attached[0].Ordinal != 0 || attached[0].ObjectKey != staged.ObjectKey {
+			t.Fatalf("attached photo mismatch: %+v", attached[0])
+		}
+
+		// The state guard blocks a second attachment of the same photo.
+		rows, err = repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 1, staged)
+		if err != nil || rows != 0 {
+			t.Fatalf("second attach: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+
+		// A shape mismatch — the stored object replaced between inspection and
+		// attach — also matches zero rows and must fail the submission.
+		replaced := staged
+		replaced.SizeBytes = staged.SizeBytes + 1
+		rows, err = repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 1, replaced)
+		if err != nil || rows != 0 {
+			t.Fatalf("attach with drifted shape: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+
+		// A photo staged by another user is never attachable.
+		stranger := uuid.New()
+		insertUser(t, ctx, sqlDB, stranger)
+		foreign := insertPhoto(t)
+		foreign.OwnerID = uuid.NullUUID{UUID: stranger, Valid: true}
+		rows, err = repo.AttachReviewPhoto(ctx, q, stranger, reviewID, 1, foreign)
+		if err != nil || rows != 0 {
+			t.Fatalf("attach of a foreign photo: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("deleting the uploader keeps the photo with a null owner", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+		id := uuid.New()
+		if err := repo.InsertReviewPhoto(ctx, ReviewPhotoInput{
+			ID:              id,
+			OwnerID:         owner,
+			ObjectKey:       "review/photo/" + uuid.New().String(),
+			ContentType:     "image/png",
+			SizeBytes:       10,
+			UploadExpiresAt: time.Now().Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("stage photo: %v", err)
+		}
+		if _, err := sqlDB.ExecContext(ctx, "DELETE FROM users WHERE id = $1", owner); err != nil {
+			t.Fatalf("delete user: %v", err)
+		}
+		var ownerID uuid.NullUUID
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT owner_id FROM review_photos WHERE id = $1", id).Scan(&ownerID); err != nil {
+			t.Fatalf("photo must survive owner deletion: %v", err)
+		}
+		if ownerID.Valid {
+			t.Fatalf("owner_id = %v, want NULL", ownerID.UUID)
+		}
+	})
+
+	t.Run("cleanup claims expired orphan staging rows only", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+
+		stage := func(t *testing.T, expiresAt time.Time) ReviewPhotoInput {
+			t.Helper()
+			input := ReviewPhotoInput{
+				ID:              uuid.New(),
+				OwnerID:         owner,
+				ObjectKey:       "review/photo/" + uuid.New().String(),
+				ContentType:     "image/jpeg",
+				SizeBytes:       42,
+				UploadExpiresAt: expiresAt,
+			}
+			if err := repo.InsertReviewPhoto(ctx, input); err != nil {
+				t.Fatalf("stage photo: %v", err)
+			}
+			return input
+		}
+		now := time.Now().UTC()
+		expired := stage(t, now.Add(-time.Hour))
+		live := stage(t, now.Add(time.Hour))
+
+		// The claim horizon sits slightly ahead of the inserts, like the
+		// production ticker running after the rows were created.
+		horizon := now.Add(time.Minute)
+		claimed, err := repo.ClaimOrphanReviewPhotos(ctx, horizon, horizon)
+		if err != nil {
+			t.Fatalf("claim orphans: %v", err)
+		}
+		claimedIDs := map[uuid.UUID]bool{}
+		for _, row := range claimed {
+			claimedIDs[row.ID] = true
+		}
+		if !claimedIDs[expired.ID] {
+			t.Fatal("expired orphan staging row was not claimed")
+		}
+		if claimedIDs[live.ID] {
+			t.Fatal("unexpired staging row must not be claimed")
+		}
+
+		rows, err := repo.DeleteOrphanReviewPhoto(ctx, expired.ID)
+		if err != nil || rows != 1 {
+			t.Fatalf("delete claimed orphan: rows=%d err=%v, want 1 and nil", rows, err)
+		}
+		// A claimed row is only deletable in the deleting state; the live row
+		// stays untouched.
+		if rows, err := repo.DeleteOrphanReviewPhoto(ctx, live.ID); err != nil || rows != 0 {
+			t.Fatalf("delete unclaimed row: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("batched reviewed-order lookup and single fetch", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		order1, order2 := uuid.New(), uuid.New()
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 5, Comment: "reviewed"},
+			nil,
+		); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+
+		got, err := repo.ListReviewedOrderIds(ctx, reviewer, []uuid.UUID{order1, order2})
+		if err != nil {
+			t.Fatalf("list reviewed order ids: %v", err)
+		}
+		if len(got) != 1 || got[0] != order1 {
+			t.Fatalf("reviewed ids = %v, want only %v", got, order1)
+		}
+
+		review, err := repo.ReviewForOrder(ctx, reviewer, order1)
+		if err != nil || review.Rating != 5 || review.OrderID != order1 {
+			t.Fatalf("review for order = %+v err=%v", review, err)
+		}
+		if _, err := repo.ReviewForOrder(ctx, reviewer, order2); !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("unreviewed order should be not found, got %v", err)
 		}
 	})
 
@@ -236,6 +442,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			uuid.New(),
 			ReviewSubmission{Rating: 5, Comment: "audit rollback"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
@@ -418,10 +625,18 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order,
 			ReviewSubmission{Rating: 5, Comment: "first"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "duplicate"})
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "duplicate"},
+			nil,
+		)
 		assertExternal(t, err, http.StatusConflict)
 		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 1 {
 			t.Fatalf("duplicate review persisted: count=%d, want 1", c)
@@ -442,6 +657,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewee,
 			order,
 			ReviewSubmission{Rating: 5, Comment: "first"},
+			nil,
 		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
@@ -458,7 +674,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
 			t.Fatalf("removed review still counted: count=%d avg=%v, want 0 and 0", c, avg)
 		}
-		err = service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 3, Comment: "again"})
+		err = service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 3, Comment: "again"}, nil)
 		assertExternal(t, err, http.StatusConflict)
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
 			t.Fatalf("rejected re-review changed stats: count=%d avg=%v, want 0 and 0", c, avg)
@@ -471,6 +687,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			reviewer,
 			order,
 			ReviewSubmission{Rating: 4, Comment: "other side"},
+			nil,
 		); err != nil {
 			t.Fatalf("other participant review: %v", err)
 		}
@@ -481,7 +698,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 6, Comment: "too high"})
+		err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 6, Comment: "too high"},
+			nil,
+		)
 		assertExternal(t, err, http.StatusBadRequest)
 		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 0 {
 			t.Fatalf("rating out of range persisted: count=%d, want 0", c)
@@ -491,14 +715,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	t.Run("self review is rejected", func(t *testing.T) {
 		u := uuid.New()
 		insertUser(t, ctx, sqlDB, u)
-		err := service.SubmitReview(ctx, u, u, uuid.New(), ReviewSubmission{Rating: 5, Comment: "self"})
+		err := service.SubmitReview(ctx, u, u, uuid.New(), ReviewSubmission{Rating: 5, Comment: "self"}, nil)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("unknown reviewer is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		insertUser(t, ctx, sqlDB, reviewee)
-		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"})
+		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"}, nil)
 		assertExternal(t, err, http.StatusBadRequest)
 	})
 
@@ -512,7 +736,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		orderID := uuid.New()
 		if err := service.SubmitReview(ctx, reviewer, reviewee, orderID,
-			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}); err != nil {
+			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}, nil); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		var reviewID uuid.UUID
@@ -554,7 +778,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			case <-txCtx.Done():
 				return txCtx.Err()
 			}
-		})
+		}, nil)
 		go func() {
 			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
 		}()
