@@ -1,4 +1,3 @@
-// Package review implements review submission, listing, removal and review photos.
 package review
 
 import (
@@ -36,6 +35,21 @@ type ReviewPhoto struct {
 	Ordinal         int
 	CreatedAt       time.Time
 	UploadExpiresAt time.Time
+}
+
+// ReviewPhotoAttached is an attached photo as listed for a page of reviews.
+type ReviewPhotoAttached struct {
+	ID          uuid.UUID
+	ReviewID    uuid.UUID
+	ObjectKey   string
+	ContentType string
+	Ordinal     int
+}
+
+// ClaimedReviewPhoto awaits object and row deletion by cleanup.
+type ClaimedReviewPhoto struct {
+	ID        uuid.UUID
+	ObjectKey string
 }
 
 // ReviewRemoval is the audit row for a removed review.
