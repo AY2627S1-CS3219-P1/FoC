@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-// Review feature contract for user-service: one participant of a Completed
-// request rates the other; removals are soft deletes with an audit row.
 package user.review.v1;
 
 import "buf/validate/validate.proto";
@@ -23,7 +21,6 @@ message Review {
   string id = 1;
   string reviewer_id = 2;
   string reviewee_id = 3;
-  // Owned by order-service; no foreign key.
   string order_id = 4;
   int32 rating = 5;
   string comment = 6;
@@ -67,7 +64,6 @@ message SubmitReviewRequest {
 
 message SubmitReviewResponse {}
 
-// Requests a pre-signed PUT grant; bytes never pass through the service.
 message CreateReviewPhotoUploadRequest {
   string content_type = 1 [(buf.validate.field).string = {
     in: [
@@ -87,7 +83,6 @@ message CreateReviewPhotoUploadRequest {
 message CreateReviewPhotoUploadResponse {
   string photo_id = 1;
   string upload_url = 2;
-  // Headers the browser must send with the PUT.
   map<string, string> upload_headers = 3;
   google.protobuf.Timestamp expires_at = 4;
 }
@@ -112,7 +107,6 @@ message ListMyReviewsRequest {
   pagination.v1.Pagination pagination = 1;
 }
 
-// Which of the given requests the caller has already reviewed.
 message ListMyReviewsForOrdersRequest {
   repeated string order_ids = 1 [(buf.validate.field).repeated = {
     max_items: 50

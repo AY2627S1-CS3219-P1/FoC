@@ -4,9 +4,6 @@
 // 	protoc        (unknown)
 // source: user/review/v1/review.proto
 
-// Review feature contract for user-service: one participant of a Completed
-// request rates the other; removals are soft deletes with an audit row.
-
 package reviewv1
 
 import (
@@ -28,11 +25,10 @@ const (
 )
 
 type Review struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
-	// Owned by order-service; no foreign key.
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReviewerId   string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	RevieweeId   string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
 	OrderId      string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	Rating       int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
 	Comment      string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
@@ -379,7 +375,6 @@ func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{4}
 }
 
-// Requests a pre-signed PUT grant; bytes never pass through the service.
 type CreateReviewPhotoUploadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
@@ -433,10 +428,9 @@ func (x *CreateReviewPhotoUploadRequest) GetSizeBytes() int64 {
 }
 
 type CreateReviewPhotoUploadResponse struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	PhotoId   string                 `protobuf:"bytes,1,opt,name=photo_id,json=photoId,proto3" json:"photo_id,omitempty"`
-	UploadUrl string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
-	// Headers the browser must send with the PUT.
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PhotoId       string                 `protobuf:"bytes,1,opt,name=photo_id,json=photoId,proto3" json:"photo_id,omitempty"`
+	UploadUrl     string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	UploadHeaders map[string]string      `protobuf:"bytes,3,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -702,7 +696,6 @@ func (x *ListMyReviewsRequest) GetPagination() *v1.Pagination {
 	return nil
 }
 
-// Which of the given requests the caller has already reviewed.
 type ListMyReviewsForOrdersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderIds      []string               `protobuf:"bytes,1,rep,name=order_ids,json=orderIds,proto3" json:"order_ids,omitempty"`

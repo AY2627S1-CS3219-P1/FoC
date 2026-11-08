@@ -2,9 +2,6 @@
 // @generated from file user/review/v1/review.proto (package user.review.v1, syntax proto3)
 /* eslint-disable */
 
-// Review feature contract for user-service: one participant of a Completed
-// request rates the other; removals are soft deletes with an audit row.
-
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
@@ -40,8 +37,6 @@ export type Review = Message<"user.review.v1.Review"> & {
   revieweeId: string;
 
   /**
-   * Owned by order-service; no foreign key.
-   *
    * @generated from field: string order_id = 4;
    */
   orderId: string;
@@ -195,8 +190,6 @@ export const SubmitReviewResponseSchema: GenMessage<SubmitReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 4);
 
 /**
- * Requests a pre-signed PUT grant; bytes never pass through the service.
- *
  * @generated from message user.review.v1.CreateReviewPhotoUploadRequest
  */
 export type CreateReviewPhotoUploadRequest = Message<"user.review.v1.CreateReviewPhotoUploadRequest"> & {
@@ -233,8 +226,6 @@ export type CreateReviewPhotoUploadResponse = Message<"user.review.v1.CreateRevi
   uploadUrl: string;
 
   /**
-   * Headers the browser must send with the PUT.
-   *
    * @generated from field: map<string, string> upload_headers = 3;
    */
   uploadHeaders: { [key: string]: string };
@@ -338,8 +329,6 @@ export const ListMyReviewsRequestSchema: GenMessage<ListMyReviewsRequest> = /*@_
   messageDesc(file_user_review_v1_review, 10);
 
 /**
- * Which of the given requests the caller has already reviewed.
- *
  * @generated from message user.review.v1.ListMyReviewsForOrdersRequest
  */
 export type ListMyReviewsForOrdersRequest = Message<"user.review.v1.ListMyReviewsForOrdersRequest"> & {

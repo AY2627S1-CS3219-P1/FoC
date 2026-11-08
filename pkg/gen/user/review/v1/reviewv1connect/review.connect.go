@@ -2,8 +2,6 @@
 //
 // Source: user/review/v1/review.proto
 
-// Review feature contract for user-service: one participant of a Completed
-// request rates the other; removals are soft deletes with an audit row.
 package reviewv1connect
 
 import (
