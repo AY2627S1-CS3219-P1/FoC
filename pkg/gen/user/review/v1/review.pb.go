@@ -836,9 +836,8 @@ func (x *GetMyReviewForOrderRequest) GetOrderId() string {
 }
 
 type GetMyReviewForOrderResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Absent when the caller has not reviewed this request.
-	Review        *Review `protobuf:"bytes,1,opt,name=review,proto3" json:"review,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Review        *Review                `protobuf:"bytes,1,opt,name=review,proto3" json:"review,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

@@ -129,7 +129,6 @@ message GetMyReviewForOrderRequest {
 }
 
 message GetMyReviewForOrderResponse {
-  // Absent when the caller has not reviewed this request.
   Review review = 1;
 }
 

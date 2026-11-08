@@ -2,7 +2,6 @@ package review
 
 import (
 	"context"
-	"errors"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
@@ -215,9 +214,6 @@ func (h *Handler) GetMyReviewForOrder(
 	}
 	review, err := h.Logic.GetMyReviewForOrder(ctx, callerID, orderID)
 	if err != nil {
-		if errors.Is(err, errReviewNotFound) {
-			return connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{}), nil
-		}
 		return nil, toConnectError(ctx, err)
 	}
 	resp := connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{Review: toReviewProto(review)})

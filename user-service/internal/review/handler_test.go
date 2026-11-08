@@ -232,17 +232,17 @@ func TestGetMyReviewForOrderRPC(t *testing.T) {
 			t.Fatalf("Cache-Control = %q, want no-store", got)
 		}
 	})
-	t.Run("unreviewed order returns an absent review", func(t *testing.T) {
+	t.Run("unreviewed order is reported as not found", func(t *testing.T) {
 		stub := &handlerLogicStub{myReviewErr: errReviewNotFound}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
-		resp, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
+		_, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
 			OrderId: uuid.New().String(),
 		}))
-		if err != nil {
-			t.Fatalf("absent review must not error: %v", err)
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("want not found, got %v", err)
 		}
-		if resp.Msg.Review != nil {
-			t.Fatalf("want absent review, got %+v", resp.Msg.Review)
+		if got := reasonOf(t, err); got != reasonReviewNotFound {
+			t.Fatalf("reason = %q, want %q", got, reasonReviewNotFound)
 		}
 	})
 }
