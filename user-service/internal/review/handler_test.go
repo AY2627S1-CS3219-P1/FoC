@@ -180,9 +180,12 @@ func TestListMyReviewsForOrdersRPC(t *testing.T) {
 		stub := &handlerLogicStub{reviewedResult: []uuid.UUID{uuid.New()}}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
 		one, two := uuid.New(), uuid.New()
-		resp, err := client.ListMyReviewsForOrders(context.Background(), connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
-			OrderIds: []string{one.String(), two.String()},
-		}))
+		resp, err := client.ListMyReviewsForOrders(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
+				OrderIds: []string{one.String(), two.String()},
+			}),
+		)
 		if err != nil {
 			t.Fatalf("list reviewed orders: %v", err)
 		}
@@ -198,9 +201,12 @@ func TestListMyReviewsForOrdersRPC(t *testing.T) {
 	})
 	t.Run("invalid order id is rejected", func(t *testing.T) {
 		client := reviewClient(t, &handlerLogicStub{}, auth.Caller{ID: caller.String()})
-		_, err := client.ListMyReviewsForOrders(context.Background(), connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
-			OrderIds: []string{"not-a-uuid"},
-		}))
+		_, err := client.ListMyReviewsForOrders(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
+				OrderIds: []string{"not-a-uuid"},
+			}),
+		)
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Fatalf("want invalid argument, got %v", err)
 		}
@@ -216,9 +222,12 @@ func TestGetMyReviewForOrderRPC(t *testing.T) {
 			Photos: []ReviewPhotoView{{ID: uuid.New(), URL: photoURL, ContentType: "image/png"}},
 		}}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
-		resp, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
-			OrderId: uuid.New().String(),
-		}))
+		resp, err := client.GetMyReviewForOrder(
+			context.Background(),
+			connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
+				OrderId: uuid.New().String(),
+			}),
+		)
 		if err != nil {
 			t.Fatalf("get review: %v", err)
 		}
@@ -235,9 +244,12 @@ func TestGetMyReviewForOrderRPC(t *testing.T) {
 	t.Run("unreviewed order is reported as not found", func(t *testing.T) {
 		stub := &handlerLogicStub{myReviewErr: errReviewNotFound}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
-		_, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
-			OrderId: uuid.New().String(),
-		}))
+		_, err := client.GetMyReviewForOrder(
+			context.Background(),
+			connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
+				OrderId: uuid.New().String(),
+			}),
+		)
 		if connect.CodeOf(err) != connect.CodeNotFound {
 			t.Fatalf("want not found, got %v", err)
 		}

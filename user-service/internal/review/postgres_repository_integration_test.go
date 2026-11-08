@@ -375,7 +375,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			insertUser(t, ctx, sqlDB, id)
 		}
 		order1, order2 := uuid.New(), uuid.New()
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order1, ReviewSubmission{Rating: 5, Comment: "reviewed"}, nil); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 5, Comment: "reviewed"},
+			nil,
+		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 

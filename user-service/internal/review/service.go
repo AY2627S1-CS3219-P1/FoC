@@ -144,7 +144,11 @@ func (s *Service) ListReviewsFromUser(
 // the reviewee's stats atomically.
 // ListMyReviewsForOrders resolves which of the given requests the reviewer has
 // already reviewed, so order lists render one CTA per order.
-func (s *Service) ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) ListMyReviewsForOrders(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
 	return s.repo.ListReviewedOrderIds(ctx, reviewerID, orderIDs)
 }
 
