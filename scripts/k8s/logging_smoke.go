@@ -117,11 +117,11 @@ func (o *operator) loggingSmoke() (err error) {
 		return err
 	}
 	defer stopForwards([]*portForward{forward})
-	username, err := os.ReadFile(filepath.Join(o.state, "secrets/grafana-user"))
+	username, err := os.ReadFile(filepath.Join(o.state, "secrets", "grafana-user"))
 	if err != nil {
 		return err
 	}
-	password, err := os.ReadFile(filepath.Join(o.state, "secrets/grafana-password"))
+	password, err := os.ReadFile(filepath.Join(o.state, "secrets", "grafana-password"))
 	if err != nil {
 		return err
 	}

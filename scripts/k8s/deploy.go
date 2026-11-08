@@ -288,10 +288,10 @@ func (o *operator) patchLocalConfig() error {
 }
 
 func (o *operator) deployAll() error {
-	if _, err := o.lokiValuesArgs(); err != nil {
+	if err := o.checkOverlay(); err != nil {
 		return err
 	}
-	if err := o.checkOverlay(); err != nil {
+	if _, err := o.lokiValuesArgs(); err != nil {
 		return err
 	}
 	if err := o.checkContext(); err != nil {
@@ -451,10 +451,10 @@ func (o *operator) deployOne(service string) error {
 }
 
 func (o *operator) up() error {
-	if _, err := o.lokiValuesArgs(); err != nil {
+	if err := o.checkOverlay(); err != nil {
 		return err
 	}
-	if err := o.checkOverlay(); err != nil {
+	if _, err := o.lokiValuesArgs(); err != nil {
 		return err
 	}
 	var forwards []forwardSpec

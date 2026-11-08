@@ -17,17 +17,47 @@ func productionLoggingEnv(t *testing.T) {
 	t.Setenv("K8S_LOKI_STORAGE_CLASS", "gp3")
 }
 
+func TestInvalidOverlayPrecedesProductionLoggingValidation(t *testing.T) {
+	for _, command := range []string{"deploy", "up"} {
+		for _, scenario := range []string{"missing-overlay", "implicit-external-overlay"} {
+			t.Run(command+"/"+scenario, func(t *testing.T) {
+				op := testOperator(t)
+				for _, key := range []string{"K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS"} {
+					t.Setenv(key, "")
+				}
+				want := "missing "
+				if scenario == "missing-overlay" {
+					op.overlay = filepath.Join(t.TempDir(), "missing")
+				} else {
+					op.overlay = filepath.Join(op.root, "infra/k8s/overlays/production")
+					op.existing = true
+					want = "requires explicit K8S_CONTEXT and K8S_OVERLAY"
+				}
+
+				if err := op.runCLI([]string{command}); err == nil || !strings.Contains(err.Error(), want) {
+					t.Fatalf("expected overlay error containing %q, got %v", want, err)
+				}
+			})
+		}
+	}
+}
+
 func TestProductionLoggingRejectsIncompleteConfigBeforeCommands(t *testing.T) {
-	for _, key := range []string{"K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS"} {
-		t.Run(key, func(t *testing.T) {
-			op := testOperator(t)
-			productionLoggingEnv(t)
-			op.overlay = filepath.Join(op.root, "infra/k8s/overlays/production")
-			t.Setenv(key, "")
-			if err := op.deployAll(); err == nil || !strings.Contains(err.Error(), "production requires") {
-				t.Fatalf("accepted missing %s: %v", key, err)
-			}
-		})
+	for _, command := range []string{"deploy", "up"} {
+		for _, key := range []string{"K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS"} {
+			t.Run(command+"/"+key, func(t *testing.T) {
+				op := testOperator(t)
+				productionLoggingEnv(t)
+				op.overlay = filepath.Join(op.root, "infra/k8s/overlays/production")
+				t.Setenv(key, "")
+				if err := op.runCLI(
+					[]string{command},
+				); err == nil ||
+					!strings.Contains(err.Error(), "production requires") {
+					t.Fatalf("accepted missing %s: %v", key, err)
+				}
+			})
+		}
 	}
 	op := testOperator(t)
 	productionLoggingEnv(t)
