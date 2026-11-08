@@ -444,7 +444,7 @@
 								<h2 id="review-heading" tabindex="-1">Your review</h2>
 								<p class="sub">
 									{myReview.createdAt
-										? `Reviewed ${reviewDate.format(new Date(myReview.createdAt))} SGT · `
+										? `${reviewDate.format(new Date(myReview.createdAt))} · `
 										: ''}about the {revieweeRole}
 								</p>
 							</header>
@@ -539,6 +539,7 @@
 	.field { display: grid; gap: 0.25rem; min-width: 0; }
 	.field-error { color: var(--m3c-error, #b3261e); }
 	.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+	.review-card .sub { margin: 0; }
 	.review-rating { margin: 0; line-height: 1; }
 	.review-photos { margin-top: 0.4rem; }
 	.stars { color: var(--m3c-primary); letter-spacing: 0.1rem; }
