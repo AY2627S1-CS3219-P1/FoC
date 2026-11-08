@@ -171,8 +171,8 @@ func main() {
 	servers := []*http.Server{public, internal}
 
 	if imageStorage != nil {
-		// Orphan staged uploads are reaped on a minute ticker; the domain's
-		// claim/delete steps are retryable and idempotent.
+		// Orphan review photos and profile pictures are reaped on a minute
+		// ticker; both domains' claim/delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()

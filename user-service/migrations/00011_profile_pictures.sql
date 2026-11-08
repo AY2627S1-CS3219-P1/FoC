@@ -31,6 +31,10 @@ CREATE INDEX profile_pictures_cleanup
 ALTER TABLE users
     ADD COLUMN profile_picture_id UUID REFERENCES profile_pictures (id) ON DELETE SET NULL;
 
+-- Row deletes fire the SET NULL check; keep cleanup from scanning users.
+CREATE INDEX users_profile_picture_id
+    ON users (profile_picture_id) WHERE profile_picture_id IS NOT NULL;
+
 ALTER TABLE users DROP COLUMN profile_picture_key;
 
 -- +goose Down
