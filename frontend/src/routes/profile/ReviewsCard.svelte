@@ -90,7 +90,7 @@
 							{#if review.createdAt}<span class="date">{date.format(new Date(review.createdAt))}</span>{/if}
 						</div>
 						<p class="comment">{review.comment}</p>
-						<ReviewPhotos photos={review.photos} />
+						<div class="photos"><ReviewPhotos photos={review.photos} /></div>
 					</li>
 				{/each}
 			</ul>
@@ -118,5 +118,6 @@
 	.rating { color: var(--m3c-primary); letter-spacing: 0.1rem; }
 	.date { font-size: 0.85rem; color: var(--m3c-on-surface-variant); }
 	.comment { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+	.photos { margin-top: 0.4rem; }
 	.more { display: flex; justify-content: center; }
 </style>
