@@ -108,7 +108,7 @@ func TestPoolRespectsConcurrencyCap(t *testing.T) {
 	ingestJobs(t, pool, 4)
 
 	eval := newBlockingEvaluator()
-	p := jobs.NewPool(pool, eval, jobs.NewLimiter(2), jobs.PoolConfig{
+	p := jobs.NewPool(jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil), eval, jobs.NewLimiter(2), jobs.PoolConfig{
 		Concurrency:       2,
 		Lease:             30 * time.Second,
 		HeartbeatInterval: 5 * time.Second,
@@ -156,7 +156,7 @@ func TestPoolConcurrencyOneSerializes(t *testing.T) {
 	ingestJobs(t, pool, 3)
 
 	eval := newBlockingEvaluator()
-	p := jobs.NewPool(pool, eval, jobs.NewLimiter(1), jobs.PoolConfig{
+	p := jobs.NewPool(jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil), eval, jobs.NewLimiter(1), jobs.PoolConfig{
 		Concurrency:       1,
 		Lease:             30 * time.Second,
 		HeartbeatInterval: 5 * time.Second,
@@ -200,11 +200,17 @@ func TestIndependentPoolsScaleConcurrency(t *testing.T) {
 				}
 			})
 			for range tc.replicas {
-				p := jobs.NewPool(pool, eval, jobs.NewLimiter(tc.concurrency), jobs.PoolConfig{
-					Concurrency: tc.concurrency, Lease: 30 * time.Second,
-					HeartbeatInterval: time.Second, PollInterval: 10 * time.Millisecond,
-					LLMRequestTimeout: 10 * time.Second, Policy: jobs.DefaultPolicy(),
-				}, nil)
+				p := jobs.NewPool(
+					jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil),
+					eval,
+					jobs.NewLimiter(tc.concurrency),
+					jobs.PoolConfig{
+						Concurrency: tc.concurrency, Lease: 30 * time.Second,
+						HeartbeatInterval: time.Second, PollInterval: 10 * time.Millisecond,
+						LLMRequestTimeout: 10 * time.Second, Policy: jobs.DefaultPolicy(),
+					},
+					nil,
+				)
 				pools = append(pools, p)
 				p.Start(ctx)
 			}

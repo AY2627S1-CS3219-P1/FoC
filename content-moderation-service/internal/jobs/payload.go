@@ -3,7 +3,6 @@ package jobs
 import (
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	moderationevents "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/moderation/events/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -36,7 +35,7 @@ func moderationoutcomeTypeError() moderationevents.ModerationOutcomeType {
 // event_id.
 func buildOutboxPayload(
 	eventID uuid.UUID,
-	job moderationdb.ModerationJob,
+	job JobSnapshot,
 	outcome moderationevents.ModerationOutcomeType,
 	reasonCodes []string,
 	finishedAt time.Time,

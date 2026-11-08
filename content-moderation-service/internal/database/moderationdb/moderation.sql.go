@@ -90,7 +90,7 @@ UPDATE moderation_jobs
 SET status = 'processing',
     claim_token = $1,
     worker_id = $2,
-    lease_until = now() + $3::double precision * interval '1 second',
+    lease_until = clock_timestamp() + $3::double precision * interval '1 second',
     heartbeat_at = now(),
     attempt_count = attempt_count + 1,
     updated_at = now()
@@ -120,12 +120,13 @@ func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) error {
 const claimOutboxLease = `-- name: ClaimOutboxLease :one
 UPDATE moderation_outbox
 SET lease_token = gen_random_uuid(),
-    lease_until = now() + interval '30 seconds'
+    lease_until = clock_timestamp() + $1::double precision * interval '1 second'
 WHERE event_id = (
     SELECT event_id
     FROM moderation_outbox
     WHERE published_at IS NULL
       AND available_at <= now()
+      AND (lease_token IS NULL OR lease_until <= clock_timestamp())
     ORDER BY created_at ASC, event_id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -137,8 +138,8 @@ RETURNING event_id, job_id, run_generation, payload_version, payload, available_
 // relay owns it until it publishes or releases. The subquery's FOR UPDATE SKIP
 // LOCKED guarantees mutual exclusion between relays; the lease_token set here
 // fences MarkOutboxPublished so only the owning relay may publish.
-func (q *Queries) ClaimOutboxLease(ctx context.Context) (ModerationOutbox, error) {
-	row := q.db.QueryRow(ctx, claimOutboxLease)
+func (q *Queries) ClaimOutboxLease(ctx context.Context, leaseSeconds float64) (ModerationOutbox, error) {
+	row := q.db.QueryRow(ctx, claimOutboxLease, leaseSeconds)
 	var i ModerationOutbox
 	err := row.Scan(
 		&i.EventID,
@@ -209,7 +210,7 @@ WHERE id = $4
   AND run_generation = $5
   AND claim_token = $6
   AND status = 'processing'
-  AND lease_until > now()
+  AND lease_until > clock_timestamp()
 `
 
 type CompleteJobParams struct {
@@ -286,7 +287,7 @@ WHERE id = $2
   AND run_generation = $3
   AND claim_token = $4
   AND status = 'processing'
-  AND lease_until > now()
+  AND lease_until > clock_timestamp()
 `
 
 type ErrorJobParams struct {
@@ -309,6 +310,30 @@ func (q *Queries) ErrorJob(ctx context.Context, arg ErrorJobParams) (int64, erro
 	return result.RowsAffected(), nil
 }
 
+const exhaustJob = `-- name: ExhaustJob :execrows
+UPDATE moderation_jobs
+SET status = 'errored', error_class = 'attempts_exhausted', outcome = NULL,
+    reason_codes = NULL, next_attempt_at = NULL, finished_at = now(),
+    claim_token = NULL, worker_id = NULL, lease_until = NULL, heartbeat_at = NULL,
+    updated_at = now()
+WHERE id = $1 AND run_generation = $2
+  AND status IN ('queued', 'retry_wait', 'processing')
+`
+
+type ExhaustJobParams struct {
+	ID            uuid.UUID
+	RunGeneration int32
+}
+
+// The caller holds the row lock obtained by ClaimEligibleJob.
+func (q *Queries) ExhaustJob(ctx context.Context, arg ExhaustJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, exhaustJob, arg.ID, arg.RunGeneration)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const finishAttempt = `-- name: FinishAttempt :exec
 UPDATE moderation_attempts
 SET finished_at = now(),
@@ -318,7 +343,7 @@ SET finished_at = now(),
 WHERE job_id = $4
   AND run_generation = $5
   AND attempt_number = $6
-  AND outcome = ''
+  AND finished_at IS NULL
 `
 
 type FinishAttemptParams struct {
@@ -342,6 +367,17 @@ func (q *Queries) FinishAttempt(ctx context.Context, arg FinishAttemptParams) er
 		arg.RunGeneration,
 		arg.AttemptNumber,
 	)
+	return err
+}
+
+const finishResumedAttempts = `-- name: FinishResumedAttempts :exec
+UPDATE moderation_attempts
+SET finished_at = now(), outcome = 'configuration_resumed'
+WHERE job_id = $1 AND finished_at IS NULL
+`
+
+func (q *Queries) FinishResumedAttempts(ctx context.Context, jobID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, finishResumedAttempts, jobID)
 	return err
 }
 
@@ -625,11 +661,11 @@ func (q *Queries) GetOperationalStats(ctx context.Context) (GetOperationalStatsR
 const heartbeatJob = `-- name: HeartbeatJob :execrows
 UPDATE moderation_jobs
 SET heartbeat_at = now(),
-    lease_until = now() + $1::double precision * interval '1 second'
+    lease_until = clock_timestamp() + $1::double precision * interval '1 second'
 WHERE id = $2
   AND claim_token = $3
   AND status = 'processing'
-  AND lease_until > now()
+  AND lease_until > clock_timestamp()
 `
 
 type HeartbeatJobParams struct {
@@ -833,6 +869,99 @@ func (q *Queries) InsertOutbox(ctx context.Context, arg InsertOutboxParams) erro
 	return err
 }
 
+const lockJob = `-- name: LockJob :one
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockJob(ctx context.Context, id uuid.UUID) (ModerationJob, error) {
+	row := q.db.QueryRow(ctx, lockJob, id)
+	var i ModerationJob
+	err := row.Scan(
+		&i.ID,
+		&i.ModerationRequestID,
+		&i.SourceEventID,
+		&i.ReviewID,
+		&i.ReviewerID,
+		&i.ContentRevision,
+		&i.Comment,
+		&i.ConfigVersionID,
+		&i.PolicyVersion,
+		&i.RunGeneration,
+		&i.Status,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.ClaimToken,
+		&i.WorkerID,
+		&i.LeaseUntil,
+		&i.HeartbeatAt,
+		&i.Outcome,
+		&i.ReasonCodes,
+		&i.ErrorClass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const lockOutbox = `-- name: LockOutbox :one
+SELECT event_id FROM moderation_outbox WHERE event_id = $1 FOR UPDATE
+`
+
+// Lease expiry is checked in a separate write after this lock has been acquired.
+func (q *Queries) LockOutbox(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOutbox, eventID)
+	var event_id uuid.UUID
+	err := row.Scan(&event_id)
+	return event_id, err
+}
+
+const lockOwnedJob = `-- name: LockOwnedJob :one
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
+WHERE id = $1 AND run_generation = $2
+  AND claim_token = $3 AND status = 'processing'
+  AND lease_until > clock_timestamp()
+FOR UPDATE
+`
+
+type LockOwnedJobParams struct {
+	ID            uuid.UUID
+	RunGeneration int32
+	ClaimToken    *uuid.UUID
+}
+
+// Take the job lock before touching attempts, matching completion/recovery order.
+func (q *Queries) LockOwnedJob(ctx context.Context, arg LockOwnedJobParams) (ModerationJob, error) {
+	row := q.db.QueryRow(ctx, lockOwnedJob, arg.ID, arg.RunGeneration, arg.ClaimToken)
+	var i ModerationJob
+	err := row.Scan(
+		&i.ID,
+		&i.ModerationRequestID,
+		&i.SourceEventID,
+		&i.ReviewID,
+		&i.ReviewerID,
+		&i.ContentRevision,
+		&i.Comment,
+		&i.ConfigVersionID,
+		&i.PolicyVersion,
+		&i.RunGeneration,
+		&i.Status,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.ClaimToken,
+		&i.WorkerID,
+		&i.LeaseUntil,
+		&i.HeartbeatAt,
+		&i.Outcome,
+		&i.ReasonCodes,
+		&i.ErrorClass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const markOutboxPublished = `-- name: MarkOutboxPublished :execrows
 UPDATE moderation_outbox
 SET published_at = now(),
@@ -840,6 +969,8 @@ SET published_at = now(),
     lease_until = NULL
 WHERE event_id = $1
   AND lease_token = $2
+  AND published_at IS NULL
+  AND lease_until > clock_timestamp()
 `
 
 type MarkOutboxPublishedParams struct {
@@ -915,7 +1046,7 @@ func (q *Queries) Quarantine(ctx context.Context, arg QuarantineParams) error {
 	return err
 }
 
-const releaseJob = `-- name: ReleaseJob :execrows
+const releaseJob = `-- name: ReleaseJob :one
 UPDATE moderation_jobs
 SET status = 'queued',
     claim_token = NULL,
@@ -926,7 +1057,8 @@ SET status = 'queued',
 WHERE id = $1
   AND claim_token = $2
   AND status = 'processing'
-  AND lease_until > now()
+  AND lease_until > clock_timestamp()
+RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
 `
 
 type ReleaseJobParams struct {
@@ -937,12 +1069,35 @@ type ReleaseJobParams struct {
 // Returns owned work on shutdown: requeue it so a later cycle retries promptly
 // instead of waiting out the lease. Clearing the claim while the row stays
 // 'processing' would violate processing_is_claimed, so the status moves too.
-func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, releaseJob, arg.ID, arg.ClaimToken)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (ModerationJob, error) {
+	row := q.db.QueryRow(ctx, releaseJob, arg.ID, arg.ClaimToken)
+	var i ModerationJob
+	err := row.Scan(
+		&i.ID,
+		&i.ModerationRequestID,
+		&i.SourceEventID,
+		&i.ReviewID,
+		&i.ReviewerID,
+		&i.ContentRevision,
+		&i.Comment,
+		&i.ConfigVersionID,
+		&i.PolicyVersion,
+		&i.RunGeneration,
+		&i.Status,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.ClaimToken,
+		&i.WorkerID,
+		&i.LeaseUntil,
+		&i.HeartbeatAt,
+		&i.Outcome,
+		&i.ReasonCodes,
+		&i.ErrorClass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
 }
 
 const releaseOutboxLease = `-- name: ReleaseOutboxLease :execrows
@@ -951,6 +1106,8 @@ SET lease_token = NULL,
     lease_until = now() - interval '1 second'
 WHERE event_id = $1
   AND lease_token = $2
+  AND published_at IS NULL
+  AND lease_until > clock_timestamp()
 `
 
 type ReleaseOutboxLeaseParams struct {
@@ -971,8 +1128,9 @@ UPDATE moderation_jobs j
 SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
     config_version_id = $1, policy_version = $2,
     next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
-    finished_at = NULL, updated_at = now()
-WHERE j.status = 'retry_wait' AND j.error_class = 'configuration'
+    finished_at = NULL, claim_token = NULL, worker_id = NULL,
+    lease_until = NULL, heartbeat_at = NULL, updated_at = now()
+WHERE j.status IN ('queued', 'retry_wait', 'processing')
   AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
 RETURNING j.id
 `
@@ -1060,7 +1218,7 @@ WHERE id = $3
   AND run_generation = $4
   AND claim_token = $5
   AND status = 'processing'
-  AND lease_until > now()
+  AND lease_until > clock_timestamp()
 `
 
 type ScheduleJobRetryParams struct {

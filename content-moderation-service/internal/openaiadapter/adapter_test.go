@@ -18,6 +18,9 @@ import (
 	"testing"
 	"time"
 
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 )
 
@@ -303,5 +306,60 @@ func TestProviderEchoCannotLeakCredentialsOrReview(t *testing.T) {
 				t.Fatalf("HTTP %d leaked %q: %v", status, value, err)
 			}
 		}
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestConfiguredTimeoutAndShorterCallerDeadlineReachTransport(t *testing.T) {
+	for _, callerLimit := range []time.Duration{0, 20 * time.Second} {
+		t.Run(callerLimit.String(), func(t *testing.T) {
+			adapter, err := New(
+				Config{BaseURL: "https://provider.example/v1", APIKey: "fake", Timeout: 150 * time.Second},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			transport := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				deadline, ok := r.Context().Deadline()
+				if !ok {
+					t.Fatal("transport has no deadline")
+				}
+				want := 150 * time.Second
+				if callerLimit > 0 {
+					want = callerLimit
+				}
+				remaining := time.Until(deadline)
+				if remaining > want || remaining < want-time.Second {
+					t.Errorf("transport deadline=%v, want %v", remaining, want)
+				}
+				return &http.Response{
+					StatusCode: 200,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(sampleBody)),
+					Request:    r,
+				}, nil
+			})
+			client := openai.NewClient(
+				option.WithBaseURL("https://provider.example/v1"),
+				option.WithAPIKey("fake"),
+				option.WithMaxRetries(0),
+				option.WithHTTPClient(&http.Client{Transport: transport}),
+			)
+			adapter.chatCompletions = client.Chat.Completions
+			ctx := context.Background()
+			if callerLimit > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, callerLimit)
+				defer cancel()
+			}
+			req := testRequest("json_object")
+			req.Timeout = 0
+			if _, err := adapter.Complete(ctx, req); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

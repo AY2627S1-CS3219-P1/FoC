@@ -50,7 +50,9 @@ lease.
 
 - **Worker crash**: an expired lease makes the job eligible again with the
   abandoned attempt recorded; a stale worker cannot complete or requeue it.
-  An inference repeated after a crash is possible by design.
+  An inference repeated after a crash is possible by design. Crash recovery and
+  shutdown releases consume the same overall attempt budget; exhaustion emits
+  one terminal ERROR event without another inference.
 - **Kafka restarts**: at-least-once redelivery is safe — ingestion dedups on
   `moderation_request_id`, User's consumer dedups on `event_id`.
 - **Wire-decode failure** (undecodable bytes on `users.review_submitted`): the
@@ -130,7 +132,9 @@ After rotating server credentials, successfully test and reactivate the same
 version to clear its pause; its jobs retain their pinned configuration and run
 generation. Alternatively save, test and activate a corrected version. Check
 **Resume jobs paused by configuration errors with this version** to explicitly
-move paused jobs to the corrected configuration. This starts a new generation,
+move all nonterminal jobs pinned to paused versions to the corrected configuration,
+including transient retries, released jobs and in-flight claims. Old claims are
+fenced and their attempts are finished as configuration-resumed. This starts a new generation,
 resets its attempt count and records the acting admin per job in the same
 activation transaction. Leaving the checkbox unchecked preserves pinned jobs;
 failed validation or stale expected-version checks cannot resume anything.
@@ -139,3 +143,17 @@ Apply CMS migration 00002 before deploying binaries that use configuration
 pauses. Deploy the updated optional-field RPC clients and server together:
 older clients cannot distinguish omitted floating-point settings from zero.
 New clients preserve unset settings and explicit zero independently.
+
+Changing `CMS_LLM_BASE_URL` requires saving, testing and activating a new draft
+under the new endpoint, then explicitly resuming affected jobs. Old drafts fail
+validation before contacting the provider, and workers pause mismatched versions
+without consuming attempts. Credential rotation at the same endpoint preserves
+the fingerprint. The configured request timeout applies to provider response
+reads as well as the initial request; policy code does not override it.
+
+Workers acquire shared inference capacity before claiming work. Shutdown cancels
+inference and heartbeat I/O, then attempts a detached release for at most two
+seconds; database contention falls back to lease recovery. Relays honor their
+configured lease and bound broker publication by its expiry. Delivery remains
+at least once after expiry or an ambiguous broker response; consumers deduplicate
+using the original event ID.

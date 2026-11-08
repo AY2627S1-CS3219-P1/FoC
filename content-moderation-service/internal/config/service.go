@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/evaladapter"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/provideridentity"
 	"github.com/google/uuid"
 )
 
@@ -156,6 +155,9 @@ func (s *Service) TestDraft(ctx context.Context, versionID uuid.UUID, sampleComm
 	if err != nil {
 		return result, err
 	}
+	if version.ProviderFingerprint != provideridentity.Fingerprint(s.settings.BaseURL, version.ModelID) {
+		return result, fmt.Errorf("config: provider endpoint changed; save and validate a new draft")
+	}
 	var params InferenceParameters
 	if err := params.Decode(version.Parameters); err != nil {
 		return result, err
@@ -299,8 +301,7 @@ func effectiveConfigFrom(
 }
 
 func providerFingerprint(baseURL, modelID string) string {
-	sum := sha256.Sum256([]byte(baseURL + "\x00" + modelID))
-	return hex.EncodeToString(sum[:])
+	return provideridentity.Fingerprint(baseURL, modelID)
 }
 
 func isErrNoActive(err error) bool {

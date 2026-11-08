@@ -260,3 +260,60 @@ func TestIdleRelayShutdownDoesNotWaitForPollInterval(t *testing.T) {
 		t.Fatal("relay did not stop promptly")
 	}
 }
+
+// A publisher blocked inside an active lease exposes concurrent relay theft.
+type blockingPublisher struct {
+	entered chan struct{}
+	unblock chan struct{}
+}
+
+func (p *blockingPublisher) Publish(ctx context.Context, _ string, _ []byte, _ protoreflect.ProtoMessage) error {
+	select {
+	case p.entered <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-p.unblock:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (*blockingPublisher) Close() error { return nil }
+
+func TestConcurrentRelaysDoNotStealLivePublication(t *testing.T) {
+	pool := setup(t)
+	completedJob(t, pool)
+	pub := &blockingPublisher{entered: make(chan struct{}, 2), unblock: make(chan struct{})}
+	cfg := outbox.RelayConfig{PollInterval: time.Millisecond, Lease: 5 * time.Second}
+	a, b := outbox.NewRelay(pool, pub, cfg, nil), outbox.NewRelay(pool, pub, cfg, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() { cancel(); a.Wait(); b.Wait() }()
+	a.Start(ctx)
+	select {
+	case <-pub.entered:
+	case <-time.After(time.Second):
+		t.Fatal("first relay never published")
+	}
+	b.Start(ctx)
+	select {
+	case <-pub.entered:
+		t.Fatal("second relay stole live publication")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(pub.unblock)
+	waitFor(t, func() bool {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_outbox WHERE published_at IS NOT NULL`).
+			Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}, time.Second, "durable publication")
+	select {
+	case <-pub.entered:
+		t.Fatal("live event published twice")
+	default:
+	}
+}

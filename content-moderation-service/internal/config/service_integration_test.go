@@ -14,9 +14,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
 )
 
-type evaluator struct{ fail bool }
+type evaluator struct {
+	fail  bool
+	calls int
+}
 
 func (e *evaluator) Evaluate(context.Context, jobs.EvaluationInput) (jobs.Assessment, error) {
+	e.calls++
 	if e.fail {
 		return jobs.Assessment{}, errors.New("provider unavailable")
 	}
@@ -99,5 +103,34 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 	}
 	if audits != 2 {
 		t.Fatalf("activation audit count = %d, want 2", audits)
+	}
+
+	changedEndpoint := config.NewService(
+		store,
+		nil,
+		eval,
+		jobs.NewLimiter(1),
+		config.Settings{BaseURL: "https://changed.example/v1", PolicyVersion: "review-text-v1"},
+		time.Now,
+	)
+	calls := eval.calls
+	if _, err := changedEndpoint.TestDraft(ctx, second, "benign"); err == nil {
+		t.Fatal("old endpoint fingerprint passed validation")
+	}
+	if eval.calls != calls {
+		t.Fatal("provider invoked before endpoint identity validation")
+	}
+	fresh, err := changedEndpoint.SaveDraft(
+		ctx,
+		"other-model",
+		config.OutputModeJSONObject,
+		config.InferenceParameters{},
+		"admin",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := changedEndpoint.Activate(ctx, fresh, "admin", &second, true); err != nil {
+		t.Fatalf("new endpoint draft failed validation: %v", err)
 	}
 }

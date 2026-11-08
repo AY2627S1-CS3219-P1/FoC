@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -86,7 +87,11 @@ func Within(ctx context.Context, pool *pgxpool.Pool, f func(*moderationdb.Querie
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer cancel()
+		_ = tx.Rollback(cleanupCtx)
+	}()
 
 	if err := f(moderationdb.New(tx)); err != nil {
 		if isSerialization(err) {

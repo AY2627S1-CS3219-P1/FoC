@@ -12,6 +12,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/provideridentity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,37 +38,33 @@ type JobStore = jobStore
 // jobStore binds the engine's queries to one connection pool. Writes run inside
 // database.Within; reads run directly against the pool.
 type jobStore struct {
-	pool   *pgxpool.Pool
-	policy Policy
+	pool            *pgxpool.Pool
+	policy          Policy
+	providerBaseURL string
 	// rngMu guards rng: one jobStore is shared by every pool worker, and
 	// math/rand.Rand is not safe for concurrent use.
 	rngMu sync.Mutex
 	rng   *rand.Rand
 }
 
-// claimOutcome reports what a claim cycle produced.
-type claimOutcome int
+// StoreOption configures the PostgreSQL job adapter.
+type StoreOption func(*jobStore)
 
-const (
-	ClaimNone claimOutcome = iota
-	ClaimNoConfiguration
-	ClaimReady
-)
-
-// ClaimedJob is a job a worker owns until it completes or is scheduled again.
-type ClaimedJob struct {
-	Job           moderationdb.ModerationJob
-	ClaimToken    uuid.UUID
-	AttemptNumber int32
-	Config        moderationdb.ModerationConfigVersion
+// WithProviderIdentity makes queued work wait for explicit revalidation after an endpoint change.
+func WithProviderIdentity(baseURL string) StoreOption {
+	return func(store *jobStore) { store.providerBaseURL = baseURL }
 }
 
 // NewJobStore constructs the persistence owner for one connection pool.
-func NewJobStore(pool *pgxpool.Pool, policy Policy, rng *rand.Rand) *jobStore {
+func NewJobStore(pool *pgxpool.Pool, policy Policy, rng *rand.Rand, options ...StoreOption) *jobStore {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
-	return &jobStore{pool: pool, policy: policy, rng: rng}
+	store := &jobStore{pool: pool, policy: policy, rng: rng}
+	for _, option := range options {
+		option(store)
+	}
+	return store
 }
 
 // Heartbeat extends the claim's lease while an assessment runs. The boolean is
@@ -78,32 +75,54 @@ func (s *jobStore) Heartbeat(
 	claimToken uuid.UUID,
 	heartbeatAt, leaseUntil time.Time,
 ) (bool, error) {
-	q := moderationdb.New(s.pool)
-	rows, err := q.HeartbeatJob(ctx, moderationdb.HeartbeatJobParams{
-		LeaseSeconds: leaseUntil.Sub(heartbeatAt).Seconds(),
-		ID:           jobID,
-		ClaimToken:   &claimToken,
+	var rows int64
+	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
+		if _, err := q.LockJob(ctx, jobID); errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		var err error
+		rows, err = q.HeartbeatJob(ctx, moderationdb.HeartbeatJobParams{
+			LeaseSeconds: leaseUntil.Sub(heartbeatAt).Seconds(), ID: jobID, ClaimToken: &claimToken,
+		})
+		return err
 	})
-	if err != nil {
-		return false, err
-	}
-	return rows > 0, nil
+	return rows > 0, err
 }
 
 // Release returns owned work on shutdown, requeueing it so a later cycle
 // retries promptly. The boolean is false when the claim was already gone.
 func (s *jobStore) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) (bool, error) {
-	q := moderationdb.New(s.pool)
-	rows, err := q.ReleaseJob(ctx, moderationdb.ReleaseJobParams{ID: jobID, ClaimToken: &claimToken})
-	return rows > 0, err
+	var released bool
+	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
+		if _, err := q.LockJob(ctx, jobID); errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		job, err := q.ReleaseJob(ctx, moderationdb.ReleaseJobParams{ID: jobID, ClaimToken: &claimToken})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		released = true
+		return q.FinishAttempt(ctx, moderationdb.FinishAttemptParams{
+			JobID: job.ID, RunGeneration: job.RunGeneration, AttemptNumber: job.AttemptCount,
+			Outcome: "released",
+		})
+	})
+	return released, err
 }
 
 // Claim performs the short claim transaction: lock the oldest eligible job, pin
 // its active configuration before first inference, mark it processing, and
 // record the started attempt. The claim lock is released by the transaction, so
 // no lock is held during inference.
-func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Duration) (claimOutcome, *ClaimedJob, error) {
-	var outcome claimOutcome
+func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Duration) (ClaimOutcome, *ClaimedJob, error) {
+	var outcome ClaimOutcome
 	var claimed *ClaimedJob
 
 	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
@@ -114,6 +133,23 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 		}
 		if err != nil {
 			return err
+		}
+
+		if job.Status == "processing" {
+			class := "lease_expired"
+			if err := q.FinishAttempt(ctx, moderationdb.FinishAttemptParams{
+				JobID: job.ID, RunGeneration: job.RunGeneration, AttemptNumber: job.AttemptCount,
+				Outcome: "abandoned", ErrorClass: &class,
+			}); err != nil {
+				return err
+			}
+		}
+		if int(job.AttemptCount) >= s.policy.MaxAttempts {
+			if err := exhaustJob(ctx, q, job); err != nil {
+				return err
+			}
+			outcome = ClaimExhausted
+			return nil
 		}
 
 		var config moderationdb.ModerationConfigVersion
@@ -135,6 +171,15 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 			if err != nil {
 				return err
 			}
+		}
+
+		if s.providerBaseURL != "" &&
+			config.ProviderFingerprint != provideridentity.Fingerprint(s.providerBaseURL, config.ModelID) {
+			if err := q.PauseConfiguration(ctx, config.VersionID); err != nil {
+				return err
+			}
+			outcome = ClaimNoConfiguration
+			return nil
 		}
 
 		configVersionID := config.VersionID.String()
@@ -174,7 +219,12 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 		}
 
 		outcome = ClaimReady
-		claimed = &ClaimedJob{Job: job, ClaimToken: claimToken, AttemptNumber: attemptNumber, Config: config}
+		claimed = &ClaimedJob{
+			Job:           jobSnapshot(job),
+			ClaimToken:    claimToken,
+			AttemptNumber: attemptNumber,
+			Config:        configurationSnapshot(config),
+		}
 		return nil
 	})
 	if err != nil {
@@ -186,6 +236,9 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 // Complete runs a valid assessment to a terminal completed outcome, finishing
 // the attempt and enqueuing the outbox event atomically, fenced by claim token.
 func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assessment) error {
+	if err := validateAssessment(assessment); err != nil {
+		return err
+	}
 	reasonCodes := reasonCodesFor(assessment.Outcome, assessment.ReasonCodes)
 	outcomeStr := string(assessment.Outcome)
 	finishedAt := time.Now()
@@ -199,6 +252,11 @@ func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assess
 	}
 
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
+		if _, err := q.LockJob(ctx, c.Job.ID); errors.Is(err, pgx.ErrNoRows) {
+			return ErrFenced
+		} else if err != nil {
+			return err
+		}
 		rows, err := q.CompleteJob(ctx, moderationdb.CompleteJobParams{
 			ID:            c.Job.ID,
 			RunGeneration: c.Job.RunGeneration,
@@ -236,6 +294,14 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 	eventID := uuid.New()
 
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
+		if _, err := q.LockOwnedJob(ctx, moderationdb.LockOwnedJobParams{
+			ID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ClaimToken: &c.ClaimToken,
+		}); errors.Is(err, pgx.ErrNoRows) {
+			return ErrFenced
+		} else if err != nil {
+			return err
+		}
+
 		invalidClass := ErrorClassInvalidOutput
 		invalidCount, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
 			JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &invalidClass,
@@ -282,9 +348,7 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 				return err
 			}
 			if rows == 0 {
-				// The claim was lost (another worker reclaimed the job); this
-				// attempt's failure was recorded but the schedule write belongs
-				// to the current owner.
+				// Roll back the attempt update if its lease expired during finalization.
 				return ErrFenced
 			}
 			if kind == kindConfiguration {
@@ -380,4 +444,23 @@ func isKnownReason(code string) bool {
 	default:
 		return false
 	}
+}
+
+func exhaustJob(ctx context.Context, q *moderationdb.Queries, job moderationdb.ModerationJob) error {
+	rows, err := q.ExhaustJob(ctx, moderationdb.ExhaustJobParams{ID: job.ID, RunGeneration: job.RunGeneration})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrFenced
+	}
+	eventID := uuid.New()
+	now := time.Now()
+	payload, err := buildOutboxPayload(eventID, jobSnapshot(job), moderationoutcomeTypeError(), nil, now)
+	if err != nil {
+		return err
+	}
+	return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{
+		EventID: eventID, JobID: job.ID, RunGeneration: job.RunGeneration, Payload: payload, AvailableAt: now,
+	})
 }

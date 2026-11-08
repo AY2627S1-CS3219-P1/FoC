@@ -6,6 +6,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,12 +16,12 @@ import (
 // ErrNotFound reports the requested job has no moderation_job row. A missing job
 // is valid from the caller's point of view (not yet ingested), so it maps to
 // a caller-facing not_found rather than a generic error.
-var ErrNotFound = errors.New("review: job not found")
+var ErrNotFound = jobs.ErrJobNotFound
 
 // ErrNotRetriable reports the retry was refused: the job is not a terminal errored
 // job at the expected run_generation, so no row changed. It maps to
 // failed_precondition.
-var ErrNotRetriable = errors.New("review: job is not a terminal errored job at the expected generation")
+var ErrNotRetriable = jobs.ErrNotRetriable
 
 // Store owns the read model and administrative transitions for moderation jobs.
 type Store struct {
@@ -130,77 +131,14 @@ func (s *Store) RetryErroredJob(
 	useCurrentConfiguration bool,
 	createdBy string,
 ) (*reviewv1.ReviewModerationJobSummary, error) {
-	// Read the current state first so a missing job reports not_found rather
-	// than silently failing the fenced update.
-	job, err := s.fetchJob(ctx, jobID)
-	if err != nil {
-		return nil, err
-	}
-
-	configVersionID, policyVersion := s.retryConfig(ctx, job, useCurrentConfiguration)
-
 	var updated moderationdb.ModerationJob
 	if err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
-		rows, err := q.RetryErroredJob(ctx, moderationdb.RetryErroredJobParams{
-			ConfigVersionID: configVersionID,
-			PolicyVersion:   policyVersion,
-			ID:              jobID,
-			RunGeneration:   expectedRunGeneration,
-		})
-		if err != nil {
-			return err
-		}
-		if rows == 0 {
-			return ErrNotRetriable
-		}
-		if err := q.InsertAdminAudit(ctx, moderationdb.InsertAdminAuditParams{
-			Action: "RETRY_JOB",
-			JobID:  &jobID,
-			Actor:  createdBy,
-			Detail: jsonBool("use_current_configuration", useCurrentConfiguration),
-		}); err != nil {
-			return err
-		}
-		updated, err = q.GetJobByID(ctx, jobID)
+		var err error
+		updated, err = jobs.NewTransitions(q).
+			Retry(ctx, jobID, expectedRunGeneration, useCurrentConfiguration, createdBy)
 		return err
 	}); err != nil {
 		return nil, err
 	}
 	return Summarize(updated), nil
-}
-
-// retryConfig resolves the configuration to persist on retry. Retaining uses the
-// config and policy the job pinned at first run; pinning active reads the current
-// active configuration version.
-func (s *Store) retryConfig(
-	ctx context.Context,
-	job moderationdb.ModerationJob,
-	useCurrent bool,
-) (*string, *string) {
-	if !useCurrent {
-		return job.ConfigVersionID, job.PolicyVersion
-	}
-	active, err := moderationdb.New(s.pool).GetActiveConfigVersionFull(ctx)
-	if err != nil {
-		// No configuration activated yet means there is nothing to pin; the
-		// fenced update then cannot succeed and the engine reports not retriable.
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, nil
-	}
-	versionID := active.VersionID.String()
-	policy := active.PolicyVersion
-	return &versionID, &policy
-}
-
-func jsonBool(key string, value bool) []byte {
-	return []byte(`{"` + key + `": ` + boolString(value) + `}`)
-}
-
-func boolString(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
 }

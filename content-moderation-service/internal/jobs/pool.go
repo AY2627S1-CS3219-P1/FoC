@@ -9,9 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PoolConfig holds the tunable behaviour of the worker pool.
@@ -22,6 +19,7 @@ type PoolConfig struct {
 	PollInterval      time.Duration
 	LLMRequestTimeout time.Duration
 	Policy            Policy
+	CleanupTimeout    time.Duration
 }
 
 // Pool is a bounded, per-process worker pool. It claims eligible jobs, runs one
@@ -29,7 +27,7 @@ type PoolConfig struct {
 // result through the fenced store. It shares the Limiter with the configuration
 // test so live assessments never exceed the configured concurrency.
 type Pool struct {
-	store     *jobStore
+	store     Repository
 	evaluator Evaluator
 	limiter   *Limiter
 	cfg       PoolConfig
@@ -40,7 +38,7 @@ type Pool struct {
 
 // NewPool constructs the worker pool.
 func NewPool(
-	dbPool *pgxpool.Pool,
+	repository Repository,
 	evaluator Evaluator,
 	limiter *Limiter,
 	cfg PoolConfig,
@@ -50,7 +48,7 @@ func NewPool(
 		logger = slog.Default()
 	}
 	return &Pool{
-		store:     NewJobStore(dbPool, cfg.Policy, nil),
+		store:     repository,
 		evaluator: evaluator,
 		limiter:   limiter,
 		cfg:       cfg,
@@ -90,26 +88,15 @@ func (p *Pool) Wait() { p.workers.Wait() }
 // so the store write must run on a detached context; a failed release is
 // logged (the lease machinery remains the safety net).
 func (p *Pool) release(ctx context.Context, claimed *ClaimedJob) {
-	if _, err := p.store.Release(context.WithoutCancel(ctx), claimed.Job.ID, claimed.ClaimToken); err != nil {
+	timeout := p.cfg.CleanupTimeout
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	if _, err := p.store.Release(cleanupCtx, claimed.Job.ID, claimed.ClaimToken); err != nil {
 		p.logger.Error("release job", "error", err, "job", claimed.Job.ID.String())
 	}
-}
-
-// Ingest stores a submitted review as a durable moderation job, deduplicating on
-// moderation_request_id. It returns nil when the event is durably handled —
-// newly inserted, deduplicated, or quarantined as a conflict or malformed — and
-// in all three cases the caller acknowledges the event. Only a transport-level
-// error is returned, so the event is retried.
-func (p *Pool) Ingest(ctx context.Context, in IngestionInput) (ingestionResult, error) {
-	return p.store.Ingest(ctx, in)
-}
-
-// QuarantineMalformed records a decoded-but-unprocessable event and acknowledges
-// it so the partition can advance. Callers use it when an event cannot become a
-// job (for example, a malformed identifier) so it is retried only on transport
-// failure, not on a permanent decode problem.
-func (p *Pool) QuarantineMalformed(ctx context.Context, in MalformedInput) error {
-	return p.store.QuarantineMalformed(ctx, in)
 }
 
 // worker is one loop: claim, process, repeat. It never returns until ctx ends.
@@ -119,8 +106,13 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 			return
 		}
 
+		if err := p.limiter.Acquire(ctx); err != nil {
+			return
+		}
+
 		outcome, claimed, err := p.store.Claim(ctx, workerID, p.cfg.Lease)
 		if err != nil {
+			p.limiter.Release()
 			if ctx.Err() != nil {
 				return
 			}
@@ -131,7 +123,10 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 
 		switch outcome {
 		case ClaimNone, ClaimNoConfiguration:
+			p.limiter.Release()
 			p.idleSleep(ctx, p.cfg.PollInterval)
+		case ClaimExhausted:
+			p.limiter.Release()
 		case ClaimReady:
 			p.processClaimed(ctx, claimed)
 		}
@@ -141,23 +136,31 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 // processClaimed runs the bounded assessment and finalizes it. The limiter slot
 // bounds concurrent evaluations together with the configuration test.
 func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
-	if err := p.limiter.Acquire(ctx); err != nil {
-		p.release(ctx, claimed)
-		return
-	}
 	defer p.limiter.Release()
 	p.stats.inFlight.Add(1)
 	defer p.stats.inFlight.Add(-1)
 
 	evalCtx, cancelEval := context.WithTimeout(ctx, p.cfg.LLMRequestTimeout)
+	defer cancelEval()
+	// Validate ownership immediately before inference, including delayed callers.
+	ok, err := p.store.Heartbeat(evalCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), time.Now().Add(p.cfg.Lease))
+	if err != nil || !ok {
+		p.release(ctx, claimed)
+		return
+	}
+	input, err := evaluationInput(claimed)
+	if err != nil {
+		p.finalizeFailed(ctx, claimed, WrapConfigurationError(err))
+		return
+	}
 	heartbeatStop, claimLost, claimDone := p.heartbeat(ctx, evalCtx, cancelEval, claimed)
 
-	assessment, evalErr := p.evaluator.Evaluate(evalCtx, evaluationInput(claimed))
+	assessment, evalErr := p.evaluator.Evaluate(evalCtx, input)
 
 	// Stop inference and the heartbeat, then let the heartbeat goroutine exit
 	// so a pending claim-loss signal is already visible.
-	cancelEval()
 	heartbeatStop()
+	cancelEval()
 	<-claimDone
 
 	if ctx.Err() != nil {
@@ -238,6 +241,7 @@ func (p *Pool) heartbeat(
 	cancelEval context.CancelFunc,
 	claimed *ClaimedJob,
 ) (stop func(), claimLost <-chan struct{}, done <-chan struct{}) {
+	heartbeatCtx, cancelHeartbeat := context.WithCancel(evalCtx)
 	claimLostC := make(chan struct{}, 1)
 	doneC := make(chan struct{})
 
@@ -247,14 +251,17 @@ func (p *Pool) heartbeat(
 		defer close(doneC)
 		for {
 			select {
-			case <-evalCtx.Done():
+			case <-heartbeatCtx.Done():
 				return
 			case <-parentCtx.Done():
 				return
 			case <-ticker.C:
 				leaseUntil := time.Now().Add(p.cfg.Lease)
-				ok, err := p.store.Heartbeat(evalCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), leaseUntil)
+				ok, err := p.store.Heartbeat(heartbeatCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), leaseUntil)
 				if err != nil || !ok {
+					if heartbeatCtx.Err() != nil {
+						return
+					}
 					cancelEval()
 					select {
 					case claimLostC <- struct{}{}:
@@ -266,7 +273,7 @@ func (p *Pool) heartbeat(
 		}
 	}()
 
-	return func() { ticker.Stop() }, claimLostC, doneC
+	return cancelHeartbeat, claimLostC, doneC
 }
 
 // idleSleep waits for the poll interval or ctx cancellation.
@@ -280,15 +287,19 @@ func (p *Pool) idleSleep(ctx context.Context, d time.Duration) {
 }
 
 // evaluationInput builds the immutable per-run input from the claimed job.
-func evaluationInput(claimed *ClaimedJob) EvaluationInput {
+func evaluationInput(claimed *ClaimedJob) (EvaluationInput, error) {
+	config, err := effectiveConfig(claimed.Config)
+	if err != nil {
+		return EvaluationInput{}, err
+	}
 	return EvaluationInput{
 		ModerationRequestID: claimed.Job.ModerationRequestID.String(),
 		ReviewID:            claimed.Job.ReviewID.String(),
 		ReviewerID:          claimed.Job.ReviewerID.String(),
 		ContentRevision:     claimed.Job.ContentRevision,
 		Comment:             claimed.Job.Comment,
-		Config:              effectiveConfig(claimed.Config),
-	}
+		Config:              config,
+	}, nil
 }
 
 // configParameters mirrors the jsonb layout persisted by the config domain.
@@ -305,10 +316,10 @@ type configParameters struct {
 	Advanced            map[string]string `json:"advanced_parameters"`
 }
 
-func effectiveConfig(config moderationdb.ModerationConfigVersion) EffectiveConfig {
+func effectiveConfig(config ConfigurationSnapshot) (EffectiveConfig, error) {
 	var params configParameters
 	if err := json.Unmarshal(config.Parameters, &params); err != nil {
-		params = configParameters{}
+		return EffectiveConfig{}, errors.New("stored inference parameters are invalid")
 	}
 
 	return EffectiveConfig{
@@ -325,7 +336,7 @@ func effectiveConfig(config moderationdb.ModerationConfigVersion) EffectiveConfi
 		Seed:                params.Seed,
 		ReasoningEffort:     derefString(params.ReasoningEffort),
 		Advanced:            params.Advanced,
-	}
+	}, nil
 }
 
 func derefString(s *string) string {

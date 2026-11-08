@@ -6,15 +6,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
 )
-
-// defaultRequestTimeout bounds a single evaluation when the completion port is
-// called without an explicit timeout. It is enforced by the adapter on the
-// whole exchange, including response reads.
-const defaultRequestTimeout = 90 * time.Second
 
 // Evaluator applies one review assessment against the versioned policy using an
 // OpenAI-compatible completion backend. It implements jobs.Evaluator. The
@@ -66,7 +60,6 @@ func buildRequest(input jobs.EvaluationInput) *CompletionRequest {
 			ReasoningEffort:     cfg.ReasoningEffort,
 			Advanced:            cfg.Advanced,
 		},
-		Timeout: defaultRequestTimeout,
 	}
 }
 
@@ -80,15 +73,22 @@ func evaluateResponse(resp *CompletionResponse) (jobs.Assessment, error) {
 	if reason := strings.TrimSpace(resp.Refusal); reason != "" {
 		return jobs.Assessment{}, &ErrRefusal{Reason: "provider declined to assess the content"}
 	}
-	content := strings.TrimSpace(resp.Content)
-	if content == "" {
-		return jobs.Assessment{}, ErrEmptyResponse
+	if resp.FinishReason == "content_filter" {
+		return jobs.Assessment{}, &ErrRefusal{Reason: "provider filtered the assessment"}
+	}
+	if resp.FinishReason != "stop" && resp.FinishReason != finishReasonLength {
+		return jobs.Assessment{}, &ErrInvalidOutput{Detail: "unusable provider finish reason"}
 	}
 	if resp.FinishReason == finishReasonLength {
 		return jobs.Assessment{}, &ErrInvalidOutput{
 			Detail: "finish reason \"length\": response was truncated before completion",
 		}
 	}
+	content := strings.TrimSpace(resp.Content)
+	if content == "" {
+		return jobs.Assessment{}, ErrEmptyResponse
+	}
+
 	return parseAssessment(content)
 }
 

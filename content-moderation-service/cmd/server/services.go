@@ -31,7 +31,7 @@ type services struct {
 func newServices(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) services {
 	// Database-backed stores
 	policy := jobs.PolicyFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
-	jobStore := jobs.NewJobStore(pool, policy, nil)
+	jobStore := jobs.NewJobStore(pool, policy, nil, jobs.WithProviderIdentity(cfg.LLMBaseURL))
 	reviewStore := review.NewStore(pool)
 	configStore := cfgpkg.NewStore(pool)
 
@@ -79,7 +79,7 @@ func newServices(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger 
 	var jobPool *jobs.Pool
 	if evaluator != nil {
 		jobPool = jobs.NewPool(
-			pool,
+			jobStore,
 			evaluator,
 			limiter,
 			jobs.PoolConfig{

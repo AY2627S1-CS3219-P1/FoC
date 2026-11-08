@@ -7,6 +7,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,7 +20,7 @@ var ErrNoActiveConfiguration = errors.New("no active moderation configuration")
 
 // ErrConfigurationConflict reports that an activation was rejected because the
 // currently active version no longer matches the expected one.
-var ErrConfigurationConflict = errors.New("config: active configuration changed; activation rejected")
+var ErrConfigurationConflict = jobs.ErrConfigurationConflict
 
 // Store persists the immutable configuration versions and the active pointer.
 // Writes run inside database.Within; reads run directly against the pool.
@@ -102,47 +103,7 @@ func (s *Store) ActivateConfigVersion(
 func (s *Store) ActivateAndResume(ctx context.Context, versionID uuid.UUID, activatedBy string,
 	expectedVersionID *uuid.UUID, resumePausedJobs bool) error {
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
-		rows, err := q.ActivateConfigVersion(ctx, moderationdb.ActivateConfigVersionParams{
-			ActiveVersionID:   &versionID,
-			ActivatedBy:       &activatedBy,
-			ExpectedVersionID: expectedVersionID,
-		})
-		if err != nil {
-			return err
-		}
-		if rows == 0 {
-			return ErrConfigurationConflict
-		}
-		if resumePausedJobs {
-			version, err := q.GetConfigVersionById(ctx, versionID)
-			if err != nil {
-				return err
-			}
-			id := versionID.String()
-			jobIDs, err := q.ResumeConfigurationPausedJobs(ctx, moderationdb.ResumeConfigurationPausedJobsParams{
-				ConfigVersionID: &id, PolicyVersion: &version.PolicyVersion,
-			})
-			if err != nil {
-				return err
-			}
-			for _, jobID := range jobIDs {
-				if err := q.InsertAdminAudit(ctx, moderationdb.InsertAdminAuditParams{
-					Action: "RESUME_CONFIGURATION_PAUSED_JOB", JobID: &jobID,
-					ConfigVersionID: &versionID, Actor: activatedBy, Detail: []byte(`{}`),
-				}); err != nil {
-					return err
-				}
-			}
-		}
-		if err := q.ClearConfigurationPause(ctx, versionID); err != nil {
-			return err
-		}
-		return q.InsertAdminAudit(ctx, moderationdb.InsertAdminAuditParams{
-			Action:          "ACTIVATE_CONFIG",
-			ConfigVersionID: &versionID,
-			Actor:           activatedBy,
-			Detail:          []byte(`{"expected_active_version_id": ` + configVersionIDJSON(expectedVersionID) + `}`),
-		})
+		return jobs.NewTransitions(q).Activate(ctx, versionID, activatedBy, expectedVersionID, resumePausedJobs)
 	})
 }
 
@@ -166,13 +127,6 @@ func (s *Store) InsertAudit(
 			Detail:          payload,
 		})
 	})
-}
-
-func configVersionIDJSON(id *uuid.UUID) string {
-	if id == nil {
-		return "null"
-	}
-	return `"` + id.String() + `"`
 }
 
 func encodeAuditDetail(detail map[string]any) ([]byte, error) {

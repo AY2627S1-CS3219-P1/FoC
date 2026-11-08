@@ -48,7 +48,7 @@ UPDATE moderation_jobs
 SET status = 'processing',
     claim_token = sqlc.arg(claim_token),
     worker_id = sqlc.arg(worker_id),
-    lease_until = now() + sqlc.arg(lease_seconds)::double precision * interval '1 second',
+    lease_until = clock_timestamp() + sqlc.arg(lease_seconds)::double precision * interval '1 second',
     heartbeat_at = now(),
     attempt_count = attempt_count + 1,
     updated_at = now()
@@ -70,13 +70,13 @@ WHERE id = sqlc.arg(id)
 -- name: HeartbeatJob :execrows
 UPDATE moderation_jobs
 SET heartbeat_at = now(),
-    lease_until = now() + sqlc.arg(lease_seconds)::double precision * interval '1 second'
+    lease_until = clock_timestamp() + sqlc.arg(lease_seconds)::double precision * interval '1 second'
 WHERE id = sqlc.arg(id)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing'
-  AND lease_until > now();
+  AND lease_until > clock_timestamp();
 
--- name: ReleaseJob :execrows
+-- name: ReleaseJob :one
 -- Returns owned work on shutdown: requeue it so a later cycle retries promptly
 -- instead of waiting out the lease. Clearing the claim while the row stays
 -- 'processing' would violate processing_is_claimed, so the status moves too.
@@ -90,7 +90,8 @@ SET status = 'queued',
 WHERE id = sqlc.arg(id)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing'
-  AND lease_until > now();
+  AND lease_until > clock_timestamp()
+RETURNING *;
 
 -- name: InsertAttempt :exec
 INSERT INTO moderation_attempts (
@@ -112,7 +113,7 @@ SET finished_at = now(),
 WHERE job_id = sqlc.arg(job_id)
   AND run_generation = sqlc.arg(run_generation)
   AND attempt_number = sqlc.arg(attempt_number)
-  AND outcome = '';
+  AND finished_at IS NULL;
 
 -- name: CompleteJob :execrows
 -- Fenced: only a live claim of the expected generation may terminal-complete.
@@ -136,7 +137,7 @@ WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing'
-  AND lease_until > now();
+  AND lease_until > clock_timestamp();
 
 -- name: ScheduleJobRetry :execrows
 UPDATE moderation_jobs
@@ -152,7 +153,7 @@ WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing'
-  AND lease_until > now();
+  AND lease_until > clock_timestamp();
 
 -- name: ErrorJob :execrows
 UPDATE moderation_jobs
@@ -168,7 +169,7 @@ WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token)
   AND status = 'processing'
-  AND lease_until > now();
+  AND lease_until > clock_timestamp();
 
 -- name: CountAttemptsByClass :one
 SELECT count(*)::int
@@ -200,12 +201,13 @@ LIMIT 1;
 -- fences MarkOutboxPublished so only the owning relay may publish.
 UPDATE moderation_outbox
 SET lease_token = gen_random_uuid(),
-    lease_until = now() + interval '30 seconds'
+    lease_until = clock_timestamp() + sqlc.arg(lease_seconds)::double precision * interval '1 second'
 WHERE event_id = (
     SELECT event_id
     FROM moderation_outbox
     WHERE published_at IS NULL
       AND available_at <= now()
+      AND (lease_token IS NULL OR lease_until <= clock_timestamp())
     ORDER BY created_at ASC, event_id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -218,14 +220,18 @@ SET published_at = now(),
     lease_token = NULL,
     lease_until = NULL
 WHERE event_id = sqlc.arg(event_id)
-  AND lease_token = sqlc.arg(lease_token);
+  AND lease_token = sqlc.arg(lease_token)
+  AND published_at IS NULL
+  AND lease_until > clock_timestamp();
 
 -- name: ReleaseOutboxLease :execrows
 UPDATE moderation_outbox
 SET lease_token = NULL,
     lease_until = now() - interval '1 second'
 WHERE event_id = sqlc.arg(event_id)
-  AND lease_token = sqlc.arg(lease_token);
+  AND lease_token = sqlc.arg(lease_token)
+  AND published_at IS NULL
+  AND lease_until > clock_timestamp();
 
 -- name: EnsureConfigStateSingleton :exec
 INSERT INTO moderation_config_state (id)
@@ -335,7 +341,38 @@ UPDATE moderation_jobs j
 SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
     config_version_id = sqlc.arg(config_version_id), policy_version = sqlc.arg(policy_version),
     next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
-    finished_at = NULL, updated_at = now()
-WHERE j.status = 'retry_wait' AND j.error_class = 'configuration'
+    finished_at = NULL, claim_token = NULL, worker_id = NULL,
+    lease_until = NULL, heartbeat_at = NULL, updated_at = now()
+WHERE j.status IN ('queued', 'retry_wait', 'processing')
   AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
 RETURNING j.id;
+
+-- name: ExhaustJob :execrows
+-- The caller holds the row lock obtained by ClaimEligibleJob.
+UPDATE moderation_jobs
+SET status = 'errored', error_class = 'attempts_exhausted', outcome = NULL,
+    reason_codes = NULL, next_attempt_at = NULL, finished_at = now(),
+    claim_token = NULL, worker_id = NULL, lease_until = NULL, heartbeat_at = NULL,
+    updated_at = now()
+WHERE id = sqlc.arg(id) AND run_generation = sqlc.arg(run_generation)
+  AND status IN ('queued', 'retry_wait', 'processing');
+
+-- name: LockJob :one
+SELECT * FROM moderation_jobs WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: FinishResumedAttempts :exec
+UPDATE moderation_attempts
+SET finished_at = now(), outcome = 'configuration_resumed'
+WHERE job_id = sqlc.arg(job_id) AND finished_at IS NULL;
+
+-- name: LockOwnedJob :one
+-- Take the job lock before touching attempts, matching completion/recovery order.
+SELECT * FROM moderation_jobs
+WHERE id = sqlc.arg(id) AND run_generation = sqlc.arg(run_generation)
+  AND claim_token = sqlc.arg(claim_token) AND status = 'processing'
+  AND lease_until > clock_timestamp()
+FOR UPDATE;
+
+-- name: LockOutbox :one
+-- Lease expiry is checked in a separate write after this lock has been acquired.
+SELECT event_id FROM moderation_outbox WHERE event_id = sqlc.arg(event_id) FOR UPDATE;

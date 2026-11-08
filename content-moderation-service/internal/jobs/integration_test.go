@@ -407,21 +407,20 @@ func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 		t.Fatalf("automatic recovery must not change the generation: %d", recovered.Job.RunGeneration)
 	}
 	// The abandoned attempt stays recorded: two attempt rows for generation 1.
-	// Both are unfinished at this point (the recovery attempt only finishes
-	// when its worker completes), but the abandoned one (attempt 1) must
-	// remain visibly unfinished so operators can identify crashed workers.
+	// Recovery finishes the abandoned attempt with an explicit crash outcome;
+	// the new attempt remains open until its owner finishes.
 	if n := countAttempts(t, pool, jobID, 1); n != 2 {
 		t.Fatalf("attempt rows = %d, want 2 (abandoned + recovery)", n)
 	}
-	var abandonedUnfinished int
+	var abandonedFinished int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM moderation_attempts
-		 WHERE job_id = $1 AND run_generation = 1 AND attempt_number = 1 AND finished_at IS NULL`,
-		jobID).Scan(&abandonedUnfinished); err != nil {
+		 WHERE job_id = $1 AND run_generation = 1 AND attempt_number = 1 AND finished_at IS NOT NULL AND outcome = 'abandoned'`,
+		jobID).Scan(&abandonedFinished); err != nil {
 		t.Fatalf("count abandoned: %v", err)
 	}
-	if abandonedUnfinished != 1 {
-		t.Fatalf("abandoned attempt must remain unfinished")
+	if abandonedFinished != 1 {
+		t.Fatalf("abandoned attempt must be finalized as abandoned")
 	}
 }
 
@@ -790,7 +789,7 @@ func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
 	}
 
 	eval := newBlockingEvaluator()
-	p := jobs.NewPool(pool, eval, jobs.NewLimiter(1), jobs.PoolConfig{
+	p := jobs.NewPool(jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil), eval, jobs.NewLimiter(1), jobs.PoolConfig{
 		Concurrency:       1,
 		Lease:             30 * time.Second,
 		HeartbeatInterval: 5 * time.Second,

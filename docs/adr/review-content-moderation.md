@@ -19,7 +19,7 @@ never writes to User's database and User never reads CMS's database.
 | --- | --- | --- |
 | CMS job engine | `jobs.Evaluator.Evaluate(ctx, EvaluationInput) (Assessment, error)` | `internal/llmpolicy` LLM review-text evaluator |
 | LLM evaluator | `llmpolicy.CompletionClient.Complete(ctx, *CompletionRequest) (*CompletionResponse, error)` | `internal/openaiadapter` over `github.com/openai/openai-go/v3` |
-| CMS job engine | Narrow claim/heartbeat/complete/retry repository interface | CMS PostgreSQL/sqlc repository |
+| CMS job engine | `jobs.Repository` with service-owned claim snapshots | CMS PostgreSQL/sqlc repository |
 | Outbox relays | Publisher port | Injected `pkg/kafka` publisher |
 
 Ports use service-owned types, never generated SDK types. The evaluator
@@ -35,7 +35,10 @@ Worker concurrency is **per CMS process**, configured by
 semaphore, slot table or leader election; replicas scale total concurrency.
 Replicas share the queue safely through atomic claims
 (`FOR UPDATE SKIP LOCKED`), claim tokens, leases with heartbeats and fenced
-completion/retry updates keyed on (job, run generation, claim token). Crash
+completion/retry updates keyed on (job, run generation, claim token). Workers
+acquire shared local inference capacity before claiming, verify ownership before
+calling the evaluator, and cancel pending heartbeat I/O when inference ends.
+Detached release/rollback cleanup has a two-second deadline. Crash
 recovery may repeat an external inference; exactly-once provider execution is
 not claimed.
 
@@ -53,7 +56,7 @@ Independent Kafka contracts (not the RPC `Review` types):
   transactional outbox on every terminal job transition. `outcome` is
   APPROVED, REJECTED or ERROR; ERROR means no valid verdict was obtained and
   never carries content reason codes. `run_generation` starts at 1 and
-  increases only on an explicit retry of a terminal errored job, so a late
+  increases on explicit terminal-error retry or configuration-pause recovery, so a late
   older completion can never overwrite a newer result.
 
 Both services validate incoming events again; a protobuf default or unknown
@@ -81,16 +84,26 @@ Jobs are created at most once per `moderation_request_id` (the job uniqueness
 is the ingestion inbox); duplicate deliveries are no-ops after confirming
 immutable fields agree; undecodable-but-valid events are quarantined and
 acknowledged. Retries are durable with capped exponential backoff and jitter,
-an overall attempt budget, a smaller bounded budget for schema-invalid output,
-and no retry storm for configuration errors (credentials, unsupported
-model/parameters): these pause processing with a surfaced error class until an
+an overall attempt budget including crash recovery and shutdown releases,
+a smaller bounded budget for schema-invalid output, and no retry storm for
+configuration errors (credentials, unsupported model/parameters): these pause processing with a surfaced error class until an
 admin corrects configuration. Every attempt is recorded append-only; terminal
 decisions are never overwritten without trace; API keys are never stored and
 raw provider bodies, prompts or hidden reasoning are never exposed.
 
 Admin configuration uses immutable configuration versions plus an active
 pointer with optimistic concurrency; already-started jobs keep their pinned
-version. A missing configuration or API key never loses submissions: jobs
+version. `jobs.Transitions` owns administrative retry and pause-recovery writes;
+config and review adapters invoke it inside their transactions. Job writers lock
+the job before its attempt records to keep recovery and finalization lock order
+consistent. Lease writes acquire the row lock first and check database-clock
+expiry in a separate statement: a predicate evaluated before a lock wait cannot
+prove the lease is still live afterward. This also applies to relay acknowledgements.
+Explicit recovery moves all nonterminal jobs pinned to paused
+versions (including in-flight jobs) to a new generation and fences old claims.
+A changed endpoint requires saving and validating a new immutable configuration;
+the worker verifies its endpoint/model fingerprint before consuming attempts.
+A missing configuration or API key never loses submissions: jobs
 queue without burning attempts and setup status surfaces what is missing.
 
 ### Reviewer-scoped reads
