@@ -50,6 +50,13 @@ type handlerLogicStub struct {
 	removalsPage RemovalPage
 	removalsErr  error
 	removalsFor  pagination.Pagination
+
+	reviewedFor      uuid.UUID
+	reviewedOrderIDs []uuid.UUID
+	reviewedResult   []uuid.UUID
+	reviewedErr      error
+	myReview         Review
+	myReviewErr      error
 }
 
 func (s *handlerLogicStub) SubmitReview(
@@ -92,6 +99,27 @@ func (s *handlerLogicStub) ListReviewsFromUser(
 ) (ReviewPage, error) {
 	s.listedFor = userID
 	return ReviewPage{}, s.forUserErr
+}
+
+func (s *handlerLogicStub) ListMyReviewsForOrders(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	s.reviewedFor = reviewerID
+	s.reviewedOrderIDs = orderIDs
+	return s.reviewedResult, s.reviewedErr
+}
+
+func (s *handlerLogicStub) GetMyReviewForOrder(
+	_ context.Context,
+	reviewerID, _ uuid.UUID,
+) (Review, error) {
+	s.reviewedFor = reviewerID
+	if s.myReviewErr != nil {
+		return Review{}, s.myReviewErr
+	}
+	return s.myReview, nil
 }
 
 func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
@@ -144,6 +172,79 @@ func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
 	if got := resp.Header().Get("Cache-Control"); got != "no-store" {
 		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
+}
+
+func TestListMyReviewsForOrdersRPC(t *testing.T) {
+	caller := uuid.New()
+	t.Run("returns the reviewed subset and derives the reviewer from the caller", func(t *testing.T) {
+		stub := &handlerLogicStub{reviewedResult: []uuid.UUID{uuid.New()}}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		one, two := uuid.New(), uuid.New()
+		resp, err := client.ListMyReviewsForOrders(context.Background(), connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
+			OrderIds: []string{one.String(), two.String()},
+		}))
+		if err != nil {
+			t.Fatalf("list reviewed orders: %v", err)
+		}
+		if stub.reviewedFor != caller {
+			t.Fatalf("reviewer = %v, want caller %v", stub.reviewedFor, caller)
+		}
+		if len(stub.reviewedOrderIDs) != 2 || stub.reviewedOrderIDs[0] != one || stub.reviewedOrderIDs[1] != two {
+			t.Fatalf("order ids not passed through: %v", stub.reviewedOrderIDs)
+		}
+		if len(resp.Msg.ReviewedOrderIds) != 1 || resp.Msg.ReviewedOrderIds[0] != stub.reviewedResult[0].String() {
+			t.Fatalf("reviewed ids = %v", resp.Msg.ReviewedOrderIds)
+		}
+	})
+	t.Run("invalid order id is rejected", func(t *testing.T) {
+		client := reviewClient(t, &handlerLogicStub{}, auth.Caller{ID: caller.String()})
+		_, err := client.ListMyReviewsForOrders(context.Background(), connect.NewRequest(&reviewv1.ListMyReviewsForOrdersRequest{
+			OrderIds: []string{"not-a-uuid"},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("want invalid argument, got %v", err)
+		}
+	})
+}
+
+func TestGetMyReviewForOrderRPC(t *testing.T) {
+	caller := uuid.New()
+	photoURL := "https://storage.invalid/get/1"
+	t.Run("returns the caller's review with photos", func(t *testing.T) {
+		stub := &handlerLogicStub{myReview: Review{
+			Rating: 4, Comment: "solid",
+			Photos: []ReviewPhotoView{{ID: uuid.New(), URL: photoURL, ContentType: "image/png"}},
+		}}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		resp, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
+			OrderId: uuid.New().String(),
+		}))
+		if err != nil {
+			t.Fatalf("get review: %v", err)
+		}
+		if resp.Msg.Review == nil || resp.Msg.Review.Rating != 4 {
+			t.Fatalf("review = %+v", resp.Msg.Review)
+		}
+		if len(resp.Msg.Review.Photos) != 1 || resp.Msg.Review.Photos[0].Url != photoURL {
+			t.Fatalf("photos = %+v", resp.Msg.Review.Photos)
+		}
+		if got := resp.Header().Get("Cache-Control"); got != "no-store" {
+			t.Fatalf("Cache-Control = %q, want no-store", got)
+		}
+	})
+	t.Run("unreviewed order returns an absent review", func(t *testing.T) {
+		stub := &handlerLogicStub{myReviewErr: errReviewNotFound}
+		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+		resp, err := client.GetMyReviewForOrder(context.Background(), connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{
+			OrderId: uuid.New().String(),
+		}))
+		if err != nil {
+			t.Fatalf("absent review must not error: %v", err)
+		}
+		if resp.Msg.Review != nil {
+			t.Fatalf("want absent review, got %+v", resp.Msg.Review)
+		}
+	})
 }
 
 func TestSubmitReviewRPC(t *testing.T) {

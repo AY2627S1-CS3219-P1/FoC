@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
@@ -82,6 +83,13 @@ func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pag
 	return review.ReviewPage{}, nil
 }
 
+func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
+func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
+	return review.Review{}, errors.New("review not found")
+}
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
 
 func (reviewStub) ListReviewRemovals(context.Context, pagination.Pagination) (review.RemovalPage, error) {

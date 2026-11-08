@@ -14,6 +14,8 @@ service ReviewService {
   rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc ListMyReviewsForOrders(ListMyReviewsForOrdersRequest) returns (ListMyReviewsForOrdersResponse) {}
+  rpc GetMyReviewForOrder(GetMyReviewForOrderRequest) returns (GetMyReviewForOrderResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
   rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
 }
@@ -119,6 +121,32 @@ message ListReviewsForUserRequest {
 
 message ListMyReviewsRequest {
   pagination.v1.Pagination pagination = 1;
+}
+
+// Checks which of the given requests the caller has already reviewed. Exists
+// so order lists can render "Leave a review" vs "View review" without one
+// lookup per order.
+message ListMyReviewsForOrdersRequest {
+  // Capped and validated; at most 50 ids per call.
+  repeated string order_ids = 1 [(buf.validate.field).repeated = {
+    max_items: 50
+    items: {string: {uuid: true}}
+  }];
+}
+
+message ListMyReviewsForOrdersResponse {
+  // The subset of order_ids the caller has reviewed.
+  repeated string reviewed_order_ids = 1;
+}
+
+// Fetches the caller's review for one request, if any.
+message GetMyReviewForOrderRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetMyReviewForOrderResponse {
+  // Absent when the caller has not reviewed this request.
+  Review review = 1;
 }
 
 message RemoveReviewRequest {

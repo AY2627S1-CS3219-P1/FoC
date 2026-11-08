@@ -142,6 +142,26 @@ func (s *Service) ListReviewsFromUser(
 
 // RemoveReview soft-deletes the review, records the audit row and recomputes
 // the reviewee's stats atomically.
+// ListMyReviewsForOrders resolves which of the given requests the reviewer has
+// already reviewed, so order lists render one CTA per order.
+func (s *Service) ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.ListReviewedOrderIds(ctx, reviewerID, orderIDs)
+}
+
+// GetMyReviewForOrder returns the reviewer's live review for one order, with
+// freshly minted photo URLs.
+func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	review, err := s.repo.ReviewForOrder(ctx, reviewerID, orderID)
+	if err != nil {
+		return Review{}, err
+	}
+	filled, err := s.fillPhotos(ctx, []Review{review})
+	if err != nil {
+		return Review{}, err
+	}
+	return filled[0], nil
+}
+
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {

@@ -66,6 +66,26 @@ SELECT COUNT(*)
 FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
+-- Existence lookup for a batch of requests: which of them the reviewer has
+-- already reviewed (live rows only). Order lists render one CTA per order
+-- from this, without a lookup each.
+-- name: ListReviewedOrderIds :many
+SELECT order_id::TEXT
+FROM reviews
+WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[])
+  AND deleted_at IS NULL;
+
+-- The reviewer's live review for one request, if any.
+-- name: GetReviewByReviewerAndOrder :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = @reviewer_id::UUID AND r.order_id = @order_id::UUID
+  AND r.deleted_at IS NULL;
+
 -- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
        creator.display_name AS created_by_name

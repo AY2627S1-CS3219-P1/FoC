@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const countReviewRemovals = `-- name: CountReviewRemovals :one
@@ -49,6 +50,54 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID AND r.order_id = $2::UUID
+  AND r.deleted_at IS NULL
+`
+
+type GetReviewByReviewerAndOrderParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+type GetReviewByReviewerAndOrderRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+// The reviewer's live review for one request, if any.
+func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReviewByReviewerAndOrderParams) (GetReviewByReviewerAndOrderRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewByReviewerAndOrder, arg.ReviewerID, arg.OrderID)
+	var i GetReviewByReviewerAndOrderRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ReviewerName,
+		&i.RevieweeName,
+	)
+	return i, err
 }
 
 const insertReview = `-- name: InsertReview :exec
@@ -126,6 +175,44 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReviewedOrderIds = `-- name: ListReviewedOrderIds :many
+SELECT order_id::TEXT
+FROM reviews
+WHERE reviewer_id = $1::UUID AND order_id = ANY($2::UUID[])
+  AND deleted_at IS NULL
+`
+
+type ListReviewedOrderIdsParams struct {
+	ReviewerID uuid.UUID
+	OrderIds   []uuid.UUID
+}
+
+// Existence lookup for a batch of requests: which of them the reviewer has
+// already reviewed (live rows only). Order lists render one CTA per order
+// from this, without a lookup each.
+func (q *Queries) ListReviewedOrderIds(ctx context.Context, arg ListReviewedOrderIdsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewedOrderIds, arg.ReviewerID, pq.Array(arg.OrderIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var order_id string
+		if err := rows.Scan(&order_id); err != nil {
+			return nil, err
+		}
+		items = append(items, order_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

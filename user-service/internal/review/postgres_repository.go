@@ -139,6 +139,43 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
+func (r *PostgresRepository) ListReviewedOrderIds(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListReviewedOrderIds(ctx, reviewdb.ListReviewedOrderIdsParams{
+		ReviewerID: reviewerID,
+		OrderIds:   orderIDs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list reviewed order ids: %w", err)
+	}
+	out := make([]uuid.UUID, len(ids))
+	for i, raw := range ids {
+		id, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse reviewed order id %q: %w", raw, parseErr)
+		}
+		out[i] = id
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	row, err := r.queries.GetReviewByReviewerAndOrder(ctx, reviewdb.GetReviewByReviewerAndOrderParams{
+		ReviewerID: reviewerID,
+		OrderID:    orderID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Review{}, errReviewNotFound
+		}
+		return Review{}, fmt.Errorf("get review for order: %w", err)
+	}
+	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), nil
+}
+
 func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
 	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
 		PageOffset: offset,

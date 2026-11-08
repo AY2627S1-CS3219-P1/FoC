@@ -105,6 +105,33 @@ func (f *fakeRepository) GetReviewPhoto(_ context.Context, ownerID, id uuid.UUID
 	return photo, nil
 }
 
+func (f *fakeRepository) ListReviewedOrderIds(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	want := make(map[uuid.UUID]bool, len(orderIDs))
+	for _, id := range orderIDs {
+		want[id] = true
+	}
+	var out []uuid.UUID
+	for _, review := range f.reviewsForOrder {
+		if review.ReviewerID == reviewerID && want[review.OrderID] {
+			out = append(out, review.OrderID)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeRepository) ReviewForOrder(_ context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	for _, review := range f.reviewsForOrder {
+		if review.ReviewerID == reviewerID && review.OrderID == orderID {
+			return review, nil
+		}
+	}
+	return Review{}, errReviewNotFound
+}
+
 func (f *fakeRepository) AttachReviewPhoto(
 	_ context.Context,
 	_ *reviewdb.Queries,

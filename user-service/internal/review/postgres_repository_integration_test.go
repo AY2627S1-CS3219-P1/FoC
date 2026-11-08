@@ -368,6 +368,34 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("batched reviewed-order lookup and single fetch", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		order1, order2 := uuid.New(), uuid.New()
+		if err := service.SubmitReview(ctx, reviewer, reviewee, order1, ReviewSubmission{Rating: 5, Comment: "reviewed"}, nil); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+
+		got, err := repo.ListReviewedOrderIds(ctx, reviewer, []uuid.UUID{order1, order2})
+		if err != nil {
+			t.Fatalf("list reviewed order ids: %v", err)
+		}
+		if len(got) != 1 || got[0] != order1 {
+			t.Fatalf("reviewed ids = %v, want only %v", got, order1)
+		}
+
+		review, err := repo.ReviewForOrder(ctx, reviewer, order1)
+		if err != nil || review.Rating != 5 || review.OrderID != order1 {
+			t.Fatalf("review for order = %+v err=%v", review, err)
+		}
+		if _, err := repo.ReviewForOrder(ctx, reviewer, order2); !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("unreviewed order should be not found, got %v", err)
+		}
+	})
+
 	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		for _, id := range []uuid.UUID{reviewer, reviewee} {

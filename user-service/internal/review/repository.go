@@ -26,6 +26,11 @@ type Repository interface {
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	// ReviewedOrderIds returns the subset of orderIDs the reviewer has a live
+	// review for, so order lists render one CTA per order.
+	ListReviewedOrderIds(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
+	// ReviewForOrder returns the reviewer's live review for one order.
+	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)

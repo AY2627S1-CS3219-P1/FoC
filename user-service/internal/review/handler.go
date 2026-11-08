@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
@@ -30,6 +31,8 @@ type Logic interface {
 	) (PhotoUpload, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
+	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
@@ -164,6 +167,62 @@ func (h *Handler) ListMyReviews(
 // cache.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
+}
+
+// ListMyReviewsForOrders resolves which of the given requests the caller has
+// already reviewed, so order lists render one CTA per order.
+func (h *Handler) ListMyReviewsForOrders(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewsForOrdersRequest],
+) (*connect.Response[reviewv1.ListMyReviewsForOrdersResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderIDs := make([]uuid.UUID, 0, len(req.Msg.GetOrderIds()))
+	for _, raw := range req.Msg.GetOrderIds() {
+		id, parseErr := uuid.Parse(raw)
+		if parseErr != nil || id == uuid.Nil {
+			return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+		}
+		orderIDs = append(orderIDs, id)
+	}
+	reviewed, err := h.Logic.ListMyReviewsForOrders(ctx, callerID, orderIDs)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	ids := make([]string, 0, len(reviewed))
+	for _, id := range reviewed {
+		ids = append(ids, id.String())
+	}
+	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{ReviewedOrderIds: ids}), nil
+}
+
+// GetMyReviewForOrder returns the caller's review for one request; the review
+// is absent when the caller has not reviewed it. The response carries freshly
+// minted photo URLs, so it is marked non-cacheable.
+func (h *Handler) GetMyReviewForOrder(
+	ctx context.Context,
+	req *connect.Request[reviewv1.GetMyReviewForOrderRequest],
+) (*connect.Response[reviewv1.GetMyReviewForOrderResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderID, parseErr := uuid.Parse(req.Msg.GetOrderId())
+	if parseErr != nil || orderID == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+	}
+	review, err := h.Logic.GetMyReviewForOrder(ctx, callerID, orderID)
+	if err != nil {
+		if errors.Is(err, errReviewNotFound) {
+			return connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{}), nil
+		}
+		return nil, toConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{Review: toReviewProto(review)})
+	noStore(resp)
+	return resp, nil
 }
 
 // RemoveReview soft-deletes a review and records the removal audit row; the
