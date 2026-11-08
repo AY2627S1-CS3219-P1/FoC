@@ -18,16 +18,18 @@ import (
 // RPCServices contains RPC servers constructed at the composition root.
 type RPCServices struct {
 	Health                grpchealth.Checker
+	ModerationHealth      moderationv1connect.HealthServiceHandler
 	ReviewModeration      reviewv1connect.ReviewModerationServiceHandler
 	ReviewModerationAdmin reviewv1connect.ReviewModerationAdminServiceHandler
 	ModerationAdmin       moderationv1connect.ModerationAdminServiceHandler
 }
 
-// Public mounts the health check and the review moderation RPCs.
+// Public mounts the health checks and the review moderation RPCs.
 // Admin services are protected by RequireAdmin.
 func Public(services RPCServices, authenticate func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))
+	mountModerationHealth(mux, services.ModerationHealth)
 
 	// ReviewModerationService: owner-or-admin, caller-gated
 	reviewPath, reviewHandler := reviewv1connect.NewReviewModerationServiceHandler(
@@ -62,39 +64,24 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	return mux
 }
 
-// Internal mounts the health check for service-to-service calls.
-// It does not verify authentication yet, so it must only be reachable from
-// inside the service network.
+// Internal mounts the health checks for service-to-service calls.
+// It deliberately serves no business RPCs: the admin services accept no
+// credentials on this listener, so mounting them would let any in-cluster
+// workload reach them (the same hazard as the credit-internal landmine).
+// It must only be reachable from inside the service network.
 func Internal(services RPCServices) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))
-
-	// ReviewModerationService: owner-or-admin
-	reviewPath, reviewHandler := reviewv1connect.NewReviewModerationServiceHandler(
-		services.ReviewModeration,
-		connect.WithInterceptors(
-			validate.NewInterceptor(),
-		),
-	)
-	mux.Handle(reviewPath, reviewHandler)
-
-	// ReviewModerationAdminService: admin-only
-	reviewAdminPath, reviewAdminHandler := reviewv1connect.NewReviewModerationAdminServiceHandler(
-		services.ReviewModerationAdmin,
-		connect.WithInterceptors(
-			validate.NewInterceptor(),
-		),
-	)
-	mux.Handle(reviewAdminPath, reviewAdminHandler)
-
-	// ModerationAdminService: admin-only
-	moderationAdminPath, moderationAdminHandler := moderationv1connect.NewModerationAdminServiceHandler(
-		services.ModerationAdmin,
-		connect.WithInterceptors(
-			validate.NewInterceptor(),
-		),
-	)
-	mux.Handle(moderationAdminPath, moderationAdminHandler)
-
+	mountModerationHealth(mux, services.ModerationHealth)
 	return mux
+}
+
+// mountModerationHealth serves the service-owned health contract the k8s
+// readiness probes and the gateway call (/moderation.v1.HealthService/Check).
+func mountModerationHealth(mux *http.ServeMux, handler moderationv1connect.HealthServiceHandler) {
+	if handler == nil {
+		return
+	}
+	path, h := moderationv1connect.NewHealthServiceHandler(handler)
+	mux.Handle(path, h)
 }

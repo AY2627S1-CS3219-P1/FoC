@@ -45,7 +45,6 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		Port:                 strings.TrimSpace(getenv("PORT")),
 		InternalPort:         strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:          strings.TrimSpace(getenv("DATABASE_URL")),
-		UserServiceURL:       strings.TrimSpace(getenv("USER_SERVICE_URL")),
 		RunMigrations:        true,
 		WorkerConcurrency:    2,
 		LLMRequestTimeout:    120 * time.Second,
@@ -57,6 +56,14 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		JobPollInterval:      1 * time.Second,
 		LLMBaseURL:           "https://soclaas-api.comp.nus.edu.sg/v1",
 		LLMAPIKey:            strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
+	}
+
+	// USER_SERVICE_BASE_URL is the repo-wide convention (compose and the k8s
+	// foc-config ConfigMap set it); USER_SERVICE_URL is accepted as a legacy
+	// override.
+	c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_BASE_URL"))
+	if c.UserServiceURL == "" {
+		c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_URL"))
 	}
 
 	// Listeners
@@ -85,10 +92,10 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 	}
 
 	if c.UserServiceURL == "" {
-		return appConfig{}, errors.New("USER_SERVICE_URL is required")
+		return appConfig{}, errors.New("USER_SERVICE_BASE_URL is required")
 	}
 	if _, err := url.Parse(c.UserServiceURL); err != nil {
-		return appConfig{}, errors.New("USER_SERVICE_URL must be a valid URL")
+		return appConfig{}, errors.New("USER_SERVICE_BASE_URL must be a valid URL")
 	}
 
 	if value := strings.TrimSpace(getenv("RUN_MIGRATIONS")); value != "" {

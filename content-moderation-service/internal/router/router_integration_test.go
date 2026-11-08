@@ -22,11 +22,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
+	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/health"
 	reviewrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1/reviewv1connect"
 	moderationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1"
+	moderationv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1/moderationv1connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -95,6 +97,7 @@ func newMux(
 	store := review.NewStore(pool)
 	services := router.RPCServices{
 		Health:                grpchealth.NewStaticChecker(),
+		ModerationHealth:      &healthrpc.ModerationChecker{DB: pool},
 		ReviewModeration:      reviewrpc.NewOwnerHandler(store),
 		ReviewModerationAdmin: reviewrpc.NewAdminHandler(store),
 		ModerationAdmin:       unimplementedModerationAdmin{},
@@ -175,6 +178,52 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool
+}
+
+func TestModerationHealthRouteServes(t *testing.T) {
+	// Regression for the never-mounted moderation.v1.HealthService: the k8s
+	// readiness probe calls /moderation.v1.HealthService/Check and requires
+	// HTTP 200; an unmounted route left the pod permanently unready.
+	pool := setupDB(t)
+	mux, _, _ := newMux(t, pool, nil)
+
+	// The generated handler is mounted on the public listener.
+	req := connect.NewRequest(&moderationv1.CheckRequest{})
+	resp, err := moderationv1connect.NewHealthServiceClient(muxTransport{handler: mux}, "http://test").
+		Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("moderation health check: %v", err)
+	}
+	if resp.Msg.Status != "SERVING" {
+		t.Fatalf("status = %q, want SERVING", resp.Msg.Status)
+	}
+}
+
+func TestInternalListenerServesOnlyHealth(t *testing.T) {
+	// Regression for the unauthenticated admin exposure: the internal listener
+	// must mount health only — no business or admin RPCs.
+	pool := setupDB(t)
+	store := review.NewStore(pool)
+	services := router.RPCServices{
+		Health:                grpchealth.NewStaticChecker(),
+		ModerationHealth:      &healthrpc.ModerationChecker{DB: pool},
+		ReviewModeration:      reviewrpc.NewOwnerHandler(store),
+		ReviewModerationAdmin: reviewrpc.NewAdminHandler(store),
+		ModerationAdmin:       unimplementedModerationAdmin{},
+	}
+	mux := router.Internal(services)
+	client := moderationv1connect.NewModerationAdminServiceClient(muxTransport{handler: mux}, "http://test")
+	_, err := client.GetModerationSetupStatus(context.Background(),
+		connect.NewRequest(&moderationv1.GetModerationSetupStatusRequest{}))
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("internal admin RPC code = %v, want unimplemented (not mounted)", connect.CodeOf(err))
+	}
+
+	healthClient := moderationv1connect.NewHealthServiceClient(muxTransport{handler: mux}, "http://test")
+	if _, err := healthClient.Check(context.Background(),
+		connect.NewRequest(&moderationv1.CheckRequest{})); err != nil {
+		t.Fatalf("internal health check: %v", err)
+	}
 }
 
 func TestOwnerServiceCallerGating(t *testing.T) {

@@ -122,6 +122,7 @@ func newServices(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger 
 			Health: &healthrpc.Checker{
 				DB: pool,
 			},
+			ModerationHealth:      &healthrpc.ModerationChecker{DB: pool},
 			ReviewModeration:      ownerHandler,
 			ReviewModerationAdmin: adminHandler,
 			ModerationAdmin:       configHandler,
