@@ -148,6 +148,18 @@ func TestSchema(t *testing.T) {
 		if err := db.Create(&badSize).Error; err == nil {
 			t.Fatal("expected zero size to fail")
 		}
+		tooLarge := *picture
+		tooLarge.ID = uuid.New()
+		tooLarge.ObjectKey = "profile/picture/" + uuid.NewString()
+		tooLarge.SizeBytes = 10_000_001
+		if err := db.Create(&tooLarge).Error; err == nil {
+			t.Fatal("expected oversized picture to fail")
+		}
+		duplicateKey := *picture
+		duplicateKey.ID = uuid.New()
+		if err := db.Create(&duplicateKey).Error; err == nil {
+			t.Fatal("expected duplicate object key to fail")
+		}
 		badState := *picture
 		badState.ID = uuid.New()
 		badState.ObjectKey = "profile/picture/" + uuid.NewString()

@@ -21,6 +21,7 @@ func profilePictureRow(userID uuid.UUID, createdAt time.Time) *models.ProfilePic
 		ObjectKey:   "profile/picture/" + userID.String() + "/" + uuid.NewString(),
 		ContentType: "image/png",
 		SizeBytes:   4,
+		State:       models.ProfilePicturePending,
 		CreatedAt:   createdAt,
 	}
 }

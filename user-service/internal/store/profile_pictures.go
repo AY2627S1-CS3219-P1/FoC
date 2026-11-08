@@ -20,7 +20,6 @@ type ProfilePictures struct{ db *gorm.DB }
 func NewProfilePictures(db *gorm.DB) *ProfilePictures { return &ProfilePictures{db: db} }
 
 func (s *ProfilePictures) InsertPending(ctx context.Context, picture *models.ProfilePicture) error {
-	picture.State = models.ProfilePicturePending
 	return s.db.WithContext(ctx).Create(picture).Error
 }
 

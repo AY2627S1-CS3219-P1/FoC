@@ -217,14 +217,14 @@ func TestCreateProfilePictureUpload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if upload.ID == uuid.Nil || upload.ObjectKey != profilePictureKey(user.ID, upload.ID) {
+	if upload.ID == uuid.Nil {
 		t.Fatalf("unexpected upload: %+v", upload)
 	}
 	if pictures.inserted == nil || pictures.inserted.UserID != user.ID ||
 		pictures.inserted.SizeBytes != 1234 || pictures.inserted.State != models.ProfilePicturePending {
 		t.Fatalf("pending row not stored: %+v", pictures.inserted)
 	}
-	if grant.URL != "https://storage.test/"+upload.ObjectKey {
+	if grant.URL != "https://storage.test/"+pictures.inserted.ObjectKey {
 		t.Fatalf("grant = %+v", grant)
 	}
 
@@ -254,6 +254,58 @@ func TestCreateProfilePictureUploadUnavailableAndSuspended(t *testing.T) {
 	svc = profilePictureTestService(user, &fakeProfilePictureStore{}, &fakeProfilePictureStorage{})
 	_, _, err = svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1)
 	assertExternalStatus(t, err, http.StatusForbidden)
+}
+
+func TestCreateProfilePictureUploadErrors(t *testing.T) {
+	user := profilePictureTestUser(models.RoleUser)
+	pictures := &fakeProfilePictureStore{insertErr: errors.New("db")}
+	storage := &fakeProfilePictureStorage{}
+	svc := profilePictureTestService(user, pictures, storage)
+	if _, _, err := svc.CreateProfilePictureUpload(
+		context.Background(), user.ID, "image/png", 1,
+	); err == nil {
+		t.Fatal("expected insert failure")
+	}
+
+	pictures = &fakeProfilePictureStore{}
+	storage = &fakeProfilePictureStorage{createErr: errors.New("storage")}
+	svc = profilePictureTestService(user, pictures, storage)
+	_, _, err := svc.CreateProfilePictureUpload(context.Background(), user.ID, "image/png", 1)
+	assertExternalStatus(t, err, http.StatusServiceUnavailable)
+}
+
+func TestCleanupOnceErrors(t *testing.T) {
+	storage := &fakeProfilePictureStorage{}
+	pictures := &fakeProfilePictureStore{claimErr: errors.New("claim")}
+	svc := &ProfileService{Pictures: pictures, Storage: storage}
+	if err := svc.CleanupOnce(context.Background()); err == nil {
+		t.Fatal("expected claim failure")
+	}
+
+	pictures = &fakeProfilePictureStore{listErr: errors.New("list")}
+	svc = &ProfileService{Pictures: pictures, Storage: storage}
+	if err := svc.CleanupOnce(context.Background()); err == nil {
+		t.Fatal("expected list failure")
+	}
+}
+
+func TestGetMyProfileReadErrorDegrades(t *testing.T) {
+	user := profilePictureTestUser(models.RoleUser)
+	pictureID := uuid.New()
+	user.ProfilePictureID = ptrID(pictureID)
+	pictures := &fakeProfilePictureStore{getByIDErr: errors.New("db")}
+	svc := profilePictureTestService(user, pictures, &fakeProfilePictureStorage{})
+	view, err := svc.GetMyProfile(context.Background(), user.ID)
+	if err != nil || view.PictureURL != "" {
+		t.Fatalf("read-error degradation = %+v, %v", view, err)
+	}
+}
+
+func TestRemoveMyProfilePictureWithoutStorage(t *testing.T) {
+	user := profilePictureTestUser(models.RoleUser)
+	svc := &ProfileService{Users: &fakeProfileUsers{user: user}, Pictures: &fakeProfilePictureStore{}}
+	_, err := svc.RemoveMyProfilePicture(context.Background(), user.ID)
+	assertExternalStatus(t, err, http.StatusPreconditionFailed)
 }
 
 func TestUpdateMyProfilePicture(t *testing.T) {
@@ -431,16 +483,17 @@ func TestGetMyProfileSignsPictureURL(t *testing.T) {
 		t.Fatalf("signed profile = %+v, %v", view, err)
 	}
 
-	svc.Storage = &fakeProfilePictureStorage{downloadErr: errors.New("down")}
-	view, err = svc.GetMyProfile(context.Background(), user.ID)
-	if err != nil || view.PictureURL != "" {
-		t.Fatalf("degraded profile = %+v, %v", view, err)
-	}
-
 	pictures.current.State = models.ProfilePictureDeleting
 	view, err = svc.GetMyProfile(context.Background(), user.ID)
 	if err != nil || view.PictureURL != "" {
 		t.Fatalf("non-active picture = %+v, %v", view, err)
+	}
+
+	pictures.current.State = models.ProfilePictureActive
+	svc.Storage = &fakeProfilePictureStorage{downloadErr: errors.New("down")}
+	view, err = svc.GetMyProfile(context.Background(), user.ID)
+	if err != nil || view.PictureURL != "" {
+		t.Fatalf("degraded profile = %+v, %v", view, err)
 	}
 }
 

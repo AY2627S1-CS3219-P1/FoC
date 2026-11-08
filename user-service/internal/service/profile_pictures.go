@@ -49,11 +49,8 @@ type ProfilePictureStore interface {
 	DeletePicture(context.Context, uuid.UUID) error
 }
 
-// ProfilePictureUpload is one pending row's identity plus its storage key.
-type ProfilePictureUpload struct {
-	ID        uuid.UUID
-	ObjectKey string
-}
+// ProfilePictureUpload is the stable ID of one pending row.
+type ProfilePictureUpload struct{ ID uuid.UUID }
 
 // CreateProfilePictureUpload validates the caller and shape, records a pending
 // row, and returns the pre-signed PUT grant.
@@ -113,7 +110,7 @@ func (s *ProfileService) CreateProfilePictureUpload(
 			err, "profile picture storage is unavailable",
 		)
 	}
-	return ProfilePictureUpload{ID: id, ObjectKey: key}, grant, nil
+	return ProfilePictureUpload{ID: id}, grant, nil
 }
 
 // UpdateMyProfilePicture validates the caller's pending row against storage and
@@ -137,13 +134,12 @@ func (s *ProfileService) UpdateMyProfilePicture(
 	}
 	picture, err := s.Pictures.GetPending(ctx, actorID, pictureID)
 	if errors.Is(err, store.ErrPictureNotFound) {
-		// Re-read in case a concurrent original submit committed after our
-		// first user read but before this lookup.
-		if current, getErr := s.userByID(ctx, actorID); getErr == nil &&
-			current.ProfilePictureID != nil && *current.ProfilePictureID == pictureID {
+		if s.alreadyActive(ctx, actorID, pictureID) {
 			return s.GetMyProfile(ctx, actorID)
 		}
-		return ProfileView{}, errs.WrapBadRequestError(err, "picture was not uploaded by this user")
+		return ProfileView{}, errs.WrapBadRequestError(
+			err, "picture was not uploaded by this user or is no longer pending",
+		)
 	}
 	if err != nil {
 		return ProfileView{}, fmt.Errorf("get profile picture: %w", err)
@@ -167,8 +163,7 @@ func (s *ProfileService) UpdateMyProfilePicture(
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrPictureNotFound):
-			if current, getErr := s.userByID(ctx, actorID); getErr == nil &&
-				current.ProfilePictureID != nil && *current.ProfilePictureID == pictureID {
+			if s.alreadyActive(ctx, actorID, pictureID) {
 				return s.GetMyProfile(ctx, actorID)
 			}
 			return ProfileView{}, errs.WrapBadRequestError(
@@ -194,7 +189,7 @@ func (s *ProfileService) RemoveMyProfilePicture(
 	ctx context.Context,
 	actorID uuid.UUID,
 ) (ProfileView, error) {
-	if s.Pictures == nil {
+	if s.Pictures == nil || s.Storage == nil {
 		return ProfileView{}, errs.WrapFailedPreconditionError(
 			errProfilePictureStorageDisabled, "profile pictures are not available",
 		)
@@ -229,18 +224,18 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list deleting profile pictures: %w", err)
 	}
-	var errs []error
+	var failures []error
 	for _, row := range rows {
 		if err := s.Storage.Delete(ctx, row.ObjectKey); err != nil &&
 			!errors.Is(err, images.ErrObjectNotFound) {
-			errs = append(errs, fmt.Errorf("delete profile picture object %s: %w", row.ID, err))
+			failures = append(failures, fmt.Errorf("delete profile picture object %s: %w", row.ID, err))
 			continue
 		}
 		if err := s.Pictures.DeletePicture(ctx, row.ID); err != nil {
-			errs = append(errs, fmt.Errorf("delete profile picture row %s: %w", row.ID, err))
+			failures = append(failures, fmt.Errorf("delete profile picture row %s: %w", row.ID, err))
 		}
 	}
-	return errors.Join(errs...)
+	return errors.Join(failures...)
 }
 
 // profileView mints a fresh download grant for the active row. A missing or
@@ -251,7 +246,13 @@ func (s *ProfileService) profileView(ctx context.Context, user models.User) Prof
 		return view
 	}
 	picture, err := s.Pictures.GetPictureByID(ctx, *user.ProfilePictureID)
-	if err != nil || picture.State != models.ProfilePictureActive {
+	if err != nil {
+		if !errors.Is(err, store.ErrPictureNotFound) {
+			slog.WarnContext(ctx, "profile picture row unavailable", "user_id", user.ID, "err", err)
+		}
+		return view
+	}
+	if picture.State != models.ProfilePictureActive {
 		return view
 	}
 	grant, err := s.Storage.CreateDownload(ctx, picture.ObjectKey)
@@ -262,6 +263,14 @@ func (s *ProfileService) profileView(ctx context.Context, user models.User) Prof
 	view.PictureURL = grant.URL
 	view.PictureExpiresAt = grant.ExpiresAt
 	return view
+}
+
+// alreadyActive reports whether a concurrent or previous submit already made
+// this picture current. It re-reads the user so a commit after the caller's
+// first read is still recognized.
+func (s *ProfileService) alreadyActive(ctx context.Context, actorID, pictureID uuid.UUID) bool {
+	user, err := s.userByID(ctx, actorID)
+	return err == nil && user.ProfilePictureID != nil && *user.ProfilePictureID == pictureID
 }
 
 func (s *ProfileService) deletePictureObject(ctx context.Context, key string) {
