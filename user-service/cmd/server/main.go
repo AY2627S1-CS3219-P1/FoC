@@ -139,11 +139,12 @@ func main() {
 		relay.Run(ctx)
 	}()
 
-	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	imageStorage := newImageStorage(cfg)
+	reviewLogic := newReviewService(sqlDB, imageStorage)
 	profileLogic := &service.ProfileService{
 		Users:    persistence.Users,
 		Pictures: persistence.ProfilePictures,
-		Storage:  imageStorage,
+		Storage:  profilePictureStorage(imageStorage),
 	}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
@@ -250,25 +251,33 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// newReviewService builds the review domain over the shared database pool.
-// The second return is nil unless review photo storage is configured.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	var photos *images.S3
-	if cfg.s3Bucket != "" {
-		storage, err := images.NewS3(context.Background(), images.S3Config{
-			Bucket:         cfg.s3Bucket,
-			Endpoint:       cfg.s3Endpoint,
-			PublicEndpoint: cfg.s3PublicEndpoint,
-			Region:         "us-east-1",
-		})
-		if err != nil {
-			slog.Error("review photo storage disabled: invalid configuration", "err", err)
-		} else {
-			photos = storage
-		}
+// newImageStorage builds the shared object-storage adapter. It returns nil
+// when storage is not configured so callers can disable image workflows.
+func newImageStorage(cfg config) *images.S3 {
+	if cfg.s3Bucket == "" {
+		return nil
 	}
-	service := review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+	storage, err := images.NewS3(context.Background(), images.S3Config{
+		Bucket:         cfg.s3Bucket,
+		Endpoint:       cfg.s3Endpoint,
+		PublicEndpoint: cfg.s3PublicEndpoint,
+		Region:         "us-east-1",
+	})
+	if err != nil {
+		slog.Error("image storage disabled: invalid configuration", "err", err)
+		return nil
+	}
+	return storage
+}
+
+// newReviewService builds the review domain over the shared database pool.
+func newReviewService(sqlDB *sql.DB, storage *images.S3) *review.Service {
+	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	var photos review.PhotoStorage
+	if storage != nil {
+		photos = storage
+	}
+	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
 			return err
@@ -279,7 +288,15 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 		}
 		return tx.Commit()
 	}, photos)
-	return service, photos
+}
+
+// profilePictureStorage keeps a true nil interface when storage is absent;
+// a typed nil *images.S3 would bypass the service's nil checks.
+func profilePictureStorage(storage *images.S3) service.ProfilePictureStorage {
+	if storage == nil {
+		return nil
+	}
+	return storage
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
