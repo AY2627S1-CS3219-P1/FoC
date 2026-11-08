@@ -299,3 +299,46 @@ func TestFinalizeHardDeletesAndWritesOneFact(t *testing.T) {
 		t.Fatalf("user_deleted facts = %d, want exactly 1", facts)
 	}
 }
+
+// TestWorkerRefusesToFinalizeLiveAccount proves a stray job never causes the
+// worker to hard-delete an account whose is_deleting flag is false: the guard
+// drops the inconsistent job instead (self-heal, no data loss).
+func TestWorkerRefusesToFinalizeLiveAccount(t *testing.T) {
+	db := openDeletionDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	uid := insertUserRow(t, db, models.RoleUser) // is_deleting = false
+	if err := deletiondb.New(sqlDB).InsertJob(ctx, deletiondb.InsertJobParams{
+		UserID: uid, DeletionRequestID: uuid.New(),
+		AdmissionsSafeAfter: now.Add(-time.Hour), NextAttemptAt: now.Add(-time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := NewPlan(db, Config{InitialDrainDelay: time.Minute}, stubIssuer{}, nil)
+	w := NewWorker(plan, sqlDB)
+	w.now = func() time.Time { return now }
+	if err := w.drainOnce(ctx); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+
+	var users int64
+	if err := db.Model(&models.User{}).Where("id = ?", uid).Count(&users).Error; err != nil {
+		t.Fatal(err)
+	}
+	if users != 1 {
+		t.Fatal("worker hard-deleted a live account")
+	}
+	var jobs int64
+	if err := sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM account_deletion_jobs WHERE user_id = $1", uid).Scan(&jobs); err != nil {
+		t.Fatal(err)
+	}
+	if jobs != 0 {
+		t.Fatalf("stale job not cleared: %d", jobs)
+	}
+}

@@ -161,6 +161,12 @@ func (w *Worker) finalizeJob(
 		if err != nil {
 			return err
 		}
+		if !user.IsDeleting {
+			// Defensive: a deletion job must only exist for a deleting account.
+			// Never hard-delete a live account; drop the inconsistent job so it
+			// does not spin on every poll.
+			return queries.DeleteJob(ctx, locked.UserID)
+		}
 		return finalize(ctx, tx, *user, locked.DeletionRequestID, now, queries)
 	})
 }
