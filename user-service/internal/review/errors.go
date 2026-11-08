@@ -36,6 +36,13 @@ const (
 )
 
 var (
+	errSelfReview          = errors.New("cannot review yourself")
+	errReviewerNotFound    = errors.New("reviewer does not exist")
+	errRevieweeNotFound    = errors.New("reviewee does not exist")
+	errReviewNotFound      = errors.New("review not found")
+	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
+	errReviewInvalid       = errors.New("review data is invalid")
+
 	errUploadTemporarilyUnavailable = errors.New("review photo storage is temporarily unavailable")
 	errUploadUnavailable            = errors.New("review photo uploads are not available")
 	errPhotoNotReady                = errors.New("review photo is not ready to attach")

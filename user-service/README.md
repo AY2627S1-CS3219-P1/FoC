@@ -208,8 +208,9 @@ The package keeps the adapter, business rules and persistence together:
 | `handler.go` | Connect adapter: request parsing, proto conversion |
 | `service.go` | Business rules: submit, list, remove and list removals |
 | `photos.go` | Review-photo lifecycle: upload grant and staging row, pre-submit inspection, in-transaction attachment, read-path URL minting, orphan reaper; declares the `PhotoStorage` port |
-| `errors.go` | Client-facing error vocabulary: contract reasons, `google.rpc` details, storage-fault classification |
-| `model.go` | Domain types shared by the layers above |
+| `errors.go` | Client-facing error vocabulary: contract reasons, `google.rpc` details, storage-fault classification, domain sentinels |
+| `model.go` | Persisted entities, inputs and database projections |
+| `view.go` | Read models returned to callers: photos with minted URLs and paged results |
 | `repository.go`, `postgres_repository.go` | Persistence interface and its sqlc/PostgreSQL implementation |
 | `authorization.go` | Method-level authorization interceptor |
 

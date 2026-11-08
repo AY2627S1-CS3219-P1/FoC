@@ -2,11 +2,9 @@
 package review
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
 )
 
@@ -83,16 +81,6 @@ type ReviewRemoval struct {
 	CreatedByName string
 }
 
-type ReviewPage struct {
-	Reviews []Review
-	pagination.PageInfo
-}
-
-type RemovalPage struct {
-	Removals []ReviewRemoval
-	pagination.PageInfo
-}
-
 type ReviewInput struct {
 	ID         uuid.UUID
 	ReviewerID uuid.UUID
@@ -110,12 +98,3 @@ func newID() (uuid.UUID, error) {
 	}
 	return id, nil
 }
-
-var (
-	errSelfReview          = errors.New("cannot review yourself")
-	errReviewerNotFound    = errors.New("reviewer does not exist")
-	errRevieweeNotFound    = errors.New("reviewee does not exist")
-	errReviewNotFound      = errors.New("review not found")
-	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
-	errReviewInvalid       = errors.New("review data is invalid")
-)

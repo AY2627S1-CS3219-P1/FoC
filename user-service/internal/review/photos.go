@@ -41,14 +41,6 @@ var (
 	errPhotoStorageDisabled = errors.New("photo storage is not configured")
 )
 
-// ReviewPhotoView is an attached photo with a freshly minted download URL.
-type ReviewPhotoView struct {
-	ID          uuid.UUID
-	URL         string
-	ContentType string
-	ExpiresAt   time.Time
-}
-
 // CreateReviewPhotoUpload signs first, then persists the staging row with the grant's shape.
 func (s *Service) CreateReviewPhotoUpload(
 	ctx context.Context,
