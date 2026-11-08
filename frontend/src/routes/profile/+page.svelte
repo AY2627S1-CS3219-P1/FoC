@@ -132,9 +132,6 @@
 					<div><span>Email</span><strong>{profile.email}</strong></div>
 					<div><span>Account role</span><strong>{roleLabel(profile.role)}</strong></div>
 				</div>
-				<div class="form-actions">
-					<Button variant="outlined" href="/profile/warnings">View My Warnings</Button>
-				</div>
 				{#if profile.role === UserRole.SUSPENDED_USER}
 					<p class="notice" role="status">
 						Your account is suspended. You can view your profile, but editing is unavailable.
@@ -201,6 +198,9 @@
 						</div>
 					</form>
 				{/if}
+				<div class="form-actions warnings-actions">
+					<Button variant="outlined" href="/profile/warnings">View My Warnings</Button>
+				</div>
 			</div>
 		</Card>
 		<Card variant="outlined">
@@ -224,5 +224,17 @@
 	.card-title {
 		margin: 0.1rem 0 0;
 		font-size: 1.25rem;
+	}
+
+	.panel-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.warnings-actions {
+		/* .form-actions defaults to flex-end; keep the warnings link pinned to the bottom-left. */
+		justify-content: flex-start;
+		margin-top: auto;
 	}
 </style>
