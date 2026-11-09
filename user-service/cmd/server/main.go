@@ -3,10 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,28 +17,21 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
-	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"gorm.io/gorm"
 )
 
 const (
@@ -51,21 +40,27 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	orderServiceURL string
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port             string
+	internalPort     string
+	databaseURL      string
+	dbMaxOpen        int
+	dbMaxIdle        int
+	runMigrations    bool
+	appEnv           string
+	frontendURL      string
+	privateKey       string
+	kafkaBrokers     string
+	accessTokenTTL   time.Duration
+	refreshTokenTTL  time.Duration
+	smtp             email.SMTPSender
+	bootstrap        bootstrap.Config
+	orderServiceURL  string
+	s3Bucket         string
+	s3Endpoint       string
+	s3PublicEndpoint string
+	s3UploadTTL      time.Duration
+	s3DownloadTTL    time.Duration
+	awsRegion        string
 }
 
 func main() {
@@ -146,7 +141,7 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB, cfg.orderServiceURL)
+	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -162,6 +157,25 @@ func main() {
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 	servers := []*http.Server{public, internal}
+
+	if reviewPhotos != nil {
+		// Orphan staging rows are reaped on a minute ticker; the domain's
+		// claim/delete steps are retryable and idempotent.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
@@ -222,35 +236,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// newReviewService builds the review service. Reads run against the shared
-// connection pool; transactional writes run on a database/sql transaction, with
-// sqlc queries bound to it (see LANDMINES for the locking rule). The order
-// gateway reads the order service's internal listener, which is mounted
-// separately from its public routes and never published to the internet.
-func newReviewService(sqlDB *sql.DB, orderServiceURL string) *review.Service {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	var orders review.OrderGateway
-	if orderServiceURL == "" {
-		// Fail closed while the internal order service URL is unset. Validation
-		// is never skipped.
-		orders = review.UnavailableOrderGateway{}
-	} else {
-		orders = review.NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(
-			&http.Client{Timeout: 5 * time.Second}, orderServiceURL))
-	}
-	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		tx, err := sqlDB.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback() }()
-		if err := operation(reviewdb.New(tx)); err != nil {
-			return err
-		}
-		return tx.Commit()
-	}, orders)
-}
-
 // loadConfig reads .env (if present) and the environment once, applying
 // defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
@@ -284,6 +269,15 @@ func loadConfig() (config, error) {
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
 		},
+		// Review photo storage is optional: without a bucket the photo RPCs
+		// report unavailability and reviews submit without photos.
+		s3Bucket:         envString("USER_S3_BUCKET", ""),
+		s3Endpoint:       envString("USER_S3_ENDPOINT", ""),
+		s3PublicEndpoint: envString("USER_S3_PUBLIC_ENDPOINT", ""),
+		// Zero means the adapter's default grant lifetimes.
+		s3UploadTTL:   envDuration("USER_S3_UPLOAD_TTL", 0, &errs),
+		s3DownloadTTL: envDuration("USER_S3_DOWNLOAD_TTL", 0, &errs),
+		awsRegion:     strings.TrimSpace(envString("AWS_REGION", "")),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
@@ -338,8 +332,7 @@ func loadConfig() (config, error) {
 	if cfg.orderServiceURL != "" {
 		u, err := url.Parse(cfg.orderServiceURL)
 		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil ||
-			u.RawQuery != "" ||
-			u.Fragment != "" {
+			u.RawQuery != "" || u.Fragment != "" {
 			errs = append(
 				errs,
 				fmt.Errorf("ORDER_SERVICE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL),
@@ -393,98 +386,4 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 		return fallback
 	}
 	return d
-}
-
-func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
-	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
-	return allowedadmin.NewAllowedDomainService(repo)
-}
-
-func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
-	return service.Resources{
-		Users:             persistence.Users,
-		AuthTokens:        persistence.AuthTokens,
-		Sessions:          persistence.Sessions,
-		DomainPolicy:      policy,
-		UserCreatedEvents: persistence.UserCreatedOutbox,
-	}
-}
-
-func authTransactions(db *gorm.DB) service.WithTransaction {
-	return func(ctx context.Context, operation func(service.Resources) error) error {
-		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
-			policy := newAllowedDomainService(tx.Statement.ConnPool)
-			return operation(authResources(store.New(tx), policy))
-		})
-	}
-}
-
-func newAuthServices(
-	db *gorm.DB,
-	cfg config,
-	domainPolicy service.EmailDomainPolicy,
-) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
-	frontendURL, err := url.Parse(cfg.frontendURL)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
-	}
-	key, err := userservicejwt.LoadPrivateKeyPEM(cfg.privateKey)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	kid, err := keyID(&key.PublicKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
-	}
-	codec, err := userservicejwt.NewES256Codec(key, kid,
-		httpauth.TokenIssuer, httpauth.TokenAudience)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
-	}
-	persistence := store.New(db)
-
-	logic, err := service.NewService(service.Dependencies{
-		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
-	}, service.Config{
-		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
-		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
-	})
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
-	}
-	allowedOrigin := frontendURL.Scheme + "://" + frontendURL.Host
-	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
-}
-
-func keyID(key *ecdsa.PublicKey) (string, error) {
-	point, err := key.Bytes()
-	if err != nil {
-		return "", err
-	}
-	fingerprint := sha256.Sum256(point)
-	return hex.EncodeToString(fingerprint[:]), nil
-}
-
-func getCorsConfig(allowedOrigin string) *cors.Cors {
-	return cors.New(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{
-			"Authorization",
-			"Content-Type",
-			"Connect-Protocol-Version",
-			"Connect-Timeout-Ms",
-			"Grpc-Timeout",
-			"X-Grpc-Web",
-			"X-User-Agent",
-		},
-		ExposedHeaders: []string{
-			"Grpc-Status",
-			"Grpc-Message",
-			"Grpc-Status-Details-Bin",
-		},
-	})
 }

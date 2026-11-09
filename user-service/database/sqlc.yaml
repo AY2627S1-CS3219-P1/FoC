@@ -17,7 +17,9 @@ sql:
             go_type: "string"
   - name: "review"
     engine: "postgresql"
-    queries: "query/reviews.sql"
+    queries:
+      - "query/reviews.sql"
+      - "query/review_photos.sql"
     schema: "../migrations"
     gen:
       go:

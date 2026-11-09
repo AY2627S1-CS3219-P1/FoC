@@ -129,6 +129,14 @@ automountServiceAccountToken: false
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: user-storage-init
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: floci
   labels:
     foc.dev/stage: dependencies

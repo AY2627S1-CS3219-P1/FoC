@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const countReviewRemovals = `-- name: CountReviewRemovals :one
@@ -51,6 +52,52 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
+const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID AND r.order_id = $2::UUID
+`
+
+type GetReviewByReviewerAndOrderParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+type GetReviewByReviewerAndOrderRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReviewByReviewerAndOrderParams) (GetReviewByReviewerAndOrderRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewByReviewerAndOrder, arg.ReviewerID, arg.OrderID)
+	var i GetReviewByReviewerAndOrderRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ReviewerName,
+		&i.RevieweeName,
+	)
+	return i, err
+}
+
 const insertReview = `-- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now())
@@ -75,6 +122,46 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 		arg.Comment,
 	)
 	return err
+}
+
+const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many
+SELECT order_id::TEXT, (deleted_at IS NOT NULL)::BOOLEAN AS removed
+FROM reviews
+WHERE reviewer_id = $1::UUID AND order_id = ANY($2::UUID[])
+`
+
+type ListReviewOrderStatusesParams struct {
+	ReviewerID uuid.UUID
+	OrderIds   []uuid.UUID
+}
+
+type ListReviewOrderStatusesRow struct {
+	OrderID string
+	Removed bool
+}
+
+// Include removed rows so callers can distinguish blocked orders from unreviewed ones.
+func (q *Queries) ListReviewOrderStatuses(ctx context.Context, arg ListReviewOrderStatusesParams) ([]ListReviewOrderStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewOrderStatuses, arg.ReviewerID, pq.Array(arg.OrderIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewOrderStatusesRow{}
+	for rows.Next() {
+		var i ListReviewOrderStatusesRow
+		if err := rows.Scan(&i.OrderID, &i.Removed); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
@@ -270,12 +357,8 @@ const lockReviewee = `-- name: LockReviewee :exec
 SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 `
 
-// Lock the reviewee row first, then read the aggregate in a separate statement,
-// so a concurrent submit/remove about the same reviewee converges on the count
-// and mean. A locking query must not also read the aggregate (see LANDMINES).
-// FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
-// the FOR KEY SHARE locks InsertReview's foreign-key checks take on the same
-// users rows.
+// Lock the row before the aggregate read; FOR NO KEY UPDATE avoids conflicting
+// with the key-share locks InsertReview's foreign keys take.
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
 	return err
@@ -307,6 +390,26 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 		arg.CreatedBy,
 	)
 	return err
+}
+
+const reviewExists = `-- name: ReviewExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reviews
+    WHERE reviewer_id = $1::UUID AND order_id = $2::UUID
+)
+`
+
+type ReviewExistsParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+// A removed review still blocks re-review, matching the insert's unique rule.
+func (q *Queries) ReviewExists(ctx context.Context, arg ReviewExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, reviewExists, arg.ReviewerID, arg.OrderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
@@ -360,9 +463,7 @@ WHERE id = $1::UUID AND deleted_at IS NULL
 RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 `
 
-// The update locks the row and returns the data needed for the removal audit.
-// A concurrent removal waits, then finds no live row and reports not found.
-// The row is retained so review_removals can keep referencing it.
+// Locks the row; a concurrent removal sees no live row and reports not found.
 func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, error) {
 	row := q.db.QueryRowContext(ctx, softDeleteReview, id)
 	var i Review

@@ -12,27 +12,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// WithTransaction runs operation inside a database/sql transaction with the
-// sqlc queries bound to it; the composition root wires it to the GORM pool.
+// WithTransaction runs operation on the sqlc queries bound to a transaction.
 type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries) error) error
 
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
-	orders          OrderGateway
+	// photos may be nil when photo storage is not configured.
+	photos PhotoStorage
+	orders OrderGateway
 }
 
-func NewService(repo Repository, withTransaction WithTransaction, orders OrderGateway) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction, orders: orders}
+func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage, orders OrderGateway) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, photos: photos, orders: orders}
 }
 
-// SubmitReview inserts the review and recomputes the reviewee's stats in the
-// same transaction, so the stats are current when it returns. It also verifies
-// the order is completed and the caller and reviewee are its participants.
+// SubmitReview verifies order eligibility, attaches photos and recomputes stats in one transaction.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
+	photoIDs []uuid.UUID,
 ) error {
 	if reviewerID == revieweeID {
 		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
@@ -60,6 +60,19 @@ func (s *Service) SubmitReview(
 	if !orderParticipants.Contains(reviewerID, revieweeID) {
 		return errs.NewForbiddenError("not a participant of this order")
 	}
+	// A prior submission committed, usually a lost-response retry; the pre-check
+	// runs before photo preparation so the retry gets the canonical 409.
+	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
+	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
+	if err != nil {
+		return err
+	}
 	id, err := newID()
 	if err != nil {
 		return err
@@ -80,10 +93,12 @@ func (s *Service) SubmitReview(
 			case errors.Is(err, errReviewAlreadyExists):
 				return errs.WrapAlreadyExistsError(err, "review already exists")
 			default:
-				// Anything else (foreign keys, connectivity, timeouts) is not a
-				// duplicate; surface it as an internal error instead of a 409.
+				// Anything else is an internal error, not a duplicate.
 				return err
 			}
+		}
+		if err := s.attachPhotos(ctx, q, reviewerID, id, prepared); err != nil {
+			return err
 		}
 		return s.repo.RecalculateStats(ctx, q, revieweeID)
 	})
@@ -99,6 +114,10 @@ func (s *Service) ListReviewsForUser(
 		return ReviewPage{}, err
 	}
 	total, err := s.repo.CountReviewsForUser(ctx, userID)
+	if err != nil {
+		return ReviewPage{}, err
+	}
+	reviews, err = s.fillPhotos(ctx, reviews)
 	if err != nil {
 		return ReviewPage{}, err
 	}
@@ -118,11 +137,47 @@ func (s *Service) ListReviewsFromUser(
 	if err != nil {
 		return ReviewPage{}, err
 	}
+	reviews, err = s.fillPhotos(ctx, reviews)
+	if err != nil {
+		return ReviewPage{}, err
+	}
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// RemoveReview soft-deletes the review, records the audit row and recomputes
-// the reviewee's stats atomically.
+// ListMyReviewsReceived lists the reviews the caller received, newest first.
+func (s *Service) ListMyReviewsReceived(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	return s.ListReviewsForUser(ctx, userID, page)
+}
+
+// RemoveReview soft-deletes the review, records the audit row and recomputes stats.
+// ListMyReviewsForOrders returns which of the requests the reviewer has reviewed.
+func (s *Service) ListMyReviewsForOrders(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) (ReviewOrderStatuses, error) {
+	return s.repo.ListReviewOrderStatuses(ctx, reviewerID, orderIDs)
+}
+
+// GetMyReviewForOrder returns the reviewer's live review for one order, with
+// freshly minted photo URLs.
+func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	review, err := s.repo.ReviewForOrder(ctx, reviewerID, orderID)
+	if err != nil {
+		return Review{}, err
+	}
+	filled, err := s.fillPhotos(ctx, []Review{review})
+	if err != nil {
+		return Review{}, err
+	}
+	return filled[0], nil
+}
+
+// RemoveReview soft-deletes a review, records the audit row and recomputes stats.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {
