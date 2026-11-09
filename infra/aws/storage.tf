@@ -60,7 +60,7 @@ resource "aws_s3_bucket_cors_configuration" "orders" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD", "PUT"]
-    allowed_origins = ["https://${var.public_hostname}"]
+    allowed_origins = [local.public_origin]
     expose_headers  = ["ETag"]
     max_age_seconds = 3600
   }

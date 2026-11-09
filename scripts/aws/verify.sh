@@ -17,5 +17,7 @@ set -x
 "$TF_BIN" -chdir=infra/aws/state init -input=false -lockfile=readonly
 "$TF_BIN" -chdir=infra/aws/state validate -no-color
 .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
+make fmt-check
+(cd scripts && GOWORK=off go test -mod=readonly ./...)
 set +x
 printf '\nPASS: offline AWS configuration checks. No live deployment was tested.\n'

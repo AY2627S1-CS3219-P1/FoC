@@ -49,7 +49,7 @@ def certificate_patch():
 
 def render(config, destination, ca):
     required = ("region", "cluster_name", "vpc_id", "public_hostname", "image_prefix",
-                "order_bucket", "order_role_arn", "ingress_role_arn", "public_subnet_ids")
+                "order_bucket", "order_role_arn", "ingress_role_arn", "gateway_target_arn")
     for key in required:
         if not config.get(key):
             raise ValueError(f"Missing Terraform output: {key}")
@@ -76,26 +76,28 @@ def render(config, destination, ca):
         patches = []
         if stage == "gateway":
             service = {
-                "metadata": {"annotations": {
-                    "service.beta.kubernetes.io/aws-load-balancer-type": "external",
-                    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
-                    "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip",
-                    "service.beta.kubernetes.io/aws-load-balancer-subnets": ",".join(config["public_subnet_ids"]),
-                }},
-                "spec": {
-                    "type": "LoadBalancer",
-                    # Istio merges Service ports by port number. Keep health probes
-                    # on the pod privately, not on a public NLB listener.
-                    "ports": [{"port": 15021, "$patch": "delete"}],
-                },
+                "spec": {"type": "ClusterIP"},
             }
             patches.append(patch("ConfigMap", "foc-public-infrastructure", [{
                 "op": "replace", "path": "/data/service", "value": json.dumps(service),
             }]))
             patches.append(patch("Gateway", "foc-public", [
-                {"op": "add", "path": "/spec/listeners/0/hostname", "value": hostname},
-                {"op": "replace", "path": "/spec/listeners/0/tls/certificateRefs/0/name", "value": "foc-public-tls"},
+                {"op": "replace", "path": "/spec/listeners/0/port", "value": 80},
+                {"op": "replace", "path": "/spec/listeners/0/protocol", "value": "HTTP"},
+                {"op": "remove", "path": "/spec/listeners/0/tls"},
             ]))
+            # Keep the listener section name so existing HTTPRoute parentRefs
+            # remain valid. Only private ingress changes from HTTPS to HTTP.
+            save(directory / "target-group-binding.json", {
+                "apiVersion": "elbv2.k8s.aws/v1beta1", "kind": "TargetGroupBinding",
+                "metadata": {"name": "foc-public", "namespace": "istio-ingress"},
+                "spec": {
+                    "serviceRef": {"name": "foc-public-istio", "port": 80},
+                    "targetGroupARN": config["gateway_target_arn"],
+                    "targetType": "ip", "vpcID": config["vpc_id"],
+                },
+            })
+            kustomization["resources"].append("target-group-binding.json")
         if stage == "dependencies":
             values = {key: f"https://{hostname}" for key in ORIGIN_KEYS}
             values.update({
@@ -130,9 +132,6 @@ def render(config, destination, ca):
             })
             kustomization["resources"] += ["storage-class.json", "rds-ca.json"]
         if stage == "applications":
-            patches.append(patch("HTTPRoute", None, [
-                {"op": "add", "path": "/spec/hostnames", "value": [hostname]},
-            ]))
             for service in SERVICES:
                 value = certificate_patch()
                 value["apiVersion"] = "apps/v1"

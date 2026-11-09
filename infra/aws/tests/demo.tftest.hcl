@@ -1,6 +1,25 @@
 # Expected outcomes come from the agreed demo topology and AWS security contracts.
 # All providers and the upstream cluster/network modules are mocked. No AWS calls.
 mock_provider "aws" {
+  override_during = plan
+  mock_resource "aws_apigatewayv2_api" {
+    defaults = {
+      id           = "a1b2c3d4"
+      api_endpoint = "https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com"
+    }
+  }
+  mock_resource "aws_lb" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:loadbalancer/net/foc-demo-nlb/0123456789abcdef" }
+  }
+  mock_resource "aws_lb_target_group" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/foc-demo-gw/0123456789abcdef" }
+  }
+  mock_resource "aws_lb_listener" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:listener/net/foc-demo-nlb/0123456789abcdef/0123456789abcdef" }
+  }
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = { arn = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/aws/apigateway/foc-demo" }
+  }
   mock_data "aws_availability_zones" {
     defaults = { names = ["ap-southeast-1a", "ap-southeast-1b"] }
   }
@@ -54,10 +73,9 @@ override_module {
 }
 
 variables {
-  account_id      = "123456789012"
-  operator_cidr   = "203.0.113.10/32"
-  public_hostname = "foc.example.com"
-  expires_on      = "2026-11-16"
+  account_id    = "123456789012"
+  operator_cidr = "203.0.113.10/32"
+  expires_on    = "2026-11-16"
 }
 
 run "private_demo_data_and_images" {
@@ -76,7 +94,7 @@ run "private_demo_data_and_images" {
     error_message = "Teardown must not silently discard database or object data."
   }
   assert {
-    condition     = one(aws_s3_bucket_cors_configuration.orders.cors_rule).allowed_origins == toset(["https://foc.example.com"]) && aws_s3_bucket_public_access_block.orders.block_public_policy
+    condition     = one(aws_s3_bucket_cors_configuration.orders.cors_rule).allowed_origins == toset(["https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com"]) && aws_s3_bucket_public_access_block.orders.block_public_policy
     error_message = "Browser uploads require exact-origin CORS while the bucket stays private."
   }
   assert {
@@ -84,9 +102,34 @@ run "private_demo_data_and_images" {
     error_message = "PostgreSQL ingress must be restricted to worker workloads."
   }
   assert {
+    condition     = aws_lb.ingress.internal && aws_lb_listener.gateway.port == 80 && aws_lb_target_group.gateway.target_type == "ip"
+    error_message = "API Gateway requires a private NLB HTTP ingress with pod IP targets."
+  }
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.gateway.from_port == 80 && aws_vpc_security_group_ingress_rule.gateway.to_port == 80 && aws_vpc_security_group_egress_rule.gateway.from_port == 80 && aws_vpc_security_group_egress_rule.gateway.to_port == 80
+    error_message = "NLB target traffic must be restricted to the pinned Istio gateway port 80."
+  }
+  assert {
+    condition     = aws_apigatewayv2_api.public.protocol_type == "HTTP" && aws_apigatewayv2_stage.public.name == "$default" && aws_apigatewayv2_route.public.route_key == "$default"
+    error_message = "Frontend and RPCs must share the default API Gateway HTTPS endpoint."
+  }
+  assert {
+    condition     = aws_apigatewayv2_integration.ingress.connection_type == "VPC_LINK" && aws_apigatewayv2_integration.ingress.integration_method == "ANY" && aws_apigatewayv2_integration.ingress.request_parameters["overwrite:path"] == "$request.path" && aws_apigatewayv2_integration.ingress.timeout_milliseconds == 30000
+    error_message = "Private HTTP proxy must forward all methods and preserve RPC paths without stage prefixes."
+  }
+  assert {
     condition     = aws_vpc_endpoint.s3.vpc_endpoint_type == "Gateway" && length(aws_vpc_endpoint.s3.route_table_ids) > 0
     error_message = "Private worker S3 traffic must use a gateway endpoint."
   }
+}
+
+# AWS CreateLoadBalancer prohibits names starting with internal-.
+run "reject_reserved_nlb_name" {
+  command = plan
+  variables {
+    name = "internal-demo"
+  }
+  expect_failures = [var.name]
 }
 
 run "reject_open_operator_api" {

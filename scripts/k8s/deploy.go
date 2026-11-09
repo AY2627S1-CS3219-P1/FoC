@@ -327,7 +327,7 @@ func (o *operator) deployAll() error {
 				return err
 			}
 		}
-		if _, err := o.query("-n", "istio-ingress", "get", "secret", "foc-public-tls"); err != nil {
+		if err := o.checkGatewayTLSSecrets(); err != nil {
 			return err
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.")
