@@ -2,8 +2,7 @@
 
 This directory contains all project-defined seed records: `users.json` for
 accounts, roles and the registration domain; `suppliers.sql` for buildings,
-categories, locations, requests and closures; `moderation.sql` for the initial
-review content moderation configuration. Assignment-provided CSVs live in
+categories, locations, requests and closures. Assignment-provided CSVs live in
 [`../assignment/`](../assignment/README.md) and retain their existing Go importer.
 
 These files populate existing tables. They are explicit development fixtures,
@@ -12,11 +11,11 @@ not Goose schema migrations, and Compose startup does not execute them.
 Run after the Compose services have applied their migrations:
 
 ```sh
-docker compose up -d postgres mailpit user-service supplier-service credit-service content-moderation-service frontend
+docker compose up -d postgres mailpit user-service supplier-service credit-service frontend
 make seed-demo
 ```
 
-Wait for User, Supplier, Credit and Content Moderation migrations before seeding. New users emit
+Wait for User, Supplier and Credit migrations before seeding. New users emit
 `users.create` through the registration provisioning logic; User, Kafka and Credit
 must be running for their 100-credit accounts to appear asynchronously.
 
@@ -152,8 +151,7 @@ entries are rejected.
 {
   "version": 1,
   "files": [
-    { "file": "suppliers.sql", "database": "SUPPLIER_DB" },
-    { "file": "moderation.sql", "database": "MODERATION_DB" }
+    { "file": "suppliers.sql", "database": "SUPPLIER_DB" }
   ]
 }
 ```
@@ -166,11 +164,7 @@ and target. Each SQL file owns its transaction. An earlier file may already
 have committed when a later one fails; fix the error and rerun.
 
 There is no cross-database transaction or schema migration step. Wait for
-service migrations before seeding. The moderation fixture initializes the
-active review configuration only when none is active and preserves existing
-admin changes on reruns. It uses the default SoCLaaS endpoint and model
-fingerprint; deployments with a different provider endpoint must save a fresh
-configuration through the admin interface. The assignment CSV importer remains separate.
+service migrations before seeding. The assignment CSV importer remains separate.
 For another SQL fixture, put its file here and add an entry to `manifest.json`;
 the SQL runner handles it without a Makefile or Go code change. User fixtures
 remain in `users.json` and use the User command described above.

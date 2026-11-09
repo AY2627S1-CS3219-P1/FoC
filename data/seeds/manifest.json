@@ -1,7 +1,6 @@
 {
   "version": 1,
   "files": [
-    { "file": "suppliers.sql", "database": "SUPPLIER_DB" },
-    { "file": "moderation.sql", "database": "MODERATION_DB" }
+    { "file": "suppliers.sql", "database": "SUPPLIER_DB" }
   ]
 }
