@@ -96,7 +96,7 @@ func run(ctx context.Context) error {
 	}
 
 	workers.Go(func() {
-		reportOperationalState(workerCtx, pool, components, config.OperationalStateInterval)
+		reportOperationalState(workerCtx, pool, components, config.LoggingInterval)
 	})
 
 	authenticator, err := newAuthenticator(

@@ -58,7 +58,7 @@ func TestLoadConfigRejectsInvalidDurations(t *testing.T) {
 	for _, name := range []string{
 		"CMS_LLM_REQUEST_TIMEOUT", "CMS_JOB_LEASE", "CMS_JOB_HEARTBEAT_INTERVAL",
 		"CMS_JOB_RETRY_INITIAL_DELAY", "CMS_JOB_RETRY_MAX_DELAY", "CMS_JOB_POLL_INTERVAL",
-		"CMS_OPERATIONAL_STATE_INTERVAL",
+		"CMS_LOGGING_INTERVAL",
 	} {
 		for _, value := range []string{"invalid", "0s", "-1s"} {
 			t.Run(name+"/"+value, func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestLoadConfigRejectsInvalidDurations(t *testing.T) {
 	}
 }
 
-func TestLoadConfigOperationalStateInterval(t *testing.T) {
+func TestLoadConfigLoggingInterval(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		value string
@@ -96,7 +96,7 @@ func TestLoadConfigOperationalStateInterval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg, err := loadConfig(func(key string) string {
 				switch key {
-				case "CMS_OPERATIONAL_STATE_INTERVAL":
+				case "CMS_LOGGING_INTERVAL":
 					return tt.value
 				case "INTERNAL_PORT":
 					return "8081"
@@ -111,8 +111,8 @@ func TestLoadConfigOperationalStateInterval(t *testing.T) {
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
 			}
-			if cfg.OperationalStateInterval != tt.want {
-				t.Fatalf("OperationalStateInterval = %s, want %s", cfg.OperationalStateInterval, tt.want)
+			if cfg.LoggingInterval != tt.want {
+				t.Fatalf("LoggingInterval = %s, want %s", cfg.LoggingInterval, tt.want)
 			}
 		})
 	}

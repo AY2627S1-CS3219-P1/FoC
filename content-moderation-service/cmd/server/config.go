@@ -29,7 +29,7 @@ type appConfig struct {
 	JobRetryInitialDelay     time.Duration
 	JobRetryMaxDelay         time.Duration
 	JobPollInterval          time.Duration
-	OperationalStateInterval time.Duration
+	LoggingInterval time.Duration
 
 	LLMBaseURL string
 	LLMAPIKey  string
@@ -53,7 +53,7 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		JobRetryInitialDelay:     10 * time.Second,
 		JobRetryMaxDelay:         5 * time.Minute,
 		JobPollInterval:          1 * time.Second,
-		OperationalStateInterval: 5 * time.Minute,
+		LoggingInterval: 5 * time.Minute,
 		LLMBaseURL:               "https://soclaas-api.comp.nus.edu.sg/v1",
 		LLMAPIKey:                strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
 	}
@@ -131,7 +131,7 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		"CMS_JOB_RETRY_INITIAL_DELAY":    &c.JobRetryInitialDelay,
 		"CMS_JOB_RETRY_MAX_DELAY":        &c.JobRetryMaxDelay,
 		"CMS_JOB_POLL_INTERVAL":          &c.JobPollInterval,
-		"CMS_OPERATIONAL_STATE_INTERVAL": &c.OperationalStateInterval,
+		"CMS_LOGGING_INTERVAL": &c.LoggingInterval,
 	} {
 		if value := strings.TrimSpace(getenv(name)); value != "" {
 			duration, err := time.ParseDuration(value)
