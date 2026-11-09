@@ -44,7 +44,10 @@ func TestDeleteUserRejectsMissingActorAndMalformedTarget(t *testing.T) {
 		t.Fatal("invalid request reached deletion logic")
 		return nil
 	})}
-	_, err := h.DeleteUser(context.Background(), connect.NewRequest(&userv1.DeleteUserRequest{UserId: uuid.NewString()}))
+	_, err := h.DeleteUser(
+		context.Background(),
+		connect.NewRequest(&userv1.DeleteUserRequest{UserId: uuid.NewString()}),
+	)
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("missing actor: %v", err)
 	}

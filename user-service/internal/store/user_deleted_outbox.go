@@ -91,4 +91,3 @@ func (s *UserDeletedOutbox) Retry(ctx context.Context, fact outbox.DeletedFact, 
 	}
 	return nil
 }
-

@@ -58,4 +58,3 @@ func SetupInternal(services InternalRPCServices) *http.ServeMux {
 
 	return mux
 }
-

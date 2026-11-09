@@ -280,4 +280,3 @@ func TestSessionsRevokeAllForUser(t *testing.T) {
 		t.Fatalf("repeated revoke all: count=%d err=%v", count, err)
 	}
 }
-

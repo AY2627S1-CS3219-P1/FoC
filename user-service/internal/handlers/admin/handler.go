@@ -105,4 +105,3 @@ func roleName(role userv1.UserRole) (models.RoleName, bool) {
 		return "", false
 	}
 }
-

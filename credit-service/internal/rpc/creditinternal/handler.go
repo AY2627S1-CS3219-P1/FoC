@@ -59,4 +59,3 @@ var outstandingReasons = map[account.OutstandingWorkReason]creditv1.OutstandingW
 }
 
 var _ creditv1connect.CreditInternalServiceHandler = (*Server)(nil)
-

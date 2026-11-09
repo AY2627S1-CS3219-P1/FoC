@@ -59,4 +59,3 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 		}
 	})
 }
-

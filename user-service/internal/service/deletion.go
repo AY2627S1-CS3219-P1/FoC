@@ -78,7 +78,9 @@ func (s *DeletionService) DeleteUser(ctx context.Context, actorID, targetID uuid
 		reader OutstandingWorkReader
 	}{{"Order", s.Order}, {"Credit", s.Credit}} {
 		if check.reader == nil {
-			return errs.NewUnavailableError("Could not verify outstanding work with " + check.name + " Service; try again.")
+			return errs.NewUnavailableError(
+				"Could not verify outstanding work with " + check.name + " Service; try again.",
+			)
 		}
 		call, cancelCall := context.WithTimeout(checkCtx, 5*time.Second)
 		work, err := check.reader.GetUserOutstandingWork(call, targetID)
@@ -91,7 +93,7 @@ func (s *DeletionService) DeleteUser(ctx context.Context, actorID, targetID uuid
 				return ctx.Err()
 			}
 			return errs.WrapUnavailableError(err,
-				"Could not verify outstanding work with " + check.name + " Service; try again.")
+				"Could not verify outstanding work with "+check.name+" Service; try again.")
 		}
 		if work.HasOutstandingWork || len(work.Reasons) != 0 {
 			reason := "Account has outstanding work"
@@ -138,7 +140,9 @@ func (s *DeletionService) DeleteUser(ctx context.Context, actorID, targetID uuid
 				return errs.NewFailedPreconditionError("This protected account cannot be deleted.")
 			}
 			if errors.Is(err, store.ErrProfileImageCleanup) {
-				return errs.NewFailedPreconditionError("Profile image cleanup must be configured before deleting this account.")
+				return errs.NewFailedPreconditionError(
+					"Profile image cleanup must be configured before deleting this account.",
+				)
 			}
 			return err
 		}

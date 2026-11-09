@@ -169,4 +169,3 @@ func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
 		CreatedBy: createdBy,
 	}, nil
 }
-

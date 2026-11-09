@@ -53,4 +53,3 @@ func (s *Store) WithTransaction(ctx context.Context, operation func(*Store) erro
 		return operation(New(tx))
 	})
 }
-

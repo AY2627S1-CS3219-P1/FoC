@@ -38,4 +38,3 @@ type AccountWarning struct {
 	RemovedReason *string
 	AppealID      *uuid.UUID
 }
-

@@ -59,4 +59,3 @@ var outstandingReasons = map[order.OutstandingWorkReason]pb.OutstandingWorkReaso
 }
 
 var _ orderv1connect.OrderInternalServiceHandler = (*Server)(nil)
-

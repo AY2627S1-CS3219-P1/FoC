@@ -16,7 +16,7 @@ import (
 
 func newDeletionService(persistence *store.Store, cfg config) (*service.DeletionService, error) {
 	for name, address := range map[string]string{
-		"ORDER_SERVICE_BASE_URL": cfg.orderServiceURL,
+		"ORDER_SERVICE_BASE_URL":  cfg.orderServiceURL,
 		"CREDIT_SERVICE_BASE_URL": cfg.creditServiceURL,
 	} {
 		if address == "" {
@@ -41,7 +41,9 @@ func newDeletionService(persistence *store.Store, cfg config) (*service.Deletion
 		s.Order = accountchecks.Order{Client: orderv1connect.NewOrderInternalServiceClient(client, cfg.orderServiceURL)}
 	}
 	if cfg.creditServiceURL != "" {
-		s.Credit = accountchecks.Credit{Client: creditv1connect.NewCreditInternalServiceClient(client, cfg.creditServiceURL)}
+		s.Credit = accountchecks.Credit{
+			Client: creditv1connect.NewCreditInternalServiceClient(client, cfg.creditServiceURL),
+		}
 	}
 	return s, nil
 }

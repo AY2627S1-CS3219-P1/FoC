@@ -28,4 +28,3 @@ func encodeDeleted(fact DeletedFact) (proto.Message, error) {
 		DeletedAt:         deletedAt,
 	}, nil
 }
-

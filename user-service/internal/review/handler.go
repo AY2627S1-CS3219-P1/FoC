@@ -259,4 +259,3 @@ func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 		CreatedByDeleted: removal.CreatedByDeleted,
 	}
 }
-

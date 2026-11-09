@@ -14,7 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type Order struct{ Client orderv1connect.OrderInternalServiceClient }
+type Order struct {
+	Client orderv1connect.OrderInternalServiceClient
+}
 
 func (a Order) GetUserOutstandingWork(ctx context.Context, id uuid.UUID) (service.OutstandingWork, error) {
 	r, err := a.Client.GetUserOutstandingWork(ctx,
@@ -28,7 +30,9 @@ func (a Order) GetUserOutstandingWork(ctx context.Context, id uuid.UUID) (servic
 	return workResult(r.Msg.HasOutstandingWork, r.Msg.Reasons, orderReasons)
 }
 
-type Credit struct{ Client creditv1connect.CreditInternalServiceClient }
+type Credit struct {
+	Client creditv1connect.CreditInternalServiceClient
+}
 
 func (a Credit) GetUserOutstandingWork(ctx context.Context, id uuid.UUID) (service.OutstandingWork, error) {
 	r, err := a.Client.GetUserOutstandingWork(ctx,

@@ -286,4 +286,3 @@ func cleanupImages(ctx context.Context, images *order.ItemImages) {
 		}
 	}
 }
-

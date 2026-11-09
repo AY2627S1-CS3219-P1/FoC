@@ -14,7 +14,7 @@ import (
 )
 
 type deletionUsers struct {
-	rows map[uuid.UUID]models.User
+	rows        map[uuid.UUID]models.User
 	lockedActor *models.User
 }
 
@@ -52,7 +52,7 @@ func (f deletionAccount) HardDeleteAccount(ctx context.Context, u *models.User, 
 func deletionFixture() (*DeletionService, *deletionUsers, uuid.UUID, uuid.UUID) {
 	actor, target := uuid.New(), uuid.New()
 	users := &deletionUsers{rows: map[uuid.UUID]models.User{
-		actor: {BaseModel: models.BaseModel{ID: actor}, Role: models.RoleAdmin},
+		actor:  {BaseModel: models.BaseModel{ID: actor}, Role: models.RoleAdmin},
 		target: {BaseModel: models.BaseModel{ID: target}, Role: models.RoleUser},
 	}}
 	return &DeletionService{Users: users}, users, actor, target
@@ -60,10 +60,10 @@ func deletionFixture() (*DeletionService, *deletionUsers, uuid.UUID, uuid.UUID) 
 
 func TestDeletionStopsAtFirstOutstandingOrError(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name   string
 		failAt string
-		busy bool
-		want []string
+		busy   bool
+		want   []string
 	}{
 		{"order unavailable", "Order", false, []string{"Order"}},
 		{"order busy", "Order", true, []string{"Order"}},
@@ -94,7 +94,10 @@ func TestDeletionStopsAtFirstOutstandingOrError(t *testing.T) {
 				return nil
 			}
 			if err := s.DeleteUser(context.Background(), actor, target); err == nil ||
-				!strings.Contains(err.Error(), tc.failAt + " Service") || strings.Contains(err.Error(), "private database") {
+				!strings.Contains(
+					err.Error(),
+					tc.failAt+" Service",
+				) || strings.Contains(err.Error(), "private database") {
 				t.Fatalf("failed check lost service context or exposed private error: %v", err)
 			}
 			if !reflect.DeepEqual(calls, tc.want) {
@@ -124,9 +127,9 @@ func TestCancelledDeletionDoesNotEnterWriteTransaction(t *testing.T) {
 
 func TestDeletionPermissionsAndLiveRoleRecheck(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name                  string
 		actorRole, targetRole models.RoleName
-		self bool
+		self                  bool
 	}{
 		{"ordinary", models.RoleUser, models.RoleUser, false},
 		{"suspended", models.RoleSuspended, models.RoleUser, false},
@@ -156,10 +159,15 @@ func TestDeletionPermissionsAndLiveRoleRecheck(t *testing.T) {
 	clean := deletionCheck(func(context.Context, uuid.UUID) (OutstandingWork, error) { return OutstandingWork{}, nil })
 	s.Order, s.Credit = clean, clean
 	s.WithTransaction = func(ctx context.Context, operation func(DeletionStore) error) error {
-		return operation(DeletionStore{Users: users, Accounts: deletionAccount(func(context.Context, *models.User, models.UserDeletedOutbox) error {
-			t.Fatal("stale role authorized a hard delete")
-			return nil
-		})})
+		return operation(
+			DeletionStore{
+				Users: users,
+				Accounts: deletionAccount(func(context.Context, *models.User, models.UserDeletedOutbox) error {
+					t.Fatal("stale role authorized a hard delete")
+					return nil
+				}),
+			},
+		)
 	}
 	if err := s.DeleteUser(context.Background(), actor, target); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("live role check = %v", err)
@@ -180,13 +188,20 @@ func TestDeletionPassesStableFactToTransaction(t *testing.T) {
 	s.Order, s.Credit = clean, clean
 	called := false
 	s.WithTransaction = func(ctx context.Context, operation func(DeletionStore) error) error {
-		return operation(DeletionStore{Users: users, Accounts: deletionAccount(func(_ context.Context, u *models.User, f models.UserDeletedOutbox) error {
-			called = true
-			if u.ID != target || f.UserID != target || f.EventID == uuid.Nil || f.DeletionRequestID == uuid.Nil || !f.DeletedAt.Equal(now) {
-				t.Fatalf("invalid deletion fact: %+v", f)
-			}
-			return nil
-		})})
+		return operation(
+			DeletionStore{
+				Users: users,
+				Accounts: deletionAccount(func(_ context.Context, u *models.User, f models.UserDeletedOutbox) error {
+					called = true
+					if u.ID != target || f.UserID != target || f.EventID == uuid.Nil ||
+						f.DeletionRequestID == uuid.Nil ||
+						!f.DeletedAt.Equal(now) {
+						t.Fatalf("invalid deletion fact: %+v", f)
+					}
+					return nil
+				}),
+			},
+		)
 	}
 	if err := s.DeleteUser(context.Background(), actor, target); err != nil || !called {
 		t.Fatalf("delete eligible admin: called=%v error=%v", called, err)

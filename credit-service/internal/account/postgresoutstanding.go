@@ -36,4 +36,3 @@ func (s *PostgresStore) OutstandingWork(ctx context.Context, userID string) (Out
 }
 
 var _ DrainReader = (*PostgresStore)(nil)
-

@@ -38,11 +38,16 @@ func TestAccountHardDeleteRetainsReviewsAndFreesEmail(t *testing.T) {
 		VALUES (?, ?, ?, ?, 4, 'retained contribution')`, reviewID, user.ID, recipient.ID, uuid.New()).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Exec("UPDATE users SET review_count = 1, avg_rating = 4 WHERE id = ?", recipient.ID).Error; err != nil {
+	if err := db.Exec(
+		"UPDATE users SET review_count = 1, avg_rating = 4 WHERE id = ?",
+		recipient.ID,
+	).Error; err != nil {
 		t.Fatal(err)
 	}
 	hash := sha256.Sum256([]byte(uuid.NewString()))
-	if err := db.Create(&models.Session{UserID: user.ID, TokenHash: hash[:], ExpiresAt: time.Now().Add(time.Hour)}).Error; err != nil {
+	if err := db.Create(
+		&models.Session{UserID: user.ID, TokenHash: hash[:], ExpiresAt: time.Now().Add(time.Hour)},
+	).Error; err != nil {
 		t.Fatal(err)
 	}
 	challengeHash := sha256.Sum256([]byte(uuid.NewString()))
@@ -67,7 +72,12 @@ func TestAccountHardDeleteRetainsReviewsAndFreesEmail(t *testing.T) {
 			t.Fatalf("%s not physically deleted: count=%d err=%v", table, count, err)
 		}
 	}
-	if err := db.Unscoped().Model(&models.AuthToken{}).Where("email = ?", user.Email).Count(&count).Error; err != nil || count != 0 {
+	if err := db.Unscoped().
+		Model(&models.AuthToken{}).
+		Where("email = ?", user.Email).
+		Count(&count).
+		Error; err != nil ||
+		count != 0 {
 		t.Fatalf("email challenges survived: %d %v", count, err)
 	}
 	var retained struct {
@@ -75,7 +85,11 @@ func TestAccountHardDeleteRetainsReviewsAndFreesEmail(t *testing.T) {
 		RevieweeID uuid.UUID
 		Comment    string
 	}
-	if err := db.Table("reviews").Select("reviewer_id, reviewee_id, comment").Where("id = ?", reviewID).Take(&retained).Error; err != nil {
+	if err := db.Table("reviews").
+		Select("reviewer_id, reviewee_id, comment").
+		Where("id = ?", reviewID).
+		Take(&retained).
+		Error; err != nil {
 		t.Fatal(err)
 	}
 	if retained.ReviewerID.Valid || retained.RevieweeID != recipient.ID || retained.Comment != "retained contribution" {
@@ -85,11 +99,21 @@ func TestAccountHardDeleteRetainsReviewsAndFreesEmail(t *testing.T) {
 		ReviewCount int
 		AvgRating   float64
 	}
-	if err := db.Table("users").Select("review_count, avg_rating").Where("id = ?", recipient.ID).Take(&stats).Error; err != nil || stats.ReviewCount != 1 || stats.AvgRating != 4 {
+	if err := db.Table("users").
+		Select("review_count, avg_rating").
+		Where("id = ?", recipient.ID).
+		Take(&stats).
+		Error; err != nil || stats.ReviewCount != 1 ||
+		stats.AvgRating != 4 {
 		t.Fatalf("recipient statistics changed: %+v %v", stats, err)
 	}
 	var publishedFact models.UserDeletedOutbox
-	if err := db.Take(&publishedFact, "event_id = ?", fact.EventID).Error; err != nil || publishedFact.UserID != user.ID || publishedFact.PublishedAt != nil {
+	if err := db.Take(
+		&publishedFact,
+		"event_id = ?",
+		fact.EventID,
+	).Error; err != nil || publishedFact.UserID != user.ID ||
+		publishedFact.PublishedAt != nil {
 		t.Fatalf("missing pending deletion fact: %+v %v", publishedFact, err)
 	}
 	replacement := createStoreUser(t, persistence, user.Email)
@@ -137,16 +161,35 @@ func TestAccountDeleteProtectsBootstrapAndUntrackedPrivateImage(t *testing.T) {
 	if err := db.Create(&models.AdminBootstrap{Singleton: true, UserID: u.ID}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := deleteInTransaction(context.Background(), persistence, u.ID, deletionFact(u.ID)); !errors.Is(err, ErrInUse) {
+	if err := deleteInTransaction(
+		context.Background(),
+		persistence,
+		u.ID,
+		deletionFact(u.ID),
+	); !errors.Is(
+		err,
+		ErrInUse,
+	) {
 		t.Fatalf("bootstrap deletion = %v", err)
 	}
 	if err := db.Delete(&models.AdminBootstrap{}, "user_id = ?", u.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Model(&models.User{}).Where("id = ?", u.ID).Update("profile_picture_key", "private/legacy.jpg").Error; err != nil {
+	if err := db.Model(&models.User{}).
+		Where("id = ?", u.ID).
+		Update("profile_picture_key", "private/legacy.jpg").
+		Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := deleteInTransaction(context.Background(), persistence, u.ID, deletionFact(u.ID)); !errors.Is(err, ErrProfileImageCleanup) {
+	if err := deleteInTransaction(
+		context.Background(),
+		persistence,
+		u.ID,
+		deletionFact(u.ID),
+	); !errors.Is(
+		err,
+		ErrProfileImageCleanup,
+	) {
 		t.Fatalf("discarded an untracked private image: %v", err)
 	}
 	if err := db.Take(&models.User{}, u.ID).Error; err != nil {

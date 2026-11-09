@@ -36,4 +36,3 @@ func (w OutstandingWork) HasOutstandingWork() bool {
 type DrainReader interface {
 	OutstandingWork(ctx context.Context, userID string) (OutstandingWork, error)
 }
-

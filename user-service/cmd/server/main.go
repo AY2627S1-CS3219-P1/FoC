@@ -50,22 +50,22 @@ const (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    string
-	orderServiceURL string
+	port             string
+	internalPort     string
+	databaseURL      string
+	dbMaxOpen        int
+	dbMaxIdle        int
+	runMigrations    bool
+	appEnv           string
+	frontendURL      string
+	privateKey       string
+	kafkaBrokers     string
+	orderServiceURL  string
 	creditServiceURL string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	accessTokenTTL   time.Duration
+	refreshTokenTTL  time.Duration
+	smtp             email.SMTPSender
+	bootstrap        bootstrap.Config
 }
 
 func main() {
@@ -257,20 +257,20 @@ func loadConfig() (config, error) {
 
 	var errs []error
 	cfg := config{
-		port:            envString("PORT", "8080"),
-		internalPort:    envString("INTERNAL_PORT", ""),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
-		orderServiceURL: envString("ORDER_SERVICE_BASE_URL", ""),
+		port:             envString("PORT", "8080"),
+		internalPort:     envString("INTERNAL_PORT", ""),
+		databaseURL:      envString("DATABASE_URL", ""),
+		dbMaxOpen:        envPositiveInt("DB_MAX_OPEN", 10, &errs),
+		dbMaxIdle:        envPositiveInt("DB_MAX_IDLE", 5, &errs),
+		runMigrations:    envBool("RUN_MIGRATIONS", true, &errs),
+		appEnv:           envString("APP_ENV", ""),
+		frontendURL:      envString("FRONTEND_BASE_URL", ""),
+		privateKey:       envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:     envString("KAFKA_BROKERS", ""),
+		orderServiceURL:  envString("ORDER_SERVICE_BASE_URL", ""),
 		creditServiceURL: envString("CREDIT_SERVICE_BASE_URL", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		accessTokenTTL:   envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
+		refreshTokenTTL:  envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -475,4 +475,3 @@ func getCorsConfig(allowedOrigin string) *cors.Cors {
 		},
 	})
 }
-

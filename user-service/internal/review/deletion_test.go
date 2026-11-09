@@ -10,7 +10,7 @@ import (
 
 type deletedRecipientRepository struct {
 	Repository
-	removal ReviewRemoval
+	removal      ReviewRemoval
 	recalculated bool
 }
 
@@ -18,7 +18,11 @@ func (r *deletedRecipientRepository) SoftDeleteReview(context.Context, *reviewdb
 	return Review{ID: uuid.New(), OrderID: uuid.New(), ReviewerID: uuid.New()}, nil
 }
 
-func (r *deletedRecipientRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
+func (r *deletedRecipientRepository) RecordReviewRemoval(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	removal ReviewRemoval,
+) error {
 	r.removal = removal
 	return nil
 }
@@ -30,7 +34,10 @@ func (r *deletedRecipientRepository) RecalculateStats(context.Context, *reviewdb
 
 func TestRemovingRetainedReviewDoesNotRecreateDeletedRecipient(t *testing.T) {
 	repository := &deletedRecipientRepository{}
-	s := NewService(repository, func(ctx context.Context, operation func(*reviewdb.Queries) error) error { return operation(nil) })
+	s := NewService(
+		repository,
+		func(ctx context.Context, operation func(*reviewdb.Queries) error) error { return operation(nil) },
+	)
 	if err := s.RemoveReview(context.Background(), uuid.New(), "moderated later", uuid.New()); err != nil {
 		t.Fatal(err)
 	}

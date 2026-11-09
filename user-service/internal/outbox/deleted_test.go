@@ -88,4 +88,3 @@ func TestDeletedEncoderRejectsIncompleteFacts(t *testing.T) {
 		t.Fatal("accepted incomplete deletion event")
 	}
 }
-

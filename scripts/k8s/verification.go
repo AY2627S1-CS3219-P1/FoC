@@ -257,7 +257,7 @@ func (o *operator) meshSmoke() error {
 	for _, c := range []struct {
 		ns, name, sa string
 		injected     bool
-}{{"foc", client, "default", true}, {"foc", order, "order-service", true}, {"foc", user, "user-service", true}, {"istio-ingress", client, "foc-public", true}, {outsider, "meshed", "default", true}, {outsider, "plaintext", "default", false}} {
+	}{{"foc", client, "default", true}, {"foc", order, "order-service", true}, {"foc", user, "user-service", true}, {"istio-ingress", client, "foc-public", true}, {outsider, "meshed", "default", true}, {outsider, "plaintext", "default", false}} {
 		if err := o.makeSmokeClient(c.ns, c.name, c.sa, c.injected); err != nil {
 			return err
 		}
@@ -821,4 +821,3 @@ func (o *operator) storageSmoke() error {
 	)
 	return err
 }
-

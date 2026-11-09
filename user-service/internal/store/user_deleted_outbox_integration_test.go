@@ -45,7 +45,12 @@ func TestDeletedOutboxLeaseRetryKeepsFactAfterUserIsGone(t *testing.T) {
 	if err := persistence.UserDeletedOutbox.Published(ctx, *second, retryAt.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if pending, err := persistence.UserDeletedOutbox.Claim(ctx, retryAt.Add(time.Minute), retryAt.Add(2*time.Minute)); err != nil || pending != nil {
+	if pending, err := persistence.UserDeletedOutbox.Claim(
+		ctx,
+		retryAt.Add(time.Minute),
+		retryAt.Add(2*time.Minute),
+	); err != nil ||
+		pending != nil {
 		t.Fatalf("acknowledged fact was reclaimed: %+v %v", pending, err)
 	}
 }
