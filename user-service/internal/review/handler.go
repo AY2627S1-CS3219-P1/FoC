@@ -30,6 +30,7 @@ type Logic interface {
 	) (uuid.UUID, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListMyReviewsReceived(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
 	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
@@ -161,6 +162,30 @@ func (h *Handler) ListMyReviews(
 // noStore marks responses embedding short-lived pre-signed URLs as non-cacheable.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
+}
+
+// ListMyReviewsReceived lists the reviews the caller received. It mirrors
+// ListMyReviews and derives the user from the caller.
+func (h *Handler) ListMyReviewsReceived(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewsReceivedRequest],
+) (*connect.Response[reviewv1.ListMyReviewsReceivedResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+	pageResult, err := h.Logic.ListMyReviewsReceived(ctx, actorID, page)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	return connect.NewResponse(&reviewv1.ListMyReviewsReceivedResponse{
+		Reviews:    toReviewProtos(pageResult.Reviews),
+		Pagination: toProtoPageInfo(pageResult.PageInfo),
+	}), nil
 }
 
 // ListMyReviewsForOrders returns which of the requests the caller has reviewed.

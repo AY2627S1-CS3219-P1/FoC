@@ -101,6 +101,15 @@ func (s *handlerLogicStub) ListReviewsFromUser(
 	return ReviewPage{}, s.forUserErr
 }
 
+func (s *handlerLogicStub) ListMyReviewsReceived(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	s.listedFor = userID
+	return s.forUserPage, s.forUserErr
+}
+
 func (s *handlerLogicStub) ListMyReviewsForOrders(
 	_ context.Context,
 	reviewerID uuid.UUID,
@@ -171,6 +180,26 @@ func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
 	// be cached.
 	if got := resp.Header().Get("Cache-Control"); got != "no-store" {
 		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+}
+
+func TestListMyReviewsReceivedRPC(t *testing.T) {
+	caller := uuid.New()
+	page := ReviewPage{PageInfo: pagination.NewPageInfo(1, 20, 1)}
+	stub := &handlerLogicStub{forUserPage: page}
+	client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+	resp, err := client.ListMyReviewsReceived(
+		context.Background(),
+		connect.NewRequest(&reviewv1.ListMyReviewsReceivedRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("list received: %v", err)
+	}
+	if stub.listedFor != caller {
+		t.Fatalf("listed user = %v, want caller %v", stub.listedFor, caller)
+	}
+	if resp.Msg.Pagination == nil || resp.Msg.Pagination.TotalItems != 1 {
+		t.Fatalf("pagination = %+v", resp.Msg.Pagination)
 	}
 }
 

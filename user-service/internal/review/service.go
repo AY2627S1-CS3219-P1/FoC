@@ -130,6 +130,15 @@ func (s *Service) ListReviewsFromUser(
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
+// ListMyReviewsReceived lists the reviews the caller received, newest first.
+func (s *Service) ListMyReviewsReceived(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	return s.ListReviewsForUser(ctx, userID, page)
+}
+
 // RemoveReview soft-deletes the review, records the audit row and recomputes stats.
 // ListMyReviewsForOrders returns which of the requests the reviewer has reviewed.
 func (s *Service) ListMyReviewsForOrders(
