@@ -1,4 +1,5 @@
 import { ReviewLimitedError, ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
+import { MAX_IMAGE_BYTES, isAcceptedImageType } from '$lib/features/image-upload/limits';
 
 export type ReviewPhotoOutcome = 'Not Submitted' | 'Pending' | 'Succeeded' | 'Rejected' | 'Failed';
 export type ReviewPhotoRow = {
@@ -16,9 +17,7 @@ export type ReviewPhotosSnapshot = {
 	busy: boolean;
 };
 
-const types = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 const maxPhotos = 5;
-const maxBytes = 10_000_000;
 const apiTimeoutMs = 15_000;
 // Allow 64 KiB/s plus API-sized overhead for a bounded direct upload.
 const uploadBytesPerSecond = 64 * 1024;
@@ -92,7 +91,7 @@ export class ReviewPhotosController {
 			return;
 		}
 		for (const file of selected) {
-			const valid = types.has(file.type) && file.size >= 1 && file.size <= maxBytes;
+			const valid = isAcceptedImageType(file.type) && file.size >= 1 && file.size <= MAX_IMAGE_BYTES;
 			this.files.push({
 				id: crypto.randomUUID(),
 				file,
