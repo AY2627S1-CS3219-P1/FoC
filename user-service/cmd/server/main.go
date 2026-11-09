@@ -63,6 +63,10 @@ type config struct {
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
+	emailProvider   string
+	emailFrom       string
+	awsRegion       string
+	sesTimeout      time.Duration
 	bootstrap       bootstrap.Config
 }
 
@@ -124,7 +128,7 @@ func main() {
 		}
 	}()
 
-	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
+	auth, codec, persistence, err := newAuthServices(ctx, db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
@@ -256,12 +260,14 @@ func loadConfig() (config, error) {
 		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		emailProvider:   envString("EMAIL_PROVIDER", "smtp"),
+		emailFrom:       envString("EMAIL_FROM", ""),
+		awsRegion:       envString("AWS_REGION", ""),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
 			Username: envString("SMTP_USERNAME", ""),
 			Password: os.Getenv("SMTP_PASSWORD"),
-			Timeout:  envDuration("SMTP_TIMEOUT", 5*time.Second, &errs),
 		},
 		bootstrap: bootstrap.Config{
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
@@ -275,10 +281,10 @@ func loadConfig() (config, error) {
 		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
 	}
 	// Local mail goes to Mailpit; `docker compose` overrides the host to mailpit.
-	if cfg.smtp.Addr == "" && cfg.appEnv == "local" {
+	if cfg.emailProvider == "smtp" && cfg.smtp.Addr == "" && cfg.appEnv == "local" {
 		cfg.smtp.Addr = "localhost:1025"
 	}
-	if cfg.smtp.From == "" && cfg.appEnv == "local" {
+	if cfg.emailProvider == "smtp" && cfg.smtp.From == "" && cfg.appEnv == "local" {
 		cfg.smtp.From = "FoC <no-reply@foc.local>"
 	}
 	if cfg.databaseURL == "" {
@@ -300,9 +306,6 @@ func loadConfig() (config, error) {
 			}
 		}
 	}
-	if cfg.smtp.Addr == "" {
-		errs = append(errs, errors.New("SMTP_ADDR is not set"))
-	}
 	if cfg.internalPort == "" {
 		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
 	} else {
@@ -313,10 +316,32 @@ func loadConfig() (config, error) {
 			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
 		}
 	}
-	if cfg.smtp.From == "" {
-		errs = append(errs, errors.New("SMTP_FROM is not set"))
-	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
-		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
+	switch cfg.emailProvider {
+	case "smtp":
+		cfg.smtp.Timeout = envDuration("SMTP_TIMEOUT", 5*time.Second, &errs)
+		if cfg.smtp.Addr == "" {
+			errs = append(errs, errors.New("SMTP_ADDR is not set"))
+		}
+		if cfg.smtp.From == "" {
+			errs = append(errs, errors.New("SMTP_FROM is not set"))
+		} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
+			errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
+		}
+	case "ses":
+		cfg.sesTimeout = envDuration("SES_TIMEOUT", 5*time.Second, &errs)
+		if cfg.sesTimeout <= 0 {
+			errs = append(errs, errors.New("SES_TIMEOUT must be positive"))
+		}
+		if cfg.awsRegion == "" {
+			errs = append(errs, errors.New("AWS_REGION is required for SES"))
+		}
+		if strings.ContainsAny(cfg.emailFrom, "\r\n") {
+			errs = append(errs, errors.New("EMAIL_FROM must not contain line breaks"))
+		} else if _, err := mail.ParseAddress(cfg.emailFrom); err != nil {
+			errs = append(errs, errors.New("EMAIL_FROM must be an email address for SES"))
+		}
+	default:
+		errs = append(errs, errors.New("EMAIL_PROVIDER must be smtp or ses"))
 	}
 	return cfg, errors.Join(errs...)
 }
@@ -393,6 +418,7 @@ func authTransactions(db *gorm.DB) service.WithTransaction {
 }
 
 func newAuthServices(
+	ctx context.Context,
 	db *gorm.DB,
 	cfg config,
 	domainPolicy service.EmailDomainPolicy,
@@ -414,11 +440,18 @@ func newAuthServices(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
+	var sender email.EmailSender = cfg.smtp
+	if cfg.emailProvider == "ses" {
+		sender, err = email.NewSESSender(ctx, cfg.awsRegion, cfg.emailFrom, cfg.sesTimeout)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("configure SES email: %w", err)
+		}
+	}
 	persistence := store.New(db)
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec, EmailSender: sender,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

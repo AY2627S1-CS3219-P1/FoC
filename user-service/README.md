@@ -46,12 +46,19 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `JWT_ACCESS_TOKEN_TTL` and `JWT_REFRESH_TOKEN_TTL` accept Go duration
    values. Their defaults are `10m` and `720h` (30 days).
 
-   Magic links are sent over SMTP. `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
+   Magic links use SMTP by default (`EMAIL_PROVIDER=smtp`). `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
    (an address such as `FoC <no-reply@foc.local>`) are required outside
    local mode. With `APP_ENV=local` they default to Mailpit on
    `localhost:1025`; Compose points the container at `mailpit:1025`.
    `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
    the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
+
+   With `EMAIL_PROVIDER=ses`, set `EMAIL_FROM` to a verified SES sender and
+   `AWS_REGION` to its region. `SES_TIMEOUT` defaults to `5s` when the request
+   has no deadline. The AWS SDK default credential chain supports Kubernetes
+   IAM roles and temporary credentials. SMTP settings are not required in this
+   mode. There is no fallback to SMTP if SES rejects a message. The same
+   text/HTML magic-link content is used with both transports.
 
 2. Set up the database.
 
