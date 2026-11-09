@@ -2,7 +2,7 @@
 	import { page as appPage } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { authService, reviewApi } from '$lib/services';
+	import { reviewApi } from '$lib/services';
 	import type { ReviewRecord } from '$lib/services/review/reviewApi';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import ReceivedReview from '$lib/components/review/ReceivedReview.svelte';
@@ -19,20 +19,24 @@
 	let inFlight = false;
 
 	async function load(page: number) {
-		const reviewer = authService.user?.id;
-		if (!reviewer || inFlight) return;
+		if (inFlight) return;
 		inFlight = true;
 		loading = true;
 		error = '';
+		const signal = AbortSignal.timeout(15000);
 		try {
-			const result = await reviewApi.listForUser(
-				reviewer,
-				{ page, pageSize },
-				AbortSignal.timeout(15000)
-			);
+			let result = await reviewApi.listReceived({ page, pageSize }, signal);
+			let shown = page;
+			// A bookmarked page can outlive its reviews. Clamp to the last page
+			// instead of showing an empty list with no way back.
+			if (result.reviews.length === 0 && result.totalPages > 0 && page > result.totalPages) {
+				shown = result.totalPages;
+				result = await reviewApi.listReceived({ page: shown, pageSize }, signal);
+				syncPageParam(shown);
+			}
 			reviews = result.reviews;
 			totalPages = result.totalPages;
-			currentPage = page;
+			currentPage = shown;
 		} catch {
 			error = 'We could not load your reviews. Check your connection and try again.';
 		} finally {
@@ -44,20 +48,24 @@
 	// The URL owns the page so refresh/back/forward land on the same one.
 	const pageParam = $derived(Math.max(1, Number(appPage.url.searchParams.get('page') ?? '1') || 1));
 
+	// The protected transport handles refresh and the login redirect; the page
+	// never inspects the local auth state.
 	$effect(() => {
-		const reviewer = authService.user?.id;
 		const target = pageParam;
-		if (!reviewer) return;
 		void load(target);
 	});
+
+	function syncPageParam(page: number) {
+		const url = new URL(appPage.url);
+		url.searchParams.set('page', String(page));
+		replaceState(url, {});
+	}
 
 	function goToPage(next: number) {
 		// Fetch now instead of waiting for the URL change to re-run the effect;
 		// the in-flight guard makes the effect's follow-up a no-op.
 		void load(next);
-		const url = new URL(appPage.url);
-		url.searchParams.set('page', String(next));
-		replaceState(url, {});
+		syncPageParam(next);
 		document.getElementById('reviews-top')?.scrollIntoView({ behavior: 'instant', block: 'start' });
 	}
 </script>
@@ -75,15 +83,20 @@
 				<h1 id="reviews-title">Reviews from other users</h1>
 			</header>
 
-			{#if !authService.user}
-				<p class="muted"><a href="/login">Sign in</a> to see your reviews.</p>
-			{:else if error}
+			{#if error}
 				<p class="notice error" role="alert">{error}</p>
 				<div><Button variant="outlined" onclick={() => load(currentPage)}>Try again</Button></div>
 			{:else if !reviews}
 				<div class="loading-state"><LoadingIndicator aria-label="Loading reviews" /></div>
 			{:else if !reviews.length}
-				<p class="muted">No reviews yet. Reviews you receive for completed requests appear here.</p>
+				<p class="muted">
+					{totalPages > 0
+						? 'No reviews on this page.'
+						: 'No reviews yet. Reviews you receive for completed requests appear here.'}
+				</p>
+				{#if totalPages > 0}
+					<Pagination page={currentPage} {totalPages} {loading} onchange={goToPage} />
+				{/if}
 			{:else}
 				<ul>
 					{#each reviews as review (review.id)}
