@@ -60,7 +60,14 @@ func (a adminStub) GetUserByEmail(context.Context, uuid.UUID, string) (models.Us
 	return a.user, nil
 }
 
-func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string) (models.User, error) {
+func (a adminStub) ChangeUserRole(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	models.RoleName,
+	string,
+	*uuid.UUID,
+) (models.User, error) {
 	return a.user, nil
 }
 

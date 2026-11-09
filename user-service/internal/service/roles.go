@@ -57,6 +57,7 @@ func (s *RoleService) ChangeUserRole(
 	actorID, targetID uuid.UUID,
 	to models.RoleName,
 	reason string,
+	reportID *uuid.UUID,
 ) (models.User, error) {
 	if actorID == uuid.Nil {
 		return models.User{}, ErrUnauthenticated
@@ -66,6 +67,9 @@ func (s *RoleService) ChangeUserRole(
 	}
 	reason = strings.TrimSpace(reason)
 	if utf8.RuneCountInString(reason) > 2000 {
+		return models.User{}, ErrInvalidRoleChange
+	}
+	if reportID != nil && *reportID == uuid.Nil {
 		return models.User{}, ErrInvalidRoleChange
 	}
 	var changed models.User
@@ -97,13 +101,19 @@ func (s *RoleService) ChangeUserRole(
 		if target.Role == to {
 			return ErrRoleUnchanged
 		}
-		if (target.Role == models.RoleSuspended || to == models.RoleSuspended) && reason == "" {
+		changesSuspension := target.Role == models.RoleSuspended || to == models.RoleSuspended
+		if changesSuspension && reason == "" {
+			return ErrInvalidRoleChange
+		}
+		// A report justifies a suspension or reinstatement, never other changes.
+		if reportID != nil && !changesSuspension {
 			return ErrInvalidRoleChange
 		}
 		change := &models.RoleChange{
 			UserID:     targetID,
 			FromRole:   target.Role,
 			ToRole:     to,
+			ReportID:   reportID,
 			Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID},
 		}
 		if reason != "" {
@@ -112,6 +122,9 @@ func (s *RoleService) ChangeUserRole(
 		if err := tx.Admin.ChangeRole(ctx, change); err != nil {
 			if errors.Is(err, store.ErrRoleConflict) {
 				return ErrConcurrentRoleEdit
+			}
+			if errors.Is(err, store.ErrReportNotFound) {
+				return ErrReportNotFound
 			}
 			return err
 		}

@@ -245,7 +245,7 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
 				return fn(RoleStore{Users: f, Admin: f})
 			}}
-			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason)
+			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason, nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
 			}
@@ -276,6 +276,7 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 		targetID,
 		models.RoleAdmin,
 		"",
+		nil,
 	); !errors.Is(
 		err,
 		ErrConcurrentRoleEdit,
