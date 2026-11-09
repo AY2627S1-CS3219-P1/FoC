@@ -104,6 +104,8 @@ Note: aggregate rating / review count are computed by Order Service (R3.6, R3.7)
 
 Enforcement is shared: Order Service must block create/accept/review (R2, R1.6.12), Supplier Service must block supplier-addition requests.
 
+User reports (RP1–RP5) are implemented here rather than in a separate Report Service (`docs/adr/user-reports-in-user-service.md`). `ReportService` lets a user report another user about one review or one order. The reported participant can respond. Administrators move a report through Open, Under Review, Awaiting Response and Closed. Closing a report records a reasoned outcome: no action, a warning, a suspension or a review removal. The consequence is applied in the same transaction and references the report (NFR-10.3). The participant check (#301), credit adjustments (#302), response notifications (#303), image evidence and appeals are not implemented yet.
+
 ## U7 — Account Warnings
 
 | ID | Requirement | Priority | Planned |
