@@ -34,7 +34,7 @@
 			// The masked display hides the middle of the ID, so a failed write
 			// can't be recovered by copying it. Reveal the full ID on hover and
 			// tell the user to select and copy it manually.
-			snackbarService.show('Clipboard unavailable — hover the button to reveal the full order ID, then copy it manually.', { severity: 'error', timeout: 10000 });
+			snackbarService.show('Clipboard unavailable — on a computer, hover the button to reveal the full order ID.', { severity: 'error', timeout: 10000 });
 		}
 	}
 
