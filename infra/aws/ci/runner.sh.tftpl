@@ -20,7 +20,7 @@ trap finish EXIT
 stage deadline
 systemd-run --unit=foc-runner-deadline --on-active=120m /sbin/shutdown -h now
 stage packages
-dnf install -y docker git make python3 awscli2 libicu openssl-libs krb5-libs zlib tar gzip jq iptables > /var/log/foc-runner-packages.log 2>&1 || {
+dnf install -y docker git make python3 awscli-2 libicu openssl-libs krb5-libs zlib tar gzip jq iptables > /var/log/foc-runner-packages.log 2>&1 || {
   status=$?
   # Package resolution precedes registration and contains no application credentials.
   tail -n 30 /var/log/foc-runner-packages.log | tee /dev/console || true

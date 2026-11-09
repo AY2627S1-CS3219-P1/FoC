@@ -140,7 +140,12 @@ def main():
         if instance_id and not uncertain:
             # Optional diagnostics must not replace the primary failure or prevent cleanup.
             try:
-                console = aws("ec2", "get-console-output", "--instance-id", instance_id, "--latest", allow_failure=True)
+                # Prefer buffered failure output; retain the live snapshot if buffering is delayed.
+                console = aws("ec2", "get-console-output", "--instance-id", instance_id, allow_failure=True)
+                if console is not None and not console.get("Output"):
+                    latest = aws("ec2", "get-console-output", "--instance-id", instance_id, "--latest", allow_failure=True)
+                    if latest is not None:
+                        console = latest
                 if console is not None:
                     save(directory / "console.PRIVATE.json", encode(console))
                     print("OUTPUT: bootstrap console saved: " + str(directory / "console.PRIVATE.json"), flush=True)

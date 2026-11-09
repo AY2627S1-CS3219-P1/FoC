@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
@@ -267,17 +268,32 @@ class ReleaseCLITest(unittest.TestCase):
         operations = [call for call in state["calls"] if "ec2" in call]
         self.assertLess(next(i for i, call in enumerate(operations) if "get-console-output" in call),
                         next(i for i, call in enumerate(operations) if "terminate-instances" in call))
+        # The original failed VM returned empty/partial latest output but a complete buffered error.
+        self.assertNotIn("--latest", next(call for call in operations if "get-console-output" in call))
 
     def test_runner_diagnostic_failures_preserve_bootstrap_error_and_cleanup(self):
         # The reproduced boot failure must survive unavailable or unwritable diagnostics.
-        for failure in ("console_failure", "console_save_failure"):
+        for failure in ("console_failure", "console_save_failure", "buffered_console_empty"):
             with self.subTest(failure=failure):
                 self.change(bootstrap_failure=True, console_failure=failure == "console_failure",
-                            console_save_failure=failure == "console_save_failure")
+                            console_save_failure=failure == "console_save_failure",
+                            buffered_console_empty=failure == "buffered_console_empty")
                 result = self.launch(success=False)
                 self.assertIn("Runner bootstrap stopped", result.stderr)
                 state = self.read_state()
                 self.assertTrue(state["instance_terminated"] and state["registration_removed"] and state["parameter_removed"])
+                if failure == "buffered_console_empty":
+                    console = max(self.private.glob("aws/runner-launches/*/console.PRIVATE.json"))
+                    self.assertTrue(json.loads(console.read_text())["Output"])
+
+    def test_bootstrap_uses_published_amazon_linux_cli_package(self):
+        # External RPM inventory: docs.aws.amazon.com/linux/al2023/release-notes/all-packages-AL2023.12.html
+        # Reproduced DNF failure: awscli2 is absent; the published package is awscli-2.
+        source = (ROOT / "infra/aws/ci/runner.sh.tftpl").read_text()
+        command = next(line for line in source.splitlines() if line.startswith("dnf install "))
+        packages = shlex.split(command.split(" > ", 1)[0])[3:]
+        self.assertIn("awscli-2", packages)
+        self.assertNotIn("awscli2", packages)
 
     def test_bootstrap_console_failure_still_cleans_and_preserves_exit_status(self):
         # Fault injection for the reviewed EXIT-handler failure; no privileged host commands run.

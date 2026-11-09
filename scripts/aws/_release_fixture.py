@@ -87,6 +87,8 @@ if command == "aws":
         if operation == "get-console-output":
             if state.get("console_failure"):
                 finish(error="fixture console unavailable")
+            if state.get("buffered_console_empty") and "--latest" not in args:
+                finish({"Output": ""})
             if state.get("console_save_failure"):
                 launches = state_file.parent / "aws/runner-launches"
                 (max(launches.iterdir()) / "console.PRIVATE.json").mkdir()
