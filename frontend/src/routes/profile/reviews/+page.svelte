@@ -58,7 +58,7 @@
 		const url = new URL(appPage.url);
 		url.searchParams.set('page', String(next));
 		replaceState(url, {});
-		document.getElementById('reviews-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		document.getElementById('reviews-top')?.scrollIntoView({ behavior: 'instant', block: 'start' });
 	}
 </script>
 
