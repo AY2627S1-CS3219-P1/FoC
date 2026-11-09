@@ -18,7 +18,6 @@
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
-	import ProfileAvatar from '$lib/components/profile/ProfileAvatar.svelte';
 	import ProfilePictureEditor from './ProfilePictureEditor.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
@@ -112,24 +111,13 @@
 	<header class="page-heading">
 		<div class="identity">
 			{#if profile}
-				{#if profile.role === UserRole.SUSPENDED_USER}
-					<ProfileAvatar
-						url={profile.profilePictureUrl}
-						name={profile.displayName}
-						size={72}
-						expiresAt={profile.profilePictureExpiresAt}
-						onerror={() => void refreshPicture()}
-					/>
-				{:else}
-					<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />
-				{/if}
+				<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />
 			{/if}
 			<div class="identity-copy">
 				<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
 				{#if profile}<p>{profile.email}</p>{/if}
 			</div>
 		</div>
-		{#if profile}<span class="role-chip">{roleLabel(profile.role)}</span>{/if}
 	</header>
 
 	{#if loading}
@@ -238,9 +226,14 @@
 
 
 <style>
-	.identity { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; min-width: 0; }
-	.identity-copy { min-width: 0; }
-	.identity-copy p { margin: 0.25rem 0 0; color: var(--m3c-on-surface-variant); }
+	.identity { display: flex; align-items: center; gap: 1.25rem; min-width: 0; }
+	.identity-copy { display: grid; gap: 0.2rem; min-width: 0; }
+	.identity-copy h1 { margin: 0; font-size: clamp(1.5rem, 2.4vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
+	.identity-copy p { margin: 0; color: var(--m3c-on-surface-variant); overflow-wrap: anywhere; }
+	@media (max-width: 36rem) {
+		.identity { gap: 0.875rem; }
+		.identity-copy h1 { font-size: 1.5rem; }
+	}
 
 	/* Wireframe: current credits and request history sit beside each other. */
 	.activity {
