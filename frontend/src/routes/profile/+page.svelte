@@ -73,11 +73,11 @@
 		return 'We could not save your profile. Your changes are still here; please try again.';
 	}
 
-	async function loadProfile(refresh = false) {
+	async function loadProfile() {
 		loading = true;
 		loadError = '';
 		try {
-			profile = refresh ? await profileService.getMyProfile() : await profileService.ensureProfile();
+			profile = await profileService.getMyProfile();
 			const saved = valuesFromProfile(profile);
 			reset({ data: saved, newState: saved });
 		} catch {
@@ -130,7 +130,7 @@
 			><div class="panel-body">
 				<p class="notice error" role="alert">{loadError}</p>
 				<div class="form-actions">
-					<Button onclick={() => void loadProfile(true)}>Try again</Button>
+					<Button onclick={() => void loadProfile()}>Try again</Button>
 				</div>
 			</div></Card
 		>

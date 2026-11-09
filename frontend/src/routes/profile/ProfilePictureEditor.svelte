@@ -34,7 +34,7 @@
 	$effect(() => () => controller.dispose());
 
 	const suspended = $derived(profile.role === UserRole.SUSPENDED_USER);
-	const hasPicture = $derived(Boolean(profile.profilePictureUrl));
+	const hasPicture = $derived(Boolean(profile.profilePictureId));
 
 	// Terminal outcomes reach the snackbar; progress stays on the button state.
 	let lastMessage = '';

@@ -1,13 +1,13 @@
 <script lang="ts">
 	import '../app.css';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { page } from '$app/state';
 	import { Button, Card, Icon, LoadingIndicator } from 'm3-svelte';
 	import iconMenu from '@ktibow/iconset-material-symbols/menu';
-	import { authService } from '$lib/services';
+	import { authService, profileService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import AppSidebar from '$lib/components/shell/AppSidebar.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
@@ -17,6 +17,12 @@
 		const currentUser = authService.user?.id;
 		if (previousUser && previousUser !== currentUser) {
 			try { clearSubmittedOrders(sessionStorage); } catch { /* Storage may be disabled. */ }
+		}
+		if (previousUser !== currentUser) {
+			untrack(() => {
+				if (previousUser || !currentUser) profileService.clear();
+				if (currentUser) void profileService.getMyProfile().catch(() => {});
+			});
 		}
 		previousUser = currentUser;
 	});

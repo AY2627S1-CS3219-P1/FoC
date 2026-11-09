@@ -13,7 +13,7 @@ export class ProfileService {
 	readonly #api: ProfileApi;
 	readonly #auth: ProfileIdentity;
 
-	/** Last loaded profile, shared by the profile page and the sidebar. */
+	/** Current display state only; every completed read is fetched again. */
 	profile = $state<UserProfile | null>(null);
 	#profileLoad: Promise<UserProfile> | undefined;
 	#pictureRefresh: Promise<UserProfile | undefined> | undefined;
@@ -25,11 +25,22 @@ export class ProfileService {
 		this.#auth = auth;
 	}
 
-	async getMyProfile(): Promise<UserProfile> {
+	/** Coalesce concurrent reads without caching completed responses or signed URLs. */
+	getMyProfile(): Promise<UserProfile> {
+		if (!this.#profileLoad) {
+			const load = this.#loadProfile().finally(() => {
+				if (this.#profileLoad === load) this.#profileLoad = undefined;
+			});
+			this.#profileLoad = load;
+		}
+		return this.#profileLoad;
+	}
+
+	async #loadProfile(): Promise<UserProfile> {
 		const generation = this.#generation;
 		const revision = this.#writeRevision;
 		const profile = await this.#api.getMyProfile();
-		if (generation !== this.#generation) return profile;
+		this.#checkGeneration(generation);
 		if (revision === this.#writeRevision) {
 			this.profile = profile;
 			return profile;
@@ -38,25 +49,15 @@ export class ProfileService {
 		return this.profile ?? profile;
 	}
 
-	/** Loads once for layout-level consumers; the profile page may force a read. */
-	ensureProfile(): Promise<UserProfile> {
-		if (this.profile) return Promise.resolve(this.profile);
-		if (!this.#profileLoad) {
-			this.#profileLoad = this.getMyProfile().finally(() => {
-				this.#profileLoad = undefined;
-			});
-		}
-		return this.#profileLoad;
-	}
-
 	/** Refreshes an expired signed avatar URL once across all consumers. */
 	refreshPicture(): Promise<UserProfile | undefined> {
 		if (!this.#pictureRefresh) {
-			this.#pictureRefresh = this.getMyProfile()
+			const refresh = this.getMyProfile()
 				.catch(() => undefined)
 				.finally(() => {
-					this.#pictureRefresh = undefined;
+					if (this.#pictureRefresh === refresh) this.#pictureRefresh = undefined;
 				});
+			this.#pictureRefresh = refresh;
 		}
 		return this.#pictureRefresh;
 	}
@@ -64,7 +65,7 @@ export class ProfileService {
 	async updateMyProfile(input: UpdateProfileInput): Promise<UserProfile> {
 		const generation = this.#generation;
 		const updated = await this.#api.updateMyProfile(input);
-		if (generation !== this.#generation) return updated;
+		this.#checkGeneration(generation);
 		this.#writeRevision++;
 		// Preserve picture fields from a concurrent picture update; this call
 		// does not change them.
@@ -93,7 +94,7 @@ export class ProfileService {
 	async updateMyProfilePicture(pictureId: string, signal: AbortSignal): Promise<UserProfile> {
 		const generation = this.#generation;
 		const updated = await this.#api.updateMyProfilePicture(pictureId, signal);
-		if (generation !== this.#generation) return updated;
+		this.#checkGeneration(generation);
 		this.#writeRevision++;
 		// Preserve editable fields from a concurrent profile save; only the
 		// picture fields belong to this response.
@@ -111,7 +112,7 @@ export class ProfileService {
 	async removeMyProfilePicture(signal: AbortSignal): Promise<UserProfile> {
 		const generation = this.#generation;
 		const updated = await this.#api.removeMyProfilePicture(signal);
-		if (generation !== this.#generation) return updated;
+		this.#checkGeneration(generation);
 		this.#writeRevision++;
 		this.profile = this.profile
 			? {
@@ -122,6 +123,12 @@ export class ProfileService {
 				}
 			: updated;
 		return this.profile;
+	}
+
+	#checkGeneration(generation: number): void {
+		if (generation !== this.#generation) {
+			throw new DOMException('Profile identity changed', 'AbortError');
+		}
 	}
 
 	clear(): void {
