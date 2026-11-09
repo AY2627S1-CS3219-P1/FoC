@@ -1,9 +1,5 @@
 -- +goose Up
--- Profile pictures use the same row-as-reference model as review photos.
--- A row is created pending when its PUT grant is issued, becomes active when
--- the caller submits it, and becomes deleting when it is replaced or removed.
--- users.profile_picture_id points at the active row; the storage key stays an
--- attribute of the row and is never the application-level reference.
+-- Profile pictures: pending on grant, active on submit, deleting when retired.
 CREATE TABLE profile_pictures (
     id           UUID        PRIMARY KEY,
     user_id      UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,

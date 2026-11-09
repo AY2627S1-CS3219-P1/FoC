@@ -12,8 +12,7 @@ const (
 	ProfilePictureDeleting = "deleting"
 )
 
-// ProfilePicture is one profile picture row. The row is the application-level
-// reference; object_key is only the storage attribute for these bytes.
+// ProfilePicture is one picture row; object_key is storage metadata only.
 type ProfilePicture struct {
 	ID          uuid.UUID `gorm:"primaryKey"`
 	UserID      uuid.UUID

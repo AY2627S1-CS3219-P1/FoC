@@ -54,8 +54,7 @@ export type Profile = Message<"user.v1.Profile"> & {
   role: UserRole;
 
   /**
-   * Short-lived pre-signed GET grant minted per response. Empty when the user
-   * has no profile picture. Responses carrying this URL must not be cached.
+   * Pre-signed GET; responses carrying it are not cacheable.
    *
    * @generated from field: string profile_picture_url = 8;
    */
@@ -67,8 +66,6 @@ export type Profile = Message<"user.v1.Profile"> & {
   profilePictureExpiresAt?: Timestamp | undefined;
 
   /**
-   * Stable application reference for the current picture. Empty when none.
-   *
    * @generated from field: string profile_picture_id = 10;
    */
   profilePictureId: string;
@@ -162,9 +159,6 @@ export const UpdateMyProfileResponseSchema: GenMessage<UpdateMyProfileResponse> 
   messageDesc(file_user_v1_profile, 4);
 
 /**
- * Requests one pre-signed PUT grant for a profile picture. Bytes upload
- * directly from the browser to object storage; the service never carries them.
- *
  * @generated from message user.v1.CreateProfilePictureUploadRequest
  */
 export type CreateProfilePictureUploadRequest = Message<"user.v1.CreateProfilePictureUploadRequest"> & {
@@ -174,8 +168,6 @@ export type CreateProfilePictureUploadRequest = Message<"user.v1.CreateProfilePi
   contentType: string;
 
   /**
-   * Decimal bytes; matches the repository-wide image limit.
-   *
    * @generated from field: int64 size_bytes = 2;
    */
   sizeBytes: bigint;
@@ -193,8 +185,7 @@ export const CreateProfilePictureUploadRequestSchema: GenMessage<CreateProfilePi
  */
 export type CreateProfilePictureUploadResponse = Message<"user.v1.CreateProfilePictureUploadResponse"> & {
   /**
-   * Stable row ID that is also returned in Profile.profile_picture_id once
-   * the picture is active. The browser never sees the storage key.
+   * Row ID; also Profile.profile_picture_id once active.
    *
    * @generated from field: string picture_id = 1;
    */
@@ -206,8 +197,6 @@ export type CreateProfilePictureUploadResponse = Message<"user.v1.CreateProfileP
   uploadUrl: string;
 
   /**
-   * Headers the browser must send with the PUT.
-   *
    * @generated from field: map<string, string> upload_headers = 3;
    */
   uploadHeaders: { [key: string]: string };
@@ -226,8 +215,7 @@ export const CreateProfilePictureUploadResponseSchema: GenMessage<CreateProfileP
   messageDesc(file_user_v1_profile, 6);
 
 /**
- * Applies a previously uploaded picture. The picture ID must belong to the
- * authenticated caller. Repeating the same call is idempotent.
+ * Idempotent; the picture must belong to the caller.
  *
  * @generated from message user.v1.UpdateMyProfilePictureRequest
  */

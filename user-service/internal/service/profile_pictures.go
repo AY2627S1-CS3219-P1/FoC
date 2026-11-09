@@ -1,5 +1,4 @@
-// Profile picture uploads: rows move pending -> active -> deleting. The row ID
-// is the application reference; the storage key is an attribute of that row.
+// Profile pictures move pending -> active -> deleting; the row ID is the reference.
 package service
 
 import (
@@ -26,8 +25,7 @@ const (
 
 var errProfilePictureStorageDisabled = errors.New("profile picture storage is not configured")
 
-// ProfilePictureStore is the stateful picture persistence surface consumed by
-// the profile service.
+// ProfilePictureStore is the persistence surface the profile service consumes.
 type ProfilePictureStore interface {
 	InsertPending(context.Context, *models.ProfilePicture) error
 	GetPending(context.Context, uuid.UUID, uuid.UUID) (*models.ProfilePicture, error)
@@ -39,11 +37,10 @@ type ProfilePictureStore interface {
 	DeletePicture(context.Context, uuid.UUID) error
 }
 
-// ProfilePictureUpload is the stable ID of one pending row.
+// ProfilePictureUpload is the ID of one pending row.
 type ProfilePictureUpload struct{ ID uuid.UUID }
 
-// CreateProfilePictureUpload validates the caller and shape, records a pending
-// row, and returns the pre-signed PUT grant.
+// CreateProfilePictureUpload records a pending row and returns its PUT grant.
 func (s *ProfileService) CreateProfilePictureUpload(
 	ctx context.Context,
 	actorID uuid.UUID,
@@ -106,9 +103,7 @@ func (s *ProfileService) CreateProfilePictureUpload(
 	return ProfilePictureUpload{ID: id}, grant, nil
 }
 
-// UpdateMyProfilePicture validates the caller's pending row against storage and
-// makes it active. Repeating the call after a lost response succeeds when the
-// user already points at that picture.
+// UpdateMyProfilePicture validates the upload and makes the row active; retries succeed.
 func (s *ProfileService) UpdateMyProfilePicture(
 	ctx context.Context,
 	actorID, pictureID uuid.UUID,
@@ -180,8 +175,7 @@ func (s *ProfileService) UpdateMyProfilePicture(
 	return s.GetMyProfile(ctx, actorID)
 }
 
-// RemoveMyProfilePicture moves the current row to deleting and clears the user
-// pointer. It is idempotent when no picture is set.
+// RemoveMyProfilePicture clears the pointer and retires the row; idempotent.
 func (s *ProfileService) RemoveMyProfilePicture(
 	ctx context.Context,
 	actorID uuid.UUID,
@@ -204,8 +198,7 @@ func (s *ProfileService) RemoveMyProfilePicture(
 	return s.GetMyProfile(ctx, actorID)
 }
 
-// CleanupOnce reaps expired pending rows and retries deleting rows. Rows are
-// the durable reference for their objects, so a failed delete is retried.
+// CleanupOnce reaps expired pending rows and retries deleting rows.
 func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	if s.Pictures == nil || s.Storage == nil {
 		return nil
@@ -233,8 +226,7 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
-// profileView mints a fresh download grant for the active row. A missing or
-// unreadable picture degrades to a profile without a URL.
+// profileView mints a download grant; missing or unreadable pictures degrade to no URL.
 func (s *ProfileService) profileView(ctx context.Context, user models.User) ProfileView {
 	view := ProfileView{User: user}
 	if user.ProfilePictureID == nil || s.Pictures == nil || s.Storage == nil {
@@ -260,9 +252,7 @@ func (s *ProfileService) profileView(ctx context.Context, user models.User) Prof
 	return view
 }
 
-// alreadyActive reports whether a concurrent or previous submit already made
-// this picture current. It re-reads the user so a commit after the caller's
-// first read is still recognized.
+// alreadyActive recognises a commit that happened after the caller's first read.
 func (s *ProfileService) alreadyActive(ctx context.Context, actorID, pictureID uuid.UUID) bool {
 	user, err := s.userByID(ctx, actorID)
 	return err == nil && user.ProfilePictureID != nil && *user.ProfilePictureID == pictureID
@@ -284,8 +274,7 @@ func (s *ProfileService) now() time.Time {
 	return time.Now().UTC()
 }
 
-// profilePictureKey is deterministic so a retried submit can recognize its own
-// already-committed result without extra state.
+// profilePictureKey is deterministic so a retried submit recognises its own result.
 func profilePictureKey(userID, pictureID uuid.UUID) string {
 	return profilePictureKeyPrefix + userID.String() + "/" + pictureID.String()
 }

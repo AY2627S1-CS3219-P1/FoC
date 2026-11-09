@@ -32,14 +32,12 @@ type Profile struct {
 	// E.164. Absent only for the bootstrapped admin until they add one.
 	PhoneNumber *string  `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3,oneof" json:"phone_number,omitempty"`
 	Role        UserRole `protobuf:"varint,7,opt,name=role,proto3,enum=user.v1.UserRole" json:"role,omitempty"`
-	// Short-lived pre-signed GET grant minted per response. Empty when the user
-	// has no profile picture. Responses carrying this URL must not be cached.
+	// Pre-signed GET; responses carrying it are not cacheable.
 	ProfilePictureUrl       string                 `protobuf:"bytes,8,opt,name=profile_picture_url,json=profilePictureUrl,proto3" json:"profile_picture_url,omitempty"`
 	ProfilePictureExpiresAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=profile_picture_expires_at,json=profilePictureExpiresAt,proto3" json:"profile_picture_expires_at,omitempty"`
-	// Stable application reference for the current picture. Empty when none.
-	ProfilePictureId string `protobuf:"bytes,10,opt,name=profile_picture_id,json=profilePictureId,proto3" json:"profile_picture_id,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	ProfilePictureId        string                 `protobuf:"bytes,10,opt,name=profile_picture_id,json=profilePictureId,proto3" json:"profile_picture_id,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Profile) Reset() {
@@ -322,13 +320,10 @@ func (x *UpdateMyProfileResponse) GetProfile() *Profile {
 	return nil
 }
 
-// Requests one pre-signed PUT grant for a profile picture. Bytes upload
-// directly from the browser to object storage; the service never carries them.
 type CreateProfilePictureUploadRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ContentType string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	// Decimal bytes; matches the repository-wide image limit.
-	SizeBytes     int64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -379,11 +374,9 @@ func (x *CreateProfilePictureUploadRequest) GetSizeBytes() int64 {
 
 type CreateProfilePictureUploadResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Stable row ID that is also returned in Profile.profile_picture_id once
-	// the picture is active. The browser never sees the storage key.
-	PictureId string `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
-	UploadUrl string `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
-	// Headers the browser must send with the PUT.
+	// Row ID; also Profile.profile_picture_id once active.
+	PictureId     string                 `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`
+	UploadUrl     string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	UploadHeaders map[string]string      `protobuf:"bytes,3,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -448,8 +441,7 @@ func (x *CreateProfilePictureUploadResponse) GetExpiresAt() *timestamppb.Timesta
 	return nil
 }
 
-// Applies a previously uploaded picture. The picture ID must belong to the
-// authenticated caller. Repeating the same call is idempotent.
+// Idempotent; the picture must belong to the caller.
 type UpdateMyProfilePictureRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PictureId     string                 `protobuf:"bytes,1,opt,name=picture_id,json=pictureId,proto3" json:"picture_id,omitempty"`

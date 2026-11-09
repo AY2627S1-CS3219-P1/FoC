@@ -1,5 +1,4 @@
-// Client-facing profile picture error vocabulary: neutral contract reasons plus
-// the shared google.rpc details that carry them to clients.
+// Client-facing profile picture errors: neutral reasons plus the google.rpc details.
 package service
 
 import (
@@ -33,7 +32,6 @@ const (
 var (
 	errProfilePictureNotReady           = errors.New("profile picture is not ready")
 	errInvalidProfilePicture            = errors.New("profile picture metadata is invalid")
-	errProfilePictureUnavailable        = errors.New("profile picture storage is not configured")
 	errProfilePictureTemporarilyUnavail = errors.New("profile picture storage is temporarily unavailable")
 )
 
@@ -65,7 +63,7 @@ var _ api.ExternalError = (*profileError)(nil)
 
 func profilePictureUnavailable(cause error) *profileError {
 	return &profileError{
-		sentinel: errProfilePictureUnavailable,
+		sentinel: errProfilePictureStorageDisabled,
 		status:   http.StatusInternalServerError,
 		code:     connect.CodeInternal,
 		reason:   reasonProfilePictureUnavailable,

@@ -1,5 +1,4 @@
-// Profile picture persistence. Rows move pending -> active -> deleting; the
-// row ID is the application reference and object_key is only storage metadata.
+// Profile picture persistence; the row ID is the reference, object_key is metadata.
 
 package store
 
@@ -52,9 +51,7 @@ func (s *ProfilePictures) GetPictureByID(ctx context.Context, id uuid.UUID) (*mo
 	return &picture, nil
 }
 
-// Activate consumes the caller's pending row, moves the previous active row to
-// deleting and points the user at the new row in one transaction. The returned
-// key is the old picture to delete after the transaction commits.
+// Activate retires the previous picture and points the user at this one; returns the old key.
 func (s *ProfilePictures) Activate(
 	ctx context.Context,
 	userID, pictureID, updatedBy uuid.UUID,
@@ -129,8 +126,7 @@ func (s *ProfilePictures) Activate(
 	return oldKey, nil
 }
 
-// Deactivate moves the current active row to deleting and clears the user
-// pointer in one transaction. It is idempotent when no picture is set.
+// Deactivate retires the current row and clears the pointer; idempotent.
 func (s *ProfilePictures) Deactivate(
 	ctx context.Context,
 	userID, updatedBy uuid.UUID,
@@ -176,8 +172,7 @@ func (s *ProfilePictures) Deactivate(
 	return oldKey, nil
 }
 
-// ClaimExpiredPending moves abandoned pending rows to deleting so their objects
-// can be reaped. Already-deleting rows are listed separately and retried.
+// ClaimExpiredPending moves abandoned pending rows to deleting.
 func (s *ProfilePictures) ClaimExpiredPending(
 	ctx context.Context,
 	before time.Time,
@@ -207,9 +202,7 @@ RETURNING target.id, target.user_id, target.object_key, target.content_type,
 	return rows, nil
 }
 
-// ListDeleting returns rows waiting for their objects to be removed. Two
-// cleanup passes may process the same row; object and row deletion are
-// idempotent.
+// ListDeleting returns rows awaiting object removal; deletion is idempotent.
 func (s *ProfilePictures) ListDeleting(ctx context.Context, limit int) ([]models.ProfilePicture, error) {
 	if limit <= 0 {
 		limit = 50
