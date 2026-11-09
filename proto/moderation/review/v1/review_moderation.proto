@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package moderation.review.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+// Owner-visible progress for review moderation jobs, and admin operations on
+// them. Publication is authoritative in User Service; a completed approval
+// that User has not yet applied still shows as pending publication on the
+// review itself. Missing jobs are valid: they mean not yet ingested, never
+// approval.
+//
+// Owner-or-admin authorization: ordinary callers may only query their own
+// reviewer_id; admins may query any reviewer. Requesting another reviewer's
+// identifiers without authorization fails before any lookup.
+service ReviewModerationService {
+  rpc GetReviewModerationJobsForReviewer(GetReviewModerationJobsForReviewerRequest) returns (GetReviewModerationJobsForReviewerResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+// Operational detail and recovery for errored jobs. Admin/super-admin only.
+service ReviewModerationAdminService {
+  // Returns bounded operational detail for one job, including sanitized
+  // attempt history. Never exposes provider raw bodies, prompts or keys.
+  rpc GetReviewModerationJob(GetReviewModerationJobRequest) returns (GetReviewModerationJobResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  // Queues a terminal errored job for another run. Increments run_generation
+  // exactly once from expected_run_generation; a mismatch fails with
+  // failed_precondition. Completed jobs are never retried.
+  rpc RetryErroredJob(RetryErroredJobRequest) returns (RetryErroredJobResponse) {}
+}
+
+message GetReviewModerationJobsForReviewerRequest {
+  // The review author whose jobs are queried. Must match the authenticated
+  // caller unless the caller is an admin.
+  string reviewer_id = 1 [(buf.validate.field).string.uuid = true];
+  // Bounded set of moderation request IDs from the current User page of
+  // unpublished reviews; at most 100, no paging through the job store.
+  repeated string moderation_request_ids = 2 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 100
+    unique: true
+    items: {string: {uuid: true}}
+  }];
+}
+
+message GetReviewModerationJobsForReviewerResponse {
+  // Only jobs belonging to reviewer_id are returned; missing request IDs mean
+  // no visible job (not yet ingested), which is not approval.
+  repeated ReviewModerationJobSummary jobs = 1;
+}
+
+// Owner-visible summary. Contains status and outcome metadata only: no review
+// content, no prompts, no provider diagnostics.
+message ReviewModerationJobSummary {
+  string job_id = 1;
+  string moderation_request_id = 2;
+  string review_id = 3;
+  ModerationJobStatus status = 4;
+  // Attempts within the current run generation.
+  int32 attempt_count = 5;
+  // Present when status is RETRY_WAIT.
+  google.protobuf.Timestamp next_retry_at = 6;
+  int32 run_generation = 7;
+  // Set once status is COMPLETED or ERRORED.
+  ModerationOutcomeType outcome = 8;
+  // Known rejection reasons; empty for APPROVED and for ERROR.
+  repeated string reason_codes = 9;
+  string policy_version = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp finished_at = 12;
+  // Processing awaits successful configuration revalidation, rather than a timed retry.
+  bool configuration_paused = 13;
+}
+
+message GetReviewModerationJobRequest {
+  string job_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetReviewModerationJobResponse {
+  ReviewModerationJobSummary job = 1;
+  // Sanitized per-attempt history for the current generation, oldest first.
+  repeated ModerationAttempt attempts = 2;
+}
+
+// One recorded evaluation attempt. Diagnostics are classified and bounded;
+// they never contain credentials, raw provider bodies or prompts.
+message ModerationAttempt {
+  int32 run_generation = 1;
+  int32 attempt_number = 2;
+  string config_version_id = 3;
+  string model_id = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  // "completed" or a stable error class, e.g. "timeout", "rate_limited",
+  // "invalid_output", "configuration".
+  string outcome = 7;
+  string error_class = 8;
+}
+
+message RetryErroredJobRequest {
+  string job_id = 1 [(buf.validate.field).string.uuid = true];
+  // Optimistic concurrency: the caller's known current generation. The retry
+  // is applied only if this still matches the job's generation.
+  int32 expected_run_generation = 2 [(buf.validate.field).int32.gte = 1];
+  // When true the retry uses the currently active configuration; otherwise it
+  // retains the configuration pinned when the job first ran.
+  bool use_current_configuration = 3;
+}
+
+message RetryErroredJobResponse {
+  ReviewModerationJobSummary job = 1;
+}
+
+// Terminal job states. PROCESSING covers an active claim; RETRY_WAIT means a
+// durable delayed retry is scheduled.
+enum ModerationJobStatus {
+  MODERATION_JOB_STATUS_UNSPECIFIED = 0;
+  MODERATION_JOB_STATUS_QUEUED = 1;
+  MODERATION_JOB_STATUS_PROCESSING = 2;
+  MODERATION_JOB_STATUS_RETRY_WAIT = 3;
+  MODERATION_JOB_STATUS_COMPLETED = 4;
+  MODERATION_JOB_STATUS_ERRORED = 5;
+}
+
+enum ModerationOutcomeType {
+  MODERATION_OUTCOME_TYPE_UNSPECIFIED = 0;
+  MODERATION_OUTCOME_TYPE_APPROVED = 1;
+  MODERATION_OUTCOME_TYPE_REJECTED = 2;
+  // No valid content verdict after terminal failure; a technical outcome.
+  MODERATION_OUTCOME_TYPE_ERROR = 3;
+}
