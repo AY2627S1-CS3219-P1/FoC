@@ -137,6 +137,17 @@ def main():
             print("OUTPUT: runner waiting for one approved job; owner receipt=" + str(directory / "owner.json"), flush=True)
     except BaseException as error:
         uncertain = not isinstance(error, Exception)
+        if instance_id and not uncertain:
+            # Optional diagnostics must not replace the primary failure or prevent cleanup.
+            try:
+                console = aws("ec2", "get-console-output", "--instance-id", instance_id, "--latest", allow_failure=True)
+                if console is not None:
+                    save(directory / "console.PRIVATE.json", encode(console))
+                    print("OUTPUT: bootstrap console saved: " + str(directory / "console.PRIVATE.json"), flush=True)
+            except BaseException as diagnostic_error:
+                if not isinstance(diagnostic_error, Exception):
+                    uncertain = True
+                    raise
         raise
     finally:
         cleanup_errors = []

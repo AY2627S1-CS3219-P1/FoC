@@ -39,6 +39,8 @@ The registration probe requires a closed group; it refuses an active workflow al
 
 A retained runner waits for one job, then shuts down and terminates. Bootstrap failures also shut it down. A two-hour **guest-side** shutdown timer bounds an ordinary unattended instance, but it is not a billing cap or an external guarantee against a hung guest. An operator must verify termination and remove any unused GitHub registration. The launcher records the instance/registration IDs in its private owner receipt and requests cleanup after failed probes. It refuses a second runner while an earlier instance remains pending, running, stopping, stopped, or shutting down. A killed launcher or interrupted API response still requires inspecting actual AWS/GitHub state; do not blindly retry.
 
+Bootstrap emits fixed stage names and exit codes to the EC2 serial console, without shell tracing or registration material. A failed package installation also emits its final package-manager lines before registration is fetched. The launcher saves console output in its private launch directory on failure before cleanup deletes the disk. Inspect that protected output to distinguish installation, downloads, private TLS, and registration failures; do not publish raw diagnostics.
+
 This is an operator-launched ephemeral runner, not an automatic autoscaler. There is no standing manager or long-lived GitHub application credential. Use the dedicated group only for trusted release code. Registering online proves bootstrap and private TLS reachability, not OIDC exchange, deployment authorization, image builds, migrations, or application release success.
 
 ## Verification

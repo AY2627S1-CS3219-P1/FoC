@@ -260,6 +260,43 @@ class ReleaseCLITest(unittest.TestCase):
         self.launch(success=False)
         state = self.read_state()
         self.assertTrue(state["instance_terminated"] and state["registration_removed"] and state["parameter_removed"])
+        # Reproduced failure: cleanup removed the disk without retaining boot evidence.
+        consoles = list(self.private.glob("aws/runner-launches/*/console.PRIVATE.json"))
+        self.assertEqual(len(consoles), 1)
+        self.assertIn("Output", json.loads(consoles[0].read_text()))
+        operations = [call for call in state["calls"] if "ec2" in call]
+        self.assertLess(next(i for i, call in enumerate(operations) if "get-console-output" in call),
+                        next(i for i, call in enumerate(operations) if "terminate-instances" in call))
+
+    def test_runner_diagnostic_failures_preserve_bootstrap_error_and_cleanup(self):
+        # The reproduced boot failure must survive unavailable or unwritable diagnostics.
+        for failure in ("console_failure", "console_save_failure"):
+            with self.subTest(failure=failure):
+                self.change(bootstrap_failure=True, console_failure=failure == "console_failure",
+                            console_save_failure=failure == "console_save_failure")
+                result = self.launch(success=False)
+                self.assertIn("Runner bootstrap stopped", result.stderr)
+                state = self.read_state()
+                self.assertTrue(state["instance_terminated"] and state["registration_removed"] and state["parameter_removed"])
+
+    def test_bootstrap_console_failure_still_cleans_and_preserves_exit_status(self):
+        # Fault injection for the reviewed EXIT-handler failure; no privileged host commands run.
+        cleanup = self.private / "cleanup-called"
+        shutdown = self.private / "shutdown-called"
+        scripts = {"systemd-run": "exit 0", "dnf": "exit 73",
+                   "tee": "cat > /dev/null; exit 1",
+                   "rm": "touch '" + str(cleanup) + "'",
+                   "shutdown": "touch '" + str(shutdown) + "'"}
+        for name, body in scripts.items():
+            path = self.bin / name
+            path.write_text("#!/bin/bash\n" + body + "\n")
+            path.chmod(0o700)
+        source = (ROOT / "infra/aws/ci/runner.sh.tftpl").read_text()
+        source = source.replace("/var/log/foc-runner-packages.log", str(self.private / "packages.log"))
+        result = subprocess.run(["bash"], input=source, env=self.env, text=True,
+                                capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 73, result.stdout + result.stderr)
+        self.assertTrue(cleanup.exists() and shutdown.exists())
 
     def test_checksum_and_environment_mismatches_never_deploy(self):
         self.publish()

@@ -85,6 +85,11 @@ if command == "aws":
         if operation == "describe-instance-credit-specifications":
             finish({"InstanceCreditSpecifications": [{"CpuCredits": "standard"}]})
         if operation == "get-console-output":
+            if state.get("console_failure"):
+                finish(error="fixture console unavailable")
+            if state.get("console_save_failure"):
+                launches = state_file.parent / "aws/runner-launches"
+                (max(launches.iterdir()) / "console.PRIVATE.json").mkdir()
             finish({"Output": "fixture bootstrap output"})
         if operation == "terminate-instances":
             state["instance_terminated"] = True
