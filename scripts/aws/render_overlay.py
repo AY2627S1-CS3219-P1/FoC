@@ -53,6 +53,12 @@ def render(config, destination, ca):
     for key in required:
         if not config.get(key):
             raise ValueError(f"Missing Terraform output: {key}")
+    ses_sender = config.get("ses_sender_email")
+    ses_role = config.get("user_email_role_arn")
+    if bool(ses_sender) != bool(ses_role):
+        raise ValueError("SES requires both ses_sender_email and user_email_role_arn")
+    if ses_sender and not re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", ses_sender):
+        raise ValueError("ses_sender_email must be a bare verified email address")
     hostname = config["public_hostname"]
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}", hostname):
         raise ValueError("public_hostname must be a hostname, not a URL")
@@ -107,6 +113,12 @@ def render(config, destination, ca):
                 "ORDER_S3_ENDPOINT": "",
                 "ORDER_S3_PUBLIC_ENDPOINT": f"https://s3.{config['region']}.amazonaws.com",
             })
+            if ses_sender:
+                values.update({"EMAIL_PROVIDER": "ses", "EMAIL_FROM": ses_sender})
+                patches.append(patch("ServiceAccount", "user-service", [{
+                    "op": "add", "path": "/metadata/annotations",
+                    "value": {"eks.amazonaws.com/role-arn": ses_role},
+                }]))
             patches.append(patch("ConfigMap", "foc-config", [
                 {"op": "add", "path": f"/data/{key}", "value": value}
                 for key, value in values.items()
@@ -138,6 +150,11 @@ def render(config, destination, ca):
                 value["kind"] = "Deployment"
                 value["metadata"] = {"name": f"{service}-service"}
                 value["spec"]["template"]["spec"]["containers"][0]["name"] = f"{service}-service"
+                if service == "user" and ses_sender:
+                    value["spec"]["template"]["spec"]["containers"][0]["envFrom"] = [
+                        {"configMapRef": {"name": "foc-config"}},
+                        {"secretRef": {"name": "user-db"}},
+                    ]
                 patches.append({"patch": json.dumps(value)})
         if stage == "initialization":
             for service in SERVICES:

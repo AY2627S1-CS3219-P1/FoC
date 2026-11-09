@@ -10,3 +10,7 @@ expires_on      = "2026-11-19"      # Replace with ten days after actual deploym
 kubernetes_version      = "1.35"
 postgres_version        = "18"
 postgres_instance_class = "db.t4g.small"
+
+# Optional SES API delivery for User Service; null/default retains SMTP.
+# Verify this email in the region above before enabling. No SMTP login needed.
+# ses_sender_email = "sender@example.edu"

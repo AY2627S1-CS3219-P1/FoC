@@ -58,3 +58,13 @@ variable "postgres_instance_class" {
   type        = string
   default     = "db.t4g.small"
 }
+
+variable "ses_sender_email" {
+  description = "Verified regional SES sender. Null keeps SMTP and creates no email role."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.ses_sender_email == null || can(regex("^[^@\\s<>]+@[^@\\s<>]+\\.[^@\\s<>]+$", var.ses_sender_email))
+    error_message = "Supply a bare verified email address, without a display name, or null for SMTP."
+  }
+}
