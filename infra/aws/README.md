@@ -41,12 +41,103 @@ prove that the school permits deployment.
   needed for initial workers. No quota-inspection denial is permission to bypass
   organization policy. If deployment is denied, stop and ask the account owner.
 
-Ten days is 240 hours, approximately 43% longer than the original 168-hour
-estimate. The old US$111-117 estimate does not describe this topology or duration.
-API Gateway requests, networking, logs, state, Secrets Manager, retained data,
-and taxes also affect the total. There is no verified ten-day price estimate.
-The US$150 planning target is not a cap and may be exceeded. A monthly AWS Budget
-alert does not stop spending. Re-estimate Singapore prices before apply.
+## Ten-day cost estimate
+
+Prices checked Mon 9 Nov 2026 against AWS's public Singapore catalogs. This is
+an estimate for 240 continuously running hours, not a live Terraform plan or
+billing forecast. Use USD On-Demand rates before credits, free-tier allowances,
+organization discounts, taxes, and currency conversion. Storage uses a 30-day
+month approximation; actual billing is prorated. Recheck prices before apply.
+
+### Running infrastructure
+
+| Resource | Quantity and rate | Ten days (USD) | Source |
+| --- | --- | ---: | --- |
+| Linux `t3.xlarge` workers | 2 x 240 hours x $0.2112/hour | 101.38 | P1 |
+| EKS standard-support control plane | 240 hours x $0.10/hour | 24.00 | P2 |
+| Single-AZ PostgreSQL `db.t4g.small` | 240 hours x $0.051/hour | 12.24 | P3 |
+| NAT gateway | 240 hours x $0.059/hour | 14.16 | P1 |
+| NAT gateway public IPv4 | 240 address-hours x $0.005/hour | 1.20 | P5 |
+| Internal NLB | 240 hours x $0.0252/hour | 6.05 | P4 |
+| Worker root disks and Kafka gp3 | (2 x 20 + 5) GB x $0.096/GB-month x 10/30 | 1.44 | P1 |
+| RDS gp3 storage | 20 GB x $0.138/GB-month x 10/30 | 0.92 | P3 |
+| RDS-managed administrator secret | 1 secret x $0.40/month x 10/30 | 0.13 | P6 |
+| **Capacity subtotal, before usage** | **240 hours** | **161.52** | |
+
+Private workers, private RDS, and the internal NLB do not require additional
+public IPv4 addresses. Kafka compute is included in the workers, not a separate
+managed Kafka service. No separate VPC Link hourly fee is assumed for this HTTP
+API integration; this is not a PrivateLink interface endpoint. NLB, request,
+and data-transfer charges still apply. No domain purchase or separate public
+certificate fee is included for API Gateway's default HTTPS endpoint.
+
+### Illustrative usage, not measured traffic
+
+The following inputs are a low-volume example, not a workload forecast or limit.
+NLCU usage varies by connections and processed bytes; 240 NLCU-hours means an
+average of one NLCU over the run. Monthly storage quantities are averages.
+Totals use unrounded amounts.
+
+| Usage charge | Example quantity and rate | Ten days (USD) | Source |
+| --- | --- | ---: | --- |
+| NLB capacity | 240 used NLCU-hours x $0.006 | 1.44 | P4 |
+| NAT processing | 20 GB x $0.059/GB | 1.18 | P1 |
+| HTTP API requests | 100,000 billable request units x $1.25/million | 0.13 | P7 |
+| Standard log ingestion | 5 GB x $0.70/GB | 3.50 | P8 |
+| Log storage | 1 GB x $0.03/GB-month x 10/30 | 0.01 | P8 |
+| ECR private image storage | 5 GB x $0.10/GB-month x 10/30 | 0.17 | P9 |
+| SES outbound recipients | 1,000 x $0.10/1,000 recipients | 0.10 | P10 |
+| S3 objects/state and requests | 1 GB x $0.025/GB-month x 10/30; 10,000 PUT/LIST x $0.005/1,000; 100,000 GET x $0.0004/1,000 | 0.10 | P11 |
+| Secrets Manager API calls | 100 x $0.05/10,000 calls | <0.01 | P6 |
+| **Example usage subtotal** | | **6.62** | |
+| **Capacity plus example usage** | | **168.14** | |
+
+Use **US$200 as a planning allowance** for this light-demo scenario, not a cap
+or a claim that heavier use fits. The existing US$150 planning target is below
+the capacity subtotal alone. This estimate does not change that target or
+approve provisioning. Every extra full-stack day adds approximately **US$16.15
+plus usage**. Budget alerts and expiry tags do not stop resources.
+
+### Additional charges and retained data
+
+- C1: Internet egress and regional/cross-AZ data transfer are excluded from the
+  example. Traffic volume and actual paths are not measured. The single-AZ NAT
+  and cross-zone NLB can add transfer charges. S3 traffic routed through the
+  same-region gateway endpoint avoids NAT processing, not S3 storage/request fees.
+- C2: RDS T4g surplus CPU credits cost $0.075/vCPU-hour (P3). Sustained CPU can
+  increase the database bill. Unlike the workers' Standard credit setting, RDS
+  burstable instances use Unlimited mode. No surplus usage is modeled here.
+- C3: Extra backups, snapshots, storage growth, log queries, enhanced image
+  scanning, email data transfer/add-ons, and KMS requests are excluded. Basic ECR
+  scan-on-push has no additional scan fee. The estimate assumes AWS-managed keys,
+  not an extra customer-managed KMS key.
+- C4: Retained data continues billing after compute teardown. Kafka's retained
+  5 GB gp3 disk is approximately $0.48/month (P1). RDS backup storage above the
+  included allocation, including retained final snapshots after deletion, is
+  $0.095/GB-month (P3). S3 state versions, objects, and tagged ECR images persist
+  until explicitly cleaned up. Deletion protection and `ExpiresOn` do not
+  schedule shutdown or erase data.
+
+### Sources
+
+- P1: [EC2 Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/20261107002852/ap-southeast-1/index.csv), published 7 Nov 2026. Usage types `APS1-BoxUsage:t3.xlarge`, `APS1-NatGateway-Hours`, `APS1-NatGateway-Bytes`, and `APS1-EBS:VolumeUsage.gp3`.
+- P2: [EKS Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEKS/20261027191639/ap-southeast-1/index.json), published 27 Oct 2026. SKU `FCCKZFRYQFAGPWQN`, standard support, not Auto Mode or extended support.
+- P3: [RDS Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/20261029070635/ap-southeast-1/index.json), published 29 Oct 2026. SKUs `EGTBSGEA54PMU4UD` (PostgreSQL instance), `FXXDJWB23UZKQHCN` (gp3), `MP6SPJ889449AMT3` (T4g surplus CPU credits), and `9XF3U4K57MG3MUFQ` (excess backup storage).
+- P4: [ELB Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSELB/20261105220241/ap-southeast-1/index.json), published 5 Nov 2026. SKUs `WUD77WXSFRU628UM` (NLB hours) and `YEREUZKF8ZSAFR8M` (used NLCU-hours).
+- P5: [VPC Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonVPC/20261105181945/ap-southeast-1/index.json), SKU `C8D8VMQRDHMB9KRU` (in-use public IPv4).
+- P6: [Secrets Manager Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSSecretsManager/20260911124610/ap-southeast-1/index.json), SKUs `J5PMSXRJZ3HNHFEV` (secret) and `KAUJ7G87ND7HD8N8` (API calls).
+- P7: [API Gateway Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20261013003044/ap-southeast-1/index.json), SKU `HTX6VZU3YCMMNRM5`, first 300 million monthly HTTP API requests. [Request metering and private integration pricing](https://aws.amazon.com/api-gateway/pricing/) applies; a large request can consume multiple billing units.
+- P8: [CloudWatch Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudWatch/20261104213532/ap-southeast-1/index.json), SKUs `ZEKCE7VGMSM5XZPW` (Standard ingestion) and `RKCBFFXUWXG8KUQY` (log storage). Seven-day retention limits storage duration, not ingestion charges.
+- P9: [ECR Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECR/20260911124425/ap-southeast-1/index.json), SKU `7V2YHG7PQ82BEXNB`; [ECR pricing](https://aws.amazon.com/ecr/pricing/) covers basic versus enhanced scanning.
+- P10: [SES Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonSES/20261104174109/ap-southeast-1/index.json), SKU `94WZY2MPPRKE3CPE` (EC2-origin sending to external recipients), excluding optional sending add-ons.
+- P11: [S3 Singapore catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/20261104174445/ap-southeast-1/index.json), SKUs `M6MTARCQFUQBQ2V3` (Standard storage, first 50 TB), `VHRJWKRHEA6VHEFY` (PUT/LIST), and `T469UNPYX78434EG` (GET).
+
+[Network transfer](https://aws.amazon.com/vpc/pricing/),
+[RDS burst credits](https://aws.amazon.com/rds/postgresql/pricing/),
+[RDS-managed secrets](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-secrets-manager.html),
+and [KMS pricing](https://aws.amazon.com/kms/pricing/) describe additional
+billing conditions. Catalog links are version-pinned so these rates remain
+auditable when current prices change.
 
 ## Local validation (no AWS resources)
 
