@@ -70,7 +70,12 @@ spec:
   rules:
     - from:
         - source:
-            notPrincipals: [cluster.local/ns/foc/sa/order-service]
+            # User Service drains outstanding credit work over this listener
+            # before finalizing a deleting account; Order keeps its reservation
+            # access. Everyone else stays denied.
+            notPrincipals:
+              - cluster.local/ns/foc/sa/order-service
+              - cluster.local/ns/foc/sa/user-service
       to:
         - operation:
             ports: ["8081"]

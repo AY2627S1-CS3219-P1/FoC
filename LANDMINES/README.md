@@ -21,3 +21,4 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Stack rebases replay integrated merge history](gh-stack-merge-history.md) | `gh stack` v0.1.1 rebases imported branches with merge commits and squash-merged dependencies. |
 | [Sandbox blocks local HTTP test servers](sandbox-test-sockets.md) | Go tests use `httptest.NewServer` and the agent sandbox denies local socket creation. |
 | [Concurrent agents destroy shared-worktree edits](concurrent-agents-shared-worktree.md) | Multiple subagents edit one worktree, or any agent runs stash/checkout/restore/reset. |
+| [kind + systemd-resolved host kills cluster DNS](kind-coredns-upstream-dead.md) | Bootstrapping the local kind cluster; a pod never becomes Ready though its process is healthy. |
