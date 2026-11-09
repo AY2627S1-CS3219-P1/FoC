@@ -1,7 +1,5 @@
-// Package review maps the moderation.review.v1 contract to the review domain:
-// the owner-visible job summaries and the admin operations on errored jobs.
-// Authorization is owner-or-admin; ordinary callers may only query their own
-// reviewer_id.
+// Package review exposes moderation jobs for review content through the
+// moderation.review.v1 contract. Review records belong to User Service.
 package review
 
 import (
@@ -10,7 +8,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
-	review "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
@@ -18,11 +15,11 @@ import (
 )
 
 type OwnerHandler struct {
-	store *review.Store
+	service *moderation.Service
 }
 
-func NewOwnerHandler(store *review.Store) *OwnerHandler {
-	return &OwnerHandler{store: store}
+func NewOwnerHandler(service *moderation.Service) *OwnerHandler {
+	return &OwnerHandler{service: service}
 }
 
 // GetReviewModerationJobsForReviewer returns the caller's jobs for the requested
@@ -56,13 +53,17 @@ func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 		requestIDs = append(requestIDs, parsed)
 	}
 
-	jobs, err := h.store.GetJobsForReviewer(ctx, reviewerID, requestIDs)
+	jobs, err := h.service.GetJobsForReviewer(ctx, reviewerID, requestIDs)
 	if err != nil {
 		return nil, err
 	}
+	summaries := make([]*reviewv1.ReviewModerationJobSummary, 0, len(jobs))
+	for _, job := range jobs {
+		summaries = append(summaries, summarize(job))
+	}
 	resp := connect.NewResponse[reviewv1.GetReviewModerationJobsForReviewerResponse](
 		&reviewv1.GetReviewModerationJobsForReviewerResponse{
-			Jobs: jobs,
+			Jobs: summaries,
 		},
 	)
 	return resp, nil
@@ -70,11 +71,10 @@ func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 
 type AdminHandler struct {
 	service *moderation.Service
-	store   *review.Store
 }
 
-func NewAdminHandler(store *review.Store, service *moderation.Service) *AdminHandler {
-	return &AdminHandler{store: store, service: service}
+func NewAdminHandler(service *moderation.Service) *AdminHandler {
+	return &AdminHandler{service: service}
 }
 
 // GetReviewModerationJob returns bounded operational detail for one job.
@@ -86,14 +86,24 @@ func (h *AdminHandler) GetReviewModerationJob(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError("invalid job_id"))
 	}
-	resp, err := h.store.GetModerationJob(ctx, jobID)
+	job, err := h.service.GetJobByID(ctx, jobID)
 	if err != nil {
-		if errors.Is(err, review.ErrNotFound) {
+		if errors.Is(err, moderation.ErrJobNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, errs.NewNotFoundError("job not found"))
 		}
 		return nil, err
 	}
-	return connect.NewResponse(resp), nil
+	attempts, err := h.service.GetAttempts(ctx, jobID, job.RunGeneration)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]*reviewv1.ModerationAttempt, 0, len(attempts))
+	for _, attempt := range attempts {
+		views = append(views, attemptOf(attempt))
+	}
+	return connect.NewResponse(&reviewv1.GetReviewModerationJobResponse{
+		Job: summarize(job), Attempts: views,
+	}), nil
 }
 
 // RetryErroredJob requeues a terminal errored job once for the expected
@@ -119,19 +129,19 @@ func (h *AdminHandler) RetryErroredJob(
 		caller.ID,
 	)
 	if err != nil {
-		if errors.Is(err, review.ErrNotRetriable) {
+		if errors.Is(err, moderation.ErrNotRetriable) {
 			return nil, connect.NewError(
 				connect.CodeFailedPrecondition,
 				errs.NewFailedPreconditionError("job is not retriable at the expected generation"),
 			)
 		}
-		if errors.Is(err, review.ErrNotFound) {
+		if errors.Is(err, moderation.ErrJobNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, errs.NewNotFoundError("job not found"))
 		}
 		return nil, err
 	}
 	resp := connect.NewResponse[reviewv1.RetryErroredJobResponse](
-		&reviewv1.RetryErroredJobResponse{Job: review.Summarize(job)},
+		&reviewv1.RetryErroredJobResponse{Job: summarize(job)},
 	)
 	return resp, nil
 }

@@ -19,7 +19,6 @@ import (
 	"connectrpc.com/grpchealth"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
 	reviewrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -92,23 +91,15 @@ func newMux(
 	caller *auth.Caller,
 ) (*http.ServeMux, reviewv1connect.ReviewModerationServiceClient, reviewv1connect.ReviewModerationAdminServiceClient) {
 	t.Helper()
-	store := review.NewStore(pool)
+	service := moderation.NewService(
+		nil, moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+		nil, nil, nil, moderation.Settings{}, nil,
+	)
 	services := router.RPCServices{
-		Health:           grpchealth.NewStaticChecker(),
-		ReviewModeration: reviewrpc.NewOwnerHandler(store),
-		ReviewModerationAdmin: reviewrpc.NewAdminHandler(
-			store,
-			moderation.NewService(
-				nil,
-				moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
-				nil,
-				nil,
-				nil,
-				moderation.Settings{},
-				nil,
-			),
-		),
-		ModerationAdmin: unimplementedModerationAdmin{},
+		Health:                grpchealth.NewStaticChecker(),
+		ReviewModeration:      reviewrpc.NewOwnerHandler(service),
+		ReviewModerationAdmin: reviewrpc.NewAdminHandler(service),
+		ModerationAdmin:       unimplementedModerationAdmin{},
 	}
 	var authenticate func(http.Handler) http.Handler
 	if caller == nil {
@@ -192,23 +183,15 @@ func TestInternalListenerServesOnlyHealth(t *testing.T) {
 	// The internal listener mounts the standard health protocol only — no
 	// business or admin RPCs.
 	pool := setupDB(t)
-	store := review.NewStore(pool)
+	service := moderation.NewService(
+		nil, moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+		nil, nil, nil, moderation.Settings{}, nil,
+	)
 	services := router.RPCServices{
-		Health:           grpchealth.NewStaticChecker(),
-		ReviewModeration: reviewrpc.NewOwnerHandler(store),
-		ReviewModerationAdmin: reviewrpc.NewAdminHandler(
-			store,
-			moderation.NewService(
-				nil,
-				moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
-				nil,
-				nil,
-				nil,
-				moderation.Settings{},
-				nil,
-			),
-		),
-		ModerationAdmin: unimplementedModerationAdmin{},
+		Health:                grpchealth.NewStaticChecker(),
+		ReviewModeration:      reviewrpc.NewOwnerHandler(service),
+		ReviewModerationAdmin: reviewrpc.NewAdminHandler(service),
+		ModerationAdmin:       unimplementedModerationAdmin{},
 	}
 	mux := router.Internal(services)
 	client := moderationv1connect.NewModerationAdminServiceClient(muxTransport{handler: mux}, "http://test")

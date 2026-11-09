@@ -26,11 +26,11 @@ layer:
 
 | Component | Architectural role | Responsibility |
 | --- | --- | --- |
-| Kafka submission handler and admin RPC handlers | Inbound adapters | Decode requests/events, call the service, and translate responses/errors. Read RPCs use the review read store. |
+| Kafka submission handler and admin RPC handlers | Inbound adapters | Decode requests/events, call the service, and translate responses/errors. Read RPCs use job queries on the same service. |
 | `moderation.Pool` in `worker.go` | Background inbound adapter | Drive queued work with bounded concurrency, polling, lease heartbeats, timeouts, and cancellation. |
 | `moderation.Service` | Application service | Own configuration, review prompt construction, assessment, and response validation; expose job operations through its embedded `JobService`. |
-| `moderation.JobService` | Application service component | Enforce ingestion, claiming, completion, failure, and retry rules through transactional database operations. |
-| `ConfigurationStore`, `review.Store`, and sqlc queries | Persistence adapters | Read and write PostgreSQL. Job persistence is colocated with job operations in `internal/moderation`. |
+| `moderation.JobService` | Application service component | Own job queries, ingestion, claiming, completion, failure, and retry rules through database operations. |
+| `ConfigurationStore` and sqlc queries | Persistence adapters | Read and write PostgreSQL. Job persistence is colocated with job operations in `internal/moderation`. |
 | `CompletionClient` and `ModelLister` | Outbound ports | Define the provider operations consumed by the moderation service. |
 | `internal/openaiadapter` | Outbound adapter | Implement the provider contracts and translate provider responses/errors into service-owned types. |
 | `outbox.Relay` | Background delivery adapter | Poll committed outbox rows, publish through its injected Kafka publisher, and record successful delivery. |
@@ -51,6 +51,13 @@ and acknowledgement can cause redelivery with the same event ID, so consumers
 must deduplicate. Polling for jobs and polling for outbox delivery are separate
 background loops.
 
+`Service` embeds `JobService`, which provides both job queries and lifecycle
+operations. Owner and admin RPC handlers receive the same `Service` and use its
+job queries. Response conversion lives in `internal/rpc/review/projection.go`:
+it exposes job summaries and bounded attempt history, excluding raw diagnostics.
+The RPC package is named for the review moderation API contract. Review records
+and publication remain exclusively in User Service.
+
 The service consumes `CompletionClient`, using service-owned request and
 response types. `internal/openaiadapter` implements that interface over the
 provider SDK. The SDK remains confined to that adapter. Review rubric, reason codes, and schema are concrete moderation logic.
@@ -61,7 +68,7 @@ flowchart LR
     K[Kafka submission handler] --> S[moderation.Service]
     R[Admin RPC handlers] --> S
     W[Worker pool: background inbound adapter] --> S
-    S --> J[Embedded JobService: job lifecycle]
+    S --> J[Embedded JobService: job queries and lifecycle]
     S --> C[Service-owned CompletionClient interface]
     A[openaiadapter] -. implements .-> C
     A --> P[SoCLaaS / provider API]

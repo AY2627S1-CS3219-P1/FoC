@@ -25,7 +25,7 @@ var ErrFenced = errors.New("moderation job claim is stale")
 // Kafka subscriber.
 const UsersReviewSubmittedTopic = "users.review_submitted"
 
-// JobService implements durable job ingestion, claims, and fenced transitions.
+// JobService implements job queries, durable ingestion, claims, and fenced transitions.
 type JobService struct {
 	pool            *pgxpool.Pool
 	retry           RetrySettings
@@ -378,7 +378,11 @@ func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr e
 }
 
 func (s *JobService) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb.ModerationJob, error) {
-	return moderationdb.New(s.pool).GetJobByID(ctx, id)
+	job, err := moderationdb.New(s.pool).GetJobByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return moderationdb.ModerationJob{}, ErrJobNotFound
+	}
+	return job, err
 }
 
 func (s *JobService) GetJobsForReviewer(

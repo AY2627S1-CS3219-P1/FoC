@@ -62,12 +62,16 @@ retries; the response schema and reason-code validation remain service-owned.
 
 ## Layout
 
-- `internal/moderation`: concrete service, job operations, worker, review assessment, and admin configuration.
-- `internal/review`: owner-visible and admin job read models.
+- `internal/moderation`: concrete service, job queries and lifecycle operations, worker, review assessment, and admin configuration.
 - `internal/openaiadapter`: implements the service-owned completion and model-listing interfaces.
-- `internal/rpc/<domain>`: Connect handlers and domain error mapping.
+- `internal/rpc/<domain>`: Connect handlers, job response projections, and domain error mapping.
 - `internal/outbox`: Outbox relay that publishes completion events to Kafka.
 - `internal/router`: mounts the public and internal listeners.
+
+Owner and admin RPC handlers call the same moderation service. Its embedded
+`JobService` owns job reads and lifecycle operations; the RPC package converts
+internal records into API responses. Review records and publication belong to
+User Service.
 
 ## Development
 

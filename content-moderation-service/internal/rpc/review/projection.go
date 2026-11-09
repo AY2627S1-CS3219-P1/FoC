@@ -1,7 +1,3 @@
-// Package review owns the owner-visible projections and the administrative
-// operations for review-moderation jobs. It maps the durable moderation_job and
-// moderation_attempts rows to the review.v1 messages callers see: status and
-// outcome metadata only, never review content, prompts or provider diagnostics.
 package review
 
 import (
@@ -53,9 +49,9 @@ func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 	}
 }
 
-// Summarize renders the owner-visible summary of one job. Reason codes appear
+// summarize renders the owner-visible summary of one job. Reason codes appear
 // only for a rejected verdict, never for approval or error.
-func Summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSummary {
+func summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSummary {
 	summary := &reviewv1.ReviewModerationJobSummary{
 		JobId:               job.ID.String(),
 		ModerationRequestId: job.ModerationRequestID.String(),

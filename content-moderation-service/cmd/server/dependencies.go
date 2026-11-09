@@ -8,7 +8,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/openaiadapter"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/outbox"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
 	configrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/config"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/health"
@@ -33,7 +32,6 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 		nil,
 		moderation.WithProviderIdentity(cfg.LLMBaseURL),
 	)
-	reviewStore := review.NewStore(pool)
 	configStore := moderation.NewConfigurationStore(pool)
 
 	_ = configStore.EnsureConfigState(ctx)
@@ -108,8 +106,8 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 		}
 	}
 
-	ownerHandler := reviewrpc.NewOwnerHandler(reviewStore)
-	adminHandler := reviewrpc.NewAdminHandler(reviewStore, service)
+	ownerHandler := reviewrpc.NewOwnerHandler(service)
+	adminHandler := reviewrpc.NewAdminHandler(service)
 	configHandler := configrpc.NewHandler(service)
 
 	return serverComponents{

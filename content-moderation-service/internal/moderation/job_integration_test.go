@@ -18,7 +18,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -1044,9 +1043,10 @@ func TestConfigurationPauseSurvivesRestartAndRequiresValidatedAdminRecovery(t *t
 	if job.AttemptCount != 1 {
 		t.Fatalf("paused job consumed attempts: %d", job.AttemptCount)
 	}
-	summary, err := review.NewStore(pool).GetJobByID(ctx, job.ID)
-	if err != nil || !summary.GetConfigurationPaused() {
-		t.Fatalf("pause not exposed to owner: %+v, %v", summary, err)
+	pausedJob, err := store.GetJobByID(ctx, job.ID)
+	if err != nil || pausedJob.Status != "retry_wait" || pausedJob.ErrorClass == nil ||
+		*pausedJob.ErrorClass != "configuration" {
+		t.Fatalf("configuration pause not persisted: %+v, %v", pausedJob, err)
 	}
 
 	var detail string
