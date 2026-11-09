@@ -23,10 +23,24 @@ transitions and persistence live in separate files in the same package.
 
 The service consumes `CompletionClient`, using service-owned request and
 response types. `internal/openaiadapter` implements that interface over the
-provider SDK. The SDK remains confined to that adapter. There is no generic
-policy implementation registry, shared evaluation framework, or evaluator
-adapter. Review rubric, reason codes, and schema are concrete moderation logic.
+provider SDK. The SDK remains confined to that adapter. Review rubric, reason codes, and schema are concrete moderation logic.
 The composition root injects dependencies; no globals or `init` registration.
+
+```mermaid
+flowchart LR
+    K[Kafka submission handler] --> S[moderation.Service]
+    R[Admin RPC handlers] --> S
+    W[Worker pool] --> S
+    S --> C[Service-owned CompletionClient interface]
+    A[openaiadapter] -. implements .-> C
+    A --> P[SoCLaaS / provider API]
+    S --> D[PostgreSQL persistence]
+```
+
+The service depends on its completion interface; the provider adapter depends on
+that same service-owned contract. Provider SDK types stay inside the adapter.
+The worker's narrow service interfaces allow scheduling tests to use fakes;
+they do not introduce a separate assessment implementation layer.
 
 ### Concurrency
 
@@ -37,7 +51,7 @@ Replicas share the queue safely through atomic claims
 (`FOR UPDATE SKIP LOCKED`), claim tokens, leases with heartbeats and fenced
 completion/retry updates keyed on (job, run generation, claim token). Workers
 acquire shared local inference capacity before claiming, verify ownership before
-calling the evaluator, and cancel pending heartbeat I/O when inference ends.
+calling the service assessment method, and cancel pending heartbeat I/O when inference ends.
 Detached release/rollback cleanup has a two-second deadline. Crash
 recovery may repeat an external inference; exactly-once provider execution is
 not claimed.
@@ -97,7 +111,7 @@ sequenceDiagram
     CDB-->>CMS: Commit
     CMS-->>K: Acknowledge durable ingestion
     CMS->>CDB: Claim job, pin config, and record attempt
-    CMS->>E: Evaluate complete review snapshot with pinned config
+    CMS->>E: Assess complete review snapshot with pinned config
     E->>A: Build service-neutral completion request
     A->>L: Send policy prompt, delimited review, schema, and parameters
     L-->>A: Completion response
@@ -162,14 +176,14 @@ service's initial review rubric; migrations backfill that rubric for existing
 versions. The output schema and local reason-code validation remain code-owned.
 The admin UI edits the message alongside model and inference parameters.
 
-### Evaluation errors and handling boundaries
+### Assessment errors and handling boundaries
 
-The evaluator chain uses service-owned types from end to end. The OpenAI
+The moderation service and provider adapter exchange service-owned types. The OpenAI
 adapter is the only layer that knows SDK errors: it maps HTTP and transport
 failures into `moderation` errors, replaces provider diagnostics with bounded
 safe messages, and copies only content, finish reason, refusal, and model into
 the neutral response. It does not copy provider request/completion IDs, headers,
-credentials, or raw error bodies. The policy evaluator turns refusals, empty or
+credentials, or raw error bodies. The service turns refusals, empty or
 truncated responses, and schema violations into typed technical errors; none
 can be interpreted as a content verdict.
 
@@ -181,7 +195,7 @@ second translation wrapper around the assessment. Internal operations can
 attach explicit metadata with `ClassifiedError`, preserving the original error
 for inspection. Retry budgets, pause/recovery, and scheduling remain job logic.
 
-| Policy/transport failure | Stable `ErrorClass` | Durable job handling |
+| Assessment/provider failure | Stable `ErrorClass` | Durable job handling |
 | --- | --- | --- |
 | `ErrEmptyResponse`, `ErrInvalidOutput` (empty, malformed, truncated, or schema-invalid output) | `invalid_output` | Small fixed budget (2 attempts by default), then terminal `ERROR`. |
 | `ErrRefusal` (provider refusal or content filter) | `content_filter` | Small fixed budget (2 attempts by default), then terminal `ERROR`. |

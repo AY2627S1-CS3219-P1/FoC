@@ -3,7 +3,7 @@
 Content Moderation owns the review moderation workflow: ingesting review submissions from Kafka, assessing them using LLMs, and publishing completion events back to Kafka. The behaviour follows the `moderation.v1` and `moderation.review.v1` contracts in [`proto/moderation/v1`](../proto/moderation/v1) and [`proto/moderation/review/v1`](../proto/moderation/review/v1).
 
 See the [review moderation ADR](../docs/adr/review-content-moderation.md) for
-the end-to-end sequence, evaluator error mapping, retry decisions, and data
+the end-to-end sequence, assessment error mapping, retry decisions, and data
 exposure boundaries.
 
 ## What runs
@@ -49,10 +49,17 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 | `CMS_JOB_POLL_INTERVAL` | No | Job poll interval; defaults to 1s. |
 | `CMS_LOGGING_INTERVAL` | No | Interval for operational state logs; defaults to 5m. |
 
+Admin configuration versions contain the model, inference parameters, output
+mode, and system message. The admin settings form can save, test, and activate
+a new version. An omitted system message selects the initial review rubric.
+Workers use the message from their pinned version, including during automatic
+retries; the response schema and reason-code validation remain service-owned.
+
 ## Layout
 
+- `internal/moderation`: concrete service, job operations, worker, review assessment, and admin configuration.
 - `internal/review`: owner-visible and admin job read models.
-- `internal/openaiadapter`: OpenAI API client adapter.
+- `internal/openaiadapter`: implements the service-owned completion and model-listing interfaces.
 - `internal/rpc/<domain>`: Connect handlers and domain error mapping.
 - `internal/outbox`: Outbox relay that publishes completion events to Kafka.
 - `internal/router`: mounts the public and internal listeners.
@@ -109,7 +116,8 @@ MODERATION_TEST_BASE_URL=http://localhost:5173 npm --prefix frontend run test:mo
 ```
 
 It checks hydration and saving of every inference setting (including explicit
-zero and a large int64 seed), explicit paused-job recovery consent, and newer
+zero and a large int64 seed), system-message hydration and editing, explicit
+paused-job recovery consent, and newer
 retry generations while publication still holds the previous error result.
 
 ## Live provider verification
@@ -119,7 +127,3 @@ throwaway `TEST_DATABASE_URL`. It exercises authenticated discovery, both output
 modes, configuration validation/activation, two workers and durable terminal
 outboxes. It is excluded from normal integration tests and CI. See the
 [live verification command and recorded results](../docs/runbooks/content-moderation.md#live-soclaas-verification-9-november-2026).
-
-`internal/moderation` contains the concrete service, job operations, worker,
-LLM assessment, and configuration. Kafka and admin RPC handlers use that service;
-`internal/openaiadapter` implements its provider completion interface.

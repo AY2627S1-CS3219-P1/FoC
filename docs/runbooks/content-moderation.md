@@ -123,7 +123,7 @@ verification below additionally checks the selected SoCLaaS model and profile.
 ### Live SoCLaaS verification (9 November 2026)
 
 Using an explicitly supplied development key, authenticated discovery and the
-production adapter/evaluator verified `ornith1.5:35b` with both `json_schema`
+production provider adapter and moderation service verified `ornith1.5:35b` with both `json_schema`
 and `json_object`, `temperature=0` and `max_tokens=512`:
 
 - Draft save/test/activation succeeded for both modes. Two-worker runs assessed
@@ -148,7 +148,7 @@ database, run from the repository root:
 
 ```sh
 GOWORK=off go -C content-moderation-service test -mod=readonly -p 1 -race \
-  -tags=integration,soclaas ./internal/jobs \
+  -tags=integration,soclaas ./internal/moderation \
   -run '^TestSoCLaaSLiveModeration$' -count=1 -v -timeout=10m
 ```
 
