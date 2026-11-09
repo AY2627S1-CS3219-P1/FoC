@@ -58,7 +58,7 @@ $(K8S_CLI): $(wildcard scripts/k8s/*.go) scripts/go.mod scripts/go.sum
 	@mkdir -p "$(@D)"
 	GOWORK=off go -C scripts build -mod=readonly -o "$@" ./k8s
 
-.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
+.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-public-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
 
 # Install the pinned CLI tools (kind, kubectl, helm, istioctl) via aqua.
 k8s-tools:
@@ -88,6 +88,10 @@ k8s-status: k8s-tools $(K8S_CLI)
 # internal-only RPCs (user keys, credit reservations) are not routed.
 k8s-smoke: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" smoke
+
+# Read-only trusted HTTPS checks for an existing edge; no local forwards or probes.
+k8s-public-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" public-smoke
 
 # Unavailable by design until the integrated business workflow is verified.
 k8s-demo: k8s-tools $(K8S_CLI)
