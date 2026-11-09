@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import LocationFilters from '$lib/components/location/LocationFilters.svelte';
-	import Pagination from '$lib/components/admin/Pagination.svelte';
+	import Pagination from '$lib/components/pagination/Pagination.svelte';
 	import type { Building, Category } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import { locationApi } from '$lib/services';
 	import type { LocationPage, LocationQuery } from '$lib/services/location';
