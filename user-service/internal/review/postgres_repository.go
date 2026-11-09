@@ -441,3 +441,20 @@ func toReviewPhotoAttached(row reviewdb.ListReviewPhotosForReviewsRow) ReviewPho
 		Ordinal:     int(row.Ordinal.Int32),
 	}
 }
+
+func (r *PostgresRepository) GetAttachedReviewPhoto(ctx context.Context, id uuid.UUID) (AttachedReviewPhoto, error) {
+	row, err := r.queries.GetAttachedReviewPhoto(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return AttachedReviewPhoto{}, errs.NewNotFoundError("review photo not found")
+	}
+	if err != nil {
+		return AttachedReviewPhoto{}, fmt.Errorf("get attached review photo: %w", err)
+	}
+	return AttachedReviewPhoto{
+		ID:          row.ID,
+		ObjectKey:   row.ObjectKey,
+		ContentType: row.ContentType,
+		ReviewerID:  row.ReviewerID,
+		RevieweeID:  row.RevieweeID,
+	}, nil
+}

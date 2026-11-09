@@ -110,6 +110,34 @@ func (q *Queries) DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (in
 	return result.RowsAffected()
 }
 
+const getAttachedReviewPhoto = `-- name: GetAttachedReviewPhoto :one
+SELECT p.id, p.object_key, p.content_type, r.reviewer_id, r.reviewee_id
+FROM review_photos p
+JOIN reviews r ON r.id = p.review_id
+WHERE p.id = $1::UUID AND p.state = 'attached' AND r.deleted_at IS NULL
+`
+
+type GetAttachedReviewPhotoRow struct {
+	ID          uuid.UUID
+	ObjectKey   string
+	ContentType string
+	ReviewerID  uuid.UUID
+	RevieweeID  uuid.UUID
+}
+
+func (q *Queries) GetAttachedReviewPhoto(ctx context.Context, id uuid.UUID) (GetAttachedReviewPhotoRow, error) {
+	row := q.db.QueryRowContext(ctx, getAttachedReviewPhoto, id)
+	var i GetAttachedReviewPhotoRow
+	err := row.Scan(
+		&i.ID,
+		&i.ObjectKey,
+		&i.ContentType,
+		&i.ReviewerID,
+		&i.RevieweeID,
+	)
+	return i, err
+}
+
 const getReviewPhoto = `-- name: GetReviewPhoto :one
 SELECT id, owner_id, object_key, content_type, size_bytes, state, review_id, ordinal, created_at, upload_expires_at
 FROM review_photos

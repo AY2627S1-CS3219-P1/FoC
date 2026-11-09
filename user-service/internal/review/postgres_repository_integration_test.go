@@ -275,6 +275,9 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		q := reviewdb.New(sqlDB)
 
 		staged := insertPhoto(t)
+		if _, err := repo.GetAttachedReviewPhoto(ctx, staged.ID); err == nil {
+			t.Fatal("staged photo must not be downloadable")
+		}
 		// Attachment is transactional in production; the plain pool handle
 		// exercises the same guarded UPDATE.
 		rows, err := repo.AttachReviewPhoto(ctx, q, reviewer, reviewID, 0, staged)
@@ -287,6 +290,16 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		if attached[0].Ordinal != 0 || attached[0].ObjectKey != staged.ObjectKey {
 			t.Fatalf("attached photo mismatch: %+v", attached[0])
+		}
+
+		download, err := repo.GetAttachedReviewPhoto(ctx, staged.ID)
+		if err != nil || download.ID != staged.ID || download.ReviewerID != reviewer ||
+			download.RevieweeID != reviewee ||
+			download.ObjectKey != staged.ObjectKey {
+			t.Fatalf("attached download lookup: %+v, %v", download, err)
+		}
+		if _, err := repo.GetAttachedReviewPhoto(ctx, uuid.New()); err == nil {
+			t.Fatal("missing photo must fail")
 		}
 
 		// The state guard blocks a second attachment of the same photo.
@@ -308,6 +321,16 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		stranger := uuid.New()
 		insertUser(t, ctx, sqlDB, stranger)
 		foreign := insertPhoto(t)
+		if _, err := sqlDB.ExecContext(
+			ctx,
+			"UPDATE reviews SET deleted_at = now() WHERE id = $1",
+			reviewID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := repo.GetAttachedReviewPhoto(ctx, staged.ID); err == nil {
+			t.Fatal("removed review photo must not be downloadable")
+		}
 		foreign.OwnerID = uuid.NullUUID{UUID: stranger, Valid: true}
 		rows, err = repo.AttachReviewPhoto(ctx, q, stranger, reviewID, 1, foreign)
 		if err != nil || rows != 0 {

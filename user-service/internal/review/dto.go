@@ -54,3 +54,12 @@ type RemovalPage struct {
 	Removals []ReviewRemoval
 	pagination.PageInfo
 }
+
+// AttachedReviewPhoto includes the parent participants for read authorization.
+type AttachedReviewPhoto struct {
+	ID          uuid.UUID
+	ObjectKey   string
+	ContentType string
+	ReviewerID  uuid.UUID
+	RevieweeID  uuid.UUID
+}

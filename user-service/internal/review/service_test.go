@@ -18,7 +18,9 @@ import (
 // outcomes each persistence call returns. Transactional methods accept the
 // bound queries but never touch them.
 type fakeRepository struct {
-	exists map[uuid.UUID]bool
+	attachedPhoto    AttachedReviewPhoto
+	attachedPhotoErr error
+	exists           map[uuid.UUID]bool
 
 	listForUser     []Review
 	listFromUser    []Review

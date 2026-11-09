@@ -26,10 +26,15 @@ import (
 // handlerLogicStub records the arguments the handler passes so tests can assert
 // the adapter parsed the request correctly.
 type handlerLogicStub struct {
-	submitted ReviewSubmission
-	submitter uuid.UUID
-	photoIDs  []uuid.UUID
-	submitErr error
+	downloadCaller    uuid.UUID
+	downloadID        uuid.UUID
+	downloadSuspended bool
+	downloadPhoto     ReviewPhotoView
+	downloadErr       error
+	submitted         ReviewSubmission
+	submitter         uuid.UUID
+	photoIDs          []uuid.UUID
+	submitErr         error
 
 	uploadOwner uuid.UUID
 	uploadType  string
@@ -599,5 +604,66 @@ func TestReviewRPCErrorMapping(t *testing.T) {
 				t.Fatal("internal error details leaked to the client")
 			}
 		})
+	}
+}
+
+func (s *handlerLogicStub) GetReviewPhotoDownload(
+	_ context.Context,
+	callerID, photoID uuid.UUID,
+	suspended bool,
+) (ReviewPhotoView, error) {
+	s.downloadCaller, s.downloadID, s.downloadSuspended = callerID, photoID, suspended
+	return s.downloadPhoto, s.downloadErr
+}
+
+func TestDownloadPhotoRPC(t *testing.T) {
+	callerID, photoID := uuid.New(), uuid.New()
+	stub := &handlerLogicStub{
+		downloadPhoto: ReviewPhotoView{
+			ID:          photoID,
+			URL:         "https://s3.test/photo",
+			ContentType: "image/png",
+			ExpiresAt:   time.Now().Add(time.Minute),
+		},
+	}
+	client := reviewClient(t, stub, auth.Caller{ID: callerID.String(), Role: string(tokenclaims.RoleSuspendedUser)})
+	resp, err := client.GetReviewPhotoDownload(
+		context.Background(),
+		connect.NewRequest(&reviewv1.GetReviewPhotoDownloadRequest{PhotoId: photoID.String()}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Header().Get("Cache-Control") != "no-store" || resp.Msg.GetPhoto().GetUrl() != stub.downloadPhoto.URL {
+		t.Fatalf("unexpected grant response: %v", resp)
+	}
+	if stub.downloadCaller != callerID || stub.downloadID != photoID || !stub.downloadSuspended {
+		t.Fatal("caller/ID/role lost")
+	}
+	for _, id := range []string{"invalid", uuid.Nil.String()} {
+		_, err := client.GetReviewPhotoDownload(
+			context.Background(),
+			connect.NewRequest(&reviewv1.GetReviewPhotoDownloadRequest{PhotoId: id}),
+		)
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("invalid ID: %v", err)
+		}
+	}
+	for _, failure := range []struct {
+		err  error
+		code connect.Code
+	}{
+		{errs.NewNotFoundError("missing"), connect.CodeNotFound},
+		{errs.NewForbiddenError("denied"), connect.CodePermissionDenied},
+		{errs.NewUnavailableError("unavailable"), connect.CodeUnavailable},
+	} {
+		stub.downloadErr = failure.err
+		_, err := client.GetReviewPhotoDownload(
+			context.Background(),
+			connect.NewRequest(&reviewv1.GetReviewPhotoDownloadRequest{PhotoId: photoID.String()}),
+		)
+		if connect.CodeOf(err) != failure.code {
+			t.Fatalf("error mapping: %v", err)
+		}
 	}
 }

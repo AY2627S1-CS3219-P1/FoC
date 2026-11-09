@@ -78,6 +78,7 @@ export type ReviewPage = {
 };
 
 export interface ReviewApi extends ReviewPhotoUploadAPI {
+	getPhotoDownload(photoId: string, signal: AbortSignal): Promise<ReviewPhotoRecord>;
 	submit(input: SubmitReviewInput, signal: AbortSignal): Promise<void>;
 	listForUser(
 		userId: string,

@@ -16,6 +16,7 @@ import (
 )
 
 type Logic interface {
+	GetReviewPhotoDownload(ctx context.Context, callerID, photoID uuid.UUID, suspended bool) (ReviewPhotoView, error)
 	SubmitReview(
 		ctx context.Context,
 		reviewerID, revieweeID, orderID uuid.UUID,
@@ -377,4 +378,28 @@ func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 		CreatedBy:     removal.CreatedBy.String(),
 		CreatedByName: removal.CreatedByName,
 	}
+}
+
+func (h *Handler) GetReviewPhotoDownload(
+	ctx context.Context, req *connect.Request[reviewv1.GetReviewPhotoDownloadRequest],
+) (*connect.Response[reviewv1.GetReviewPhotoDownloadResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	photoID, err := uuid.Parse(req.Msg.GetPhotoId())
+	if err != nil || photoID == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid photo ID"))
+	}
+	photo, err := h.Logic.GetReviewPhotoDownload(ctx, callerID, photoID, caller.IsSuspended())
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reviewv1.GetReviewPhotoDownloadResponse{Photo: toReviewPhotoProto(photo)})
+	noStore(resp)
+	return resp, nil
 }
