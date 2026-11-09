@@ -25,6 +25,20 @@ function scenario() {
 		submitReview: vi.fn(async () => ({})),
 		listMyReviewsForOrders: vi.fn(async () => ({ reviewedOrderIds: [] })),
 		getMyReviewForOrder: vi.fn(async () => ({ review: undefined })),
+		listMyReviews: vi.fn(async () => ({
+			reviews: [{
+				id: 'review-3', reviewerId: 'me', reviewerName: 'Me', revieweeId: 'them', revieweeName: 'Them',
+				orderId: 'order-3', rating: 4, comment: 'Written', createdAt: { seconds: 1700000000n, nanos: 0 }, photos: []
+			}],
+			pagination: { page: 1, pageSize: 10, totalItems: 1n, totalPages: 1n }
+		})),
+		listMyReviewsReceived: vi.fn(async () => ({
+			reviews: [{
+				id: 'review-2', reviewerId: 'r', reviewerName: 'Reviewer', revieweeId: 'e', revieweeName: 'Reviewee',
+				orderId: 'order-2', rating: 5, comment: 'Received', createdAt: { seconds: 1700000000n, nanos: 0 }, photos: []
+			}],
+			pagination: { page: 2, pageSize: 10, totalItems: 11n, totalPages: 2n }
+		})),
 		listReviewsForUser: vi.fn(async () => ({
 			reviews: [{
 				id: 'review-1', reviewerId: 'r', reviewerName: 'Reviewer', revieweeId: 'e', revieweeName: 'Reviewee',
@@ -94,6 +108,28 @@ describe('ConnectReviewApi', () => {
 			.catch((cause: unknown) => cause);
 		expect(error).toBeInstanceOf(ReviewAlreadyExistsError);
 		expect(error).toBeInstanceOf(ReviewRejectedError);
+	});
+
+	it('lists received reviews through the self-scoped endpoint', async () => {
+		const { client, api } = scenario();
+		const page = await api.listReceived({ page: 2, pageSize: 10 }, new AbortController().signal);
+		expect(page.reviews.map((review) => review.id)).toEqual(['review-2']);
+		expect(page.totalPages).toBe(2);
+		expect(client.listMyReviewsReceived).toHaveBeenCalledWith(
+			{ pagination: { page: 2n, pageSize: 10n } },
+			expect.anything()
+		);
+	});
+
+	it('lists written reviews through the self-scoped endpoint', async () => {
+		const { client, api } = scenario();
+		const page = await api.listMine({ page: 1, pageSize: 10 }, new AbortController().signal);
+		expect(page.reviews.map((review) => review.id)).toEqual(['review-3']);
+		expect(page.totalItems).toBe(1);
+		expect(client.listMyReviews).toHaveBeenCalledWith(
+			{ pagination: { page: 1n, pageSize: 10n } },
+			expect.anything()
+		);
 	});
 
 	it('returns the reviewed subset for the batched lookup', async () => {

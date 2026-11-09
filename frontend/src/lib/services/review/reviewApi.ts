@@ -86,6 +86,10 @@ export interface ReviewApi extends ReviewPhotoUploadAPI {
 	): Promise<ReviewPage>;
 	/** Which of the given orders the caller has already reviewed. */
 	listReviewedOrderIds(orderIds: string[], signal: AbortSignal): Promise<string[]>;
+	/** A page of reviews the caller received. */
+	listReceived(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
+	/** A page of reviews the caller wrote. */
+	listMine(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
 	/** The caller's review for one order, or null when unreviewed. */
 	getMyReviewForOrder(orderId: string, signal: AbortSignal): Promise<ReviewRecord | null>;
 }

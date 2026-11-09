@@ -24,12 +24,20 @@ const uploadBytesPerSecond = 64 * 1024;
 
 type PutPhoto = (grant: ReviewPhotoGrant, file: File, signal: AbortSignal) => Promise<void>;
 
-async function putPhoto(grant: ReviewPhotoGrant, file: File, signal: AbortSignal): Promise<void> {
-	const response = await fetch(grant.uploadUrl, {
+/** Uploads object bytes without forwarding cookies or following redirects. */
+export async function putPhoto(
+	grant: ReviewPhotoGrant,
+	file: File,
+	signal: AbortSignal,
+	send: typeof fetch = fetch
+): Promise<void> {
+	const response = await send(grant.uploadUrl, {
 		method: 'PUT',
 		signal,
 		headers: grant.uploadHeaders,
-		body: file
+		body: file,
+		credentials: 'omit',
+		redirect: 'error'
 	});
 	if (!response.ok) throw new Error('Upload response was not successful');
 }
