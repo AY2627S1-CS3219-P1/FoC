@@ -99,17 +99,19 @@
 							<dt>Order ID</dt>
 							<dd class="order-id-value">
 								<span class="order-id-masked">{formatOrderId(warning.requestId)}</span>
-								<Button
-									variant="text"
-									iconType="full"
-									square
-									size="xs"
-									aria-label="Copy order ID"
-									title="Copy order ID"
-									onclick={() => void copyOrderId(warning.requestId)}
-								>
-									<Icon icon={iconCopy} size={18} aria-hidden="true" />
-								</Button>
+								<span class="copy-btn">
+									<Button
+										variant="text"
+										iconType="full"
+										square
+										size="xs"
+										aria-label="Copy order ID"
+										title="Copy order ID"
+										onclick={() => void copyOrderId(warning.requestId)}
+									>
+										<Icon icon={iconCopy} size={16} aria-hidden="true" />
+									</Button>
+								</span>
 							</dd>
 						</div>
 						<div><dt>Issued</dt><dd>{dateFormat.format(warning.createdAt)}</dd></div>
@@ -183,11 +185,38 @@
 	.warning-meta dt { color: var(--m3c-on-surface-variant); font-size: 0.75rem; }
 	.warning-meta dd { margin: 0.1rem 0 0; font-size: 0.875rem; overflow-wrap: anywhere; }
 	.warning-meta .removal-reason dd { color: var(--m3c-on-surface-variant); }
-	.order-id-field { display: grid; gap: 0.15rem; }
 	.order-id-value { display: flex; align-items: center; gap: 0.4rem; }
 	.order-id-masked {
 		font-family: var(--m3-font-mono);
 		font-variant-numeric: tabular-nums;
+	}
+	/* Compact copy control: sized to match the Issued row (~20px) rather than the
+	   full `xs` button box (32px). The span is the tappable control; the m3
+	   button inside fills it with a transparent text-variant surface so the
+	   container-state hover/active overlays show through. Local scoping works
+	   here because `.copy-btn` is a real element in this markup. */
+	.order-id-value .copy-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border-radius: var(--m3-shape-small);
+	}
+	/* :global is required here: Svelte's scoped CSS drops selectors that don't
+	   match an element in this component's own template, and the <button> is
+	   rendered by the child m3 Button component, not here. */
+	:global(.order-id-value .copy-btn > button) {
+		width: 100% !important;
+		height: 1.25rem !important;
+		min-height: 0 !important;
+		padding: 0;
+	}
+	.order-id-value .copy-btn:hover {
+		background-color: --translucent(var(--m3c-on-surface), 0.04);
+	}
+	.order-id-value .copy-btn:active {
+		background-color: --translucent(var(--m3c-on-surface), 0.12);
 	}
 
 	.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
