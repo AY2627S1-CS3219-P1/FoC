@@ -113,8 +113,8 @@ export const OutstandingWorkReasonSchema: GenEnum<OutstandingWorkReason> = /*@__
  */
 export const CreditInternalService: GenService<{
   /**
-   * Read-only outstanding-work check for account deletion finalization. The
-   * User Service deletion worker calls this with its service identity. It
+   * Read-only prerequisite for synchronous admin account deletion. User Service
+   * calls this through the private listener. It
    * never mutates state or opens an account; a nonexistent Credit account is
    * not outstanding. Timeouts and errors count as unknown, never as empty.
    *

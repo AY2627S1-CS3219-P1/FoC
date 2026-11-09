@@ -177,11 +177,9 @@ export const OrderInternalService: GenService<{
     output: typeof GetOrderParticipantsResponseSchema;
   },
   /**
-   * Read-only outstanding-work check for account deletion finalization. The
-   * User Service deletion worker calls this with its service identity. It
-   * never mutates state, reserves the user or installs any gate; the User
-   * Service worker postpones finalization while the result is outstanding or
-   * unknown. Timeouts and errors count as unknown, never as empty.
+   * Read-only prerequisite for synchronous admin account deletion. User Service
+   * calls this through the private listener. It never mutates state or reserves
+   * the user. Timeouts and errors are unknown work and abort the deletion attempt.
    *
    * @generated from rpc order.v1.OrderInternalService.GetUserOutstandingWork
    */

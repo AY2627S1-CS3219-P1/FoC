@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/admin.proto.
  */
 export const file_user_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIisKDUFsbG93ZWREb21haW4SCgoCaWQYASABKAkSDgoGZG9tYWluGAIgASgJIhsKGUxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QiTQoaTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2USLwoPYWxsb3dlZF9kb21haW5zGAEgAygLMhYudXNlci52MS5BbGxvd2VkRG9tYWluIi0KEkFsbG93RG9tYWluUmVxdWVzdBIXCgZkb21haW4YASABKAlCB7pIBHICaAEiFQoTQWxsb3dEb21haW5SZXNwb25zZSIyChpSZW1vdmVBbGxvd2VkRG9tYWluUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiHQobUmVtb3ZlQWxsb3dlZERvbWFpblJlc3BvbnNlIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkyvAEKEFVzZXJBZG1pblNlcnZpY2USUwoOR2V0VXNlckJ5RW1haWwSHi51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVxdWVzdBofLnVzZXIudjEuR2V0VXNlckJ5RW1haWxSZXNwb25zZSIAElMKDkNoYW5nZVVzZXJSb2xlEh4udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlcXVlc3QaHy51c2VyLnYxLkNoYW5nZVVzZXJSb2xlUmVzcG9uc2UiADKsAgoZQWxsb3dlZERvbWFpbkFkbWluU2VydmljZRJfChJMaXN0QWxsb3dlZERvbWFpbnMSIi51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QaIy51c2VyLnYxLkxpc3RBbGxvd2VkRG9tYWluc1Jlc3BvbnNlIgASSgoLQWxsb3dEb21haW4SGy51c2VyLnYxLkFsbG93RG9tYWluUmVxdWVzdBocLnVzZXIudjEuQWxsb3dEb21haW5SZXNwb25zZSIAEmIKE1JlbW92ZUFsbG93ZWREb21haW4SIy51c2VyLnYxLlJlbW92ZUFsbG93ZWREb21haW5SZXF1ZXN0GiQudXNlci52MS5SZW1vdmVBbGxvd2VkRG9tYWluUmVzcG9uc2UiAEKQAQoLY29tLnVzZXIudjFCCkFkbWluUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChN1c2VyL3YxL2FkbWluLnByb3RvEgd1c2VyLnYxIisKDUFsbG93ZWREb21haW4SCgoCaWQYASABKAkSDgoGZG9tYWluGAIgASgJIhsKGUxpc3RBbGxvd2VkRG9tYWluc1JlcXVlc3QiTQoaTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2USLwoPYWxsb3dlZF9kb21haW5zGAEgAygLMhYudXNlci52MS5BbGxvd2VkRG9tYWluIi0KEkFsbG93RG9tYWluUmVxdWVzdBIXCgZkb21haW4YASABKAlCB7pIBHICaAEiFQoTQWxsb3dEb21haW5SZXNwb25zZSIyChpSZW1vdmVBbGxvd2VkRG9tYWluUmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQEiHQobUmVtb3ZlQWxsb3dlZERvbWFpblJlc3BvbnNlIl8KC1VzZXJTdW1tYXJ5EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIfCgRyb2xlGAQgASgOMhEudXNlci52MS5Vc2VyUm9sZSIxChVHZXRVc2VyQnlFbWFpbFJlcXVlc3QSGAoFZW1haWwYASABKAlCCbpIBnIEEAFgASI8ChZHZXRVc2VyQnlFbWFpbFJlc3BvbnNlEiIKBHVzZXIYASABKAsyFC51c2VyLnYxLlVzZXJTdW1tYXJ5InAKFUNoYW5nZVVzZXJSb2xlUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARIiCgd0b19yb2xlGAIgASgOMhEudXNlci52MS5Vc2VyUm9sZRIYCgZyZWFzb24YAyABKAlCCLpIBXIDGNAPIjwKFkNoYW5nZVVzZXJSb2xlUmVzcG9uc2USIgoEdXNlchgBIAEoCzIULnVzZXIudjEuVXNlclN1bW1hcnkiLgoRRGVsZXRlVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQEiFAoSRGVsZXRlVXNlclJlc3BvbnNlMoUCChBVc2VyQWRtaW5TZXJ2aWNlElMKDkdldFVzZXJCeUVtYWlsEh4udXNlci52MS5HZXRVc2VyQnlFbWFpbFJlcXVlc3QaHy51c2VyLnYxLkdldFVzZXJCeUVtYWlsUmVzcG9uc2UiABJTCg5DaGFuZ2VVc2VyUm9sZRIeLnVzZXIudjEuQ2hhbmdlVXNlclJvbGVSZXF1ZXN0Gh8udXNlci52MS5DaGFuZ2VVc2VyUm9sZVJlc3BvbnNlIgASRwoKRGVsZXRlVXNlchIaLnVzZXIudjEuRGVsZXRlVXNlclJlcXVlc3QaGy51c2VyLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIAMqwCChlBbGxvd2VkRG9tYWluQWRtaW5TZXJ2aWNlEl8KEkxpc3RBbGxvd2VkRG9tYWlucxIiLnVzZXIudjEuTGlzdEFsbG93ZWREb21haW5zUmVxdWVzdBojLnVzZXIudjEuTGlzdEFsbG93ZWREb21haW5zUmVzcG9uc2UiABJKCgtBbGxvd0RvbWFpbhIbLnVzZXIudjEuQWxsb3dEb21haW5SZXF1ZXN0GhwudXNlci52MS5BbGxvd0RvbWFpblJlc3BvbnNlIgASYgoTUmVtb3ZlQWxsb3dlZERvbWFpbhIjLnVzZXIudjEuUmVtb3ZlQWxsb3dlZERvbWFpblJlcXVlc3QaJC51c2VyLnYxLlJlbW92ZUFsbG93ZWREb21haW5SZXNwb25zZSIAQpABCgtjb20udXNlci52MUIKQWRtaW5Qcm90b1ABWjhnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3YxO3VzZXJ2MaICA1VYWKoCB1VzZXIuVjHKAgdVc2VyXFYx4gITVXNlclxWMVxHUEJNZXRhZGF0YeoCCFVzZXI6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_user_v1_auth]);
 
 /**
  * @generated from message user.v1.AllowedDomain
@@ -238,6 +238,36 @@ export const ChangeUserRoleResponseSchema: GenMessage<ChangeUserRoleResponse> = 
   messageDesc(file_user_v1_admin, 11);
 
 /**
+ * @generated from message user.v1.DeleteUserRequest
+ */
+export type DeleteUserRequest = Message<"user.v1.DeleteUserRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message user.v1.DeleteUserRequest.
+ * Use `create(DeleteUserRequestSchema)` to create a new message.
+ */
+export const DeleteUserRequestSchema: GenMessage<DeleteUserRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 12);
+
+/**
+ * @generated from message user.v1.DeleteUserResponse
+ */
+export type DeleteUserResponse = Message<"user.v1.DeleteUserResponse"> & {
+};
+
+/**
+ * Describes the message user.v1.DeleteUserResponse.
+ * Use `create(DeleteUserResponseSchema)` to create a new message.
+ */
+export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_admin, 13);
+
+/**
  * @generated from service user.v1.UserAdminService
  */
 export const UserAdminService: GenService<{
@@ -256,6 +286,17 @@ export const UserAdminService: GenService<{
     methodKind: "unary";
     input: typeof ChangeUserRoleRequestSchema;
     output: typeof ChangeUserRoleResponseSchema;
+  },
+  /**
+   * Admin-only synchronous hard delete. Outstanding work or an unavailable
+   * prerequisite aborts the operation. Retained contributions survive.
+   *
+   * @generated from rpc user.v1.UserAdminService.DeleteUser
+   */
+  deleteUser: {
+    methodKind: "unary";
+    input: typeof DeleteUserRequestSchema;
+    output: typeof DeleteUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_admin, 0);
