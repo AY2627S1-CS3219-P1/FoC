@@ -396,6 +396,39 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("cleanup preserves staging until the actual upload grant expires", func(t *testing.T) {
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+		storage := &fakeStorage{uploadTTL: 48 * time.Hour}
+		photoService := buildReviewService(t, sqlDB)
+		photoService.photos = storage
+		photoID, grant, err := photoService.CreateReviewPhotoUpload(ctx, owner, "image/jpeg", 42)
+		if err != nil {
+			t.Fatal(err)
+		}
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		photo, err := repo.GetReviewPhoto(ctx, owner, photoID)
+		if err != nil || photo.UploadExpiresAt.Sub(grant.ExpiresAt).Abs() > time.Microsecond {
+			t.Fatalf("persisted expiry = %v, grant = %v, err=%v", photo.UploadExpiresAt, grant.ExpiresAt, err)
+		}
+		for _, hours := range []int{25, 49} {
+			now := grant.ExpiresAt.Add(time.Duration(hours-48) * time.Hour)
+			claimed, err := repo.ClaimOrphanReviewPhotos(ctx, now.Add(-photoOrphanAfter), now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, row := range claimed {
+				if row.ID == photoID {
+					found = true
+				}
+			}
+			if found != (hours == 49) {
+				t.Fatalf("claimed at hour %d = %v", hours, found)
+			}
+		}
+	})
+
 	t.Run("batched reviewed-order lookup and single fetch", func(t *testing.T) {
 		repo := NewPostgresRepository(reviewdb.New(sqlDB))
 		reviewer, reviewee := uuid.New(), uuid.New()
@@ -414,11 +447,11 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("submit review: %v", err)
 		}
 
-		got, err := repo.ListReviewedOrderIds(ctx, reviewer, []uuid.UUID{order1, order2})
+		got, err := repo.ListReviewOrderStatuses(ctx, reviewer, []uuid.UUID{order1, order2})
 		if err != nil {
 			t.Fatalf("list reviewed order ids: %v", err)
 		}
-		if len(got) != 1 || got[0] != order1 {
+		if len(got.ReviewedOrderIDs) != 1 || got.ReviewedOrderIDs[0] != order1 || len(got.RemovedOrderIDs) != 0 {
 			t.Fatalf("reviewed ids = %v, want only %v", got, order1)
 		}
 
@@ -429,6 +462,40 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if _, err := repo.ReviewForOrder(ctx, reviewer, order2); !errors.Is(err, errReviewNotFound) {
 			t.Fatalf("unreviewed order should be not found, got %v", err)
 		}
+		if err := service.RemoveReview(ctx, review.ID, "abuse", reviewer); err != nil {
+			t.Fatalf("remove review: %v", err)
+		}
+		statuses, err := service.ListMyReviewsForOrders(ctx, reviewer, []uuid.UUID{order1, order2})
+		if err != nil || len(statuses.ReviewedOrderIDs) != 0 || len(statuses.RemovedOrderIDs) != 1 ||
+			statuses.RemovedOrderIDs[0] != order1 {
+			t.Fatalf("removed order status = %+v err=%v", statuses, err)
+		}
+		removed, err := service.GetMyReviewForOrder(ctx, reviewer, order1)
+		if !errors.Is(err, errReviewRemoved) || removed.ID != uuid.Nil || removed.Comment != "" ||
+			len(removed.Photos) != 0 {
+			t.Fatalf("removed review must expose no content: %+v err=%v", removed, err)
+		}
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 5, Comment: "replacement"},
+			nil,
+		); !errors.Is(
+			err,
+			errReviewAlreadyExists,
+		) {
+			t.Fatalf("removed review must still block resubmission: %v", err)
+		}
+		other, err := service.ListMyReviewsForOrders(ctx, reviewee, []uuid.UUID{order1})
+		if err != nil || len(other.ReviewedOrderIDs) != 0 || len(other.RemovedOrderIDs) != 0 {
+			t.Fatalf("statuses must be caller-scoped: %+v err=%v", other, err)
+		}
+		if _, err := service.GetMyReviewForOrder(ctx, reviewee, order1); !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("another reviewer must not see the removed status: %v", err)
+		}
+
 	})
 
 	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {

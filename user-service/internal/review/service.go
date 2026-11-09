@@ -145,8 +145,8 @@ func (s *Service) ListMyReviewsForOrders(
 	ctx context.Context,
 	reviewerID uuid.UUID,
 	orderIDs []uuid.UUID,
-) ([]uuid.UUID, error) {
-	return s.repo.ListReviewedOrderIds(ctx, reviewerID, orderIDs)
+) (ReviewOrderStatuses, error) {
+	return s.repo.ListReviewOrderStatuses(ctx, reviewerID, orderIDs)
 }
 
 // GetMyReviewForOrder returns the reviewer's live review for one order, with
@@ -163,6 +163,7 @@ func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID u
 	return filled[0], nil
 }
 
+// RemoveReview soft-deletes a review, records the audit row and recomputes stats.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {

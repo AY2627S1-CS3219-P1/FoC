@@ -837,10 +837,13 @@ func (x *ListMyReviewsForOrdersRequest) GetOrderIds() []string {
 }
 
 type ListMyReviewsForOrdersResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ReviewedOrderIds []string               `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Live reviews that can be fetched with GetMyReviewForOrder.
+	ReviewedOrderIds []string `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
+	// Removed reviews still block resubmission; their content is not returned.
+	RemovedOrderIds []string `protobuf:"bytes,2,rep,name=removed_order_ids,json=removedOrderIds,proto3" json:"removed_order_ids,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ListMyReviewsForOrdersResponse) Reset() {
@@ -880,6 +883,14 @@ func (x *ListMyReviewsForOrdersResponse) GetReviewedOrderIds() []string {
 	return nil
 }
 
+func (x *ListMyReviewsForOrdersResponse) GetRemovedOrderIds() []string {
+	if x != nil {
+		return x.RemovedOrderIds
+	}
+	return nil
+}
+
+// A removed review returns FailedPrecondition with reason REVIEW_REMOVED.
 type GetMyReviewForOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
@@ -1337,9 +1348,10 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
 	"pagination\"M\n" +
 	"\x1dListMyReviewsForOrdersRequest\x12,\n" +
-	"\torder_ids\x18\x01 \x03(\tB\x0f\xbaH\f\x92\x01\t\x102\"\x05r\x03\xb0\x01\x01R\borderIds\"N\n" +
+	"\torder_ids\x18\x01 \x03(\tB\x0f\xbaH\f\x92\x01\t\x102\"\x05r\x03\xb0\x01\x01R\borderIds\"z\n" +
 	"\x1eListMyReviewsForOrdersResponse\x12,\n" +
-	"\x12reviewed_order_ids\x18\x01 \x03(\tR\x10reviewedOrderIds\"A\n" +
+	"\x12reviewed_order_ids\x18\x01 \x03(\tR\x10reviewedOrderIds\x12*\n" +
+	"\x11removed_order_ids\x18\x02 \x03(\tR\x0fremovedOrderIds\"A\n" +
 	"\x1aGetMyReviewForOrderRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"M\n" +
 	"\x1bGetMyReviewForOrderResponse\x12.\n" +

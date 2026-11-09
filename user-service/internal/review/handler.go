@@ -31,7 +31,7 @@ type Logic interface {
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListMyReviewsReceived(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
-	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
+	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) (ReviewOrderStatuses, error)
 	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
@@ -182,10 +182,12 @@ func (h *Handler) ListMyReviewsReceived(
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(&reviewv1.ListMyReviewsReceivedResponse{
+	resp := connect.NewResponse(&reviewv1.ListMyReviewsReceivedResponse{
 		Reviews:    toReviewProtos(pageResult.Reviews),
 		Pagination: toProtoPageInfo(pageResult.PageInfo),
-	}), nil
+	})
+	noStore(resp)
+	return resp, nil
 }
 
 // ListMyReviewsForOrders returns which of the requests the caller has reviewed.
@@ -209,11 +211,10 @@ func (h *Handler) ListMyReviewsForOrders(
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
-	ids := make([]string, 0, len(reviewed))
-	for _, id := range reviewed {
-		ids = append(ids, id.String())
-	}
-	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{ReviewedOrderIds: ids}), nil
+	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{
+		ReviewedOrderIds: uuidStrings(reviewed.ReviewedOrderIDs),
+		RemovedOrderIds:  uuidStrings(reviewed.RemovedOrderIDs),
+	}), nil
 }
 
 // GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
@@ -402,4 +403,12 @@ func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 		CreatedBy:     removal.CreatedBy.String(),
 		CreatedByName: removal.CreatedByName,
 	}
+}
+
+func uuidStrings(ids []uuid.UUID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.String())
+	}
+	return out
 }
