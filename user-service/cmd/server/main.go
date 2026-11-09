@@ -21,6 +21,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -117,6 +118,7 @@ func main() {
 		},
 	}
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
+	reportLogic := newReportService(db, sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -124,6 +126,7 @@ func main() {
 		Review:         &review.Handler{Logic: reviewLogic},
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
+		Report:         &report.Handler{Logic: reportLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}

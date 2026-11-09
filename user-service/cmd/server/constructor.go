@@ -18,10 +18,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -64,6 +67,13 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 		return tx.Commit()
 	}, reviewStorage)
 	return service, photos
+}
+
+// newReportService reads through the shared pool and closes reports in a GORM
+// transaction, so outcomes reuse the role, warning and review domains.
+func newReportService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
+	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
+	return report.NewService(repo, reportoutcome.WithTransaction(db))
 }
 
 func newWarningService(db warningdb.DBTX) *warningdomain.Service {

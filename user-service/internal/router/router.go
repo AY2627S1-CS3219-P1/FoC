@@ -7,6 +7,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
 	authz "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/report/v1/reportv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
 	userv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
@@ -17,6 +18,7 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"github.com/go-chi/chi/v5"
@@ -34,6 +36,7 @@ type ProtectedRoutes struct {
 	Warnings       *warningdomain.Handler
 	AdminWarnings  *warningdomain.AdminHandler
 	Review         *review.Handler
+	Report         *report.Handler
 	Authenticate   func(http.Handler) http.Handler
 	Users          ActorReader
 }
@@ -116,6 +119,11 @@ func setup(
 			connect.WithInterceptors(validate.NewInterceptor(), review.AuthorizeInterceptor(), normalizeRPCError()),
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(reviewPath, reviewService)
+		reportPath, reportService := reportv1connect.NewReportServiceHandler(
+			p.Report,
+			connect.WithInterceptors(validate.NewInterceptor(), report.AuthorizeInterceptor(), normalizeRPCError()),
+			connect.WithReadMaxBytes(maxRPCMessageBytes))
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).Mount(reportPath, reportService)
 		allowedDomainsPath, allowedDomainsService := userv1connect.NewAllowedDomainAdminServiceHandler(
 			p.AllowedDomains,
 			connect.WithInterceptors(
