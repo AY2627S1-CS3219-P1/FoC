@@ -98,6 +98,13 @@ function makeApi(
 }
 
 describe('review moderation batch merge API', () => {
+ it('returns an empty User page without calling CMS', async () => {
+  const { api, moderationCalls } = makeApi([], [], { moderationThrow: new ConnectError('empty batch rejected', Code.InvalidArgument) });
+  const page = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
+  expect(page.records).toEqual([]);
+  expect(page.cmsAvailable).toBe(true);
+  expect(moderationCalls).toHaveLength(0);
+ });
 	it('issues one CMS call per page carrying every request id', async () => {
 		const reviews = [
 			review('a', { moderationRequestId: 'req-a' }),

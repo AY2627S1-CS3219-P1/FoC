@@ -133,3 +133,27 @@ it('keeps saved configuration available when model discovery is unavailable', as
 	await failure;
 	expect(service.activeConfiguration?.versionId).toBe('saved-version');
 });
+
+
+it('invalidates a previous test when another draft is saved or activated', async () => {
+ const service = new ModerationConfigService(createApi());
+ await service.testDraft('draft-a', 'sample');
+ expect(service.testResult).toBeDefined();
+ await service.saveDraft('model', {}, ModerationOutputMode.JSON_SCHEMA);
+ expect(service.testResult).toBeUndefined();
+ await service.testDraft('draft-b', 'sample');
+ await service.activateDraft('draft-b', '');
+ expect(service.testResult).toBeUndefined();
+});
+
+it('ignores a test response arriving after a different draft is saved', async () => {
+ const pending = deferred<Awaited<ReturnType<ModerationConfigApi['testDraft']>>>();
+ const api = createApi({ testDraft: vi.fn(() => pending.promise) });
+ const service = new ModerationConfigService(api);
+ const testing = service.testDraft('draft-a', 'sample');
+ await service.saveDraft('model', {}, ModerationOutputMode.JSON_SCHEMA);
+ pending.resolve({ decision: 'approve' } as Awaited<ReturnType<ModerationConfigApi['testDraft']>>);
+ await testing;
+ expect(service.testResult).toBeUndefined();
+ expect(service.isLoading('test')).toBe(false);
+});

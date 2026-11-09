@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
@@ -8,26 +7,51 @@
 	import { PaginationSchema } from '$lib/gen/pagination/v1/pagination_pb';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import UnpublishedReviewList from '$lib/components/review-moderation/UnpublishedReviewList.svelte';
-	import { authService, reviewModerationService } from '$lib/services';
+	import {
+		authService,
+		profileService,
+		reviewModerationService,
+		ReviewPageState
+	} from '$lib/services';
 
 	// The reviewer's own unpublished reviews: pending, rejected and
 	// moderation-error. Publication is authoritative in User Service; CMS job
 	// progress only explains what is happening behind a pending review. The
 	// page polls bounded while open; no SSE.
+	const reviewPage = new ReviewPageState(reviewModerationService, () => authService.user?.id);
 	const PAGE_SIZE = 10n;
+	let ownerId = '';
+	let mounted = false;
+	let initialization = 0;
+	let account = authService.user?.id;
+	let bootstrapLoading = $state(true);
+	let bootstrapError = $state<unknown>(null);
+	$effect(() => {
+		const next = authService.user?.id;
+		if (next !== account) {
+			initialization += 1;
+			reviewPage.clear();
+			ownerId = '';
+			stopPolling();
+			bootstrapError = null;
+			bootstrapLoading = false;
+			if (mounted && next) void initialize();
+		}
+		account = next;
+	});
 	const POLL_INTERVAL_MS = 20000;
 
 	let page = $state(1n);
 	let statusFilter = $state<ModerationStatus | undefined>(undefined);
 	let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-	const records = $derived(reviewModerationService.records);
-	const pageInfo = $derived(reviewModerationService.pageInfo);
-	const isLoading = $derived(reviewModerationService.isLoading);
-	const hasLoaded = $derived(reviewModerationService.hasLoaded);
-	const loadError = $derived(reviewModerationService.loadError);
-	const cmsAvailable = $derived(reviewModerationService.cmsAvailable);
-	const cmsError = $derived(reviewModerationService.cmsError);
+	const records = $derived(reviewPage.records);
+	const pageInfo = $derived(reviewPage.pageInfo);
+	const isLoading = $derived(bootstrapLoading || reviewPage.isLoading);
+	const hasLoaded = $derived(reviewPage.hasLoaded);
+	const loadError = $derived(bootstrapError ?? reviewPage.loadError);
+	const cmsAvailable = $derived(reviewPage.cmsAvailable);
+	const cmsError = $derived(reviewPage.cmsError);
 
 	function statusOptions() {
 		return [
@@ -39,13 +63,17 @@
 	}
 
 	async function load(targetPage: bigint = page): Promise<void> {
+		if (!ownerId) {
+			await initialize();
+			return;
+		}
 		try {
-			await reviewModerationService.loadReviews({
-				reviewerId: authService.user!.id,
+			const applied = await reviewPage.loadReviews({
+				reviewerId: ownerId,
 				moderationStatusFilter: statusFilter,
 				pagination: create(PaginationSchema, { page: targetPage, pageSize: PAGE_SIZE })
 			});
-			page = targetPage;
+			if (applied) page = targetPage;
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
 				// A stale role claim; nothing to retry here.
@@ -84,16 +112,31 @@
 		return 'We could not load your unpublished reviews. Check your connection and try again.';
 	}
 
-	onMount(() => {
-		void (async () => {
-			if (!authService.isAuthenticated) {
-				await goto('/login', { replaceState: true });
-				return;
-			}
+	async function initialize(): Promise<void> {
+		const request = ++initialization;
+		bootstrapLoading = true;
+		bootstrapError = null;
+		try {
+			const profile = await profileService.getMyProfile();
+			if (!mounted || request !== initialization) return;
+			ownerId = profile.id;
 			await load(1n);
-			startPolling();
-		})();
-		return stopPolling;
+			if (mounted && request === initialization) startPolling();
+		} catch (error) {
+			if (mounted && request === initialization) bootstrapError = error;
+		} finally {
+			if (mounted && request === initialization) bootstrapLoading = false;
+		}
+	}
+	onMount(() => {
+		mounted = true;
+		void initialize();
+		return () => {
+			mounted = false;
+			initialization += 1;
+			stopPolling();
+			reviewPage.clear();
+		};
 	});
 </script>
 
@@ -104,7 +147,10 @@
 		<div>
 			<p class="eyebrow">Your account</p>
 			<h1 id="unpublished-title">Unpublished reviews</h1>
-			<p>Reviews waiting for assessment, rejected, or whose assessment failed. Published reviews live in your normal reviews list.</p>
+			<p>
+				Reviews waiting for assessment, rejected, or whose assessment failed. Published reviews live
+				in your normal reviews list.
+			</p>
 		</div>
 	</header>
 
@@ -134,7 +180,9 @@
 				Show
 				<select class="filter-select" value={statusFilter ?? ''} onchange={changeFilter}>
 					{#each statusOptions() as option (option.label)}
-						<option value={option.value === undefined ? '' : String(option.value)}>{option.label}</option>
+						<option value={option.value === undefined ? '' : String(option.value)}
+							>{option.label}</option
+						>
 					{/each}
 				</select>
 			</label>
@@ -156,7 +204,12 @@
 		{/if}
 
 		{#if pageInfo}
-			<Pagination page={Number(page)} totalPages={Number(pageInfo.totalPages)} loading={isLoading} onchange={changePage} />
+			<Pagination
+				page={Number(page)}
+				totalPages={Number(pageInfo.totalPages)}
+				loading={isLoading}
+				onchange={changePage}
+			/>
 		{/if}
 	{/if}
 </section>

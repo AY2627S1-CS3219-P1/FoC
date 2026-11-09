@@ -103,3 +103,5 @@ export const reviewModerationService = createReviewModerationService(
 	moderationTransport
 );
 export const moderationConfigService = createModerationConfigService(moderationTransport);
+
+export { ReviewPageState } from './review-moderation/index.ts';

@@ -59,14 +59,15 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 		// A CMS outage must not erase User's canonical collection: transport
 		// failures degrade to records without job progress, while authorization
 		// and request-shape errors still propagate to the transport layer.
+		const requestIds = batchedModerationRequestIds(reviews);
 		let jobs: ReviewModerationJobSummary[] = [];
 		let cmsAvailable = true;
 		let cmsError: string | undefined;
 		try {
-			jobs = (
+			if (requestIds.length > 0) jobs = (
 				await this.#moderation.getReviewModerationJobsForReviewer({
 					reviewerId,
-					moderationRequestIds: batchedModerationRequestIds(reviews)
+					moderationRequestIds: requestIds
 				})
 			).jobs;
 		} catch (error) {

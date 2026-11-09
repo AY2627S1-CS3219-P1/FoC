@@ -18,6 +18,7 @@ export type LoadingKey = (typeof LOADING_KEYS)[number];
 // setup banner, model picker and current config without repeating fetch handling.
 export class ModerationConfigService {
 	readonly #api: ModerationConfigApi;
+	#testRevision = 0;
 
 	#setup = $state<ModerationSetupStatus | undefined>(undefined);
 	#models = $state<ModerationModel[]>([]);
@@ -116,8 +117,9 @@ export class ModerationConfigService {
 		modelId: string,
 		parameters: ModerationParameterInput,
 		outputMode: ModerationOutputMode,
- systemMessage = ''
+		systemMessage = ''
 	): Promise<string> {
+		this.#invalidateTest();
 		this.#setLoading('save', true);
 		this.#error = null;
 		try {
@@ -131,21 +133,24 @@ export class ModerationConfigService {
 	}
 
 	async testDraft(draftVersionId: string, sampleComment: string): Promise<TestModerationConfigurationDraftResponse> {
+		const revision = ++this.#testRevision;
+		this.#testResult = undefined;
 		this.#setLoading('test', true);
 		this.#error = null;
 		try {
 			const result = await this.#api.testDraft(draftVersionId, sampleComment);
-			this.#testResult = result;
+			if (revision === this.#testRevision) this.#testResult = result;
 			return result;
 		} catch (error) {
-			this.#error = error;
+			if (revision === this.#testRevision) this.#error = error;
 			throw error;
 		} finally {
-			this.#setLoading('test', false);
+			if (revision === this.#testRevision) this.#setLoading('test', false);
 		}
 	}
 
 	async activateDraft(draftVersionId: string, expectedActiveVersionId: string, resumePausedJobs?: boolean): Promise<ModerationConfiguration | undefined> {
+		this.#invalidateTest();
 		this.#setLoading('activate', true);
 		this.#error = null;
 		try {
@@ -162,6 +167,7 @@ export class ModerationConfigService {
 	}
 
 	reset(): void {
+		this.#invalidateTest();
 		this.#setup = undefined;
 		this.#models = [];
 		this.#activeConfiguration = undefined;
@@ -170,6 +176,12 @@ export class ModerationConfigService {
 		for (const key of LOADING_KEYS) {
 			this.#loading[key] = false;
 		}
+	}
+
+	#invalidateTest(): void {
+		this.#testRevision += 1;
+		this.#testResult = undefined;
+		this.#loading.test = false;
 	}
 
 	#setLoading(key: LoadingKey, value: boolean): void {

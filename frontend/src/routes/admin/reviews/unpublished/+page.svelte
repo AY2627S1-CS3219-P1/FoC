@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { create } from '@bufbuild/protobuf';
@@ -6,36 +7,48 @@
 	import { PaginationSchema } from '$lib/gen/pagination/v1/pagination_pb';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import UnpublishedReviewList from '$lib/components/review-moderation/UnpublishedReviewList.svelte';
-	import { reviewModerationService } from '$lib/services';
+	import { reviewModerationService, ReviewPageState, authService } from '$lib/services';
 
 	// Admin inspection of one reviewer's unpublished reviews. The reviewer ID is
 	// resolved by the backend's authorization, never by this page: an ordinary
 	// caller id entered here simply fails with permission_denied.
+	const reviewPage = new ReviewPageState(reviewModerationService, () => authService.user?.id);
 	const PAGE_SIZE = 10n;
+	let account = authService.user?.id;
+	$effect(() => {
+		const next = authService.user?.id;
+		if (next !== account) {
+			reviewPage.clear();
+			submittedId = '';
+			inputError = '';
+		}
+		account = next;
+	});
+	onDestroy(() => reviewPage.clear());
 
 	let reviewerId = $state('');
 	let page = $state(1n);
 	let submittedId = $state('');
 	let inputError = $state('');
 
-	const records = $derived(reviewModerationService.records);
-	const pageInfo = $derived(reviewModerationService.pageInfo);
-	const isLoading = $derived(reviewModerationService.isLoading);
-	const hasLoaded = $derived(reviewModerationService.hasLoaded);
-	const loadError = $derived(reviewModerationService.loadError);
-	const cmsAvailable = $derived(reviewModerationService.cmsAvailable);
-	const cmsError = $derived(reviewModerationService.cmsError);
+	const records = $derived(reviewPage.records);
+	const pageInfo = $derived(reviewPage.pageInfo);
+	const isLoading = $derived(reviewPage.isLoading);
+	const hasLoaded = $derived(reviewPage.hasLoaded);
+	const loadError = $derived(reviewPage.loadError);
+	const cmsAvailable = $derived(reviewPage.cmsAvailable);
+	const cmsError = $derived(reviewPage.cmsError);
 
 	const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 	async function load(targetPage: bigint): Promise<void> {
 		inputError = '';
 		try {
-			await reviewModerationService.loadReviews({
+			const applied = await reviewPage.loadReviews({
 				reviewerId: submittedId,
 				pagination: create(PaginationSchema, { page: targetPage, pageSize: PAGE_SIZE })
 			});
-			page = targetPage;
+			if (applied) page = targetPage;
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
 				inputError = 'You are not allowed to inspect this reviewer.';
@@ -52,7 +65,7 @@
 			return;
 		}
 		submittedId = candidate;
-		reviewModerationService.clear();
+		reviewPage.clear();
 		void load(1n);
 	}
 
@@ -127,7 +140,12 @@
 				<UnpublishedReviewList {records} />
 			{/if}
 			{#if pageInfo}
-				<Pagination page={Number(page)} totalPages={Number(pageInfo.totalPages)} loading={isLoading} onchange={changePage} />
+				<Pagination
+					page={Number(page)}
+					totalPages={Number(pageInfo.totalPages)}
+					loading={isLoading}
+					onchange={changePage}
+				/>
 			{/if}
 		{/if}
 	{/if}

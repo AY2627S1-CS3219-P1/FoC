@@ -80,10 +80,11 @@
 			formError = 'Provide a short sample comment for the test.';
 			return;
 		}
+		const testedDraft = draftVersionId;
 		try {
-			await moderationConfigService.testDraft(draftVersionId, $form.sampleComment.trim());
+			await moderationConfigService.testDraft(testedDraft, $form.sampleComment.trim());
 		} catch {
-			formError = describeModerationConfigError(moderationConfigService.error);
+			if (testedDraft === draftVersionId) formError = describeModerationConfigError(moderationConfigService.error);
 		}
 	}
 
