@@ -16,7 +16,8 @@ This is the supplier service for [Friend on Campus (FoC)](../README.md).
       e.g. `DATABASE_URL=postgresql://username:password@remotehost:5433/anotherdb`
    1. Run `make migrate-up` in the project root to migrate database.
 
-1. Start the server: `make run`.
+1. Start the server: `make run`. Copy `.env.template` to `.env` first; it
+   supplies `PORT` and the required `INTERNAL_PORT` for the listener split.
 
 Protected Location RPCs accept User Service access tokens. Set
 `USER_SERVICE_BASE_URL` to the User Service URL so Supplier Service can fetch

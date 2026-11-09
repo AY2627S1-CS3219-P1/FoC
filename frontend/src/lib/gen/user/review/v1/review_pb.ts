@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/review/v1/review.proto.
  */
 export const file_user_review_v1_review: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIqEBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiKdAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UicgoaTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJtChVMaXN0TXlSZXZpZXdzUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJlChlMaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iRQoUTGlzdE15UmV2aWV3c1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJIChNSZW1vdmVSZXZpZXdSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABARIbCgZyZWFzb24YAiABKAlCC7pICHIGEAEYoI0GIhYKFFJlbW92ZVJldmlld1Jlc3BvbnNlIqsBCg1SZXZpZXdSZW1vdmFsEgoKAmlkGAEgASgJEhMKC3Jldmlld2VyX2lkGAIgASgJEhMKC3Jldmlld2VlX2lkGAMgASgJEhAKCG9yZGVyX2lkGAQgASgJEg4KBnJlYXNvbhgFIAEoCRIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpjcmVhdGVkX2J5GAcgASgJIkoKGUxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ6ChpMaXN0UmV2aWV3UmVtb3ZhbHNSZXNwb25zZRIvCghyZW1vdmFscxgBIAMoCzIdLnVzZXIucmV2aWV3LnYxLlJldmlld1JlbW92YWwSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8yhwQKDVJldmlld1NlcnZpY2USWwoMU3VibWl0UmV2aWV3EiMudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlN1Ym1pdFJldmlld1Jlc3BvbnNlIgASbQoSTGlzdFJldmlld3NGb3JVc2VyEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdzRm9yVXNlclJlc3BvbnNlIgASXgoNTGlzdE15UmV2aWV3cxIkLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZXF1ZXN0GiUudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1Jlc3BvbnNlIgASWwoMUmVtb3ZlUmV2aWV3EiMudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1Jlc3BvbnNlIgASbQoSTGlzdFJldmlld1JlbW92YWxzEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlIgBCvgEKEmNvbS51c2VyLnJldmlldy52MUILUmV2aWV3UHJvdG9QAVpBZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci9yZXZpZXcvdjE7cmV2aWV3djGiAgNVUliqAg5Vc2VyLlJldmlldy5WMcoCDlVzZXJcUmV2aWV3XFYx4gIaVXNlclxSZXZpZXdcVjFcR1BCTWV0YWRhdGHqAhBVc2VyOjpSZXZpZXc6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
+  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIs8BCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJIksKEFJldmlld1N1Ym1pc3Npb24SGQoGcmF0aW5nGAEgASgFQgm6SAYaBBgFKAESHAoHY29tbWVudBgCIAEoCUILukgIcgYQARigjQYinQEKE1N1Ym1pdFJldmlld1JlcXVlc3QSFgoEZnJvbRgBIAEoCUIIukgFcgOwAQESFAoCdG8YAiABKAlCCLpIBXIDsAEBEhoKCG9yZGVyX2lkGAMgASgJQgi6SAVyA7ABARI8CgpzdWJtaXNzaW9uGAQgASgLMiAudXNlci5yZXZpZXcudjEuUmV2aWV3U3VibWlzc2lvbkIGukgDyAEBIhYKFFN1Ym1pdFJldmlld1Jlc3BvbnNlInIKGkxpc3RSZXZpZXdzRm9yVXNlclJlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8ibQoVTGlzdE15UmV2aWV3c1Jlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iZQoZTGlzdFJldmlld3NGb3JVc2VyUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARItCgpwYWdpbmF0aW9uGAIgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkUKFExpc3RNeVJldmlld3NSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iSAoTUmVtb3ZlUmV2aWV3UmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQESGwoGcmVhc29uGAIgASgJQgu6SAhyBhABGKCNBiIWChRSZW1vdmVSZXZpZXdSZXNwb25zZSLEAQoNUmV2aWV3UmVtb3ZhbBIKCgJpZBgBIAEoCRITCgtyZXZpZXdlcl9pZBgCIAEoCRITCgtyZXZpZXdlZV9pZBgDIAEoCRIQCghvcmRlcl9pZBgEIAEoCRIOCgZyZWFzb24YBSABKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY3JlYXRlZF9ieRgHIAEoCRIXCg9jcmVhdGVkX2J5X25hbWUYCCABKAkiSgoZTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInoKGkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlEi8KCHJlbW92YWxzGAEgAygLMh0udXNlci5yZXZpZXcudjEuUmV2aWV3UmVtb3ZhbBIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbzKHBAoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2UiABJeCg1MaXN0TXlSZXZpZXdzEiQudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlcXVlc3QaJS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVzcG9uc2UiABJbCgxSZW1vdmVSZXZpZXcSIy51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3UmVtb3ZhbHMSKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2UiAEK+AQoSY29tLnVzZXIucmV2aWV3LnYxQgtSZXZpZXdQcm90b1ABWkFnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3Jldmlldy92MTtyZXZpZXd2MaICA1VSWKoCDlVzZXIuUmV2aWV3LlYxygIOVXNlclxSZXZpZXdcVjHiAhpVc2VyXFJldmlld1xWMVxHUEJNZXRhZGF0YeoCEFVzZXI6OlJldmlldzo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
 
 /**
  * A review given by one participant about another for a single request.
@@ -63,6 +63,18 @@ export type Review = Message<"user.review.v1.Review"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 7;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * display_name of the reviewer and reviewee, joined at read time.
+   *
+   * @generated from field: string reviewer_name = 8;
+   */
+  reviewerName: string;
+
+  /**
+   * @generated from field: string reviewee_name = 9;
+   */
+  revieweeName: string;
 };
 
 /**
@@ -79,15 +91,11 @@ export const ReviewSchema: GenMessage<Review> = /*@__PURE__*/
  */
 export type ReviewSubmission = Message<"user.review.v1.ReviewSubmission"> & {
   /**
-   * One to five stars.
-   *
    * @generated from field: int32 rating = 1;
    */
   rating: number;
 
   /**
-   * Non-empty, at most 100000 characters.
-   *
    * @generated from field: string comment = 2;
    */
   comment: string;
@@ -150,8 +158,6 @@ export const SubmitReviewResponseSchema: GenMessage<SubmitReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 3);
 
 /**
- * ListReviewsForUserResponse holds the reviews received by a user and its totals.
- *
  * @generated from message user.review.v1.ListReviewsForUserResponse
  */
 export type ListReviewsForUserResponse = Message<"user.review.v1.ListReviewsForUserResponse"> & {
@@ -174,8 +180,6 @@ export const ListReviewsForUserResponseSchema: GenMessage<ListReviewsForUserResp
   messageDesc(file_user_review_v1_review, 4);
 
 /**
- * ListMyReviewsResponse holds the reviews the caller gave and its totals.
- *
  * @generated from message user.review.v1.ListMyReviewsResponse
  */
 export type ListMyReviewsResponse = Message<"user.review.v1.ListMyReviewsResponse"> & {
@@ -202,8 +206,7 @@ export const ListMyReviewsResponseSchema: GenMessage<ListMyReviewsResponse> = /*
  */
 export type ListReviewsForUserRequest = Message<"user.review.v1.ListReviewsForUserRequest"> & {
   /**
-   * Reviews received BY this user. A suspended caller may only request their
-   * own id; the handler enforces this.
+   * A suspended caller may only request their own id; the handler enforces this.
    *
    * @generated from field: string user_id = 1;
    */
@@ -249,7 +252,7 @@ export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> 
   id: string;
 
   /**
-   * Recorded on the audit row; non-empty, at most 100000 characters.
+   * Recorded on the audit row.
    *
    * @generated from field: string reason = 2;
    */
@@ -277,8 +280,6 @@ export const RemoveReviewResponseSchema: GenMessage<RemoveReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 9);
 
 /**
- * Audit row written when a review is removed.
- *
  * @generated from message user.review.v1.ReviewRemoval
  */
 export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {
@@ -316,6 +317,13 @@ export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {
    * @generated from field: string created_by = 7;
    */
   createdBy: string;
+
+  /**
+   * display_name of the user who created this audit row, joined at read time.
+   *
+   * @generated from field: string created_by_name = 8;
+   */
+  createdByName: string;
 };
 
 /**

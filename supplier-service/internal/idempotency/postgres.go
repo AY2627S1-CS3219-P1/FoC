@@ -51,7 +51,11 @@ func (s *PostgresStore) Find(ctx context.Context, scope Scope, now time.Time) (*
 	if err != nil {
 		return nil, fmt.Errorf("find idempotency record: %w", err)
 	}
-	return &Record{Hash: value.RequestHash, ResourceID: value.ResourceID.String(), ExpiresAt: value.ExpiresAt.UTC()}, nil
+	return &Record{
+		Hash:       value.RequestHash,
+		ResourceID: value.ResourceID.String(),
+		ExpiresAt:  value.ExpiresAt.UTC(),
+	}, nil
 }
 
 func (s *PostgresStore) Save(ctx context.Context, scope Scope, value Record) error {

@@ -7,6 +7,8 @@ package reviewdb
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -49,32 +51,6 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
-const findReviewLocked = `-- name: FindReviewLocked :one
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE id = $1::UUID AND deleted_at IS NULL
-FOR UPDATE
-`
-
-// Find the live review and lock it: removal serialises on this lock, so a
-// concurrent removal of the same review sees the row already soft-deleted and
-// reports not found instead of writing a second audit row.
-func (q *Queries) FindReviewLocked(ctx context.Context, id uuid.UUID) (Review, error) {
-	row := q.db.QueryRowContext(ctx, findReviewLocked, id)
-	var i Review
-	err := row.Scan(
-		&i.ID,
-		&i.DeletedAt,
-		&i.ReviewerID,
-		&i.RevieweeID,
-		&i.OrderID,
-		&i.Rating,
-		&i.Comment,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const insertReview = `-- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now())
@@ -101,55 +77,41 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 	return err
 }
 
-const insertReviewRemoval = `-- name: InsertReviewRemoval :exec
-INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
-VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
-`
-
-type InsertReviewRemovalParams struct {
-	ID         uuid.UUID
-	ReviewID   uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Reason     string
-	CreatedBy  uuid.UUID
-}
-
-func (q *Queries) InsertReviewRemoval(ctx context.Context, arg InsertReviewRemovalParams) error {
-	_, err := q.db.ExecContext(ctx, insertReviewRemoval,
-		arg.ID,
-		arg.ReviewID,
-		arg.ReviewerID,
-		arg.RevieweeID,
-		arg.OrderID,
-		arg.Reason,
-		arg.CreatedBy,
-	)
-	return err
-}
-
 const listReviewRemovals = `-- name: ListReviewRemovals :many
-SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
-FROM review_removals
-ORDER BY created_at DESC, id DESC
-LIMIT $2 OFFSET $1
+SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
+       creator.display_name AS created_by_name
+FROM review_removals rr
+JOIN users creator ON creator.id = rr.created_by
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type ListReviewRemovalsParams struct {
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
-func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ReviewRemoval, error) {
+type ListReviewRemovalsRow struct {
+	ID            uuid.UUID
+	ReviewID      uuid.UUID
+	ReviewerID    uuid.UUID
+	RevieweeID    uuid.UUID
+	OrderID       uuid.UUID
+	Reason        string
+	CreatedAt     time.Time
+	CreatedBy     uuid.UUID
+	CreatedByName string
+}
+
+func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ListReviewRemovalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewRemovals, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ReviewRemoval{}
+	items := []ListReviewRemovalsRow{}
 	for rows.Next() {
-		var i ReviewRemoval
+		var i ListReviewRemovalsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ReviewID,
@@ -159,6 +121,7 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			&i.Reason,
 			&i.CreatedAt,
 			&i.CreatedBy,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -174,28 +137,45 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 }
 
 const listReviewsForUser = `-- name: ListReviewsForUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
-LIMIT $3 OFFSET $2
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListReviewsForUserParams struct {
 	UserID     uuid.UUID
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
-func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]Review, error) {
+type ListReviewsForUserRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]ListReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsForUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Review{}
+	items := []ListReviewsForUserRow{}
 	for rows.Next() {
-		var i Review
+		var i ListReviewsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeletedAt,
@@ -205,6 +185,8 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ReviewerName,
+			&i.RevieweeName,
 		); err != nil {
 			return nil, err
 		}
@@ -220,28 +202,45 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 }
 
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewer_id = $1::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
-LIMIT $3 OFFSET $2
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListReviewsFromUserParams struct {
 	UserID     uuid.UUID
-	PageOffset int32
-	PageLimit  int32
+	PageOffset int64
+	PageLimit  int64
 }
 
-func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]Review, error) {
+type ListReviewsFromUserRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsFromUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Review{}
+	items := []ListReviewsFromUserRow{}
 	for rows.Next() {
-		var i Review
+		var i ListReviewsFromUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeletedAt,
@@ -251,6 +250,8 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ReviewerName,
+			&i.RevieweeName,
 		); err != nil {
 			return nil, err
 		}
@@ -280,6 +281,60 @@ func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error 
 	return err
 }
 
+const recordReviewRemoval = `-- name: RecordReviewRemoval :exec
+INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
+`
+
+type RecordReviewRemovalParams struct {
+	ID         uuid.UUID
+	ReviewID   uuid.UUID
+	ReviewerID uuid.UUID
+	RevieweeID uuid.UUID
+	OrderID    uuid.UUID
+	Reason     string
+	CreatedBy  uuid.UUID
+}
+
+func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemovalParams) error {
+	_, err := q.db.ExecContext(ctx, recordReviewRemoval,
+		arg.ID,
+		arg.ReviewID,
+		arg.ReviewerID,
+		arg.RevieweeID,
+		arg.OrderID,
+		arg.Reason,
+		arg.CreatedBy,
+	)
+	return err
+}
+
+const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
+SELECT EXISTS (
+           SELECT 1 FROM users WHERE id = $1::UUID
+       ) AS reviewer_exists,
+       EXISTS (
+           SELECT 1 FROM users WHERE id = $2::UUID
+       ) AS reviewee_exists
+`
+
+type ReviewParticipantsExistParams struct {
+	ReviewerID uuid.UUID
+	RevieweeID uuid.UUID
+}
+
+type ReviewParticipantsExistRow struct {
+	ReviewerExists bool
+	RevieweeExists bool
+}
+
+func (q *Queries) ReviewParticipantsExist(ctx context.Context, arg ReviewParticipantsExistParams) (ReviewParticipantsExistRow, error) {
+	row := q.db.QueryRowContext(ctx, reviewParticipantsExist, arg.ReviewerID, arg.RevieweeID)
+	var i ReviewParticipantsExistRow
+	err := row.Scan(&i.ReviewerExists, &i.RevieweeExists)
+	return i, err
+}
+
 const revieweeStatistics = `-- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
@@ -298,45 +353,46 @@ func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) 
 	return i, err
 }
 
-const softDeleteReview = `-- name: SoftDeleteReview :exec
+const softDeleteReview = `-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = $1::UUID AND deleted_at IS NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
 `
 
-// Mark the review removed; the row is retained so review_removals can keep
-// referencing it. A no-op when the row is already soft-deleted.
-func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, softDeleteReview, id)
-	return err
+// The update locks the row and returns the data needed for the removal audit.
+// A concurrent removal waits, then finds no live row and reports not found.
+// The row is retained so review_removals can keep referencing it.
+func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, error) {
+	row := q.db.QueryRowContext(ctx, softDeleteReview, id)
+	var i Review
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateRevieweeStats = `-- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = $1, avg_rating = $2, updated_at = now()
+SET review_count = $1::bigint, avg_rating = $2, updated_at = now()
 WHERE id = $3::UUID
 `
 
 type UpdateRevieweeStatsParams struct {
-	Count      int32
+	Count      int64
 	AvgRating  float64
 	RevieweeID uuid.UUID
 }
 
+// Keep the input bigint so assigning to the integer column rejects overflow.
 func (q *Queries) UpdateRevieweeStats(ctx context.Context, arg UpdateRevieweeStatsParams) error {
 	_, err := q.db.ExecContext(ctx, updateRevieweeStats, arg.Count, arg.AvgRating, arg.RevieweeID)
 	return err
-}
-
-const userExists = `-- name: UserExists :one
-SELECT EXISTS (
-    SELECT 1 FROM users WHERE id = $1::UUID
-) AS exists
-`
-
-func (q *Queries) UserExists(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, userExists, userID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }

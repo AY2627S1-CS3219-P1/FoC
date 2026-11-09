@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -58,7 +59,11 @@ func (s *stubLogic) Login(_ context.Context, token string) (models.User, jwt.Aut
 	return testUser(), testTokens(), s.loginErr
 }
 
-func (s *stubLogic) Register(_ context.Context, token string, profile jwt.Profile) (models.User, jwt.AuthTokens, error) {
+func (s *stubLogic) Register(
+	_ context.Context,
+	token string,
+	profile jwt.Profile,
+) (models.User, jwt.AuthTokens, error) {
 	s.registerToken = token
 	s.registerProfile = profile
 	return testUser(), testTokens(), s.registerErr
@@ -80,20 +85,26 @@ func (s *stubLogic) LogoutAll(_ context.Context, token string) error {
 }
 
 func (s *stubLogic) PublicKeys() (jwt.JWKSet, error) {
-	return jwt.JWKSet{Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}}}, s.keyErr
+	return jwt.JWKSet{
+		Keys: []jwt.JWK{{KeyType: "EC", Curve: "P-256", X: "x", Y: "y", Use: "sig", Algorithm: "ES256", KeyID: "test"}},
+	}, s.keyErr
 }
 
 func testUser() models.User {
 	return models.User{ID: uuid.MustParse("3bd7435a-201f-45d4-b858-c1081a93a63c"),
-		Email: "user@example.com", DisplayName: "User", TelegramHandle: stringPtr("example_user"),
-		PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
+		Email: "user@example.com", DisplayName: "User", PhoneNumber: stringPtr("+12345678"), Role: models.RoleUser}
 }
 
 func stringPtr(value string) *string { return &value }
 
 func testTokens() jwt.AuthTokens {
-	return jwt.AuthTokens{AccessToken: "access-secret", RefreshToken: "refresh-secret",
-		AccessExpiry: time.Now().Add(service.AccessTokenLifetime), RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime)}
+	return jwt.AuthTokens{
+		AccessToken:  "access-secret",
+		RefreshToken: "refresh-secret",
+		AccessExpiry: time.Now().
+			Add(service.AccessTokenLifetime),
+		RefreshExpiry: time.Now().Add(service.RefreshTokenLifetime),
+	}
 }
 
 func TestAuthConnectMethodsAndCookies(t *testing.T) {
@@ -124,7 +135,7 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 	}
 	if login.Msg.AccessToken != "access-secret" || login.Msg.User.Id != testUser().ID.String() ||
 		login.Msg.User.Role != userv1.UserRole_USER_ROLE_USER || logic.loginToken != "magic" ||
-		login.Msg.User.GetTelegramHandle() != "example_user" || login.Msg.User.GetPhoneNumber() != "+12345678" ||
+		login.Msg.User.GetPhoneNumber() != "+12345678" ||
 		strings.Contains(login.Msg.String(), "refresh-secret") {
 		t.Fatalf("unexpected login response: %+v", login.Msg)
 	}
@@ -136,16 +147,14 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 
 	rawDisplayName := " " + strings.Repeat("U", 100) + " "
 	registerReq := connect.NewRequest(&userv1.RegisterRequest{Token: "register-magic", DisplayName: rawDisplayName,
-		TelegramHandle: stringPtr(" example_user "), PhoneNumber: stringPtr(" +12345678 ")})
+		PhoneNumber: " +12345678 "})
 	registerReq.Header().Set("Origin", frontendOrigin)
 	register, err := client.Register(ctx, registerReq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if register.Msg.AccessToken != "access-secret" || logic.registerToken != "register-magic" ||
-		logic.registerProfile.DisplayName != rawDisplayName || logic.registerProfile.TelegramHandle == nil ||
-		*logic.registerProfile.TelegramHandle != " example_user " || logic.registerProfile.PhoneNumber == nil ||
-		*logic.registerProfile.PhoneNumber != " +12345678 " || register.Msg.User.GetTelegramHandle() != "example_user" ||
+		logic.registerProfile.DisplayName != rawDisplayName || logic.registerProfile.PhoneNumber != " +12345678 " ||
 		register.Msg.User.GetPhoneNumber() != "+12345678" {
 		t.Fatalf("unexpected registration response: %+v", register.Msg)
 	}
@@ -175,7 +184,11 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if logic.logoutIn != "old-refresh" || logout.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("logout did not use cookie or set cache policy: %q, %q", logic.logoutIn, logout.Header().Get("Cache-Control"))
+		t.Fatalf(
+			"logout did not use cookie or set cache policy: %q, %q",
+			logic.logoutIn,
+			logout.Header().Get("Cache-Control"),
+		)
 	}
 	cleared := (&http.Response{Header: logout.Header()}).Cookies()
 	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 ||
@@ -192,7 +205,11 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if logic.logoutAllIn != "device-refresh" || logoutAll.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("logout all did not use cookie or set cache policy: %q, %q", logic.logoutAllIn, logoutAll.Header().Get("Cache-Control"))
+		t.Fatalf(
+			"logout all did not use cookie or set cache policy: %q, %q",
+			logic.logoutAllIn,
+			logoutAll.Header().Get("Cache-Control"),
+		)
 	}
 	cleared = (&http.Response{Header: logoutAll.Header()}).Cookies()
 	if len(cleared) != 1 || cleared[0].Name != authhandler.RefreshCookieName || cleared[0].MaxAge >= 0 {
@@ -202,7 +219,9 @@ func TestAuthConnectMethodsAndCookies(t *testing.T) {
 
 func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	logic := &stubLogic{}
-	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}))
+	server := httptest.NewServer(
+		router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}),
+	)
 	t.Cleanup(server.Close)
 	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
 	ctx := context.Background()
@@ -225,8 +244,22 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	}
 
 	logic.requestErr = jwt.ErrUnavailable
-	if _, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"})); connect.CodeOf(err) != connect.CodeUnavailable {
+	if _, err := client.RequestLink(
+		ctx,
+		connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnavailable {
 		t.Fatalf("unavailable auth returned %v", err)
+	}
+	logic.requestErr = service.ErrEmailDomainNotAllowed
+	if _, err := client.RequestLink(
+		ctx,
+		connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodePermissionDenied {
+		t.Fatalf("disallowed domain returned %v", err)
 	}
 	logic.requestErr = errors.New("database password details")
 	_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
@@ -235,20 +268,84 @@ func TestConnectValidationOriginAndErrorCodes(t *testing.T) {
 	}
 
 	logic.loginErr = jwt.ErrLoginFailed
-	if _, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "bad"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := client.Login(
+		ctx,
+		connect.NewRequest(&userv1.LoginRequest{Token: "bad"}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("failed login returned %v", err)
 	}
 	logic.registerErr = jwt.ErrAlreadyRegistered
-	if _, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User"})); connect.CodeOf(err) != connect.CodeAlreadyExists {
+	if _, err := client.Register(
+		ctx,
+		connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User", PhoneNumber: "+123"}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeAlreadyExists {
 		t.Fatalf("duplicate registration returned %v", err)
 	}
 	logic.refreshErr = jwt.ErrRefreshFailed
-	if _, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := client.Refresh(
+		ctx,
+		connect.NewRequest(&userv1.RefreshRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("failed refresh returned %v", err)
 	}
 	logic.logoutAllErr = jwt.ErrRefreshFailed
-	if _, err := client.LogoutAll(ctx, connect.NewRequest(&userv1.LogoutAllRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := client.LogoutAll(
+		ctx,
+		connect.NewRequest(&userv1.LogoutAllRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("failed logout all returned %v", err)
+	}
+}
+
+func TestAuthDomainDenialReturnsPermissionDenied(t *testing.T) {
+	denied := fmt.Errorf("authentication transaction: %w", service.ErrEmailDomainNotAllowed)
+	logic := &stubLogic{
+		requestErr:  denied,
+		loginErr:    denied,
+		registerErr: denied,
+		refreshErr:  denied,
+	}
+	server := httptest.NewServer(
+		router.Setup(testHealth(), &authhandler.Handler{Logic: logic, AllowedOrigin: frontendOrigin}),
+	)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewAuthServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	for _, operation := range []struct {
+		name string
+		call func() error
+	}{
+		{"request link", func() error {
+			_, err := client.RequestLink(ctx, connect.NewRequest(&userv1.RequestLinkRequest{Email: "user@example.com"}))
+			return err
+		}},
+		{"login", func() error {
+			_, err := client.Login(ctx, connect.NewRequest(&userv1.LoginRequest{Token: "magic"}))
+			return err
+		}},
+		{"register", func() error {
+			_, err := client.Register(ctx, connect.NewRequest(&userv1.RegisterRequest{Token: "magic", DisplayName: "User", PhoneNumber: "+6591234567"}))
+			return err
+		}},
+		{"refresh", func() error {
+			_, err := client.Refresh(ctx, connect.NewRequest(&userv1.RefreshRequest{}))
+			return err
+		}},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call(); connect.CodeOf(err) != connect.CodePermissionDenied {
+				t.Fatalf("domain policy rejection: %v", err)
+			}
+		})
 	}
 }
 

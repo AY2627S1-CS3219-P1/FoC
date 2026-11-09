@@ -23,7 +23,10 @@ func NewConnectOrderGateway(client orderv1connect.OrderInternalServiceClient) *C
 }
 
 func (g *ConnectOrderGateway) GetOrderParticipants(ctx context.Context, orderID uuid.UUID) (OrderParticipants, error) {
-	resp, err := g.client.GetOrderParticipants(ctx, connect.NewRequest(&orderv1.GetOrderParticipantsRequest{OrderId: orderID.String()}))
+	resp, err := g.client.GetOrderParticipants(
+		ctx,
+		connect.NewRequest(&orderv1.GetOrderParticipantsRequest{OrderId: orderID.String()}),
+	)
 	if err != nil {
 		if connect.CodeOf(err) == connect.CodeNotFound {
 			return OrderParticipants{}, errOrderNotFound

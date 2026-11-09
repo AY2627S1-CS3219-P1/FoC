@@ -18,7 +18,7 @@ func TestApprovalReplayWithoutResultingLocation(t *testing.T) {
 	}
 	app := newTestService(repo, func() time.Time { return now })
 	for attempt := 0; attempt < 2; attempt++ {
-		_, err := app.ApproveRequest(context.Background(), admin, key)
+		_, err := app.ApproveRequest(context.Background(), admin, key, 1)
 		if !errors.Is(err, additionrequest.ErrFailedPrecondition) {
 			t.Fatalf("replay %d: got %v, want failed precondition", attempt, err)
 		}

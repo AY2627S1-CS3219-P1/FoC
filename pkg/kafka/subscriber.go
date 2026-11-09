@@ -57,7 +57,12 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 
 // Register binds a topic to a typed handler. The factory must return a fresh,
 // non-nil message on every call. Register all topics before starting Run.
-func Register[T proto.Message](s *Subscriber, topic string, factory func() T, handler func(context.Context, Metadata, T) error) error {
+func Register[T proto.Message](
+	s *Subscriber,
+	topic string,
+	factory func() T,
+	handler func(context.Context, Metadata, T) error,
+) error {
 	if s == nil {
 		return errors.New("Kafka subscriber is required")
 	}
@@ -160,5 +165,12 @@ func cancelled(ctx context.Context, err error) bool {
 }
 
 func deliveryError(action string, message kafkago.Message, err error) error {
-	return fmt.Errorf("%s Kafka topic %q partition %d offset %d: %w", action, message.Topic, message.Partition, message.Offset, err)
+	return fmt.Errorf(
+		"%s Kafka topic %q partition %d offset %d: %w",
+		action,
+		message.Topic,
+		message.Partition,
+		message.Offset,
+		err,
+	)
 }

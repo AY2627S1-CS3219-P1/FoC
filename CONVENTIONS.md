@@ -11,15 +11,41 @@
 - Execution plans under `docs/plans/` describe intended work, not proof that it has
   landed. Verify the target branch before treating a plan as the current structure.
 
+## Go readability
+
+- Separate functions and type declarations with a blank line. Within functions,
+  use blank lines between logical steps such as validation, database access,
+  conversion and response construction.
+- Keep a call, its immediate error check and associated cleanup registration
+  together. Use spacing to group related statements, rather than separating
+  every line.
+- Expand long struct and configuration literals across multiple lines so their
+  fields are easy to scan.
+- Name boolean helpers as predicates that read naturally at call sites, such as
+  `HasParticipant(userID)`, `IsRequestedBy(userID)` and `IsValid()`. Parameter
+  names should identify what is being checked.
+- In longer files, use brief section comments to identify groups of related
+  responsibilities. Within complex functions, mark major phases and explain
+  non-obvious constraints. Avoid decorative banners and comments that simply
+  restate the code.
+- Choose logical spacing deliberately; `gofmt` preserves it but does not add it.
+
 ## Go checks
 
-- Run `make fmt` from the repository root to apply Go formatting.
+- Use `gofmt` and `golines` for handwritten Go, with a target line width of
+  120 characters. Generated files are excluded from formatting.
+- Run `make fmt` from the repository root to apply Go formatting. It runs
+  `fmt-check` after each pass and stops when the check passes, failing after
+  five unsuccessful attempts.
 - Run `make fmt-check` to check formatting with `golangci-lint fmt --diff`
   without rewriting files.
 - Run `make lint` to validate lint configuration, check formatting and run the
-  default golangci-lint correctness linters across `pkg`, `user-service` and
-  `supplier-service`. CI installs the tool with the official action, then runs
-  the same target for each module. The Makefile pins
+  default golangci-lint correctness linters across the `scripts` tooling module,
+  `pkg`, `user-service`,
+  `supplier-service`, `order-service`, `communication-service` and
+  `credit-service`. CI installs the tool
+  with the official action, then runs the same target for each module. The
+  Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
   golangci-lint CI action. Service lint configurations symlink to the root
   `.golangci.yaml`. Staticcheck uses its `SA*` correctness diagnostics, not style
@@ -34,6 +60,16 @@
 - Andrew's feature branches use `andrew/feat/<description>`, for example
   `andrew/feat/location-workflows`. Use `fix`, `refactor`, `chore`, or `docs`
   instead of `feat` when appropriate.
+
+## Issues and PRs
+
+- Automatically add the appropriate label(s) when you create an issue or a pull
+  request: the service/domain label (for example `order-service`), the type label
+  (`type.bug`, `type.enhancement`, `type.chore`, `type.documentation`), and any
+  project category label (for example `shared-or-infra`, `ready-for-agent`).
+- Determine the available labels dynamically with `gh label list` instead of
+  relying on a hard-coded label set, so newly added labels stay usable.
+- Link the issue the pull request resolves in its body (for example `Closes #123`).
 
 ## REST handlers
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
@@ -84,9 +120,13 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   Mount the generated handler in the service router.
   - supplier-service: implementations live under `internal/rpc`. Pass
     application dependencies to each RPC service constructor.
-  - user-service: handlers live in `internal/handlers/<domain>`. A handler is
-    a struct that holds its dependencies as fields (see "Dependencies and
-    interfaces").
+  - user-service: handlers live in `internal/handlers/<domain>` and are structs
+    that hold dependencies as fields (see "Dependencies and interfaces"). The
+    allowed-domain admin feature is grouped by domain under `internal/admin`,
+    with its Connect handler, service, and PostgreSQL repository together.
+  - credit-service: handlers live under `internal/rpc/<domain>`, with error
+    and message conversion in `internal/rpc/shared`. Kafka handlers live in
+    `internal/events`.
 - Do not add a generic wrapper around generated handlers. Reuse the request
   context for database and network calls; request metadata comes from the
   Connect request or context.
@@ -96,6 +136,14 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   authentication at the HTTP middleware boundary and method-level
   authorization through Connect interceptors. Generated RPC paths do not
   inherit REST middleware mounted under `/api`.
+- Treat stale authorization claims after a token-backed user attribute changes
+  as an access-token lifecycle concern, not as a page-specific error-recovery
+  concern. Do not refresh authentication or clear page state in response to a
+  `PermissionDenied` solely to compensate for a role change. Until centralized
+  revocation is implemented, changes such as administrator demotion may leave
+  the UI's token-derived state stale until the access token expires. The planned
+  solution is Redis-backed access-token revocation whenever any user attribute
+  stored in the token changes.
 - Use Connect interceptors for RPC-wide validation, authorization, logging,
   tracing, and error normalization. Keep business logic in shared operations
   when REST and RPC adapters expose the same behavior.
@@ -142,22 +190,40 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   the methods it calls (e.g. a handler's `Logic`, a logic package's
   `UserStore`). Implementations return concrete types; never return an
   interface from a constructor.
-- Layers: `internal/handlers/<domain>` (Connect adapter) →
-  `internal/<domain>` (business rules and the store interfaces they need) →
-  `internal/store` (GORM persistence over `internal/models`).
+- Existing GORM-backed User Service domains use these layers:
+  `internal/handlers/<domain>` (Connect adapter) → `internal/<domain>`
+  (business rules and the store interfaces they need) → `internal/store`
+  (GORM persistence over `internal/models`). New sqlc-backed domains may keep
+  their repository with the domain package when that keeps the feature
+  cohesive.
 - Unit-test logic with fakes of the consumer-defined interfaces; test
   `store` against a real database.
+- Supplier and Order use domain packages with consumer-owned read/transaction
+  interfaces and colocated Postgres adapters. Order keeps its aggregate in one
+  `internal/order` package; see `docs/adr/order-aggregate-foundation.md`.
 
 ## Database
 
-Supplier Service uses sqlc:
+Use sqlc for new backend services and newly introduced persistence domains.
+Existing GORM-backed domains remain on GORM unless an intentional migration is
+part of the change; extending one should follow its current persistence
+approach.
+
+Supplier, Order and Credit Services use sqlc:
 
 - `database/schema`: goose migrations (`make migrate-up/down`,
   `make goose-create name=...`). `database/query`: sqlc queries.
 - After changing either, run `make sqlc`. It generates
-  `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never hand-edit
-  generated files.
+  Supplier's `internal/database/seeddb`, `locationdb`, and `idempotencydb`. Never
+  hand-edit generated files. Order generates one aggregate package,
+  `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
+  generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
+
+Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`
+and generates `internal/database/orderdb`; Communication keeps it at the service
+root, reads `migrations` and `queries`, and generates
+`internal/database/communicationdb`. Run `make sqlc` in the service directory.
 
 ## Frontend services
 
@@ -175,22 +241,38 @@ Supplier Service uses sqlc:
 - Use mutable singletons only in browser lifecycle and event code, never in
   server load functions, actions, hooks, or endpoints. Omit `.ts` suffixes on
   `$lib` imports; relative imports may use `.ts` suffixes.
+- Handle unauthenticated access to protected RPCs at the transport layer: the
+  auth interceptor refreshes and retries, then the redirect interceptor sends
+  the user to `/login`. Pages never check authentication; they redirect only
+  for authorization failures (role checks).
 
 ## Frontend UI
 - Use Superforms to validate and manage form
 - Use Svelte-M3 UI components
+- Style M3 components through public props, CSS variables, or application-owned
+  wrappers and data attributes. Avoid selectors that depend on internal library
+  classes (such as `.m3-container`) or the component's internal DOM structure.
+- Place components used by a single route next to that page (for example
+  `routes/admin/config/AllowedDomainsCard.svelte`). Promote a component to
+  `frontend/src/lib/components/<domain>/` only when a second route consumes it
+  or it has an app-wide role (layout-level components such as `SnackbarHost`).
+  When no page is left in a `lib/components/<domain>/` group, delete the folder.
 
-User Service uses GORM:
+User Service has legacy GORM-backed domains and may use sqlc for new domains:
 
 - `migrations/`: goose migrations, one `0000N_name.sql` per change with
   `-- +goose Up` / `-- +goose Down`. They are embedded in the binary and
   applied on startup unless `RUN_MIGRATIONS=false`. Never edit an applied
   migration. `make migrate-up/down`, `make goose-create name=...`.
-- `internal/models`: GORM structs whose tags mirror the SQL. The migrations
-  own the schema; do not use `AutoMigrate`.
-- `internal/store`: GORM queries. Translate GORM errors (`gorm.ErrRecordNotFound`,
-  `gorm.ErrDuplicatedKey`, ...) to `store` sentinels; never let a missing row
-  become a 500.
+- Existing GORM domains use `internal/models` structs whose tags mirror the
+  SQL. The migrations own the schema; do not use `AutoMigrate`.
+- Existing GORM domains use `internal/store` for queries. Translate GORM errors
+  (`gorm.ErrRecordNotFound`, `gorm.ErrDuplicatedKey`, ...) to `store`
+  sentinels; never let a missing row become a 500.
+- New sqlc domains keep queries under `database/query`, generated packages
+  under `internal/database`, and repositories in their owning domain package.
+  Run `make sqlc` after changing queries or the sqlc configuration, and never
+  edit generated files.
 - `internal/models/schema_integration_test.go` runs every migration up, down
   and up again and checks the constraints. It runs only when
   `TEST_DATABASE_URL` points at a throwaway database, because it wipes the schema.
@@ -201,6 +283,31 @@ Docs: [goose](https://github.com/pressly/goose),
 [Connect](https://connectrpc.com/docs/go/getting-started),
 [validator](https://github.com/go-playground/validator),
 [pgx](https://github.com/jackc/pgx).
+
+## Kubernetes deployment
+
+Gateway exposure is an explicit allowlist. `infra/k8s/base/applications/gateway.yaml`
+routes full protobuf service paths (`/<package>.<service>`) to public
+`-external` Services. `PathPrefix` matches whole path segments, so a partial
+prefix (`/user.`) matches nothing, and a package-level pattern would also
+match internal-only services.
+
+- Adding a new public protobuf service: mount it on the public router, add its
+  service path to `gateway.yaml`, and add its health RPC to the `k8s-smoke`
+  public-health list, in the same change.
+- New methods on an already-routed service need no manifest change.
+- Internal-only services (User public-key, Credit reservation) must never
+  receive a Gateway route. Omitting a route fails safely: the path returns 404
+  through the gateway and stays reachable only over the internal Service.
+- Applications keep deployment-agnostic listeners: every Go service binds
+  `PORT` (public routes) and a mandatory `INTERNAL_PORT` (private routes).
+  Services without private routes yet serve the public handler on the
+  internal listener, so local and deployed behavior stay identical; move
+  handlers to the internal listener when private routes arrive. New services
+  must set both ports in Compose, templates and manifests. Shared container
+  security, resources and startup/liveness probes come from the
+  `infra/k8s/components/workload` Kustomize component; keep ports, readiness
+  probes and access rules per service.
 
 ## Run and lint
 

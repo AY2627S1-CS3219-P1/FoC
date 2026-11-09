@@ -5,6 +5,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	userv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/google/uuid"
@@ -24,6 +25,24 @@ func ActorID(ctx context.Context) (uuid.UUID, error) {
 	return id, nil
 }
 
+// Caller is the verified request caller. Role semantics are exposed as
+// methods so call sites never compare the raw Role string.
+type Caller struct {
+	auth.Caller
+}
+
+func (c Caller) IsSuspended() bool {
+	return tokenclaims.Role(c.Role) == tokenclaims.RoleSuspendedUser
+}
+
+func Actor(ctx context.Context) (Caller, error) {
+	caller, ok := auth.CallerFromContext(ctx)
+	if !ok {
+		return Caller{}, ErrMissingActor
+	}
+	return Caller{Caller: caller}, nil
+}
+
 func Role(role models.RoleName) userv1.UserRole {
 	switch role {
 	case models.RoleSuperAdmin:
@@ -41,7 +60,7 @@ func Role(role models.RoleName) userv1.UserRole {
 
 func User(user models.User) *userv1.User {
 	return &userv1.User{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
-		Role: Role(user.Role), TelegramHandle: user.TelegramHandle, PhoneNumber: user.PhoneNumber}
+		Role: Role(user.Role), PhoneNumber: user.PhoneNumber}
 }
 
 // UserSummary omits contact details when an administrator inspects another user.
@@ -52,6 +71,5 @@ func UserSummary(user models.User) *userv1.UserSummary {
 
 func Profile(user models.User) *userv1.Profile {
 	return &userv1.Profile{Id: user.ID.String(), Email: user.Email, DisplayName: user.DisplayName,
-		Description: user.Description, TelegramHandle: user.TelegramHandle,
-		PhoneNumber: user.PhoneNumber, Role: Role(user.Role)}
+		Description: user.Description, PhoneNumber: user.PhoneNumber, Role: Role(user.Role)}
 }

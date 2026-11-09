@@ -21,8 +21,6 @@ func NewPostgresRepository(queries *reviewdb.Queries) *PostgresRepository {
 
 var _ Repository = (*PostgresRepository)(nil)
 
-// Transactional write operations receive the review queries bound to the active
-// transaction.
 func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error {
 	err := q.InsertReview(ctx, reviewdb.InsertReviewParams{
 		ID:         input.ID,
@@ -35,25 +33,20 @@ func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queri
 	return mapReviewError("insert review", err)
 }
 
-// FindReviewLocked returns the live review under a row lock (see the Repository
-// contract). The snapshot comes from the locked row itself, so no relationship
-// subquery is involved.
-func (r *PostgresRepository) FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
-	row, err := q.FindReviewLocked(ctx, id)
+func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	row, err := q.SoftDeleteReview(ctx, id)
 	if err != nil {
-		return Review{}, mapReviewError("find review", err)
+		return Review{}, mapReviewError("soft delete review", err)
 	}
 	return toReview(row), nil
 }
 
-// SoftDeleteReview marks the review removed inside q's transaction. The row is
-// retained so the removal audit can keep referencing it.
-func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error {
-	return mapReviewError("soft delete review", q.SoftDeleteReview(ctx, id))
-}
-
-func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error {
-	return mapReviewError("insert review removal", q.InsertReviewRemoval(ctx, reviewdb.InsertReviewRemovalParams{
+func (r *PostgresRepository) RecordReviewRemoval(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	removal ReviewRemoval,
+) error {
+	return mapReviewError("record review removal", q.RecordReviewRemoval(ctx, reviewdb.RecordReviewRemovalParams{
 		ID:         removal.ID,
 		ReviewID:   removal.ReviewID,
 		ReviewerID: removal.ReviewerID,
@@ -64,10 +57,8 @@ func (r *PostgresRepository) InsertReviewRemoval(ctx context.Context, q *reviewd
 	}))
 }
 
-// RecalculateStats recomputes the reviewee's review_count and avg_rating from
-// their remaining reviews. It locks the users row first, then reads the
-// aggregate in a separate statement (see LANDMINES/locked-row-relationship-
-// snapshots.md), then writes the stats -- all within q's transaction.
+// The lock-then-read-then-write order matters; see the LockReviewee query for
+// why, and LANDMINES/locked-row-relationship-snapshots.md.
 func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error {
 	if err := q.LockReviewee(ctx, revieweeID); err != nil {
 		return fmt.Errorf("lock reviewee: %w", err)
@@ -81,7 +72,7 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 		avg = float64(stats.SumRating) / float64(stats.ReviewCount)
 	}
 	if err := q.UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
-		Count:      int32(stats.ReviewCount),
+		Count:      stats.ReviewCount,
 		AvgRating:  avg,
 		RevieweeID: revieweeID,
 	}); err != nil {
@@ -90,31 +81,42 @@ func (r *PostgresRepository) RecalculateStats(ctx context.Context, q *reviewdb.Q
 	return nil
 }
 
-// Reads use the repository's own connection.
-func (r *PostgresRepository) ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error) {
+func (r *PostgresRepository) ListReviewsForUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]Review, error) {
 	rows, err := r.queries.ListReviewsForUser(ctx, reviewdb.ListReviewsForUserParams{
-		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
+		UserID:     userID,
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list reviews received: %w", err)
 	}
 	out := make([]Review, len(rows))
 	for i, row := range rows {
-		out[i] = toReview(row)
+		out[i] = toReviewForUser(row)
 	}
 	return out, nil
 }
 
-func (r *PostgresRepository) ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error) {
+func (r *PostgresRepository) ListReviewsFromUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	offset, limit int64,
+) ([]Review, error) {
 	rows, err := r.queries.ListReviewsFromUser(ctx, reviewdb.ListReviewsFromUserParams{
-		UserID: userID, PageOffset: int32(offset), PageLimit: int32(limit),
+		UserID:     userID,
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list reviews given: %w", err)
 	}
 	out := make([]Review, len(rows))
 	for i, row := range rows {
-		out[i] = toReview(row)
+		out[i] = toReviewFromUser(row)
 	}
 	return out, nil
 }
@@ -135,16 +137,17 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
-func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error) {
+func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
 	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
-		PageOffset: int32(offset), PageLimit: int32(limit),
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list removals: %w", err)
 	}
 	out := make([]ReviewRemoval, len(rows))
 	for i, row := range rows {
-		out[i] = toReviewRemoval(row)
+		out[i] = toReviewRemovalListed(row)
 	}
 	return out, nil
 }
@@ -157,12 +160,21 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 	return count, nil
 }
 
-func (r *PostgresRepository) UserExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	exists, err := r.queries.UserExists(ctx, id)
+func (r *PostgresRepository) CheckReviewParticipants(
+	ctx context.Context,
+	reviewerID, revieweeID uuid.UUID,
+) (ReviewParticipantExistence, error) {
+	exists, err := r.queries.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+		ReviewerID: reviewerID,
+		RevieweeID: revieweeID,
+	})
 	if err != nil {
-		return false, fmt.Errorf("check user exists: %w", err)
+		return ReviewParticipantExistence{}, fmt.Errorf("check review participants exist: %w", err)
 	}
-	return exists, nil
+	return ReviewParticipantExistence{
+		ReviewerExists: exists.ReviewerExists,
+		RevieweeExists: exists.RevieweeExists,
+	}, nil
 }
 
 func toReview(row reviewdb.Review) Review {
@@ -178,21 +190,50 @@ func toReview(row reviewdb.Review) Review {
 	}
 }
 
-func toReviewRemoval(row reviewdb.ReviewRemoval) ReviewRemoval {
-	return ReviewRemoval{
-		ID:         row.ID,
-		ReviewID:   row.ReviewID,
-		ReviewerID: row.ReviewerID,
-		RevieweeID: row.RevieweeID,
-		OrderID:    row.OrderID,
-		Reason:     row.Reason,
-		CreatedAt:  row.CreatedAt,
-		CreatedBy:  row.CreatedBy,
+func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
 	}
 }
 
-// mapReviewError turns database failures into domain sentinels so the service
-// can map them to client codes without the repository touching the api layer.
+func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
+	}
+}
+
+func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
+	return ReviewRemoval{
+		ID:            row.ID,
+		ReviewID:      row.ReviewID,
+		ReviewerID:    row.ReviewerID,
+		RevieweeID:    row.RevieweeID,
+		OrderID:       row.OrderID,
+		Reason:        row.Reason,
+		CreatedAt:     row.CreatedAt,
+		CreatedBy:     row.CreatedBy,
+		CreatedByName: row.CreatedByName,
+	}
+}
+
 func mapReviewError(operation string, err error) error {
 	if err == nil {
 		return nil

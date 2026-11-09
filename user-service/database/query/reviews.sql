@@ -1,45 +1,49 @@
--- name: UserExists :one
+-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
-    SELECT 1 FROM users WHERE id = @user_id::UUID
-) AS exists;
+           SELECT 1 FROM users WHERE id = @reviewer_id::UUID
+       ) AS reviewer_exists,
+       EXISTS (
+           SELECT 1 FROM users WHERE id = @reviewee_id::UUID
+       ) AS reviewee_exists;
 
 -- name: InsertReview :exec
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
 VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
 
--- Find the live review and lock it: removal serialises on this lock, so a
--- concurrent removal of the same review sees the row already soft-deleted and
--- reports not found instead of writing a second audit row.
--- name: FindReviewLocked :one
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE id = @id::UUID AND deleted_at IS NULL
-FOR UPDATE;
-
--- Mark the review removed; the row is retained so review_removals can keep
--- referencing it. A no-op when the row is already soft-deleted.
--- name: SoftDeleteReview :exec
+-- The update locks the row and returns the data needed for the removal audit.
+-- A concurrent removal waits, then finds no live row and reports not found.
+-- The row is retained so review_removals can keep referencing it.
+-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
-WHERE id = @id::UUID AND deleted_at IS NULL;
+WHERE id = @id::UUID AND deleted_at IS NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at;
 
--- name: InsertReviewRemoval :exec
+-- name: RecordReviewRemoval :exec
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
 -- name: ListReviewsForUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
-LIMIT @page_limit OFFSET @page_offset;
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: ListReviewsFromUser :many
-SELECT id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
-FROM reviews
-WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
-LIMIT @page_limit OFFSET @page_offset;
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewsForUser :one
 SELECT COUNT(*)
@@ -52,10 +56,12 @@ FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
 -- name: ListReviewRemovals :many
-SELECT id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by
-FROM review_removals
-ORDER BY created_at DESC, id DESC
-LIMIT @page_limit OFFSET @page_offset;
+SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
+       creator.display_name AS created_by_name
+FROM review_removals rr
+JOIN users creator ON creator.id = rr.created_by
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewRemovals :one
 SELECT COUNT(*)
@@ -75,7 +81,8 @@ SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
 WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
 
+-- Keep the input bigint so assigning to the integer column rejects overflow.
 -- name: UpdateRevieweeStats :exec
 UPDATE users
-SET review_count = @count, avg_rating = @avg_rating, updated_at = now()
+SET review_count = @count::bigint, avg_rating = @avg_rating, updated_at = now()
 WHERE id = @reviewee_id::UUID;

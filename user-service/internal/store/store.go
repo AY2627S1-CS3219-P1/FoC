@@ -13,7 +13,6 @@ import (
 var (
 	ErrNotFound          = errors.New("not found")
 	ErrDuplicate         = errors.New("duplicate")
-	ErrInvalidDomain     = errors.New("invalid domain")
 	ErrRoleConflict      = errors.New("role changed concurrently")
 	ErrChallengeRejected = errors.New("challenge invalid, expired, or used")
 	ErrSessionRejected   = errors.New("session invalid, expired, or revoked")
@@ -27,17 +26,19 @@ type Store struct {
 	*Admin
 	*AuthTokens
 	*Sessions
+	*UserCreatedOutbox
 
 	db *gorm.DB
 }
 
 func New(db *gorm.DB) *Store {
 	return &Store{
-		Users:      NewUsers(db),
-		Admin:      NewAdmin(db),
-		AuthTokens: NewAuthTokens(db),
-		Sessions:   NewSessions(db),
-		db:         db,
+		Users:             NewUsers(db),
+		Admin:             NewAdmin(db),
+		AuthTokens:        NewAuthTokens(db),
+		Sessions:          NewSessions(db),
+		UserCreatedOutbox: NewUserCreatedOutbox(db),
+		db:                db,
 	}
 }
 

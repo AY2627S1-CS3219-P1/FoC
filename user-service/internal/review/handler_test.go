@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,8 +22,7 @@ import (
 )
 
 // handlerLogicStub records the arguments the handler passes so tests can assert
-// the adapter parsed the request correctly. It only implements the Logic
-// methods the handler calls, matching the consumer-defined interface rule.
+// the adapter parsed the request correctly.
 type handlerLogicStub struct {
 	submitted ReviewSubmission
 	submitter uuid.UUID
@@ -42,18 +42,30 @@ type handlerLogicStub struct {
 	removalsFor  pagination.Pagination
 }
 
-func (s *handlerLogicStub) SubmitReview(_ context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error {
+func (s *handlerLogicStub) SubmitReview(
+	_ context.Context,
+	reviewerID, revieweeID, orderID uuid.UUID,
+	submission ReviewSubmission,
+) error {
 	s.submitter = reviewerID
 	s.submitted = submission
 	return s.submitErr
 }
 
-func (s *handlerLogicStub) ListReviewsForUser(_ context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error) {
+func (s *handlerLogicStub) ListReviewsForUser(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
 	s.listedFor = userID
 	return s.forUserPage, s.forUserErr
 }
 
-func (s *handlerLogicStub) ListReviewsFromUser(_ context.Context, userID uuid.UUID, _ pagination.Pagination) (ReviewPage, error) {
+func (s *handlerLogicStub) ListReviewsFromUser(
+	_ context.Context,
+	userID uuid.UUID,
+	_ pagination.Pagination,
+) (ReviewPage, error) {
 	s.listedFor = userID
 	return ReviewPage{}, s.forUserErr
 }
@@ -70,10 +82,8 @@ func (s *handlerLogicStub) ListReviewRemovals(_ context.Context, page pagination
 	return s.removalsPage, s.removalsErr
 }
 
-// reviewClient wires the handler with only the request-validation interceptor.
-// The RBAC/ABAC gates the feature needs live here (ABAC in the handler, RBAC in
-// the token-claim AuthorizeInterceptor); the interceptor is covered by
-// authorization_test.go, so the client exercises the handler's own rules.
+// reviewClient mounts the handler without the RBAC interceptor (covered by
+// authorization_test.go), so tests exercise the handler's own ABAC rules.
 func reviewClient(t *testing.T, logic Logic, caller auth.Caller) reviewv1connect.ReviewServiceClient {
 	t.Helper()
 	_, handler := reviewv1connect.NewReviewServiceHandler(
@@ -173,17 +183,22 @@ func TestListReviewsForUserRPC(t *testing.T) {
 	user := uuid.New()
 	reviewer := uuid.New()
 	page := ReviewPage{
-		Reviews:  []Review{{ID: uuid.New(), ReviewerID: reviewer, RevieweeID: user, OrderID: uuid.New(), Rating: 5, Comment: "great"}},
+		Reviews: []Review{
+			{ID: uuid.New(), ReviewerID: reviewer, RevieweeID: user, OrderID: uuid.New(), Rating: 5, Comment: "great"},
+		},
 		PageInfo: pagination.NewPageInfo(2, 20, 1),
 	}
 
 	t.Run("maps reviews and page info", func(t *testing.T) {
 		stub := &handlerLogicStub{forUserPage: page}
 		client := reviewClient(t, stub, auth.Caller{ID: user.String()})
-		resp, err := client.ListReviewsForUser(context.Background(), connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
-			UserId:     user.String(),
-			Pagination: &paginationv1.Pagination{Page: 2, PageSize: 20},
-		}))
+		resp, err := client.ListReviewsForUser(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
+				UserId:     user.String(),
+				Pagination: &paginationv1.Pagination{Page: 2, PageSize: 20},
+			}),
+		)
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -193,7 +208,8 @@ func TestListReviewsForUserRPC(t *testing.T) {
 		if len(resp.Msg.Reviews) != 1 || resp.Msg.Reviews[0].RevieweeId != user.String() {
 			t.Fatalf("unexpected reviews: %+v", resp.Msg.Reviews)
 		}
-		if resp.Msg.Pagination.GetTotalItems() != 1 || resp.Msg.Pagination.GetPage() != 2 || resp.Msg.Pagination.GetPageSize() != 20 {
+		if resp.Msg.Pagination.GetTotalItems() != 1 || resp.Msg.Pagination.GetPage() != 2 ||
+			resp.Msg.Pagination.GetPageSize() != 20 {
 			t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
 		}
 	})
@@ -201,9 +217,12 @@ func TestListReviewsForUserRPC(t *testing.T) {
 	t.Run("suspended caller may list their own reviews", func(t *testing.T) {
 		stub := &handlerLogicStub{forUserPage: page}
 		client := reviewClient(t, stub, auth.Caller{ID: user.String(), Role: string(tokenclaims.RoleSuspendedUser)})
-		_, err := client.ListReviewsForUser(context.Background(), connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
-			UserId: user.String(),
-		}))
+		_, err := client.ListReviewsForUser(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
+				UserId: user.String(),
+			}),
+		)
 		if err != nil {
 			t.Fatalf("suspended self list: %v", err)
 		}
@@ -213,9 +232,12 @@ func TestListReviewsForUserRPC(t *testing.T) {
 		stub := &handlerLogicStub{}
 		other := uuid.New()
 		client := reviewClient(t, stub, auth.Caller{ID: user.String(), Role: string(tokenclaims.RoleSuspendedUser)})
-		_, err := client.ListReviewsForUser(context.Background(), connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
-			UserId: other.String(),
-		}))
+		_, err := client.ListReviewsForUser(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewsForUserRequest{
+				UserId: other.String(),
+			}),
+		)
 		if connect.CodeOf(err) != connect.CodePermissionDenied {
 			t.Fatalf("suspended cross-user list should be forbidden: %v", err)
 		}
@@ -237,7 +259,12 @@ func TestListMyReviewsRPC(t *testing.T) {
 	})
 	t.Run("missing actor is unauthorized", func(t *testing.T) {
 		client := reviewClient(t, &handlerLogicStub{}, auth.Caller{})
-		if _, err := client.ListMyReviews(context.Background(), connect.NewRequest(&reviewv1.ListMyReviewsRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		if _, err := client.ListMyReviews(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListMyReviewsRequest{}),
+		); connect.CodeOf(
+			err,
+		) != connect.CodeUnauthenticated {
 			t.Fatalf("missing actor: %v", err)
 		}
 	})
@@ -258,13 +285,23 @@ func TestRemoveReviewRPC(t *testing.T) {
 			t.Fatalf("remove: %v", err)
 		}
 		if stub.removedID != id || stub.removedReason != "offensive content" || stub.removedBy != caller {
-			t.Fatalf("removal not recorded correctly: id=%v reason=%q by=%v", stub.removedID, stub.removedReason, stub.removedBy)
+			t.Fatalf(
+				"removal not recorded correctly: id=%v reason=%q by=%v",
+				stub.removedID,
+				stub.removedReason,
+				stub.removedBy,
+			)
 		}
 	})
 
 	t.Run("invalid id is rejected by validation", func(t *testing.T) {
 		client := reviewClient(t, &handlerLogicStub{}, auth.Caller{ID: caller.String()})
-		if _, err := client.RemoveReview(context.Background(), connect.NewRequest(&reviewv1.RemoveReviewRequest{Id: "bad"})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		if _, err := client.RemoveReview(
+			context.Background(),
+			connect.NewRequest(&reviewv1.RemoveReviewRequest{Id: "bad"}),
+		); connect.CodeOf(
+			err,
+		) != connect.CodeInvalidArgument {
 			t.Fatalf("invalid id: %v", err)
 		}
 	})
@@ -280,16 +317,20 @@ func TestListReviewRemovalsRPC(t *testing.T) {
 	t.Run("maps removals and page info", func(t *testing.T) {
 		stub := &handlerLogicStub{removalsPage: removalsPage}
 		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
-		resp, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
-			Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
-		}))
+		resp, err := client.ListReviewRemovals(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+				Pagination: &paginationv1.Pagination{Page: 2, PageSize: 10},
+			}),
+		)
 		if err != nil {
 			t.Fatalf("list removals: %v", err)
 		}
 		if len(resp.Msg.Removals) != 1 || resp.Msg.Removals[0].Reason != "abuse" {
 			t.Fatalf("unexpected removals: %+v", resp.Msg.Removals)
 		}
-		if resp.Msg.Pagination.GetTotalItems() != 3 || resp.Msg.Pagination.GetPage() != 2 || resp.Msg.Pagination.GetPageSize() != 10 {
+		if resp.Msg.Pagination.GetTotalItems() != 3 || resp.Msg.Pagination.GetPage() != 2 ||
+			resp.Msg.Pagination.GetPageSize() != 10 {
 			t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
 		}
 		if stub.removalsFor.Page() != 2 || stub.removalsFor.PageSize() != 10 {
@@ -297,12 +338,39 @@ func TestListReviewRemovalsRPC(t *testing.T) {
 		}
 	})
 
+	t.Run("pagination preserves int64 values", func(t *testing.T) {
+		stub := &handlerLogicStub{
+			removalsPage: RemovalPage{
+				PageInfo: pagination.NewPageInfo(math.MaxInt64, 1, math.MaxInt64),
+			},
+		}
+		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
+		resp, err := client.ListReviewRemovals(context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+				Pagination: &paginationv1.Pagination{Page: math.MaxInt64, PageSize: 1},
+			}))
+		if err != nil {
+			t.Fatalf("list removals: %v", err)
+		}
+		if stub.removalsFor.Offset() != math.MaxInt64-1 {
+			t.Fatalf("unexpected offset: %d", stub.removalsFor.Offset())
+		}
+		info := resp.Msg.GetPagination()
+		if info.GetPage() != math.MaxInt64 || info.GetTotalPages() != math.MaxInt64 ||
+			info.GetTotalItems() != math.MaxInt64 || info.GetPageSize() != 1 {
+			t.Fatalf("unexpected pagination: %+v", info)
+		}
+	})
+
 	t.Run("pagination overflow is rejected", func(t *testing.T) {
 		stub := &handlerLogicStub{}
 		client := reviewClient(t, stub, auth.Caller{ID: admin, Admin: true})
-		_, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
-			Pagination: &paginationv1.Pagination{Page: 2_147_483_647, PageSize: 2},
-		}))
+		_, err := client.ListReviewRemovals(
+			context.Background(),
+			connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{
+				Pagination: &paginationv1.Pagination{Page: math.MaxInt64, PageSize: 2},
+			}),
+		)
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Fatalf("offset overflow should be invalid argument: %v", err)
 		}
@@ -322,7 +390,10 @@ func TestReviewRPCErrorMapping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stub := &handlerLogicStub{removalsErr: tc.err}
 			client := reviewClient(t, stub, auth.Caller{ID: uuid.New().String(), Admin: true})
-			_, err := client.ListReviewRemovals(context.Background(), connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{}))
+			_, err := client.ListReviewRemovals(
+				context.Background(),
+				connect.NewRequest(&reviewv1.ListReviewRemovalsRequest{}),
+			)
 			if connect.CodeOf(err) != tc.code {
 				t.Fatalf("expected %v, got %v", tc.code, err)
 			}

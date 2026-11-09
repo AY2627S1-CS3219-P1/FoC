@@ -122,7 +122,13 @@ func (t *postgresTx) Create(ctx context.Context, input Input, now time.Time) (sh
 	return t.reader.GetLocation(ctx, id.String())
 }
 
-func (t *postgresTx) Update(ctx context.Context, id string, input Input, expected int64, _ time.Time) (shared.Location, error) {
+func (t *postgresTx) Update(
+	ctx context.Context,
+	id string,
+	input Input,
+	expected int64,
+	_ time.Time,
+) (shared.Location, error) {
 	parsed, err := parseUUID(id, "location")
 	if err != nil {
 		return shared.Location{}, err
@@ -160,7 +166,13 @@ func (t *postgresTx) Update(ctx context.Context, id string, input Input, expecte
 	return t.reader.GetLocation(ctx, id)
 }
 
-func (t *postgresTx) SetArchived(ctx context.Context, id string, archivedAt *time.Time, expected int64, _ time.Time) (shared.Location, error) {
+func (t *postgresTx) SetArchived(
+	ctx context.Context,
+	id string,
+	archivedAt *time.Time,
+	expected int64,
+	_ time.Time,
+) (shared.Location, error) {
 	parsed, err := parseUUID(id, "location")
 	if err != nil {
 		return shared.Location{}, err
@@ -216,7 +228,10 @@ func toPGTime(value *shared.Clock) pgtype.Time {
 	if value == nil {
 		return pgtype.Time{}
 	}
-	return pgtype.Time{Microseconds: (int64(value.Hour)*60 + int64(value.Minute)) * time.Minute.Microseconds(), Valid: true}
+	return pgtype.Time{
+		Microseconds: (int64(value.Hour)*60 + int64(value.Minute)) * time.Minute.Microseconds(),
+		Valid:        true,
+	}
 }
 
 func mapPostgresError(operation string, err error) error {

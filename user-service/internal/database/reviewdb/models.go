@@ -21,14 +21,3 @@ type Review struct {
 	Comment    string
 	CreatedAt  time.Time
 }
-
-type ReviewRemoval struct {
-	ID         uuid.UUID
-	ReviewID   uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Reason     string
-	CreatedAt  time.Time
-	CreatedBy  uuid.UUID
-}

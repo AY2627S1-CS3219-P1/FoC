@@ -1,0 +1,23 @@
+# Proof decoding uses a pinned ImageMagick; see scripts/build-imagemagick.sh.
+FROM golang:1.27.0 AS imagemagick
+COPY order-service/scripts/imagemagick-deps.sh order-service/scripts/build-imagemagick.sh /scripts/
+RUN . /scripts/imagemagick-deps.sh \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends $IMAGEMAGICK_BUILD_DEPS \
+ && sh /scripts/build-imagemagick.sh
+
+# Compose provides the service, shared pkg module and persistent module cache.
+FROM golang:1.27.0
+WORKDIR /app
+COPY order-service/scripts/imagemagick-deps.sh /tmp/
+RUN . /tmp/imagemagick-deps.sh \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends $IMAGEMAGICK_RUNTIME_DEPS \
+ && rm -rf /var/lib/apt/lists/* /tmp/imagemagick-deps.sh
+COPY --from=imagemagick /opt/imagemagick /opt/imagemagick
+ENV PATH=/opt/imagemagick/bin:$PATH
+COPY order-service/config/imagemagick/policy.xml /etc/order-proof-imagemagick/policy.xml
+ENV MAGICK_CONFIGURE_PATH=/etc/order-proof-imagemagick
+RUN go install github.com/air-verse/air@v1.67.4
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]

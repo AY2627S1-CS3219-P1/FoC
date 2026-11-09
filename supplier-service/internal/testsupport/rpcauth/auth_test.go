@@ -28,10 +28,18 @@ func TestBearerRefreshesTokenForEachRequest(t *testing.T) {
 		if i > 0 {
 			now = now.Add(10 * time.Minute)
 		}
-		if _, err := client.GetPublicKeys(context.Background(), connect.NewRequest(&userv1.GetPublicKeysRequest{})); err != nil {
+		if _, err := client.GetPublicKeys(
+			context.Background(),
+			connect.NewRequest(&userv1.GetPublicKeysRequest{}),
+		); err != nil {
 			t.Fatal(err)
 		}
-		token, err := jwt.Parse(<-tokens, func(*jwt.Token) (any, error) { return &auth.key.PublicKey, nil }, jwt.WithoutClaimsValidation(), jwt.WithValidMethods([]string{"ES256"}))
+		token, err := jwt.Parse(
+			<-tokens,
+			func(*jwt.Token) (any, error) { return &auth.key.PublicKey, nil },
+			jwt.WithoutClaimsValidation(),
+			jwt.WithValidMethods([]string{"ES256"}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

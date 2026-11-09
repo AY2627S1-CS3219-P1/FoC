@@ -40,7 +40,12 @@ type TestRepository struct {
 }
 
 func newTestRepository() *TestRepository {
-	return &TestRepository{locations: map[string]additionrequest.Location{}, disablements: map[string]disablement.Disablement{}, requests: map[string]additionrequest.AdditionRequest{}, keys: map[idempotency.Scope]idempotency.Record{}}
+	return &TestRepository{
+		locations:    map[string]additionrequest.Location{},
+		disablements: map[string]disablement.Disablement{},
+		requests:     map[string]additionrequest.AdditionRequest{},
+		keys:         map[idempotency.Scope]idempotency.Record{},
+	}
 }
 func copyValue[T any](v T) T {
 	b, _ := json.Marshal(v)
@@ -104,7 +109,14 @@ func (r *TestRepository) Overlaps(_ context.Context, d disablement.Disablement) 
 	}
 	return false, nil
 }
-func (r *TestRepository) ListDisablements(_ context.Context, id string, state disablement.DisablementState, now time.Time, p additionrequest.Page) ([]disablement.Disablement, int64, error) {
+
+func (r *TestRepository) ListDisablements(
+	_ context.Context,
+	id string,
+	state disablement.DisablementState,
+	now time.Time,
+	p additionrequest.Page,
+) ([]disablement.Disablement, int64, error) {
 	items := []disablement.Disablement{}
 	for _, v := range r.disablements {
 		if v.LocationID == id && (state == "" || v.State(now) == state) {
@@ -154,10 +166,17 @@ func (r *TestRepository) SaveRequest(_ context.Context, v additionrequest.Additi
 	r.requests[v.ID] = copyValue(v)
 	return nil
 }
-func (r *TestRepository) ListRequests(_ context.Context, c additionrequest.Caller, status additionrequest.RequestStatus, p additionrequest.Page) ([]additionrequest.AdditionRequest, int64, error) {
+
+func (r *TestRepository) ListRequests(
+	_ context.Context,
+	c additionrequest.Caller,
+	status additionrequest.RequestStatus,
+	p additionrequest.Page,
+) ([]additionrequest.AdditionRequest, int64, error) {
 	items := []additionrequest.AdditionRequest{}
 	for _, v := range r.requests {
-		if (c.IsAdmin() || v.SubmittedBy == c.ID || v.Status == additionrequest.Approved) && (status == "" || v.Status == status) {
+		if (c.IsAdmin() || v.SubmittedBy == c.ID || v.Status == additionrequest.Approved) &&
+			(status == "" || v.Status == status) {
 			items = append(items, copyValue(v))
 		}
 	}
@@ -180,11 +199,22 @@ func (r *TestRepository) ValidateReferences(_ context.Context, p additionrequest
 	}
 	return nil
 }
-func (r *TestRepository) CreateLocation(_ context.Context, p additionrequest.Proposal, now time.Time) (additionrequest.Location, error) {
+
+func (r *TestRepository) CreateLocation(
+	_ context.Context,
+	p additionrequest.Proposal,
+	now time.Time,
+) (additionrequest.Location, error) {
 	if r.failCreate {
 		return additionrequest.Location{}, additionrequest.DependencyError("create Location", context.DeadlineExceeded)
 	}
-	v := additionrequest.Location{ID: uuid.NewString(), Proposal: copyValue(p), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	v := additionrequest.Location{
+		ID:        uuid.NewString(),
+		Proposal:  copyValue(p),
+		Revision:  1,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 	r.locations[v.ID] = v
 	return copyValue(v), nil
 }

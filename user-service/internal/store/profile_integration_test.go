@@ -20,8 +20,8 @@ func TestUsersUpdateAndList(t *testing.T) {
 	store, _ := setupAuthStore(t)
 	user := createStoreUser(t, store, "user@example.com")
 
-	handle := "user_handle"
-	if err := store.Users.Update(ctx, user.ID, UserUpdate{TelegramHandle: &handle}); err != nil {
+	phone := "+6591234567"
+	if err := store.Users.Update(ctx, user.ID, UserUpdate{PhoneNumber: &phone}); err != nil {
 		t.Fatal(err)
 	}
 	name := "Renamed"
@@ -32,16 +32,16 @@ func TestUsersUpdateAndList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DisplayName != name || got.TelegramHandle == nil || *got.TelegramHandle != handle ||
+	if got.DisplayName != name || got.PhoneNumber == nil || *got.PhoneNumber != phone ||
 		got.UpdatedBy == nil || *got.UpdatedBy != user.ID {
 		t.Fatalf("partial update: %+v", got)
 	}
 	empty := ""
-	if err := store.Users.Update(ctx, user.ID, UserUpdate{TelegramHandle: &empty}); err != nil {
+	if err := store.Users.Update(ctx, user.ID, UserUpdate{PhoneNumber: &empty}); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := store.GetByID(ctx, user.ID); err != nil || got.TelegramHandle != nil {
-		t.Fatalf("clear telegram: %+v, %v", got, err)
+	if got, err := store.GetByID(ctx, user.ID); err != nil || got.PhoneNumber != nil {
+		t.Fatalf("clear phone number: %+v, %v", got, err)
 	}
 	if err := store.Users.Update(ctx, missingID, UserUpdate{DisplayName: &name}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("update missing user: %v", err)
@@ -60,7 +60,10 @@ func TestUsersDelete(t *testing.T) {
 	user := createStoreUser(t, store, "user@example.com")
 
 	sessionHash := testDigest("delete-session")
-	if err := store.Sessions.Create(ctx, &models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}); err != nil {
+	if err := store.Sessions.Create(
+		ctx,
+		&models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.AddFavourite(ctx, user.ID, uuid.New(), now); err != nil {
@@ -125,10 +128,21 @@ func TestAdminWarningsAndUserstamps(t *testing.T) {
 
 	reason := "overturned"
 	removed, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID)
-	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil || *removed.UpdatedBy != admin.ID {
+	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil ||
+		*removed.UpdatedBy != admin.ID {
 		t.Fatalf("remove warning: %+v, %v", removed, err)
 	}
-	if _, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := store.RemoveWarning(
+		ctx,
+		first.ID,
+		time.Now().UTC(),
+		&reason,
+		nil,
+		&admin.ID,
+	); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
 		t.Fatalf("repeated remove: %v", err)
 	}
 }

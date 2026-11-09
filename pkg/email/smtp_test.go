@@ -66,7 +66,8 @@ func TestBuildMessageMultipartAlternative(t *testing.T) {
 	if len(types) != 2 || !strings.HasPrefix(types[0], "text/plain") || !strings.HasPrefix(types[1], "text/html") {
 		t.Fatalf("part types = %v", types)
 	}
-	if !strings.Contains(bodies[0], "token=abc") || !strings.Contains(bodies[1], `href="http://localhost:5173/login?token=abc"`) {
+	if !strings.Contains(bodies[0], "token=abc") ||
+		!strings.Contains(bodies[1], `href="http://localhost:5173/login?token=abc"`) {
 		t.Fatalf("part bodies = %q", bodies)
 	}
 }

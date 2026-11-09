@@ -13,22 +13,24 @@ import (
 // repository's own connection.
 type Repository interface {
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error
-	// FindReviewLocked returns the live review under a row lock, so a concurrent
-	// removal of the same review serialises and the loser sees it as not found.
-	FindReviewLocked(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
-	// SoftDeleteReview marks the review removed (deleted_at set); the row is
-	// retained so the removal audit can keep referencing it.
-	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) error
-	InsertReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	// SoftDeleteReview removes a live review and returns its data for the removal
+	// audit. The row remains so the audit can reference it.
+	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
+	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
 	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
 
-	ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)
-	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int) ([]Review, error)
+	ListReviewsForUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
+	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
-	ListReviewRemovals(ctx context.Context, offset, limit int) ([]ReviewRemoval, error)
+	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
-	UserExists(ctx context.Context, id uuid.UUID) (bool, error)
+	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
+}
+
+type ReviewParticipantExistence struct {
+	ReviewerExists bool
+	RevieweeExists bool
 }

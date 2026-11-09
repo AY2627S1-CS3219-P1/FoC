@@ -15,7 +15,12 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 	f := newFixture(t)
 	t.Run("Location links are read after a row lock wait", func(t *testing.T) {
 		f.reset(t)
-		f.exec(t, "INSERT INTO location_categories(location_id,category_id) VALUES($1,$2)", postgresLocationID, postgresCategoryID)
+		f.exec(
+			t,
+			"INSERT INTO location_categories(location_id,category_id) VALUES($1,$2)",
+			postgresLocationID,
+			postgresCategoryID,
+		)
 		tx, err := f.pool.Begin(f.ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -29,18 +34,24 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := tx.Exec(f.ctx, "INSERT INTO location_categories(location_id,category_id) VALUES($1,$2)", postgresLocationID, otherCategoryID); err != nil {
+		if _, err := tx.Exec(
+			f.ctx,
+			"INSERT INTO location_categories(location_id,category_id) VALUES($1,$2)",
+			postgresLocationID,
+			otherCategoryID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		result := make(chan additionrequest.Location, 1)
 		errors := make(chan error, 1)
 		go func() {
 			var got additionrequest.Location
-			err := additionrequest.NewPostgresRepository(f.pool, time.Now).Within(f.ctx, func(tx additionrequest.Tx) error {
-				var err error
-				got, err = tx.Location(f.ctx, postgresLocationID)
-				return err
-			})
+			err := additionrequest.NewPostgresRepository(f.pool, time.Now).
+				Within(f.ctx, func(tx additionrequest.Tx) error {
+					var err error
+					got, err = tx.Location(f.ctx, postgresLocationID)
+					return err
+				})
 			result <- got
 			errors <- err
 		}()
@@ -52,7 +63,10 @@ func TestWorkflowPersistencePostGIS(t *testing.T) {
 		if err := <-errors; err != nil {
 			t.Fatal(err)
 		}
-		if got.Proposal.Name != "Changed Location" || len(got.Proposal.CategoryIDs) != 1 || got.Proposal.CategoryIDs[0] != otherCategoryID || len(got.Categories) != 1 || got.Categories[0].ID != otherCategoryID {
+		if got.Proposal.Name != "Changed Location" || len(got.Proposal.CategoryIDs) != 1 ||
+			got.Proposal.CategoryIDs[0] != otherCategoryID ||
+			len(got.Categories) != 1 ||
+			got.Categories[0].ID != otherCategoryID {
 			t.Fatalf("Location used inconsistent row and links: %+v", got)
 		}
 	})
@@ -64,7 +78,8 @@ func waitForLocationLock(t *testing.T, f *fixture) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var blocked bool
-		if err := f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%FROM locations l%')").Scan(&blocked); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%FROM locations l%')").
+			Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
 		if blocked {

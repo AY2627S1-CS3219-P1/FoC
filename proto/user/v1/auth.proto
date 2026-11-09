@@ -33,9 +33,13 @@ message RegisterRequest {
   string token = 1 [(buf.validate.field).string.min_len = 1];
   // The service trims the name and requires 1 to 100 characters afterward.
   string display_name = 2;
-  // The service trims and validates contacts; blank values are unset.
-  optional string telegram_handle = 3;
-  optional string phone_number = 4;
+  // Telegram is connected through the Communication Service instead.
+  reserved 3;
+  reserved "telegram_handle";
+  // Required as the contact fallback when Telegram isn't linked. Validated with
+  // libphonenumber; numbers without a country code are read as Singapore
+  // numbers. Stored and returned in E.164 form, such as +6591234567.
+  string phone_number = 4;
 }
 
 message User {
@@ -43,7 +47,9 @@ message User {
   string email = 2;
   string display_name = 3;
   UserRole role = 4;
-  optional string telegram_handle = 5;
+  reserved 5;
+  reserved "telegram_handle";
+  // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
 }
 

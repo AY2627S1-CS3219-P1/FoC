@@ -4,14 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // buildReviewService wires the review repository against a real database. Reads
@@ -73,7 +77,7 @@ func userStats(t *testing.T, ctx context.Context, sqlDB *sql.DB, userID uuid.UUI
 	return count, avg
 }
 
-func mustPage(t *testing.T, page, size int) pagination.Pagination {
+func mustPage(t *testing.T, page, size int64) pagination.Pagination {
 	t.Helper()
 	p, err := pagination.New(page, size)
 	if err != nil {
@@ -103,6 +107,26 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	orders := &stubOrders{byOrder: map[uuid.UUID]OrderParticipants{}}
 	service := buildReviewService(t, sqlDB, orders)
 
+	t.Run("list offsets beyond int32 are preserved", func(t *testing.T) {
+		page := mustPage(t, math.MaxInt64, 1)
+		userID := uuid.New()
+
+		received, err := service.ListReviewsForUser(ctx, userID, page)
+		if err != nil || len(received.Reviews) != 0 {
+			t.Fatalf("list received at large offset: reviews=%v err=%v", received.Reviews, err)
+		}
+
+		given, err := service.ListReviewsFromUser(ctx, userID, page)
+		if err != nil || len(given.Reviews) != 0 {
+			t.Fatalf("list given at large offset: reviews=%v err=%v", given.Reviews, err)
+		}
+
+		removals, err := service.ListReviewRemovals(ctx, page)
+		if err != nil || len(removals.Removals) != 0 {
+			t.Fatalf("list removals at large offset: removals=%v err=%v", removals.Removals, err)
+		}
+	})
+
 	t.Run("recalculates stats as reviews come and go", func(t *testing.T) {
 		reviewer, second, reviewee, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		order1, order2 := uuid.New(), uuid.New()
@@ -112,14 +136,26 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			insertUser(t, ctx, sqlDB, id)
 		}
 
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order1, ReviewSubmission{Rating: 4, Comment: "good"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 4, Comment: "good"},
+		); err != nil {
 			t.Fatalf("submit first review: %v", err)
 		}
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 1 || avg != 4 {
 			t.Fatalf("after first review: count=%d avg=%v, want 1 and 4", c, avg)
 		}
 
-		if err := service.SubmitReview(ctx, second, reviewee, order2, ReviewSubmission{Rating: 2, Comment: "ok"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			second,
+			reviewee,
+			order2,
+			ReviewSubmission{Rating: 2, Comment: "ok"},
+		); err != nil {
 			t.Fatalf("submit second review: %v", err)
 		}
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 2 || avg != 3 {
@@ -156,7 +192,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list removals: %v", err)
 		}
-		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" || removals.Removals[0].CreatedBy != admin {
+		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" ||
+			removals.Removals[0].CreatedBy != admin {
 			t.Fatalf("audit row not recorded: %+v", removals)
 		}
 		if removals.TotalItems() != 1 || removals.TotalPages() != 1 {
@@ -165,7 +202,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		// The removed review's row is retained with deleted_at set, so the
 		// audit row can keep referencing it.
 		var deletedAt sql.NullTime
-		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", firstReview).Scan(&deletedAt); err != nil {
+		if err := sqlDB.QueryRowContext(ctx, "SELECT deleted_at FROM reviews WHERE id = $1", firstReview).
+			Scan(&deletedAt); err != nil {
 			t.Fatalf("read removed review: %v", err)
 		}
 		if !deletedAt.Valid {
@@ -185,13 +223,225 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("average preserves fractional ratings", func(t *testing.T) {
+		reviewee := uuid.New()
+		insertUser(t, ctx, sqlDB, reviewee)
+		for _, rating := range []int{1, 2, 2} {
+			reviewer := uuid.New()
+			orderID := uuid.New()
+			orders.byOrder[orderID] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
+			insertUser(t, ctx, sqlDB, reviewer)
+			if err := service.SubmitReview(
+				ctx,
+				reviewer,
+				reviewee,
+				orderID,
+				ReviewSubmission{Rating: rating, Comment: "fractional average"},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 3 || math.Abs(avg-5.0/3.0) > 1e-12 {
+			t.Fatalf("count=%d avg=%v, want 3 and 5/3", count, avg)
+		}
+	})
+
+	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {
+		reviewer, reviewee, orderID := uuid.New(), uuid.New(), uuid.New()
+		orders.byOrder[orderID] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			orderID,
+			ReviewSubmission{Rating: 5, Comment: "audit rollback"},
+		); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 10))
+		if err != nil {
+			t.Fatalf("list review: %v", err)
+		}
+		if len(received.Reviews) != 1 {
+			t.Fatalf("want one review, got %d", len(received.Reviews))
+		}
+
+		err = service.RemoveReview(ctx, received.Reviews[0].ID, "audit failure", uuid.New())
+		if err == nil {
+			t.Fatal("removal with a nonexistent administrator should fail")
+		}
+		var deletedAt sql.NullTime
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT deleted_at FROM reviews WHERE id = $1", received.Reviews[0].ID).Scan(&deletedAt); err != nil {
+			t.Fatalf("read review after failed removal: %v", err)
+		}
+		if deletedAt.Valid {
+			t.Fatal("review was soft-deleted despite the audit insert failing")
+		}
+		var auditCount int
+		if err := sqlDB.QueryRowContext(
+			ctx,
+			"SELECT COUNT(*) FROM review_removals WHERE review_id = $1",
+			received.Reviews[0].ID,
+		).Scan(&auditCount); err != nil {
+			t.Fatalf("count removal audits: %v", err)
+		}
+		if auditCount != 0 {
+			t.Fatalf("audit rows = %d after failed removal, want 0", auditCount)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 1 || avg != 5 {
+			t.Fatalf("stats after failed removal = (%d, %v), want (1, 5)", count, avg)
+		}
+	})
+
+	t.Run("statistics include reviews committed during a lock wait", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		reviewerA, reviewerB, reviewee := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewerA, reviewerB, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+
+		txA, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = txA.Rollback() }()
+		qA := reviewdb.New(txA)
+		if err := repo.InsertReview(ctx, qA, ReviewInput{
+			ID:         uuid.New(),
+			ReviewerID: reviewerA,
+			RevieweeID: reviewee,
+			OrderID:    uuid.New(),
+			Rating:     4,
+			Comment:    "first",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.RecalculateStats(ctx, qA, reviewee); err != nil {
+			t.Fatal(err)
+		}
+
+		txB, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			cancel()
+			_ = txB.Rollback()
+		}()
+		qB := reviewdb.New(txB)
+		if err := repo.InsertReview(ctx, qB, ReviewInput{
+			ID:         uuid.New(),
+			ReviewerID: reviewerB,
+			RevieweeID: reviewee,
+			OrderID:    uuid.New(),
+			Rating:     2,
+			Comment:    "second",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var pidA, pidB int
+		if err := txA.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pidA); err != nil {
+			t.Fatal(err)
+		}
+		if err := txB.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pidB); err != nil {
+			t.Fatal(err)
+		}
+
+		// Start B before A commits and observe the actual lock wait, ensuring
+		// B's first statement starts with a snapshot that excludes A's review.
+		recalculated := make(chan error, 1)
+		go func() { recalculated <- repo.RecalculateStats(ctx, qB, reviewee) }()
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			var blocked bool
+			if err := sqlDB.QueryRowContext(ctx,
+				"SELECT $1::integer = ANY(pg_blocking_pids($2::integer))", pidA, pidB).Scan(&blocked); err != nil {
+				t.Fatal(err)
+			}
+			if blocked {
+				break
+			}
+			select {
+			case err := <-recalculated:
+				t.Fatalf("recalculation finished without waiting for A: %v", err)
+			case <-ctx.Done():
+				t.Fatalf("recalculation did not wait for A: %v", ctx.Err())
+			case <-ticker.C:
+			}
+		}
+		if err := txA.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-recalculated:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if err := txB.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 2 || avg != 3 {
+			t.Fatalf("count=%d avg=%v, want 2 and 3", count, avg)
+		}
+	})
+
+	t.Run("review count overflow is rejected without wrapping", func(t *testing.T) {
+		reviewee := uuid.New()
+		insertUser(t, ctx, sqlDB, reviewee)
+		q := reviewdb.New(sqlDB)
+		if err := q.UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
+			RevieweeID: reviewee,
+			Count:      math.MaxInt32,
+			AvgRating:  1,
+		}); err != nil {
+			t.Fatalf("maximum count should fit: %v", err)
+		}
+
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		err = reviewdb.New(tx).UpdateRevieweeStats(ctx, reviewdb.UpdateRevieweeStatsParams{
+			RevieweeID: reviewee,
+			Count:      int64(math.MaxInt32) + 1,
+			AvgRating:  2,
+		})
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "22003" {
+			t.Fatalf("want numeric value out of range, got %v", err)
+		}
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != math.MaxInt32 || avg != 1 {
+			t.Fatalf("failed update changed statistics: count=%d avg=%v", count, avg)
+		}
+	})
+
 	t.Run("duplicate review is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		orders.byOrder[order] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "first"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "first"},
+		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "duplicate"})
@@ -210,7 +460,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
-		if err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "first"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order,
+			ReviewSubmission{Rating: 5, Comment: "first"},
+		); err != nil {
 			t.Fatalf("submit review: %v", err)
 		}
 		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
@@ -233,7 +489,13 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}
 		// The reverse direction is unaffected: the other participant can still
 		// review for the same request.
-		if err := service.SubmitReview(ctx, reviewee, reviewer, order, ReviewSubmission{Rating: 4, Comment: "other side"}); err != nil {
+		if err := service.SubmitReview(
+			ctx,
+			reviewee,
+			reviewer,
+			order,
+			ReviewSubmission{Rating: 4, Comment: "other side"},
+		); err != nil {
 			t.Fatalf("other participant review: %v", err)
 		}
 	})
@@ -264,4 +526,122 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		err := service.SubmitReview(ctx, reviewer, reviewee, order, ReviewSubmission{Rating: 5, Comment: "x"})
 		assertExternal(t, err, http.StatusBadRequest)
 	})
+
+	t.Run("concurrent removal returns not found for the loser", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		orderID := uuid.New()
+		orders.byOrder[orderID] = OrderParticipants{RequesterID: reviewer, CourierID: reviewee, Completed: true}
+		if err := service.SubmitReview(ctx, reviewer, reviewee, orderID,
+			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+		var reviewID uuid.UUID
+		if err := sqlDB.QueryRowContext(ctx, "SELECT id FROM reviews WHERE order_id = $1", orderID).
+			Scan(&reviewID); err != nil {
+			t.Fatalf("read review ID: %v", err)
+		}
+
+		firstReady := make(chan int, 1)
+		firstResult := make(chan error, 1)
+		releaseFirst := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseFirst) }) }
+		defer release()
+
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		firstService := NewService(repo, func(
+			txCtx context.Context,
+			operation func(*reviewdb.Queries) error,
+		) error {
+			tx, err := sqlDB.BeginTx(txCtx, nil)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			if err := operation(reviewdb.New(tx)); err != nil {
+				return err
+			}
+			var pid int
+			if err := tx.QueryRowContext(txCtx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
+				return err
+			}
+			firstReady <- pid
+
+			select {
+			case <-releaseFirst:
+				return tx.Commit()
+			case <-txCtx.Done():
+				return txCtx.Err()
+			}
+		}, orders)
+		go func() {
+			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
+		}()
+
+		var firstPID int
+		select {
+		case firstPID = <-firstReady:
+		case err := <-firstResult:
+			t.Fatalf("first removal failed before holding its transaction: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("first removal did not reach its commit barrier: %v", ctx.Err())
+		}
+
+		secondResult := make(chan error, 1)
+		go func() {
+			secondResult <- service.RemoveReview(ctx, reviewID, "second removal", admin)
+		}()
+
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			var blocked bool
+			if err := sqlDB.QueryRowContext(ctx,
+				"SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))",
+				firstPID,
+			).Scan(&blocked); err != nil {
+				t.Fatalf("check removal lock wait: %v", err)
+			}
+			if blocked {
+				break
+			}
+			select {
+			case err := <-secondResult:
+				t.Fatalf("second removal completed before waiting on the first: %v", err)
+			case <-ctx.Done():
+				t.Fatalf("second removal did not wait on the review lock: %v", ctx.Err())
+			case <-ticker.C:
+			}
+		}
+
+		release()
+		if err := <-firstResult; err != nil {
+			t.Fatalf("first removal: %v", err)
+		}
+		if err := <-secondResult; !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("second removal = %v, want review not found", err)
+		} else {
+			assertExternal(t, err, http.StatusNotFound)
+		}
+
+		var auditRows int
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM review_removals WHERE review_id = $1", reviewID).Scan(&auditRows); err != nil {
+			t.Fatalf("count removal audit rows: %v", err)
+		}
+		if auditRows != 1 {
+			t.Fatalf("removal audit rows = %d, want 1", auditRows)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, reviewee); count != 0 || avg != 0 {
+			t.Fatalf("after removal: count=%d avg=%v, want 0 and 0", count, avg)
+		}
+	})
+
 }

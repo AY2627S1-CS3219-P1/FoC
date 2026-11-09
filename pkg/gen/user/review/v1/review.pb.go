@@ -35,10 +35,13 @@ type Review struct {
 	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
 	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
 	// Opaque request id owned by the order service; no foreign key here.
-	OrderId       string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Rating        int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
-	Comment       string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	OrderId   string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Rating    int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment   string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// display_name of the reviewer and reviewee, joined at read time.
+	ReviewerName  string `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
+	RevieweeName  string `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -122,13 +125,25 @@ func (x *Review) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Review) GetReviewerName() string {
+	if x != nil {
+		return x.ReviewerName
+	}
+	return ""
+}
+
+func (x *Review) GetRevieweeName() string {
+	if x != nil {
+		return x.RevieweeName
+	}
+	return ""
+}
+
 // The rating and comment a caller submits about a reviewee.
 type ReviewSubmission struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// One to five stars.
-	Rating int32 `protobuf:"varint,1,opt,name=rating,proto3" json:"rating,omitempty"`
-	// Non-empty, at most 100000 characters.
-	Comment       string `protobuf:"bytes,2,opt,name=comment,proto3" json:"comment,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rating        int32                  `protobuf:"varint,1,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment       string                 `protobuf:"bytes,2,opt,name=comment,proto3" json:"comment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -283,7 +298,6 @@ func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{3}
 }
 
-// ListReviewsForUserResponse holds the reviews received by a user and its totals.
 type ListReviewsForUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reviews       []*Review              `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
@@ -336,7 +350,6 @@ func (x *ListReviewsForUserResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
-// ListMyReviewsResponse holds the reviews the caller gave and its totals.
 type ListMyReviewsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reviews       []*Review              `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
@@ -391,8 +404,7 @@ func (x *ListMyReviewsResponse) GetPagination() *v1.PageInfo {
 
 type ListReviewsForUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Reviews received BY this user. A suspended caller may only request their
-	// own id; the handler enforces this.
+	// A suspended caller may only request their own id; the handler enforces this.
 	UserId        string         `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Pagination    *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -490,7 +502,7 @@ func (x *ListMyReviewsRequest) GetPagination() *v1.Pagination {
 type RemoveReviewRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Recorded on the audit row; non-empty, at most 100000 characters.
+	// Recorded on the audit row.
 	Reason        string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -576,16 +588,17 @@ func (*RemoveReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{9}
 }
 
-// Audit row written when a review is removed.
 type ReviewRemoval struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ReviewerId    string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	RevieweeId    string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
-	OrderId       string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CreatedBy     string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReviewerId string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	RevieweeId string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
+	OrderId    string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Reason     string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CreatedBy  string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// display_name of the user who created this audit row, joined at read time.
+	CreatedByName string `protobuf:"bytes,8,opt,name=created_by_name,json=createdByName,proto3" json:"created_by_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -665,6 +678,13 @@ func (x *ReviewRemoval) GetCreatedAt() *timestamppb.Timestamp {
 func (x *ReviewRemoval) GetCreatedBy() string {
 	if x != nil {
 		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *ReviewRemoval) GetCreatedByName() string {
+	if x != nil {
+		return x.CreatedByName
 	}
 	return ""
 }
@@ -769,7 +789,7 @@ var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe2\x01\n" +
+	"\x1buser/review/v1/review.proto\x12\x0euser.review.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x02\n" +
 	"\x06Review\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -780,7 +800,9 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x06rating\x18\x05 \x01(\x05R\x06rating\x12\x18\n" +
 	"\acomment\x18\x06 \x01(\tR\acomment\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\\\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"\rreviewer_name\x18\b \x01(\tR\freviewerName\x12#\n" +
+	"\rreviewee_name\x18\t \x01(\tR\frevieweeName\"\\\n" +
 	"\x10ReviewSubmission\x12!\n" +
 	"\x06rating\x18\x01 \x01(\x05B\t\xbaH\x06\x1a\x04\x18\x05(\x01R\x06rating\x12%\n" +
 	"\acomment\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\acomment\"\xbc\x01\n" +
@@ -814,7 +836,7 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x13RemoveReviewRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12#\n" +
 	"\x06reason\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\x06reason\"\x16\n" +
-	"\x14RemoveReviewResponse\"\xee\x01\n" +
+	"\x14RemoveReviewResponse\"\x96\x02\n" +
 	"\rReviewRemoval\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreviewer_id\x18\x02 \x01(\tR\n" +
@@ -826,7 +848,8 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"created_by\x18\a \x01(\tR\tcreatedBy\"V\n" +
+	"created_by\x18\a \x01(\tR\tcreatedBy\x12&\n" +
+	"\x0fcreated_by_name\x18\b \x01(\tR\rcreatedByName\"V\n" +
 	"\x19ListReviewRemovalsRequest\x129\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +

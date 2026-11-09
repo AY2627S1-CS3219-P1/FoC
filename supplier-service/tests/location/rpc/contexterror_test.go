@@ -50,7 +50,16 @@ func TestHandlerContextErrorMapping(t *testing.T) {
 			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 			t.Cleanup(func() { slog.SetDefault(previous) })
 			_, client := fastClients(t, &applicationStub{err: row.err})
-			_, err := client.SubmitLocationAdditionRequest(context.Background(), fastRequest(&pb.SubmitLocationAdditionRequestRequest{Proposal: fastProposal(), IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29"}, "user"))
+			_, err := client.SubmitLocationAdditionRequest(
+				context.Background(),
+				fastRequest(
+					&pb.SubmitLocationAdditionRequestRequest{
+						Proposal:       fastProposal(),
+						IdempotencyKey: "1e3f8ee1-1362-4e73-bd7f-2c4b61600b29",
+					},
+					"user",
+				),
+			)
 			if connect.CodeOf(err) != row.code {
 				t.Fatalf("context error mapping: got %v, want %v", err, row.code)
 			}

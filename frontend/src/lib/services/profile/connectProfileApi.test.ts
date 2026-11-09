@@ -5,10 +5,10 @@ import { ProfileService as ProfileServiceDefinition } from '$lib/gen/user/v1/pro
 import { ConnectProfileApi } from './connectProfileApi.ts';
 
 describe('ConnectProfileApi', () => {
-	it('maps the profile response and omits blank optional contacts on update', async () => {
+	it('maps the profile response and trims the update', async () => {
 		const profile = {
 			id: 'profile-id', email: 'casey@example.com', displayName: 'Casey', description: 'Hello',
-			telegramHandle: undefined, phoneNumber: undefined, role: UserRole.USER
+			phoneNumber: '+6591234567', role: UserRole.USER
 		};
 		const client = {
 			getMyProfile: vi.fn(async () => ({ profile })),
@@ -18,10 +18,10 @@ describe('ConnectProfileApi', () => {
 
 		expect(await api.getMyProfile()).toEqual(profile);
 		expect(await api.updateMyProfile({
-			displayName: ' Casey ', description: 'Hello', telegramHandle: ' ', phoneNumber: ''
+			displayName: ' Casey ', description: 'Hello', phoneNumber: ' +6591234567 '
 		})).toEqual(profile);
 		expect(client.updateMyProfile).toHaveBeenCalledWith({
-			displayName: 'Casey', description: 'Hello', telegramHandle: undefined, phoneNumber: undefined
+			displayName: 'Casey', description: 'Hello', phoneNumber: '+6591234567'
 		});
 	});
 });

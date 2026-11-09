@@ -106,7 +106,11 @@ func importDataset(ctx context.Context, queries *seeddb.Queries, data dataset) (
 
 		buildingID, buildingExists := buildingIDs[location.buildingKey]
 		if !buildingExists {
-			return Report{}, fmt.Errorf("Location %q references unknown Building %q", location.sourceKey, location.buildingKey)
+			return Report{}, fmt.Errorf(
+				"Location %q references unknown Building %q",
+				location.sourceKey,
+				location.buildingKey,
+			)
 		}
 		changed, err := queries.UpsertLocation(ctx, seeddb.UpsertLocationParams{
 			ID:         locationID,

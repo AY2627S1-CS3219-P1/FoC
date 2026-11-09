@@ -10,6 +10,35 @@ service UserAdminService {
   rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse) {}
 }
 
+service AllowedDomainAdminService {
+  rpc ListAllowedDomains(ListAllowedDomainsRequest) returns (ListAllowedDomainsResponse) {}
+  rpc AllowDomain(AllowDomainRequest) returns (AllowDomainResponse) {}
+  rpc RemoveAllowedDomain(RemoveAllowedDomainRequest) returns (RemoveAllowedDomainResponse) {}
+}
+
+message AllowedDomain {
+  string id = 1;
+  string domain = 2;
+}
+
+message ListAllowedDomainsRequest {}
+
+message ListAllowedDomainsResponse {
+  repeated AllowedDomain allowed_domains = 1;
+}
+
+message AllowDomainRequest {
+  string domain = 1 [(buf.validate.field).string.hostname = true];
+}
+
+message AllowDomainResponse {}
+
+message RemoveAllowedDomainRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message RemoveAllowedDomainResponse {}
+
 message UserSummary {
   string id = 1;
   string email = 2;
@@ -37,3 +66,4 @@ message ChangeUserRoleRequest {
 message ChangeUserRoleResponse {
   UserSummary user = 1;
 }
+

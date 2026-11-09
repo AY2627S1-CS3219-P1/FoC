@@ -1,9 +1,15 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { functionsMixins } from 'vite-plugin-functions-mixins';
 
 export default defineConfig({
+	// Superforms' adapter barrel also references optional server-only validators.
+	// We use Zod; keep Vine out of browser resolution without polyfilling Node DNS.
+	// The unused adapter is tree-shaken; server builds retain normal resolution.
+	environments: {
+		client: { build: { rolldownOptions: { external: ['@vinejs/vine'] } } }
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {
@@ -12,9 +18,6 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 			adapter: adapter()
 		}),
 		functionsMixins({ deps: ['m3-svelte'] })

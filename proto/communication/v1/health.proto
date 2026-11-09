@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package communication.v1; // communication service
+
+service HealthService {
+  rpc Check(CheckRequest) returns (CheckResponse) {}
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  string status = 1;
+  // Whether the Telegram bot is configured and polling.
+  bool telegram_enabled = 2;
+}

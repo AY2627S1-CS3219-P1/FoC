@@ -31,7 +31,11 @@ func TestProfileAndAuditedRolePersistence(t *testing.T) {
 	if got, err := s.Users.GetByID(ctx, target.ID); err != nil || got.Role != models.RoleSuspended {
 		t.Fatalf("suspended role = %+v, %v", got, err)
 	}
-	if changes, err := s.Admin.RoleChanges(ctx, target.ID); err != nil || len(changes) != 1 || changes[0].CreatedBy == nil || *changes[0].CreatedBy != actor.ID {
+	if changes, err := s.Admin.RoleChanges(
+		ctx,
+		target.ID,
+	); err != nil || len(changes) != 1 || changes[0].CreatedBy == nil ||
+		*changes[0].CreatedBy != actor.ID {
 		t.Fatalf("role audit = %+v, %v", changes, err)
 	}
 	stale := &models.RoleChange{UserID: target.ID, FromRole: models.RoleUser,

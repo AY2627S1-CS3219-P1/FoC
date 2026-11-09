@@ -26,14 +26,18 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -48,6 +52,7 @@ const (
 
 type config struct {
 	port            string
+	internalPort    string
 	databaseURL     string
 	dbMaxOpen       int
 	dbMaxIdle       int
@@ -55,6 +60,7 @@ type config struct {
 	appEnv          string
 	frontendURL     string
 	privateKey      string
+	kafkaBrokers    string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	orderServiceURL string
@@ -64,6 +70,7 @@ type config struct {
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
+	slog.SetDefault(log)
 	fatal := func(msg string, err error) {
 		log.Error(msg, "err", err)
 		os.Exit(1)
@@ -106,10 +113,30 @@ func main() {
 		}
 	}
 
-	auth, codec, persistence, err := newAuthServices(db, cfg)
+	allowedDomainLogic := newAllowedDomainService(sqlDB)
+	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{
+		Brokers: strings.Split(cfg.kafkaBrokers, ","),
+	})
+	if err != nil {
+		fatal("initialize Kafka publisher", err)
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			log.Error("close Kafka publisher", "err", err)
+		}
+	}()
+
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
+	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
+	relayDone := make(chan struct{})
+	go func() {
+		defer close(relayDone)
+		relay.Run(ctx)
+	}()
+
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
@@ -121,38 +148,66 @@ func main() {
 	}
 	reviewLogic := newReviewService(sqlDB, cfg.orderServiceURL)
 	protected := router.ProtectedRoutes{
-		Profile:      &profilehandler.Handler{Logic: profileLogic},
-		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Review:       &review.Handler{Logic: reviewLogic},
-		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
-		Users:        persistence.Users,
+		Profile:        &profilehandler.Handler{Logic: profileLogic},
+		Admin:          &adminhandler.Handler{Logic: roleLogic},
+		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Review:         &review.Handler{Logic: reviewLogic},
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Users:          persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	// Every service runs the listener split: public routes on PORT, private
+	// routes on INTERNAL_PORT. Services without private routes yet still bind
+	// the internal listener so local and deployed behaviour stay identical.
+	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	servers := []*http.Server{public, internal}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
+	if err := serve(ctx, servers...); err != nil {
+		fatal("serve", err)
+	}
+	stop()
+	<-relayDone
+}
 
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
 	select {
-	case err := <-errCh:
-		if err != nil {
-			fatal("serve", err)
-		}
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
 	}
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -176,10 +231,8 @@ func newReviewService(sqlDB *sql.DB, orderServiceURL string) *review.Service {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	var orders review.OrderGateway
 	if orderServiceURL == "" {
-		// The order service is not implemented yet (order-service REQUIREMENTS,
-		// R1 planned week 9). Fail closed: every submission is rejected until
-		// ORDER_SERVICE_URL points at its internal listener. Validation is
-		// never skipped.
+		// Fail closed while the internal order service URL is unset. Validation
+		// is never skipped.
 		orders = review.UnavailableOrderGateway{}
 	} else {
 		orders = review.NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(
@@ -190,7 +243,6 @@ func newReviewService(sqlDB *sql.DB, orderServiceURL string) *review.Service {
 		if err != nil {
 			return err
 		}
-		// Rollback is a no-op after a successful Commit.
 		defer func() { _ = tx.Rollback() }()
 		if err := operation(reviewdb.New(tx)); err != nil {
 			return err
@@ -200,7 +252,7 @@ func newReviewService(sqlDB *sql.DB, orderServiceURL string) *review.Service {
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
-// defaults and rejecting a missing DATABASE_URL or malformed values.
+// defaults and rejecting missing required settings or malformed values.
 func loadConfig() (config, error) {
 	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return config{}, fmt.Errorf("load .env: %w", err)
@@ -209,6 +261,7 @@ func loadConfig() (config, error) {
 	var errs []error
 	cfg := config{
 		port:            envString("PORT", "8080"),
+		internalPort:    envString("INTERNAL_PORT", ""),
 		databaseURL:     envString("DATABASE_URL", ""),
 		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
 		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
@@ -216,6 +269,7 @@ func loadConfig() (config, error) {
 		appEnv:          envString("APP_ENV", ""),
 		frontendURL:     envString("FRONTEND_BASE_URL", ""),
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
+		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		orderServiceURL: envString("ORDER_SERVICE_URL", ""),
@@ -253,8 +307,28 @@ func loadConfig() (config, error) {
 	if cfg.privateKey == "" {
 		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
 	}
+	if cfg.kafkaBrokers == "" {
+		errs = append(errs, errors.New("KAFKA_BROKERS is not set"))
+	} else {
+		for _, broker := range strings.Split(cfg.kafkaBrokers, ",") {
+			if strings.TrimSpace(broker) == "" {
+				errs = append(errs, errors.New("KAFKA_BROKERS must contain comma-separated broker addresses"))
+				break
+			}
+		}
+	}
 	if cfg.smtp.Addr == "" {
 		errs = append(errs, errors.New("SMTP_ADDR is not set"))
+	}
+	if cfg.internalPort == "" {
+		errs = append(errs, errors.New("INTERNAL_PORT is required: every service runs the listener split"))
+	} else {
+		port, err := strconv.Atoi(cfg.internalPort)
+		if err != nil || port < 1 || port > 65535 {
+			errs = append(errs, errors.New("INTERNAL_PORT must be between 1 and 65535"))
+		} else if cfg.internalPort == cfg.port {
+			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
+		}
 	}
 	if cfg.smtp.From == "" {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))
@@ -263,8 +337,13 @@ func loadConfig() (config, error) {
 	}
 	if cfg.orderServiceURL != "" {
 		u, err := url.Parse(cfg.orderServiceURL)
-		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-			errs = append(errs, fmt.Errorf("ORDER_SERVICE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL))
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil ||
+			u.RawQuery != "" ||
+			u.Fragment != "" {
+			errs = append(
+				errs,
+				fmt.Errorf("ORDER_SERVICE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL),
+			)
 		}
 	}
 	return cfg, errors.Join(errs...)
@@ -316,7 +395,36 @@ func envDuration(key string, fallback time.Duration, errs *[]error) time.Duratio
 	return d
 }
 
-func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
+func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
+	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
+	return allowedadmin.NewAllowedDomainService(repo)
+}
+
+func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
+	return service.Resources{
+		Users:             persistence.Users,
+		AuthTokens:        persistence.AuthTokens,
+		Sessions:          persistence.Sessions,
+		DomainPolicy:      policy,
+		UserCreatedEvents: persistence.UserCreatedOutbox,
+	}
+}
+
+func authTransactions(db *gorm.DB) service.WithTransaction {
+	return func(ctx context.Context, operation func(service.Resources) error) error {
+		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
+			policy := newAllowedDomainService(tx.Statement.ConnPool)
+			return operation(authResources(store.New(tx), policy))
+		})
+	}
+}
+
+func newAuthServices(
+	db *gorm.DB,
+	cfg config,
+	domainPolicy service.EmailDomainPolicy,
+) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
 	frontendURL, err := url.Parse(cfg.frontendURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
@@ -335,20 +443,9 @@ func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservic
 		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
 	}
 	persistence := store.New(db)
-	serviceStore := service.Store{
-		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
-		Sessions: persistence.Sessions, Domains: persistence.Admin,
-	}
-	withTransaction := func(ctx context.Context, operation func(service.Store) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return operation(service.Store{
-				Users: tx.Users, AuthTokens: tx.AuthTokens,
-				Sessions: tx.Sessions, Domains: tx.Admin,
-			})
-		})
-	}
+
 	logic, err := service.NewService(service.Dependencies{
-		Store: serviceStore, WithTransaction: withTransaction,
+		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
 		TokenCodec: codec, EmailSender: cfg.smtp,
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",

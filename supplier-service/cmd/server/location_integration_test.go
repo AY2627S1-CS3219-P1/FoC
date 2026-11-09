@@ -68,7 +68,14 @@ func TestLocationProductionComposition(t *testing.T) {
 	requests := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, auth.Bearer(t, "user"))
 	reviewer := locationv1connect.NewLocationAdditionRequestServiceClient(client, url, auth.Bearer(t, "admin"))
 	ctx := context.Background()
-	input := &pb.LocationInput{Name: "Production composition supplier", IsSupplier: proto.Bool(true), BuildingId: "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68", CategoryIds: []string{"b526b558-e2ec-4db1-b873-13a9f490e07d"}, Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774}, Details: "counter"}
+	input := &pb.LocationInput{
+		Name:        "Production composition supplier",
+		IsSupplier:  proto.Bool(true),
+		BuildingId:  "a7ddb3ee-f24e-4464-bc33-6507ac5f5d68",
+		CategoryIds: []string{"b526b558-e2ec-4db1-b873-13a9f490e07d"},
+		Coordinates: &pb.Coordinates{Latitude: 1.294, Longitude: 103.774},
+		Details:     "counter",
+	}
 	create := &pb.CreateLocationRequest{Location: input, IdempotencyKey: uuid.NewString()}
 	created, err := admin.CreateLocation(ctx, connect.NewRequest(create))
 	if err != nil {
@@ -83,19 +90,43 @@ func TestLocationProductionComposition(t *testing.T) {
 	if err != nil || got.Msg.Location.Name != input.Name {
 		t.Fatalf("discovery after admin write: %v %v", got, err)
 	}
-	scheduled, err := disablement.CreateDisablement(ctx, connect.NewRequest(&pb.CreateDisablementRequest{LocationId: id, StartsAt: timestamppb.New(time.Now().Add(time.Hour)), Reason: "maintenance", IdempotencyKey: uuid.NewString()}))
+	scheduled, err := disablement.CreateDisablement(
+		ctx,
+		connect.NewRequest(
+			&pb.CreateDisablementRequest{
+				LocationId:     id,
+				StartsAt:       timestamppb.New(time.Now().Add(time.Hour)),
+				Reason:         "maintenance",
+				IdempotencyKey: uuid.NewString(),
+			},
+		),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cancelled, err := disablement.CancelDisablement(ctx, connect.NewRequest(&pb.CancelDisablementRequest{Id: scheduled.Msg.Disablement.Id}))
+	cancelled, err := disablement.CancelDisablement(
+		ctx,
+		connect.NewRequest(&pb.CancelDisablementRequest{Id: scheduled.Msg.Disablement.Id}),
+	)
 	if err != nil || cancelled.Msg.Disablement.State != pb.DisablementState_DISABLEMENT_STATE_CANCELLED {
 		t.Fatalf("cancel scheduled: %v %v", cancelled, err)
 	}
-	submitted, err := requests.SubmitLocationAdditionRequest(ctx, connect.NewRequest(&pb.SubmitLocationAdditionRequestRequest{Proposal: input, IdempotencyKey: uuid.NewString()}))
+	submitted, err := requests.SubmitLocationAdditionRequest(
+		ctx,
+		connect.NewRequest(&pb.SubmitLocationAdditionRequestRequest{Proposal: input, IdempotencyKey: uuid.NewString()}),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	approved, err := reviewer.ApproveLocationAdditionRequest(ctx, connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{Id: submitted.Msg.Request.Id}))
+	approved, err := reviewer.ApproveLocationAdditionRequest(
+		ctx,
+		connect.NewRequest(
+			&pb.ApproveLocationAdditionRequestRequest{
+				Id:               submitted.Msg.Request.Id,
+				ExpectedRevision: submitted.Msg.Request.Revision,
+			},
+		),
+	)
 	if err != nil || approved.Msg.Location.Id == id {
 		t.Fatalf("approval: %v %v", approved, err)
 	}
@@ -124,7 +155,12 @@ func TestLocationProductionComposition(t *testing.T) {
 	h2c.SetUnencryptedHTTP2(true)
 	h2transport := &http.Transport{Protocols: h2c}
 	t.Cleanup(h2transport.CloseIdleConnections)
-	grpc := locationv1connect.NewLocationDiscoveryServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), auth.Bearer(t, "admin"))
+	grpc := locationv1connect.NewLocationDiscoveryServiceClient(
+		&http.Client{Transport: h2transport},
+		url,
+		connect.WithGRPC(),
+		auth.Bearer(t, "admin"),
+	)
 	got, err = grpc.GetLocation(ctx, connect.NewRequest(&pb.GetLocationRequest{Id: approved.Msg.Location.Id}))
 	if err != nil || got.Msg.Location.Id != approved.Msg.Location.Id {
 		t.Fatalf("native gRPC discovery: %v %v", got, err)
@@ -145,9 +181,18 @@ func TestLocationProductionComposition(t *testing.T) {
 						if role != "" {
 							options = append(options, auth.Bearer(t, role))
 						}
-						intervals := locationv1connect.NewLocationDisablementServiceClient(protocol.client, url, options...)
-						proposals := locationv1connect.NewLocationAdditionRequestServiceClient(protocol.client, url, options...)
-						_, err := intervals.ListDisablements(ctx, connect.NewRequest(&pb.ListDisablementsRequest{LocationId: approved.Msg.Location.Id}))
+						intervals := locationv1connect.NewLocationDisablementServiceClient(
+							protocol.client,
+							url,
+							options...)
+						proposals := locationv1connect.NewLocationAdditionRequestServiceClient(
+							protocol.client,
+							url,
+							options...)
+						_, err := intervals.ListDisablements(
+							ctx,
+							connect.NewRequest(&pb.ListDisablementsRequest{LocationId: approved.Msg.Location.Id}),
+						)
 						switch role {
 						case "admin", "super_admin":
 							if err != nil {
@@ -163,13 +208,19 @@ func TestLocationProductionComposition(t *testing.T) {
 							}
 						}
 						if role == "user" || role == "suspended_user" {
-							_, err = proposals.ApproveLocationAdditionRequest(ctx, connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{}))
+							_, err = proposals.ApproveLocationAdditionRequest(
+								ctx,
+								connect.NewRequest(&pb.ApproveLocationAdditionRequestRequest{}),
+							)
 							if connect.CodeOf(err) != connect.CodePermissionDenied {
 								t.Fatalf("authorization must precede validation: %v", err)
 							}
 						}
 						if role == "suspended_user" {
-							_, err = proposals.SubmitLocationAdditionRequest(ctx, connect.NewRequest(&pb.SubmitLocationAdditionRequestRequest{}))
+							_, err = proposals.SubmitLocationAdditionRequest(
+								ctx,
+								connect.NewRequest(&pb.SubmitLocationAdditionRequestRequest{}),
+							)
 							if connect.CodeOf(err) != connect.CodePermissionDenied {
 								t.Fatalf("suspended submit: %v", err)
 							}
@@ -180,20 +231,38 @@ func TestLocationProductionComposition(t *testing.T) {
 		}
 	})
 	t.Run("native gRPC workflow mutation and retry", func(t *testing.T) {
-		intervals := locationv1connect.NewLocationDisablementServiceClient(&http.Client{Transport: h2transport}, url, connect.WithGRPC(), auth.Bearer(t, "super_admin"))
-		request := &pb.CreateDisablementRequest{LocationId: approved.Msg.Location.Id, StartsAt: timestamppb.New(time.Now().Add(time.Hour)), Reason: "gRPC maintenance", IdempotencyKey: uuid.NewString()}
+		intervals := locationv1connect.NewLocationDisablementServiceClient(
+			&http.Client{Transport: h2transport},
+			url,
+			connect.WithGRPC(),
+			auth.Bearer(t, "super_admin"),
+		)
+		request := &pb.CreateDisablementRequest{
+			LocationId:     approved.Msg.Location.Id,
+			StartsAt:       timestamppb.New(time.Now().Add(time.Hour)),
+			Reason:         "gRPC maintenance",
+			IdempotencyKey: uuid.NewString(),
+		}
 		first, err := intervals.CreateDisablement(ctx, connect.NewRequest(request))
 		if err != nil {
 			t.Fatal(err)
 		}
-		retry, err := intervals.CreateDisablement(ctx, connect.NewRequest(proto.Clone(request).(*pb.CreateDisablementRequest)))
+		retry, err := intervals.CreateDisablement(
+			ctx,
+			connect.NewRequest(proto.Clone(request).(*pb.CreateDisablementRequest)),
+		)
 		if err != nil || !proto.Equal(first.Msg, retry.Msg) {
 			t.Fatalf("gRPC retry differs: %v %v", retry, err)
 		}
-		cancelled, err := intervals.CancelDisablement(ctx, connect.NewRequest(&pb.CancelDisablementRequest{Id: first.Msg.Disablement.Id}))
+		cancelled, err := intervals.CancelDisablement(
+			ctx,
+			connect.NewRequest(&pb.CancelDisablementRequest{Id: first.Msg.Disablement.Id}),
+		)
 		if err != nil || cancelled.Msg.Disablement.State != pb.DisablementState_DISABLEMENT_STATE_CANCELLED {
 			t.Fatalf("gRPC cancellation: %v %v", cancelled, err)
 		}
 	})
-	t.Log("PASS: production composition, signed JWT, admin retry, discovery, scheduled cancellation, request approval, archive, authorization, Connect HTTP/1.1 and native gRPC h2c")
+	t.Log(
+		"PASS: production composition, signed JWT, admin retry, discovery, scheduled cancellation, request approval, archive, authorization, Connect HTTP/1.1 and native gRPC h2c",
+	)
 }

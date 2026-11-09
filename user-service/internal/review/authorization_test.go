@@ -12,6 +12,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 )
 
 // TestAuthorizeCaller exercises the token-claim RBAC switch, the piece that maps
@@ -20,40 +21,40 @@ import (
 func TestAuthorizeCaller(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
-		caller      auth.Caller
+		caller      userdto.Caller
 		procedure   string
 		wantAllowed bool
 	}{
 		// SubmitReview is open to every caller except suspended participants.
-		{"suspended cannot submit", auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)},
+		{"suspended cannot submit", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
 			reviewv1connect.ReviewServiceSubmitReviewProcedure, false},
-		{"user may submit", auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)},
+		{"user may submit", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
 			reviewv1connect.ReviewServiceSubmitReviewProcedure, true},
-		{"admin may submit", auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true},
+		{"admin may submit", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceSubmitReviewProcedure, true},
-		{"super admin may submit", auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuperAdmin), Admin: true},
+		{"super admin may submit", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuperAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceSubmitReviewProcedure, true},
 
 		// Listing reviews received or given carries no gate.
-		{"list received open to suspended", auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)},
+		{"list received open to suspended", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
 			reviewv1connect.ReviewServiceListReviewsForUserProcedure, true},
-		{"list received open to user", auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)},
+		{"list received open to user", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
 			reviewv1connect.ReviewServiceListReviewsForUserProcedure, true},
-		{"list mine open to user", auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)},
+		{"list mine open to user", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
 			reviewv1connect.ReviewServiceListMyReviewsProcedure, true},
 
 		// Removals and the removal audit are admin-only.
-		{"user cannot remove", auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)},
+		{"user cannot remove", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
 			reviewv1connect.ReviewServiceRemoveReviewProcedure, false},
-		{"suspended cannot remove", auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)},
+		{"suspended cannot remove", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
 			reviewv1connect.ReviewServiceRemoveReviewProcedure, false},
-		{"admin may remove", auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true},
+		{"admin may remove", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceRemoveReviewProcedure, true},
-		{"super admin may remove", auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuperAdmin), Admin: true},
+		{"super admin may remove", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuperAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceRemoveReviewProcedure, true},
-		{"user cannot list removals", auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)},
+		{"user cannot list removals", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
 			reviewv1connect.ReviewServiceListReviewRemovalsProcedure, false},
-		{"admin may list removals", auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true},
+		{"admin may list removals", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceListReviewRemovalsProcedure, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

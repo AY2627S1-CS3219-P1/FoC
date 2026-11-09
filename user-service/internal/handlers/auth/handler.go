@@ -73,8 +73,7 @@ func (h *Handler) Register(
 	req *connect.Request[userv1.RegisterRequest],
 ) (*connect.Response[userv1.RegisterResponse], error) {
 	user, tokens, err := h.Logic.Register(ctx, req.Msg.Token, jwt.Profile{
-		DisplayName: req.Msg.DisplayName, TelegramHandle: req.Msg.TelegramHandle,
-		PhoneNumber: req.Msg.PhoneNumber,
+		DisplayName: req.Msg.DisplayName, PhoneNumber: req.Msg.PhoneNumber,
 	})
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
@@ -154,8 +153,7 @@ func userMessage(user models.User) *userv1.User {
 		models.RoleSuspended:  userv1.UserRole_USER_ROLE_SUSPENDED_USER,
 	}[user.Role]
 	return &userv1.User{Id: user.ID.String(), Email: user.Email,
-		DisplayName: user.DisplayName, Role: role, TelegramHandle: user.TelegramHandle,
-		PhoneNumber: user.PhoneNumber}
+		DisplayName: user.DisplayName, Role: role, PhoneNumber: user.PhoneNumber}
 }
 
 func setSessionHeaders(response interface{ Header() http.Header }, tokens jwt.AuthTokens) {

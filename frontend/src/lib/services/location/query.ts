@@ -19,7 +19,7 @@ export function queryFromParams(params: URLSearchParams): LocationQuery {
 		archive: pick(params.get('archive'), archiveViews),
 		sort: pick(params.get('sort'), sortFields),
 		direction: pick(params.get('direction'), directions),
-		page: Number.isInteger(page) && page > 1 ? page : undefined
+		page: Number.isSafeInteger(page) && page > 1 && page <= 2147483647 ? page : undefined
 	};
 }
 

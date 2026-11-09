@@ -19,7 +19,6 @@ type User struct {
 	Email             string
 	DisplayName       string
 	Description       string
-	TelegramHandle    *string
 	PhoneNumber       *string
 	ProfilePictureKey *string
 	Role              RoleName `gorm:"default:user"`

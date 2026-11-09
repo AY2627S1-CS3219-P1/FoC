@@ -1,0 +1,7 @@
+# Required bucket, region, IRSA annotation and StorageClass are supplied by
+# the operator's validated K8S_LOKI_* settings. No static AWS credentials.
+loki:
+  storage:
+    s3:
+      s3ForcePathStyle: false
+      insecure: false

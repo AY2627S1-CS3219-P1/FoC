@@ -30,7 +30,12 @@ func (w *fakeWriter) Close() error { w.closed = true; return w.err }
 func TestPublish(t *testing.T) {
 	w := &fakeWriter{}
 	p := &Publisher{writer: w}
-	if err := p.Publish(context.Background(), "users.create", []byte("user-id"), wrapperspb.String("created")); err != nil {
+	if err := p.Publish(
+		context.Background(),
+		"users.create",
+		[]byte("user-id"),
+		wrapperspb.String("created"),
+	); err != nil {
 		t.Fatal(err)
 	}
 	m := w.messages[0]
@@ -42,7 +47,15 @@ func TestPublish(t *testing.T) {
 		t.Fatalf("unexpected message: %+v", m)
 	}
 	w.err = errTest
-	if err := p.Publish(context.Background(), "users.create", nil, wrapperspb.String("created")); !errors.Is(err, errTest) {
+	if err := p.Publish(
+		context.Background(),
+		"users.create",
+		nil,
+		wrapperspb.String("created"),
+	); !errors.Is(
+		err,
+		errTest,
+	) {
 		t.Fatalf("write error: %v", err)
 	}
 	if err := p.Close(); !errors.Is(err, errTest) || !w.closed {
@@ -141,16 +154,27 @@ func testSubscriber(t *testing.T, r *fakeReader) *Subscriber {
 		t.Fatal(err)
 	}
 	s.newReader = func(cfg kafkago.ReaderConfig) reader {
-		if cfg.GroupID != "group" || cfg.CommitInterval != 0 || cfg.StartOffset != kafkago.FirstOffset || !reflect.DeepEqual(cfg.GroupTopics, []string{"topic"}) {
+		if cfg.GroupID != "group" || cfg.CommitInterval != 0 || cfg.StartOffset != kafkago.FirstOffset ||
+			!reflect.DeepEqual(cfg.GroupTopics, []string{"topic"}) {
 			t.Fatalf("reader settings: %+v", cfg)
 		}
 		return r
 	}
 	return s
 }
-func registerString(t *testing.T, s *Subscriber, handler func(context.Context, Metadata, *wrapperspb.StringValue) error) {
+
+func registerString(
+	t *testing.T,
+	s *Subscriber,
+	handler func(context.Context, Metadata, *wrapperspb.StringValue) error,
+) {
 	t.Helper()
-	if err := Register(s, "topic", func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) }, handler); err != nil {
+	if err := Register(
+		s,
+		"topic",
+		func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) },
+		handler,
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -175,7 +199,8 @@ func TestDispatchAndCommit(t *testing.T) {
 		if len(r.commits) != len(seen) {
 			t.Fatal("commit occurred before handler")
 		}
-		if len(seen) == 0 && (meta.Topic != "topic" || meta.Partition != 2 || meta.Offset != 10 || string(meta.Key) != "id" || !meta.Timestamp.Equal(time.Unix(123, 0))) {
+		if len(seen) == 0 &&
+			(meta.Topic != "topic" || meta.Partition != 2 || meta.Offset != 10 || string(meta.Key) != "id" || !meta.Timestamp.Equal(time.Unix(123, 0))) {
 			t.Fatalf("metadata: %+v", meta)
 		}
 		seen = append(seen, value)
@@ -184,13 +209,19 @@ func TestDispatchAndCommit(t *testing.T) {
 	if err := s.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.commits) != 2 || !r.closed || len(seen) != 2 || seen[0] == seen[1] || seen[0].Value != "first" || seen[1].Value != "second" {
+	if len(r.commits) != 2 || !r.closed || len(seen) != 2 || seen[0] == seen[1] || seen[0].Value != "first" ||
+		seen[1].Value != "second" {
 		t.Fatal("incorrect dispatch/cleanup")
 	}
 	if err := s.Run(ctx); err == nil {
 		t.Fatal("accepted second Run")
 	}
-	if err := Register(s, "other", func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) }, func(context.Context, Metadata, *wrapperspb.StringValue) error { return nil }); err == nil {
+	if err := Register(
+		s,
+		"other",
+		func() *wrapperspb.StringValue { return new(wrapperspb.StringValue) },
+		func(context.Context, Metadata, *wrapperspb.StringValue) error { return nil },
+	); err == nil {
 		t.Fatal("registered after startup")
 	}
 }

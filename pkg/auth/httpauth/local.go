@@ -31,6 +31,7 @@ func AuthenticateLocal(verify func(string) (auth.Caller, error)) func(http.Handl
 				return
 			}
 			ctx := auth.WithCaller(r.Context(), caller)
+			ctx = auth.WithUserBearer(ctx, "Bearer "+parts[1])
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
