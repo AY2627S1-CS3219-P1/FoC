@@ -165,7 +165,11 @@ func logProfileError(ctx context.Context, e *profileError) {
 	case reasonProfilePictureTemporarilyUnavail:
 		slog.WarnContext(ctx, "profile picture storage transiently unavailable", "err", err)
 	case reasonProfilePictureUnavailable:
-		slog.WarnContext(ctx, "profile picture storage unavailable", "err", err)
+		if errors.Is(err, errProfilePictureStorageDisabled) {
+			slog.WarnContext(ctx, "profile picture uploads are disabled in this deployment", "err", err)
+			return
+		}
+		slog.ErrorContext(ctx, "profile picture storage unavailable", "err", err)
 	default:
 		slog.ErrorContext(ctx, "profile operation rejected", "err", err)
 	}
