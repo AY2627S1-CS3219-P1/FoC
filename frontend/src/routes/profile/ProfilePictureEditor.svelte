@@ -7,6 +7,7 @@
 		type ProfilePictureSnapshot
 	} from '$lib/features/profile-picture/controller';
 	import { profileService } from '$lib/services';
+	import { IMAGE_CONTENT_TYPES } from '$lib/features/image-upload/limits';
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 
 	let {
@@ -69,7 +70,7 @@
 			id="profile-picture-file"
 			class="file-input"
 			type="file"
-			accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+			accept={IMAGE_CONTENT_TYPES.join(',')}
 			aria-label="Choose profile picture"
 			aria-describedby="profile-picture-help"
 			tabindex="-1"

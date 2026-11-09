@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { canAttemptPictureRefresh } from './avatar.ts';
 
-	// Signed profile-picture URLs expire. Refresh only when the current URL is
-	// at or near expiry; otherwise the initials remain the fallback and a broken
-	// fresh URL cannot cause an endless refresh loop.
+	// Refresh only near expiry, so a broken fresh URL cannot loop.
 	let {
 		url,
 		name,
