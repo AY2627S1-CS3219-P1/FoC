@@ -241,3 +241,20 @@ photo RPCs report unavailability and reviews submit without photos.
 
 Demo seeding uses the same user/event provisioning logic as registration.
 See [seed commands and reset behavior](../data/seeds/README.md).
+
+### Removed review status
+
+Removal hides a review's content and photos but continues to block a replacement
+review for the same order. `ListMyReviewsForOrders` returns live reviews in
+`reviewed_order_ids` and removed reviews separately in `removed_order_ids`.
+`GetMyReviewForOrder` returns `NotFound` / `REVIEW_NOT_FOUND` for an unreviewed
+order and `FailedPrecondition` / `REVIEW_REMOVED` for a removed review, without
+returning its content. Clients show a removed notice rather than a submission
+form or a link to a live review. All lookups are scoped to the caller.
+
+Photo staging records use the upload grant's actual expiry. Cleanup waits for
+both that expiry and the 24-hour orphan age, including with custom upload TTLs.
+Transient grant-signing failures return `Unavailable` /
+`UPLOAD_TEMPORARILY_UNAVAILABLE`; other signing failures retain
+`Internal` / `UPLOAD_UNAVAILABLE`. Responses containing signed photo URLs use
+`Cache-Control: no-store`.

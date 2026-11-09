@@ -21,9 +21,13 @@ type Repository interface {
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Review, error)
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
-	// ReviewedOrderIds returns the order ids the reviewer already reviewed.
-	ListReviewedOrderIds(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
-	// ReviewForOrder returns the reviewer's live review for one order.
+	// ListReviewOrderStatuses separates live and removed reviews in one snapshot.
+	ListReviewOrderStatuses(
+		ctx context.Context,
+		reviewerID uuid.UUID,
+		orderIDs []uuid.UUID,
+	) (ReviewOrderStatuses, error)
+	// ReviewForOrder returns a live review, or errReviewRemoved without removed content.
 	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)

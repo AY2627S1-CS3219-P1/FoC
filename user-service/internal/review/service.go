@@ -130,14 +130,23 @@ func (s *Service) ListReviewsFromUser(
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
+// ListMyReviewsReceived lists the reviews the caller received, newest first.
+func (s *Service) ListMyReviewsReceived(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	return s.ListReviewsForUser(ctx, userID, page)
+}
+
 // RemoveReview soft-deletes the review, records the audit row and recomputes stats.
 // ListMyReviewsForOrders returns which of the requests the reviewer has reviewed.
 func (s *Service) ListMyReviewsForOrders(
 	ctx context.Context,
 	reviewerID uuid.UUID,
 	orderIDs []uuid.UUID,
-) ([]uuid.UUID, error) {
-	return s.repo.ListReviewedOrderIds(ctx, reviewerID, orderIDs)
+) (ReviewOrderStatuses, error) {
+	return s.repo.ListReviewOrderStatuses(ctx, reviewerID, orderIDs)
 }
 
 // GetMyReviewForOrder returns the reviewer's live review for one order, with
@@ -154,6 +163,7 @@ func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID u
 	return filled[0], nil
 }
 
+// RemoveReview soft-deletes a review, records the audit row and recomputes stats.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {

@@ -79,12 +79,16 @@ func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagi
 	return review.ReviewPage{}, nil
 }
 
+func (reviewStub) ListMyReviewsReceived(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
+	return review.ReviewPage{}, nil
+}
+
 func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
 	return review.ReviewPage{}, nil
 }
 
-func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) ([]uuid.UUID, error) {
-	return nil, nil
+func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
+	return review.ReviewOrderStatuses{}, nil
 }
 
 func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {

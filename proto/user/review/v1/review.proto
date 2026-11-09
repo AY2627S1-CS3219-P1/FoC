@@ -11,6 +11,7 @@ service ReviewService {
   rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc ListMyReviewsReceived(ListMyReviewsReceivedRequest) returns (ListMyReviewsReceivedResponse) {}
   rpc ListMyReviewsForOrders(ListMyReviewsForOrdersRequest) returns (ListMyReviewsForOrdersResponse) {}
   rpc GetMyReviewForOrder(GetMyReviewForOrderRequest) returns (GetMyReviewForOrderResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
@@ -107,6 +108,15 @@ message ListMyReviewsRequest {
   pagination.v1.Pagination pagination = 1;
 }
 
+message ListMyReviewsReceivedRequest {
+  pagination.v1.Pagination pagination = 1;
+}
+
+message ListMyReviewsReceivedResponse {
+  repeated Review reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
 message ListMyReviewsForOrdersRequest {
   repeated string order_ids = 1 [(buf.validate.field).repeated = {
     max_items: 50
@@ -115,9 +125,13 @@ message ListMyReviewsForOrdersRequest {
 }
 
 message ListMyReviewsForOrdersResponse {
+  // Live reviews that can be fetched with GetMyReviewForOrder.
   repeated string reviewed_order_ids = 1;
+  // Removed reviews still block resubmission; their content is not returned.
+  repeated string removed_order_ids = 2;
 }
 
+// A removed review returns FailedPrecondition with reason REVIEW_REMOVED.
 message GetMyReviewForOrderRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }

@@ -60,12 +60,11 @@ SELECT COUNT(*)
 FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
 
--- Which of these requests the reviewer has already reviewed.
--- name: ListReviewedOrderIds :many
-SELECT order_id::TEXT
+-- Include removed rows so callers can distinguish blocked orders from unreviewed ones.
+-- name: ListReviewOrderStatuses :many
+SELECT order_id::TEXT, (deleted_at IS NOT NULL)::BOOLEAN AS removed
 FROM reviews
-WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[])
-  AND deleted_at IS NULL;
+WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[]);
 
 -- name: GetReviewByReviewerAndOrder :one
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
@@ -74,8 +73,7 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewer_id = @reviewer_id::UUID AND r.order_id = @order_id::UUID
-  AND r.deleted_at IS NULL;
+WHERE r.reviewer_id = @reviewer_id::UUID AND r.order_id = @order_id::UUID;
 
 -- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
