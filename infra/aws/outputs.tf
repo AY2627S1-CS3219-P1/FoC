@@ -1,6 +1,8 @@
 output "deployment" {
   description = "Non-secret inputs for the generated production overlay and operator commands."
   value = {
+    ses_sender_email    = var.ses_sender_email
+    user_email_role_arn = try(aws_iam_role.email[0].arn, null)
     region              = var.region
     cluster_name        = module.eks.cluster_name
     vpc_id              = module.vpc.vpc_id

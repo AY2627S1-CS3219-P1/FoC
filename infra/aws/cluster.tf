@@ -82,11 +82,13 @@ module "eks" {
 
 locals {
   oidc_issuer = replace(module.eks.cluster_oidc_issuer_url, "https://", "")
-  workload_identities = {
+  workload_identities = merge({
     order   = "system:serviceaccount:foc:order-service"
     ebs     = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
     ingress = "system:serviceaccount:kube-system:aws-load-balancer-controller"
-  }
+    }, var.ses_sender_email == null ? {} : {
+    email = "system:serviceaccount:foc:user-service"
+  })
 }
 
 data "aws_iam_policy_document" "workload_trust" {

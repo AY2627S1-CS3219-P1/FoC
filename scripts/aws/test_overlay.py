@@ -79,6 +79,7 @@ class AWSOverlayTest(unittest.TestCase):
                 pod = by_name[kind, name]["spec"]["template"]["spec"]
                 self.assertEqual(len(pod["containers"]), 1, f"Certificate patch added an unintended container to {name}")
                 self.assertTrue(any(mount["mountPath"] == "/var/run/foc/rds" for mount in pod["containers"][0]["volumeMounts"]))
+        self.assertIn({"secretRef": {"name": "smtp"}}, by_name["Deployment", "user-service"]["spec"]["template"]["spec"]["containers"][0]["envFrom"])
         user_mounts = by_name["Deployment", "user-service"]["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
         self.assertTrue(any(mount["name"] == "jwt-signing" for mount in user_mounts))
         routes = [obj for obj in objects if obj["kind"] == "HTTPRoute"]
@@ -101,6 +102,29 @@ class AWSOverlayTest(unittest.TestCase):
             self.assertEqual(env["GOOSE_DBSTRING"]["valueFrom"]["secretKeyRef"], {
                 "name": f"{service}-db", "key": "DATABASE_URL",
             })
+
+    def test_ses_overlay_uses_only_user_role_and_removes_smtp_dependency(self):
+        config = dict(self.config, ses_sender_email="sender@example.test",
+                      user_email_role_arn="arn:aws:iam::123456789012:role/demo-user-email")
+        with contextlib.redirect_stdout(self.output):
+            render(config, self.overlay, "-----BEGIN CERTIFICATE-----\nFIXTURE\n-----END CERTIFICATE-----\n")
+        objects = list(yaml.safe_load_all(subprocess.check_output(["kubectl", "kustomize", str(self.overlay)], text=True)))
+        by_name = {(obj["kind"], obj["metadata"]["name"]): obj for obj in objects}
+        values = by_name["ConfigMap", "foc-config"]["data"]
+        self.assertEqual(values["EMAIL_PROVIDER"], "ses")
+        self.assertEqual(values["EMAIL_FROM"], "sender@example.test")
+        user = by_name["Deployment", "user-service"]["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(user["envFrom"], [{"configMapRef": {"name": "foc-config"}}, {"secretRef": {"name": "user-db"}}])
+        self.assertEqual(by_name["ServiceAccount", "user-service"]["metadata"]["annotations"]["eks.amazonaws.com/role-arn"], config["user_email_role_arn"])
+        self.assertNotIn("eks.amazonaws.com/role-arn", by_name["ServiceAccount", "communication-service"]["metadata"].get("annotations", {}))
+        self.assertEqual(by_name["ServiceAccount", "order-service"]["metadata"]["annotations"]["eks.amazonaws.com/role-arn"], self.config["order_role_arn"])
+
+    def test_ses_overlay_rejects_incomplete_or_invalid_configuration(self):
+        for extra in ({"ses_sender_email": "sender@example.test"},
+                      {"user_email_role_arn": "arn:aws:iam::123456789012:role/demo-user-email"},
+                      {"ses_sender_email": "FoC <sender@example.test>", "user_email_role_arn": "role"}):
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                render(dict(self.config, **extra), self.overlay, "-----BEGIN CERTIFICATE-----")
 
     def test_database_preparation_preserves_credentials_and_verifies_rds_tls(self):
         database = self.root / "db"
