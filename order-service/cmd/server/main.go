@@ -147,11 +147,10 @@ func run(ctx context.Context) error {
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
 
-	// The internal listener serves the public handler until private routes are
-	// split out; binding it keeps every service on the same listener shape.
+	// Private participant reads never share the public router.
 	public := newServer(":"+config.Port, handler)
 	public.BaseContext = func(net.Listener) context.Context { return ctx }
-	internal := newServer(":"+config.InternalPort, handler)
+	internal := newServer(":"+config.InternalPort, router.Internal(services))
 	internal.BaseContext = func(net.Listener) context.Context { return ctx }
 
 	return serve(ctx, public, internal)

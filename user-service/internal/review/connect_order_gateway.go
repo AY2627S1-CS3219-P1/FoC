@@ -33,8 +33,11 @@ func (g *ConnectOrderGateway) GetOrderParticipants(ctx context.Context, orderID 
 		}
 		return OrderParticipants{}, fmt.Errorf("%w: %v", errOrderUnavailable, err)
 	}
+	if resp.Msg.GetOrderId() != orderID.String() {
+		return OrderParticipants{}, fmt.Errorf("%w: mismatched order id", errOrderUnavailable)
+	}
 	requester, err := uuid.Parse(resp.Msg.GetRequesterId())
-	if err != nil {
+	if err != nil || requester == uuid.Nil {
 		return OrderParticipants{}, fmt.Errorf("%w: malformed requester id", errOrderUnavailable)
 	}
 	participants := OrderParticipants{
@@ -43,7 +46,7 @@ func (g *ConnectOrderGateway) GetOrderParticipants(ctx context.Context, orderID 
 	}
 	if courier := resp.Msg.GetCourierId(); courier != "" {
 		id, err := uuid.Parse(courier)
-		if err != nil {
+		if err != nil || id == uuid.Nil {
 			return OrderParticipants{}, fmt.Errorf("%w: malformed courier id", errOrderUnavailable)
 		}
 		participants.CourierID = id

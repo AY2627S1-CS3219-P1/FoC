@@ -110,13 +110,14 @@ func (healthyDatabase) Ping(context.Context) error { return nil }
 
 func testRPCServices() router.RPCServices {
 	return router.RPCServices{
-		Health: &healthrpc.Server{DB: healthyDatabase{}},
-		Order:  &orderv1connect.UnimplementedOrderServiceHandler{},
-		Admin:  &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+		Internal: &orderv1connect.UnimplementedOrderInternalServiceHandler{},
+		Health:   &healthrpc.Server{DB: healthyDatabase{}},
+		Order:    &orderv1connect.UnimplementedOrderServiceHandler{},
+		Admin:    &orderv1connect.UnimplementedOrderAdminServiceHandler{},
 	}
 }
 
-func TestInternalParticipantServiceIsNotMounted(t *testing.T) {
+func TestInternalParticipantServiceIsNotMountedOnPublicListener(t *testing.T) {
 	handler := router.Setup(testRPCServices(), func(next http.Handler) http.Handler { return next })
 
 	request := httptest.NewRequest(http.MethodPost, "/order.v1.OrderInternalService/GetOrderParticipants", nil)
@@ -147,6 +148,17 @@ func TestLocalFrontendCORS(t *testing.T) {
 		}
 		if !strings.Contains(origin, "attacker") && allowed != origin {
 			t.Fatalf("origin %s: got %s", origin, allowed)
+		}
+	}
+}
+
+func TestPrivateRouterExcludesPublicServices(t *testing.T) {
+	handler := router.Internal(testRPCServices())
+	for _, path := range []string{orderv1connect.OrderServiceGetOrderProcedure, orderv1connect.HealthServiceCheckProcedure, orderv1connect.OrderAdminServiceListUserOrdersProcedure} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, path, nil))
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("public service on internal router: %s %d", path, response.Code)
 		}
 	}
 }

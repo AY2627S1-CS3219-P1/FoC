@@ -105,7 +105,33 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	}
 	ctx := context.Background()
 	orders := &stubOrders{byOrder: map[uuid.UUID]OrderParticipants{}}
-	service := buildReviewService(t, sqlDB, orders)
+	service := buildReviewService(t, sqlDB, orderGatewayForIntegration(t, orders))
+
+	t.Run("nonparticipant cannot persist a review through order RPC", func(t *testing.T) {
+		requester, courier, stranger, orderID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{requester, courier, stranger} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		orders.add(orderID, requester, courier)
+		err := service.SubmitReview(
+			ctx,
+			stranger,
+			courier,
+			orderID,
+			ReviewSubmission{Rating: 5, Comment: "forged relationship"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusForbidden)
+		var count int
+		if err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM reviews WHERE order_id=$1", orderID).
+			Scan(&count); err != nil ||
+			count != 0 {
+			t.Fatalf("unauthorized review persisted: %d %v", count, err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, courier); count != 0 || avg != 0 {
+			t.Fatalf("unauthorized rating changed stats: %d %v", count, avg)
+		}
+	})
 
 	t.Run("list offsets beyond int32 are preserved", func(t *testing.T) {
 		page := mustPage(t, math.MaxInt64, 1)
