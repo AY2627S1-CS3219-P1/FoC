@@ -45,6 +45,9 @@ const (
 	// ReviewServiceListMyReviewsProcedure is the fully-qualified name of the ReviewService's
 	// ListMyReviews RPC.
 	ReviewServiceListMyReviewsProcedure = "/user.review.v1.ReviewService/ListMyReviews"
+	// ReviewServiceListMyReviewsReceivedProcedure is the fully-qualified name of the ReviewService's
+	// ListMyReviewsReceived RPC.
+	ReviewServiceListMyReviewsReceivedProcedure = "/user.review.v1.ReviewService/ListMyReviewsReceived"
 	// ReviewServiceListMyReviewsForOrdersProcedure is the fully-qualified name of the ReviewService's
 	// ListMyReviewsForOrders RPC.
 	ReviewServiceListMyReviewsForOrdersProcedure = "/user.review.v1.ReviewService/ListMyReviewsForOrders"
@@ -65,6 +68,7 @@ type ReviewServiceClient interface {
 	CreateReviewPhotoUpload(context.Context, *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error)
 	ListReviewsForUser(context.Context, *connect.Request[v1.ListReviewsForUserRequest]) (*connect.Response[v1.ListReviewsForUserResponse], error)
 	ListMyReviews(context.Context, *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error)
+	ListMyReviewsReceived(context.Context, *connect.Request[v1.ListMyReviewsReceivedRequest]) (*connect.Response[v1.ListMyReviewsReceivedResponse], error)
 	ListMyReviewsForOrders(context.Context, *connect.Request[v1.ListMyReviewsForOrdersRequest]) (*connect.Response[v1.ListMyReviewsForOrdersResponse], error)
 	GetMyReviewForOrder(context.Context, *connect.Request[v1.GetMyReviewForOrderRequest]) (*connect.Response[v1.GetMyReviewForOrderResponse], error)
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
@@ -106,6 +110,12 @@ func NewReviewServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(reviewServiceMethods.ByName("ListMyReviews")),
 			connect.WithClientOptions(opts...),
 		),
+		listMyReviewsReceived: connect.NewClient[v1.ListMyReviewsReceivedRequest, v1.ListMyReviewsReceivedResponse](
+			httpClient,
+			baseURL+ReviewServiceListMyReviewsReceivedProcedure,
+			connect.WithSchema(reviewServiceMethods.ByName("ListMyReviewsReceived")),
+			connect.WithClientOptions(opts...),
+		),
 		listMyReviewsForOrders: connect.NewClient[v1.ListMyReviewsForOrdersRequest, v1.ListMyReviewsForOrdersResponse](
 			httpClient,
 			baseURL+ReviewServiceListMyReviewsForOrdersProcedure,
@@ -139,6 +149,7 @@ type reviewServiceClient struct {
 	createReviewPhotoUpload *connect.Client[v1.CreateReviewPhotoUploadRequest, v1.CreateReviewPhotoUploadResponse]
 	listReviewsForUser      *connect.Client[v1.ListReviewsForUserRequest, v1.ListReviewsForUserResponse]
 	listMyReviews           *connect.Client[v1.ListMyReviewsRequest, v1.ListMyReviewsResponse]
+	listMyReviewsReceived   *connect.Client[v1.ListMyReviewsReceivedRequest, v1.ListMyReviewsReceivedResponse]
 	listMyReviewsForOrders  *connect.Client[v1.ListMyReviewsForOrdersRequest, v1.ListMyReviewsForOrdersResponse]
 	getMyReviewForOrder     *connect.Client[v1.GetMyReviewForOrderRequest, v1.GetMyReviewForOrderResponse]
 	removeReview            *connect.Client[v1.RemoveReviewRequest, v1.RemoveReviewResponse]
@@ -163,6 +174,11 @@ func (c *reviewServiceClient) ListReviewsForUser(ctx context.Context, req *conne
 // ListMyReviews calls user.review.v1.ReviewService.ListMyReviews.
 func (c *reviewServiceClient) ListMyReviews(ctx context.Context, req *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error) {
 	return c.listMyReviews.CallUnary(ctx, req)
+}
+
+// ListMyReviewsReceived calls user.review.v1.ReviewService.ListMyReviewsReceived.
+func (c *reviewServiceClient) ListMyReviewsReceived(ctx context.Context, req *connect.Request[v1.ListMyReviewsReceivedRequest]) (*connect.Response[v1.ListMyReviewsReceivedResponse], error) {
+	return c.listMyReviewsReceived.CallUnary(ctx, req)
 }
 
 // ListMyReviewsForOrders calls user.review.v1.ReviewService.ListMyReviewsForOrders.
@@ -191,6 +207,7 @@ type ReviewServiceHandler interface {
 	CreateReviewPhotoUpload(context.Context, *connect.Request[v1.CreateReviewPhotoUploadRequest]) (*connect.Response[v1.CreateReviewPhotoUploadResponse], error)
 	ListReviewsForUser(context.Context, *connect.Request[v1.ListReviewsForUserRequest]) (*connect.Response[v1.ListReviewsForUserResponse], error)
 	ListMyReviews(context.Context, *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error)
+	ListMyReviewsReceived(context.Context, *connect.Request[v1.ListMyReviewsReceivedRequest]) (*connect.Response[v1.ListMyReviewsReceivedResponse], error)
 	ListMyReviewsForOrders(context.Context, *connect.Request[v1.ListMyReviewsForOrdersRequest]) (*connect.Response[v1.ListMyReviewsForOrdersResponse], error)
 	GetMyReviewForOrder(context.Context, *connect.Request[v1.GetMyReviewForOrderRequest]) (*connect.Response[v1.GetMyReviewForOrderResponse], error)
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
@@ -228,6 +245,12 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(reviewServiceMethods.ByName("ListMyReviews")),
 		connect.WithHandlerOptions(opts...),
 	)
+	reviewServiceListMyReviewsReceivedHandler := connect.NewUnaryHandler(
+		ReviewServiceListMyReviewsReceivedProcedure,
+		svc.ListMyReviewsReceived,
+		connect.WithSchema(reviewServiceMethods.ByName("ListMyReviewsReceived")),
+		connect.WithHandlerOptions(opts...),
+	)
 	reviewServiceListMyReviewsForOrdersHandler := connect.NewUnaryHandler(
 		ReviewServiceListMyReviewsForOrdersProcedure,
 		svc.ListMyReviewsForOrders,
@@ -262,6 +285,8 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 			reviewServiceListReviewsForUserHandler.ServeHTTP(w, r)
 		case ReviewServiceListMyReviewsProcedure:
 			reviewServiceListMyReviewsHandler.ServeHTTP(w, r)
+		case ReviewServiceListMyReviewsReceivedProcedure:
+			reviewServiceListMyReviewsReceivedHandler.ServeHTTP(w, r)
 		case ReviewServiceListMyReviewsForOrdersProcedure:
 			reviewServiceListMyReviewsForOrdersHandler.ServeHTTP(w, r)
 		case ReviewServiceGetMyReviewForOrderProcedure:
@@ -293,6 +318,10 @@ func (UnimplementedReviewServiceHandler) ListReviewsForUser(context.Context, *co
 
 func (UnimplementedReviewServiceHandler) ListMyReviews(context.Context, *connect.Request[v1.ListMyReviewsRequest]) (*connect.Response[v1.ListMyReviewsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.ListMyReviews is not implemented"))
+}
+
+func (UnimplementedReviewServiceHandler) ListMyReviewsReceived(context.Context, *connect.Request[v1.ListMyReviewsReceivedRequest]) (*connect.Response[v1.ListMyReviewsReceivedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.ListMyReviewsReceived is not implemented"))
 }
 
 func (UnimplementedReviewServiceHandler) ListMyReviewsForOrders(context.Context, *connect.Request[v1.ListMyReviewsForOrdersRequest]) (*connect.Response[v1.ListMyReviewsForOrdersResponse], error) {
