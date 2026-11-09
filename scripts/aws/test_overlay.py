@@ -89,6 +89,19 @@ class AWSOverlayTest(unittest.TestCase):
         self.assertEqual(len(images), 8)
         print(f"PASS: rendered {len(objects)} resources, eight image names, five database mounts, private RPC boundary, NLB and S3 configuration")
 
+    def test_migrations_keep_database_credentials_out_of_process_arguments(self):
+        # Credentials must stay out of argv; Goose v3.28.0 supports these environment inputs.
+        rendered = subprocess.check_output(["kubectl", "kustomize", str(self.overlay / "initialization")], text=True)
+        jobs = {obj["metadata"]["name"]: obj for obj in yaml.safe_load_all(rendered) if obj["kind"] == "Job"}
+        for service in ("user", "supplier", "order", "credit", "communication"):
+            container = jobs[f"{service}-migrate"]["spec"]["template"]["spec"]["containers"][0]
+            self.assertEqual(container["args"], ["-dir", f"/migrations/{service}", "up"])
+            env = {entry["name"]: entry for entry in container["env"]}
+            self.assertEqual(env["GOOSE_DRIVER"]["value"], "postgres")
+            self.assertEqual(env["GOOSE_DBSTRING"]["valueFrom"]["secretKeyRef"], {
+                "name": f"{service}-db", "key": "DATABASE_URL",
+            })
+
     def test_database_preparation_preserves_credentials_and_verifies_rds_tls(self):
         database = self.root / "db"
         admin = {"username": "foc_admin", "password": "offline-test-only"}

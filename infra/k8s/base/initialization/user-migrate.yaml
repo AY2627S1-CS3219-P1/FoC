@@ -20,13 +20,18 @@ spec:
         - name: user-migrate
           image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["-dir", "/migrations/user", "postgres", "$(DATABASE_URL)", "up"]
+          args: ["-dir", "/migrations/user", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-          envFrom:
-            - secretRef:
-                name: user-db
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: user-db
+                  key: DATABASE_URL
