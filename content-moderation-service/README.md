@@ -55,10 +55,13 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 | `CMS_LOGGING_INTERVAL` | No | Interval for operational state logs; defaults to 5m. |
 
 Admin configuration versions contain the model, inference parameters, output
-mode, and system message. The admin settings form can save, test, and activate
-a new version. An omitted system message selects the initial review rubric.
-Workers use the message from their pinned version, including during automatic
-retries; the response schema and reason-code validation remain service-owned.
+mode, and system message sent to the LLM as moderation instructions. The admin
+settings form can save, test, and activate a new version. If a save request
+leaves the system message out or sends an empty string, the service fills in
+its built-in starting rubric and saves that text in the version. Workers use
+the saved message from their pinned version, including during automatic
+retries. The service code still controls the required response format and
+accepted reason codes.
 
 ## Layout
 

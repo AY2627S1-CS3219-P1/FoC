@@ -212,13 +212,16 @@ hidden reasoning are never exposed.
 
 ### Runtime review rubric
 
-Administrators edit the system message when saving a configuration draft. The
-message is stored in that immutable version, tested with the draft, and used by
-workers from their pinned configuration. Changing the active version does not
-change a running job or its automatic retries. An omitted message selects the
-service's initial review rubric; migrations backfill that rubric for existing
-versions. The output schema and local reason-code validation remain code-owned.
-The admin UI edits the message alongside model and inference parameters.
+Administrators can edit the system message, the instructions sent to the LLM,
+when saving a configuration draft. If the save request leaves this field out or
+sends an empty string, the service fills in its built-in starting rubric and
+saves that text in the immutable version. The draft test and workers use the
+saved text. A running job and its automatic retries keep using their pinned
+version when the active version changes. A migration fills existing versions
+with the built-in starting rubric. The system message controls the LLM's
+instructions; the service code still controls the required output format and
+accepted reason codes. The admin UI edits the system message alongside model
+and inference parameters.
 
 ### Assessment errors and handling boundaries
 
