@@ -36,15 +36,6 @@ func (q *Queries) ActivateConfigVersion(ctx context.Context, arg ActivateConfigV
 	return result.RowsAffected(), nil
 }
 
-const clearConfigurationPause = `-- name: ClearConfigurationPause :exec
-DELETE FROM moderation_config_pauses WHERE version_id = $1
-`
-
-func (q *Queries) ClearConfigurationPause(ctx context.Context, versionID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, clearConfigurationPause, versionID)
-	return err
-}
-
 const ensureConfigStateSingleton = `-- name: EnsureConfigStateSingleton :exec
 INSERT INTO moderation_config_state (id)
 VALUES (true)
@@ -172,5 +163,14 @@ ON CONFLICT DO NOTHING
 
 func (q *Queries) PauseConfiguration(ctx context.Context, versionID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, pauseConfiguration, versionID)
+	return err
+}
+
+const unpauseConfiguration = `-- name: UnpauseConfiguration :exec
+DELETE FROM moderation_config_pauses WHERE version_id = $1
+`
+
+func (q *Queries) UnpauseConfiguration(ctx context.Context, versionID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, unpauseConfiguration, versionID)
 	return err
 }

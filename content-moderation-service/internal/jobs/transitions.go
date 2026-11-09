@@ -73,7 +73,7 @@ func (s *Transitions) Activate(
 			}
 		}
 	}
-	if err := q.ClearConfigurationPause(ctx, versionID); err != nil {
+	if err := q.UnpauseConfiguration(ctx, versionID); err != nil {
 		return err
 	}
 	detail, err := json.Marshal(map[string]any{"expected_active_version_id": expected})

@@ -1,4 +1,5 @@
 -- +goose Up
+
 -- A bad configuration blocks new claims across replicas until revalidated.
 CREATE TABLE moderation_config_pauses (
     version_id uuid PRIMARY KEY REFERENCES moderation_config_versions(version_id),
@@ -6,4 +7,5 @@ CREATE TABLE moderation_config_pauses (
 );
 
 -- +goose Down
+
 DROP TABLE moderation_config_pauses;

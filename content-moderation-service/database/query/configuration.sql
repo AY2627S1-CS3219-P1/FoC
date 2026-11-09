@@ -45,5 +45,5 @@ WHERE version_id = sqlc.arg(version_id);
 INSERT INTO moderation_config_pauses (version_id) VALUES (sqlc.arg(version_id))
 ON CONFLICT DO NOTHING;
 
--- name: ClearConfigurationPause :exec
+-- name: UnpauseConfiguration :exec
 DELETE FROM moderation_config_pauses WHERE version_id = sqlc.arg(version_id);
