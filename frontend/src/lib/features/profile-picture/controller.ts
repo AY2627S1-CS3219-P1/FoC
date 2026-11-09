@@ -50,12 +50,20 @@ function contentTypeFor(file: File): string | undefined {
 	return extension ? extensions[extension] : undefined;
 }
 
-async function putPicture(grant: ProfilePictureGrant, file: File, signal: AbortSignal): Promise<void> {
-	const response = await fetch(grant.uploadUrl, {
+/** Uploads object bytes without forwarding cookies or following redirects. */
+export async function putPicture(
+	grant: ProfilePictureGrant,
+	file: File,
+	signal: AbortSignal,
+	send: typeof fetch = fetch
+): Promise<void> {
+	const response = await send(grant.uploadUrl, {
 		method: 'PUT',
 		signal,
 		headers: grant.uploadHeaders,
-		body: file
+		body: file,
+		credentials: 'omit',
+		redirect: 'error'
 	});
 	if (!response.ok) throw new PictureUploadFailedError('Upload response was not successful');
 }

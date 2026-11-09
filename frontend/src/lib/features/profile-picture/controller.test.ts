@@ -10,6 +10,7 @@ import {
 import {
 	PictureUploadFailedError,
 	ProfilePictureController,
+	putPicture,
 	type ProfilePictureApi
 } from './controller.ts';
 
@@ -217,5 +218,28 @@ describe('profile picture controller', () => {
 		controller.dispose();
 		expect(await work).toBeNull();
 		expect(api.updateMyProfilePicture).not.toHaveBeenCalled();
+	});
+});
+
+
+describe('profile picture direct upload', () => {
+	it('sends object bytes without cookies or redirects', async () => {
+		const picture = file();
+		const direct = grant();
+		let seen: RequestInit | undefined;
+		const send = (async (_url: string | URL | Request, init?: RequestInit) => {
+			seen = init;
+			return new Response('', { status: 200 });
+		}) as typeof fetch;
+
+		await putPicture(direct, picture, new AbortController().signal, send);
+
+		expect(seen).toMatchObject({
+			method: 'PUT',
+			body: picture,
+			headers: direct.uploadHeaders,
+			credentials: 'omit',
+			redirect: 'error'
+		});
 	});
 });
