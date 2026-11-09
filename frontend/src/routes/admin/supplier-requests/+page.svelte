@@ -11,7 +11,7 @@
 		formatTimestamp
 	} from '$lib/services/location-admin/format';
 	import { adminError } from '$lib/services/location-admin/errors';
-	import Pagination from '$lib/components/pagination/Pagination.svelte';
+	import Pagination from '$lib/components/admin/Pagination.svelte';
 	let result = $state<RequestPage | null>(null),
 		loading = $state(true),
 		error = $state(''),

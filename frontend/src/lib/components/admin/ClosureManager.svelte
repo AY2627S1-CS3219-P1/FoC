@@ -26,7 +26,7 @@
   import { CreationAttempt, CreationAttemptError } from "$lib/services/location-admin/retry";
   import { adminError } from "$lib/services/location-admin/errors";
   import { formatTimestamp } from "$lib/services/location-admin/format";
-  import Pagination from '$lib/components/pagination/Pagination.svelte';
+  import Pagination from "./Pagination.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   let {
     locationId,

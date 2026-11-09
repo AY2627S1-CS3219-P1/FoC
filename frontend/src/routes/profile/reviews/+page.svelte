@@ -4,7 +4,7 @@
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService, reviewApi } from '$lib/services';
 	import type { ReviewRecord } from '$lib/services/review/reviewApi';
-	import Pagination from '$lib/components/pagination/Pagination.svelte';
+	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import ReceivedReview from '$lib/components/review/ReceivedReview.svelte';
 
 	// Paginated list of reviews the signed-in user received.
