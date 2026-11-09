@@ -1,4 +1,4 @@
-# Seven-day AWS demo
+# Ten-day AWS demo
 
 This is a preparation package, not evidence of a running deployment. No command
 below should create AWS resources, publish images, or change a cluster without
@@ -10,9 +10,11 @@ prove that the school permits deployment.
 ## Decisions log
 
 - D1: Two On-Demand `t3.xlarge` workers in private subnets across two AZs, one NAT
-  gateway, and a public TCP NLB. The NAT is a single-AZ failure dependency and
-  cross-AZ traffic can cost extra. The NLB is created by the Kubernetes controller,
-  not directly by Terraform.
+  gateway, and an internal TCP NLB. API Gateway HTTP API supplies the public
+  AWS-managed HTTPS hostname and forwards through a VPC Link to the internal NLB.
+  Terraform owns both API Gateway and the NLB. A TargetGroupBinding registers
+  Istio gateway pod IPs. The NAT is a single-AZ failure dependency and cross-AZ
+  traffic can cost extra. No owned domain or user-provided TLS certificate is needed.
 - D2: Single-AZ `db.t4g.small` PostgreSQL, one Kafka broker with a 5 GiB encrypted
   gp3 claim, and one application replica each. This is a demo, not high availability.
 - D3: T3 standard credits avoid surplus-credit charges but can throttle sustained
@@ -27,22 +29,31 @@ prove that the school permits deployment.
 - D6: RDS deletion protection and a final snapshot, S3 `force_destroy=false`, ECR
   `force_delete=false`, and Kafka's Retain policy require deliberate data decisions
   during teardown. Retained resources continue accruing charges.
-- B1: A real hostname, DNS access, TLS certificate/renewal owner, SMTP credentials,
-  bootstrap email, expiry date, and approved AWS account must be supplied privately.
-  These inputs do not block offline preparation. They block a real deployment.
+- D7: HTTPS terminates at API Gateway. VPC Link/NLB-to-Istio traffic uses private
+  HTTP, restricted by security groups. Service-to-service mesh mTLS remains.
+  This does not provide TLS on every network segment. Private ingress has no
+  hostname constraint because the proxy may supply an integration Host header.
+  Public browser origins remain exact HTTPS origins.
+- B1: SMTP credentials, a verified SES sender, SES production approval, bootstrap
+  email, expiry date, and approved AWS account must be supplied privately. These
+  inputs do not block offline preparation. They block a complete deployment.
 - B2: Quota/service restrictions and live sizing remain unverified. Eight vCPUs are
   needed for initial workers. No quota-inspection denial is permission to bypass
   organization policy. If deployment is denied, stop and ask the account owner.
 
-The working cost estimate is approximately US$111-117 for 168 hours plus traffic,
-logs, state, Secrets Manager, retained snapshots/disks, taxes, and other usage.
-It has not been independently price-verified. US$150 is a planning target, not a
-cap. A monthly AWS Budget alert does not stop spending or enforce a seven-day
-limit. Re-estimate using current Singapore pricing before apply.
+Ten days is 240 hours, approximately 43% longer than the original 168-hour
+estimate. The old US$111-117 estimate does not describe this topology or duration.
+API Gateway requests, networking, logs, state, Secrets Manager, retained data,
+and taxes also affect the total. There is no verified ten-day price estimate.
+The US$150 planning target is not a cap and may be exceeded. A monthly AWS Budget
+alert does not stop spending. Re-estimate Singapore prices before apply.
 
 ## Local validation (no AWS resources)
 
-Requirements: Terraform 1.13+, kubectl, and Python 3.9+. The scripts themselves
+Requirements: Terraform 1.13+, kubectl, Python 3.9+, and the repository's Go
+version, plus OpenSSL supporting `pkey -check` for the existing credential tests.
+The verifier also checks Go formatting and the tooling module tests.
+The Python scripts themselves
 use only Python's standard library. Tests also require PyYAML. Use an explicit
 checkout-local virtualenv so different shell PATHs cannot select an interpreter
 without the test dependency.
@@ -102,9 +113,11 @@ mkdir -p .local/aws
 cp infra/aws/terraform.tfvars.example infra/aws/terraform.tfvars
 ```
 
-Edit the ignored tfvars file with the expected account, an owned hostname, your
-current public IPv4 /32, and the actual teardown date. Do not use example values.
-The public API allows only that /32. If your IP changes, update and review the
+Edit the ignored tfvars file with the expected account, your current public
+IPv4 /32, and the teardown date ten days after deployment. The public HTTPS
+hostname is a Terraform output, not a domain input. Do not use example values.
+The public EKS management API allows only that /32. The application API Gateway
+is publicly reachable and uses FoC's application authentication. If your IP changes, update and review the
 Terraform plan. Private nodes reach the API through its private endpoint.
 
 Set `ACCOUNT_ID`, `AWS_REGION`, and `DEPLOYMENT_NAME` to match the tfvars file.
@@ -162,8 +175,8 @@ kubectl kustomize .local/aws/production > .local/aws/rendered.yaml
 The renderer does not contact AWS or apply anything. It keeps the tracked generic
 production template unchanged and writes only under `.local/`. Do not mix these
 artifacts between accounts/checkouts. The generated configuration supplies NLB
-annotations, the hostname/TLS Secret, exact browser origins, regional S3, Order's
-IRSA annotation, Kafka's gp3 class, and RDS CA mounts. Application database URLs
+private HTTP ingress, a TargetGroupBinding, exact API Gateway browser origins,
+regional S3, Order's IRSA annotation, Kafka's gp3 class, and RDS CA mounts. Application database URLs
 use `sslmode=verify-full`. Existing internal Service URLs and mesh policies remain.
 
 ## 3. Bootstrap the cluster platform
@@ -210,11 +223,26 @@ aqua exec -- helm upgrade --install aws-load-balancer-controller eks/aws-load-ba
 k apply -k .local/aws/production/dependencies
 ```
 
-The ingress Service annotations select an internet-facing IP-target NLB in both
-public subnets. The Service overlay removes Istio's status-port 15021 from public exposure;
-verify the resulting NLB has only the HTTPS 443 listener after deployment. The
-NLB uses TCP passthrough; do not
-configure a second TLS termination layer without reviewing the Gateway design.
+Install the load-balancer controller and wait for its webhook before deploying
+TargetGroupBinding resources. Terraform creates the internal NLB, its port-80
+listener, and the IP target group. The generated gateway stage binds that group
+to `istio-ingress/foc-public-istio` service port 80. The Service stays ClusterIP;
+Kubernetes does not create another load balancer. The private HTTP listener keeps
+its existing `https` section name so the base HTTPRoute parentRefs remain valid.
+It has no hostname or TLS certificate reference.
+
+API Gateway uses a `$default` stage and route, forwards all HTTP methods, and
+maps `overwrite:path` to `$request.path` so RPC paths have no stage prefix. FoC
+retains application authentication; the proxy adds no separate JWT authorizer.
+The frontend and APIs share the default execute-api HTTPS origin. S3 CORS uses
+that exact origin. Do not forward Authorization/cookies to S3.
+
+Verify NLB targets become healthy after the gateway is deployed. The API URL
+exists before Kubernetes targets are ready and can initially return errors.
+Limits are 30 seconds per integration and 10 MB payloads. Image bytes go directly
+to S3. Long RPCs, large responses, cookies, RPC errors, and page/asset responses
+still need live verification. Local TLS port-forward smoke commands assume the
+original in-cluster HTTPS profile and are not acceptance tests for this profile.
 
 ## 4. Provision the five databases and remaining Secrets
 
@@ -249,21 +277,44 @@ Provide the remaining Secrets through private files or the approved secret
 manager, following docs/runbooks/kubernetes.md:
 
 - `smtp`: SMTP_ADDR, SMTP_FROM, SMTP_USERNAME, SMTP_PASSWORD. Use SES port 587
-  with STARTTLS. The Terraform SES identity/DKIM records must be published and
-  verified. SES sandbox mode requires verified recipients; school policy may
-  prevent production sending approval. Do not silently fall back to Mailpit.
+  with STARTTLS. Verify an email identity in the same AWS region separately from
+  Terraform, and set SMTP_FROM to that address. No domain identity is configured
+  for the AWS-owned API hostname. SES production access requires AWS approval;
+  sandbox mode requires verified recipients. Check actual delivery, including
+  spam/DMARC behavior when using an address on a domain you do not control.
+  Do not silently fall back to Mailpit.
 - `jwt-signing`: `jwt-signing-private.pem`, generated privately and retained.
 - `telegram`: TELEGRAM_BOT_TOKEN, empty to disable. Never run two pollers with
   the same bot token.
 - `kafka-ui-auth`: SPRING_SECURITY_USER_NAME and SPRING_SECURITY_USER_PASSWORD.
-- `foc-public-tls` in `istio-ingress`: a trusted certificate and private key for
-  the hostname. DNS ownership and renewal are operator responsibilities.
+- No `foc-public-tls` Secret is required for this private HTTP ingress. The
+  deployment operator checks certificate Secrets only for rendered HTTPS
+  listeners. The original local and custom-domain HTTPS overlays are unchanged.
 
 Never put a password in a shell argument. Use `kubectl create secret ...
 --from-env-file=<private-file>` or `--from-file` and avoid printing the manifest.
 Do not configure static AWS credentials for Order; IRSA supplies credentials.
 SES SMTP credentials are separate from Order's AWS role and must be obtained
 securely. This package does not create an IAM user or SMTP access key.
+
+Use CLI to check the regional sender and account state. Set `SES_SENDER_EMAIL`
+privately to the verified From address (not a display-name/email combination):
+
+```sh
+aws sesv2 get-email-identity --email-identity "$SES_SENDER_EMAIL" \
+  --region "$AWS_REGION" --query '{Verified:VerifiedForSendingStatus,Status:VerificationStatus}'
+aws sesv2 get-account --region "$AWS_REGION" \
+  --query '{Production:ProductionAccessEnabled,Review:Details.ReviewDetails}'
+```
+
+If the identity is missing, request verification with `aws sesv2
+create-email-identity --email-identity "$SES_SENDER_EMAIL" --region "$AWS_REGION"`
+and have the mailbox owner click the AWS verification link. A verified sender
+alone does not remove sandbox recipient restrictions. Request production access
+with `aws sesv2 put-account-details` using truthful transactional use-case and
+website information. AWS review can remain pending or be denied; do not claim
+production readiness until `ProductionAccessEnabled` is true. A public project
+information URL is not evidence that the application has been deployed.
 
 ## 5. Publish images and deploy
 
@@ -288,9 +339,10 @@ Its production provisioning stage is intentionally empty. It waits for migration
 and Kafka initialization Jobs and rejects template origins/local image tags.
 Terraform does not claim that successful resource creation means FoC works.
 
-Point the owned hostname to the NLB using the authoritative DNS provider. For
-Route 53 use an alias; for an external DNS provider use an appropriate CNAME
-for the subdomain. Do not expose internal service ports or Kafka UI publicly.
+Use `public_origin` from Terraform's deployment output as the browser address.
+No DNS record or domain purchase is required. Do not expose the NLB, internal
+service ports, or Kafka UI publicly. API Gateway access logs omit paths, query
+strings, bodies, cookies, and authorization headers.
 
 ## 6. Acceptance after deployment
 
@@ -303,16 +355,19 @@ pod injection and storage persistence. Keep a repeatable script/report and any
 UI evidence. Existing local-only smoke checks are not proof of external HTTPS.
 The repository still explicitly does not claim the complete D3 demo workflow.
 
-## 7. Teardown after seven days (separate approval)
+## 7. Teardown after ten days (separate approval)
 
-Do not run `terraform destroy` first. The NLB and Kafka disk were created by
-Kubernetes controllers and are not directly tracked by this Terraform stack.
+Remove the Kubernetes target binding before destroying Terraform infrastructure.
+Terraform owns API Gateway, its VPC Link, and the internal NLB. Kafka's disk is
+created by Kubernetes and is not directly tracked by this Terraform stack.
 
 1. Decide which database, images, objects, and Kafka data must be retained.
    Record snapshot IDs, bucket names, and retained disk IDs with their ongoing cost.
-2. Delete the generated `foc-public` Gateway while its controller and cluster
-   are still running. Wait until its generated Service, NLB, listeners, target
-   groups, and controller-managed security groups are actually gone.
+2. Delete the manually managed `istio-ingress/foc-public` TargetGroupBinding
+   while the load-balancer controller is still running. Wait for deregistration
+   and finalizer removal, then delete the `foc-public` Gateway and its generated
+   Service. Do not delete unrelated controller-generated bindings. The NLB and
+   target group stay until the approved Terraform teardown.
 3. Delete Kafka's StatefulSet/PVC after the data decision. Its Retain policy
    leaves the PV/EBS disk. Explicitly preserve or delete that disk; deleting the
    EKS cluster does not dispose of it.

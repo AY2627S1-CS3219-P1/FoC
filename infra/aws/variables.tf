@@ -18,8 +18,8 @@ variable "name" {
   type        = string
   default     = "foc-demo"
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{2,24}$", var.name))
-    error_message = "Use 3-25 lowercase letters, digits, or hyphens, starting with a letter."
+    condition     = can(regex("^[a-z][a-z0-9-]{2,24}$", var.name)) && !startswith(var.name, "internal-")
+    error_message = "Use 3-25 lowercase letters, digits, or hyphens, starting with a letter and not the ELB-reserved internal- prefix."
   }
 }
 
@@ -38,15 +38,6 @@ variable "operator_cidr" {
   validation {
     condition     = can(cidrnetmask(var.operator_cidr)) && endswith(var.operator_cidr, "/32")
     error_message = "Supply a single public IPv4 address with /32, never an internet-wide CIDR."
-  }
-}
-
-variable "public_hostname" {
-  description = "Owned DNS hostname for FoC HTTPS and S3 browser CORS. No scheme or path."
-  type        = string
-  validation {
-    condition     = can(regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\\.[a-z]{2,}$", var.public_hostname))
-    error_message = "Supply a lowercase fully qualified hostname without a scheme, port, or path."
   }
 }
 

@@ -28,12 +28,12 @@ class AWSOverlayTest(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.config = {
             "region": "ap-southeast-1", "cluster_name": "foc-demo", "vpc_id": "vpc-example",
-            "public_hostname": "campus.demo.example.org",
+            "public_hostname": "a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com",
             "image_prefix": "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/foc-demo",
             "order_bucket": "foc-demo-orders-example",
             "order_role_arn": "arn:aws:iam::123456789012:role/demo-order",
             "ingress_role_arn": "arn:aws:iam::123456789012:role/demo-ingress",
-            "public_subnet_ids": ["subnet-first", "subnet-second"],
+            "gateway_target_arn": "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/foc-demo-gw/0123456789abcdef",
             "database_host": "demo.database.invalid",
         }
         self.overlay = self.root / "production"
@@ -54,14 +54,22 @@ class AWSOverlayTest(unittest.TestCase):
         self.assertNotIn("localhost", rendered)
         gateway = by_name["Gateway", "foc-public"]
         listener = gateway["spec"]["listeners"][0]
-        self.assertEqual(listener["hostname"], "campus.demo.example.org")
-        self.assertEqual(listener["tls"]["certificateRefs"][0]["name"], "foc-public-tls")
+        self.assertEqual(listener["protocol"], "HTTP")
+        self.assertEqual(listener["port"], 80)
+        self.assertNotIn("hostname", listener)
+        self.assertNotIn("tls", listener)
+        self.assertEqual(listener["name"], "https")  # Existing parentRef section name.
+        binding = by_name["TargetGroupBinding", "foc-public"]["spec"]
+        self.assertEqual(binding["serviceRef"], {"name": "foc-public-istio", "port": 80})
+        self.assertEqual(binding["targetGroupARN"], self.config["gateway_target_arn"])
+        self.assertEqual(binding["targetType"], "ip")
         service = json.loads(by_name["ConfigMap", "foc-public-infrastructure"]["data"]["service"])
-        self.assertEqual(service["spec"]["type"], "LoadBalancer")
-        self.assertIn({"port": 15021, "$patch": "delete"}, service["spec"]["ports"])
-        self.assertEqual(service["metadata"]["annotations"]["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"], "ip")
+        self.assertEqual(service["spec"]["type"], "ClusterIP")
+        self.assertNotIn("metadata", service)
         self.assertEqual(by_name["ServiceAccount", "order-service"]["metadata"]["annotations"]["eks.amazonaws.com/role-arn"], self.config["order_role_arn"])
         config = by_name["ConfigMap", "foc-config"]["data"]
+        for key in ("ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL"):
+            self.assertEqual(config[key], "https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com")
         self.assertEqual(config["ORDER_S3_BUCKET"], "foc-demo-orders-example")
         self.assertEqual(config["ORDER_S3_PUBLIC_ENDPOINT"], "https://s3.ap-southeast-1.amazonaws.com")
         self.assertEqual(by_name["StorageClass", "foc-gp3"]["reclaimPolicy"], "Retain")
@@ -74,6 +82,7 @@ class AWSOverlayTest(unittest.TestCase):
         user_mounts = by_name["Deployment", "user-service"]["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
         self.assertTrue(any(mount["name"] == "jwt-signing" for mount in user_mounts))
         routes = [obj for obj in objects if obj["kind"] == "HTTPRoute"]
+        self.assertTrue(all("hostnames" not in route["spec"] for route in routes))
         self.assertNotIn("CreditReservationService", json.dumps(routes))
         self.assertNotIn("PublicKeyService", json.dumps(routes))
         images = {container["image"].split(":")[0] for obj in objects if obj["kind"] in ("Deployment", "Job") for container in obj["spec"]["template"]["spec"]["containers"] if container["image"].startswith("foc/")}
