@@ -151,6 +151,14 @@ and [KMS pricing](https://aws.amazon.com/kms/pricing/) describe additional
 billing conditions. Catalog links are version-pinned so these rates remain
 auditable when current prices change.
 
+## Release automation
+
+[Apply/publication and release operations](../../docs/runbooks/aws-releases.md)
+describe the versioned non-secret S3 configuration contract, reviewed-plan
+publication recovery, regenerated overlays, scoped deployment identity,
+protected runner setup, and serialized release workflow. Application CI does
+not read Terraform state or create workload Secrets.
+
 ## Local validation (no AWS resources)
 
 Requirements: Terraform 1.13+, the repository's Go version, Aqua's pinned

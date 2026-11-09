@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/kubernetes.yml'
+      - '.github/workflows/aws-release.yml'
+      - '.github/actionlint.yaml'
       - '.env.example'
       - 'infra/**'
       - 'scripts/**'
@@ -119,3 +121,25 @@ jobs:
         run: |
           make k8s-tools
           make k8s-test
+
+  aws-release-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: aquaproj/aqua-installer@611554c6f0137ba41c8dd15aca8bee82504ea461 # v4.1.1
+        with:
+          aqua_version: v2.66.0
+          policy_allow: aqua-policy.yaml
+      - name: Verify AWS release contracts without cloud access
+        run: |
+          aqua install
+          python3 -m venv .tools/aws-python
+          .tools/aws-python/bin/python -m pip install -r scripts/aws/requirements-test.txt
+          .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
