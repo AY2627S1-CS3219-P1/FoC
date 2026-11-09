@@ -20,15 +20,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// services are CMS's adapters over one set of domain services.
-type services struct {
+// serverComponents bundles the handlers and background workers assembled at startup.
+type serverComponents struct {
 	rpc      router.RPCServices
 	pool     *jobs.Pool
 	relay    *outbox.Relay
 	jobStore *jobs.JobStore
 }
 
-func newServices(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) services {
+func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) serverComponents {
 	policy := jobs.PolicyFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
 	jobStore := jobs.NewJobStore(pool, policy, nil, jobs.WithProviderIdentity(cfg.LLMBaseURL))
 	reviewStore := review.NewStore(pool)
@@ -112,7 +112,7 @@ func newServices(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger 
 	adminHandler := reviewrpc.NewAdminHandler(reviewStore)
 	configHandler := configrpc.NewHandler(configService)
 
-	return services{
+	return serverComponents{
 		rpc: router.RPCServices{
 			Health: &healthrpc.Checker{
 				DB: pool,

@@ -371,6 +371,7 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
+      CMS_OPERATIONAL_STATE_INTERVAL: ${CMS_OPERATIONAL_STATE_INTERVAL:-5m}
       # OpenAI-compatible inference. The key stays server-side; an empty key
       # starts the service degraded: submissions queue, admin APIs and setup
       # status still work, no inference attempts are burned.

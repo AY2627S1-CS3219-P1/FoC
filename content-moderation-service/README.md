@@ -47,6 +47,7 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 | `CMS_JOB_RETRY_INITIAL_DELAY` | No | Initial retry delay; defaults to 10s. |
 | `CMS_JOB_RETRY_MAX_DELAY` | No | Maximum retry delay; defaults to 5m. |
 | `CMS_JOB_POLL_INTERVAL` | No | Job poll interval; defaults to 1s. |
+| `CMS_OPERATIONAL_STATE_INTERVAL` | No | Interval for operational state logs; defaults to 5m. |
 
 ## Layout
 

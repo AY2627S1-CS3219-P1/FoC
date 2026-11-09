@@ -63,7 +63,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	services := newServices(startupCtx, pool, config, slog.Default())
+	components := newServerComponents(startupCtx, pool, config, slog.Default())
 
 	// Kafka consumers. Without them ingestion and outbox relay don't run.
 	workerCtx, stopWorkers := context.WithCancel(ctx)
@@ -71,31 +71,33 @@ func run(ctx context.Context) error {
 	defer func() {
 		stopWorkers()
 		workers.Wait()
-		if services.pool != nil {
-			services.pool.Wait()
+		if components.pool != nil {
+			components.pool.Wait()
 		}
-		if services.relay != nil {
-			services.relay.Wait()
+		if components.relay != nil {
+			components.relay.Wait()
 		}
 	}()
 
 	if len(config.KafkaBrokers) > 0 {
-		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, services.jobStore, slog.Default()) })
+		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, components.jobStore, slog.Default()) })
 	} else {
 		slog.WarnContext(ctx, "KAFKA_BROKERS is not set; review submissions are not ingested")
 	}
 
-	if services.relay != nil {
-		services.relay.Start(workerCtx)
+	if components.relay != nil {
+		components.relay.Start(workerCtx)
 	}
 
 	// Moderation workers. When no evaluator is configured the pool is nil, so no
 	// worker burns LLM attempts; jobs simply stay queued in the database.
-	if services.pool != nil {
-		services.pool.Start(workerCtx)
+	if components.pool != nil {
+		components.pool.Start(workerCtx)
 	}
 
-	workers.Go(func() { reportOperationalState(workerCtx, pool, services) })
+	workers.Go(func() {
+		reportOperationalState(workerCtx, pool, components, config.OperationalStateInterval)
+	})
 
 	authenticator, err := newAuthenticator(
 		startupCtx,
@@ -114,9 +116,9 @@ func run(ctx context.Context) error {
 
 	public := newServer(
 		":"+config.Port,
-		getCorsConfig().Handler(router.Public(services.rpc, authenticator.Authenticate)),
+		getCorsConfig().Handler(router.Public(components.rpc, authenticator.Authenticate)),
 	)
-	internal := newServer(":"+config.InternalPort, router.Internal(services.rpc))
+	internal := newServer(":"+config.InternalPort, router.Internal(components.rpc))
 	for _, server := range []*http.Server{public, internal} {
 		server.BaseContext = func(net.Listener) context.Context { return ctx }
 	}
