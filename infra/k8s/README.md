@@ -351,3 +351,8 @@ explicitly exported values take precedence.
 With Go installed, `make k8s-storage-smoke` tests signed HTTPS uploads/downloads
 and rejection of unsigned/tampered requests. Its private operator forward is
 used only for object metadata and cleanup. No test object is retained on success.
+
+Kubernetes also deploys private Grafana, Loki and Alloy logging. Set
+`K8S_GRAFANA_PORT=3000` in existing `.env` files and run `make k8s-grafana`.
+Credentials, production S3/IRSA prerequisites, LogQL examples and verification
+commands are in the [logging runbook](../../docs/runbooks/kubernetes.md#kubernetes-logging).

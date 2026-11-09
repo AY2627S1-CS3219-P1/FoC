@@ -112,13 +112,13 @@ func fastClients(t *testing.T, s *applicationStub) (fastLocationClients, rpc.Loc
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return fastLocationClients{
-			rpc.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
-			rpc.NewLocationAdminServiceClient(server.Client(), server.URL),
-			rpc.NewLocationDisablementServiceClient(server.Client(), server.URL),
-		}, rpc.NewLocationAdditionRequestServiceClient(
-			server.Client(),
-			server.URL,
-		)
+		rpc.NewLocationDiscoveryServiceClient(server.Client(), server.URL),
+		rpc.NewLocationAdminServiceClient(server.Client(), server.URL),
+		rpc.NewLocationDisablementServiceClient(server.Client(), server.URL),
+	}, rpc.NewLocationAdditionRequestServiceClient(
+		server.Client(),
+		server.URL,
+	)
 }
 
 type fastPrincipalKey struct{}

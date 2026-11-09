@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Button, Card, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
+	import { page } from '$app/state';
+	import { Button, Card, Icon, TextFieldOutlined, TextFieldOutlinedMultiline } from 'm3-svelte';
+	import iconPhoto from '@ktibow/iconset-material-symbols/add-photo-alternate-outline';
 	import { defaults, setError, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
+	import type { Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import { authService, creditAccountApi, orderApi } from '$lib/services';
 	import LocationPicker from '$lib/components/order/LocationPicker.svelte';
+	import CampusMap, { type MapMarker } from '$lib/components/map/CampusMap.svelte';
 	import { creationSchema, recoverSubmission, saveSubmission, removeSubmission, putImage, validateImage, imageTypes, type SubmittedCreation } from '$lib/services/order/creation';
 	import { describeOrderError, isDefinitiveRejection } from '$lib/services/order/errors';
 	import type { CreateOrderInput } from '$lib/services/order';
@@ -155,67 +159,153 @@
 			reset({ data: { ...input, expiresAt: localDate(new Date(input.expiresAt)) } });
 			outcome = 'pending';
 			feedback = 'Your last order still needs confirmation. Check it before creating another order.';
+		} else {
+			// "Request" links from a supplier pre-fill the pickup.
+			const linked = page.url.searchParams.get('pickup');
+			if (linked && !$form.pickupLocationId) $form.pickupLocationId = linked;
 		}
 	});
 
 	onMount(() => { initialized = true; });
+
+	// The map follows the chosen locations; both are Supplier Locations with coordinates.
+	let pickupLocation = $state<Location | null>(null);
+	let deliveryLocation = $state<Location | null>(null);
+	const markers = $derived.by<MapMarker[]>(() => {
+		const out: MapMarker[] = [];
+		const pick = pickupLocation?.id === $form.pickupLocationId ? pickupLocation : null;
+		const drop = deliveryLocation?.id === $form.deliveryLocationId ? deliveryLocation : null;
+		if (pick?.coordinates) out.push({ id: 'pickup', latitude: pick.coordinates.latitude, longitude: pick.coordinates.longitude, label: 'Pick up: ' + pick.name, kind: 'pickup' });
+		if (drop?.coordinates) out.push({ id: 'destination', latitude: drop.coordinates.latitude, longitude: drop.coordinates.longitude, label: 'Deliver to: ' + drop.name, kind: 'destination' });
+		return out;
+	});
 </script>
 
-<svelte:head><title>Create order · Friend on Campus</title></svelte:head>
-<section class="page-content" aria-labelledby="create-title">
-	<header class="page-heading"><div><h1 id="create-title">Create order</h1></div></header>
-	<nav><a href="/orders">Browse</a> · <a href="/orders/mine">My Orders</a></nav>
-	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to create an order.</p>
-	{:else if suspended}<p class="notice">Your account is suspended. You can still view <a href="/orders/mine">My Orders</a>.</p>
+<svelte:head><title>Make a request · Friend on Campus</title></svelte:head>
+<section class="create" aria-labelledby="create-title">
+	<header class="heading">
+		<h1 id="create-title">Make a request</h1>
+		{#if available !== null}<p class="muted">You have {available.toString()} credits available.</p>{/if}
+	</header>
+	{#if !authService.user}<p class="notice"><a href="/login">Sign in</a> to make a request.</p>
+	{:else if suspended}<p class="notice">Your account is suspended. You can still view <a href="/orders/mine">your orders</a>.</p>
 	{:else}
-		{#if recoveryError}<p class="notice error" role="alert">{recoveryError} <a href="/orders/mine">Check My Orders</a>.</p>{/if}
+		{#if recoveryError}<p class="notice error" role="alert">{recoveryError} <a href="/orders/mine">Check your orders</a>.</p>{/if}
 		<p class:empty={!feedback} class:failure={outcome === 'failed' || outcome === 'rejected'} class="notice" role="status" aria-live="polite">{feedback}</p>
 		{#if submission}
-			<Card variant="outlined"><div class="panel-body">
+			<div class="pending">
 				<Button disabled={busy || !!recoveryError} onclick={() => void sendSubmission()}>{busy ? 'Checking…' : 'Check order'}</Button>
 				{#if submission.orderId}<a href={'/orders/' + submission.orderId}>View order</a>{/if}
-			</div></Card>
+			</div>
 		{/if}
-		<Card variant="outlined"><div class="panel-body">
-			{#if available !== null}<p>Available credits: <strong>{available.toString()}</strong>. Credits are checked and reserved when you submit.</p>{/if}
-			{#if balanceError}<p class="notice">{balanceError}</p><Button variant="text" onclick={() => void loadBalance()}>Retry balance</Button>{/if}
-			<form method="POST" use:enhance>
-				<fieldset disabled={busy || !!submission || !!recoveryError}>
-					<input type="hidden" name="pickupLocationId" value={$form.pickupLocationId} />
-					<input type="hidden" name="deliveryLocationId" value={$form.deliveryLocationId} />
-					<LocationPicker label="Pickup location" bind:value={$form.pickupLocationId} />
-					{#if $errors.pickupLocationId}<p class="field-error" role="alert">{$errors.pickupLocationId[0]}</p>{/if}
-					<LocationPicker label="Delivery location" bind:value={$form.deliveryLocationId} />
-					{#if $errors.deliveryLocationId}<p class="field-error" role="alert">{$errors.deliveryLocationId[0]}</p>{/if}
-					<div class="field"><TextFieldOutlinedMultiline label="Item description" name="itemDescription" bind:value={$form.itemDescription} required error={!!$errors.itemDescription} aria-invalid={$errors.itemDescription ? 'true' : undefined} />{#if $errors.itemDescription}<small class="field-error" role="alert">{$errors.itemDescription[0]}</small>{/if}</div>
-					<div class="field"><TextFieldOutlinedMultiline label="Delivery instructions (optional)" name="instructions" bind:value={$form.instructions} error={!!$errors.instructions} />{#if $errors.instructions}<small class="field-error" role="alert">{$errors.instructions[0]}</small>{/if}</div>
-					<div class="field"><TextFieldOutlined label="Reward in whole credits" name="rewardCredits" inputmode="numeric" bind:value={$form.rewardCredits} required error={!!$errors.rewardCredits} />{#if $errors.rewardCredits}<small class="field-error" role="alert">{$errors.rewardCredits[0]}</small>{/if}</div>
-					<label>Time to deliver after pickup (minutes)<input type="number" name="deliveryMinutes" min="5" max="1440" step="1" bind:value={$form.deliveryMinutes} required />{#if $errors.deliveryMinutes}<small class="field-error" role="alert">{$errors.deliveryMinutes[0]}</small>{/if}</label>
-					<div class="field"><TextFieldOutlined label="Accept by (your local time)" type="datetime-local" name="expiresAt" bind:value={$form.expiresAt} required error={!!$errors.expiresAt} aria-invalid={$errors.expiresAt ? 'true' : undefined} />{#if $errors.expiresAt}<small class="field-error" role="alert">{$errors.expiresAt[0]}</small>{/if}</div>
-					<label>Item images (optional, maximum five, 10 MB each)<input type="file" multiple accept={imageTypes.join(',')} onchange={addImages} /></label>
-					<ul class="uploads">{#each uploads as image (image.id)}<li>
-						<strong>{image.file.name}</strong><span>{image.state === 'unknown' ? 'We will check this image when you create your order.' : image.state}</span>
-						{#if image.error}<p class="field-error" role="alert">{image.error}</p>{/if}
-						<div class="form-actions">{#if image.state !== 'uploading'}<Button type="button" variant="text" onclick={() => void upload(image)}>Retry</Button><Button type="button" variant="text" onclick={() => uploads = uploads.filter((item) => item.id !== image.id)}>Remove</Button>{/if}</div>
-					</li>{/each}</ul>
-					<Button type="submit" disabled={!initialized || uploads.some((image) => image.state === 'uploading')}>Create order</Button>
-				</fieldset>
-			</form>
-		</div></Card>
+		{#if balanceError}<p class="notice">{balanceError} <Button variant="text" size="s" onclick={() => void loadBalance()}>Retry</Button></p>{/if}
+
+		<div class="layout">
+			<!-- Wireframe: the route map sits beside the form (above it on phones). -->
+			<aside class="map" aria-label="Route preview">
+				<CampusMap {markers} route={['pickup', 'destination']} label="Map from pickup to delivery location" />
+				{#if !markers.length}<p class="map-hint">Choose a pickup and delivery location to see the route.</p>{/if}
+			</aside>
+
+			<div class="form-card"><Card variant="outlined">
+				<form method="POST" use:enhance class="panel-body">
+					<fieldset disabled={busy || !!submission || !!recoveryError}>
+						<input type="hidden" name="pickupLocationId" value={$form.pickupLocationId} />
+						<input type="hidden" name="deliveryLocationId" value={$form.deliveryLocationId} />
+
+						<section class="group" aria-labelledby="what-title">
+							<h2 id="what-title">What do you need?</h2>
+							<div class="field"><TextFieldOutlinedMultiline label="Item description" name="itemDescription" bind:value={$form.itemDescription} required error={!!$errors.itemDescription} aria-invalid={$errors.itemDescription ? 'true' : undefined} />{#if $errors.itemDescription}<small class="field-error" role="alert">{$errors.itemDescription[0]}</small>{/if}</div>
+							<div class="photos">
+								<Button variant="outlined" iconType="left" label>
+									<Icon icon={iconPhoto} />Add photos
+									<input class="file" type="file" multiple accept={imageTypes.join(',')} onchange={addImages} />
+								</Button>
+								<small class="muted">Optional. Up to five photos, 10 MB each.</small>
+							</div>
+							{#if uploads.length}
+								<ul class="uploads">{#each uploads as image (image.id)}<li>
+									<span class="file-name">{image.file.name}</span>
+									<span class="muted">{image.state === 'unknown' ? 'Checked when you submit' : image.state === 'uploaded' ? 'Uploaded' : image.state === 'uploading' ? 'Uploading…' : 'Failed'}</span>
+									{#if image.error}<p class="field-error" role="alert">{image.error}</p>{/if}
+									{#if image.state !== 'uploading'}<span class="upload-actions"><Button type="button" variant="text" size="s" onclick={() => void upload(image)}>Retry</Button><Button type="button" variant="text" size="s" onclick={() => uploads = uploads.filter((item) => item.id !== image.id)}>Remove</Button></span>{/if}
+								</li>{/each}</ul>
+							{/if}
+						</section>
+
+						<section class="group" aria-labelledby="where-title">
+							<h2 id="where-title">Where</h2>
+							<LocationPicker label="Pick up from" bind:value={$form.pickupLocationId} onresolve={(location) => (pickupLocation = location)} />
+							{#if $errors.pickupLocationId}<p class="field-error" role="alert">{$errors.pickupLocationId[0]}</p>{/if}
+							<LocationPicker label="Deliver to" bind:value={$form.deliveryLocationId} onresolve={(location) => (deliveryLocation = location)} />
+							{#if $errors.deliveryLocationId}<p class="field-error" role="alert">{$errors.deliveryLocationId[0]}</p>{/if}
+							<div class="field"><TextFieldOutlinedMultiline label="Delivery instructions (optional)" name="instructions" bind:value={$form.instructions} error={!!$errors.instructions} />{#if $errors.instructions}<small class="field-error" role="alert">{$errors.instructions[0]}</small>{:else}<small class="muted">Only your courier sees these and the exact delivery location.</small>{/if}</div>
+						</section>
+
+						<section class="group" aria-labelledby="reward-title">
+							<h2 id="reward-title">Reward and timing</h2>
+							<div class="row">
+								<div class="field"><TextFieldOutlined label="Reward (credits)" name="rewardCredits" inputmode="numeric" bind:value={$form.rewardCredits} required error={!!$errors.rewardCredits} />{#if $errors.rewardCredits}<small class="field-error" role="alert">{$errors.rewardCredits[0]}</small>{:else}<small class="muted">Reserved when you submit. Couriers can counteroffer higher.</small>{/if}</div>
+								<div class="field">
+									<TextFieldOutlined label="Minutes to deliver after pickup" name="deliveryMinutes" type="number" min="5" max="1440" step="1" inputmode="numeric" required value={String($form.deliveryMinutes)} oninput={(event) => ($form.deliveryMinutes = Number(event.currentTarget.value))} error={!!$errors.deliveryMinutes} />
+									{#if $errors.deliveryMinutes}<small class="field-error" role="alert">{$errors.deliveryMinutes[0]}</small>{:else}<small class="muted">Late deliveries earn the courier less.</small>{/if}
+								</div>
+							</div>
+							<div class="field"><TextFieldOutlined label="Find a courier by (your local time)" type="datetime-local" name="expiresAt" bind:value={$form.expiresAt} required error={!!$errors.expiresAt} aria-invalid={$errors.expiresAt ? 'true' : undefined} />{#if $errors.expiresAt}<small class="field-error" role="alert">{$errors.expiresAt[0]}</small>{:else}<small class="muted">The request closes if no one accepts it by then, and your credits are returned.</small>{/if}</div>
+						</section>
+
+						<div class="submit">
+							<Button type="submit" disabled={!initialized || uploads.some((image) => image.state === 'uploading')}>Submit request</Button>
+						</div>
+					</fieldset>
+				</form>
+			</Card></div>
+		</div>
 	{/if}
 </section>
 
 <style>
-	fieldset { display: grid; gap: 1.25rem; border: 0; margin: 0; padding: 0; min-width: 0; }
-	label { display: grid; gap: .5rem; }
-	input { min-width: 0; max-width: 100%; padding: .75rem; font: inherit; }
-	input:focus-visible { outline: 3px solid var(--m3c-primary); outline-offset: 2px; }
-	input[type="number"] { box-sizing: border-box; width: 100%; min-height: 3.5rem; padding: 1rem; border: 1px solid var(--m3c-outline); border-radius: var(--m3-field-outlined-shape, .25rem); background: transparent; color: var(--m3c-on-surface); }
-	input[type="number"]:hover { border-color: var(--m3c-on-surface); }
-	input[type="number"]:focus-visible { outline: 2px solid var(--m3c-primary); outline-offset: -2px; border-color: var(--m3c-primary); }
-	input[type="number"]:disabled { opacity: .38; }
-	.uploads { padding: 0; list-style: none; display: grid; gap: .75rem; }
-	.uploads li { display: grid; gap: .5rem; overflow-wrap: anywhere; border: 1px solid var(--m3c-outline-variant); border-radius: 8px; padding: .75rem; }
+	.create { display: grid; gap: 1rem; max-width: 76rem; margin: 0 auto; }
+	.heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+	h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2rem); }
+	h2 { margin: 0; font-size: 1.1rem; }
+	.muted { margin: 0; color: var(--m3c-on-surface-variant); font-size: 0.875rem; }
+	.pending { display: flex; align-items: center; gap: 1rem; }
+
+	.layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+	.form-card { grid-column: 1; grid-row: 1; display: grid; min-width: 0; }
+	.map { grid-column: 2; grid-row: 1; position: sticky; top: 1rem; height: min(70vh, 34rem); }
+	.map-hint {
+		position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 500; margin: 0;
+		padding: 0.5rem 0.75rem; border-radius: var(--m3-shape-medium);
+		background: var(--m3c-surface-container-lowest, #fff); font-size: 0.875rem;
+		box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+	}
+
+	fieldset { display: grid; gap: 2rem; border: 0; margin: 0; padding: 0; min-width: 0; }
+	.group { display: grid; gap: 1rem; min-width: 0; }
+	.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+	.field { display: grid; gap: 0.35rem; min-width: 0; }
+
+
+	.photos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+	.file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+	.uploads { padding: 0; margin: 0; list-style: none; display: grid; gap: 0.5rem; }
+	.uploads li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; overflow-wrap: anywhere; padding: 0.5rem 0.75rem; border-radius: var(--m3-shape-medium); background: var(--m3c-surface-container); }
+	.file-name { font-weight: 600; min-width: 0; }
+	.upload-actions { margin-inline-start: auto; display: flex; }
+	.uploads .field-error { flex-basis: 100%; margin: 0; }
+
+	.submit { display: flex; justify-content: flex-end; }
 	.notice.empty { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 	.failure { background: var(--m3c-error-container); color: var(--m3c-on-error-container); }
+
+	@media (max-width: 60rem) {
+		.layout { grid-template-columns: minmax(0, 1fr); }
+		.map { grid-column: 1; grid-row: 1; position: static; height: 14rem; }
+		.form-card { grid-row: 2; }
+	}
+	@media (max-width: 36rem) {
+		.row { grid-template-columns: minmax(0, 1fr); }
+	}
 </style>

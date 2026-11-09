@@ -380,6 +380,11 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
+	for _, privatePath := range []string{"/loki/api/v1/labels", "/foc-loki", "/foc-loki/secret"} {
+		if _, err := o.gatewaySmokeRequest(gateway, privatePath, 404, false); err != nil {
+			return err
+		}
+	}
 	// Unrouted RPCs reach the frontend catchall, whose 404 can contain HTML.
 	// The status proves the RPC is unavailable; its error page format does not.
 	if _, err := o.gatewaySmokeRequest(gateway, keyPath, 404, true); err != nil {

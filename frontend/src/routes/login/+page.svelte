@@ -4,9 +4,22 @@
 	import { page } from '$app/state';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
+	import { defaults, superForm } from 'sveltekit-superforms';
+	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { z } from 'zod';
 	import { authService } from '$lib/services';
 
-	let email = $state('');
+	let sentEmail = $state('');
+	const emailSchema = z.object({ email: z.string().trim().email('Enter a valid email address.') });
+	const { form, errors, enhance } = superForm(defaults(zod4(emailSchema)), {
+		SPA: true,
+		validators: zod4Client(emailSchema),
+		resetForm: false,
+		multipleSubmits: 'prevent',
+		async onUpdate({ form: validated }) {
+			if (validated.valid) await sendLink(validated.data.email);
+		}
+	});
 	let sending = $state(false);
 	let sent = $state(false);
 	let token = $state<string | null>(page.url.searchParams.get('token'));
@@ -59,13 +72,13 @@
 		}
 	}
 
-	async function sendLink(event: SubmitEvent) {
-		event.preventDefault();
+	async function sendLink(email: string) {
 		if (sending) return;
 		sending = true;
 		error = '';
 		try {
-			await authService.requestLink(email.trim());
+			await authService.requestLink(email);
+			sentEmail = email;
 			sent = true;
 		} catch (cause) {
 			error = cause instanceof ConnectError && cause.code === Code.PermissionDenied
@@ -77,10 +90,13 @@
 	}
 </script>
 
+<svelte:head><title>Sign in · Friend on Campus</title></svelte:head>
+
 <section class="center-stage" aria-label="Sign in or create an account">
 	<div class="auth-panel">
 		<Card variant="outlined">
 			<div class="auth-body">
+				<div class="login-brand"><span aria-hidden="true">FoC</span><p>Friend on Campus</p></div>
 				{#if redeeming}
 					<div class="loading-state" role="status" aria-live="polite">
 						<LoadingIndicator aria-label="Signing you in" />
@@ -88,7 +104,7 @@
 					</div>
 				{:else if sent}
 					<h1>Check your email</h1>
-					<p>We sent a sign-in link to {email.trim()}. Open it to continue.</p>
+					<p>We sent a sign-in link to {sentEmail}. Open it to continue.</p>
 					<p>New here? The link will take you through a short profile step.</p>
 					<div class="form-actions">
 						<Button variant="text" onclick={() => (sent = false)}>Use another email</Button>
@@ -104,16 +120,19 @@
 							<Button onclick={() => void redeemLink()}>Retry sign-in link</Button>
 						</div>
 					{/if}
-					<form class="auth-form" onsubmit={sendLink}>
+					<form class="auth-form" method="POST" use:enhance>
 						<TextFieldOutlined
 							label="Email address"
 							type="email"
 							name="email"
 							autocomplete="email"
 							required
-							bind:value={email}
+							bind:value={$form.email}
+							error={!!$errors.email}
+							aria-describedby={$errors.email ? 'login-email-error' : undefined}
 							disabled={!mounted || sending}
 						/>
+						{#if $errors.email}<small id="login-email-error" class="field-error">{$errors.email[0]}</small>{/if}
 						<div class="form-actions">
 							<Button type="submit" disabled={!mounted || sending}>
 								{sending ? 'Sending…' : 'Send me a sign-in link'}
@@ -125,3 +144,8 @@
 		</Card>
 	</div>
 </section>
+
+<style>
+	.login-brand { display: grid; justify-items: center; gap: 0.5rem; padding-block: 0.75rem; }
+	.login-brand span { color: var(--m3c-primary); font-size: 3.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+</style>

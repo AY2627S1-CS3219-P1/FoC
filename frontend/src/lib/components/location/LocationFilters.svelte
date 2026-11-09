@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Button, Checkbox, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
+	import { Button, Checkbox, Icon, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
+	import iconFilter from '@ktibow/iconset-material-symbols/filter-list';
 	import type { Building, Category } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import type {
 		ArchiveView,
@@ -94,26 +95,13 @@
 			variant="text"
 			size="xs"
 			iconType="full"
-			aria-label={advancedOpen ? 'Hide advanced search' : 'Show advanced search'}
+			aria-label={advancedOpen ? 'Hide filters' : 'Show filters'}
 			aria-expanded={advancedOpen}
 			aria-controls={advancedOptionsId}
-			title="Advanced search"
+			title="Filters"
 			onclick={() => (advancedOpen = !advancedOpen)}
 		>
-			<svg
-				class:expanded={advancedOpen}
-				width="20"
-				height="20"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				aria-hidden="true"
-			>
-				<path d="m6 9 6 6 6-6" />
-			</svg>
+			<Icon icon={iconFilter} size={20} />
 		</Button>
 	</div>
 
@@ -174,14 +162,6 @@
 		gap: 0.5rem;
 	}
 
-	svg {
-		transition: transform 150ms ease;
-	}
-
-	.expanded {
-		transform: rotate(180deg);
-	}
-
 	.advanced-options {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
@@ -224,12 +204,6 @@
 		align-items: center;
 		gap: 0.5rem;
 		cursor: pointer;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		svg {
-			transition: none;
-		}
 	}
 
 	@media (max-width: 36rem) {

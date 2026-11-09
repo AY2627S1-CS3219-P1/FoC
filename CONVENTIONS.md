@@ -61,6 +61,16 @@
   `andrew/feat/location-workflows`. Use `fix`, `refactor`, `chore`, or `docs`
   instead of `feat` when appropriate.
 
+## Issues and PRs
+
+- Automatically add the appropriate label(s) when you create an issue or a pull
+  request: the service/domain label (for example `order-service`), the type label
+  (`type.bug`, `type.enhancement`, `type.chore`, `type.documentation`), and any
+  project category label (for example `shared-or-infra`, `ready-for-agent`).
+- Determine the available labels dynamically with `gh label list` instead of
+  relying on a hard-coded label set, so newly added labels stay usable.
+- Link the issue the pull request resolves in its body (for example `Closes #123`).
+
 ## REST handlers
 Shape: `func(r *http.Request, env *deps.Env) (*api.Response, error)`.
 
@@ -130,10 +140,10 @@ All service APIs, for the frontend and between services, are Connect RPCs.
   as an access-token lifecycle concern, not as a page-specific error-recovery
   concern. Do not refresh authentication or clear page state in response to a
   `PermissionDenied` solely to compensate for a role change. Access-token
-  revocation is centralized in Redis: whenever a session is revoked (logout,
-  refresh rotation, logout-all) or a user attribute stored in the token changes
-  (any role change), the User Service records the session in the
-  `revoked_access_tokens:<session_id>` dictionary, and every service's
+  revocation is centralized in a shared PostgreSQL revocation store: whenever a
+  session is revoked (logout, refresh rotation, logout-all) or a user attribute
+  stored in the token changes (any role change), the User Service records the
+  session ID in the `revoked_access_tokens` table, and every service's
   authentication middleware rejects the revoked tokens immediately. The
   frontend only needs its existing behavior: a rejected access token triggers
   the auth interceptor's refresh-and-retry, or the redirect to `/login`.
