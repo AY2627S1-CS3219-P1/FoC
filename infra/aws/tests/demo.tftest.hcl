@@ -158,7 +158,7 @@ run "ses_is_sender_and_user_scoped" {
     error_message = "Only User Service may assume the email role."
   }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Action == ["ses:SendEmail"] && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
+    condition     = jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
     error_message = "SES sending must be restricted to the verified regional sender, without broad permissions."
   }
   assert {

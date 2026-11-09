@@ -368,14 +368,14 @@ Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
 in the Terraform inputs. Review the plan before applying: this adds a dedicated
-User Service IAM role and inline policy permitting only `ses:SendEmail`, scoped
-to that regional identity and `ses:FromAddress`. Trust is restricted to the
-`foc:user-service` ServiceAccount and STS audience. It does not grant email
-permissions to Communication or change Order's S3 permissions. The adapter sends
-raw MIME through SESv2's `SendEmail` operation, not the legacy `SendRawEmail`
-operation. The [SESv2 IAM reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sesv2.html)
-and [Nodemailer's SESv2 policy](https://nodemailer.com/transports/ses#2-minimal-iam-policy)
-document `ses:SendEmail` for this API.
+User Service IAM role and inline policy permitting only `ses:SendEmail` and
+`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Trust
+is restricted to the `foc:user-service` ServiceAccount and STS audience. It does
+not grant email permissions to Communication or change Order's S3 permissions.
+The adapter sends raw MIME through SESv2's `SendEmail` operation. AWS also
+requires `ses:SendRawEmail` for that content: a live workload request with only
+`ses:SendEmail` was rejected with `AccessDeniedException` for `ses:SendRawEmail`.
+The API operation name alone does not establish the required IAM permissions.
 
 After the approved apply, refresh `.local/aws/deployment.json` and rerender the
 overlay. The renderer sets `EMAIL_PROVIDER=ses`, `EMAIL_FROM`, and the User
