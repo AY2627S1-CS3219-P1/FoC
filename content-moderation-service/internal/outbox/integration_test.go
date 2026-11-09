@@ -8,6 +8,7 @@ package outbox_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -315,5 +316,39 @@ func TestConcurrentRelaysDoNotStealLivePublication(t *testing.T) {
 	case <-pub.entered:
 		t.Fatal("live event published twice")
 	default:
+	}
+}
+
+func TestRelayPayloadVersionCompatibility(t *testing.T) {
+	for _, version := range []int{0, 2} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			pool := setup(t)
+			completedJob(t, pool)
+			if _, err := pool.Exec(
+				context.Background(),
+				`UPDATE moderation_outbox SET payload_version=$1`,
+				version,
+			); err != nil {
+				t.Fatal(err)
+			}
+			pub := &fakePublisher{}
+			relay := outbox.NewRelay(
+				pool,
+				pub,
+				outbox.RelayConfig{PollInterval: time.Millisecond, Lease: time.Second},
+				nil,
+			)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() { cancel(); relay.Wait() }()
+			relay.Start(ctx)
+			if version == 0 {
+				waitFor(t, func() bool { return pub.count() == 1 }, time.Second, "legacy v1 payload published")
+			} else {
+				time.Sleep(100 * time.Millisecond)
+				if pub.count() != 0 {
+					t.Fatal("unsupported payload schema published")
+				}
+			}
+		})
 	}
 }

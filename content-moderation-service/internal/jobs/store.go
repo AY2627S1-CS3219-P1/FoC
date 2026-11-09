@@ -239,6 +239,10 @@ func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assess
 	if err := validateAssessment(assessment); err != nil {
 		return err
 	}
+	if assessment.PolicyVersion != c.Config.PolicyVersion || c.Job.PolicyVersion == nil ||
+		assessment.PolicyVersion != *c.Job.PolicyVersion {
+		return WrapConfigurationError(errors.New("assessment policy differs from pinned configuration"))
+	}
 	reasonCodes := reasonCodesFor(assessment.Outcome, assessment.ReasonCodes)
 	outcomeStr := string(assessment.Outcome)
 	finishedAt := time.Now()
@@ -279,7 +283,7 @@ func (s *jobStore) Complete(ctx context.Context, c ClaimedJob, assessment Assess
 		}
 		return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{
 			EventID: eventID, JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration,
-			Payload: payload, AvailableAt: finishedAt,
+			PayloadVersion: 1, Payload: payload, AvailableAt: finishedAt,
 		})
 	})
 }
@@ -375,7 +379,7 @@ func (s *jobStore) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr err
 		}
 		return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{
 			EventID: eventID, JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration,
-			Payload: payload, AvailableAt: finishedAt,
+			PayloadVersion: 1, Payload: payload, AvailableAt: finishedAt,
 		})
 	})
 }
@@ -461,6 +465,11 @@ func exhaustJob(ctx context.Context, q *moderationdb.Queries, job moderationdb.M
 		return err
 	}
 	return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{
-		EventID: eventID, JobID: job.ID, RunGeneration: job.RunGeneration, Payload: payload, AvailableAt: now,
+		EventID:        eventID,
+		JobID:          job.ID,
+		RunGeneration:  job.RunGeneration,
+		PayloadVersion: 1,
+		Payload:        payload,
+		AvailableAt:    now,
 	})
 }

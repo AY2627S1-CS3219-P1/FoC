@@ -255,12 +255,12 @@ func TestReviewModerationIntegration(t *testing.T) {
 
 		rejected := prepare(t, reviewer1, reviewee, "reject me")
 		rejectedEvent := completionEvent(rejected.reviewID, rejected.reviewerID, rejected.requestID,
-			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, []string{"hate"}, 1)
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, []string{"HATE"}, 1)
 		if err := applyCompletion(t, ctx, stack, rejectedEvent); err != nil {
 			t.Fatalf("apply rejection: %v", err)
 		}
 		status, codes, generation := reviewModerationState(t, ctx, stack, rejected.reviewID)
-		if status != string(ModerationRejected) || len(codes) != 1 || codes[0] != "hate" || generation != 1 {
+		if status != string(ModerationRejected) || len(codes) != 1 || codes[0] != "HATE" || generation != 1 {
 			t.Fatalf("rejected state = (%q, %v, %d)", status, codes, generation)
 		}
 
@@ -294,7 +294,7 @@ func TestReviewModerationIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(list.Reviews) != 1 || list.Reviews[0].ModerationStatus != ModerationRejected ||
-			len(list.Reviews[0].ModerationReasonCodes) != 1 || list.Reviews[0].ModerationReasonCodes[0] != "hate" ||
+			len(list.Reviews[0].ModerationReasonCodes) != 1 || list.Reviews[0].ModerationReasonCodes[0] != "HATE" ||
 			list.Reviews[0].ModeratedAt.IsZero() || list.Reviews[0].AppliedRunGeneration != 1 {
 			t.Fatalf("unpublished list = %+v", list.Reviews)
 		}
@@ -315,8 +315,8 @@ func TestReviewModerationIntegration(t *testing.T) {
 		}{
 			{"unspecified", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_UNSPECIFIED, nil},
 			{"rejected without codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, nil},
-			{"approved with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, []string{"hate"}},
-			{"error with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, []string{"hate"}},
+			{"approved with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, []string{"HATE"}},
+			{"error with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, []string{"HATE"}},
 		} {
 			event := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID, tc.outcome, tc.codes, 1)
 			if err := applyCompletion(t, ctx, stack, event); err != nil {
@@ -455,7 +455,7 @@ func TestReviewModerationIntegration(t *testing.T) {
 				rejected.reviewerID,
 				rejected.requestID,
 				moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED,
-				[]string{"spam"},
+				[]string{"SPAM"},
 				1,
 			),
 		); err != nil {

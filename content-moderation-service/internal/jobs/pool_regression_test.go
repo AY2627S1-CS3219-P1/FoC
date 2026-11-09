@@ -62,7 +62,7 @@ func regressionClaim() *ClaimedJob {
 	return &ClaimedJob{
 		Job:        JobSnapshot{ID: uuid.New(), RunGeneration: 1},
 		ClaimToken: uuid.New(),
-		Config:     ConfigurationSnapshot{Parameters: []byte(`{}`)},
+		Config:     ConfigurationSnapshot{Parameters: []byte(`{}`), PolicyVersion: "review-text-v1"},
 	}
 }
 

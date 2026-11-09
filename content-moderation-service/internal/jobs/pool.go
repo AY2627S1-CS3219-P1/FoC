@@ -13,13 +13,14 @@ import (
 
 // PoolConfig holds the tunable behaviour of the worker pool.
 type PoolConfig struct {
-	Concurrency       int
-	Lease             time.Duration
-	HeartbeatInterval time.Duration
-	PollInterval      time.Duration
-	LLMRequestTimeout time.Duration
-	Policy            Policy
-	CleanupTimeout    time.Duration
+	Concurrency        int
+	Lease              time.Duration
+	HeartbeatInterval  time.Duration
+	PollInterval       time.Duration
+	LLMRequestTimeout  time.Duration
+	Policy             Policy
+	CleanupTimeout     time.Duration
+	PersistenceTimeout time.Duration
 }
 
 // Pool is a bounded, per-process worker pool. It claims eligible jobs, runs one
@@ -99,6 +100,18 @@ func (p *Pool) release(ctx context.Context, claimed *ClaimedJob) {
 	}
 }
 
+// persistenceContext bounds each database phase independently of inference.
+func (p *Pool) persistenceContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeout := p.cfg.PersistenceTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	if p.cfg.Lease > 0 && timeout > p.cfg.Lease/2 {
+		timeout = p.cfg.Lease / 2
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
 // worker is one loop: claim, process, repeat. It never returns until ctx ends.
 func (p *Pool) worker(ctx context.Context, workerID string) {
 	for {
@@ -110,7 +123,9 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 			return
 		}
 
-		outcome, claimed, err := p.store.Claim(ctx, workerID, p.cfg.Lease)
+		claimCtx, cancelClaim := p.persistenceContext(ctx)
+		outcome, claimed, err := p.store.Claim(claimCtx, workerID, p.cfg.Lease)
+		cancelClaim()
 		if err != nil {
 			p.limiter.Release()
 			if ctx.Err() != nil {
@@ -143,7 +158,15 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	evalCtx, cancelEval := context.WithTimeout(ctx, p.cfg.LLMRequestTimeout)
 	defer cancelEval()
 	// Validate ownership immediately before inference, including delayed callers.
-	ok, err := p.store.Heartbeat(evalCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), time.Now().Add(p.cfg.Lease))
+	heartbeatCtx, cancelHeartbeat := p.persistenceContext(evalCtx)
+	ok, err := p.store.Heartbeat(
+		heartbeatCtx,
+		claimed.Job.ID,
+		claimed.ClaimToken,
+		time.Now(),
+		time.Now().Add(p.cfg.Lease),
+	)
+	cancelHeartbeat()
 	if err != nil || !ok {
 		p.release(ctx, claimed)
 		return
@@ -188,7 +211,17 @@ func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment Ass
 		p.finalizeFailed(ctx, claimed, err)
 		return
 	}
-	if err := p.store.Complete(ctx, *claimed, assessment); err != nil {
+	if assessment.PolicyVersion != claimed.Config.PolicyVersion {
+		p.finalizeFailed(
+			ctx,
+			claimed,
+			WrapConfigurationError(errors.New("assessment policy differs from pinned configuration")),
+		)
+		return
+	}
+	writeCtx, cancelWrite := p.persistenceContext(ctx)
+	defer cancelWrite()
+	if err := p.store.Complete(writeCtx, *claimed, assessment); err != nil {
 		if errors.Is(err, ErrFenced) {
 			p.logger.Warn("job completed by another worker", "job", claimed.Job.ID.String())
 			return
@@ -215,7 +248,9 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		p.release(ctx, claimed)
 		return
 	}
-	if err := p.store.FinalizeFailed(ctx, *claimed, evalErr); err != nil {
+	writeCtx, cancelWrite := p.persistenceContext(ctx)
+	defer cancelWrite()
+	if err := p.store.FinalizeFailed(writeCtx, *claimed, evalErr); err != nil {
 		p.logger.Error("finalize failed attempt", "error", err, "job", claimed.Job.ID.String())
 		p.release(ctx, claimed)
 		return
@@ -257,7 +292,9 @@ func (p *Pool) heartbeat(
 				return
 			case <-ticker.C:
 				leaseUntil := time.Now().Add(p.cfg.Lease)
-				ok, err := p.store.Heartbeat(heartbeatCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), leaseUntil)
+				callCtx, cancelCall := p.persistenceContext(heartbeatCtx)
+				ok, err := p.store.Heartbeat(callCtx, claimed.Job.ID, claimed.ClaimToken, time.Now(), leaseUntil)
+				cancelCall()
 				if err != nil || !ok {
 					if heartbeatCtx.Err() != nil {
 						return

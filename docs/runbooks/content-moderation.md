@@ -195,3 +195,21 @@ seconds; database contention falls back to lease recovery. Relays honor their
 configured lease and bound broker publication by its expiry. Delivery remains
 at least once after expiry or an ambiguous broker response; consumers deduplicate
 using the original event ID.
+
+## Persistence deadlines and completion contracts
+
+Worker database phases have a five-second deadline, capped at half the job
+lease for short leases. Claiming, ownership checks, heartbeats and finalization
+therefore return capacity when database access stalls. Failed finalization uses
+the existing bounded release path; lease recovery remains the fallback.
+
+Completion policy must match the immutable configuration and claim policy.
+A mismatched assessment pauses the configuration instead of publishing a
+mislabelled result. User validates rejection reasons against the known uppercase
+codes, rejects duplicates and limits the list to five before touching dedup or
+publication state. Invalid completions are logged and acknowledged without
+applying; a corrected event can still use its unconsumed identity.
+
+All terminal CMS outbox paths write payload version 1. The relay also accepts
+legacy version 0 rows produced by earlier binaries with the identical v1 schema;
+other versions are logged and left unpublished for operator repair.

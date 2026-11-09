@@ -193,8 +193,20 @@ func moderationCompletionFromEvent(
 		}
 		completion.Status = ModerationApproved
 	case moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED:
-		if len(completion.ReasonCodes) == 0 {
+		if len(completion.ReasonCodes) == 0 || len(completion.ReasonCodes) > 5 {
 			return ModerationCompletion{}, false
+		}
+		seen := make(map[string]bool)
+		for _, code := range completion.ReasonCodes {
+			switch code {
+			case "HARASSMENT", "HATE", "THREAT", "SEXUAL_CONTENT", "SPAM":
+			default:
+				return ModerationCompletion{}, false
+			}
+			if seen[code] {
+				return ModerationCompletion{}, false
+			}
+			seen[code] = true
 		}
 		completion.Status = ModerationRejected
 	case moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR:

@@ -179,7 +179,7 @@ func TestCompletionHandlerAppliesApprovedOutcome(t *testing.T) {
 func TestCompletionHandlerAppliesRejectedOutcome(t *testing.T) {
 	event := finishedEvent(func(e *moderationeventsv1.ReviewModerationFinished) {
 		e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
-		e.ReasonCodes = []string{"hate", "harassment"}
+		e.ReasonCodes = []string{"HATE", "HARASSMENT"}
 	})
 	store := &fakeModerationStore{target: pendingTarget(event)}
 	handler := newTestCompletionHandler(store)
@@ -315,11 +315,11 @@ func TestCompletionHandlerRejectsInvalidEventsWithoutTouchingTheStore(t *testing
 			e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
 		}},
 		{"approved with reason codes", func(e *moderationeventsv1.ReviewModerationFinished) {
-			e.ReasonCodes = []string{"hate"}
+			e.ReasonCodes = []string{"HATE"}
 		}},
 		{"error with reason codes", func(e *moderationeventsv1.ReviewModerationFinished) {
 			e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
-			e.ReasonCodes = []string{"hate"}
+			e.ReasonCodes = []string{"HATE"}
 		}},
 		{"invalid event id", func(e *moderationeventsv1.ReviewModerationFinished) {
 			e.EventId = "not-a-uuid"

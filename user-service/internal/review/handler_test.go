@@ -314,7 +314,7 @@ func TestListUnpublishedReviewsRPC(t *testing.T) {
 			ModerationStatus:      ModerationRejected,
 			ModerationRequestID:   uuid.New(),
 			ContentRevision:       1,
-			ModerationReasonCodes: []string{"hate"},
+			ModerationReasonCodes: []string{"HATE"},
 			ModeratedAt:           time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC),
 		}},
 		PageInfo: pagination.NewPageInfo(1, 20, 1),
@@ -351,7 +351,7 @@ func TestListUnpublishedReviewsRPC(t *testing.T) {
 		if got.GetModerationStatus() != reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED ||
 			got.GetModerationRequestId() != unpublished.Reviews[0].ModerationRequestID.String() ||
 			got.GetContentRevision() != 1 ||
-			len(got.GetModerationReasonCodes()) != 1 || got.GetModerationReasonCodes()[0] != "hate" ||
+			len(got.GetModerationReasonCodes()) != 1 || got.GetModerationReasonCodes()[0] != "HATE" ||
 			!got.GetModeratedAt().AsTime().Equal(unpublished.Reviews[0].ModeratedAt) {
 			t.Fatalf("unpublished review not mapped: %+v", got)
 		}

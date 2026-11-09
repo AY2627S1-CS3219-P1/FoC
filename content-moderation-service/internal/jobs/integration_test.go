@@ -132,6 +132,16 @@ func countQuarantined(t *testing.T, pool *pgxpool.Pool) int {
 
 func countOutbox(t *testing.T, pool *pgxpool.Pool, jobID uuid.UUID, generation int32) int {
 	t.Helper()
+	if bad := countWhere(
+		t,
+		pool,
+		`SELECT count(*) FROM moderation_outbox WHERE job_id=$1 AND run_generation=$2 AND payload_version<>1`,
+		jobID,
+		generation,
+	); bad != 0 {
+		t.Fatal("terminal event has unsupported payload version")
+	}
+
 	return countWhere(t, pool,
 		`SELECT count(*) FROM moderation_outbox WHERE job_id = $1 AND run_generation = $2`,
 		jobID, generation)
