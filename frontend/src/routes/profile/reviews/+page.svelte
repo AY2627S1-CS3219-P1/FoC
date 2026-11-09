@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page as appPage } from '$app/state';
+	import { replaceState } from '$app/navigation';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService, reviewApi } from '$lib/services';
 	import type { ReviewRecord } from '$lib/services/review/reviewApi';
@@ -39,19 +41,27 @@
 		}
 	}
 
+	// The URL owns the page so refresh/back/forward land on the same one.
+	const pageParam = $derived(Math.max(1, Number(appPage.url.searchParams.get('page') ?? '1') || 1));
+
 	$effect(() => {
 		const reviewer = authService.user?.id;
+		const target = pageParam;
 		if (!reviewer) return;
-		reviews = null;
-		currentPage = 1;
-		totalPages = 0;
-		void load(1);
+		void load(target);
 	});
+
+	function goToPage(next: number) {
+		const url = new URL(appPage.url);
+		url.searchParams.set('page', String(next));
+		replaceState(url, {});
+		document.getElementById('reviews-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
 </script>
 
 <svelte:head><title>Your reviews · Friend on Campus</title></svelte:head>
 
-<section class="reviews-page" aria-labelledby="reviews-title">
+<section class="reviews-page" id="reviews-top" aria-labelledby="reviews-title">
 	<div class="top">
 		<Button variant="text" href="/profile">Back to profile</Button>
 	</div>
@@ -77,14 +87,14 @@
 						<ReceivedReview {review} />
 					{/each}
 				</ul>
-				<Pagination page={currentPage} {totalPages} {loading} onchange={load} />
+				<Pagination page={currentPage} {totalPages} {loading} onchange={goToPage} />
 			{/if}
 		</div>
 	</Card>
 </section>
 
 <style>
-	.reviews-page { display: grid; gap: 1rem; max-width: 48rem; margin: 0 auto; }
+	.reviews-page { display: grid; gap: 1rem; max-width: 48rem; margin: 0 auto; scroll-margin-top: 1rem; }
 	.top { display: flex; justify-content: space-between; gap: 0.5rem; }
 	.head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 	h1 { margin: 0; font-size: 1.35rem; }
