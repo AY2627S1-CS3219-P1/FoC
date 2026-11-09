@@ -65,6 +65,8 @@ type InsertReviewParams struct {
 	Comment    string
 }
 
+// InsertReview inserts the review and recomputes the reviewee's stats in the
+// same transaction, so the stats are current when it returns.
 func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) error {
 	_, err := q.db.ExecContext(ctx, insertReview,
 		arg.ID,
@@ -79,9 +81,11 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
-       creator.display_name AS created_by_name
+       creator.display_name AS created_by_name,
+       CASE WHEN creator.id IS NULL THEN true ELSE false END AS created_by_deleted
 FROM review_removals rr
-JOIN users creator ON creator.id = rr.created_by
+LEFT JOIN users creator
+    ON creator.id = rr.created_by AND creator.deleted_at IS NULL
 ORDER BY rr.created_at DESC, rr.id DESC
 LIMIT $2::bigint OFFSET $1::bigint
 `
@@ -92,17 +96,19 @@ type ListReviewRemovalsParams struct {
 }
 
 type ListReviewRemovalsRow struct {
-	ID            uuid.UUID
-	ReviewID      uuid.UUID
-	ReviewerID    uuid.UUID
-	RevieweeID    uuid.UUID
-	OrderID       uuid.UUID
-	Reason        string
-	CreatedAt     time.Time
-	CreatedBy     uuid.UUID
-	CreatedByName string
+	ID               uuid.UUID
+	ReviewID         uuid.UUID
+	ReviewerID       uuid.NullUUID
+	RevieweeID       uuid.NullUUID
+	OrderID          uuid.UUID
+	Reason           string
+	CreatedAt        time.Time
+	CreatedBy        uuid.NullUUID
+	CreatedByName    sql.NullString
+	CreatedByDeleted bool
 }
 
+// Retained removals page with their cleared author flagged when gone.
 func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovalsParams) ([]ListReviewRemovalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewRemovals, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -122,6 +128,7 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.CreatedByName,
+			&i.CreatedByDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -139,10 +146,14 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 const listReviewsForUser = `-- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
-       reviewee.display_name AS reviewee_name
+       reviewee.display_name AS reviewee_name,
+       CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
+       CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-JOIN users reviewer ON reviewer.id = r.reviewer_id
-JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL
 WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -155,18 +166,24 @@ type ListReviewsForUserParams struct {
 }
 
 type ListReviewsForUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID              uuid.UUID
+	DeletedAt       sql.NullTime
+	ReviewerID      uuid.NullUUID
+	RevieweeID      uuid.NullUUID
+	OrderID         uuid.UUID
+	Rating          int32
+	Comment         string
+	CreatedAt       time.Time
+	ReviewerName    sql.NullString
+	RevieweeName    sql.NullString
+	ReviewerDeleted bool
+	RevieweeDeleted bool
 }
 
+// Retained reviews still page, count and paginate consistently whether or not
+// the participants survive. The LEFT JOINs clear the display name and flag the
+// participant as deleted once its row is gone. A participant is live only if
+// the row exists AND deleted_at IS NULL.
 func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]ListReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsForUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -187,6 +204,8 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 			&i.CreatedAt,
 			&i.ReviewerName,
 			&i.RevieweeName,
+			&i.ReviewerDeleted,
+			&i.RevieweeDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -204,10 +223,14 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
-       reviewee.display_name AS reviewee_name
+       reviewee.display_name AS reviewee_name,
+       CASE WHEN reviewer.id IS NULL THEN true ELSE false END AS reviewer_deleted,
+       CASE WHEN reviewee.id IS NULL THEN true ELSE false END AS reviewee_deleted
 FROM reviews r
-JOIN users reviewer ON reviewer.id = r.reviewer_id
-JOIN users reviewee ON reviewee.id = r.reviewee_id
+LEFT JOIN users reviewer
+    ON reviewer.id = r.reviewer_id AND reviewer.deleted_at IS NULL
+LEFT JOIN users reviewee
+    ON reviewee.id = r.reviewee_id AND reviewee.deleted_at IS NULL
 WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
@@ -220,16 +243,18 @@ type ListReviewsFromUserParams struct {
 }
 
 type ListReviewsFromUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID              uuid.UUID
+	DeletedAt       sql.NullTime
+	ReviewerID      uuid.NullUUID
+	RevieweeID      uuid.NullUUID
+	OrderID         uuid.UUID
+	Rating          int32
+	Comment         string
+	CreatedAt       time.Time
+	ReviewerName    sql.NullString
+	RevieweeName    sql.NullString
+	ReviewerDeleted bool
+	RevieweeDeleted bool
 }
 
 func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
@@ -252,6 +277,8 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.CreatedAt,
 			&i.ReviewerName,
 			&i.RevieweeName,
+			&i.ReviewerDeleted,
+			&i.RevieweeDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -289,8 +316,8 @@ VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
 type RecordReviewRemovalParams struct {
 	ID         uuid.UUID
 	ReviewID   uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
+	ReviewerID uuid.NullUUID
+	RevieweeID uuid.NullUUID
 	OrderID    uuid.UUID
 	Reason     string
 	CreatedBy  uuid.UUID
@@ -311,11 +338,11 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
-           SELECT 1 FROM users WHERE id = $1::UUID
-       ) AS reviewer_exists,
-       EXISTS (
-           SELECT 1 FROM users WHERE id = $2::UUID
-       ) AS reviewee_exists
+            SELECT 1 FROM users WHERE id = $1::UUID AND deleted_at IS NULL
+        ) AS reviewer_exists,
+        EXISTS (
+            SELECT 1 FROM users WHERE id = $2::UUID AND deleted_at IS NULL
+        ) AS reviewee_exists
 `
 
 type ReviewParticipantsExistParams struct {
@@ -346,6 +373,8 @@ type RevieweeStatisticsRow struct {
 	SumRating   int64
 }
 
+// Ratings recalc from retained, non-removed reviews regardless of whether the
+// reviewer still has an account; aggregation uses review rows alone.
 func (q *Queries) RevieweeStatistics(ctx context.Context, revieweeID uuid.UUID) (RevieweeStatisticsRow, error) {
 	row := q.db.QueryRowContext(ctx, revieweeStatistics, revieweeID)
 	var i RevieweeStatisticsRow

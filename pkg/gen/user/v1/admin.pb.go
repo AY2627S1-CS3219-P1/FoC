@@ -574,6 +574,86 @@ func (x *ChangeUserRoleResponse) GetUser() *UserSummary {
 	return nil
 }
 
+type DeleteUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserRequest) Reset() {
+	*x = DeleteUserRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserRequest) ProtoMessage() {}
+
+func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *DeleteUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type DeleteUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserResponse) Reset() {
+	*x = DeleteUserResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserResponse) ProtoMessage() {}
+
+func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{13}
+}
+
 var File_user_v1_admin_proto protoreflect.FileDescriptor
 
 const file_user_v1_admin_proto_rawDesc = "" +
@@ -605,10 +685,15 @@ const file_user_v1_admin_proto_rawDesc = "" +
 	"\ato_role\x18\x02 \x01(\x0e2\x11.user.v1.UserRoleR\x06toRole\x12 \n" +
 	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\"B\n" +
 	"\x16ChangeUserRoleResponse\x12(\n" +
-	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user2\xbc\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"6\n" +
+	"\x11DeleteUserRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\"\x14\n" +
+	"\x12DeleteUserResponse2\x85\x02\n" +
 	"\x10UserAdminService\x12S\n" +
 	"\x0eGetUserByEmail\x12\x1e.user.v1.GetUserByEmailRequest\x1a\x1f.user.v1.GetUserByEmailResponse\"\x00\x12S\n" +
-	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x002\xac\x02\n" +
+	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x00\x12G\n" +
+	"\n" +
+	"DeleteUser\x12\x1a.user.v1.DeleteUserRequest\x1a\x1b.user.v1.DeleteUserResponse\"\x002\xac\x02\n" +
 	"\x19AllowedDomainAdminService\x12_\n" +
 	"\x12ListAllowedDomains\x12\".user.v1.ListAllowedDomainsRequest\x1a#.user.v1.ListAllowedDomainsResponse\"\x00\x12J\n" +
 	"\vAllowDomain\x12\x1b.user.v1.AllowDomainRequest\x1a\x1c.user.v1.AllowDomainResponse\"\x00\x12b\n" +
@@ -628,7 +713,7 @@ func file_user_v1_admin_proto_rawDescGZIP() []byte {
 	return file_user_v1_admin_proto_rawDescData
 }
 
-var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_user_v1_admin_proto_goTypes = []any{
 	(*AllowedDomain)(nil),               // 0: user.v1.AllowedDomain
 	(*ListAllowedDomainsRequest)(nil),   // 1: user.v1.ListAllowedDomainsRequest
@@ -642,26 +727,30 @@ var file_user_v1_admin_proto_goTypes = []any{
 	(*GetUserByEmailResponse)(nil),      // 9: user.v1.GetUserByEmailResponse
 	(*ChangeUserRoleRequest)(nil),       // 10: user.v1.ChangeUserRoleRequest
 	(*ChangeUserRoleResponse)(nil),      // 11: user.v1.ChangeUserRoleResponse
-	(UserRole)(0),                       // 12: user.v1.UserRole
+	(*DeleteUserRequest)(nil),           // 12: user.v1.DeleteUserRequest
+	(*DeleteUserResponse)(nil),          // 13: user.v1.DeleteUserResponse
+	(UserRole)(0),                       // 14: user.v1.UserRole
 }
 var file_user_v1_admin_proto_depIdxs = []int32{
 	0,  // 0: user.v1.ListAllowedDomainsResponse.allowed_domains:type_name -> user.v1.AllowedDomain
-	12, // 1: user.v1.UserSummary.role:type_name -> user.v1.UserRole
+	14, // 1: user.v1.UserSummary.role:type_name -> user.v1.UserRole
 	7,  // 2: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.UserSummary
-	12, // 3: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
+	14, // 3: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
 	7,  // 4: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.UserSummary
 	8,  // 5: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
 	10, // 6: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
-	1,  // 7: user.v1.AllowedDomainAdminService.ListAllowedDomains:input_type -> user.v1.ListAllowedDomainsRequest
-	3,  // 8: user.v1.AllowedDomainAdminService.AllowDomain:input_type -> user.v1.AllowDomainRequest
-	5,  // 9: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:input_type -> user.v1.RemoveAllowedDomainRequest
-	9,  // 10: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
-	11, // 11: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
-	2,  // 12: user.v1.AllowedDomainAdminService.ListAllowedDomains:output_type -> user.v1.ListAllowedDomainsResponse
-	4,  // 13: user.v1.AllowedDomainAdminService.AllowDomain:output_type -> user.v1.AllowDomainResponse
-	6,  // 14: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:output_type -> user.v1.RemoveAllowedDomainResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
+	12, // 7: user.v1.UserAdminService.DeleteUser:input_type -> user.v1.DeleteUserRequest
+	1,  // 8: user.v1.AllowedDomainAdminService.ListAllowedDomains:input_type -> user.v1.ListAllowedDomainsRequest
+	3,  // 9: user.v1.AllowedDomainAdminService.AllowDomain:input_type -> user.v1.AllowDomainRequest
+	5,  // 10: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:input_type -> user.v1.RemoveAllowedDomainRequest
+	9,  // 11: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
+	11, // 12: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
+	13, // 13: user.v1.UserAdminService.DeleteUser:output_type -> user.v1.DeleteUserResponse
+	2,  // 14: user.v1.AllowedDomainAdminService.ListAllowedDomains:output_type -> user.v1.ListAllowedDomainsResponse
+	4,  // 15: user.v1.AllowedDomainAdminService.AllowDomain:output_type -> user.v1.AllowDomainResponse
+	6,  // 16: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:output_type -> user.v1.RemoveAllowedDomainResponse
+	11, // [11:17] is the sub-list for method output_type
+	5,  // [5:11] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -679,7 +768,7 @@ func file_user_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_admin_proto_rawDesc), len(file_user_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

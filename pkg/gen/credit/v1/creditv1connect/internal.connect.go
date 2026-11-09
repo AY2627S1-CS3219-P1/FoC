@@ -40,8 +40,8 @@ const (
 
 // CreditInternalServiceClient is a client for the credit.v1.CreditInternalService service.
 type CreditInternalServiceClient interface {
-	// Read-only outstanding-work check for account deletion finalization. The
-	// User Service deletion worker calls this with its service identity. It
+	// Read-only prerequisite for synchronous admin account deletion. User Service
+	// calls this through the private listener. It
 	// never mutates state or opens an account; a nonexistent Credit account is
 	// not outstanding. Timeouts and errors count as unknown, never as empty.
 	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)
@@ -80,8 +80,8 @@ func (c *creditInternalServiceClient) GetUserOutstandingWork(ctx context.Context
 
 // CreditInternalServiceHandler is an implementation of the credit.v1.CreditInternalService service.
 type CreditInternalServiceHandler interface {
-	// Read-only outstanding-work check for account deletion finalization. The
-	// User Service deletion worker calls this with its service identity. It
+	// Read-only prerequisite for synchronous admin account deletion. User Service
+	// calls this through the private listener. It
 	// never mutates state or opens an account; a nonexistent Credit account is
 	// not outstanding. Timeouts and errors count as unknown, never as empty.
 	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)

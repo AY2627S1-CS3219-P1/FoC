@@ -44,11 +44,9 @@ const (
 // OrderInternalServiceClient is a client for the order.v1.OrderInternalService service.
 type OrderInternalServiceClient interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
-	// Read-only outstanding-work check for account deletion finalization. The
-	// User Service deletion worker calls this with its service identity. It
-	// never mutates state, reserves the user or installs any gate; the User
-	// Service worker postpones finalization while the result is outstanding or
-	// unknown. Timeouts and errors count as unknown, never as empty.
+	// Read-only prerequisite for synchronous admin account deletion. User Service
+	// calls this through the private listener. It never mutates state or reserves
+	// the user. Timeouts and errors are unknown work and abort the deletion attempt.
 	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)
 }
 
@@ -99,11 +97,9 @@ func (c *orderInternalServiceClient) GetUserOutstandingWork(ctx context.Context,
 // OrderInternalServiceHandler is an implementation of the order.v1.OrderInternalService service.
 type OrderInternalServiceHandler interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
-	// Read-only outstanding-work check for account deletion finalization. The
-	// User Service deletion worker calls this with its service identity. It
-	// never mutates state, reserves the user or installs any gate; the User
-	// Service worker postpones finalization while the result is outstanding or
-	// unknown. Timeouts and errors count as unknown, never as empty.
+	// Read-only prerequisite for synchronous admin account deletion. User Service
+	// calls this through the private listener. It never mutates state or reserves
+	// the user. Timeouts and errors are unknown work and abort the deletion attempt.
 	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)
 }
 

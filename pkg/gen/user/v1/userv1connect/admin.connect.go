@@ -42,6 +42,9 @@ const (
 	// UserAdminServiceChangeUserRoleProcedure is the fully-qualified name of the UserAdminService's
 	// ChangeUserRole RPC.
 	UserAdminServiceChangeUserRoleProcedure = "/user.v1.UserAdminService/ChangeUserRole"
+	// UserAdminServiceDeleteUserProcedure is the fully-qualified name of the UserAdminService's
+	// DeleteUser RPC.
+	UserAdminServiceDeleteUserProcedure = "/user.v1.UserAdminService/DeleteUser"
 	// AllowedDomainAdminServiceListAllowedDomainsProcedure is the fully-qualified name of the
 	// AllowedDomainAdminService's ListAllowedDomains RPC.
 	AllowedDomainAdminServiceListAllowedDomainsProcedure = "/user.v1.AllowedDomainAdminService/ListAllowedDomains"
@@ -57,6 +60,9 @@ const (
 type UserAdminServiceClient interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	// Admin-only synchronous hard delete. Outstanding work or an unavailable
+	// prerequisite aborts the operation. Retained contributions survive.
+	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
 }
 
 // NewUserAdminServiceClient constructs a client for the user.v1.UserAdminService service. By
@@ -82,6 +88,12 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteUser: connect.NewClient[v1.DeleteUserRequest, v1.DeleteUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceDeleteUserProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("DeleteUser")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -89,6 +101,7 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 type userAdminServiceClient struct {
 	getUserByEmail *connect.Client[v1.GetUserByEmailRequest, v1.GetUserByEmailResponse]
 	changeUserRole *connect.Client[v1.ChangeUserRoleRequest, v1.ChangeUserRoleResponse]
+	deleteUser     *connect.Client[v1.DeleteUserRequest, v1.DeleteUserResponse]
 }
 
 // GetUserByEmail calls user.v1.UserAdminService.GetUserByEmail.
@@ -101,10 +114,18 @@ func (c *userAdminServiceClient) ChangeUserRole(ctx context.Context, req *connec
 	return c.changeUserRole.CallUnary(ctx, req)
 }
 
+// DeleteUser calls user.v1.UserAdminService.DeleteUser.
+func (c *userAdminServiceClient) DeleteUser(ctx context.Context, req *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
+	return c.deleteUser.CallUnary(ctx, req)
+}
+
 // UserAdminServiceHandler is an implementation of the user.v1.UserAdminService service.
 type UserAdminServiceHandler interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	// Admin-only synchronous hard delete. Outstanding work or an unavailable
+	// prerequisite aborts the operation. Retained contributions survive.
+	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
 }
 
 // NewUserAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -126,12 +147,20 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 		connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userAdminServiceDeleteUserHandler := connect.NewUnaryHandler(
+		UserAdminServiceDeleteUserProcedure,
+		svc.DeleteUser,
+		connect.WithSchema(userAdminServiceMethods.ByName("DeleteUser")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.UserAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserAdminServiceGetUserByEmailProcedure:
 			userAdminServiceGetUserByEmailHandler.ServeHTTP(w, r)
 		case UserAdminServiceChangeUserRoleProcedure:
 			userAdminServiceChangeUserRoleHandler.ServeHTTP(w, r)
+		case UserAdminServiceDeleteUserProcedure:
+			userAdminServiceDeleteUserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -147,6 +176,10 @@ func (UnimplementedUserAdminServiceHandler) GetUserByEmail(context.Context, *con
 
 func (UnimplementedUserAdminServiceHandler) ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.ChangeUserRole is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.DeleteUser is not implemented"))
 }
 
 // AllowedDomainAdminServiceClient is a client for the user.v1.AllowedDomainAdminService service.

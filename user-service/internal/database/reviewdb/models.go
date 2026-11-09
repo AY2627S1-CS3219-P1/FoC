@@ -14,8 +14,8 @@ import (
 type Review struct {
 	ID         uuid.UUID
 	DeletedAt  sql.NullTime
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
+	ReviewerID uuid.NullUUID
+	RevieweeID uuid.NullUUID
 	OrderID    uuid.UUID
 	Rating     int32
 	Comment    string
