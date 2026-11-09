@@ -23,12 +23,42 @@
 	}
 
 	async function copyOrderId(requestId: string): Promise<void> {
+		// Prefer the async Clipboard API; fall back to a hidden selection for
+		// browsers without clipboard permission. Both copy the full, unmasked
+		// order ID — the masked value shown on the card cannot be copied back.
+		if (await copyWithFallback(requestId)) {
+			snackbarService.show('Order ID copied to clipboard', { severity: 'success' });
+			return;
+		}
+		// Last resort: surface the complete ID once. Selecting the masked
+		// display would not reproduce the real value, so show it here to copy.
+		snackbarService.show(`Copy this order ID: ${requestId}`, { severity: 'error', timeout: 10000 });
+	}
+
+	// A clipboard write can be denied (permission, insecure context…). When it
+	// is, fall back to a temporary off-screen selection + execCommand, which
+	// still copies the full order ID instead of the masked display.
+	async function copyWithFallback(requestId: string): Promise<boolean> {
 		try {
 			await navigator.clipboard.writeText(requestId);
-			snackbarService.show('Order ID copied to clipboard', { severity: 'success' });
+			return true;
 		} catch {
-			snackbarService.show('We could not copy the order ID. Select it and copy it manually.', { severity: 'error', timeout: 8000 });
+			// Fall through to the execCommand fallback below.
 		}
+		const textarea = document.createElement('textarea');
+		textarea.value = requestId;
+		textarea.setAttribute('readonly', '');
+		textarea.style.position = 'fixed';
+		textarea.style.top = '-1000px';
+		document.body.appendChild(textarea);
+		textarea.select();
+		let copied = false;
+		try {
+			copied = document.execCommand('copy');
+		} finally {
+			document.body.removeChild(textarea);
+		}
+		return copied;
 	}
 
 	async function loadWarnings(requestedPage = page) {
@@ -99,19 +129,19 @@
 							<dt>Order ID</dt>
 							<dd class="order-id-value">
 								<span class="order-id-masked">{formatOrderId(warning.requestId)}</span>
-								<span class="copy-btn">
-									<Button
-										variant="text"
-										iconType="full"
-										square
-										size="xs"
-										aria-label="Copy order ID"
-										title="Copy order ID"
-										onclick={() => void copyOrderId(warning.requestId)}
-									>
-										<Icon icon={iconCopy} size={16} aria-hidden="true" />
-									</Button>
-								</span>
+								<!-- App-owned icon button. The m3 Button's smallest size is
+									32px (its `--m3-density` is a build-time macro with no
+									override), which would blow the ~20px row height. Styling
+									stays on this owned markup; it never reaches into m3's internal DOM. -->
+								<button
+									type="button"
+									class="copy-btn"
+									aria-label="Copy order ID"
+									title="Copy order ID"
+									onclick={() => void copyOrderId(warning.requestId)}
+								>
+									<Icon icon={iconCopy} size={16} aria-hidden="true" />
+								</button>
 							</dd>
 						</div>
 						<div><dt>Issued</dt><dd>{dateFormat.format(warning.createdAt)}</dd></div>
@@ -190,27 +220,21 @@
 		font-family: var(--m3-font-mono);
 		font-variant-numeric: tabular-nums;
 	}
-	/* Compact copy control: sized to match the Issued row (~20px) rather than the
-	   full `xs` button box (32px). The span is the tappable control; the m3
-	   button inside fills it with a transparent text-variant surface so the
-	   container-state hover/active overlays show through. Local scoping works
-	   here because `.copy-btn` is a real element in this markup. */
+	/* App-owned icon button. Sized to match the Issued row (~20px) rather than
+	   the m3 Button's fixed 32px box. All styling is on this owned markup/CSS;
+	   nothing selects the m3 component's internal DOM (convention). */
 	.order-id-value .copy-btn {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		width: 1.25rem;
 		height: 1.25rem;
-		border-radius: var(--m3-shape-small);
-	}
-	/* :global is required here: Svelte's scoped CSS drops selectors that don't
-	   match an element in this component's own template, and the <button> is
-	   rendered by the child m3 Button component, not here. */
-	:global(.order-id-value .copy-btn > button) {
-		width: 100% !important;
-		height: 1.25rem !important;
-		min-height: 0 !important;
 		padding: 0;
+		border: none;
+		border-radius: var(--m3-shape-small);
+		background-color: transparent;
+		color: inherit;
+		cursor: pointer;
 	}
 	.order-id-value .copy-btn:hover {
 		background-color: --translucent(var(--m3c-on-surface), 0.04);
