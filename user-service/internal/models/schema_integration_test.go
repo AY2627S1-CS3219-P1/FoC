@@ -325,6 +325,119 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("user_reports: one target, lifecycle, responses and report links", func(t *testing.T) {
+		reviewID := uuid.New()
+		if err := db.Exec(
+			"INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment) VALUES (?, ?, ?, ?, 2, 'bad')",
+			reviewID,
+			admin.ID,
+			alice.ID,
+			uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		insert := func(subject uuid.UUID, review, order *uuid.UUID) (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO user_reports (id, reporter_id, subject_id, review_id, order_id, category, description)
+				 VALUES (?, ?, ?, ?, ?, 'other', 'details')`,
+				id, alice.ID, subject, review, order,
+			).Error
+			return id, err
+		}
+		orderID := uuid.New()
+
+		if _, err := insert(admin.ID, nil, nil); err == nil {
+			t.Fatal("expected a report without a target to fail")
+		}
+		if _, err := insert(admin.ID, &reviewID, &orderID); err == nil {
+			t.Fatal("expected a report with both targets to fail")
+		}
+		if _, err := insert(alice.ID, nil, &orderID); err == nil {
+			t.Fatal("expected a self-report to fail")
+		}
+		missingReview := uuid.New()
+		if _, err := insert(admin.ID, &missingReview, nil); err == nil {
+			t.Fatal("expected a missing review to fail")
+		}
+
+		reviewReport, err := insert(admin.ID, &reviewID, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insert(admin.ID, &reviewID, nil); err == nil {
+			t.Fatal("expected a second open report on the review to fail")
+		}
+		if _, err := insert(admin.ID, nil, &orderID); err != nil {
+			t.Fatalf("order report: %v", err)
+		}
+
+		if err := db.Exec(
+			"UPDATE user_reports SET status = 'awaiting_response' WHERE id = ?", reviewReport,
+		).Error; err != nil {
+			t.Fatalf("move to awaiting response: %v", err)
+		}
+		if err := db.Exec(
+			"UPDATE user_reports SET status = 'closed', closed_at = now(), outcome = 'no_action' WHERE id = ?",
+			reviewReport,
+		).Error; err == nil {
+			t.Fatal("expected a close without a reason to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_reports SET outcome = 'warning', outcome_reason = 'early' WHERE id = ?", reviewReport,
+		).Error; err == nil {
+			t.Fatal("expected an outcome on an unclosed report to fail")
+		}
+		if err := db.Exec(
+			`UPDATE user_reports SET status = 'closed', closed_at = now(), outcome = 'no_action',
+			 outcome_reason = 'ok' WHERE id = ?`,
+			reviewReport,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insert(admin.ID, &reviewID, nil); err != nil {
+			t.Fatalf("report after the previous one closed: %v", err)
+		}
+
+		orderReport, err := insert(admin.ID, nil, &uuid.UUID{1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec(
+			`UPDATE user_reports SET status = 'closed', closed_at = now(), outcome = 'review_removal',
+			 outcome_reason = 'x' WHERE id = ?`,
+			orderReport,
+		).Error; err == nil {
+			t.Fatal("expected review removal on an order report to fail")
+		}
+
+		if err := db.Exec(
+			"INSERT INTO user_report_responses (report_id, responder_id, body) VALUES (?, ?, '  ')",
+			reviewReport, admin.ID,
+		).Error; err == nil {
+			t.Fatal("expected a blank response to fail")
+		}
+		if err := db.Exec(
+			"INSERT INTO user_report_responses (report_id, responder_id, body) VALUES (?, ?, 'my side')",
+			reviewReport, admin.ID,
+		).Error; err != nil {
+			t.Fatalf("response: %v", err)
+		}
+
+		reason := "reported"
+		missingReport := uuid.New()
+		link := &m.RoleChange{UserID: admin.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended,
+			Reason: &reason, ReportID: &missingReport}
+		if err := db.Create(link).Error; err == nil {
+			t.Fatal("expected a role change with a missing report to fail")
+		}
+		link = &m.RoleChange{UserID: admin.ID, FromRole: m.RoleUser, ToRole: m.RoleSuspended,
+			Reason: &reason, ReportID: &reviewReport}
+		if err := db.Create(link).Error; err != nil {
+			t.Fatalf("role change linked to a report: %v", err)
+		}
+	})
+
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)
