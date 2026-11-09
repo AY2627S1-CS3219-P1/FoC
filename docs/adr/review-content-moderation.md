@@ -21,6 +21,36 @@ concrete service. The worker pool drives its job operations and assessment
 method; scheduling, heartbeats, and cancellation stay in `worker.go`, while job
 transitions and persistence live in separate files in the same package.
 
+The hexagonal roles describe responsibilities, not separate packages for every
+layer:
+
+| Component | Architectural role | Responsibility |
+| --- | --- | --- |
+| Kafka submission handler and admin RPC handlers | Inbound adapters | Decode requests/events, call the service, and translate responses/errors. Read RPCs use the review read store. |
+| `moderation.Pool` in `worker.go` | Background inbound adapter | Drive queued work with bounded concurrency, polling, lease heartbeats, timeouts, and cancellation. |
+| `moderation.Service` | Application service | Own configuration, review prompt construction, assessment, and response validation; expose job operations through its embedded `JobService`. |
+| `moderation.JobService` | Application service component | Enforce ingestion, claiming, completion, failure, and retry rules through transactional database operations. |
+| `ConfigurationStore`, `review.Store`, and sqlc queries | Persistence adapters | Read and write PostgreSQL. Job persistence is colocated with job operations in `internal/moderation`. |
+| `CompletionClient` and `ModelLister` | Outbound ports | Define the provider operations consumed by the moderation service. |
+| `internal/openaiadapter` | Outbound adapter | Implement the provider contracts and translate provider responses/errors into service-owned types. |
+| `outbox.Relay` | Background delivery adapter | Poll committed outbox rows, publish through its injected Kafka publisher, and record successful delivery. |
+
+`Service` and `JobService` are called by these entry points; neither starts a
+timer or goroutine. The composition root in `cmd/server/dependencies.go` wires
+them together and supplies the same service to the worker's job-operation and
+assessment interfaces. The pool starts worker goroutines, claims eligible jobs,
+calls `Service.AssessReview`, and records the outcome through job operations.
+Workers immediately look for more work after processing a job; they wait for the
+poll interval when no job/configuration is available and back off on claim errors.
+
+Completion saves the verdict, attempt, and outbox row in one database
+transaction. The worker does not call the Kafka publisher. The independently
+running outbox relay claims committed rows, releases the database transaction
+before publishing, and records delivery afterward. A crash between publication
+and acknowledgement can cause redelivery with the same event ID, so consumers
+must deduplicate. Polling for jobs and polling for outbox delivery are separate
+background loops.
+
 The service consumes `CompletionClient`, using service-owned request and
 response types. `internal/openaiadapter` implements that interface over the
 provider SDK. The SDK remains confined to that adapter. Review rubric, reason codes, and schema are concrete moderation logic.
@@ -30,11 +60,15 @@ The composition root injects dependencies; no globals or `init` registration.
 flowchart LR
     K[Kafka submission handler] --> S[moderation.Service]
     R[Admin RPC handlers] --> S
-    W[Worker pool] --> S
+    W[Worker pool: background inbound adapter] --> S
+    S --> J[Embedded JobService: job lifecycle]
     S --> C[Service-owned CompletionClient interface]
     A[openaiadapter] -. implements .-> C
     A --> P[SoCLaaS / provider API]
     S --> D[PostgreSQL persistence]
+    J --> D
+    O[Outbox relay: separate delivery loop] --> D
+    O --> KP[Kafka publisher]
 ```
 
 The service depends on its completion interface; the provider adapter depends on
@@ -110,6 +144,7 @@ sequenceDiagram
     CMS->>CDB: Deduplicate moderation_request_id and persist job
     CDB-->>CMS: Commit
     CMS-->>K: Acknowledge durable ingestion
+    Note over CMS,CDB: Worker pool independently polls for eligible jobs.
     CMS->>CDB: Claim job, pin config, and record attempt
     CMS->>E: Assess complete review snapshot with pinned config
     E->>A: Build service-neutral completion request
@@ -119,7 +154,9 @@ sequenceDiagram
     E->>E: Validate JSON schema, decision, and reason-code rules
     E-->>CMS: APPROVED assessment
     CMS->>CDB: Commit completed job, attempt, and terminal outbox row
+    Note over CMS,K: Separate outbox relay reads committed events and publishes outside the DB transaction.
     CMS-->>K: moderation.review_moderation_finished (APPROVED)
+    CMS->>CDB: Relay records successful publication
     K-->>U: Deliver completion
     U->>UDB: Deduplicate, lock, verify identity/generation, apply approval
     UDB-->>U: Commit
@@ -255,8 +292,9 @@ carries a higher generation.
 
 Admin configuration uses immutable configuration versions plus an active
 pointer with optimistic concurrency; already-started jobs keep their pinned
-version. `jobs.Transitions` owns administrative retry and pause-recovery writes;
-config and review adapters invoke it inside their transactions. Job writers lock
+version. `moderation.Transitions` centralizes administrative retry and
+pause-recovery writes within local transactions, called by
+`Service.RetryErroredJob` and `ConfigurationStore.ActivateAndResume`. Job writers lock
 the job before its attempt records to keep recovery and finalization lock order
 consistent. Lease writes acquire the row lock first and check database-clock
 expiry in a separate statement: a predicate evaluated before a lock wait cannot

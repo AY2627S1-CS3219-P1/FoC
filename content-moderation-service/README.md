@@ -6,6 +6,11 @@ See the [review moderation ADR](../docs/adr/review-content-moderation.md) for
 the end-to-end sequence, assessment error mapping, retry decisions, and data
 exposure boundaries.
 
+The ADR's [service ownership and provider boundary](../docs/adr/review-content-moderation.md#service-ownership-and-provider-boundary)
+maps handlers, the worker pool, application services, persistence, and provider
+ports/adapters to their roles. The worker drives queued jobs through the service;
+a separate outbox relay publishes the committed results to Kafka.
+
 ## What runs
 
 `cmd/server` applies the embedded migrations, then runs two listeners and the
