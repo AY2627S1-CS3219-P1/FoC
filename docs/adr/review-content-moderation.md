@@ -138,7 +138,7 @@ sequenceDiagram
     UDB-->>U: Commit
     U-->>Author: review_id and PENDING_MODERATION
     Note right of U: Response omits moderation_request_id.
-    Note over U,K: Outbox relays publish after commit; delivery is at least once with stable event IDs.
+    Note over U,K: Outbox relays publish after commit with stable event IDs and at-least-once delivery.
     U-->>K: users.review_submitted
     K-->>CMS: Deliver submission
     CMS->>CDB: Deduplicate moderation_request_id and persist job
@@ -150,7 +150,7 @@ sequenceDiagram
     E->>A: Build service-neutral completion request
     A->>L: Send policy prompt, delimited review, schema, and parameters
     L-->>A: Completion response
-    A-->>E: Service-neutral response; provider IDs are omitted
+    A-->>E: Service-neutral response with provider IDs omitted
     E->>E: Validate JSON schema, decision, and reason-code rules
     E-->>CMS: APPROVED assessment
     CMS->>CDB: Commit completed job, attempt, and terminal outbox row
