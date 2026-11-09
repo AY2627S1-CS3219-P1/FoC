@@ -7,7 +7,9 @@ CREATE TABLE moderation_admin_audit (
     config_version_id uuid,
     actor             text        NOT NULL,
     detail            jsonb,
-    created_at        timestamptz NOT NULL DEFAULT now()
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT moderation_admin_audit_action_check
+        CHECK (action IN ('ACTIVATE_CONFIG', 'RETRY_JOB', 'RESUME_CONFIGURATION_PAUSED_JOB'))
 );
 
 -- +goose Down

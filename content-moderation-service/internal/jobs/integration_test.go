@@ -844,6 +844,15 @@ func TestMigrationUpDownUp(t *testing.T) {
 	}
 }
 
+func TestAdminAuditRejectsUnknownAction(t *testing.T) {
+	pool := newTestPool(t)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO moderation_admin_audit (action, actor)
+		VALUES ('UNKNOWN_ACTION', 'tester')`); err == nil {
+		t.Fatal("expected unknown audit action to violate the database constraint")
+	}
+}
+
 func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
 	pool := newTestPool(t)
 	first := activateTestConfig(t, pool)
