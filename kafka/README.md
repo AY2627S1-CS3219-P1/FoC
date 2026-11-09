@@ -12,6 +12,8 @@ declare messages and enums without RPC services.
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
 | `order.offer_made` | `order.events.v1.OrderOfferMade` | Order UUID as UTF-8 text |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
+| `users.review_submitted` | `users.events.v1.ReviewSubmitted` | Review UUID as UTF-8 text |
+| `moderation.review_moderation_finished` | `moderation.events.v1.ReviewModerationFinished` | Review UUID as UTF-8 text |
 | `credit.account_changed` | `credit.events.v1.AccountChanged` | User UUID as UTF-8 text |
 | `order.changed` | `order.events.v1.OrderChanged` | Order UUID as UTF-8 text |
 
@@ -21,58 +23,3 @@ and workflow-only changes. Communication's separate `communication-realtime`
 group turns these events into advisory browser invalidations. Duplicates are
 safe; do not deduplicate Order changes solely by aggregate revision. See
 [the live-update ADR](../docs/adr/realtime-invalidation.md).
-
-`users.create` announces a newly created user. Its payload contains the event
-ID, user ID, email, display name, and creation timestamp. The event ID is stable
-across retries; consumers should deduplicate it. User Service publishes this
-event from its transactional outbox after registration commits. Credit consumes
-it to open the user's account with the starting credits, and Communication
-keeps each user's email for email notifications.
-
-Order publishes its four topics from its outbox. Topic names match the outbox
-fact kinds. `order.status_changed` drives Communication's notifications,
-`order.outcome` reports how an order ended,
-`order.courier_warning_requested` asks User Service to warn a courier, and
-`order.offer_made` lets Communication tell the requester about a courier's
-offer.
-
-Values use binary Protobuf (`proto.Marshal` / `proto.Unmarshal`), without a
-schema registry framing prefix. The topic identifies its value message.
-Generated Go types live under `pkg/kafkagen`; Kafka generation does not run
-Connect-Go or TypeScript plugins.
-
-```sh
-make buf-lint
-make buf-generate-kafka # Go messages only; no frontend dependencies needed
-make buf-generate      # RPC and Kafka contracts
-```
-
-Generation cleans separate output directories, so RPC and Kafka generation
-cannot delete each other's output. Commit schemas and generated code together.
-Reserve removed field numbers and names; check `buf breaking` against the
-target branch before merging. Add compatible fields to v1; a future incompatible
-contract needs a deliberate schema/topic migration.
-
-## Topic provisioning
-
-Add each topic to `infra/kafka/topics.conf` with partitions, replication factor,
-and its schema path relative to this directory. The init script validates the
-schema exists and the topic matches `<service>.<topic>` before creating topics.
-Shared type files do not get topics unless explicitly listed in the manifest.
-
-```sh
-docker compose up kafka-init
-```
-
-The Compose init job waits for the broker health check and uses
-`--create --if-not-exists`. Broker auto-creation is disabled. Rerunning init
-creates missing topics but does not change existing topic settings or delete
-topics removed from the manifest. Replication factor 1 is for the local
-single-broker setup; shared environments need their own settings.
-
-Order publishes immutable facts from its transactional outbox. Credit consumes
-`order.outcome` as the sole terminal settlement trigger. Communication consumes
-status changes; User owns courier warnings. Consumers deduplicate stable event
-IDs and must not assume ordering across topics. Credit also enforces settlement
-at most once per Order. See [the design ADR](../docs/adr/order-credit-pubsub.md)
-and [Credit conformance](../docs/testing/order-credit-pubsub.md).
