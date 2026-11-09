@@ -127,6 +127,12 @@ generate or rotate credentials.
 | `smtp`, `telegram`, `kafka-ui-auth`, `object-storage` (`foc`) | Mail sender, optional Telegram bot, Kafka UI login, and S3 credentials |
 | `foc-local-tls` / `foc-public-tls` (`istio-ingress`) | Gateway TLS certificate and key for the local / production hostname |
 
+The AWS overlay can select SES API delivery for User Service instead of SMTP.
+With the verified `ses_sender_email` Terraform input, the generated overlay uses
+IRSA and removes User's `smtp` Secret dependency. SMTP remains the default for
+local and existing deployments. See infra/aws/README.md for role scope and
+sender/delivery verification. Communication does not send email.
+
 The JWT public key is served by User Service's internal public-key RPC for
 other services to verify tokens; they do not receive the signing private key.
 Kubernetes Secret objects are the deployment input, while `.local/k8s/secrets`

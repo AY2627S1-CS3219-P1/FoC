@@ -366,10 +366,35 @@ Job, its `rds-provision-admin` Secret and unused ServiceAccount, and remove the
 local admin JSON. Keep the five private service credential files for retries.
 Treat failure logs as potentially sensitive. Do not stream them into chat.
 
+For SES API delivery, set `ses_sender_email` to a bare, verified email address
+in the Terraform inputs. Review the plan before applying: this adds a dedicated
+User Service IAM role and inline policy permitting only `ses:SendEmail`, scoped
+to that regional identity and `ses:FromAddress`. Trust is restricted to the
+`foc:user-service` ServiceAccount and STS audience. It does not grant email
+permissions to Communication or change Order's S3 permissions. The adapter sends
+raw MIME through SESv2's `SendEmail` operation, not the legacy `SendRawEmail`
+operation. The [SESv2 IAM reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sesv2.html)
+and [Nodemailer's SESv2 policy](https://nodemailer.com/transports/ses#2-minimal-iam-policy)
+document `ses:SendEmail` for this API.
+
+After the approved apply, refresh `.local/aws/deployment.json` and rerender the
+overlay. The renderer sets `EMAIL_PROVIDER=ses`, `EMAIL_FROM`, and the User
+Service IRSA annotation, and removes User's SMTP Secret reference. No static
+AWS keys or SMTP login are needed. The operator checks the rendered reference
+before requiring `smtp`. Existing SMTP overlays and local Mailpit are unchanged.
+A null/default `ses_sender_email` retains SMTP and creates no email role.
+
+SES sender verification, production access, workload authorization, and actual
+mailbox delivery are separate checks. A policy simulation is not proof of live
+sending. After deployment, verify the workload's role and send an approved test
+message before claiming delivery. SES errors are returned, never redirected to
+SMTP or Mailpit. To return to SMTP, supply working SMTP configuration/credentials
+and unset `ses_sender_email`; removing SES does not provide an SMTP login.
+
 Provide the remaining Secrets through private files or the approved secret
 manager, following docs/runbooks/kubernetes.md:
 
-- `smtp`: SMTP_ADDR, SMTP_FROM, SMTP_USERNAME, SMTP_PASSWORD. Use SES port 587
+- `smtp` (SMTP mode only): SMTP_ADDR, SMTP_FROM, SMTP_USERNAME, SMTP_PASSWORD. Use SES port 587
   with STARTTLS. Verify an email identity in the same AWS region separately from
   Terraform, and set SMTP_FROM to that address. No domain identity is configured
   for the AWS-owned API hostname. SES production access requires AWS approval;
