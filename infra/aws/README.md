@@ -92,11 +92,11 @@ Totals use unrounded amounts.
 | **Example usage subtotal** | | **6.62** | |
 | **Capacity plus example usage** | | **168.14** | |
 
-Use **US$200 as a planning allowance** for this light-demo scenario, not a cap
-or a claim that heavier use fits. The existing US$150 planning target is below
-the capacity subtotal alone. This estimate does not change that target or
-approve provisioning. Every extra full-stack day adds approximately **US$16.15
-plus usage**. Budget alerts and expiry tags do not stop resources.
+The accepted planning allowance is **US$200** for this light-demo scenario,
+replacing the US$150 target, which was below the capacity subtotal alone. It is
+not a cap or a claim that heavier use fits. Accepting the allowance authorizes
+planning, not provisioning; review the saved plans before approving any apply.
+Every extra full-stack day adds approximately **US$16.15 plus usage**. Budget alerts and expiry tags do not stop resources.
 
 ### Additional charges and retained data
 
