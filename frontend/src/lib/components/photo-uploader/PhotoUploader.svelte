@@ -9,6 +9,7 @@
 		ReviewPhotosController,
 		ReviewPhotosSnapshot
 	} from '$lib/features/review-photos/controller';
+	import { IMAGE_CONTENT_TYPES } from '$lib/features/image-upload/limits';
 
 	// Shared photo uploader: selecting files starts their upload immediately.
 	// Photos are square thumbnails with a remove control; a failed upload is
@@ -60,7 +61,7 @@
 			aria-describedby="photo-uploader-help"
 			class="hidden-input"
 			type="file"
-			accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+			accept={IMAGE_CONTENT_TYPES.join(',')}
 			multiple
 			disabled={busy}
 			onchange={(event) => {
