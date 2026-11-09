@@ -52,6 +52,9 @@
 	});
 
 	function goToPage(next: number) {
+		// Fetch now instead of waiting for the URL change to re-run the effect;
+		// the in-flight guard makes the effect's follow-up a no-op.
+		void load(next);
 		const url = new URL(appPage.url);
 		url.searchParams.set('page', String(next));
 		replaceState(url, {});
