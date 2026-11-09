@@ -22,43 +22,20 @@
 		return `${id.slice(0, 4)}.....${id.slice(-4)}`;
 	}
 
-	async function copyOrderId(requestId: string): Promise<void> {
-		// Prefer the async Clipboard API; fall back to a hidden selection for
-		// browsers without clipboard permission. Both copy the full, unmasked
-		// order ID — the masked value shown on the card cannot be copied back.
-		if (await copyWithFallback(requestId)) {
-			snackbarService.show('Order ID copied to clipboard', { severity: 'success' });
-			return;
-		}
-		// Last resort: surface the complete ID once. Selecting the masked
-		// display would not reproduce the real value, so show it here to copy.
-		snackbarService.show(`Copy this order ID: ${requestId}`, { severity: 'error', timeout: 10000 });
-	}
+	// When the copy button is hovered, reveal the full order ID so it can be
+	// selected and copied manually if the clipboard API is unavailable.
+	let showFullId = $state(false);
 
-	// A clipboard write can be denied (permission, insecure context…). When it
-	// is, fall back to a temporary off-screen selection + execCommand, which
-	// still copies the full order ID instead of the masked display.
-	async function copyWithFallback(requestId: string): Promise<boolean> {
+	async function copyOrderId(requestId: string): Promise<void> {
 		try {
 			await navigator.clipboard.writeText(requestId);
-			return true;
+			snackbarService.show('Order ID copied to clipboard', { severity: 'success' });
 		} catch {
-			// Fall through to the execCommand fallback below.
+			// The masked display hides the middle of the ID, so a failed write
+			// can't be recovered by copying it. Reveal the full ID on hover and
+			// tell the user to select and copy it manually.
+			snackbarService.show('Clipboard unavailable — hover the button to reveal the full order ID, then copy it manually.', { severity: 'error', timeout: 10000 });
 		}
-		const textarea = document.createElement('textarea');
-		textarea.value = requestId;
-		textarea.setAttribute('readonly', '');
-		textarea.style.position = 'fixed';
-		textarea.style.top = '-1000px';
-		document.body.appendChild(textarea);
-		textarea.select();
-		let copied = false;
-		try {
-			copied = document.execCommand('copy');
-		} finally {
-			document.body.removeChild(textarea);
-		}
-		return copied;
 	}
 
 	async function loadWarnings(requestedPage = page) {
@@ -137,8 +114,10 @@
 									type="button"
 									class="copy-btn"
 									aria-label="Copy order ID"
-									title="Copy order ID"
+									title={showFullId ? warning.requestId : 'Copy order ID'}
 									onclick={() => void copyOrderId(warning.requestId)}
+									onmouseenter={() => { showFullId = true; }}
+									onmouseleave={() => { showFullId = false; }}
 								>
 									<Icon icon={iconCopy} size={16} aria-hidden="true" />
 								</button>
