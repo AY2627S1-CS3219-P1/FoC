@@ -12,10 +12,14 @@
 	let totalPages = $state(0);
 	let loading = $state(false);
 	let error = $state('');
+	// Non-reactive guard: reading $state here would make the effect below
+	// depend on `loading` and re-run itself forever.
+	let inFlight = false;
 
 	async function load(page: number) {
 		const reviewer = authService.user?.id;
-		if (!reviewer || loading) return;
+		if (!reviewer || inFlight) return;
+		inFlight = true;
 		loading = true;
 		error = '';
 		try {
@@ -30,6 +34,7 @@
 		} catch {
 			error = 'We could not load your reviews. Check your connection and try again.';
 		} finally {
+			inFlight = false;
 			loading = false;
 		}
 	}
