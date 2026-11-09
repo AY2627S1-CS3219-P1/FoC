@@ -20,6 +20,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // handlerLogicStub records the arguments the handler passes so tests can assert
@@ -145,8 +146,16 @@ func TestSubmitReviewRPC(t *testing.T) {
 		if stub.submitted.Rating != 5 || stub.submitted.Comment != "excellent" {
 			t.Fatalf("submission not mapped: %+v", stub.submitted)
 		}
-		if resp.Msg.GetReviewId() != reviewID.String() || resp.Msg.GetModerationRequestId() != requestID.String() {
+		if resp.Msg.GetReviewId() != reviewID.String() {
 			t.Fatalf("response does not reference the committed review: %+v", resp.Msg)
+		}
+		payload, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(resp.Msg)
+		if err != nil {
+			t.Fatalf("encode submission response: %v", err)
+		}
+		if strings.Contains(string(payload), "moderationRequestId") ||
+			strings.Contains(string(payload), requestID.String()) {
+			t.Fatalf("submission response exposes the internal moderation request: %s", payload)
 		}
 		if resp.Msg.GetModerationStatus() != reviewv1.ModerationStatus_MODERATION_STATUS_PENDING_MODERATION {
 			t.Fatalf("status = %v, want pending moderation", resp.Msg.GetModerationStatus())

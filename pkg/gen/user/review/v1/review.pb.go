@@ -332,10 +332,6 @@ func (x *SubmitReviewRequest) GetSubmission() *ReviewSubmission {
 type SubmitReviewResponse struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ReviewId string                 `protobuf:"bytes,1,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
-	// Stable identity of the content-assessment request created for this
-	// review; correlate it with the unpublished-reviews page and moderation job
-	// lookups.
-	ModerationRequestId string `protobuf:"bytes,2,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	// Always PENDING_MODERATION for newly gated submissions.
 	ModerationStatus ModerationStatus `protobuf:"varint,3,opt,name=moderation_status,json=moderationStatus,proto3,enum=user.review.v1.ModerationStatus" json:"moderation_status,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -375,13 +371,6 @@ func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 func (x *SubmitReviewResponse) GetReviewId() string {
 	if x != nil {
 		return x.ReviewId
-	}
-	return ""
-}
-
-func (x *SubmitReviewResponse) GetModerationRequestId() string {
-	if x != nil {
-		return x.ModerationRequestId
 	}
 	return ""
 }
@@ -1025,7 +1014,7 @@ type UnpublishedReview struct {
 	ReviewerName     string                 `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
 	RevieweeName     string                 `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
 	ModerationStatus ModerationStatus       `protobuf:"varint,10,opt,name=moderation_status,json=moderationStatus,proto3,enum=user.review.v1.ModerationStatus" json:"moderation_status,omitempty"`
-	// Correlates with SubmitReviewResponse and moderation job lookups.
+	// Correlates unpublished reviews with moderation job lookups.
 	ModerationRequestId string `protobuf:"bytes,11,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	ContentRevision     int32  `protobuf:"varint,12,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
 	// Known rejection reason codes when rejected; empty otherwise.
@@ -1200,11 +1189,10 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\border_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12H\n" +
 	"\n" +
 	"submission\x18\x04 \x01(\v2 .user.review.v1.ReviewSubmissionB\x06\xbaH\x03\xc8\x01\x01R\n" +
-	"submission\"\xb6\x01\n" +
+	"submission\"\x9f\x01\n" +
 	"\x14SubmitReviewResponse\x12\x1b\n" +
-	"\treview_id\x18\x01 \x01(\tR\breviewId\x122\n" +
-	"\x15moderation_request_id\x18\x02 \x01(\tR\x13moderationRequestId\x12M\n" +
-	"\x11moderation_status\x18\x03 \x01(\x0e2 .user.review.v1.ModerationStatusR\x10moderationStatus\"\x87\x01\n" +
+	"\treview_id\x18\x01 \x01(\tR\breviewId\x12M\n" +
+	"\x11moderation_status\x18\x03 \x01(\x0e2 .user.review.v1.ModerationStatusR\x10moderationStatusJ\x04\b\x02\x10\x03R\x15moderation_request_id\"\x87\x01\n" +
 	"\x1aListReviewsForUserResponse\x120\n" +
 	"\areviews\x18\x01 \x03(\v2\x16.user.review.v1.ReviewR\areviews\x127\n" +
 	"\n" +

@@ -59,10 +59,8 @@ message SubmitReviewRequest {
 // response never means the review is public.
 message SubmitReviewResponse {
   string review_id = 1;
-  // Stable identity of the content-assessment request created for this
-  // review; correlate it with the unpublished-reviews page and moderation job
-  // lookups.
-  string moderation_request_id = 2;
+  reserved 2;
+  reserved "moderation_request_id";
   // Always PENDING_MODERATION for newly gated submissions.
   ModerationStatus moderation_status = 3;
 }
@@ -172,7 +170,7 @@ message UnpublishedReview {
   string reviewer_name = 8;
   string reviewee_name = 9;
   ModerationStatus moderation_status = 10;
-  // Correlates with SubmitReviewResponse and moderation job lookups.
+  // Correlates unpublished reviews with moderation job lookups.
   string moderation_request_id = 11;
   int32 content_revision = 12;
   // Known rejection reason codes when rejected; empty otherwise.

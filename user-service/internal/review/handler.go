@@ -72,9 +72,8 @@ func (h *Handler) SubmitReview(
 		return nil, api.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{
-		ReviewId:            result.ReviewID.String(),
-		ModerationRequestId: result.ModerationRequestID.String(),
-		ModerationStatus:    toProtoModerationStatus(result.Status),
+		ReviewId:         result.ReviewID.String(),
+		ModerationStatus: toProtoModerationStatus(result.Status),
 	}), nil
 }
 
