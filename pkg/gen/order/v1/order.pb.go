@@ -381,7 +381,11 @@ type ListMyOrdersRequest struct {
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
-	PageSize      int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Only orders the caller is part of now and whose lifecycle has not ended:
+	// not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+	// withdrew from as a courier are excluded. Combines with status and role.
+	ActiveOnly    bool `protobuf:"varint,5,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -442,6 +446,13 @@ func (x *ListMyOrdersRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *ListMyOrdersRequest) GetActiveOnly() bool {
+	if x != nil {
+		return x.ActiveOnly
+	}
+	return false
 }
 
 // Starts one immutable acceptance attempt at the current reward. The caller
@@ -2250,12 +2261,14 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSizeB\x15\n" +
 	"\x13_pickup_location_idB\x17\n" +
-	"\x15_delivery_location_id\"\xcc\x01\n" +
+	"\x15_delivery_location_id\"\xed\x01\n" +
 	"\x13ListMyOrdersRequest\x127\n" +
 	"\x04role\x18\x01 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"W\n" +
+	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\x12\x1f\n" +
+	"\vactive_only\x18\x05 \x01(\bR\n" +
+	"activeOnly\"W\n" +
 	"\x12AcceptOrderRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12'\n" +
 	"\n" +

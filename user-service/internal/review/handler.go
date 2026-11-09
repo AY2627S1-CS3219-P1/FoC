@@ -27,9 +27,11 @@ type Logic interface {
 		callerID uuid.UUID,
 		contentType string,
 		sizeBytes int64,
-	) (PhotoUpload, images.UploadGrant, error)
+	) (uuid.UUID, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) ([]uuid.UUID, error)
+	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
@@ -40,8 +42,7 @@ type Handler struct {
 	Logic Logic
 }
 
-// SubmitReview records the caller's review of the other participant; `from`
-// must be the caller so impersonation is rejected.
+// SubmitReview records the caller's review of the other participant.
 func (h *Handler) SubmitReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.SubmitReviewRequest],
@@ -82,8 +83,7 @@ func (h *Handler) SubmitReview(
 	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
 }
 
-// CreateReviewPhotoUpload grants one pre-signed PUT; the browser uploads the
-// bytes directly to storage, so the response carries the grant untouched.
+// CreateReviewPhotoUpload grants one pre-signed PUT; bytes go straight to storage.
 func (h *Handler) CreateReviewPhotoUpload(
 	ctx context.Context,
 	req *connect.Request[reviewv1.CreateReviewPhotoUploadRequest],
@@ -92,14 +92,14 @@ func (h *Handler) CreateReviewPhotoUpload(
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
-	upload, grant, err := h.Logic.CreateReviewPhotoUpload(
+	photoID, grant, err := h.Logic.CreateReviewPhotoUpload(
 		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
 	)
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
 	resp := connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
-		PhotoId:       upload.ID.String(),
+		PhotoId:       photoID.String(),
 		UploadUrl:     grant.URL,
 		UploadHeaders: grant.Headers,
 		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
@@ -108,8 +108,7 @@ func (h *Handler) CreateReviewPhotoUpload(
 	return resp, nil
 }
 
-// ListReviewsForUser lists the reviews a user received; a suspended caller may
-// only list their own.
+// ListReviewsForUser lists received reviews; a suspended caller may only list their own.
 func (h *Handler) ListReviewsForUser(
 	ctx context.Context,
 	req *connect.Request[reviewv1.ListReviewsForUserRequest],
@@ -159,15 +158,62 @@ func (h *Handler) ListMyReviews(
 	return resp, nil
 }
 
-// noStore marks responses that may embed short-lived pre-signed photo URLs as
-// non-cacheable, so temporary upload and download credentials never sit in a
-// cache.
+// noStore marks responses embedding short-lived pre-signed URLs as non-cacheable.
 func noStore[R any](resp *connect.Response[R]) {
 	resp.Header().Set("Cache-Control", "no-store")
 }
 
-// RemoveReview soft-deletes a review and records the removal audit row; the
-// admin-only gate lives in the interceptor.
+// ListMyReviewsForOrders returns which of the requests the caller has reviewed.
+func (h *Handler) ListMyReviewsForOrders(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewsForOrdersRequest],
+) (*connect.Response[reviewv1.ListMyReviewsForOrdersResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderIDs := make([]uuid.UUID, 0, len(req.Msg.GetOrderIds()))
+	for _, raw := range req.Msg.GetOrderIds() {
+		id, parseErr := uuid.Parse(raw)
+		if parseErr != nil || id == uuid.Nil {
+			return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+		}
+		orderIDs = append(orderIDs, id)
+	}
+	reviewed, err := h.Logic.ListMyReviewsForOrders(ctx, callerID, orderIDs)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	ids := make([]string, 0, len(reviewed))
+	for _, id := range reviewed {
+		ids = append(ids, id.String())
+	}
+	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{ReviewedOrderIds: ids}), nil
+}
+
+// GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
+func (h *Handler) GetMyReviewForOrder(
+	ctx context.Context,
+	req *connect.Request[reviewv1.GetMyReviewForOrderRequest],
+) (*connect.Response[reviewv1.GetMyReviewForOrderResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderID, parseErr := uuid.Parse(req.Msg.GetOrderId())
+	if parseErr != nil || orderID == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+	}
+	review, err := h.Logic.GetMyReviewForOrder(ctx, callerID, orderID)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{Review: toReviewProto(review)})
+	noStore(resp)
+	return resp, nil
+}
+
+// RemoveReview soft-deletes a review and records the audit row.
 func (h *Handler) RemoveReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.RemoveReviewRequest],
@@ -201,9 +247,7 @@ func (h *Handler) ListReviewRemovals(
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }
 
-// authorizeSelfReviews is the ABAC rule that is too tied to the request message
-// for the token-claim interceptor: a suspended caller may only list the reviews
-// received by their own user.
+// A suspended caller may only list reviews received by their own user.
 func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	if !c.IsSuspended() {
 		return nil

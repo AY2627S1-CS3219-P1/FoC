@@ -2,10 +2,6 @@
 // @generated from file user/review/v1/review.proto (package user.review.v1, syntax proto3)
 /* eslint-disable */
 
-// Review feature contract for user-service. A review lets one participant of a
-// Completed request rate the other; removals are soft deletes recorded with an
-// audit row.
-
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
@@ -19,11 +15,9 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/review/v1/review.proto.
  */
 export const file_user_review_v1_review: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIvwBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEisKBnBob3RvcxgKIAMoCzIbLnVzZXIucmV2aWV3LnYxLlJldmlld1Bob3RvImwKC1Jldmlld1Bob3RvEgoKAmlkGAEgASgJEgsKA3VybBgCIAEoCRIUCgxjb250ZW50X3R5cGUYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiLBAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQESIgoJcGhvdG9faWRzGAUgAygJQg+6SAySAQkQBSIFcgOwAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UimgEKHkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVxdWVzdBJWCgxjb250ZW50X3R5cGUYASABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYSIAoKc2l6ZV9ieXRlcxgCIAEoA0IMukgJIgcYgK3iBCgBIokCCh9DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlEhAKCHBob3RvX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSWgoOdXBsb2FkX2hlYWRlcnMYAyADKAsyQi51c2VyLnJldmlldy52MS5DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlLlVwbG9hZEhlYWRlcnNFbnRyeRIuCgpleHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBo0ChJVcGxvYWRIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJyChpMaXN0UmV2aWV3c0ZvclVzZXJSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIm0KFUxpc3RNeVJldmlld3NSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvImUKGUxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQESLQoKcGFnaW5hdGlvbhgCIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJFChRMaXN0TXlSZXZpZXdzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkgKE1JlbW92ZVJldmlld1JlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEhsKBnJlYXNvbhgCIAEoCUILukgIcgYQARigjQYiFgoUUmVtb3ZlUmV2aWV3UmVzcG9uc2UixAEKDVJldmlld1JlbW92YWwSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmVhc29uGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYByABKAkSFwoPY3JlYXRlZF9ieV9uYW1lGAggASgJIkoKGUxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ6ChpMaXN0UmV2aWV3UmVtb3ZhbHNSZXNwb25zZRIvCghyZW1vdmFscxgBIAMoCzIdLnVzZXIucmV2aWV3LnYxLlJldmlld1JlbW92YWwSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8yhQUKDVJldmlld1NlcnZpY2USWwoMU3VibWl0UmV2aWV3EiMudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlN1Ym1pdFJldmlld1Jlc3BvbnNlIgASfAoXQ3JlYXRlUmV2aWV3UGhvdG9VcGxvYWQSLi51c2VyLnJldmlldy52MS5DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlcXVlc3QaLy51c2VyLnJldmlldy52MS5DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlIgASbQoSTGlzdFJldmlld3NGb3JVc2VyEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdzRm9yVXNlclJlc3BvbnNlIgASXgoNTGlzdE15UmV2aWV3cxIkLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZXF1ZXN0GiUudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1Jlc3BvbnNlIgASWwoMUmVtb3ZlUmV2aWV3EiMudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1Jlc3BvbnNlIgASbQoSTGlzdFJldmlld1JlbW92YWxzEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlIgBCvgEKEmNvbS51c2VyLnJldmlldy52MUILUmV2aWV3UHJvdG9QAVpBZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci9yZXZpZXcvdjE7cmV2aWV3djGiAgNVUliqAg5Vc2VyLlJldmlldy5WMcoCDlVzZXJcUmV2aWV3XFYx4gIaVXNlclxSZXZpZXdcVjFcR1BCTWV0YWRhdGHqAhBVc2VyOjpSZXZpZXc6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
+  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIvwBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEisKBnBob3RvcxgKIAMoCzIbLnVzZXIucmV2aWV3LnYxLlJldmlld1Bob3RvImwKC1Jldmlld1Bob3RvEgoKAmlkGAEgASgJEgsKA3VybBgCIAEoCRIUCgxjb250ZW50X3R5cGUYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiLBAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQESIgoJcGhvdG9faWRzGAUgAygJQg+6SAySAQkQBSIFcgOwAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UimgEKHkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVxdWVzdBJWCgxjb250ZW50X3R5cGUYASABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYSIAoKc2l6ZV9ieXRlcxgCIAEoA0IMukgJIgcYgK3iBCgBIokCCh9DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlEhAKCHBob3RvX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSWgoOdXBsb2FkX2hlYWRlcnMYAyADKAsyQi51c2VyLnJldmlldy52MS5DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlLlVwbG9hZEhlYWRlcnNFbnRyeRIuCgpleHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBo0ChJVcGxvYWRIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJyChpMaXN0UmV2aWV3c0ZvclVzZXJSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIm0KFUxpc3RNeVJldmlld3NSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvImUKGUxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQESLQoKcGFnaW5hdGlvbhgCIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJFChRMaXN0TXlSZXZpZXdzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkMKHUxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXF1ZXN0EiIKCW9yZGVyX2lkcxgBIAMoCUIPukgMkgEJEDIiBXIDsAEBIjwKHkxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXNwb25zZRIaChJyZXZpZXdlZF9vcmRlcl9pZHMYASADKAkiOAoaR2V0TXlSZXZpZXdGb3JPcmRlclJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBIkUKG0dldE15UmV2aWV3Rm9yT3JkZXJSZXNwb25zZRImCgZyZXZpZXcYASABKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXciSAoTUmVtb3ZlUmV2aWV3UmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQESGwoGcmVhc29uGAIgASgJQgu6SAhyBhABGKCNBiIWChRSZW1vdmVSZXZpZXdSZXNwb25zZSLEAQoNUmV2aWV3UmVtb3ZhbBIKCgJpZBgBIAEoCRITCgtyZXZpZXdlcl9pZBgCIAEoCRITCgtyZXZpZXdlZV9pZBgDIAEoCRIQCghvcmRlcl9pZBgEIAEoCRIOCgZyZWFzb24YBSABKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY3JlYXRlZF9ieRgHIAEoCRIXCg9jcmVhdGVkX2J5X25hbWUYCCABKAkiSgoZTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInoKGkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlEi8KCHJlbW92YWxzGAEgAygLMh0udXNlci5yZXZpZXcudjEuUmV2aWV3UmVtb3ZhbBIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbzLyBgoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJ8ChdDcmVhdGVSZXZpZXdQaG90b1VwbG9hZBIuLnVzZXIucmV2aWV3LnYxLkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVxdWVzdBovLnVzZXIucmV2aWV3LnYxLkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVzcG9uc2UiABJtChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2UiABJeCg1MaXN0TXlSZXZpZXdzEiQudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlcXVlc3QaJS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVzcG9uc2UiABJ5ChZMaXN0TXlSZXZpZXdzRm9yT3JkZXJzEi0udXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c0Zvck9yZGVyc1JlcXVlc3QaLi51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzRm9yT3JkZXJzUmVzcG9uc2UiABJwChNHZXRNeVJldmlld0Zvck9yZGVyEioudXNlci5yZXZpZXcudjEuR2V0TXlSZXZpZXdGb3JPcmRlclJlcXVlc3QaKy51c2VyLnJldmlldy52MS5HZXRNeVJldmlld0Zvck9yZGVyUmVzcG9uc2UiABJbCgxSZW1vdmVSZXZpZXcSIy51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3UmVtb3ZhbHMSKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2UiAEK+AQoSY29tLnVzZXIucmV2aWV3LnYxQgtSZXZpZXdQcm90b1ABWkFnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3Jldmlldy92MTtyZXZpZXd2MaICA1VSWKoCDlVzZXIuUmV2aWV3LlYxygIOVXNlclxSZXZpZXdcVjHiAhpVc2VyXFJldmlld1xWMVxHUEJNZXRhZGF0YeoCEFVzZXI6OlJldmlldzo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
 
 /**
- * A review given by one participant about another for a single request.
- *
  * @generated from message user.review.v1.Review
  */
 export type Review = Message<"user.review.v1.Review"> & {
@@ -43,8 +37,6 @@ export type Review = Message<"user.review.v1.Review"> & {
   revieweeId: string;
 
   /**
-   * Opaque request id owned by the order service; no foreign key here.
-   *
    * @generated from field: string order_id = 4;
    */
   orderId: string;
@@ -65,8 +57,6 @@ export type Review = Message<"user.review.v1.Review"> & {
   createdAt?: Timestamp | undefined;
 
   /**
-   * display_name of the reviewer and reviewee, joined at read time.
-   *
    * @generated from field: string reviewer_name = 8;
    */
   reviewerName: string;
@@ -77,8 +67,7 @@ export type Review = Message<"user.review.v1.Review"> & {
   revieweeName: string;
 
   /**
-   * Attached photos in display order. URL is a short-lived pre-signed GET
-   * grant; treat responses carrying it as non-cacheable.
+   * Pre-signed GET URLs; responses carrying them are not cacheable.
    *
    * @generated from field: repeated user.review.v1.ReviewPhoto photos = 10;
    */
@@ -93,9 +82,6 @@ export const ReviewSchema: GenMessage<Review> = /*@__PURE__*/
   messageDesc(file_user_review_v1_review, 0);
 
 /**
- * One attached review photo. The URL is a temporary credential minted per
- * response, never a stable object address.
- *
  * @generated from message user.review.v1.ReviewPhoto
  */
 export type ReviewPhoto = Message<"user.review.v1.ReviewPhoto"> & {
@@ -128,8 +114,6 @@ export const ReviewPhotoSchema: GenMessage<ReviewPhoto> = /*@__PURE__*/
   messageDesc(file_user_review_v1_review, 1);
 
 /**
- * The rating and comment a caller submits about a reviewee.
- *
  * @generated from message user.review.v1.ReviewSubmission
  */
 export type ReviewSubmission = Message<"user.review.v1.ReviewSubmission"> & {
@@ -156,15 +140,13 @@ export const ReviewSubmissionSchema: GenMessage<ReviewSubmission> = /*@__PURE__*
  */
 export type SubmitReviewRequest = Message<"user.review.v1.SubmitReviewRequest"> & {
   /**
-   * The reviewer. Must be the authenticated caller; impersonation is rejected.
+   * Must be the authenticated caller.
    *
    * @generated from field: string from = 1;
    */
   from: string;
 
   /**
-   * The reviewee; must be an existing user and differ from `from`.
-   *
    * @generated from field: string to = 2;
    */
   to: string;
@@ -180,8 +162,7 @@ export type SubmitReviewRequest = Message<"user.review.v1.SubmitReviewRequest"> 
   submission?: ReviewSubmission | undefined;
 
   /**
-   * IDs returned by CreateReviewPhotoUpload, in display order. Attachment is
-   * authorized and verified inside the submission transaction.
+   * Ordered IDs returned by CreateReviewPhotoUpload.
    *
    * @generated from field: repeated string photo_ids = 5;
    */
@@ -209,9 +190,6 @@ export const SubmitReviewResponseSchema: GenMessage<SubmitReviewResponse> = /*@_
   messageDesc(file_user_review_v1_review, 4);
 
 /**
- * Requests one pre-signed PUT grant for a review photo. Bytes upload directly
- * from the browser to object storage; the service never carries them.
- *
  * @generated from message user.review.v1.CreateReviewPhotoUploadRequest
  */
 export type CreateReviewPhotoUploadRequest = Message<"user.review.v1.CreateReviewPhotoUploadRequest"> & {
@@ -221,8 +199,6 @@ export type CreateReviewPhotoUploadRequest = Message<"user.review.v1.CreateRevie
   contentType: string;
 
   /**
-   * Decimal bytes; matches the repository-wide image limit.
-   *
    * @generated from field: int64 size_bytes = 2;
    */
   sizeBytes: bigint;
@@ -250,8 +226,6 @@ export type CreateReviewPhotoUploadResponse = Message<"user.review.v1.CreateRevi
   uploadUrl: string;
 
   /**
-   * Headers the browser must send with the PUT.
-   *
    * @generated from field: map<string, string> upload_headers = 3;
    */
   uploadHeaders: { [key: string]: string };
@@ -318,7 +292,7 @@ export const ListMyReviewsResponseSchema: GenMessage<ListMyReviewsResponse> = /*
  */
 export type ListReviewsForUserRequest = Message<"user.review.v1.ListReviewsForUserRequest"> & {
   /**
-   * A suspended caller may only request their own id; the handler enforces this.
+   * A suspended caller may only request their own id.
    *
    * @generated from field: string user_id = 1;
    */
@@ -355,6 +329,74 @@ export const ListMyReviewsRequestSchema: GenMessage<ListMyReviewsRequest> = /*@_
   messageDesc(file_user_review_v1_review, 10);
 
 /**
+ * @generated from message user.review.v1.ListMyReviewsForOrdersRequest
+ */
+export type ListMyReviewsForOrdersRequest = Message<"user.review.v1.ListMyReviewsForOrdersRequest"> & {
+  /**
+   * @generated from field: repeated string order_ids = 1;
+   */
+  orderIds: string[];
+};
+
+/**
+ * Describes the message user.review.v1.ListMyReviewsForOrdersRequest.
+ * Use `create(ListMyReviewsForOrdersRequestSchema)` to create a new message.
+ */
+export const ListMyReviewsForOrdersRequestSchema: GenMessage<ListMyReviewsForOrdersRequest> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 11);
+
+/**
+ * @generated from message user.review.v1.ListMyReviewsForOrdersResponse
+ */
+export type ListMyReviewsForOrdersResponse = Message<"user.review.v1.ListMyReviewsForOrdersResponse"> & {
+  /**
+   * @generated from field: repeated string reviewed_order_ids = 1;
+   */
+  reviewedOrderIds: string[];
+};
+
+/**
+ * Describes the message user.review.v1.ListMyReviewsForOrdersResponse.
+ * Use `create(ListMyReviewsForOrdersResponseSchema)` to create a new message.
+ */
+export const ListMyReviewsForOrdersResponseSchema: GenMessage<ListMyReviewsForOrdersResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 12);
+
+/**
+ * @generated from message user.review.v1.GetMyReviewForOrderRequest
+ */
+export type GetMyReviewForOrderRequest = Message<"user.review.v1.GetMyReviewForOrderRequest"> & {
+  /**
+   * @generated from field: string order_id = 1;
+   */
+  orderId: string;
+};
+
+/**
+ * Describes the message user.review.v1.GetMyReviewForOrderRequest.
+ * Use `create(GetMyReviewForOrderRequestSchema)` to create a new message.
+ */
+export const GetMyReviewForOrderRequestSchema: GenMessage<GetMyReviewForOrderRequest> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 13);
+
+/**
+ * @generated from message user.review.v1.GetMyReviewForOrderResponse
+ */
+export type GetMyReviewForOrderResponse = Message<"user.review.v1.GetMyReviewForOrderResponse"> & {
+  /**
+   * @generated from field: user.review.v1.Review review = 1;
+   */
+  review?: Review | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.GetMyReviewForOrderResponse.
+ * Use `create(GetMyReviewForOrderResponseSchema)` to create a new message.
+ */
+export const GetMyReviewForOrderResponseSchema: GenMessage<GetMyReviewForOrderResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 14);
+
+/**
  * @generated from message user.review.v1.RemoveReviewRequest
  */
 export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> & {
@@ -364,8 +406,6 @@ export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> 
   id: string;
 
   /**
-   * Recorded on the audit row.
-   *
    * @generated from field: string reason = 2;
    */
   reason: string;
@@ -376,7 +416,7 @@ export type RemoveReviewRequest = Message<"user.review.v1.RemoveReviewRequest"> 
  * Use `create(RemoveReviewRequestSchema)` to create a new message.
  */
 export const RemoveReviewRequestSchema: GenMessage<RemoveReviewRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 11);
+  messageDesc(file_user_review_v1_review, 15);
 
 /**
  * @generated from message user.review.v1.RemoveReviewResponse
@@ -389,7 +429,7 @@ export type RemoveReviewResponse = Message<"user.review.v1.RemoveReviewResponse"
  * Use `create(RemoveReviewResponseSchema)` to create a new message.
  */
 export const RemoveReviewResponseSchema: GenMessage<RemoveReviewResponse> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 12);
+  messageDesc(file_user_review_v1_review, 16);
 
 /**
  * @generated from message user.review.v1.ReviewRemoval
@@ -431,8 +471,6 @@ export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {
   createdBy: string;
 
   /**
-   * display_name of the user who created this audit row, joined at read time.
-   *
    * @generated from field: string created_by_name = 8;
    */
   createdByName: string;
@@ -443,7 +481,7 @@ export type ReviewRemoval = Message<"user.review.v1.ReviewRemoval"> & {
  * Use `create(ReviewRemovalSchema)` to create a new message.
  */
 export const ReviewRemovalSchema: GenMessage<ReviewRemoval> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 13);
+  messageDesc(file_user_review_v1_review, 17);
 
 /**
  * @generated from message user.review.v1.ListReviewRemovalsRequest
@@ -460,7 +498,7 @@ export type ListReviewRemovalsRequest = Message<"user.review.v1.ListReviewRemova
  * Use `create(ListReviewRemovalsRequestSchema)` to create a new message.
  */
 export const ListReviewRemovalsRequestSchema: GenMessage<ListReviewRemovalsRequest> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 14);
+  messageDesc(file_user_review_v1_review, 18);
 
 /**
  * @generated from message user.review.v1.ListReviewRemovalsResponse
@@ -482,7 +520,7 @@ export type ListReviewRemovalsResponse = Message<"user.review.v1.ListReviewRemov
  * Use `create(ListReviewRemovalsResponseSchema)` to create a new message.
  */
 export const ListReviewRemovalsResponseSchema: GenMessage<ListReviewRemovalsResponse> = /*@__PURE__*/
-  messageDesc(file_user_review_v1_review, 15);
+  messageDesc(file_user_review_v1_review, 19);
 
 /**
  * @generated from service user.review.v1.ReviewService
@@ -519,6 +557,22 @@ export const ReviewService: GenService<{
     methodKind: "unary";
     input: typeof ListMyReviewsRequestSchema;
     output: typeof ListMyReviewsResponseSchema;
+  },
+  /**
+   * @generated from rpc user.review.v1.ReviewService.ListMyReviewsForOrders
+   */
+  listMyReviewsForOrders: {
+    methodKind: "unary";
+    input: typeof ListMyReviewsForOrdersRequestSchema;
+    output: typeof ListMyReviewsForOrdersResponseSchema;
+  },
+  /**
+   * @generated from rpc user.review.v1.ReviewService.GetMyReviewForOrder
+   */
+  getMyReviewForOrder: {
+    methodKind: "unary";
+    input: typeof GetMyReviewForOrderRequestSchema;
+    output: typeof GetMyReviewForOrderResponseSchema;
   },
   /**
    * @generated from rpc user.review.v1.ReviewService.RemoveReview

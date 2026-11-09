@@ -59,6 +59,9 @@ type fakeRepository struct {
 	claimErr           error
 	deletedOrphans     []uuid.UUID
 	deleteOrphanErr    error
+
+	// Given-review lookups, exercised by the batched CTA tests.
+	reviewsForOrder []Review
 }
 
 // attachRecord pins one attachment call for assertions.

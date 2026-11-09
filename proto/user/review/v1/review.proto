@@ -1,8 +1,5 @@
 syntax = "proto3";
 
-// Review feature contract for user-service. A review lets one participant of a
-// Completed request rate the other; removals are soft deletes recorded with an
-// audit row.
 package user.review.v1;
 
 import "buf/validate/validate.proto";
@@ -14,30 +11,26 @@ service ReviewService {
   rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc ListMyReviewsForOrders(ListMyReviewsForOrdersRequest) returns (ListMyReviewsForOrdersResponse) {}
+  rpc GetMyReviewForOrder(GetMyReviewForOrderRequest) returns (GetMyReviewForOrderResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
   rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
 }
 
-// A review given by one participant about another for a single request.
 message Review {
   string id = 1;
   string reviewer_id = 2;
   string reviewee_id = 3;
-  // Opaque request id owned by the order service; no foreign key here.
   string order_id = 4;
   int32 rating = 5;
   string comment = 6;
   google.protobuf.Timestamp created_at = 7;
-  // display_name of the reviewer and reviewee, joined at read time.
   string reviewer_name = 8;
   string reviewee_name = 9;
-  // Attached photos in display order. URL is a short-lived pre-signed GET
-  // grant; treat responses carrying it as non-cacheable.
+  // Pre-signed GET URLs; responses carrying them are not cacheable.
   repeated ReviewPhoto photos = 10;
 }
 
-// One attached review photo. The URL is a temporary credential minted per
-// response, never a stable object address.
 message ReviewPhoto {
   string id = 1;
   string url = 2;
@@ -45,7 +38,6 @@ message ReviewPhoto {
   google.protobuf.Timestamp expires_at = 4;
 }
 
-// The rating and comment a caller submits about a reviewee.
 message ReviewSubmission {
   int32 rating = 1 [(buf.validate.field).int32 = {
     gte: 1
@@ -58,14 +50,12 @@ message ReviewSubmission {
 }
 
 message SubmitReviewRequest {
-  // The reviewer. Must be the authenticated caller; impersonation is rejected.
+  // Must be the authenticated caller.
   string from = 1 [(buf.validate.field).string.uuid = true];
-  // The reviewee; must be an existing user and differ from `from`.
   string to = 2 [(buf.validate.field).string.uuid = true];
   string order_id = 3 [(buf.validate.field).string.uuid = true];
   ReviewSubmission submission = 4 [(buf.validate.field).required = true];
-  // IDs returned by CreateReviewPhotoUpload, in display order. Attachment is
-  // authorized and verified inside the submission transaction.
+  // Ordered IDs returned by CreateReviewPhotoUpload.
   repeated string photo_ids = 5 [(buf.validate.field).repeated = {
     max_items: 5
     items: {string: {uuid: true}}
@@ -74,8 +64,6 @@ message SubmitReviewRequest {
 
 message SubmitReviewResponse {}
 
-// Requests one pre-signed PUT grant for a review photo. Bytes upload directly
-// from the browser to object storage; the service never carries them.
 message CreateReviewPhotoUploadRequest {
   string content_type = 1 [(buf.validate.field).string = {
     in: [
@@ -86,7 +74,6 @@ message CreateReviewPhotoUploadRequest {
       "image/heif"
     ]
   }];
-  // Decimal bytes; matches the repository-wide image limit.
   int64 size_bytes = 2 [(buf.validate.field).int64 = {
     gte: 1
     lte: 10000000
@@ -96,7 +83,6 @@ message CreateReviewPhotoUploadRequest {
 message CreateReviewPhotoUploadResponse {
   string photo_id = 1;
   string upload_url = 2;
-  // Headers the browser must send with the PUT.
   map<string, string> upload_headers = 3;
   google.protobuf.Timestamp expires_at = 4;
 }
@@ -112,7 +98,7 @@ message ListMyReviewsResponse {
 }
 
 message ListReviewsForUserRequest {
-  // A suspended caller may only request their own id; the handler enforces this.
+  // A suspended caller may only request their own id.
   string user_id = 1 [(buf.validate.field).string.uuid = true];
   pagination.v1.Pagination pagination = 2;
 }
@@ -121,9 +107,27 @@ message ListMyReviewsRequest {
   pagination.v1.Pagination pagination = 1;
 }
 
+message ListMyReviewsForOrdersRequest {
+  repeated string order_ids = 1 [(buf.validate.field).repeated = {
+    max_items: 50
+    items: {string: {uuid: true}}
+  }];
+}
+
+message ListMyReviewsForOrdersResponse {
+  repeated string reviewed_order_ids = 1;
+}
+
+message GetMyReviewForOrderRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetMyReviewForOrderResponse {
+  Review review = 1;
+}
+
 message RemoveReviewRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
-  // Recorded on the audit row.
   string reason = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 100000
@@ -140,7 +144,6 @@ message ReviewRemoval {
   string reason = 5;
   google.protobuf.Timestamp created_at = 6;
   string created_by = 7;
-  // display_name of the user who created this audit row, joined at read time.
   string created_by_name = 8;
 }
 

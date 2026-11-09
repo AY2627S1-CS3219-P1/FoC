@@ -88,7 +88,7 @@ func (f *fakeRepository) InsertReviewPhoto(_ context.Context, input ReviewPhotoI
 	}
 	f.photosByKey[input.ID] = ReviewPhoto{
 		ID:          input.ID,
-		OwnerID:     input.OwnerID,
+		OwnerID:     uuid.NullUUID{UUID: input.OwnerID, Valid: true},
 		ObjectKey:   input.ObjectKey,
 		ContentType: input.ContentType,
 		SizeBytes:   input.SizeBytes,
@@ -99,10 +99,37 @@ func (f *fakeRepository) InsertReviewPhoto(_ context.Context, input ReviewPhotoI
 
 func (f *fakeRepository) GetReviewPhoto(_ context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error) {
 	photo, ok := f.photosByKey[id]
-	if !ok || photo.OwnerID != ownerID {
+	if !ok || !photo.OwnerID.Valid || photo.OwnerID.UUID != ownerID {
 		return ReviewPhoto{}, errPhotoNotFound
 	}
 	return photo, nil
+}
+
+func (f *fakeRepository) ListReviewedOrderIds(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	want := make(map[uuid.UUID]bool, len(orderIDs))
+	for _, id := range orderIDs {
+		want[id] = true
+	}
+	var out []uuid.UUID
+	for _, review := range f.reviewsForOrder {
+		if review.ReviewerID == reviewerID && want[review.OrderID] {
+			out = append(out, review.OrderID)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeRepository) ReviewForOrder(_ context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	for _, review := range f.reviewsForOrder {
+		if review.ReviewerID == reviewerID && review.OrderID == orderID {
+			return review, nil
+		}
+	}
+	return Review{}, errReviewNotFound
 }
 
 func (f *fakeRepository) AttachReviewPhoto(
@@ -186,17 +213,17 @@ func TestCreateReviewPhotoUploadStoresStagingRow(t *testing.T) {
 	storage := &fakeStorage{}
 	service := newTestServiceWithPhotos(fake, storage)
 
-	upload, grant, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 200)
+	photoID, grant, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 200)
 	if err != nil {
 		t.Fatalf("create upload: %v", err)
 	}
-	if upload.ObjectKey != photoKeyPrefix+upload.ID.String() {
-		t.Fatalf("object key must derive from the photo id, got %q", upload.ObjectKey)
+	if fake.insertedPhoto.ObjectKey != photoKeyPrefix+photoID.String() {
+		t.Fatalf("object key must derive from the photo id, got %q", fake.insertedPhoto.ObjectKey)
 	}
 	if grant.URL == "" {
 		t.Fatal("grant URL must be returned")
 	}
-	if fake.insertedPhoto.ID != upload.ID || fake.insertedPhoto.SizeBytes != 200 {
+	if fake.insertedPhoto.ID != photoID || fake.insertedPhoto.SizeBytes != 200 {
 		t.Fatalf("staging row mismatch: %+v", fake.insertedPhoto)
 	}
 }
@@ -227,7 +254,7 @@ func TestCreateReviewPhotoUploadSigningFailureLeavesNoOrphanRow(t *testing.T) {
 func TestPreparePhotosRejectsForeignAndStale(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 
@@ -290,7 +317,7 @@ func TestPreparePhotosRejectsTooMany(t *testing.T) {
 func TestPreparePhotosVerifiesStoredObjectShape(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 
@@ -327,7 +354,7 @@ func TestPreparePhotosVerifiesStoredObjectShape(t *testing.T) {
 func TestPreparePhotosClassifiesStorageFaults(t *testing.T) {
 	owner := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: owner, ObjectKey: photoKeyPrefix + uuid.NewString(),
+		ID: uuid.New(), OwnerID: uuid.NullUUID{UUID: owner, Valid: true}, ObjectKey: photoKeyPrefix + uuid.NewString(),
 		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
 	}
 	cases := []struct {
@@ -386,11 +413,11 @@ func TestSubmitReviewAttachesInListOrder(t *testing.T) {
 	ctx := context.Background()
 
 	for range MaxReviewPhotos {
-		upload, _, err := service.CreateReviewPhotoUpload(ctx, reviewer, "image/jpeg", 200)
+		photoID, _, err := service.CreateReviewPhotoUpload(ctx, reviewer, "image/jpeg", 200)
 		if err != nil {
 			t.Fatalf("create upload: %v", err)
 		}
-		photo, err := fake.GetReviewPhoto(ctx, reviewer, upload.ID)
+		photo, err := fake.GetReviewPhoto(ctx, reviewer, photoID)
 		if err != nil {
 			t.Fatalf("staged photo: %v", err)
 		}
@@ -437,8 +464,12 @@ func TestSubmitReviewFailsWhenAttachmentLost(t *testing.T) {
 	reviewer := uuid.New()
 	reviewee := uuid.New()
 	staged := ReviewPhoto{
-		ID: uuid.New(), OwnerID: reviewer, ObjectKey: photoKeyPrefix + uuid.NewString(),
-		ContentType: "image/jpeg", SizeBytes: 300, State: photoStateUploading,
+		ID:          uuid.New(),
+		OwnerID:     uuid.NullUUID{UUID: reviewer, Valid: true},
+		ObjectKey:   photoKeyPrefix + uuid.NewString(),
+		ContentType: "image/jpeg",
+		SizeBytes:   300,
+		State:       photoStateUploading,
 	}
 	fake := &fakeRepository{
 		exists:             map[uuid.UUID]bool{reviewer: true, reviewee: true},

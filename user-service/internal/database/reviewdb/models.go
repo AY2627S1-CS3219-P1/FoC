@@ -24,7 +24,7 @@ type Review struct {
 
 type ReviewPhoto struct {
 	ID              uuid.UUID
-	OwnerID         uuid.UUID
+	OwnerID         uuid.NullUUID
 	ObjectKey       string
 	ContentType     string
 	SizeBytes       int64

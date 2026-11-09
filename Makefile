@@ -107,13 +107,15 @@ k8s-mailpit: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" mailpit
 
 .PHONY: seed-demo seed-demo-reset
-# The manifest owns file order and database targets; SQL owns transactions.
+# User owns user/event transactions; the SQL manifest owns Supplier fixtures.
 seed-demo:
-	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json
+	@docker compose exec -T user-service go run ./cmd/seed --fixtures - < data/seeds/users.json
+	@go run ./scripts/seed --manifest data/seeds/manifest.json
 
 # Restore fixed fixture IDs without deleting unrelated records.
 seed-demo-reset:
-	@go run ./pkg/cmd/seed --manifest data/seeds/manifest.json --reset
+	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
+	@go run ./scripts/seed --manifest data/seeds/manifest.json --reset
 
 .PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
 k8s-test: k8s-tools $(K8S_CLI)
@@ -127,3 +129,14 @@ k8s-proxy-startup-smoke: k8s-tools $(K8S_CLI)
 
 k8s-storage-smoke: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" "$(K8S_CLI)" storage-smoke
+
+.PHONY: k8s-grafana k8s-logging-smoke
+k8s-grafana: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" grafana
+
+k8s-logging-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-smoke
+
+.PHONY: k8s-logging-validate
+k8s-logging-validate: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-validate

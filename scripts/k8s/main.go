@@ -97,11 +97,20 @@ func (o *operator) runCLI(args []string) error {
 			return err
 		}
 		if !contains(stages, argument) {
-			return errors.New("render requires gateway, dependencies, provisioning, initialization, or applications")
+			return errors.New(
+				"render requires gateway, dependencies, provisioning, observability, initialization, or applications",
+			)
 		}
 		rendered, err := o.renderStage(argument)
 		if err != nil {
 			return err
+		}
+		if argument == "observability" {
+			loki, helmErr := o.renderLoki()
+			if helmErr != nil {
+				return helmErr
+			}
+			rendered += "\n---\n" + loki
 		}
 		_, err = fmt.Fprint(os.Stdout, rendered)
 		return err
@@ -111,14 +120,15 @@ func (o *operator) runCLI(args []string) error {
 			return err
 		}
 		return o.superviseForwards(forwards, true)
-	case "kafka-ui", "mailpit":
+	case "kafka-ui", "mailpit", "grafana":
 		forwards, err := configuredForwards(os.Getenv)
 		if err != nil {
 			return err
 		}
 		for _, forward := range forwards {
 			if (command == "kafka-ui" && forward.service == "kafka-ui") ||
-				(command == "mailpit" && forward.service == "mailpit") {
+				(command == "mailpit" && forward.service == "mailpit") ||
+				(command == "grafana" && forward.service == "grafana") {
 				return o.superviseForwards([]forwardSpec{forward}, false)
 			}
 		}
@@ -131,6 +141,10 @@ func (o *operator) runCLI(args []string) error {
 		return o.persistenceSmoke()
 	case "proxy-startup-smoke":
 		return o.proxyStartupSmoke()
+	case "logging-validate":
+		return o.validateObservability()
+	case "logging-smoke":
+		return o.loggingSmoke()
 	case "storage-smoke":
 		return o.storageSmoke()
 	case "demo":
@@ -141,7 +155,7 @@ func (o *operator) runCLI(args []string) error {
 		return o.deleteCluster()
 	default:
 		return errors.New(
-			"usage: k8s up|deploy [service]|render <stage>|access|status|smoke|demo|delete-cluster|kafka-ui|mailpit",
+			"usage: k8s up|deploy [service]|render <stage>|access|status|smoke|logging-smoke|logging-validate|demo|delete-cluster|kafka-ui|mailpit|grafana",
 		)
 	}
 }

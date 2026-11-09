@@ -12,15 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// WithTransaction runs operation inside a database/sql transaction with the
-// sqlc queries bound to it; the composition root wires it to the GORM pool.
+// WithTransaction runs operation on the sqlc queries bound to a transaction.
 type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries) error) error
 
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
-	// photos may be nil: photo uploads are an optional deployment feature and
-	// every photo path degrades to "unavailable" or "no photos" accordingly.
+	// photos may be nil when photo storage is not configured.
 	photos PhotoStorage
 }
 
@@ -28,11 +26,7 @@ func NewService(repo Repository, withTransaction WithTransaction, photos PhotoSt
 	return &Service{repo: repo, withTransaction: withTransaction, photos: photos}
 }
 
-// SubmitReview inserts the review, attaches the caller's staged photos and
-// recomputes the reviewee's stats in the same transaction, so the stats are
-// current when it returns. Photo metadata inspection happens before the
-// transaction; the guarded attachment inside it is the authorization and
-// consistency boundary.
+// SubmitReview inserts the review, attaches photos and recomputes stats in one transaction.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
@@ -52,11 +46,8 @@ func (s *Service) SubmitReview(
 	if !participants.RevieweeExists {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
 	}
-	// A prior submission for the same request committed — usually a
-	// lost-response retry. The duplicate pre-check runs before photo
-	// preparation so the retry gets the canonical 409 the ADR documents
-	// instead of a photo-state rejection; the unique index would reject the
-	// insert anyway if a concurrent submission slips past this check.
+	// A prior submission committed, usually a lost-response retry; the pre-check
+	// runs before photo preparation so the retry gets the canonical 409.
 	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
 	if err != nil {
 		return err
@@ -88,8 +79,7 @@ func (s *Service) SubmitReview(
 			case errors.Is(err, errReviewAlreadyExists):
 				return errs.WrapAlreadyExistsError(err, "review already exists")
 			default:
-				// Anything else (foreign keys, connectivity, timeouts) is not a
-				// duplicate; surface it as an internal error instead of a 409.
+				// Anything else is an internal error, not a duplicate.
 				return err
 			}
 		}
@@ -140,8 +130,30 @@ func (s *Service) ListReviewsFromUser(
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// RemoveReview soft-deletes the review, records the audit row and recomputes
-// the reviewee's stats atomically.
+// RemoveReview soft-deletes the review, records the audit row and recomputes stats.
+// ListMyReviewsForOrders returns which of the requests the reviewer has reviewed.
+func (s *Service) ListMyReviewsForOrders(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	return s.repo.ListReviewedOrderIds(ctx, reviewerID, orderIDs)
+}
+
+// GetMyReviewForOrder returns the reviewer's live review for one order, with
+// freshly minted photo URLs.
+func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	review, err := s.repo.ReviewForOrder(ctx, reviewerID, orderID)
+	if err != nil {
+		return Review{}, err
+	}
+	filled, err := s.fillPhotos(ctx, []Review{review})
+	if err != nil {
+		return Review{}, err
+	}
+	return filled[0], nil
+}
+
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {

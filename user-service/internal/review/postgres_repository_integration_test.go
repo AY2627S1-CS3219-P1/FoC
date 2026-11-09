@@ -308,10 +308,38 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		stranger := uuid.New()
 		insertUser(t, ctx, sqlDB, stranger)
 		foreign := insertPhoto(t)
-		foreign.OwnerID = stranger
+		foreign.OwnerID = uuid.NullUUID{UUID: stranger, Valid: true}
 		rows, err = repo.AttachReviewPhoto(ctx, q, stranger, reviewID, 1, foreign)
 		if err != nil || rows != 0 {
 			t.Fatalf("attach of a foreign photo: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("deleting the uploader keeps the photo with a null owner", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		owner := uuid.New()
+		insertUser(t, ctx, sqlDB, owner)
+		id := uuid.New()
+		if err := repo.InsertReviewPhoto(ctx, ReviewPhotoInput{
+			ID:              id,
+			OwnerID:         owner,
+			ObjectKey:       "review/photo/" + uuid.New().String(),
+			ContentType:     "image/png",
+			SizeBytes:       10,
+			UploadExpiresAt: time.Now().Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("stage photo: %v", err)
+		}
+		if _, err := sqlDB.ExecContext(ctx, "DELETE FROM users WHERE id = $1", owner); err != nil {
+			t.Fatalf("delete user: %v", err)
+		}
+		var ownerID uuid.NullUUID
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT owner_id FROM review_photos WHERE id = $1", id).Scan(&ownerID); err != nil {
+			t.Fatalf("photo must survive owner deletion: %v", err)
+		}
+		if ownerID.Valid {
+			t.Fatalf("owner_id = %v, want NULL", ownerID.UUID)
 		}
 	})
 
@@ -365,6 +393,41 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		// stays untouched.
 		if rows, err := repo.DeleteOrphanReviewPhoto(ctx, live.ID); err != nil || rows != 0 {
 			t.Fatalf("delete unclaimed row: rows=%d err=%v, want 0 and nil", rows, err)
+		}
+	})
+
+	t.Run("batched reviewed-order lookup and single fetch", func(t *testing.T) {
+		repo := NewPostgresRepository(reviewdb.New(sqlDB))
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		order1, order2 := uuid.New(), uuid.New()
+		if err := service.SubmitReview(
+			ctx,
+			reviewer,
+			reviewee,
+			order1,
+			ReviewSubmission{Rating: 5, Comment: "reviewed"},
+			nil,
+		); err != nil {
+			t.Fatalf("submit review: %v", err)
+		}
+
+		got, err := repo.ListReviewedOrderIds(ctx, reviewer, []uuid.UUID{order1, order2})
+		if err != nil {
+			t.Fatalf("list reviewed order ids: %v", err)
+		}
+		if len(got) != 1 || got[0] != order1 {
+			t.Fatalf("reviewed ids = %v, want only %v", got, order1)
+		}
+
+		review, err := repo.ReviewForOrder(ctx, reviewer, order1)
+		if err != nil || review.Rating != 5 || review.OrderID != order1 {
+			t.Fatalf("review for order = %+v err=%v", review, err)
+		}
+		if _, err := repo.ReviewForOrder(ctx, reviewer, order2); !errors.Is(err, errReviewNotFound) {
+			t.Fatalf("unreviewed order should be not found, got %v", err)
 		}
 	})
 

@@ -1,5 +1,4 @@
-// Client-facing review error vocabulary: neutral contract reasons plus the
-// google.rpc details that carry them to clients.
+// Client-facing review errors: neutral reasons plus the google.rpc details carrying them.
 package review
 
 import (
@@ -15,7 +14,7 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
-// Neutral contract reasons; the real causes stay in server logs.
+// Neutral contract reasons; real causes stay in logs.
 const (
 	reasonInternal                     = "INTERNAL"
 	reasonInvalidReview                = "INVALID_REVIEW"
@@ -31,13 +30,19 @@ const (
 const errorDomain = "user.review.v1"
 
 const (
-	// Curated client-facing messages; provider and configuration detail never
-	// reaches callers.
+	// Curated messages; provider and configuration detail never reaches callers.
 	uploadTemporarilyUnavailableMessage = "Photo uploads are temporarily unavailable. Try again, or submit your review without photos."
 	uploadUnavailableMessage            = "Photo uploads aren't available. You can still submit your review without photos."
 )
 
 var (
+	errSelfReview          = errors.New("cannot review yourself")
+	errReviewerNotFound    = errors.New("reviewer does not exist")
+	errRevieweeNotFound    = errors.New("reviewee does not exist")
+	errReviewNotFound      = errors.New("review not found")
+	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
+	errReviewInvalid       = errors.New("review data is invalid")
+
 	errUploadTemporarilyUnavailable = errors.New("review photo storage is temporarily unavailable")
 	errUploadUnavailable            = errors.New("review photo uploads are not available")
 	errPhotoNotReady                = errors.New("review photo is not ready to attach")
@@ -45,8 +50,7 @@ var (
 	errInvalidReview                = errors.New("review input is invalid")
 )
 
-// A client-facing review failure: contract status and reason, backend-dictated
-// message, and optionally the photo a client should point at.
+// A client-facing review failure with its reason and optional photo id.
 type uploadError struct {
 	sentinel error // mapping key
 	status   int
@@ -137,8 +141,7 @@ var errorMappings = []errorMapping{
 	{errReviewNotFound, connect.CodeNotFound, reasonReviewNotFound},
 }
 
-// Mapped reasons carry an ErrorInfo and an ErrorDetail; everything else falls
-// through to the shared conversion.
+// Mapped reasons carry ErrorInfo and ErrorDetail; others use the shared conversion.
 func toConnectError(ctx context.Context, err error) error {
 	if err == nil {
 		err = errors.New("nil error passed to toConnectError")
@@ -153,8 +156,7 @@ func toConnectError(ctx context.Context, err error) error {
 	if errors.As(err, &extErr) {
 		return api.ToConnectError(ctx, err)
 	}
-	// Unknown failure: generic message, but still tagged with the neutral
-	// reason so clients handle every 500 through the same path.
+	// Unknown failure: generic message, still tagged INTERNAL.
 	slog.ErrorContext(ctx, "review operation failed", "err", err)
 	connectErr := connect.NewError(connect.CodeInternal, errors.New(api.MsgInternalError))
 	attachDetails(ctx, connectErr, reasonInternal, err)
@@ -168,8 +170,7 @@ func mappedError(ctx context.Context, err error, m errorMapping) error {
 	return connectErr
 }
 
-// clientMessage returns the backend-dictated user-facing text: curated for
-// availability and unknown failures, the domain message otherwise.
+// clientMessage curates availability and internal text; other reasons use the domain message.
 func clientMessage(err error, reason string) string {
 	switch reason {
 	case reasonUploadTemporarilyUnavailable:
@@ -183,8 +184,7 @@ func clientMessage(err error, reason string) string {
 	return err.Error()
 }
 
-// ErrorDetail bundles message and violations in one descriptor so TypeScript
-// clients decode a single type.
+// attachDetails adds ErrorInfo plus the single ErrorDetail clients decode.
 func attachDetails(ctx context.Context, connectErr *connect.Error, reason string, err error) {
 	if detail, detailErr := connect.NewErrorDetail(
 		&errdetails.ErrorInfo{Domain: errorDomain, Reason: reason},
@@ -208,11 +208,8 @@ func attachDetails(ctx context.Context, connectErr *connect.Error, reason string
 	}
 }
 
-// logMappedError keeps provider and configuration detail in the logs: clients
-// only ever see the neutral reason and curated message.
+// logMappedError logs the cause; clients only see the reason and message.
 func logMappedError(ctx context.Context, err error, reason string) {
-	// The surface error is the curated client message; the wrapped cause
-	// carries what operations actually need.
 	var ue *uploadError
 	if errors.As(err, &ue) && ue.cause != nil {
 		err = ue.cause

@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          cache-dependency-path: ${{ matrix.module }}/go.*
       - name: Run all Go tests
         run: GOWORK=off go test -mod=readonly ./...
 
@@ -101,8 +101,8 @@ jobs:
             pkg/go.sum
       - name: Run seed runner integration tests
         if: steps.changes.outputs.run == 'true'
-        working-directory: pkg
-        run: GOWORK=off go test -mod=readonly -tags=integration ./cmd/seed -count=1 -timeout=5m
+        working-directory: scripts
+        run: GOWORK=off go test -mod=readonly -tags=integration ./seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration

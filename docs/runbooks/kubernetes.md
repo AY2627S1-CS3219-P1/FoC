@@ -22,7 +22,7 @@ Operational behavior worth knowing once the stack is deployed:
 - `k8s-up` installs the pinned, checksum-verified tools into `.tools/aqua`,
   creates/reuses kind cluster `foc`, installs the pinned Gateway API Standard
   CRDs and Istio charts, builds/loads images, and deploys the gateway,
-  dependencies, database provisioning, migrations/topics and applications.
+  dependencies, database provisioning, observability, migrations/topics and applications.
   Failed Jobs stop rollout. Existing running Jobs are not deleted. Retrying
   replaces only the exact terminal initialization Jobs; databases and PVCs are
   not reset.
@@ -414,3 +414,145 @@ same desired resources. Permanent validation/authorization errors stop promptly.
 If retries are exhausted, inspect `make k8s-status` and wait for any running
 initialization Jobs before retrying. Running Jobs and persistent data are not
 deleted as a timeout recovery mechanism.
+
+## Kubernetes logging
+
+The deployment stages are gateway → dependencies → database provisioning →
+observability → migrations/topics → applications. Observability waits for local
+Floci readiness and the idempotent `foc/loki-bucket-init` Job before installing
+release `loki` in `foc-observability` with `helm upgrade --install --wait`.
+Grafana and Alloy remain Kustomize resources. Do not apply the Helm-rendered
+Loki resources with kubectl or add them to a Kustomization.
+
+The chart archive is cached at `.tools/charts/loki-21.0.0.tgz`; its SHA-256 is
+checked on every use against `infra/k8s/observability/chart.sha256`, copied from
+[the maintained chart index](https://grafana-community.github.io/helm-charts/index.yaml).
+Shared values and environment overrides live in `infra/k8s/observability`.
+`loki` 3.7.9, Grafana 13.3.0 and Alloy 1.21.3 use immutable multiarchitecture
+image digests. See the [architecture decision](../adr/0001-kubernetes-logging.md).
+
+Set `K8S_GRAFANA_PORT=3000` in an existing `.env`, then use `make k8s-grafana`
+or the normal `make k8s-up` / `make k8s-access` session. Blank disables its
+forward; all configured ports must be distinct and free. CI explicitly sets
+it blank. Open `http://localhost:3000` and use the values in the private
+`.local/k8s/secrets/grafana-user` and `grafana-password` files (or the matching
+`K8S_STATE_DIR`). Credentials survive redeployment and cluster recreation.
+Grafana also persists its users in SQLite: changing an environment Secret does
+not reset an existing database password; rotate through Grafana's admin tools
+and update the preserved credential together. Never commit these files.
+
+Loki is provisioned as the default data source. In Grafana Explore, try:
+
+```logql
+{namespace="foc",service="order-service",container="order-service"}
+{namespace="foc",container="istio-proxy"} | json | response_code >= 500
+{namespace="istio-ingress",container="istio-proxy"} | json
+sum by (service) (count_over_time({namespace="foc"}[5m]))
+```
+
+Alloy reads only pods and pod logs in `foc` and `istio-ingress`. Application,
+dependency, frontend and native Envoy lines keep their existing formats.
+Labels are namespace, service, pod, container and node; user IDs, tokens and
+request IDs are never extracted into indexed labels. JSON parsing in a query
+happens at query time. Loki may add its standard `service_name` label derived
+from `service`. Existing Envoy log policy continues to omit query strings.
+There is no public Loki or log-bucket Gateway route. STRICT mTLS and exact
+Alloy/Grafana identities protect Loki. Only Loki's identity receives additional
+local Floci permission on the dedicated `foc-loki` bucket; existing image
+permissions and gateway restrictions still apply.
+
+Loki keeps WAL, index working files and compactor markers on a retained 5 GiB
+PVC. Grafana and Alloy each have a 1 GiB PVC. Helm removal and scale-down retain
+Loki PVCs. Removing the entire kind cluster destroys its local volumes.
+Deleting Kustomize PVC manifests explicitly also destroys their claims; back up
+Grafana before doing so. Floci's existing 2 GiB volume is shared with image
+storage. Monitor disk use: seven-day retention is time-based, not a disk quota,
+and compactor deletion is asynchronous. One Loki/Grafana/Alloy instance provides
+no high availability and no guarantee of loss-free collection during outages.
+
+### Production storage and identity
+
+Before deployment, provision a dedicated private S3 bucket and export:
+
+```sh
+export K8S_LOKI_BUCKET=foc-production-logs
+export K8S_LOKI_REGION=ap-southeast-1
+export K8S_LOKI_IRSA_ROLE=arn:aws:iam::123456789012:role/foc-loki
+export K8S_LOKI_STORAGE_CLASS=gp3
+```
+
+The operator rejects missing or malformed values before building or deploying.
+It cannot prove from a bucket name that the bucket is dedicated: operators must
+verify isolation from image storage and other consumers. Never supply the image
+bucket. Enable S3 public-access blocking and encryption. Do not expire objects
+sooner than Loki's seven-day retention. If versioning is enabled, separately
+expire noncurrent versions; Loki deletion alone does not reclaim those bytes.
+
+Register the cluster's OIDC issuer as an AWS IAM OIDC provider. The IRSA role
+trust policy must allow `sts:AssumeRoleWithWebIdentity` only for that provider,
+with **StringEquals** on `<issuer-without-https>:aud = sts.amazonaws.com` and
+`<issuer-without-https>:sub = system:serviceaccount:foc-observability:loki`.
+Do not use wildcard subjects or grant the role to Grafana or Alloy. The operator
+adds `eks.amazonaws.com/role-arn` to Helm's exact `loki` service account. Verify
+the EKS IRSA admission webhook projects a token and AWS environment settings.
+
+Grant the role `s3:ListBucket` and `s3:GetBucketLocation` on
+`arn:aws:s3:::<bucket>`, and `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`
+on `arn:aws:s3:::<bucket>/*`. Customer-managed KMS encryption also requires
+`kms:Encrypt`, `kms:Decrypt` and `kms:GenerateDataKey` with the appropriate key
+policy. Verify regional S3 and STS reachability from the mesh and VPC endpoints.
+Production uses HTTPS AWS endpoints and the SDK credential chain, without local
+Floci endpoints or static test keys.
+
+Install and authorize the EBS CSI driver before deployment. Provide the named
+StorageClass, preferably encrypted gp3 with `WaitForFirstConsumer`, and a
+working default StorageClass for Grafana and Alloy (or patch their PVCs in the
+production overlay before first creation). RWO volumes bind instances to their
+availability zone. Use a `Retain` reclaim policy and backups appropriate to the
+production recovery plan; claim retention does not protect against namespace,
+cluster or underlying volume deletion.
+
+Create operator-owned Secret `grafana-admin` in `foc-observability` with nonempty
+`username` and `password` keys before production deployment. The operator checks
+it and never generates or overwrites production credentials. Existing production
+hostname, registry, TLS, SMTP and database prerequisites still apply.
+
+### Logging validation and acceptance
+
+```sh
+make k8s-test                         # operator tests and both Kustomize/Helm renders
+.tools/bin/k8s render observability   # Kustomize plus Helm YAML for inspection only
+make k8s-logging-validate             # Helm lint/template and pinned image validators
+# Repeat validation/render with K8S_OVERLAY=infra/k8s/overlays/production
+# and the four required production settings above.
+make k8s-logging-smoke                # disruptive; managed local kind only
+make k8s-smoke
+make k8s-storage-smoke
+# In the same isolated multi-node environment, live admission/credential/PVC tests:
+K8S_RUNTIME_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./k8s \
+  -run '^TestLogging(Admission|CredentialsAndPVCRetention|ReplicasRestore)LiveCluster$' -count=1
+```
+
+For isolated multi-node acceptance, set a new `K8S_CLUSTER`, private
+`K8S_STATE_DIR`, and `K8S_KIND_CONFIG=infra/k8s/observability/kind.yaml` before
+`make k8s-up`. CI uses this three-node topology on amd64 and arm64. Existing
+clusters are reused, so a topology setting does not resize an existing cluster.
+The logging smoke check uses authenticated Grafana queries, rejects an
+unauthorized mesh client, checks S3 objects after flushing, restarts Loki,
+Floci and Alloy, repeats historical queries, and replaces application pods to
+check collection resumes. It restores application settings and waits for
+readiness before reporting success. It retains credentials and PVCs. The existing mesh
+check includes public Loki/log-bucket paths; the logging check exercises the
+live admission chain with server-side dry runs. Image-storage checks cover
+signed image access and gateway bucket restrictions.
+`make k8s-status` includes observability pods, Services and claims.
+
+Implementation validation on 7 November 2026: both environment renderings and
+pinned-image Loki/Alloy validators passed. A fresh three-node kind cluster on
+Linux amd64 passed bootstrap, logging collection and authenticated Grafana
+queries, mesh/public-route checks, restart/replacement persistence, live
+admission checks, credential preservation, PVC retention and existing signed
+image-storage checks. See the [verification record](kubernetes-verification.md#november-logging-acceptance).
+AWS integration and arm64 runtime acceptance remain unverified locally; CI is
+configured to run both architectures. No elapsed seven-day retention test is
+claimed.
