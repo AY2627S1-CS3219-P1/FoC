@@ -18,6 +18,8 @@
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
+	import ProfileAvatar from '$lib/components/profile/ProfileAvatar.svelte';
+	import ProfilePictureEditor from './ProfilePictureEditor.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
@@ -72,11 +74,11 @@
 		return 'We could not save your profile. Your changes are still here; please try again.';
 	}
 
-	async function loadProfile() {
+	async function loadProfile(refresh = false) {
 		loading = true;
 		loadError = '';
 		try {
-			profile = await profileService.getMyProfile();
+			profile = refresh ? await profileService.getMyProfile() : await profileService.ensureProfile();
 			const saved = valuesFromProfile(profile);
 			reset({ data: saved, newState: saved });
 		} catch {
@@ -84,6 +86,13 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	// An expired signed avatar URL is refreshed without replacing the whole
+	// profile view with a loading state.
+	async function refreshPicture() {
+		const updated = await profileService.refreshPicture();
+		if (updated) profile = updated;
 	}
 
 	onMount(() => {
@@ -101,9 +110,24 @@
 
 <section class="page-content profile-page" aria-labelledby="profile-title">
 	<header class="page-heading">
-		<div>
-			<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
-			{#if profile}<p>{profile.email}</p>{/if}
+		<div class="identity">
+			{#if profile}
+				{#if profile.role === UserRole.SUSPENDED_USER}
+					<ProfileAvatar
+						url={profile.profilePictureUrl}
+						name={profile.displayName}
+						size={72}
+						expiresAt={profile.profilePictureExpiresAt}
+						onerror={() => void refreshPicture()}
+					/>
+				{:else}
+					<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />
+				{/if}
+			{/if}
+			<div class="identity-copy">
+				<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
+				{#if profile}<p>{profile.email}</p>{/if}
+			</div>
 		</div>
 		{#if profile}<span class="role-chip">{roleLabel(profile.role)}</span>{/if}
 	</header>
@@ -118,7 +142,7 @@
 			><div class="panel-body">
 				<p class="notice error" role="alert">{loadError}</p>
 				<div class="form-actions">
-					<Button onclick={() => void loadProfile()}>Try again</Button>
+					<Button onclick={() => void loadProfile(true)}>Try again</Button>
 				</div>
 			</div></Card
 		>
@@ -214,6 +238,10 @@
 
 
 <style>
+	.identity { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; min-width: 0; }
+	.identity-copy { min-width: 0; }
+	.identity-copy p { margin: 0.25rem 0 0; color: var(--m3c-on-surface-variant); }
+
 	/* Wireframe: current credits and request history sit beside each other. */
 	.activity {
 		display: grid;
