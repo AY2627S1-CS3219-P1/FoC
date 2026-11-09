@@ -6,8 +6,8 @@
 // Completed request rate the other; removals are soft deletes recorded with an
 // audit row.
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
 import type { PageInfo, Pagination } from "../../../pagination/v1/pagination_pb";
 import { file_pagination_v1_pagination } from "../../../pagination/v1/pagination_pb";
@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/review/v1/review.proto.
  */
 export const file_user_review_v1_review: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIs8BCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJIksKEFJldmlld1N1Ym1pc3Npb24SGQoGcmF0aW5nGAEgASgFQgm6SAYaBBgFKAESHAoHY29tbWVudBgCIAEoCUILukgIcgYQARigjQYinQEKE1N1Ym1pdFJldmlld1JlcXVlc3QSFgoEZnJvbRgBIAEoCUIIukgFcgOwAQESFAoCdG8YAiABKAlCCLpIBXIDsAEBEhoKCG9yZGVyX2lkGAMgASgJQgi6SAVyA7ABARI8CgpzdWJtaXNzaW9uGAQgASgLMiAudXNlci5yZXZpZXcudjEuUmV2aWV3U3VibWlzc2lvbkIGukgDyAEBIhYKFFN1Ym1pdFJldmlld1Jlc3BvbnNlInIKGkxpc3RSZXZpZXdzRm9yVXNlclJlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8ibQoVTGlzdE15UmV2aWV3c1Jlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iZQoZTGlzdFJldmlld3NGb3JVc2VyUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARItCgpwYWdpbmF0aW9uGAIgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkUKFExpc3RNeVJldmlld3NSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iSAoTUmVtb3ZlUmV2aWV3UmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQESGwoGcmVhc29uGAIgASgJQgu6SAhyBhABGKCNBiIWChRSZW1vdmVSZXZpZXdSZXNwb25zZSLEAQoNUmV2aWV3UmVtb3ZhbBIKCgJpZBgBIAEoCRITCgtyZXZpZXdlcl9pZBgCIAEoCRITCgtyZXZpZXdlZV9pZBgDIAEoCRIQCghvcmRlcl9pZBgEIAEoCRIOCgZyZWFzb24YBSABKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY3JlYXRlZF9ieRgHIAEoCRIXCg9jcmVhdGVkX2J5X25hbWUYCCABKAkiSgoZTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInoKGkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlEi8KCHJlbW92YWxzGAEgAygLMh0udXNlci5yZXZpZXcudjEuUmV2aWV3UmVtb3ZhbBIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbzKHBAoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2UiABJeCg1MaXN0TXlSZXZpZXdzEiQudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlcXVlc3QaJS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVzcG9uc2UiABJbCgxSZW1vdmVSZXZpZXcSIy51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3UmVtb3ZhbHMSKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2UiAEK+AQoSY29tLnVzZXIucmV2aWV3LnYxQgtSZXZpZXdQcm90b1ABWkFnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi91c2VyL3Jldmlldy92MTtyZXZpZXd2MaICA1VSWKoCDlVzZXIuUmV2aWV3LlYxygIOVXNlclxSZXZpZXdcVjHiAhpVc2VyXFJldmlld1xWMVxHUEJNZXRhZGF0YeoCEFVzZXI6OlJldmlldzo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
+  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIs8BCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJIksKEFJldmlld1N1Ym1pc3Npb24SGQoGcmF0aW5nGAEgASgFQgm6SAYaBBgFKAESHAoHY29tbWVudBgCIAEoCUILukgIcgYQARigjQYinQEKE1N1Ym1pdFJldmlld1JlcXVlc3QSFgoEZnJvbRgBIAEoCUIIukgFcgOwAQESFAoCdG8YAiABKAlCCLpIBXIDsAEBEhoKCG9yZGVyX2lkGAMgASgJQgi6SAVyA7ABARI8CgpzdWJtaXNzaW9uGAQgASgLMiAudXNlci5yZXZpZXcudjEuUmV2aWV3U3VibWlzc2lvbkIGukgDyAEBIoMBChRTdWJtaXRSZXZpZXdSZXNwb25zZRIRCglyZXZpZXdfaWQYASABKAkSOwoRbW9kZXJhdGlvbl9zdGF0dXMYAyABKA4yIC51c2VyLnJldmlldy52MS5Nb2RlcmF0aW9uU3RhdHVzSgQIAhADUhVtb2RlcmF0aW9uX3JlcXVlc3RfaWQicgoaTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJtChVMaXN0TXlSZXZpZXdzUmVzcG9uc2USJwoHcmV2aWV3cxgBIAMoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyJlChlMaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0EhkKB3VzZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iRQoUTGlzdE15UmV2aWV3c1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJIChNSZW1vdmVSZXZpZXdSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABARIbCgZyZWFzb24YAiABKAlCC7pICHIGEAEYoI0GIhYKFFJlbW92ZVJldmlld1Jlc3BvbnNlIsQBCg1SZXZpZXdSZW1vdmFsEgoKAmlkGAEgASgJEhMKC3Jldmlld2VyX2lkGAIgASgJEhMKC3Jldmlld2VlX2lkGAMgASgJEhAKCG9yZGVyX2lkGAQgASgJEg4KBnJlYXNvbhgFIAEoCRIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpjcmVhdGVkX2J5GAcgASgJEhcKD2NyZWF0ZWRfYnlfbmFtZRgIIAEoCSJKChlMaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iegoaTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2USLwoIcmVtb3ZhbHMYASADKAsyHS51c2VyLnJldmlldy52MS5SZXZpZXdSZW1vdmFsEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIogCCiRMaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlcXVlc3QSHQoLcmV2aWV3ZXJfaWQYASABKAlCCLpIBXIDsAEBEi0KCnBhZ2luYXRpb24YAiABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24SRwoYbW9kZXJhdGlvbl9zdGF0dXNfZmlsdGVyGAMgASgOMiAudXNlci5yZXZpZXcudjEuTW9kZXJhdGlvblN0YXR1c0gAiAEBEh8KCG9yZGVyX2lkGAQgASgJQgi6SAVyA7ABAUgBiAEBQhsKGV9tb2RlcmF0aW9uX3N0YXR1c19maWx0ZXJCCwoJX29yZGVyX2lkIogBCiVMaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlc3BvbnNlEjIKB3Jldmlld3MYASADKAsyIS51c2VyLnJldmlldy52MS5VbnB1Ymxpc2hlZFJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyLZAwoRVW5wdWJsaXNoZWRSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEjsKEW1vZGVyYXRpb25fc3RhdHVzGAogASgOMiAudXNlci5yZXZpZXcudjEuTW9kZXJhdGlvblN0YXR1cxIdChVtb2RlcmF0aW9uX3JlcXVlc3RfaWQYCyABKAkSGAoQY29udGVudF9yZXZpc2lvbhgMIAEoBRIfChdtb2RlcmF0aW9uX3JlYXNvbl9jb2RlcxgNIAMoCRI1Cgxtb2RlcmF0ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSACIAQESHgoWYXBwbGllZF9ydW5fZ2VuZXJhdGlvbhgPIAEoBUIPCg1fbW9kZXJhdGVkX2F0KscBChBNb2RlcmF0aW9uU3RhdHVzEiEKHU1PREVSQVRJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASKAokTU9ERVJBVElPTl9TVEFUVVNfUEVORElOR19NT0RFUkFUSU9OEAESHgoaTU9ERVJBVElPTl9TVEFUVVNfQVBQUk9WRUQQAhIeChpNT0RFUkFUSU9OX1NUQVRVU19SRUpFQ1RFRBADEiYKIk1PREVSQVRJT05fU1RBVFVTX01PREVSQVRJT05fRVJST1IQBDKYBQoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJtChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2UiABJeCg1MaXN0TXlSZXZpZXdzEiQudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlcXVlc3QaJS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVzcG9uc2UiABKOAQodTGlzdFVucHVibGlzaGVkUmV2aWV3c0ZvclVzZXISNC51c2VyLnJldmlldy52MS5MaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlcXVlc3QaNS51c2VyLnJldmlldy52MS5MaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlc3BvbnNlIgASWwoMUmVtb3ZlUmV2aWV3EiMudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1Jlc3BvbnNlIgASbQoSTGlzdFJldmlld1JlbW92YWxzEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlIgBCvgEKEmNvbS51c2VyLnJldmlldy52MUILUmV2aWV3UHJvdG9QAVpBZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci9yZXZpZXcvdjE7cmV2aWV3djGiAgNVUliqAg5Vc2VyLlJldmlldy5WMcoCDlVzZXJcUmV2aWV3XFYx4gIaVXNlclxSZXZpZXdcVjFcR1BCTWV0YWRhdGHqAhBVc2VyOjpSZXZpZXc6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
 
 /**
  * A review given by one participant about another for a single request.
@@ -145,9 +145,24 @@ export const SubmitReviewRequestSchema: GenMessage<SubmitReviewRequest> = /*@__P
   messageDesc(file_user_review_v1_review, 2);
 
 /**
+ * SubmitReview acknowledges a persisted pending review. Publication follows
+ * only after asynchronous content moderation approves it; a successful
+ * response never means the review is public.
+ *
  * @generated from message user.review.v1.SubmitReviewResponse
  */
 export type SubmitReviewResponse = Message<"user.review.v1.SubmitReviewResponse"> & {
+  /**
+   * @generated from field: string review_id = 1;
+   */
+  reviewId: string;
+
+  /**
+   * Always PENDING_MODERATION for newly gated submissions.
+   *
+   * @generated from field: user.review.v1.ModerationStatus moderation_status = 3;
+   */
+  moderationStatus: ModerationStatus;
 };
 
 /**
@@ -373,6 +388,223 @@ export const ListReviewRemovalsResponseSchema: GenMessage<ListReviewRemovalsResp
   messageDesc(file_user_review_v1_review, 12);
 
 /**
+ * Lists the caller's (or an admin-selected reviewer's) reviews that are not
+ * published: pending, rejected and moderation-error. Queried by author, not
+ * reviewee — ListReviewsForUser's target semantics concern reviews received.
+ * This endpoint never calls the content moderation service, so it works even
+ * while moderation is unavailable.
+ *
+ * @generated from message user.review.v1.ListUnpublishedReviewsForUserRequest
+ */
+export type ListUnpublishedReviewsForUserRequest = Message<"user.review.v1.ListUnpublishedReviewsForUserRequest"> & {
+  /**
+   * The review author. Ordinary callers may request only their own id;
+   * admin/super-admin may select another reviewer. A suspended caller may
+   * inspect only their own. Enforced before any database lookup.
+   *
+   * @generated from field: string reviewer_id = 1;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: pagination.v1.Pagination pagination = 2;
+   */
+  pagination?: Pagination | undefined;
+
+  /**
+   * Optional filter. Only pending, rejected and moderation-error are valid
+   * here; approved reviews are never in this collection.
+   *
+   * @generated from field: optional user.review.v1.ModerationStatus moderation_status_filter = 3;
+   */
+  moderationStatusFilter?: ModerationStatus | undefined;
+
+  /**
+   * Optional: recover a submission after an ambiguous response by the order
+   * the review was submitted for.
+   *
+   * @generated from field: optional string order_id = 4;
+   */
+  orderId?: string | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.ListUnpublishedReviewsForUserRequest.
+ * Use `create(ListUnpublishedReviewsForUserRequestSchema)` to create a new message.
+ */
+export const ListUnpublishedReviewsForUserRequestSchema: GenMessage<ListUnpublishedReviewsForUserRequest> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 13);
+
+/**
+ * @generated from message user.review.v1.ListUnpublishedReviewsForUserResponse
+ */
+export type ListUnpublishedReviewsForUserResponse = Message<"user.review.v1.ListUnpublishedReviewsForUserResponse"> & {
+  /**
+   * @generated from field: repeated user.review.v1.UnpublishedReview reviews = 1;
+   */
+  reviews: UnpublishedReview[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.ListUnpublishedReviewsForUserResponse.
+ * Use `create(ListUnpublishedReviewsForUserResponseSchema)` to create a new message.
+ */
+export const ListUnpublishedReviewsForUserResponseSchema: GenMessage<ListUnpublishedReviewsForUserResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 14);
+
+/**
+ * A not-yet-published review with its moderation metadata.
+ *
+ * @generated from message user.review.v1.UnpublishedReview
+ */
+export type UnpublishedReview = Message<"user.review.v1.UnpublishedReview"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string reviewer_id = 2;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: string reviewee_id = 3;
+   */
+  revieweeId: string;
+
+  /**
+   * @generated from field: string order_id = 4;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: int32 rating = 5;
+   */
+  rating: number;
+
+  /**
+   * @generated from field: string comment = 6;
+   */
+  comment: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string reviewer_name = 8;
+   */
+  reviewerName: string;
+
+  /**
+   * @generated from field: string reviewee_name = 9;
+   */
+  revieweeName: string;
+
+  /**
+   * @generated from field: user.review.v1.ModerationStatus moderation_status = 10;
+   */
+  moderationStatus: ModerationStatus;
+
+  /**
+   * Correlates unpublished reviews with moderation job lookups.
+   *
+   * @generated from field: string moderation_request_id = 11;
+   */
+  moderationRequestId: string;
+
+  /**
+   * @generated from field: int32 content_revision = 12;
+   */
+  contentRevision: number;
+
+  /**
+   * Known rejection reason codes when rejected; empty otherwise.
+   *
+   * @generated from field: repeated string moderation_reason_codes = 13;
+   */
+  moderationReasonCodes: string[];
+
+  /**
+   * When the latest moderation result was applied, when present.
+   *
+   * @generated from field: optional google.protobuf.Timestamp moderated_at = 14;
+   */
+  moderatedAt?: Timestamp | undefined;
+
+  /**
+   * Generation of the last result applied by User, for distinguishing newer CMS retries.
+   *
+   * @generated from field: int32 applied_run_generation = 15;
+   */
+  appliedRunGeneration: number;
+};
+
+/**
+ * Describes the message user.review.v1.UnpublishedReview.
+ * Use `create(UnpublishedReviewSchema)` to create a new message.
+ */
+export const UnpublishedReviewSchema: GenMessage<UnpublishedReview> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 15);
+
+/**
+ * Moderation lifecycle of a review. Ordinary published reads and rating
+ * aggregates include only APPROVED reviews; rejected and errored reviews stay
+ * stored and visible to their author and authorised admins here.
+ *
+ * @generated from enum user.review.v1.ModerationStatus
+ */
+export enum ModerationStatus {
+  /**
+   * @generated from enum value: MODERATION_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Committed but not yet assessed. Contributes nothing to published
+   * statistics.
+   *
+   * @generated from enum value: MODERATION_STATUS_PENDING_MODERATION = 1;
+   */
+  PENDING_MODERATION = 1,
+
+  /**
+   * Assessed and published.
+   *
+   * @generated from enum value: MODERATION_STATUS_APPROVED = 2;
+   */
+  APPROVED = 2,
+
+  /**
+   * Assessed and rejected by the content policy; retained for its author.
+   *
+   * @generated from enum value: MODERATION_STATUS_REJECTED = 3;
+   */
+  REJECTED = 3,
+
+  /**
+   * No valid content verdict was obtained; a technical outcome, never a
+   * content judgement.
+   *
+   * @generated from enum value: MODERATION_STATUS_MODERATION_ERROR = 4;
+   */
+  MODERATION_ERROR = 4,
+}
+
+/**
+ * Describes the enum user.review.v1.ModerationStatus.
+ */
+export const ModerationStatusSchema: GenEnum<ModerationStatus> = /*@__PURE__*/
+  enumDesc(file_user_review_v1_review, 0);
+
+/**
  * @generated from service user.review.v1.ReviewService
  */
 export const ReviewService: GenService<{
@@ -399,6 +631,14 @@ export const ReviewService: GenService<{
     methodKind: "unary";
     input: typeof ListMyReviewsRequestSchema;
     output: typeof ListMyReviewsResponseSchema;
+  },
+  /**
+   * @generated from rpc user.review.v1.ReviewService.ListUnpublishedReviewsForUser
+   */
+  listUnpublishedReviewsForUser: {
+    methodKind: "unary";
+    input: typeof ListUnpublishedReviewsForUserRequestSchema;
+    output: typeof ListUnpublishedReviewsForUserResponseSchema;
   },
   /**
    * @generated from rpc user.review.v1.ReviewService.RemoveReview
