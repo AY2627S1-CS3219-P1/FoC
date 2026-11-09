@@ -86,10 +86,10 @@ func (h *ingestionHandler) Handle(
 	meta kafka.Metadata,
 	event *userseventsv1.ReviewSubmitted,
 ) error {
-	sourceEventID, sourceErr := parseEventID(event.EventId)
-	moderationRequestID, reqErr := parseEventID(event.ModerationRequestId)
-	reviewID, reviewErr := parseEventID(event.ReviewId)
-	reviewerID, reviewerErr := parseEventID(event.ReviewerId)
+	sourceEventID, sourceErr := parseRequiredUUID(event.EventId)
+	moderationRequestID, reqErr := parseRequiredUUID(event.ModerationRequestId)
+	reviewID, reviewErr := parseRequiredUUID(event.ReviewId)
+	reviewerID, reviewerErr := parseRequiredUUID(event.ReviewerId)
 	if sourceErr != nil || reqErr != nil || reviewErr != nil || reviewerErr != nil ||
 		event.ContentRevision <= 0 || event.OccurredAt == nil || event.OccurredAt.CheckValid() != nil {
 		if qErr := h.store.QuarantineMalformed(ctx, jobs.MalformedInput{
@@ -121,9 +121,9 @@ func (h *ingestionHandler) Handle(
 	return nil
 }
 
-// parseEventID parses a required identifier. An empty or unparseable value is
-// an error so the caller quarantines the event rather than storing a zero UUID.
-func parseEventID(s string) (uuid.UUID, error) {
+// parseRequiredUUID rejects empty, malformed and zero UUIDs so malformed
+// events are quarantined instead of being stored with a zero UUID.
+func parseRequiredUUID(s string) (uuid.UUID, error) {
 	if s == "" {
 		return uuid.Nil, fmt.Errorf("empty identifier")
 	}
