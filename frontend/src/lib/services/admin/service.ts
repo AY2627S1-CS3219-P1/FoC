@@ -20,4 +20,3 @@ export class AdminService {
 		return this.#api.changeUserRole(userId, toRole, reason);
 	}
 }
-

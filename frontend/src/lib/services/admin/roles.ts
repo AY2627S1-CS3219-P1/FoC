@@ -41,4 +41,3 @@ export function canDeleteUser(actorRole: UserRole, targetRole: UserRole, isSelf:
 	if (targetRole === UserRole.ADMIN) return actorRole === UserRole.SUPER_ADMIN;
 	return targetRole === UserRole.USER || targetRole === UserRole.SUSPENDED_USER;
 }
-

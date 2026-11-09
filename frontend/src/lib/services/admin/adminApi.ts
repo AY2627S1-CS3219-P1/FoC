@@ -12,4 +12,3 @@ export interface AdminApi {
 	changeUserRole(userId: string, toRole: UserRole, reason: string): Promise<AdminUserSummary>;
 	deleteUser(userId: string): Promise<void>;
 }
-

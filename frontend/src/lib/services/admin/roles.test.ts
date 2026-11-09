@@ -44,4 +44,3 @@ describe('role labels and suspension reasons', () => {
 		expect(needsRoleReason(UserRole.USER, 'admin')).toBe(false);
 	});
 });
-

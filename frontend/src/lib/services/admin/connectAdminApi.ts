@@ -34,4 +34,3 @@ export class ConnectAdminApi implements AdminApi {
 		return toSummary(response.user);
 	}
 }
-

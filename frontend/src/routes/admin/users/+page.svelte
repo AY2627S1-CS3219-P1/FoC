@@ -428,4 +428,3 @@
 		--m3c-on-primary: var(--m3c-on-error);
 	}
 </style>
-
