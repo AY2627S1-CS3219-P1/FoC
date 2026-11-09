@@ -2,6 +2,7 @@ package review
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -51,7 +52,8 @@ func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 
 // summarize renders the owner-visible summary of one job. Reason codes appear
 // only for a rejected verdict, never for approval or error.
-func summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSummary {
+func summarize(view moderation.JobView) *reviewv1.ReviewModerationJobSummary {
+	job := view.ModerationJob
 	summary := &reviewv1.ReviewModerationJobSummary{
 		JobId:               job.ID.String(),
 		ModerationRequestId: job.ModerationRequestID.String(),
@@ -68,8 +70,7 @@ func summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSumm
 	if job.FinishedAt != nil {
 		summary.FinishedAt = timestamppb.New(*job.FinishedAt)
 	}
-	summary.ConfigurationPaused = job.Status == "retry_wait" && job.ErrorClass != nil &&
-		*job.ErrorClass == "configuration"
+	summary.ConfigurationPaused = view.ConfigurationPaused
 	summary.Outcome = outcomeFor(job)
 	if job.Status == "completed" && job.Outcome != nil && *job.Outcome == "rejected" {
 		summary.ReasonCodes = job.ReasonCodes

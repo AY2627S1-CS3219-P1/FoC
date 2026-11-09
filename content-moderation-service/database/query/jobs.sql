@@ -202,3 +202,22 @@ WHERE id = sqlc.arg(id) AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token) AND status = 'processing'
   AND lease_until > clock_timestamp()
 FOR UPDATE;
+
+-- name: GetJobViewByID :one
+SELECT sqlc.embed(j), COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+), false)::boolean AS configuration_paused
+FROM moderation_jobs j WHERE j.id = sqlc.arg(id);
+
+-- name: GetJobViewsForReviewer :many
+SELECT sqlc.embed(j), COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+), false)::boolean AS configuration_paused
+FROM moderation_jobs j
+WHERE reviewer_id = sqlc.arg(reviewer_id)
+AND moderation_request_id = ANY(sqlc.slice(moderation_request_ids))
+ORDER BY created_at DESC;

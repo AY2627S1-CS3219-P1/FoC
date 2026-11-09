@@ -385,15 +385,35 @@ func (s *JobService) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb
 	return job, err
 }
 
+type JobView struct {
+	moderationdb.ModerationJob
+	ConfigurationPaused bool
+}
+
+func (s *JobService) GetJobViewByID(ctx context.Context, id uuid.UUID) (JobView, error) {
+	row, err := moderationdb.New(s.pool).GetJobViewByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return JobView{}, ErrJobNotFound
+	}
+	return JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused}, err
+}
+
 func (s *JobService) GetJobsForReviewer(
 	ctx context.Context,
 	reviewerID uuid.UUID,
-	moderationRequestIDs []uuid.UUID,
-) ([]moderationdb.ModerationJob, error) {
-	return moderationdb.New(s.pool).GetJobsForReviewer(ctx, moderationdb.GetJobsForReviewerParams{
-		ReviewerID:           reviewerID,
-		ModerationRequestIds: moderationRequestIDs,
+	requestIDs []uuid.UUID,
+) ([]JobView, error) {
+	rows, err := moderationdb.New(s.pool).GetJobViewsForReviewer(ctx, moderationdb.GetJobViewsForReviewerParams{
+		ReviewerID: reviewerID, ModerationRequestIds: requestIDs,
 	})
+	if err != nil {
+		return nil, err
+	}
+	views := make([]JobView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused})
+	}
+	return views, nil
 }
 
 func (s *JobService) GetAttempts(

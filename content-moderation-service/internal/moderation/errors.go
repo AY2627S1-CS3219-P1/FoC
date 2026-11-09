@@ -19,6 +19,8 @@ const (
 	ErrorClassServerError   = "server_error"
 	ErrorClassRateLimited   = "rate_limited"
 	ErrorClassInvalidOutput = "invalid_output"
+	// ErrorClassContentFilter records that the provider refused or filtered its
+	// response. It is a technical failure to assess, never a review verdict.
 	ErrorClassContentFilter = "content_filter"
 	ErrorClassConfiguration = "configuration"
 )
@@ -31,6 +33,7 @@ type errorKind string
 const (
 	kindDurable       errorKind = "durable"
 	kindInvalidOutput errorKind = "invalid_output"
+	// Provider refusals and filtered responses share one bounded retry budget.
 	kindContentFilter errorKind = "content_filter"
 	kindConfiguration errorKind = "configuration"
 )

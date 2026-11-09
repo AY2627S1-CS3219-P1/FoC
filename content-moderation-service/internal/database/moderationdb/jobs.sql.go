@@ -275,6 +275,119 @@ func (q *Queries) GetJobByModerationRequest(ctx context.Context, moderationReque
 	return i, err
 }
 
+const getJobViewByID = `-- name: GetJobViewByID :one
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at, COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+), false)::boolean AS configuration_paused
+FROM moderation_jobs j WHERE j.id = $1
+`
+
+type GetJobViewByIDRow struct {
+	ModerationJob       ModerationJob
+	ConfigurationPaused bool
+}
+
+func (q *Queries) GetJobViewByID(ctx context.Context, id uuid.UUID) (GetJobViewByIDRow, error) {
+	row := q.db.QueryRow(ctx, getJobViewByID, id)
+	var i GetJobViewByIDRow
+	err := row.Scan(
+		&i.ModerationJob.ID,
+		&i.ModerationJob.ModerationRequestID,
+		&i.ModerationJob.SourceEventID,
+		&i.ModerationJob.ReviewID,
+		&i.ModerationJob.ReviewerID,
+		&i.ModerationJob.ContentRevision,
+		&i.ModerationJob.Comment,
+		&i.ModerationJob.ConfigVersionID,
+		&i.ModerationJob.PolicyVersion,
+		&i.ModerationJob.RunGeneration,
+		&i.ModerationJob.Status,
+		&i.ModerationJob.AttemptCount,
+		&i.ModerationJob.NextAttemptAt,
+		&i.ModerationJob.ClaimToken,
+		&i.ModerationJob.WorkerID,
+		&i.ModerationJob.LeaseUntil,
+		&i.ModerationJob.HeartbeatAt,
+		&i.ModerationJob.Outcome,
+		&i.ModerationJob.ReasonCodes,
+		&i.ModerationJob.ErrorClass,
+		&i.ModerationJob.CreatedAt,
+		&i.ModerationJob.UpdatedAt,
+		&i.ModerationJob.FinishedAt,
+		&i.ConfigurationPaused,
+	)
+	return i, err
+}
+
+const getJobViewsForReviewer = `-- name: GetJobViewsForReviewer :many
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at, COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
+    SELECT 1 FROM moderation_config_pauses p
+    WHERE p.version_id::text = COALESCE(j.config_version_id,
+        (SELECT active_version_id::text FROM moderation_config_state))
+), false)::boolean AS configuration_paused
+FROM moderation_jobs j
+WHERE reviewer_id = $1
+AND moderation_request_id = ANY($2)
+ORDER BY created_at DESC
+`
+
+type GetJobViewsForReviewerParams struct {
+	ReviewerID           uuid.UUID
+	ModerationRequestIds []uuid.UUID
+}
+
+type GetJobViewsForReviewerRow struct {
+	ModerationJob       ModerationJob
+	ConfigurationPaused bool
+}
+
+func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsForReviewerParams) ([]GetJobViewsForReviewerRow, error) {
+	rows, err := q.db.Query(ctx, getJobViewsForReviewer, arg.ReviewerID, arg.ModerationRequestIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetJobViewsForReviewerRow
+	for rows.Next() {
+		var i GetJobViewsForReviewerRow
+		if err := rows.Scan(
+			&i.ModerationJob.ID,
+			&i.ModerationJob.ModerationRequestID,
+			&i.ModerationJob.SourceEventID,
+			&i.ModerationJob.ReviewID,
+			&i.ModerationJob.ReviewerID,
+			&i.ModerationJob.ContentRevision,
+			&i.ModerationJob.Comment,
+			&i.ModerationJob.ConfigVersionID,
+			&i.ModerationJob.PolicyVersion,
+			&i.ModerationJob.RunGeneration,
+			&i.ModerationJob.Status,
+			&i.ModerationJob.AttemptCount,
+			&i.ModerationJob.NextAttemptAt,
+			&i.ModerationJob.ClaimToken,
+			&i.ModerationJob.WorkerID,
+			&i.ModerationJob.LeaseUntil,
+			&i.ModerationJob.HeartbeatAt,
+			&i.ModerationJob.Outcome,
+			&i.ModerationJob.ReasonCodes,
+			&i.ModerationJob.ErrorClass,
+			&i.ModerationJob.CreatedAt,
+			&i.ModerationJob.UpdatedAt,
+			&i.ModerationJob.FinishedAt,
+			&i.ConfigurationPaused,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getJobsForReviewer = `-- name: GetJobsForReviewer :many
 SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE reviewer_id = $1

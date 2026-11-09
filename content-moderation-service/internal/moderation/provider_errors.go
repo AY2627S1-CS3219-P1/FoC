@@ -28,9 +28,9 @@ func (e *ErrInvalidOutput) Error() string {
 	return "moderation: invalid policy output: " + e.Detail
 }
 
-// ErrRefusal is returned when the provider refused to evaluate the content. The
-// refusal carries no verdict; callers must not infer approval or rejection from
-// it.
+// ErrRefusal means the provider did not produce an assessment, either because
+// it returned a refusal or filtered the response. This is a technical failure,
+// not a moderation verdict.
 type ErrRefusal struct {
 	// Reason is a short, sanitized description of the refusal. It never
 	// echoes the raw provider refusal verbatim.

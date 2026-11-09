@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -19,7 +20,12 @@ func TestSummaryConfigurationPause(t *testing.T) {
 		{status: "errored", class: "configuration", paused: false},
 	} {
 		t.Run(tc.status+"/"+tc.class, func(t *testing.T) {
-			summary := summarize(moderationdb.ModerationJob{Status: tc.status, ErrorClass: &tc.class})
+			summary := summarize(
+				moderation.JobView{
+					ModerationJob:       moderationdb.ModerationJob{Status: tc.status, ErrorClass: &tc.class},
+					ConfigurationPaused: tc.paused,
+				},
+			)
 			if summary.ConfigurationPaused != tc.paused {
 				t.Fatalf("configuration_paused = %v, want %v", summary.ConfigurationPaused, tc.paused)
 			}

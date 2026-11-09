@@ -63,7 +63,10 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	components := newServerComponents(startupCtx, pool, config, slog.Default())
+	components, err := newServerComponents(startupCtx, pool, config, slog.Default())
+	if err != nil {
+		return err
+	}
 
 	// Kafka consumers. Without them ingestion and outbox relay don't run.
 	workerCtx, stopWorkers := context.WithCancel(ctx)

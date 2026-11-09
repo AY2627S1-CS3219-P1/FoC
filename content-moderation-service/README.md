@@ -74,7 +74,12 @@ accepted reason codes.
 Owner and admin RPC handlers call the same moderation service. Its embedded
 `JobService` owns job reads and lifecycle operations; the RPC package converts
 internal records into API responses. Review records and publication belong to
-User Service.
+User Service. Job summaries report configuration pauses from the database,
+including queued jobs that have not attempted inference yet.
+
+CMS exits if it cannot initialize its configuration-state row at startup.
+For the shared Kubernetes gateway health URL and local provider-key setup,
+see the [runbook](../docs/runbooks/content-moderation.md#public-gateway-health-and-local-provider-keys).
 
 ## Development
 

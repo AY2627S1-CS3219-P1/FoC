@@ -15,15 +15,20 @@ func (s *Service) RetryErroredJob(
 	expectedRunGeneration int32,
 	useCurrentConfiguration bool,
 	createdBy string,
-) (moderationdb.ModerationJob, error) {
-	var updated moderationdb.ModerationJob
+) (JobView, error) {
+	var updated JobView
 	if err := database.Within(ctx, s.JobService.pool, func(q *moderationdb.Queries) error {
 		var err error
-		updated, err = NewTransitions(q).
+		_, err = NewTransitions(q).
 			Retry(ctx, jobID, expectedRunGeneration, useCurrentConfiguration, createdBy)
+		if err != nil {
+			return err
+		}
+		row, err := q.GetJobViewByID(ctx, jobID)
+		updated = JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused}
 		return err
 	}); err != nil {
-		return moderationdb.ModerationJob{}, err
+		return JobView{}, err
 	}
 	return updated, nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -24,7 +25,12 @@ type serverComponents struct {
 	service *moderation.Service
 }
 
-func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) serverComponents {
+func newServerComponents(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	cfg appConfig,
+	logger *slog.Logger,
+) (serverComponents, error) {
 	policy := moderation.RetrySettingsFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
 	jobStore := moderation.NewJobService(
 		pool,
@@ -34,7 +40,9 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 	)
 	configStore := moderation.NewConfigurationStore(pool)
 
-	_ = configStore.EnsureConfigState(ctx)
+	if err := configStore.EnsureConfigState(ctx); err != nil {
+		return serverComponents{}, fmt.Errorf("initialize moderation configuration state: %w", err)
+	}
 
 	settings := moderation.Settings{
 		BaseURL:       cfg.LLMBaseURL,
@@ -122,5 +130,5 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 		pool:    jobPool,
 		relay:   outboxRelay,
 		service: service,
-	}
+	}, nil
 }

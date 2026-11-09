@@ -23,7 +23,7 @@ rationale: [ADR](../adr/review-content-moderation.md).
 | `CMS_JOB_POLL_INTERVAL` | `1s` | Claim-poll pacing when idle. |
 
 Invalid settings fail startup. Heartbeat interval must be smaller than the
-lease.
+lease. Startup also fails if the required configuration-state row cannot be initialized.
 
 ## Degraded modes
 
@@ -213,3 +213,17 @@ applying; a corrected event can still use its unconsumed identity.
 All terminal CMS outbox paths write payload version 1. The relay also accepts
 legacy version 0 rows produced by earlier binaries with the identical v1 schema;
 other versions are logged and left unpublished for operator repair.
+
+## Public gateway health and local provider keys
+
+CMS implements the standard `/grpc.health.v1.Health/Check` RPC. Through the
+shared gateway, use `/moderation/grpc.health.v1.Health/Check`; the gateway
+rewrites that prefix and forwards to CMS. The unprefixed gateway health URL
+continues to check Credit. Direct CMS readiness probes use the standard path.
+
+For local Kubernetes deployment, setting `K8S_LLM_API_KEY` and redeploying fills
+an existing empty `.local/k8s/secrets/CMS_LLM_API_KEY` file. Existing nonempty
+credentials are preserved. To deliberately rotate this key, remove only that
+provider-key file, supply the replacement through `K8S_LLM_API_KEY`, and redeploy.
+The deployment restarts CMS so its environment picks up the Secret. Database
+passwords and signing keys retain their existing preservation rules.

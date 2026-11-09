@@ -83,6 +83,10 @@ that same service-owned contract. Provider SDK types stay inside the adapter.
 The worker's narrow service interfaces allow scheduling tests to use fakes;
 they do not introduce a separate assessment implementation layer.
 
+Startup must successfully initialize the configuration-state row before any
+listener or worker starts. Failure exits the process so deployment restart
+handling can retry initialization.
+
 ### Concurrency
 
 Worker concurrency is **per CMS process**, configured by
@@ -245,7 +249,7 @@ for inspection. Retry budgets, pause/recovery, and scheduling remain job logic.
 | Assessment/provider failure | Stable `ErrorClass` | Durable job handling |
 | --- | --- | --- |
 | `ErrEmptyResponse`, `ErrInvalidOutput` (empty, malformed, truncated, or schema-invalid output) | `invalid_output` | Small fixed budget (2 attempts by default), then terminal `ERROR`. |
-| `ErrRefusal` (provider refusal or content filter) | `content_filter` | Small fixed budget (2 attempts by default), then terminal `ERROR`. |
+| `ErrRefusal` (the provider returned a refusal or ended with `finish_reason = content_filter`, so it did not assess the review) | `content_filter` (CMS error label; not a review verdict) | Retry once by default. If the second attempt is also refused or filtered, record terminal `ERROR`. |
 | `ErrRateLimited` (HTTP 429) | `rate_limited` | Durable retry; honor `Retry-After` when present, capped at max delay; otherwise jittered backoff. |
 | `ErrTimeout` (request deadline or transport timeout) | `timeout` | Durable retry with jittered backoff. |
 | `ErrConnection` (network failure or HTTP 5xx) | `connection` | Durable retry with jittered backoff. |
@@ -324,7 +328,15 @@ backend authorization before lookup). CMS's
 `moderation.review.v1.ReviewModerationService/GetReviewModerationJobsForReviewer`
 returns bounded job summaries for the request IDs of one User page; missing
 jobs mean not-yet-ingested, never approval. User's publication status always
-wins over CMS progress in the UI.
+wins over CMS progress in the UI. The CMS pause flag is read from the pause table
+for the pinned configuration, or the active configuration for an unpinned job.
+It applies to unfinished jobs even when they have never recorded an error.
+
+The frontend review service retains no response cache. Each mounted page owns
+its displayed records and ignores responses after its account, reviewer, or
+request changes. Empty User pages skip the CMS lookup. Configuration draft test
+results are cleared when saving or activating a draft, and an older test cannot
+restore an invalidated result.
 
 ## Alternatives considered
 
