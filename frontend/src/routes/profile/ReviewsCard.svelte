@@ -2,8 +2,7 @@
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { authService, reviewApi } from '$lib/services';
 	import type { ReviewRecord } from '$lib/services/review/reviewApi';
-	import ReceivedReview from '$lib/components/review/ReceivedReview.svelte';
-
+	import ReviewRow from '$lib/components/review/ReviewRow.svelte';
 	// Profile preview of received reviews: the two newest, with a link to the
 	// paginated page for the rest.
 	const shown = 2;
@@ -45,12 +44,13 @@
 		{:else}
 			<ul>
 				{#each reviews as review (review.id)}
-					<ReceivedReview {review} />
+					<ReviewRow {review} counterpart={review.reviewerName} />
 				{/each}
 			</ul>
 		{/if}
 		<div class="more">
-			<Button variant="text" href="/profile/reviews">View All Reviews</Button>
+			<Button variant="text" href="/profile/reviews">View All Received Reviews</Button>
+			<Button variant="text" href="/profile/reviews/given">View Reviews I Left</Button>
 		</div>
 	</section>
 </Card>
@@ -61,5 +61,5 @@
 	.muted { margin: 0; color: var(--m3c-on-surface-variant); }
 	.notice { margin: 0 0 0.75rem; }
 	ul { display: grid; margin: 0; padding: 0; list-style: none; }
-	.more { display: flex; justify-content: flex-start; }
+	.more { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.25rem; }
 </style>

@@ -96,6 +96,44 @@ export class ConnectReviewApi implements ReviewApi {
 		}
 	}
 
+	async listReceived(
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage> {
+		try {
+			const response = await this.#client.listMyReviewsReceived(
+				{ pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) } },
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
+	async listMine(
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage> {
+		try {
+			const response = await this.#client.listMyReviews(
+				{ pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) } },
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
 	async listReviewedOrderIds(orderIds: string[], signal: AbortSignal): Promise<string[]> {
 		try {
 			const response = await this.#client.listMyReviewsForOrders({ orderIds }, { signal, timeoutMs: 15000 });
