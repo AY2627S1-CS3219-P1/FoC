@@ -222,5 +222,22 @@ in `photos.go` beside the code that uses it, rather than in `service.go`; only
 the composition root knows the adapter is S3. Without `USER_S3_BUCKET` the
 photo RPCs report unavailability and reviews submit without photos.
 
+### Review error contract
+
+`sentinel / uploadError → errorMappings (code + reason) → clientMessage → attachDetails`
+
+- Domain code returns a sentinel or an `uploadError` carrying a `cause`. Storage
+  faults are classified in `pkg/images`: retryable `ErrStorageUnavailable`
+  (→ `503`) and permanent `ErrStorageMisconfigured` (→ `500`). `412` is only for
+  upload states the client can fix.
+- `toConnectError` looks the sentinel up in `errorMappings`; anything else that
+  implements `api.ExternalError` goes through the shared `api.ToConnectError`;
+  unknown errors become a generic `500`.
+- `clientMessage` is the only source of client-facing text. Provider and
+  configuration detail stays in the cause and is logged by `logMappedError`.
+- Replies carry `google.rpc.ErrorInfo` (domain `user.review.v1`, stable reason)
+  and `common.v1.ErrorDetail` (reason, message, field violations such as the
+  failing `photo_ids`). Clients branch on the reason, never on the message.
+
 Demo seeding uses the same user/event provisioning logic as registration.
 See [seed commands and reset behavior](../data/seeds/README.md).
