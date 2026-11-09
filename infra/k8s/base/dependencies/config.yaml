@@ -13,6 +13,7 @@ data:
   INTERNAL_PORT: "8081"
   RUN_MIGRATIONS: "false"
   KAFKA_BROKERS: kafka:9092
+  CMS_OPERATIONAL_STATE_INTERVAL: 5m
 
   # Browser-facing origins: shipped to the browser with the rendered shell
   # ($env/dynamic/public), so they must be reachable from outside the cluster.
