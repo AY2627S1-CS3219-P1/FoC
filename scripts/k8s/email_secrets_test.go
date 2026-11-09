@@ -33,3 +33,30 @@ func TestApplicationSMTPSecretFollowsRenderedReference(t *testing.T) {
 		}
 	}
 }
+
+// The pinned kubectl emits separate JSON objects for multi-resource kustomizations.
+func TestApplicationSMTPSecretAcceptsKubectlJSONStream(t *testing.T) {
+	for _, tc := range []struct {
+		name, env string
+		required  bool
+	}{
+		{"SMTP", `[{"secretRef":{"name":"smtp"}}]`, true},
+		{"SES", `[{"configMapRef":{"name":"foc-config"}},{"secretRef":{"name":"user-db"}}]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user := fmt.Sprintf(
+				`{"kind":"Deployment","metadata":{"name":"user-service","namespace":"foc"},"spec":{"template":{"spec":{"containers":[{"envFrom":%s}]}}}}`,
+				tc.env,
+			)
+			for _, input := range []string{user, `{"kind":"Service","metadata":{"name":"frontend"}}` + "\n" + user + "\n" + `{"kind":"Deployment","metadata":{"name":"frontend"}}`} {
+				required, err := applicationRequiresSMTP(input)
+				if err != nil || required != tc.required {
+					t.Fatalf("required=%v error=%v", required, err)
+				}
+			}
+			if _, err := applicationRequiresSMTP(user + "\n{"); err == nil {
+				t.Fatal("malformed trailing document accepted")
+			}
+		})
+	}
+}

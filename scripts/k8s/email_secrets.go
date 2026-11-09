@@ -4,39 +4,54 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
 )
+
+type applicationManifest struct {
+	Kind     string                `json:"kind"`
+	Items    []applicationManifest `json:"items"`
+	Metadata struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+	} `json:"metadata"`
+	Spec struct {
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					EnvFrom []struct {
+						SecretRef *struct {
+							Name     string `json:"name"`
+							Optional bool   `json:"optional"`
+						} `json:"secretRef"`
+					} `json:"envFrom"`
+				} `json:"containers"`
+			} `json:"spec"`
+		} `json:"template"`
+	} `json:"spec"`
+}
 
 // applicationRequiresSMTP follows the rendered User deployment. AWS SES removes
 // its SMTP reference; local and existing SMTP overlays keep requiring it.
 func applicationRequiresSMTP(rendered string) (bool, error) {
-	var manifests struct {
-		Items []struct {
-			Kind     string `json:"kind"`
-			Metadata struct {
-				Name      string `json:"name"`
-				Namespace string `json:"namespace"`
-			} `json:"metadata"`
-			Spec struct {
-				Template struct {
-					Spec struct {
-						Containers []struct {
-							EnvFrom []struct {
-								SecretRef *struct {
-									Name     string `json:"name"`
-									Optional bool   `json:"optional"`
-								} `json:"secretRef"`
-							} `json:"envFrom"`
-						} `json:"containers"`
-					} `json:"spec"`
-				} `json:"template"`
-			} `json:"spec"`
-		} `json:"items"`
+	decoder := json.NewDecoder(strings.NewReader(rendered))
+	var manifests []applicationManifest
+	for {
+		var manifest applicationManifest
+		if err := decoder.Decode(&manifest); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return false, fmt.Errorf("decode application manifests: %w", err)
+		}
+		manifests = append(manifests, manifest)
 	}
-	if err := json.Unmarshal([]byte(rendered), &manifests); err != nil {
-		return false, fmt.Errorf("decode application manifests: %w", err)
-	}
-	for _, manifest := range manifests.Items {
+	for index := 0; index < len(manifests); index++ {
+		manifest := manifests[index]
+		if manifest.Kind == "List" {
+			manifests = append(manifests, manifest.Items...)
+			continue
+		}
 		if manifest.Kind != "Deployment" || manifest.Metadata.Name != "user-service" ||
 			manifest.Metadata.Namespace != "foc" {
 			continue
