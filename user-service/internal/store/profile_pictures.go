@@ -203,17 +203,29 @@ RETURNING target.id, target.user_id, target.object_key, target.content_type,
 }
 
 // ListDeleting returns rows awaiting object removal; deletion is idempotent.
-func (s *ProfilePictures) ListDeleting(ctx context.Context, limit int) ([]models.ProfilePicture, error) {
+func (s *ProfilePictures) ListDeleting(
+	ctx context.Context,
+	dueAt time.Time,
+	limit int,
+) ([]models.ProfilePicture, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	var rows []models.ProfilePicture
 	err := s.db.WithContext(ctx).
-		Where("state = ?", models.ProfilePictureDeleting).
+		Where("state = ? AND (delete_retry_at IS NULL OR delete_retry_at <= ?)",
+			models.ProfilePictureDeleting, dueAt).
 		Order("created_at, id").
 		Limit(limit).
 		Find(&rows).Error
 	return rows, err
+}
+
+// ScheduleDeleteRetry defers a failed object deletion without removing its row.
+func (s *ProfilePictures) ScheduleDeleteRetry(ctx context.Context, id uuid.UUID, retryAt time.Time) error {
+	return s.db.WithContext(ctx).Model(&models.ProfilePicture{}).
+		Where("id = ? AND state = ?", id, models.ProfilePictureDeleting).
+		Update("delete_retry_at", retryAt).Error
 }
 
 // DeletePicture removes a row after its object is gone.

@@ -66,6 +66,8 @@ type fakeProfilePictureStore struct {
 	listErr       error
 	deletedIDs    []uuid.UUID
 	deleteErr     error
+	retries       map[uuid.UUID]time.Time
+	retryErr      error
 }
 
 func (f *fakeProfilePictureStore) InsertPending(_ context.Context, picture *models.ProfilePicture) error {
@@ -112,8 +114,19 @@ func (f *fakeProfilePictureStore) ClaimExpiredPending(
 	return f.claimed, f.claimErr
 }
 
-func (f *fakeProfilePictureStore) ListDeleting(context.Context, int) ([]models.ProfilePicture, error) {
+func (f *fakeProfilePictureStore) ListDeleting(context.Context, time.Time, int) ([]models.ProfilePicture, error) {
 	return f.deleting, f.listErr
+}
+
+func (f *fakeProfilePictureStore) ScheduleDeleteRetry(_ context.Context, id uuid.UUID, retryAt time.Time) error {
+	if f.retryErr != nil {
+		return f.retryErr
+	}
+	if f.retries == nil {
+		f.retries = make(map[uuid.UUID]time.Time)
+	}
+	f.retries[id] = retryAt
+	return nil
 }
 
 func (f *fakeProfilePictureStore) DeletePicture(_ context.Context, id uuid.UUID) error {
@@ -582,7 +595,13 @@ func TestCleanupOnceContinuesPastFailedObject(t *testing.T) {
 	storage := &fakeProfilePictureStorage{deleteErrKeys: map[string]error{
 		firstKey: errors.New("down"),
 	}}
-	svc := &ProfileService{Pictures: pictures, Storage: storage}
+	svc := &ProfileService{
+		Pictures: pictures,
+		Storage:  storage,
+		Now: func() time.Time {
+			return time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+		},
+	}
 
 	if err := svc.CleanupOnce(context.Background()); err == nil {
 		t.Fatal("expected the failed object to be reported")
@@ -592,5 +611,9 @@ func TestCleanupOnceContinuesPastFailedObject(t *testing.T) {
 	}
 	if len(storage.deleted) != 1 || storage.deleted[0] != secondKey {
 		t.Fatalf("deleted objects = %v", storage.deleted)
+	}
+	wantRetry := svc.now().Add(profilePictureDeleteRetryDelay)
+	if got := pictures.retries[firstID]; !got.Equal(wantRetry) {
+		t.Fatalf("failed object retry time = %v, want %v", got, wantRetry)
 	}
 }

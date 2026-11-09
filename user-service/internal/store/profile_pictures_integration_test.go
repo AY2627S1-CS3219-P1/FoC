@@ -146,7 +146,7 @@ func TestProfilePicturesCleanupClaimsExpiredPending(t *testing.T) {
 	if _, err := store.ProfilePictures.GetPending(ctx, user.ID, old.ID); !errors.Is(err, ErrPictureNotFound) {
 		t.Fatalf("claimed row still pending: %v", err)
 	}
-	deleting, err := store.ProfilePictures.ListDeleting(ctx, 50)
+	deleting, err := store.ProfilePictures.ListDeleting(ctx, time.Now().UTC(), 50)
 	if err != nil || len(deleting) != 1 || deleting[0].ID != old.ID {
 		t.Fatalf("list deleting: %+v, %v", deleting, err)
 	}
@@ -158,5 +158,36 @@ func TestProfilePicturesCleanupClaimsExpiredPending(t *testing.T) {
 	}
 	if _, err := store.ProfilePictures.GetPending(ctx, user.ID, fresh.ID); err != nil {
 		t.Fatalf("fresh upload was reaped: %v", err)
+	}
+}
+
+func TestProfilePicturesDeletingRetryEligibility(t *testing.T) {
+	ctx := context.Background()
+	store, _ := setupAuthStore(t)
+	user := createStoreUser(t, store, "cleanup-retry@example.com")
+	now := time.Now().UTC()
+	rows := []*models.ProfilePicture{
+		profilePictureRow(user.ID, now.Add(-3*time.Minute)),
+		profilePictureRow(user.ID, now.Add(-2*time.Minute)),
+		profilePictureRow(user.ID, now.Add(-time.Minute)),
+	}
+	for _, row := range rows {
+		row.State = models.ProfilePictureDeleting
+		if err := store.db.WithContext(ctx).Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	retryAt := now.Add(time.Minute)
+	if err := store.ProfilePictures.ScheduleDeleteRetry(ctx, rows[0].ID, retryAt); err != nil {
+		t.Fatal(err)
+	}
+
+	due, err := store.ProfilePictures.ListDeleting(ctx, now, 50)
+	if err != nil || len(due) != 2 || due[0].ID != rows[1].ID || due[1].ID != rows[2].ID {
+		t.Fatalf("eligible rows = %+v, %v", due, err)
+	}
+	due, err = store.ProfilePictures.ListDeleting(ctx, retryAt, 50)
+	if err != nil || len(due) != 3 || due[0].ID != rows[0].ID {
+		t.Fatalf("rows after retry time = %+v, %v", due, err)
 	}
 }

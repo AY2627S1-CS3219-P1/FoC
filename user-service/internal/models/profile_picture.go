@@ -14,11 +14,12 @@ const (
 
 // ProfilePicture is one picture row; object_key is storage metadata only.
 type ProfilePicture struct {
-	ID          uuid.UUID `gorm:"primaryKey"`
-	UserID      uuid.UUID
-	ObjectKey   string
-	ContentType string
-	SizeBytes   int64
-	State       string
-	CreatedAt   time.Time
+	ID            uuid.UUID `gorm:"primaryKey"`
+	UserID        uuid.UUID
+	ObjectKey     string
+	ContentType   string
+	SizeBytes     int64
+	State         string
+	CreatedAt     time.Time
+	DeleteRetryAt *time.Time
 }

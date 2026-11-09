@@ -18,9 +18,10 @@ const (
 	// MaxProfilePictureBytes matches the repository-wide image limit.
 	MaxProfilePictureBytes int64 = 10000000
 
-	profilePictureOrphanAfter  = 24 * time.Hour
-	profilePictureCleanupBatch = 50
-	profilePictureKeyPrefix    = "profile/picture/"
+	profilePictureOrphanAfter      = 24 * time.Hour
+	profilePictureCleanupBatch     = 50
+	profilePictureDeleteRetryDelay = time.Minute
+	profilePictureKeyPrefix        = "profile/picture/"
 )
 
 var errProfilePictureStorageDisabled = errors.New("profile picture storage is not configured")
@@ -33,7 +34,8 @@ type ProfilePictureStore interface {
 	Activate(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*string, error)
 	Deactivate(context.Context, uuid.UUID, uuid.UUID) (*string, error)
 	ClaimExpiredPending(context.Context, time.Time, int) ([]models.ProfilePicture, error)
-	ListDeleting(context.Context, int) ([]models.ProfilePicture, error)
+	ListDeleting(context.Context, time.Time, int) ([]models.ProfilePicture, error)
+	ScheduleDeleteRetry(context.Context, uuid.UUID, time.Time) error
 	DeletePicture(context.Context, uuid.UUID) error
 }
 
@@ -208,7 +210,7 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("claim expired profile pictures: %w", err)
 	}
-	rows, err := s.Pictures.ListDeleting(ctx, profilePictureCleanupBatch)
+	rows, err := s.Pictures.ListDeleting(ctx, s.now(), profilePictureCleanupBatch)
 	if err != nil {
 		return fmt.Errorf("list deleting profile pictures: %w", err)
 	}
@@ -216,6 +218,10 @@ func (s *ProfileService) CleanupOnce(ctx context.Context) error {
 	for _, row := range rows {
 		if err := s.Storage.Delete(ctx, row.ObjectKey); err != nil &&
 			!errors.Is(err, images.ErrObjectNotFound) {
+			retryAt := s.now().Add(profilePictureDeleteRetryDelay)
+			if scheduleErr := s.Pictures.ScheduleDeleteRetry(ctx, row.ID, retryAt); scheduleErr != nil {
+				failures = append(failures, fmt.Errorf("schedule profile picture retry %s: %w", row.ID, scheduleErr))
+			}
 			failures = append(failures, fmt.Errorf("delete profile picture object %s: %w", row.ID, err))
 			continue
 		}

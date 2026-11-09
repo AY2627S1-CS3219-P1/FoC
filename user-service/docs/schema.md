@@ -37,6 +37,7 @@ erDiagram
         bigint size_bytes "1-10000000"
         text state "pending|active|deleting"
         timestamptz created_at
+        timestamptz delete_retry_at "next object-delete retry; null means eligible"
     }
     roles {
         text name PK "super_admin|admin|user|suspended"
