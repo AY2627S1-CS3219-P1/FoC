@@ -65,8 +65,8 @@ def prepare(config, admin, directory):
             "SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'db_user') \\gexec",
         ]
         username_literal = value["DB_USER"].replace("'", "''")
-        # Keep ADMIN for repeat provisioning but remove temporary use of service
-        # privileges. Revoking the whole membership would also remove ADMIN.
+        # Disable temporary role use without revoking the membership, preserving
+        # any existing administrative grant option for provisioning retries.
         membership_cleanup.append(
             f"SELECT format('GRANT %I TO %I WITH INHERIT FALSE, SET FALSE', '{username_literal}', current_user) \\gexec"
         )

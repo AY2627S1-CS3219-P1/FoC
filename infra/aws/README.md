@@ -354,8 +354,10 @@ This explicit Job creates isolated roles/databases and installs Supplier's
 PostGIS and pg_trgm. PostgreSQL 16+ requires explicit SET ROLE permission to
 assign database ownership. The Job temporarily enables administrator INHERIT/SET
 membership in the service roles, validates existing database ownership, and
-disables those temporary permissions after extension setup. ADMIN membership is
-retained so retries can manage the same roles. If the Job fails mid-provisioning,
+disables those temporary permissions after extension setup. RDS can record
+`rdsadmin` as grantor with `ADMIN=false` even when provisioning retries work.
+Check that INHERIT/SET are disabled and verify an actual retry rather than
+requiring the ADMIN flag. If the Job fails mid-provisioning,
 those temporary permissions may remain until a successful retry or explicit
 administrator cleanup. It does not drop data or rotate existing roles. It is NOT
 part of the automatic deployment stages. On retry, first inspect the previous
