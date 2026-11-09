@@ -14,6 +14,13 @@ func persistValue(directory, name, value string, allowEmpty bool) error {
 	path := filepath.Join(directory, name)
 	info, err := os.Stat(path)
 	if err == nil {
+		// An empty optional provider key is an unconfigured value, not a credential to preserve.
+		if name == "CMS_LLM_API_KEY" && allowEmpty && info.Size() == 0 && strings.TrimSpace(value) != "" {
+			if err := os.Chmod(path, 0600); err != nil {
+				return err
+			}
+			return writePrivate(path, value)
+		}
 		if info.Size() == 0 && !allowEmpty {
 			return fmt.Errorf("empty credential %s; restore it rather than rotating a database password", path)
 		}

@@ -112,6 +112,17 @@ spec:
       sectionName: https
   rules:
     - matches:
+        - path: {type: PathPrefix, value: /moderation/grpc.health.v1.Health}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /grpc.health.v1.Health
+      backendRefs:
+        - name: content-moderation-service-external
+          port: 8080
+    - matches:
         - path: {type: PathPrefix, value: /moderation.v1.ModerationAdminService}
         - path: {type: PathPrefix, value: /moderation.review.v1.ReviewModerationService}
         - path: {type: PathPrefix, value: /moderation.review.v1.ReviewModerationAdminService}
