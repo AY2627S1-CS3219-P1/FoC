@@ -10,6 +10,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
+	"github.com/google/uuid"
 )
 
 // Sender is the part of the Bot API the handler needs.
@@ -28,10 +29,13 @@ type Chat interface {
 	HandleMessage(ctx context.Context, msg *telegram.Message) error
 	ShowChats(ctx context.Context, msg *telegram.Message) error
 	HandleCallback(ctx context.Context, cb *telegram.CallbackQuery) error
+	// OpenChat reports false when the sender may not open orderID's chat.
+	OpenChat(ctx context.Context, msg *telegram.Message, orderID uuid.UUID) (bool, error)
 }
 
-// Handler links chats through /start, unlinks chats that block the bot, and
-// passes everything else to the chat relay.
+// Handler links chats through /start, opens an order's chat through
+// /start chat_<order id>, unlinks chats that block the bot, and passes
+// everything else to the chat relay.
 type Handler struct {
 	Sender Sender
 	Linker Linker
@@ -45,6 +49,9 @@ const (
 	linkedReply  = "Connected. You'll get FoC order updates here. You can disconnect anytime from your FoC profile."
 	invalidReply = "This link has expired or was already used. Choose Connect Telegram in the FoC app to get a new one."
 	retryReply   = "Something went wrong connecting your account. Please press Start again."
+	// The app's Chat button opens /start chat_<order id>. Link codes are 32
+	// characters, so they never take this form.
+	openChatPrefix = "chat_"
 )
 
 // Handle processes one update. Only private chats are handled.
@@ -80,6 +87,9 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 	if code == "" {
 		return h.Sender.SendMessage(ctx, msg.Chat.ID, startReply)
 	}
+	if id, ok := strings.CutPrefix(code, openChatPrefix); ok {
+		return h.openChat(ctx, msg, id)
+	}
 
 	chat := linking.Chat{ID: msg.Chat.ID}
 	if msg.From != nil {
@@ -98,6 +108,23 @@ func (h *Handler) handleMessage(ctx context.Context, msg *telegram.Message) erro
 	}
 	h.Log.Info("telegram linked", "user_id", link.UserID, "chat_id", link.ChatID)
 	return h.Sender.SendMessage(ctx, msg.Chat.ID, linkedReply)
+}
+
+// openChat answers anyone who may not open the order's chat with the normal
+// start reply, without revealing the order.
+func (h *Handler) openChat(ctx context.Context, msg *telegram.Message, id string) error {
+	orderID, err := uuid.Parse(id)
+	if err != nil {
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, startReply)
+	}
+	opened, err := h.Chat.OpenChat(ctx, msg, orderID)
+	if err != nil {
+		return err
+	}
+	if !opened {
+		return h.Sender.SendMessage(ctx, msg.Chat.ID, startReply)
+	}
+	return nil
 }
 
 func (h *Handler) handleMembership(ctx context.Context, change *telegram.ChatMemberUpdated) error {
