@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ReviewPhotosController } from './controller';
+import { ReviewPhotosController, putPhoto } from './controller';
 import { ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 
 // The review flow has no verify or abandon RPC: a grant and a PUT decide a
@@ -274,4 +274,31 @@ describe('bounded review photo work', () => {
 			vi.useRealTimers();
 		}
 	}, 20_000);
+});
+
+
+describe('review photo direct upload', () => {
+	it('sends object bytes without cookies or redirects', async () => {
+		const file = new File(['photo'], 'photo.png', { type: 'image/png' });
+		const grant = {
+			photoId: 'photo-1',
+			uploadUrl: 'https://storage.invalid/upload',
+			uploadHeaders: { 'Content-Type': 'image/png', 'If-None-Match': '*' }
+		};
+		let seen: RequestInit | undefined;
+		const send = (async (_url: string | URL | Request, init?: RequestInit) => {
+			seen = init;
+			return new Response('', { status: 200 });
+		}) as typeof fetch;
+
+		await putPhoto(grant, file, new AbortController().signal, send);
+
+		expect(seen).toMatchObject({
+			method: 'PUT',
+			body: file,
+			headers: grant.uploadHeaders,
+			credentials: 'omit',
+			redirect: 'error'
+		});
+	});
 });
