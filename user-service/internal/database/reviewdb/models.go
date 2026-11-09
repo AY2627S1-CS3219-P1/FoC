@@ -3,21 +3,3 @@
 //   sqlc v1.30.0
 
 package reviewdb
-
-import (
-	"database/sql"
-	"time"
-
-	"github.com/google/uuid"
-)
-
-type Review struct {
-	ID         uuid.UUID
-	DeletedAt  sql.NullTime
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int32
-	Comment    string
-	CreatedAt  time.Time
-}

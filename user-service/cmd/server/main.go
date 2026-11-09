@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -113,12 +114,16 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
-	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
-	relayDone := make(chan struct{})
-	go func() {
-		defer close(relayDone)
-		relay.Run(ctx)
-	}()
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	reviewLogic := review.NewService(reviewRepo, reviewTransactions(sqlDB))
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+	workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
+	workers.Go(func() { consume(workerCtx, cfg.kafkaBrokers, warningLogic) })
 
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
@@ -129,7 +134,6 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -147,22 +151,13 @@ func main() {
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 
-	// The courier-warning consumer runs alongside the HTTP listeners and
-	// rebuilds its subscription after a transient failure, so one bad delivery
-	// cannot stall warnings. rootCancel() stops it during shutdown.
-	consumeDone := make(chan struct{})
-	go func() {
-		defer close(consumeDone)
-		consume(ctx, cfg.kafkaBrokers, warningLogic)
-	}()
-
 	if err := serve(ctx, public, internal); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	rootCancel()
-	<-consumeDone
-	<-relayDone
+	stopWorkers()
+	workers.Wait()
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts
@@ -260,9 +255,11 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func newReviewService(sqlDB *sql.DB) *review.Service {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+// reviewTransactions wires the review service's and moderation consumer's
+// transactional operations to the shared database/sql pool; every statement in
+// one operation commits or rolls back together.
+func reviewTransactions(sqlDB *sql.DB) review.WithTransaction {
+	return func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
 			return err
@@ -272,7 +269,7 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 			return err
 		}
 		return tx.Commit()
-	})
+	}
 }
 
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {

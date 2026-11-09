@@ -6,9 +6,14 @@ SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewee_id::UUID
        ) AS reviewee_exists;
 
--- name: InsertReview :exec
-INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
-VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
+-- New submissions always enter moderation as pending with content revision 1;
+-- the generated moderation_request_id identifies the assessment request.
+-- name: InsertReview :one
+INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at,
+                     moderation_status, content_revision, moderation_request_id)
+VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now(),
+        'pending_moderation', 1, @moderation_request_id::UUID)
+RETURNING id, created_at, moderation_status, content_revision, moderation_request_id;
 
 -- The update locks the row and returns the data needed for the removal audit.
 -- A concurrent removal waits, then finds no live row and reports not found.
@@ -23,6 +28,8 @@ RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, c
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
+-- Only approved reviews are published. Pending, rejected and moderation-error
+-- reviews stay invisible to the reviewee until an approved completion lands.
 -- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
@@ -30,7 +37,7 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
+WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
@@ -41,19 +48,49 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
+WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL;
+WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
 
 -- name: CountReviewsFromUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
+WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
+
+-- The author's own view of their not-yet-published reviews: pending, rejected
+-- and moderation-error. Optional single-status and order filters; approved
+-- reviews are never in this collection.
+-- name: ListUnpublishedReviewsForUser :many
+SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = @reviewer_id::UUID
+  AND r.deleted_at IS NULL
+  AND r.moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
+  AND (sqlc.narg('moderation_status_filter')::text IS NULL
+       OR r.moderation_status = sqlc.narg('moderation_status_filter')::text)
+  AND (sqlc.narg('order_id')::uuid IS NULL OR r.order_id = sqlc.narg('order_id')::uuid)
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
+
+-- name: CountUnpublishedReviewsForUser :one
+SELECT COUNT(*)
+FROM reviews
+WHERE reviewer_id = @reviewer_id::UUID
+  AND deleted_at IS NULL
+  AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
+  AND (sqlc.narg('moderation_status_filter')::text IS NULL
+       OR moderation_status = sqlc.narg('moderation_status_filter')::text)
+  AND (sqlc.narg('order_id')::uuid IS NULL OR order_id = sqlc.narg('order_id')::uuid);
 
 -- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
@@ -79,7 +116,7 @@ SELECT id FROM users WHERE id = @reviewee_id::UUID FOR NO KEY UPDATE;
 -- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
-WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
+WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
 
 -- Keep the input bigint so assigning to the integer column rejects overflow.
 -- name: UpdateRevieweeStats :exec
