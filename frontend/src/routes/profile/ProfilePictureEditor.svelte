@@ -85,50 +85,58 @@
 <svelte:window onclick={onWindowClick} onkeydown={(event) => event.key === 'Escape' && (menuOpen = false)} />
 
 <div class="picture" bind:this={picture}>
-	<ProfileAvatar
-		url={profile.profilePictureUrl}
-		name={profile.displayName}
-		size={72}
-		expiresAt={profile.profilePictureExpiresAt}
-		onerror={() => void refresh()}
+	<input
+		bind:this={fileInput}
+		id="profile-picture-file"
+		class="file-input"
+		type="file"
+		accept={IMAGE_CONTENT_TYPES.join(',')}
+		aria-label="Choose profile picture"
+		tabindex="-1"
+		disabled={view.busy}
+		onchange={(event) => {
+			const file = event.currentTarget.files?.[0];
+			event.currentTarget.value = '';
+			void upload(file);
+		}}
 	/>
-	{#if !suspended}
-		<input
-			bind:this={fileInput}
-			id="profile-picture-file"
-			class="file-input"
-			type="file"
-			accept={IMAGE_CONTENT_TYPES.join(',')}
-			aria-label="Choose profile picture"
-			tabindex="-1"
-			disabled={view.busy}
-			onchange={(event) => {
-				const file = event.currentTarget.files?.[0];
-				event.currentTarget.value = '';
-				void upload(file);
-			}}
+	<button
+		type="button"
+		class="avatar-button"
+		aria-label={suspended ? 'Profile picture' : hasPicture ? 'Update profile picture' : 'Add profile picture'}
+		aria-haspopup={hasPicture && !suspended ? 'menu' : undefined}
+		aria-expanded={hasPicture && !suspended ? menuOpen : undefined}
+		disabled={view.busy || suspended}
+		onclick={() => {
+			if (suspended) return;
+			if (hasPicture) menuOpen = !menuOpen;
+			else pickFile();
+		}}
+	>
+		<ProfileAvatar
+			url={profile.profilePictureUrl}
+			name={profile.displayName}
+			size={72}
+			expiresAt={profile.profilePictureExpiresAt}
+			onerror={() => void refresh()}
 		/>
-		<button
-			type="button"
-			class="picture-action"
-			aria-label={hasPicture ? 'Edit profile picture' : 'Add profile picture'}
-			aria-haspopup={hasPicture ? 'menu' : undefined}
-			aria-expanded={hasPicture ? menuOpen : undefined}
-			disabled={view.busy}
-			onclick={() => (hasPicture ? (menuOpen = !menuOpen) : pickFile())}
-		>
-			<Icon icon={hasPicture ? editIcon : addPhotoIcon} size={18} aria-hidden="true" />
-		</button>
-		{#if hasPicture && menuOpen}
-			<div class="menu-pop">
-				<Menu>
-					<MenuItem icon={editIcon} onclick={pickFile}>Edit</MenuItem>
-					<MenuItem icon={deleteIcon} onclick={() => ((menuOpen = false), (confirmOpen = true))}
-						>Remove</MenuItem
-					>
-				</Menu>
-			</div>
+		{#if !suspended}
+			<span class="badge" aria-hidden="true">
+				<Icon icon={hasPicture ? editIcon : addPhotoIcon} size={18} />
+			</span>
 		{/if}
+	</button>
+	{#if hasPicture && !suspended && menuOpen}
+		<div class="menu-pop">
+			<Menu>
+				<MenuItem icon={editIcon} onclick={pickFile}>Update profile picture</MenuItem>
+				<div class="danger-item">
+					<MenuItem icon={deleteIcon} onclick={() => ((menuOpen = false), (confirmOpen = true))}
+						>Remove profile picture</MenuItem
+					>
+				</div>
+			</Menu>
+		</div>
 	{/if}
 </div>
 
@@ -136,6 +144,7 @@
 	bind:open={confirmOpen}
 	title="Remove profile picture?"
 	label="Remove"
+	danger
 	busy={view.busy}
 	onconfirm={() => void remove()}
 >
@@ -144,25 +153,33 @@
 
 <style>
 	.picture { position: relative; flex: 0 0 auto; display: inline-grid; }
-	.picture-action {
+	.avatar-button {
+		position: relative;
+		display: inline-grid;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: none;
+		cursor: pointer;
+	}
+	.avatar-button:disabled { cursor: default; }
+	.avatar-button:focus-visible { outline: 3px solid var(--m3c-primary); outline-offset: 3px; }
+	.badge {
 		position: absolute;
-		top: -0.4rem;
-		right: -0.4rem;
+		top: -0.3rem;
+		right: -0.3rem;
 		display: grid;
 		place-items: center;
-		width: 2rem;
-		height: 2rem;
-		padding: 0;
+		width: 1.75rem;
+		height: 1.75rem;
 		border: 1px solid var(--m3c-outline-variant);
 		border-radius: 50%;
 		background: var(--m3c-surface);
 		color: var(--m3c-primary);
-		cursor: pointer;
+		pointer-events: none;
 	}
-	.picture-action::before { content: ''; position: absolute; inset: -0.4rem; border-radius: 50%; }
-	.picture-action:focus-visible { outline: 3px solid var(--m3c-primary); outline-offset: 2px; }
-	.picture-action:disabled { opacity: 0.5; cursor: default; }
 	.menu-pop { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 10; }
+	.danger-item { --m3c-on-surface: var(--m3c-error); --m3c-on-surface-variant: var(--m3c-error); }
 	.file-input {
 		position: absolute;
 		width: 1px;
