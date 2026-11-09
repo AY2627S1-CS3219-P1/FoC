@@ -68,8 +68,7 @@ func activateTestConfig(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	}
 	id, err := store.InsertConfigVersion(
 		context.Background(), "test-model", []byte(`{}`), config.OutputModeJSONSchema,
-		"review-text-v1", "fp-test", "tester",
-	)
+		"review-text-v1", "fp-test", "tester", "")
 	if err != nil {
 		t.Fatalf("insert config version: %v", err)
 	}
@@ -864,6 +863,10 @@ func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	claimed := claimDue(t, store, pool)
+	originalSystemMessage := claimed.Config.SystemMessage
+	if originalSystemMessage == "" {
+		t.Fatal("missing persisted default system message")
+	}
 	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapServerError(errors.New("temporary"))); err != nil {
 		t.Fatal(err)
 	}
@@ -875,8 +878,7 @@ func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
 		config.OutputModeJSONObject,
 		"review-text-v1",
 		"other",
-		"admin",
-	)
+		"admin", "Changed policy for new jobs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -884,7 +886,8 @@ func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	claimed = claimDue(t, store, pool)
-	if claimed.Config.VersionID != first || *claimed.Job.ConfigVersionID != first.String() {
+	if claimed.Config.SystemMessage != originalSystemMessage || claimed.Config.VersionID != first ||
+		*claimed.Job.ConfigVersionID != first.String() {
 		t.Fatalf("automatic retry changed configuration: %+v", claimed.Config)
 	}
 	if err := store.FinalizeFailed(ctx, *claimed, jobs.WrapServerError(errors.New("temporary"))); err != nil {
@@ -1041,8 +1044,7 @@ func TestConfigurationPauseSurvivesRestartAndRequiresValidatedAdminRecovery(t *t
 		config.OutputModeJSONObject,
 		"review-text-v1",
 		"test",
-		"admin",
-	)
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}

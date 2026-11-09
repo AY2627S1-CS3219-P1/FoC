@@ -90,7 +90,7 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	}
 	store := config.NewStore(pool)
 	id, err := store.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester")
+		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
 	if err != nil {
 		t.Fatalf("insert config version: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +16,14 @@ import (
 )
 
 type evaluator struct {
-	fail  bool
-	calls int
+	fail      bool
+	calls     int
+	lastInput jobs.EvaluationInput
 }
 
-func (e *evaluator) Evaluate(context.Context, jobs.EvaluationInput) (jobs.Assessment, error) {
+func (e *evaluator) Evaluate(_ context.Context, input jobs.EvaluationInput) (jobs.Assessment, error) {
 	e.calls++
+	e.lastInput = input
 	if e.fail {
 		return jobs.Assessment{}, errors.New("provider unavailable")
 	}
@@ -55,7 +58,14 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 		config.Settings{PolicyVersion: "review-text-v1"},
 		time.Now,
 	)
-	first, err := service.SaveDraft(ctx, "model", config.OutputModeJSONObject, config.InferenceParameters{}, "admin")
+	first, err := service.SaveDraft(
+		ctx,
+		"model",
+		config.OutputModeJSONObject,
+		config.InferenceParameters{},
+		"admin",
+		"Custom administrator policy",
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +74,31 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 		"other-model",
 		config.OutputModeJSONObject,
 		config.InferenceParameters{},
-		"admin",
-	)
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := service.Activate(ctx, first, "admin", nil, false); err != nil {
 		t.Fatal(err)
 	}
+	activePrompt, err := service.ActiveConfiguration(ctx)
+	if err != nil || activePrompt.SystemMessage != "Custom administrator policy" ||
+		eval.lastInput.Config.SystemMessage != "Custom administrator policy" {
+		t.Fatalf("custom prompt not persisted or used: %+v, %+v, %v", activePrompt, eval.lastInput.Config, err)
+	}
+	for _, invalid := range []string{"  ", strings.Repeat("x", 16385)} {
+		if _, err := service.SaveDraft(
+			ctx,
+			"model",
+			config.OutputModeJSONObject,
+			config.InferenceParameters{},
+			"admin",
+			invalid,
+		); err == nil {
+			t.Fatal("invalid system message accepted")
+		}
+	}
+
 	if err := service.Activate(ctx, second, "admin", nil, false); !errors.Is(err, config.ErrConfigurationConflict) {
 		t.Fatalf("stale first activation: %v", err)
 	}
@@ -125,8 +152,7 @@ func TestActivationValidatesAndRejectsStaleWriters(t *testing.T) {
 		"other-model",
 		config.OutputModeJSONObject,
 		config.InferenceParameters{},
-		"admin",
-	)
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}

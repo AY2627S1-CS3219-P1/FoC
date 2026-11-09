@@ -121,9 +121,10 @@ type GetModerationSetupStatusResponse struct {
 	// Stored provider endpoint fingerprint of the active configuration.
 	ProviderFingerprint string `protobuf:"bytes,3,opt,name=provider_fingerprint,json=providerFingerprint,proto3" json:"provider_fingerprint,omitempty"`
 	// Code-owned policy/schema version currently compiled into the service.
-	PolicyVersion string `protobuf:"bytes,4,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PolicyVersion        string `protobuf:"bytes,4,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	DefaultSystemMessage string `protobuf:"bytes,5,opt,name=default_system_message,json=defaultSystemMessage,proto3" json:"default_system_message,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetModerationSetupStatusResponse) Reset() {
@@ -180,6 +181,13 @@ func (x *GetModerationSetupStatusResponse) GetProviderFingerprint() string {
 func (x *GetModerationSetupStatusResponse) GetPolicyVersion() string {
 	if x != nil {
 		return x.PolicyVersion
+	}
+	return ""
+}
+
+func (x *GetModerationSetupStatusResponse) GetDefaultSystemMessage() string {
+	if x != nil {
+		return x.DefaultSystemMessage
 	}
 	return ""
 }
@@ -410,6 +418,7 @@ type ModerationConfiguration struct {
 	CreatedAt           *timestamppb.Timestamp         `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	ActivatedBy         string                         `protobuf:"bytes,9,opt,name=activated_by,json=activatedBy,proto3" json:"activated_by,omitempty"`
 	ActivatedAt         *timestamppb.Timestamp         `protobuf:"bytes,10,opt,name=activated_at,json=activatedAt,proto3" json:"activated_at,omitempty"`
+	SystemMessage       string                         `protobuf:"bytes,11,opt,name=system_message,json=systemMessage,proto3" json:"system_message,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -512,6 +521,13 @@ func (x *ModerationConfiguration) GetActivatedAt() *timestamppb.Timestamp {
 		return x.ActivatedAt
 	}
 	return nil
+}
+
+func (x *ModerationConfiguration) GetSystemMessage() string {
+	if x != nil {
+		return x.SystemMessage
+	}
+	return ""
 }
 
 type ModerationInferenceParameters struct {
@@ -637,10 +653,12 @@ func (x *ModerationInferenceParameters) GetReasoningEffort() string {
 }
 
 type SaveModerationConfigurationDraftRequest struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
-	ModelId       string                         `protobuf:"bytes,1,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
-	Parameters    *ModerationInferenceParameters `protobuf:"bytes,2,opt,name=parameters,proto3" json:"parameters,omitempty"`
-	OutputMode    ModerationOutputMode           `protobuf:"varint,3,opt,name=output_mode,json=outputMode,proto3,enum=moderation.v1.ModerationOutputMode" json:"output_mode,omitempty"`
+	state      protoimpl.MessageState         `protogen:"open.v1"`
+	ModelId    string                         `protobuf:"bytes,1,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
+	Parameters *ModerationInferenceParameters `protobuf:"bytes,2,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	OutputMode ModerationOutputMode           `protobuf:"varint,3,opt,name=output_mode,json=outputMode,proto3,enum=moderation.v1.ModerationOutputMode" json:"output_mode,omitempty"`
+	// Empty uses the service default. Stored immutably with this version.
+	SystemMessage string `protobuf:"bytes,4,opt,name=system_message,json=systemMessage,proto3" json:"system_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -694,6 +712,13 @@ func (x *SaveModerationConfigurationDraftRequest) GetOutputMode() ModerationOutp
 		return x.OutputMode
 	}
 	return ModerationOutputMode_MODERATION_OUTPUT_MODE_UNSPECIFIED
+}
+
+func (x *SaveModerationConfigurationDraftRequest) GetSystemMessage() string {
+	if x != nil {
+		return x.SystemMessage
+	}
+	return ""
 }
 
 type SaveModerationConfigurationDraftResponse struct {
@@ -991,12 +1016,13 @@ var File_moderation_v1_config_proto protoreflect.FileDescriptor
 const file_moderation_v1_config_proto_rawDesc = "" +
 	"\n" +
 	"\x1amoderation/v1/config.proto\x12\rmoderation.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"!\n" +
-	"\x1fGetModerationSetupStatusRequest\"\xee\x01\n" +
+	"\x1fGetModerationSetupStatusRequest\"\xa4\x02\n" +
 	" GetModerationSetupStatusResponse\x128\n" +
 	"\x18has_active_configuration\x18\x01 \x01(\bR\x16hasActiveConfiguration\x126\n" +
 	"\x17has_provider_credential\x18\x02 \x01(\bR\x15hasProviderCredential\x121\n" +
 	"\x14provider_fingerprint\x18\x03 \x01(\tR\x13providerFingerprint\x12%\n" +
-	"\x0epolicy_version\x18\x04 \x01(\tR\rpolicyVersion\"\x1c\n" +
+	"\x0epolicy_version\x18\x04 \x01(\tR\rpolicyVersion\x124\n" +
+	"\x16default_system_message\x18\x05 \x01(\tR\x14defaultSystemMessage\"\x1c\n" +
 	"\x1aListAvailableModelsRequest\"U\n" +
 	"\x1bListAvailableModelsResponse\x126\n" +
 	"\x06models\x18\x01 \x03(\v2\x1e.moderation.v1.ModerationModelR\x06models\"G\n" +
@@ -1005,7 +1031,7 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"\bowned_by\x18\x02 \x01(\tR\aownedBy\")\n" +
 	"'GetActiveModerationConfigurationRequest\"x\n" +
 	"(GetActiveModerationConfigurationResponse\x12L\n" +
-	"\rconfiguration\x18\x01 \x01(\v2&.moderation.v1.ModerationConfigurationR\rconfiguration\"\xfd\x03\n" +
+	"\rconfiguration\x18\x01 \x01(\v2&.moderation.v1.ModerationConfigurationR\rconfiguration\"\xa4\x04\n" +
 	"\x17ModerationConfiguration\x12\x1d\n" +
 	"\n" +
 	"version_id\x18\x01 \x01(\tR\tversionId\x12\x19\n" +
@@ -1023,7 +1049,8 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12!\n" +
 	"\factivated_by\x18\t \x01(\tR\vactivatedBy\x12=\n" +
 	"\factivated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\vactivatedAt\"\xc6\x05\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vactivatedAt\x12%\n" +
+	"\x0esystem_message\x18\v \x01(\tR\rsystemMessage\"\xc6\x05\n" +
 	"\x1dModerationInferenceParameters\x12%\n" +
 	"\vtemperature\x18\x01 \x01(\x01H\x00R\vtemperature\x88\x01\x01\x12\x18\n" +
 	"\x05top_p\x18\x02 \x01(\x01H\x01R\x04topP\x88\x01\x01\x12.\n" +
@@ -1047,7 +1074,7 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"\x16_max_completion_tokensB\r\n" +
 	"\v_max_tokensB\a\n" +
 	"\x05_seedB\x13\n" +
-	"\x11_reasoning_effort\"\xf0\x01\n" +
+	"\x11_reasoning_effort\"\xa2\x02\n" +
 	"'SaveModerationConfigurationDraftRequest\x12%\n" +
 	"\bmodel_id\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xc8\x01R\amodelId\x12L\n" +
@@ -1056,7 +1083,8 @@ const file_moderation_v1_config_proto_rawDesc = "" +
 	"parameters\x12P\n" +
 	"\voutput_mode\x18\x03 \x01(\x0e2#.moderation.v1.ModerationOutputModeB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\n" +
-	"outputMode\"T\n" +
+	"outputMode\x120\n" +
+	"\x0esystem_message\x18\x04 \x01(\tB\t\xbaH\x06r\x04\x18\x80\x80\x01R\rsystemMessage\"T\n" +
 	"(SaveModerationConfigurationDraftResponse\x12(\n" +
 	"\x10draft_version_id\x18\x01 \x01(\tR\x0edraftVersionId\"\x90\x01\n" +
 	"'TestModerationConfigurationDraftRequest\x122\n" +

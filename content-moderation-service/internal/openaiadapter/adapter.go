@@ -9,19 +9,14 @@ package openaiadapter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
-	"net/url"
-	"strconv"
-	"time"
-
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
+	"net/http"
+	"net/url"
+	"time"
 )
 
 const (
@@ -32,17 +27,6 @@ const (
 	// supplies a timeout.
 	defaultTimeout = 90 * time.Second
 )
-
-// reservedRequestFields are provider fields the Advanced parameter allowlist
-// must never override. The adapter rejects any advanced entry keyed here so the
-// model, prompts, output format, or request identity cannot be hijacked.
-var reservedRequestFields = map[string]struct{}{
-	"model":           {},
-	"messages":        {},
-	"system":          {},
-	"user":            {},
-	"response_format": {},
-}
 
 // OpenAICompletionClient is an llmpolicy.CompletionClient backed by an
 // OpenAI-compatible endpoint.
@@ -132,204 +116,4 @@ func (c *OpenAICompletionClient) Complete(
 		return nil, mapError(err)
 	}
 	return extractResponse(resp), nil
-}
-
-// buildParams assembles the completion request: a fresh single-turn
-// conversation (system instruction + delimited review data), the configured
-// model, and the strict structured-output format selected by the output mode.
-func buildParams(req *llmpolicy.CompletionRequest) openai.ChatCompletionNewParams {
-	params := openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(req.System),
-			openai.UserMessage(req.User),
-		},
-		Model: openai.ChatModel(req.Model),
-	}
-
-	switch req.OutputMode {
-	case "json_schema":
-		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
-				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:        llmpolicy.SchemaName,
-					Description: openai.Opt[string](llmpolicy.SchemaDescription),
-					Schema:      json.RawMessage(req.SchemaJSON),
-					Strict:      openai.Bool(true), // strict adherence; never silent fallback
-				},
-			},
-		}
-	default: // "json_object" and any future mode: local validation still applies
-		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONObject: &openai.ResponseFormatJSONObjectParam{},
-		}
-	}
-
-	applyTypedParams(&params, req.Parameters)
-	return params
-}
-
-// applyTypedParams sets optional inference parameters, omitting any that are
-// unset so zero values are never sent.
-func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn llmpolicy.CompletionParameters) {
-	if paramsIn.Temperature != nil {
-		params.Temperature = openai.Opt[float64](*paramsIn.Temperature)
-	}
-	if paramsIn.TopP != nil {
-		params.TopP = openai.Opt[float64](*paramsIn.TopP)
-	}
-	if paramsIn.PresencePenalty != nil {
-		params.PresencePenalty = openai.Opt[float64](*paramsIn.PresencePenalty)
-	}
-	if paramsIn.FrequencyPenalty != nil {
-		params.FrequencyPenalty = openai.Opt[float64](*paramsIn.FrequencyPenalty)
-	}
-	if paramsIn.MaxCompletionTokens != nil {
-		params.MaxCompletionTokens = openai.Opt[int64](*paramsIn.MaxCompletionTokens)
-	}
-	if paramsIn.MaxTokens != nil {
-		params.MaxTokens = openai.Opt[int64](*paramsIn.MaxTokens)
-	}
-	if paramsIn.Seed != nil {
-		params.Seed = openai.Opt[int64](*paramsIn.Seed)
-	}
-	if paramsIn.ReasoningEffort != "" {
-		params.ReasoningEffort = openai.ReasoningEffort(paramsIn.ReasoningEffort)
-	}
-	if len(paramsIn.Stop) > 0 {
-		params.Stop = openai.ChatCompletionNewParamsStopUnion{OfStringArray: paramsIn.Stop}
-	}
-}
-
-// advancedOptions applies validated extra provider parameters via JSON merging.
-// The service-owned allowlist excludes reserved fields; this guard is a
-// defense in depth against a config that tries to override them.
-func advancedOptions(paramsIn llmpolicy.CompletionParameters) ([]option.RequestOption, error) {
-	if len(paramsIn.Advanced) == 0 {
-		return nil, nil
-	}
-	opts := make([]option.RequestOption, 0, len(paramsIn.Advanced))
-	for key, raw := range paramsIn.Advanced {
-		if _, reserved := reservedRequestFields[key]; reserved {
-			return nil, &llmpolicy.ErrConfiguration{Detail: fmt.Sprintf("advanced parameter %q is not permitted", key)}
-		}
-		var value any
-		if err := json.Unmarshal([]byte(raw), &value); err != nil {
-			return nil, &llmpolicy.ErrConfiguration{
-				Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, "provider transport failed"),
-			}
-		}
-		opts = append(opts, option.WithJSONSet(key, value))
-	}
-	return opts, nil
-}
-
-// extractResponse copies only the service-neutral fields. Provider-supplied
-// identities (completion IDs, request IDs) are never copied.
-func extractResponse(resp *openai.ChatCompletion) *llmpolicy.CompletionResponse {
-	if resp == nil || len(resp.Choices) == 0 {
-		return &llmpolicy.CompletionResponse{}
-	}
-	choice := resp.Choices[0]
-	return &llmpolicy.CompletionResponse{
-		Content:      choice.Message.Content,
-		FinishReason: choice.FinishReason,
-		Refusal:      choice.Message.Refusal,
-		Model:        resp.Model,
-	}
-}
-
-// mapError converts an SDK or transport error into the appropriate llmpolicy
-// error class, redacting credentials and bounding diagnostics.
-func mapError(err error) error {
-	var apiErr *openai.Error
-	if !errors.As(err, &apiErr) {
-		return mapTransportError(err)
-	}
-	switch {
-	case apiErr.StatusCode == http.StatusTooManyRequests:
-		return rateLimitedError(apiErr)
-	case apiErr.StatusCode >= 500:
-		// Server-side errors are transient and retryable.
-		return &llmpolicy.ErrConnection{Detail: classifyMessage(apiErr)}
-	case apiErr.StatusCode >= 400:
-		// 4xx indicate a configuration or invalid request; not retried.
-		return &llmpolicy.ErrConfiguration{Detail: classifyMessage(apiErr)}
-	default:
-		return &llmpolicy.ErrConnection{Detail: fmt.Sprintf("unexpected provider status %d", apiErr.StatusCode)}
-	}
-}
-
-// mapTransportError handles non-API errors (connection, DNS, TLS, timeout) that
-// the SDK does not wrap in *openai.Error.
-func mapTransportError(err error) error {
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return &llmpolicy.ErrTimeout{Detail: "request deadline exceeded"}
-	case errors.Is(err, context.Canceled):
-		return &llmpolicy.ErrContext{}
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		if netErr.Timeout() {
-			return &llmpolicy.ErrTimeout{Detail: "provider request timed out at the transport layer"}
-		}
-		return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
-	}
-	return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
-}
-
-// rateLimitedError builds an ErrRateLimited, honouring a Retry-After header when
-// the provider advertises one.
-func rateLimitedError(apiErr *openai.Error) *llmpolicy.ErrRateLimited {
-	rlErr := &llmpolicy.ErrRateLimited{Detail: classifyMessage(apiErr)}
-	if apiErr.Response != nil {
-		if retryAfter, ok := parseRetryAfter(apiErr.Response.Header.Get("Retry-After")); ok {
-			rlErr.RetryAfter = retryAfter
-			rlErr.HasRetryAfter = true
-		}
-	}
-	return rlErr
-}
-
-// parseRetryAfter parses a Retry-After value as either a delay in seconds or an
-// HTTP date. It returns ok=false when the header is absent or unparsable.
-func parseRetryAfter(value string) (time.Duration, bool) {
-	if value == "" {
-		return 0, false
-	}
-	if seconds, err := parseIntSeconds(value); err == nil {
-		if seconds >= 0 {
-			return time.Duration(seconds) * time.Second, true
-		}
-	}
-	if t, err := time.Parse(http.TimeFormat, value); err == nil {
-		delay := time.Until(t)
-		if delay < 0 {
-			delay = 0
-		}
-		return delay, true
-	}
-	return 0, false
-}
-
-// parseIntSeconds parses a non-negative integer number of seconds.
-func parseIntSeconds(s string) (int, error) {
-	n, err := strconv.Atoi(s)
-	if err != nil || n < 0 {
-		return 0, err
-	}
-	return n, nil
-}
-
-// classifyMessage renders a short, sanitized provider error summary. It never
-// leaks the API key or request headers.
-func classifyMessage(apiErr *openai.Error) string {
-	switch apiErr.StatusCode {
-	case 401, 403:
-		return "provider rejected server credentials (HTTP 401/403)"
-	case 400, 404, 422:
-		return "provider rejected the selected model, parameters or output mode"
-	default:
-		return fmt.Sprintf("provider returned HTTP %d", apiErr.StatusCode)
-	}
 }

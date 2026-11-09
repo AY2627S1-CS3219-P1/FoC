@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
@@ -51,15 +52,32 @@ func (s *Store) InsertConfigVersion(
 	policyVersion string,
 	providerFingerprint string,
 	createdBy string,
+	systemMessage string,
 ) (uuid.UUID, error) {
-	return moderationdb.New(s.pool).InsertConfigVersion(ctx, moderationdb.InsertConfigVersionParams{
-		ModelID:             modelID,
-		Parameters:          parameters,
-		OutputMode:          outputMode,
-		PolicyVersion:       policyVersion,
-		ProviderFingerprint: providerFingerprint,
-		CreatedBy:           createdBy,
+	if systemMessage == "" {
+		systemMessage = llmpolicy.DefaultSystemMessage()
+	}
+	var id uuid.UUID
+	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
+		var err error
+		id, err = q.InsertConfigVersion(ctx, moderationdb.InsertConfigVersionParams{
+			SystemMessage:       systemMessage,
+			ModelID:             modelID,
+			Parameters:          parameters,
+			OutputMode:          outputMode,
+			PolicyVersion:       policyVersion,
+			ProviderFingerprint: providerFingerprint,
+			CreatedBy:           createdBy,
+		})
+		if err != nil {
+			return err
+		}
+		return q.InsertAdminAudit(
+			ctx,
+			moderationdb.InsertAdminAuditParams{Action: "SAVE_DRAFT", ConfigVersionID: &id, Actor: createdBy},
+		)
 	})
+	return id, err
 }
 
 // GetConfigVersionById returns one configuration version by id, or

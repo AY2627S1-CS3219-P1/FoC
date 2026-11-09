@@ -8,10 +8,10 @@ SELECT active_version_id FROM moderation_config_state;
 
 -- name: InsertConfigVersion :one
 INSERT INTO moderation_config_versions (
-    model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by
+    model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by, system_message
 ) VALUES (
     sqlc.arg(model_id), sqlc.arg(parameters), sqlc.arg(output_mode),
-    sqlc.arg(policy_version), sqlc.arg(provider_fingerprint), sqlc.arg(created_by)
+    sqlc.arg(policy_version), sqlc.arg(provider_fingerprint), sqlc.arg(created_by), sqlc.arg(system_message)
 )
 RETURNING version_id;
 

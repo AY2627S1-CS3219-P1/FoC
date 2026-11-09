@@ -3,13 +3,14 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/evaladapter"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/provideridentity"
 	"github.com/google/uuid"
 )
 
@@ -65,6 +66,7 @@ func (s *Service) SetupStatus(ctx context.Context) (SetupStatus, error) {
 	status := SetupStatus{
 		HasProviderCredential: s.settings.APIKey != "",
 		PolicyVersion:         s.settings.PolicyVersion,
+		DefaultSystemMessage:  llmpolicy.DefaultSystemMessage(),
 	}
 	version, err := s.store.GetActiveConfig(ctx)
 	if err != nil {
@@ -108,7 +110,12 @@ func (s *Service) SaveDraft(
 	modelID, outputMode string,
 	params InferenceParameters,
 	createdBy string,
+	systemMessage string,
 ) (uuid.UUID, error) {
+	if systemMessage != "" &&
+		(strings.TrimSpace(systemMessage) == "" || utf8.RuneCountInString(systemMessage) > 16384) {
+		return uuid.Nil, fmt.Errorf("config: system_message must contain 1 to 16384 characters")
+	}
 	modelID = strings.TrimSpace(modelID)
 	if modelID == "" {
 		return uuid.Nil, fmt.Errorf("config: model_id is required")
@@ -131,12 +138,10 @@ func (s *Service) SaveDraft(
 		outputMode,
 		s.settings.PolicyVersion,
 		fingerprint,
-		createdBy,
-	)
+		createdBy, systemMessage)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	_ = s.store.InsertAudit(ctx, "SAVE_DRAFT", &id, createdBy, map[string]any{"model_id": modelID})
 	return id, nil
 }
 
@@ -155,7 +160,7 @@ func (s *Service) TestDraft(ctx context.Context, versionID uuid.UUID, sampleComm
 	if err != nil {
 		return result, err
 	}
-	if version.ProviderFingerprint != provideridentity.Fingerprint(s.settings.BaseURL, version.ModelID) {
+	if version.ProviderFingerprint != llmpolicy.ProviderFingerprint(s.settings.BaseURL, version.ModelID) {
 		return result, fmt.Errorf("config: provider endpoint changed; save and validate a new draft")
 	}
 	var params InferenceParameters
@@ -227,6 +232,7 @@ func (s *Service) Activate(
 
 // Version is the admin-visible shape of an immutable configuration version.
 type Version struct {
+	SystemMessage       string
 	VersionID           uuid.UUID
 	ModelID             string
 	Parameters          InferenceParameters
@@ -241,6 +247,7 @@ type Version struct {
 
 // SetupStatus is the read-only view returned by GetModerationSetupStatus.
 type SetupStatus struct {
+	DefaultSystemMessage   string
 	HasActiveConfiguration bool
 	HasProviderCredential  bool
 	ProviderFingerprint    string
@@ -261,6 +268,7 @@ func versionFromDB(version moderationdb.ModerationConfigVersion, state moderatio
 	var params InferenceParameters
 	_ = params.Decode(version.Parameters)
 	v := Version{
+		SystemMessage:       version.SystemMessage,
 		VersionID:           version.VersionID,
 		ModelID:             version.ModelID,
 		Parameters:          params,
@@ -284,6 +292,7 @@ func effectiveConfigFrom(
 	params InferenceParameters,
 ) jobs.EffectiveConfig {
 	return jobs.EffectiveConfig{
+		SystemMessage:       version.SystemMessage,
 		VersionID:           version.VersionID.String(),
 		ModelID:             version.ModelID,
 		OutputMode:          jobs.OutputMode(version.OutputMode),
@@ -301,7 +310,7 @@ func effectiveConfigFrom(
 }
 
 func providerFingerprint(baseURL, modelID string) string {
-	return provideridentity.Fingerprint(baseURL, modelID)
+	return llmpolicy.ProviderFingerprint(baseURL, modelID)
 }
 
 func isErrNoActive(err error) bool {

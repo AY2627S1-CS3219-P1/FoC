@@ -126,7 +126,7 @@ func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uu
 	}
 	cstore := config.NewStore(pool)
 	id, err := cstore.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester")
+		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
 	if err != nil {
 		t.Fatalf("insert config version: %v", err)
 	}

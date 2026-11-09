@@ -19,6 +19,7 @@ func jobSnapshot(row moderationdb.ModerationJob) JobSnapshot {
 
 func configurationSnapshot(row moderationdb.ModerationConfigVersion) ConfigurationSnapshot {
 	return ConfigurationSnapshot{
+		SystemMessage:       row.SystemMessage,
 		VersionID:           row.VersionID,
 		ModelID:             row.ModelID,
 		Parameters:          row.Parameters,

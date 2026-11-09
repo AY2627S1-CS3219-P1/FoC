@@ -116,3 +116,13 @@ Return only the verdict JSON object.`,
 		comment,
 	)
 }
+
+// DefaultSystemMessage supplies the initial admin-editable review rubric.
+func DefaultSystemMessage() string { return systemMessage() }
+
+func configuredSystemMessage(message string) string {
+	if message == "" {
+		return DefaultSystemMessage()
+	}
+	return message
+}

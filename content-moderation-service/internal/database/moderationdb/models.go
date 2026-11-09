@@ -32,6 +32,7 @@ type ModerationConfigVersion struct {
 	ProviderFingerprint string
 	CreatedBy           string
 	CreatedAt           time.Time
+	SystemMessage       string
 }
 
 type ModerationJob struct {

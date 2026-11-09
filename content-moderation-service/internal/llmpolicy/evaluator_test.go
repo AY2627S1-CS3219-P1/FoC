@@ -377,3 +377,20 @@ func TestMissingFinishReasonCannotApprove(t *testing.T) {
 	_, err := evaluateResponse(&CompletionResponse{Content: `{"decision":"approve","reason_codes":[]}`})
 	assertInvalid(t, err)
 }
+
+func TestConfiguredSystemMessageKeepsResponseValidation(t *testing.T) {
+	client := &fakeClient{
+		resp: &CompletionResponse{Content: `{"decision":"reject","reason_codes":["UNKNOWN"]}`, FinishReason: "stop"},
+	}
+	const prompt = "Apply the administrator's review rubric."
+	_, err := NewEvaluator(
+		client,
+	).Evaluate(context.Background(), jobs.EvaluationInput{Comment: "review content", Config: jobs.EffectiveConfig{SystemMessage: prompt}})
+	assertInvalid(t, err)
+	if client.lastRequest.System != prompt {
+		t.Fatalf("system message = %q, want configured prompt", client.lastRequest.System)
+	}
+	if !strings.Contains(client.lastRequest.User, "review content") {
+		t.Fatal("review snapshot missing from user message")
+	}
+}

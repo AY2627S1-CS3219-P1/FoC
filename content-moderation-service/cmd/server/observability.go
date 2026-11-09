@@ -11,7 +11,12 @@ import (
 
 // reportOperationalState keeps setup and stalled handoffs observable even when
 // no evaluator is configured. It exits before the shared database pool closes.
-func reportOperationalState(ctx context.Context, pool *pgxpool.Pool, components serverComponents, interval time.Duration) {
+func reportOperationalState(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	components serverComponents,
+	interval time.Duration,
+) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {

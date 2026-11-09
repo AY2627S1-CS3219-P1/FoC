@@ -39,6 +39,7 @@ func (h *Handler) GetModerationSetupStatus(
 			HasProviderCredential:  status.HasProviderCredential,
 			ProviderFingerprint:    status.ProviderFingerprint,
 			PolicyVersion:          status.PolicyVersion,
+			DefaultSystemMessage:   status.DefaultSystemMessage,
 		},
 	)
 	return resp, nil
@@ -104,8 +105,7 @@ func (h *Handler) SaveModerationConfigurationDraft(
 		req.Msg.GetModelId(),
 		outputModeString(req.Msg.GetOutputMode()),
 		params,
-		caller,
-	)
+		caller, req.Msg.GetSystemMessage())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError(err.Error()))
 	}
@@ -201,6 +201,7 @@ func callerID(ctx context.Context) (string, bool) {
 
 func configurationProto(v config.Version) *moderationv1.ModerationConfiguration {
 	proto := &moderationv1.ModerationConfiguration{
+		SystemMessage:       v.SystemMessage,
 		VersionId:           v.VersionID.String(),
 		ModelId:             v.ModelID,
 		Parameters:          parametersProto(v.Parameters),

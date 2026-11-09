@@ -1,7 +1,4 @@
 // Package router mounts CMS's RPCs on its two listeners.
-//
-// The public listener serves users, authenticated by their User Service JWT.
-// The internal listener serves other services (not yet used).
 package router
 
 import (
@@ -29,7 +26,6 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))
 
-	// ReviewModerationService: owner-or-admin, caller-gated
 	reviewPath, reviewHandler := reviewv1connect.NewReviewModerationServiceHandler(
 		services.ReviewModeration,
 		connect.WithInterceptors(
@@ -39,7 +35,6 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	)
 	mux.Handle(reviewPath, authenticate(reviewHandler))
 
-	// ReviewModerationAdminService: admin-only, admin-gated
 	reviewAdminPath, reviewAdminHandler := reviewv1connect.NewReviewModerationAdminServiceHandler(
 		services.ReviewModerationAdmin,
 		connect.WithInterceptors(
@@ -49,7 +44,6 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	)
 	mux.Handle(reviewAdminPath, authenticate(reviewAdminHandler))
 
-	// ModerationAdminService: admin-only, admin-gated
 	moderationAdminPath, moderationAdminHandler := moderationv1connect.NewModerationAdminServiceHandler(
 		services.ModerationAdmin,
 		connect.WithInterceptors(
@@ -62,11 +56,7 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 	return mux
 }
 
-// Internal mounts the health checks for service-to-service calls.
-// It deliberately serves no business RPCs: the admin services accept no
-// credentials on this listener, so mounting them would let any in-cluster
-// workload reach them (the same hazard as the credit-internal landmine).
-// It must only be reachable from inside the service network.
+// Internal exposes only health; business RPCs require the public listener's authentication.
 func Internal(services RPCServices) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))

@@ -102,8 +102,7 @@ func TestSoCLaaSLiveModeration(t *testing.T) {
 				model,
 				mode,
 				config.InferenceParameters{Temperature: &temperature, MaxTokens: &tokens},
-				"soclaas-live-test",
-			)
+				"soclaas-live-test", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +122,7 @@ func TestSoCLaaSLiveModeration(t *testing.T) {
 				pool,
 				policy,
 				nil,
-				jobs.WithProviderIdentity(baseURL),
+				jobs.WithProviderIdentity(baseURL, llmpolicy.ProviderFingerprint),
 			)
 			ids := make(map[uuid.UUID]int)
 			for i, fixture := range fixtures {

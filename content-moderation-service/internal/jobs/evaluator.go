@@ -43,9 +43,10 @@ const (
 
 // EffectiveConfig is the pinned immutable evaluation configuration.
 type EffectiveConfig struct {
-	VersionID  string
-	ModelID    string
-	OutputMode OutputMode
+	SystemMessage string
+	VersionID     string
+	ModelID       string
+	OutputMode    OutputMode
 
 	Temperature      *float64
 	TopP             *float64

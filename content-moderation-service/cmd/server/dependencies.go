@@ -30,7 +30,12 @@ type serverComponents struct {
 
 func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) serverComponents {
 	policy := jobs.PolicyFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
-	jobStore := jobs.NewJobStore(pool, policy, nil, jobs.WithProviderIdentity(cfg.LLMBaseURL))
+	jobStore := jobs.NewJobStore(
+		pool,
+		policy,
+		nil,
+		jobs.WithProviderIdentity(cfg.LLMBaseURL, llmpolicy.ProviderFingerprint),
+	)
 	reviewStore := review.NewStore(pool)
 	configStore := cfgpkg.NewStore(pool)
 

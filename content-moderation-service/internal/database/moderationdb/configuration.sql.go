@@ -59,7 +59,7 @@ func (q *Queries) GetActiveConfigVersion(ctx context.Context) (*uuid.UUID, error
 }
 
 const getActiveConfigVersionFull = `-- name: GetActiveConfigVersionFull :one
-SELECT v.version_id, v.model_id, v.parameters, v.output_mode, v.policy_version, v.provider_fingerprint, v.created_by, v.created_at FROM moderation_config_versions v
+SELECT v.version_id, v.model_id, v.parameters, v.output_mode, v.policy_version, v.provider_fingerprint, v.created_by, v.created_at, v.system_message FROM moderation_config_versions v
 JOIN moderation_config_state s ON s.active_version_id = v.version_id
 `
 
@@ -75,6 +75,7 @@ func (q *Queries) GetActiveConfigVersionFull(ctx context.Context) (ModerationCon
 		&i.ProviderFingerprint,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.SystemMessage,
 	)
 	return i, err
 }
@@ -101,7 +102,7 @@ func (q *Queries) GetConfigState(ctx context.Context) (GetConfigStateRow, error)
 }
 
 const getConfigVersionById = `-- name: GetConfigVersionById :one
-SELECT version_id, model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by, created_at FROM moderation_config_versions
+SELECT version_id, model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by, created_at, system_message FROM moderation_config_versions
 WHERE version_id = $1
 `
 
@@ -119,16 +120,17 @@ func (q *Queries) GetConfigVersionById(ctx context.Context, versionID uuid.UUID)
 		&i.ProviderFingerprint,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.SystemMessage,
 	)
 	return i, err
 }
 
 const insertConfigVersion = `-- name: InsertConfigVersion :one
 INSERT INTO moderation_config_versions (
-    model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by
+    model_id, parameters, output_mode, policy_version, provider_fingerprint, created_by, system_message
 ) VALUES (
     $1, $2, $3,
-    $4, $5, $6
+    $4, $5, $6, $7
 )
 RETURNING version_id
 `
@@ -140,6 +142,7 @@ type InsertConfigVersionParams struct {
 	PolicyVersion       string
 	ProviderFingerprint string
 	CreatedBy           string
+	SystemMessage       string
 }
 
 func (q *Queries) InsertConfigVersion(ctx context.Context, arg InsertConfigVersionParams) (uuid.UUID, error) {
@@ -150,6 +153,7 @@ func (q *Queries) InsertConfigVersion(ctx context.Context, arg InsertConfigVersi
 		arg.PolicyVersion,
 		arg.ProviderFingerprint,
 		arg.CreatedBy,
+		arg.SystemMessage,
 	)
 	var version_id uuid.UUID
 	err := row.Scan(&version_id)

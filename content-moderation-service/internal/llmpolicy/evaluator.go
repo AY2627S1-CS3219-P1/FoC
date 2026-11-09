@@ -42,7 +42,7 @@ func buildRequest(input jobs.EvaluationInput) *CompletionRequest {
 	cfg := input.Config
 	return &CompletionRequest{
 		Model:      cfg.ModelID,
-		System:     systemMessage(),
+		System:     configuredSystemMessage(cfg.SystemMessage),
 		User:       userMessage(input.Comment),
 		OutputMode: string(cfg.OutputMode),
 		SchemaJSON: SchemaJSON,

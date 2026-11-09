@@ -152,6 +152,16 @@ Every attempt is recorded append-only; terminal decisions are never overwritten
 without trace; API keys are never stored and raw provider bodies, prompts or
 hidden reasoning are never exposed.
 
+### Runtime review rubric
+
+Administrators edit the system message when saving a configuration draft. The
+message is stored in that immutable version, tested with the draft, and used by
+workers from their pinned configuration. Changing the active version does not
+change a running job or its automatic retries. An omitted message selects the
+service's initial review rubric; migrations backfill that rubric for existing
+versions. The output schema and local reason-code validation remain code-owned.
+The admin UI edits the message alongside model and inference parameters.
+
 ### Evaluation errors and handling boundaries
 
 The evaluator chain uses service-owned types from end to end. The OpenAI

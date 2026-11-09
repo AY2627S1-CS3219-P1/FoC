@@ -21,15 +21,15 @@ type appConfig struct {
 	// Empty disables Kafka consumers; ingestion and relay then don't run.
 	KafkaBrokers []string
 
-	WorkerConcurrency        int
-	LLMRequestTimeout        time.Duration
-	JobLease                 time.Duration
-	JobHeartbeatInterval     time.Duration
-	JobMaxAttempts           int
-	JobRetryInitialDelay     time.Duration
-	JobRetryMaxDelay         time.Duration
-	JobPollInterval          time.Duration
-	LoggingInterval time.Duration
+	WorkerConcurrency    int
+	LLMRequestTimeout    time.Duration
+	JobLease             time.Duration
+	JobHeartbeatInterval time.Duration
+	JobMaxAttempts       int
+	JobRetryInitialDelay time.Duration
+	JobRetryMaxDelay     time.Duration
+	JobPollInterval      time.Duration
+	LoggingInterval      time.Duration
 
 	LLMBaseURL string
 	LLMAPIKey  string
@@ -41,21 +41,21 @@ var ErrHeartbeatTooLarge = errors.New("CMS_JOB_HEARTBEAT_INTERVAL must be less t
 
 func loadConfig(getenv func(string) string) (appConfig, error) {
 	c := appConfig{
-		Port:                     strings.TrimSpace(getenv("PORT")),
-		InternalPort:             strings.TrimSpace(getenv("INTERNAL_PORT")),
-		DatabaseURL:              strings.TrimSpace(getenv("DATABASE_URL")),
-		RunMigrations:            true,
-		WorkerConcurrency:        2,
-		LLMRequestTimeout:        120 * time.Second,
-		JobLease:                 180 * time.Second,
-		JobHeartbeatInterval:     10 * time.Second,
-		JobMaxAttempts:           5,
-		JobRetryInitialDelay:     10 * time.Second,
-		JobRetryMaxDelay:         5 * time.Minute,
-		JobPollInterval:          1 * time.Second,
-		LoggingInterval: 5 * time.Minute,
-		LLMBaseURL:               "https://soclaas-api.comp.nus.edu.sg/v1",
-		LLMAPIKey:                strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
+		Port:                 strings.TrimSpace(getenv("PORT")),
+		InternalPort:         strings.TrimSpace(getenv("INTERNAL_PORT")),
+		DatabaseURL:          strings.TrimSpace(getenv("DATABASE_URL")),
+		RunMigrations:        true,
+		WorkerConcurrency:    2,
+		LLMRequestTimeout:    120 * time.Second,
+		JobLease:             180 * time.Second,
+		JobHeartbeatInterval: 10 * time.Second,
+		JobMaxAttempts:       5,
+		JobRetryInitialDelay: 10 * time.Second,
+		JobRetryMaxDelay:     5 * time.Minute,
+		JobPollInterval:      1 * time.Second,
+		LoggingInterval:      5 * time.Minute,
+		LLMBaseURL:           "https://soclaas-api.comp.nus.edu.sg/v1",
+		LLMAPIKey:            strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
 	}
 
 	// USER_SERVICE_BASE_URL is the repo-wide convention (compose and the k8s
@@ -125,13 +125,13 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 	}
 
 	for name, target := range map[string]*time.Duration{
-		"CMS_LLM_REQUEST_TIMEOUT":        &c.LLMRequestTimeout,
-		"CMS_JOB_LEASE":                  &c.JobLease,
-		"CMS_JOB_HEARTBEAT_INTERVAL":     &c.JobHeartbeatInterval,
-		"CMS_JOB_RETRY_INITIAL_DELAY":    &c.JobRetryInitialDelay,
-		"CMS_JOB_RETRY_MAX_DELAY":        &c.JobRetryMaxDelay,
-		"CMS_JOB_POLL_INTERVAL":          &c.JobPollInterval,
-		"CMS_LOGGING_INTERVAL": &c.LoggingInterval,
+		"CMS_LLM_REQUEST_TIMEOUT":     &c.LLMRequestTimeout,
+		"CMS_JOB_LEASE":               &c.JobLease,
+		"CMS_JOB_HEARTBEAT_INTERVAL":  &c.JobHeartbeatInterval,
+		"CMS_JOB_RETRY_INITIAL_DELAY": &c.JobRetryInitialDelay,
+		"CMS_JOB_RETRY_MAX_DELAY":     &c.JobRetryMaxDelay,
+		"CMS_JOB_POLL_INTERVAL":       &c.JobPollInterval,
+		"CMS_LOGGING_INTERVAL":        &c.LoggingInterval,
 	} {
 		if value := strings.TrimSpace(getenv(name)); value != "" {
 			duration, err := time.ParseDuration(value)

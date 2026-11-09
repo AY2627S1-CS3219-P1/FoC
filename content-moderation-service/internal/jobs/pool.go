@@ -351,6 +351,7 @@ func effectiveConfig(config ConfigurationSnapshot) (EffectiveConfig, error) {
 	}
 
 	return EffectiveConfig{
+		SystemMessage:       config.SystemMessage,
 		VersionID:           config.VersionID.String(),
 		ModelID:             config.ModelID,
 		OutputMode:          OutputMode(config.OutputMode),

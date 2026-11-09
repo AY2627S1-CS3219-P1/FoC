@@ -45,6 +45,7 @@ message GetModerationSetupStatusResponse {
   string provider_fingerprint = 3;
   // Code-owned policy/schema version currently compiled into the service.
   string policy_version = 4;
+  string default_system_message = 5;
 }
 
 message ListAvailableModelsRequest {}
@@ -77,6 +78,7 @@ message ModerationConfiguration {
   google.protobuf.Timestamp created_at = 8;
   string activated_by = 9;
   google.protobuf.Timestamp activated_at = 10;
+  string system_message = 11;
 }
 
 message ModerationInferenceParameters {
@@ -108,6 +110,8 @@ message SaveModerationConfigurationDraftRequest {
     not_in: [0]
     defined_only: true
   }];
+  // Empty uses the service default. Stored immutably with this version.
+  string system_message = 4 [(buf.validate.field).string.max_len = 16384];
 }
 
 message SaveModerationConfigurationDraftResponse {

@@ -48,6 +48,7 @@ type JobSnapshot struct {
 }
 
 type ConfigurationSnapshot struct {
+	SystemMessage       string
 	VersionID           uuid.UUID
 	ModelID             string
 	Parameters          []byte

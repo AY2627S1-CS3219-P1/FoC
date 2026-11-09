@@ -10,7 +10,6 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/provideridentity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,9 +35,10 @@ type JobStore = jobStore
 // jobStore binds the engine's queries to one connection pool. Writes run inside
 // database.Within; reads run directly against the pool.
 type jobStore struct {
-	pool            *pgxpool.Pool
-	policy          Policy
-	providerBaseURL string
+	pool                *pgxpool.Pool
+	policy              Policy
+	providerBaseURL     string
+	providerFingerprint func(string, string) string
 	// rngMu guards rng: one jobStore is shared by every pool worker, and
 	// math/rand.Rand is not safe for concurrent use.
 	rngMu sync.Mutex
@@ -48,8 +48,11 @@ type jobStore struct {
 type StoreOption func(*jobStore)
 
 // WithProviderIdentity makes queued work wait for explicit revalidation after an endpoint change.
-func WithProviderIdentity(baseURL string) StoreOption {
-	return func(store *jobStore) { store.providerBaseURL = baseURL }
+func WithProviderIdentity(baseURL string, fingerprint func(string, string) string) StoreOption {
+	return func(store *jobStore) {
+		store.providerBaseURL = baseURL
+		store.providerFingerprint = fingerprint
+	}
 }
 
 func NewJobStore(pool *pgxpool.Pool, policy Policy, rng *rand.Rand, options ...StoreOption) *jobStore {
@@ -169,8 +172,8 @@ func (s *jobStore) Claim(ctx context.Context, workerID string, lease time.Durati
 			}
 		}
 
-		if s.providerBaseURL != "" &&
-			config.ProviderFingerprint != provideridentity.Fingerprint(s.providerBaseURL, config.ModelID) {
+		if s.providerBaseURL != "" && s.providerFingerprint != nil &&
+			config.ProviderFingerprint != s.providerFingerprint(s.providerBaseURL, config.ModelID) {
 			if err := q.PauseConfiguration(ctx, config.VersionID); err != nil {
 				return err
 			}

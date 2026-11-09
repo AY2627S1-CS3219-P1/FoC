@@ -11,7 +11,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/provideridentity"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -149,8 +149,7 @@ func TestPauseRecoveryIncludesTransientRetriesAndReleasedJobs(t *testing.T) {
 		config.OutputModeJSONObject,
 		"review-text-v1",
 		"new",
-		"admin",
-	)
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,16 +203,20 @@ func TestProviderChangeWaitsForNewValidatedConfiguration(t *testing.T) {
 		[]byte(`{}`),
 		config.OutputModeJSONObject,
 		"review-text-v1",
-		provideridentity.Fingerprint("https://old.example/v1", "model"),
-		"admin",
-	)
+		llmpolicy.ProviderFingerprint("https://old.example/v1", "model"),
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := configs.ActivateConfigVersion(ctx, old, "admin", nil); err != nil {
 		t.Fatal(err)
 	}
-	store := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil, jobs.WithProviderIdentity("https://new.example/v1"))
+	store := jobs.NewJobStore(
+		pool,
+		jobs.DefaultPolicy(),
+		nil,
+		jobs.WithProviderIdentity("https://new.example/v1", llmpolicy.ProviderFingerprint),
+	)
 	in := ingestInput("provider changed")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)
@@ -230,9 +233,8 @@ func TestProviderChangeWaitsForNewValidatedConfiguration(t *testing.T) {
 		[]byte(`{}`),
 		config.OutputModeJSONObject,
 		"review-text-v1",
-		provideridentity.Fingerprint("https://new.example/v1", "model"),
-		"admin",
-	)
+		llmpolicy.ProviderFingerprint("https://new.example/v1", "model"),
+		"admin", "")
 	if err != nil {
 		t.Fatal(err)
 	}
