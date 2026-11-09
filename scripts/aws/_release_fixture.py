@@ -41,12 +41,55 @@ if command == "terraform":
     if "output" in args:
         finish(state["outputs"])
     finish(error="unexpected Terraform command")
+if command == "gh":
+    endpoint = next(a for a in args if a.startswith("orgs/"))
+    method = option("--method")
+    body = json.load(sys.stdin) if "--input" in args else None
+    if "/runner-groups/" in endpoint:
+        if endpoint.endswith("/repositories"):
+            finish({"total_count": 1, "repositories": [{"full_name": "AY2627S1-CS3219-P1/FoC"}]})
+        finish({"name": "foc-release", "visibility": "selected", "restricted_to_workflows": True,
+                "selected_workflows": state.get("workflows", [])})
+    if endpoint.endswith("generate-jitconfig"):
+        finish({"runner": {"id": 42}, "encoded_jit_config": "fixture-private-JIT-NOT-FOR-LOGS"})
+    if method == "DELETE":
+        state["registration_removed"] = True
+        finish()
+    finish({"status": "offline" if state.get("bootstrap_failure") else "online"})
 if command == "aws":
-    service = next(a for a in args if a in ("sts", "s3api", "eks", "ecr"))
+    service = next(a for a in args if a in ("sts", "s3api", "eks", "ecr", "ssm", "ec2"))
     operation = args[args.index(service) + 1]
     if service == "sts":
         finish({"Account": state.get("caller_account", state["account"]),
                 "Arn": "arn:aws:sts::" + state["account"] + ":assumed-role/" + state.get("caller_role", "release") + "/fixture"})
+    if service == "ssm":
+        if operation == "put-parameter":
+            body = json.loads(Path(option("--cli-input-json").removeprefix("file://")).read_text())
+            state["parameter_tier"] = body["Tier"]
+            state["parameter_has_expiry"] = bool(json.loads(body["Policies"])[0]["Attributes"]["Timestamp"])
+            finish({"Version": 1})
+        state["parameter_removed"] = True
+        finish()
+    if service == "ec2":
+        if operation == "describe-instances":
+            if "--instance-ids" in args:
+                finish({"Reservations": [{"Instances": [{"State": {"Name": "terminated"}}]}]})
+            finish({"Reservations": [{"Instances": [{"InstanceId": "i-existing"}]}] if state.get("existing_runner") else []})
+        if operation == "run-instances":
+            finish({"Instances": [{"InstanceId": "i-disposable", "SubnetId": "subnet-private"}]})
+        if operation == "describe-iam-instance-profile-associations":
+            finish({"IamInstanceProfileAssociations": [{"State": "associated", "AssociationId": "iip-association"}]})
+        if operation == "disassociate-iam-instance-profile":
+            state["profile_detached"] = True
+            finish()
+        if operation == "describe-instance-credit-specifications":
+            finish({"InstanceCreditSpecifications": [{"CpuCredits": "standard"}]})
+        if operation == "get-console-output":
+            finish({"Output": "fixture bootstrap output"})
+        if operation == "terminate-instances":
+            state["instance_terminated"] = True
+            finish()
+        finish(error="unexpected EC2 fixture operation")
     if service == "s3api":
         if operation == "get-bucket-versioning":
             finish({"Status": state.get("versioning", "Enabled")})

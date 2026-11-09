@@ -39,7 +39,7 @@ class ReleaseCLITest(unittest.TestCase):
         shutil.copytree(ROOT / "infra/k8s", self.root / "infra/k8s")
         self.bin = self.root / "bin"
         self.bin.mkdir()
-        for name in ("aws", "terraform", "git", "docker", "make", "kubectl"):
+        for name in ("aws", "terraform", "git", "docker", "make", "kubectl", "gh"):
             path = self.bin / name
             shutil.copy(ROOT / "scripts/aws/_release_fixture.py", path)
             path.chmod(0o700)
@@ -222,6 +222,44 @@ class ReleaseCLITest(unittest.TestCase):
             if observed == started:
                 os.kill(pid, signal.SIGTERM)
         print("PASS: interrupted wrapper retains its environment lock while its deployment descendant remains alive; second release rejected")
+
+    def launch(self, success=True, extra=None):
+        config = self.private / "ci.json"
+        config.write_text(json.dumps({"account_id": ACCOUNT, "region": REGION,
+            "runner_name": "fixture-runner", "registration_parameter": "/fixture/ci/runner-jit",
+            "launch_template_id": "lt-pinned", "launch_template_version": 3,
+            "bucket": "fixture-config", "prefix": "releases"}))
+        return self.cli("launch_runner.py", ["--configuration", str(config), "--runner-group", "3"] + (extra or []), success)
+
+    def test_runner_probe_cleans_up_without_dispatching_and_uses_encrypted_expiring_registration(self):
+        # Requested boundary: private one-job registration, no application release,
+        # no standing runner, and no stored/static GitHub credential.
+        self.launch()
+        state = self.read_state()
+        self.assertEqual(state["parameter_tier"], "Advanced")
+        self.assertTrue(state["parameter_has_expiry"])
+        self.assertTrue(state["instance_terminated"] and state["registration_removed"] and state["parameter_removed"])
+        self.assertTrue(state["profile_detached"])
+        locks = [v for k, v in state["objects"].items() if "/locks/runner-bootstrap.json" in k]
+        self.assertEqual(locks, [[]])
+        self.assertFalse(any("k8s-deploy" in c or "workflow" in c for c in state["calls"]))
+        self.assertFalse(list(self.private.glob("aws/runner-launches/*/*.PRIVATE.input.json")))
+
+    def test_runner_group_existing_instance_and_bootstrap_failure_fail_closed(self):
+        for flags in ({"workflows": ["untrusted-pr-workflow"]},
+                      {"workflows": ["AY2627S1-CS3219-P1/FoC/.github/workflows/aws-release.yml@refs/heads/main"]},
+                      {"existing_runner": True}, {"lock_taken": True}):
+            with self.subTest(flags=flags):
+                self.change(**flags)
+                self.launch(success=False)
+                self.assertFalse(self.read_state().get("instance_terminated", False))
+                self.change(workflows=[], existing_runner=False, lock_taken=False)
+        self.launch(success=False, extra=["--keep-running"])
+        self.assertNotIn("parameter_tier", self.read_state())
+        self.change(bootstrap_failure=True)
+        self.launch(success=False)
+        state = self.read_state()
+        self.assertTrue(state["instance_terminated"] and state["registration_removed"] and state["parameter_removed"])
 
     def test_checksum_and_environment_mismatches_never_deploy(self):
         self.publish()

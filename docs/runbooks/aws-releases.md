@@ -18,7 +18,7 @@ Documents use content-addressed keys `<prefix>/config/<environment>/<sha256>.jso
 
 ## Administrator setup
 
-These are explicit prerequisites, not resources created by the wrappers:
+These are explicit prerequisites, not resources created by the wrappers. The separate [CI prerequisites](../../infra/aws/ci/README.md) Terraform root provisions the configuration bucket, scoped identities, EKS access entry, and private disposable runner launch template without starting an instance. It uses its own backend key; GitHub protection and Kubernetes RBAC are separate administrator operations:
 
 - A dedicated private S3 bucket in the approved account, with versioning enabled, all four public-access blocks, HTTPS-only access, and encryption. The publisher writes AES256-encrypted objects. Do not grant application CI access to a Terraform-state bucket or prefix.
 - An infrastructure operator with the existing Terraform backend/provider permissions and publication-prefix access. Publication also reads bucket versioning/public-access settings and existing objects for idempotent upload recovery.
@@ -27,7 +27,7 @@ These are explicit prerequisites, not resources created by the wrappers:
 - Existing Istio, Gateway API, AWS Load Balancer Controller, encrypted storage support, database schemas/extensions, and eight workload Secrets. SMTP deployments additionally need `smtp`; SES deployments do not.
 - An approved network path from the runner to the restricted EKS endpoint. Do not open the endpoint to the internet. AWS CLI v2, Docker with linux/amd64 build capability, Python 3.9+, Make, Go, and the pinned aqua tools must be available.
 
-For GitHub, register a trusted **ephemeral** Linux x64 runner with label `foc-deploy`. Do not execute untrusted PR workloads on that runner. Configure the protected `aws-demo` environment with required reviewers and permitted deployment branches before using the workflow. Configure the deployment role's GitHub OIDC trust for this repository and that environment (`aud=sts.amazonaws.com`, exact environment subject); restrict allowed branches in the environment. Set environment variables `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_RELEASE_ROLE_ARN`, `AWS_CONFIG_BUCKET`, and `AWS_CONFIG_PREFIX`. Do not put AWS access keys in repository secrets.
+For GitHub, use a trusted **ephemeral** Linux x64 runner with label `foc-deploy` in organization group `foc-release`. Restrict the group to this repository and exactly `AY2627S1-CS3219-P1/FoC/.github/workflows/aws-release.yml@refs/heads/main`; until that file exists on `main`, keep its workflow allowlist empty. Labels alone do not prevent a public-repository PR from claiming a runner. Do not execute untrusted PR workloads on that runner. Configure the protected `aws-demo` environment with required reviewers and permitted deployment branches before using the workflow. Configure the deployment role's GitHub OIDC trust for this repository and that environment (`aud=sts.amazonaws.com`, exact environment subject); restrict allowed branches in the environment. Set environment variables `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_RELEASE_ROLE_ARN`, `AWS_CONFIG_BUCKET`, and `AWS_CONFIG_PREFIX`. Do not put AWS access keys in repository secrets.
 
 The manual workflow runs only from the repository's default branch and checks out its dispatch SHA. It becomes available after the workflow exists on that default branch. It does not release arbitrary PR refs. Its 55-minute bound is shorter than the requested one-hour role session.
 

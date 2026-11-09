@@ -25,7 +25,9 @@ jobs:
     # Never execute deployment credentials on a PR or an arbitrary dispatch ref.
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     environment: aws-demo
-    runs-on: [self-hosted, linux, x64, foc-deploy]
+    runs-on:
+      group: foc-release
+      labels: [linux, x64, foc-deploy]
     timeout-minutes: 55
     env:
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
