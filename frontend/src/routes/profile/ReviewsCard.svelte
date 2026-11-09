@@ -49,7 +49,7 @@
 			</ul>
 		{/if}
 		<div class="more">
-			<Button variant="text" href="/profile/reviews">View All Reviews</Button>
+			<Button variant="text" href="/profile/reviews">View All Received Reviews</Button>
 			<Button variant="text" href="/profile/reviews/given">View Reviews I Left</Button>
 		</div>
 	</section>
