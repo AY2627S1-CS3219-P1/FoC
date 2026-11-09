@@ -17,16 +17,6 @@ const (
 	OutcomeError ModerationOutcome = "error"
 )
 
-// Known rejection reason codes of the initial review-text policy. The policy
-// version in code owns their precise definitions.
-const (
-	ReasonHarassment    = "HARASSMENT"
-	ReasonHate          = "HATE"
-	ReasonThreat        = "THREAT"
-	ReasonSexualContent = "SEXUAL_CONTENT"
-	ReasonSpam          = "SPAM"
-)
-
 // EvaluationInput is the immutable per-run input to the Evaluator port.
 type EvaluationInput struct {
 	// ModerationRequestID identifies the assessment request.
@@ -75,7 +65,8 @@ type EffectiveConfig struct {
 // Assessment is a validated evaluator result. An error return means the
 // evaluation failed technically; Assessment is then unused.
 type Assessment struct {
-	Outcome     ModerationOutcome
+	Outcome ModerationOutcome
+	// ReasonCodes are policy-owned identifiers; the job engine stores them opaquely.
 	ReasonCodes []string
 	// PolicyVersion is the code-owned rubric/schema version that judged the
 	// content, e.g. "review-text-v1".

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -404,8 +405,8 @@ func (s *jobStore) GetAttempts(
 	})
 }
 
-// validateAssessment enforces the contract between outcome and reason codes so
-// an invalid evaluator output is treated as invalid output (retryable).
+// validateAssessment enforces generic outcome and reason-code shape. The
+// evaluator validates codes against its policy vocabulary.
 func validateAssessment(a Assessment) error {
 	switch a.Outcome {
 	case OutcomeApproved:
@@ -420,8 +421,8 @@ func validateAssessment(a Assessment) error {
 			return WrapInvalidOutputError(errors.New("rejected assessment must carry at least one reason code"))
 		}
 		for _, code := range a.ReasonCodes {
-			if !isKnownReason(code) {
-				return WrapInvalidOutputError(errors.New("unknown reason code " + code))
+			if strings.TrimSpace(code) == "" {
+				return WrapInvalidOutputError(errors.New("rejected assessment contains an empty reason code"))
 			}
 		}
 		if a.PolicyVersion == "" {
@@ -431,15 +432,6 @@ func validateAssessment(a Assessment) error {
 		return WrapInvalidOutputError(errors.New("assessment outcome is not approved or rejected"))
 	}
 	return nil
-}
-
-func isKnownReason(code string) bool {
-	switch code {
-	case ReasonHarassment, ReasonHate, ReasonThreat, ReasonSexualContent, ReasonSpam:
-		return true
-	default:
-		return false
-	}
 }
 
 func exhaustJob(ctx context.Context, q *moderationdb.Queries, job moderationdb.ModerationJob) error {

@@ -215,11 +215,11 @@ type assessmentPayload struct {
 
 // knownReasonCode indexes the policy's rejection codes.
 var knownReasonCode = map[string]struct{}{
-	jobs.ReasonHarassment:    {},
-	jobs.ReasonHate:          {},
-	jobs.ReasonThreat:        {},
-	jobs.ReasonSexualContent: {},
-	jobs.ReasonSpam:          {},
+	ReasonHarassment:    {},
+	ReasonHate:          {},
+	ReasonThreat:        {},
+	ReasonSexualContent: {},
+	ReasonSpam:          {},
 }
 
 var _ jobs.Evaluator = (*Evaluator)(nil)

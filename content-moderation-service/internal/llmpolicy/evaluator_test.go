@@ -276,13 +276,13 @@ func TestPromptConstructionFreshSingleTurnAndDataFraming(t *testing.T) {
 
 func TestReasonMessageMapping(t *testing.T) {
 	cases := map[string]string{
-		jobs.ReasonHarassment:    "This review was removed because it contained harassing content.",
-		jobs.ReasonHate:          "This review was removed because it contained hateful content.",
-		jobs.ReasonThreat:        "This review was removed because it contained threats.",
-		jobs.ReasonSexualContent: "This review was removed because it contained sexually explicit content.",
-		jobs.ReasonSpam:          "This review was removed because it looked like spam or advertising.",
-		"NOT_A_REASON":           "This review could not be published.",
-		"":                       "This review could not be published.",
+		ReasonHarassment:    "This review was removed because it contained harassing content.",
+		ReasonHate:          "This review was removed because it contained hateful content.",
+		ReasonThreat:        "This review was removed because it contained threats.",
+		ReasonSexualContent: "This review was removed because it contained sexually explicit content.",
+		ReasonSpam:          "This review was removed because it looked like spam or advertising.",
+		"NOT_A_REASON":      "This review could not be published.",
+		"":                  "This review could not be published.",
 	}
 	for code, want := range cases {
 		if got := ReasonMessage(code); got != want {

@@ -664,9 +664,10 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 	claimed := mustClaim(t, store, "worker-a")
+	const policySpecificReason = "REVIEW_TEXT_POLICY_REASON"
 	if err := store.Complete(ctx, *claimed, jobs.Assessment{
 		Outcome:       jobs.OutcomeRejected,
-		ReasonCodes:   []string{jobs.ReasonHarassment},
+		ReasonCodes:   []string{policySpecificReason},
 		PolicyVersion: "review-text-v1",
 	}); err != nil {
 		t.Fatalf("complete rejected: %v", err)
@@ -675,8 +676,8 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 	if job.Status != "completed" || job.Outcome == nil || *job.Outcome != "rejected" {
 		t.Fatalf("job = %+v, want completed/rejected", job)
 	}
-	if len(job.ReasonCodes) != 1 || job.ReasonCodes[0] != jobs.ReasonHarassment {
-		t.Fatalf("reason codes = %v, want [HARASSMENT]", job.ReasonCodes)
+	if len(job.ReasonCodes) != 1 || job.ReasonCodes[0] != policySpecificReason {
+		t.Fatalf("reason codes = %v, want [%s]", job.ReasonCodes, policySpecificReason)
 	}
 
 	// The published event payload must carry REJECTED + the codes.
@@ -688,7 +689,7 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 	if !strings.Contains(payload, "MODERATION_OUTCOME_TYPE_REJECTED") {
 		t.Fatalf("payload outcome is not REJECTED: %s", payload)
 	}
-	if !strings.Contains(payload, "HARASSMENT") {
+	if !strings.Contains(payload, policySpecificReason) {
 		t.Fatalf("payload missing rejection reason code: %s", payload)
 	}
 }

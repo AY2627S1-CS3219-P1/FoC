@@ -1,15 +1,20 @@
 package llmpolicy
 
-import (
-	"fmt"
-
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
-)
+import "fmt"
 
 // PolicyVersion is the code-owned version of the review-text moderation rubric
 // and output schema. It is pinned into every assessment and must change only
 // when the rubric or schema changes.
 const PolicyVersion = "review-text-v1"
+
+// Reason codes and their definitions belong to this policy version.
+const (
+	ReasonHarassment    = "HARASSMENT"
+	ReasonHate          = "HATE"
+	ReasonThreat        = "THREAT"
+	ReasonSexualContent = "SEXUAL_CONTENT"
+	ReasonSpam          = "SPAM"
+)
 
 // maxReasonCodes bounds the reason_codes array. The policy schema caps the set;
 // local validation enforces the same bound so an over-long array is never
@@ -51,11 +56,11 @@ const SchemaDescription = "Structured verdict for a single user review against t
 // each known reason code. They deliberately avoid exposing the internal rubric,
 // the model's reasoning, or the fact that an LLM produced the verdict.
 var reasonMessages = map[string]string{
-	jobs.ReasonHarassment:    "This review was removed because it contained harassing content.",
-	jobs.ReasonHate:          "This review was removed because it contained hateful content.",
-	jobs.ReasonThreat:        "This review was removed because it contained threats.",
-	jobs.ReasonSexualContent: "This review was removed because it contained sexually explicit content.",
-	jobs.ReasonSpam:          "This review was removed because it looked like spam or advertising.",
+	ReasonHarassment:    "This review was removed because it contained harassing content.",
+	ReasonHate:          "This review was removed because it contained hateful content.",
+	ReasonThreat:        "This review was removed because it contained threats.",
+	ReasonSexualContent: "This review was removed because it contained sexually explicit content.",
+	ReasonSpam:          "This review was removed because it looked like spam or advertising.",
 }
 
 // ReasonMessage returns the application-owned user-facing explanation for a

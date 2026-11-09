@@ -183,7 +183,7 @@ func TestSoCLaaSLiveModeration(t *testing.T) {
 					)
 				}
 				if fixture.outcome == jobs.OutcomeRejected &&
-					(len(job.ReasonCodes) != 1 || job.ReasonCodes[0] != jobs.ReasonSpam) {
+					(len(job.ReasonCodes) != 1 || job.ReasonCodes[0] != llmpolicy.ReasonSpam) {
 					t.Errorf("fixture=%s expected SPAM reason", fixture.name)
 				}
 				if job.ConfigVersionID == nil || *job.ConfigVersionID != draft.String() {
