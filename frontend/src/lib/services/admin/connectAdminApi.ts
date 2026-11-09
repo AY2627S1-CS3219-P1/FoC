@@ -25,8 +25,13 @@ export class ConnectAdminApi implements AdminApi {
 		return toSummary(response.user);
 	}
 
+	async deleteUser(userId: string): Promise<void> {
+		await this.#client.deleteUser({ userId }, { timeoutMs: 20_000 });
+	}
+
 	async changeUserRole(userId: string, toRole: UserRole, reason: string): Promise<AdminUserSummary> {
 		const response = await this.#client.changeUserRole({ userId, toRole, reason: reason.trim() });
 		return toSummary(response.user);
 	}
 }
+

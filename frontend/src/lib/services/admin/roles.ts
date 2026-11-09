@@ -34,3 +34,11 @@ export function allowedRoleTargets(actorRole: UserRole, targetRole: UserRole, is
 export function needsRoleReason(from: UserRole, to: EditableRole): boolean {
 	return from === UserRole.SUSPENDED_USER || to === 'suspended_user';
 }
+
+export function canDeleteUser(actorRole: UserRole, targetRole: UserRole, isSelf: boolean): boolean {
+	if (isSelf || targetRole === UserRole.SUPER_ADMIN) return false;
+	if (actorRole !== UserRole.ADMIN && actorRole !== UserRole.SUPER_ADMIN) return false;
+	if (targetRole === UserRole.ADMIN) return actorRole === UserRole.SUPER_ADMIN;
+	return targetRole === UserRole.USER || targetRole === UserRole.SUSPENDED_USER;
+}
+

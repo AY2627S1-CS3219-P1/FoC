@@ -5,6 +5,14 @@ import { UserAdminService as UserAdminServiceDefinition } from '$lib/gen/user/v1
 import { ConnectAdminApi } from './connectAdminApi.ts';
 
 describe('ConnectAdminApi', () => {
+	it('deletes the selected UUID without looking the email up again', async () => {
+		const client = { deleteUser: vi.fn(async () => ({})) } as unknown as Client<typeof UserAdminServiceDefinition>;
+		await new ConnectAdminApi(client).deleteUser('original-account-id');
+		expect(client.deleteUser).toHaveBeenCalledExactlyOnceWith(
+			{ userId: 'original-account-id' }, { timeoutMs: 20_000 }
+		);
+	});
+
 	it('looks up exact email and sends a role change request', async () => {
 		const user = { id: 'user-id', email: 'casey@example.com', displayName: 'Casey', role: UserRole.USER };
 		const client = {
@@ -23,3 +31,4 @@ describe('ConnectAdminApi', () => {
 		});
 	});
 });
+

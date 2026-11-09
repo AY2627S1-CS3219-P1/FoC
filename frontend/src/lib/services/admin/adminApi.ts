@@ -10,4 +10,6 @@ export interface AdminUserSummary {
 export interface AdminApi {
 	getUserByEmail(email: string): Promise<AdminUserSummary>;
 	changeUserRole(userId: string, toRole: UserRole, reason: string): Promise<AdminUserSummary>;
+	deleteUser(userId: string): Promise<void>;
 }
+

@@ -18,4 +18,6 @@ export const roleChangeSchema = z.object({
 });
 
 export type UserSearchForm = z.infer<typeof userSearchSchema>;
+export const userDeletionSchema = z.object({ userId: z.uuid() });
 export type RoleChangeForm = z.infer<typeof roleChangeSchema>;
+

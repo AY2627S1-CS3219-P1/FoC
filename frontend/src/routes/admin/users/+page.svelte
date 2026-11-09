@@ -12,15 +12,28 @@
 	import {
 		roleChangeSchema,
 		userSearchSchema,
+		userDeletionSchema,
 		type RoleChangeForm
 	} from '$lib/services/admin/adminSchemas';
-	import { allowedRoleTargets, roleLabel, roleValue } from '$lib/services/admin/roles';
+	import { allowedRoleTargets, canDeleteUser, roleLabel, roleValue } from '$lib/services/admin/roles';
 
 	let user = $state<AdminUserSummary | null>(null);
 	let searchError = $state('');
 	let confirmOpen = $state(false);
 	let confirmApproved = false;
 	let roleStatus = $state('');
+	let mutation = $state<'role' | 'delete' | null>(null);
+	let selectionVersion = 0;
+	let deleteConfirmOpen = $state(false);
+	let deleteTarget = $state<AdminUserSummary | null>(null);
+	let deleteStatus = $state('');
+	let deleteUncertain = $state(false);
+	let deleteApproved = false;
+	let deleteFormElement: HTMLFormElement | undefined = $state();
+	const emptyDeletionForm = { userId: '' };
+	let mayDelete = $derived(!!user && canDeleteUser(
+		authService.user?.role ?? UserRole.USER, user.role, user.id === authService.user?.id
+	));
 	let roleFormElement: HTMLFormElement | undefined = $state();
 	const emptyRoleForm: RoleChangeForm = {
 		userId: '',
@@ -52,6 +65,11 @@
 	}
 
 	function resetRole(target: AdminUserSummary | null) {
+		selectionVersion++;
+		deleteConfirmOpen = false;
+		deleteTarget = null;
+		deleteApproved = false;
+		deleteUncertain = false;
 		user = target;
 		roleStatus = '';
 		confirmOpen = false;
@@ -102,12 +120,17 @@
 			}
 		},
 		async onUpdate({ form }) {
-			if (!form.valid) return;
+			if (!form.valid || mutation) return;
+			resetRole(null);
+			const version = selectionVersion;
 			searchError = '';
+			deleteStatus = '';
 			try {
 				const found = await adminService.getUserByEmail(form.data.email);
+				if (version !== selectionVersion || mutation) return;
 				resetRole(found);
 			} catch (cause) {
+				if (version !== selectionVersion || mutation) return;
 				resetRole(null);
 				searchError = displayApiError(cause);
 				if (cause instanceof ConnectError && cause.code === Code.PermissionDenied)
@@ -124,12 +147,14 @@
 		resetForm: false,
 		taintedMessage: true,
 		async onUpdate({ form }) {
-			if (!form.valid) return;
+			if (!form.valid || mutation || $searching || user?.id !== form.data.userId) return;
 			if (!confirmApproved) {
 				confirmOpen = true;
 				return;
 			}
 			confirmApproved = false;
+			mutation = 'role';
+			selectionVersion++;
 			try {
 				const updated = await adminService.changeUserRole(
 					form.data.userId,
@@ -153,9 +178,59 @@
 					if (cause instanceof ConnectError && cause.code === Code.PermissionDenied)
 						void refreshAdminAccess();
 				}
+			} finally {
+				mutation = null;
 			}
 		}
 	});
+
+	const deletion = superForm(defaults(emptyDeletionForm, zod4(userDeletionSchema)), {
+		SPA: true,
+		validators: zod4Client(userDeletionSchema),
+		multipleSubmits: 'prevent',
+		resetForm: false,
+		async onUpdate({ form }) {
+			const target = deleteTarget;
+			if (!form.valid || !deleteApproved || mutation || $searching || !mayDelete ||
+				!target || user?.id !== target.id || form.data.userId !== target.id) return;
+			deleteApproved = false;
+			mutation = 'delete';
+			selectionVersion++;
+			deleteStatus = '';
+			try {
+				await adminService.deleteUser(target.id);
+				resetRole(null);
+				deleteStatus = `Account ${target.email} was deleted. Retained contributions remain.`;
+			} catch (cause) {
+				deleteConfirmOpen = false;
+				if (cause instanceof ConnectError && [Code.FailedPrecondition, Code.PermissionDenied, Code.NotFound].includes(cause.code)) {
+					deleteStatus = cause.rawMessage;
+				} else {
+					deleteUncertain = true;
+					const reason = cause instanceof ConnectError && cause.code === Code.Unavailable ? `${cause.rawMessage} ` : '';
+					deleteStatus = `${reason}Deletion could not be confirmed for account ${target.id}. Search again to verify its current state before making another deletion request.`;
+				}
+			} finally {
+				mutation = null;
+			}
+		}
+	});
+	const { form: deleteForm, enhance: enhanceDeletion } = deletion;
+
+	function openDeletion() {
+		if (!user || !mayDelete || mutation || $searching || deleteUncertain) return;
+		deleteTarget = { ...user };
+		const data = { userId: user.id };
+		deletion.reset({ data, newState: data });
+		deleteApproved = false;
+		deleteConfirmOpen = true;
+	}
+
+	function confirmDeletion() {
+		if (!deleteTarget || deleteTarget.id !== user?.id || mutation || !mayDelete) return;
+		deleteApproved = true;
+		deletion.submit(deleteFormElement);
+	}
 
 	const {
 		form: searchForm,
@@ -198,7 +273,7 @@
 	<header class="page-heading">
 		<div>
 			<p class="eyebrow">Administration</p>
-			<h1 id="admin-title">Manage user roles</h1>
+			<h1 id="admin-title">Manage users</h1>
 			<p>
 				Find an account by its exact email address, then review its current role before making a
 				change.
@@ -212,6 +287,7 @@
 				<TextFieldOutlined
 					label="User email address"
 					type="email"
+					disabled={!!mutation}
 					name="email"
 					autocomplete="email"
 					required
@@ -224,7 +300,7 @@
 						>{$searchErrors.email[0]}</small
 					>{/if}
 				<div class="form-actions">
-					<Button type="submit" disabled={$searching || !!$searchErrors.email}
+					<Button type="submit" disabled={$searching || !!mutation || !!$searchErrors.email}
 						>{$searching ? 'Searching…' : 'Find user'}</Button
 					>
 				</div>
@@ -232,6 +308,7 @@
 			{#if searchError}<p class="notice error" role="alert">{searchError}</p>{/if}
 		</div>
 	</Card>
+	{#if deleteStatus}<p class="notice" role="status" aria-live="polite">{deleteStatus}</p>{/if}
 
 	{#if user}
 		<Card variant="outlined">
@@ -241,6 +318,7 @@
 						<p class="eyebrow">Account found</p>
 						<h2>{user.displayName}</h2>
 						<p>{user.email}</p>
+						<small>Account ID: {user.id}</small>
 					</div>
 					<span class="role-chip">{roleLabel(user.role)}</span>
 				</div>
@@ -260,6 +338,7 @@
 					<form class="data-form" method="POST" use:enhanceRole bind:this={roleFormElement}>
 						<SelectOutlined
 							label="New role"
+							disabled={!!mutation || $searching}
 							name="toRole"
 							aria-invalid={$roleErrors.toRole ? 'true' : undefined}
 							aria-describedby={$roleErrors.toRole ? 'admin-role-error' : undefined}
@@ -275,6 +354,7 @@
 						<div class="field">
 							<TextFieldOutlinedMultiline
 								label="Reason · required for suspending or reinstating"
+								disabled={!!mutation || $searching}
 								name="reason"
 								rows={3}
 								bind:value={$roleForm.reason}
@@ -290,7 +370,7 @@
 						<div class="form-actions">
 							<Button
 								type="submit"
-								disabled={$changingRole ||
+								disabled={!!mutation || $searching || $changingRole ||
 									$roleForm.toRole ===
 										(user.role === UserRole.ADMIN
 											? 'admin'
@@ -301,6 +381,13 @@
 							>
 						</div>
 					</form>
+				{/if}
+				{#if mayDelete}
+					<div class="delete-action">
+						<Button type="button" disabled={!!mutation || $searching || deleteUncertain} onclick={openDeletion}>
+							{mutation === 'delete' ? 'Deleting…' : 'Delete account'}
+						</Button>
+					</div>
 				{/if}
 			</div>
 		</Card>
@@ -317,3 +404,28 @@
 		{#if $roleForm.reason}<p>Reason: {$roleForm.reason}</p>{/if}
 	{/if}
 </ConfirmationDialog>
+
+<form hidden method="POST" use:enhanceDeletion bind:this={deleteFormElement}>
+	<input type="hidden" name="userId" bind:value={$deleteForm.userId} />
+</form>
+
+<ConfirmationDialog bind:open={deleteConfirmOpen} headline="Permanently delete account?"
+	confirmLabel="Delete account" destructive pending={mutation === 'delete'} pendingLabel="Deleting…"
+	onconfirm={confirmDeletion}>
+	{#if deleteTarget}
+		<p>Delete <strong>{deleteTarget.displayName}</strong> ({deleteTarget.email}) permanently?</p>
+		<p>Account ID: {deleteTarget.id}</p>
+		<p>Account and sign-in data will be removed. Reviews and attached review photos remain as contributions
+			from a deleted account. Profile pictures are account data and are not retained as contributions.</p>
+		<p>This cannot be undone. The email address may register again as a new account with a new identity.</p>
+	{/if}
+</ConfirmationDialog>
+
+<style>
+	.delete-action {
+		margin-top: 1.5rem;
+		--m3c-primary: var(--m3c-error);
+		--m3c-on-primary: var(--m3c-on-error);
+	}
+</style>
+

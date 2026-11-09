@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { UserRole } from '$lib/gen/user/v1/auth_pb';
-import { allowedRoleTargets, needsRoleReason, roleLabel, roleValue } from './roles.ts';
+import { allowedRoleTargets, canDeleteUser, needsRoleReason, roleLabel, roleValue } from './roles.ts';
 
 describe('allowedRoleTargets', () => {
+	it('protects self and super admins and restricts deleting admins to super admins', () => {
+		expect(canDeleteUser(UserRole.USER, UserRole.USER, false)).toBe(false);
+		expect(canDeleteUser(UserRole.SUSPENDED_USER, UserRole.USER, false)).toBe(false);
+		expect(canDeleteUser(UserRole.SUPER_ADMIN, UserRole.SUPER_ADMIN, false)).toBe(false);
+		expect(canDeleteUser(UserRole.ADMIN, UserRole.USER, true)).toBe(false);
+		expect(canDeleteUser(UserRole.ADMIN, UserRole.ADMIN, false)).toBe(false);
+		expect(canDeleteUser(UserRole.ADMIN, UserRole.USER, false)).toBe(true);
+		expect(canDeleteUser(UserRole.ADMIN, UserRole.SUSPENDED_USER, false)).toBe(true);
+		expect(canDeleteUser(UserRole.SUPER_ADMIN, UserRole.ADMIN, false)).toBe(true);
+	});
+
 	it('lets admins suspend or reinstate ordinary users only', () => {
 		expect(allowedRoleTargets(UserRole.ADMIN, UserRole.USER, false)).toEqual(['suspended_user']);
 		expect(allowedRoleTargets(UserRole.ADMIN, UserRole.SUSPENDED_USER, false)).toEqual(['user']);
@@ -33,3 +44,4 @@ describe('role labels and suspension reasons', () => {
 		expect(needsRoleReason(UserRole.USER, 'admin')).toBe(false);
 	});
 });
+

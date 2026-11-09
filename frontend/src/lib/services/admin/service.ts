@@ -12,7 +12,12 @@ export class AdminService {
 		return this.#api.getUserByEmail(email);
 	}
 
+	deleteUser(userId: string): Promise<void> {
+		return this.#api.deleteUser(userId);
+	}
+
 	changeUserRole(userId: string, toRole: UserRole, reason: string): Promise<AdminUserSummary> {
 		return this.#api.changeUserRole(userId, toRole, reason);
 	}
 }
+
