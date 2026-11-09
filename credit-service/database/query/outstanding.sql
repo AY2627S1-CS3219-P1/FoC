@@ -32,4 +32,3 @@ SELECT
             AND assignments.status = 'APPLIED'
             AND reservations.status = 'ASSIGNED'
     )) AS unsettled_assignment;
-

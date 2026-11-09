@@ -50,12 +50,12 @@ ALTER TABLE review_removals
 
 -- +goose Down
 -- +goose StatementBegin
-DO $
+DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM review_removals WHERE reviewer_id IS NULL OR reviewee_id IS NULL) THEN
         RAISE EXCEPTION 'cannot restore removal snapshots: retained audits have absent participants';
     END IF;
-END $;
+END $$;
 -- +goose StatementEnd
 ALTER TABLE review_removals
     ALTER COLUMN reviewer_id SET NOT NULL,
@@ -114,4 +114,3 @@ ALTER TABLE account_warnings
     DROP CONSTRAINT account_warnings_user_id_fkey,
     ADD CONSTRAINT account_warnings_user_id_fkey
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
-

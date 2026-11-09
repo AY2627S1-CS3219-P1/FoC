@@ -81,4 +81,3 @@ status changes; User owns courier warnings. Consumers deduplicate stable event
 IDs and must not assume ordering across topics. Credit also enforces settlement
 at most once per Order. See [the design ADR](../docs/adr/order-credit-pubsub.md)
 and [Credit conformance](../docs/testing/order-credit-pubsub.md).
-

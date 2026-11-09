@@ -16,4 +16,3 @@ message UserDeleted {
   google.protobuf.Timestamp deleted_at = 3;
   string deletion_request_id = 4;
 }
-

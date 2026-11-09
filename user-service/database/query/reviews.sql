@@ -105,4 +105,3 @@ WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
 UPDATE users
 SET review_count = @count::bigint, avg_rating = @avg_rating, updated_at = now()
 WHERE id = @reviewee_id::UUID;
-

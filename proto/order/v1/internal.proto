@@ -57,4 +57,3 @@ enum OutstandingWorkReason {
   // change the user's obligations after this query.
   OUTSTANDING_WORK_REASON_PENDING_ADMISSION = 4;
 }
-

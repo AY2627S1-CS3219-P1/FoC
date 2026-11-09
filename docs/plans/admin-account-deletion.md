@@ -197,5 +197,3 @@ Run Buf generation/lint/breaking, relevant GORM/schema and service/RPC integrati
 - [Historical wide-scope branch](https://github.com/AY2627S1-CS3219-P1/FoC/tree/iz/feat/user-deletion), inspected commit [63f8787](https://github.com/AY2627S1-CS3219-P1/FoC/commit/63f8787acf058b51bb3cc6730e51e44987dfe508).
 - [Existing admin contract](https://github.com/AY2627S1-CS3219-P1/FoC/blob/32d60dd84d6737c5d417c7a58cab49467f199558/proto/user/v1/admin.proto).
 - [Existing Manage users page](https://github.com/AY2627S1-CS3219-P1/FoC/blob/32d60dd84d6737c5d417c7a58cab49467f199558/frontend/src/routes/admin/users/+page.svelte).
-
-

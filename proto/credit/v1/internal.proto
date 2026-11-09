@@ -41,4 +41,3 @@ enum OutstandingWorkReason {
   // outstanding.
   OUTSTANDING_WORK_REASON_PENDING_FINANCIAL_WORK = 4;
 }
-

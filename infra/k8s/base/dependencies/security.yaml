@@ -122,4 +122,3 @@ spec:
       to:
         - operation:
             ports: ["3000"]
-

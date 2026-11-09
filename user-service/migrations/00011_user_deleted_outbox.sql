@@ -24,4 +24,3 @@ CREATE INDEX idx_user_deleted_outbox_pending
 
 -- +goose Down
 DROP TABLE IF EXISTS user_deleted_outbox;
-

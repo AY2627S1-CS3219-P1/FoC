@@ -5,4 +5,3 @@ CREATE INDEX assignments_courier_status ON assignments (courier_id, status);
 
 -- +goose Down
 DROP INDEX IF EXISTS assignments_courier_status;
-

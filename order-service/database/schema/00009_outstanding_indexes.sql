@@ -10,4 +10,3 @@ CREATE INDEX assignment_attempts_courier ON order_assignment_attempts (courier_i
 DROP INDEX IF EXISTS assignment_attempts_courier;
 DROP INDEX IF EXISTS creation_workflows_requester;
 DROP INDEX IF EXISTS offers_courier_status;
-

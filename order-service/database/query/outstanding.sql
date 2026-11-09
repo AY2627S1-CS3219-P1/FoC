@@ -39,4 +39,3 @@ SELECT
         SELECT 1 FROM order_cancellations
         WHERE caller_id = sqlc.arg(user_id)::uuid AND status = 'pending'
     )) AS pending_workflow;
-
