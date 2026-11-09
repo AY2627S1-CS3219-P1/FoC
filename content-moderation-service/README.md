@@ -52,11 +52,7 @@ The ingestion consumer shares the `content-moderation-service` group. Redelivery
 ## Layout
 
 - `internal/review`: owner-visible and admin job read models.
-- `internal/jobs`: moderation job persistence, worker pool, and evaluator chain.
-- `internal/llmpolicy`: LLM policy evaluation and result classification.
 - `internal/openaiadapter`: OpenAI API client adapter.
-- `internal/evaladapter`: Evaluator chain wrapper.
-- `internal/config`: Moderation configuration, draft versions, and activation.
 - `internal/rpc/<domain>`: Connect handlers and domain error mapping.
 - `internal/outbox`: Outbox relay that publishes completion events to Kafka.
 - `internal/router`: mounts the public and internal listeners.
@@ -123,3 +119,7 @@ throwaway `TEST_DATABASE_URL`. It exercises authenticated discovery, both output
 modes, configuration validation/activation, two workers and durable terminal
 outboxes. It is excluded from normal integration tests and CI. See the
 [live verification command and recorded results](../docs/runbooks/content-moderation.md#live-soclaas-verification-9-november-2026).
+
+`internal/moderation` contains the concrete service, job operations, worker,
+LLM assessment, and configuration. Kafka and admin RPC handlers use that service;
+`internal/openaiadapter` implements its provider completion interface.

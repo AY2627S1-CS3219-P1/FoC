@@ -80,7 +80,7 @@ func run(ctx context.Context) error {
 	}()
 
 	if len(config.KafkaBrokers) > 0 {
-		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, components.jobStore, slog.Default()) })
+		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, components.service, slog.Default()) })
 	} else {
 		slog.WarnContext(ctx, "KAFKA_BROKERS is not set; review submissions are not ingested")
 	}

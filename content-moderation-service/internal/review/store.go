@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,14 +15,14 @@ import (
 // ErrNotFound reports the requested job has no moderation_job row. A missing job
 // is valid from the caller's point of view (not yet ingested), so it maps to
 // a caller-facing not_found rather than a generic error.
-var ErrNotFound = jobs.ErrJobNotFound
+var ErrNotFound = moderation.ErrJobNotFound
 
 // ErrNotRetriable reports the retry was refused: the job is not a terminal errored
 // job at the expected run_generation, so no row changed. It maps to
 // failed_precondition.
-var ErrNotRetriable = jobs.ErrNotRetriable
+var ErrNotRetriable = moderation.ErrNotRetriable
 
-// Store owns the read model and administrative transitions for moderation jobs.
+// Store provides the read projections for review moderation.
 type Store struct {
 	pool *pgxpool.Pool
 }
@@ -114,28 +113,4 @@ func (s *Store) GetAttempts(
 		attempts = append(attempts, attemptOf(row))
 	}
 	return attempts, nil
-}
-
-// RetryErroredJob requeues a terminal errored job exactly once for the expected
-// generation, pinning either the active configuration or the one the job first
-// ran under. It returns the updated job summary on success. A generation mismatch
-// or a non-errored job returns ErrNotRetriable; a missing job returns
-// ErrNotFound.
-func (s *Store) RetryErroredJob(
-	ctx context.Context,
-	jobID uuid.UUID,
-	expectedRunGeneration int32,
-	useCurrentConfiguration bool,
-	createdBy string,
-) (*reviewv1.ReviewModerationJobSummary, error) {
-	var updated moderationdb.ModerationJob
-	if err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
-		var err error
-		updated, err = jobs.NewTransitions(q).
-			Retry(ctx, jobID, expectedRunGeneration, useCurrentConfiguration, createdBy)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return Summarize(updated), nil
 }

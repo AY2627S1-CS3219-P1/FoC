@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	review "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
@@ -68,11 +69,12 @@ func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 }
 
 type AdminHandler struct {
-	store *review.Store
+	service *moderation.Service
+	store   *review.Store
 }
 
-func NewAdminHandler(store *review.Store) *AdminHandler {
-	return &AdminHandler{store: store}
+func NewAdminHandler(store *review.Store, service *moderation.Service) *AdminHandler {
+	return &AdminHandler{store: store, service: service}
 }
 
 // GetReviewModerationJob returns bounded operational detail for one job.
@@ -109,7 +111,7 @@ func (h *AdminHandler) RetryErroredJob(
 		return nil, connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError("invalid job_id"))
 	}
 
-	job, err := h.store.RetryErroredJob(
+	job, err := h.service.RetryErroredJob(
 		ctx,
 		jobID,
 		req.Msg.ExpectedRunGeneration,
@@ -128,6 +130,8 @@ func (h *AdminHandler) RetryErroredJob(
 		}
 		return nil, err
 	}
-	resp := connect.NewResponse[reviewv1.RetryErroredJobResponse](&reviewv1.RetryErroredJobResponse{Job: job})
+	resp := connect.NewResponse[reviewv1.RetryErroredJobResponse](
+		&reviewv1.RetryErroredJobResponse{Job: review.Summarize(job)},
+	)
 	return resp, nil
 }

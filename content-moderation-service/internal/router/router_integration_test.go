@@ -18,8 +18,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
 	reviewrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/review"
@@ -95,10 +94,21 @@ func newMux(
 	t.Helper()
 	store := review.NewStore(pool)
 	services := router.RPCServices{
-		Health:                grpchealth.NewStaticChecker(),
-		ReviewModeration:      reviewrpc.NewOwnerHandler(store),
-		ReviewModerationAdmin: reviewrpc.NewAdminHandler(store),
-		ModerationAdmin:       unimplementedModerationAdmin{},
+		Health:           grpchealth.NewStaticChecker(),
+		ReviewModeration: reviewrpc.NewOwnerHandler(store),
+		ReviewModerationAdmin: reviewrpc.NewAdminHandler(
+			store,
+			moderation.NewService(
+				nil,
+				moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+				nil,
+				nil,
+				nil,
+				moderation.Settings{},
+				nil,
+			),
+		),
+		ModerationAdmin: unimplementedModerationAdmin{},
 	}
 	var authenticate func(http.Handler) http.Handler
 	if caller == nil {
@@ -121,19 +131,19 @@ func newMux(
 func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	if err := config.NewStore(pool).EnsureConfigState(ctx); err != nil {
+	if err := moderation.NewConfigurationStore(pool).EnsureConfigState(ctx); err != nil {
 		t.Fatalf("ensure config state: %v", err)
 	}
-	cstore := config.NewStore(pool)
+	cstore := moderation.NewConfigurationStore(pool)
 	id, err := cstore.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
+		moderation.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
 	if err != nil {
 		t.Fatalf("insert config version: %v", err)
 	}
 	if err := cstore.ActivateConfigVersion(ctx, id, "tester", nil); err != nil {
 		t.Fatalf("activate config: %v", err)
 	}
-	in := jobs.IngestionInput{
+	in := moderation.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            uuid.New(),
@@ -141,7 +151,7 @@ func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uu
 		ContentRevision:     1,
 		Comment:             "abac target",
 	}
-	jobStore := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	jobStore := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -149,8 +159,8 @@ func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uu
 	if err != nil || claimed == nil {
 		t.Fatalf("claim: %v %v", claimed, err)
 	}
-	if err := jobStore.Complete(ctx, *claimed, jobs.Assessment{
-		Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1",
+	if err := jobStore.Complete(ctx, *claimed, moderation.ReviewAssessment{
+		Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1",
 	}); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
@@ -184,10 +194,21 @@ func TestInternalListenerServesOnlyHealth(t *testing.T) {
 	pool := setupDB(t)
 	store := review.NewStore(pool)
 	services := router.RPCServices{
-		Health:                grpchealth.NewStaticChecker(),
-		ReviewModeration:      reviewrpc.NewOwnerHandler(store),
-		ReviewModerationAdmin: reviewrpc.NewAdminHandler(store),
-		ModerationAdmin:       unimplementedModerationAdmin{},
+		Health:           grpchealth.NewStaticChecker(),
+		ReviewModeration: reviewrpc.NewOwnerHandler(store),
+		ReviewModerationAdmin: reviewrpc.NewAdminHandler(
+			store,
+			moderation.NewService(
+				nil,
+				moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+				nil,
+				nil,
+				nil,
+				moderation.Settings{},
+				nil,
+			),
+		),
+		ModerationAdmin: unimplementedModerationAdmin{},
 	}
 	mux := router.Internal(services)
 	client := moderationv1connect.NewModerationAdminServiceClient(muxTransport{handler: mux}, "http://test")

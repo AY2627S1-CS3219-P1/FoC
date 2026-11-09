@@ -15,8 +15,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/outbox"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -85,12 +84,12 @@ func testDatabaseURL(t *testing.T) string {
 func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	if err := config.NewStore(pool).EnsureConfigState(ctx); err != nil {
+	if err := moderation.NewConfigurationStore(pool).EnsureConfigState(ctx); err != nil {
 		t.Fatalf("ensure config state: %v", err)
 	}
-	store := config.NewStore(pool)
+	store := moderation.NewConfigurationStore(pool)
 	id, err := store.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		config.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
+		moderation.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
 	if err != nil {
 		t.Fatalf("insert config version: %v", err)
 	}
@@ -99,7 +98,7 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	}
 
 	reviewID := uuid.New()
-	in := jobs.IngestionInput{
+	in := moderation.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            reviewID,
@@ -107,7 +106,7 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 		ContentRevision:     1,
 		Comment:             "relay me",
 	}
-	jobStore := jobs.NewJobStore(pool, jobs.DefaultPolicy(), nil)
+	jobStore := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -115,8 +114,8 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	if err != nil || claimed == nil {
 		t.Fatalf("claim: %v %v", claimed, err)
 	}
-	if err := jobStore.Complete(ctx, *claimed, jobs.Assessment{
-		Outcome: jobs.OutcomeApproved, PolicyVersion: "review-text-v1",
+	if err := jobStore.Complete(ctx, *claimed, moderation.ReviewAssessment{
+		Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1",
 	}); err != nil {
 		t.Fatalf("complete: %v", err)
 	}

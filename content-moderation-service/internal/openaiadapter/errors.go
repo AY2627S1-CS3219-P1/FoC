@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
-	openai "github.com/openai/openai-go/v3"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
+	openai "github.com/openai/openai-go/v3"
 )
 
 // mapError converts an SDK or transport error into the appropriate llmpolicy
@@ -24,12 +25,12 @@ func mapError(err error) error {
 		return rateLimitedError(apiErr)
 	case apiErr.StatusCode >= 500:
 		// Server-side errors are transient and retryable.
-		return &llmpolicy.ErrConnection{Detail: classifyMessage(apiErr)}
+		return &moderation.ErrConnection{Detail: classifyMessage(apiErr)}
 	case apiErr.StatusCode >= 400:
 		// 4xx indicate a configuration or invalid request; not retried.
-		return &llmpolicy.ErrConfiguration{Detail: classifyMessage(apiErr)}
+		return &moderation.ErrConfiguration{Detail: classifyMessage(apiErr)}
 	default:
-		return &llmpolicy.ErrConnection{Detail: fmt.Sprintf("unexpected provider status %d", apiErr.StatusCode)}
+		return &moderation.ErrConnection{Detail: fmt.Sprintf("unexpected provider status %d", apiErr.StatusCode)}
 	}
 }
 
@@ -38,24 +39,24 @@ func mapError(err error) error {
 func mapTransportError(err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return &llmpolicy.ErrTimeout{Detail: "request deadline exceeded"}
+		return &moderation.ErrTimeout{Detail: "request deadline exceeded"}
 	case errors.Is(err, context.Canceled):
-		return &llmpolicy.ErrContext{}
+		return &moderation.ErrContext{}
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		if netErr.Timeout() {
-			return &llmpolicy.ErrTimeout{Detail: "provider request timed out at the transport layer"}
+			return &moderation.ErrTimeout{Detail: "provider request timed out at the transport layer"}
 		}
-		return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
+		return &moderation.ErrConnection{Detail: "provider transport failed"}
 	}
-	return &llmpolicy.ErrConnection{Detail: "provider transport failed"}
+	return &moderation.ErrConnection{Detail: "provider transport failed"}
 }
 
 // rateLimitedError builds an ErrRateLimited, honouring a Retry-After header when
 // the provider advertises one.
-func rateLimitedError(apiErr *openai.Error) *llmpolicy.ErrRateLimited {
-	rlErr := &llmpolicy.ErrRateLimited{Detail: classifyMessage(apiErr)}
+func rateLimitedError(apiErr *openai.Error) *moderation.ErrRateLimited {
+	rlErr := &moderation.ErrRateLimited{Detail: classifyMessage(apiErr)}
 	if apiErr.Response != nil {
 		if retryAfter, ok := parseRetryAfter(apiErr.Response.Header.Get("Retry-After")); ok {
 			rlErr.RetryAfter = retryAfter

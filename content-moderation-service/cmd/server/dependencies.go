@@ -5,10 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	cfgpkg "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/evaladapter"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/jobs"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/openaiadapter"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/review"
@@ -22,37 +19,36 @@ import (
 
 // serverComponents bundles the handlers and background workers assembled at startup.
 type serverComponents struct {
-	rpc      router.RPCServices
-	pool     *jobs.Pool
-	relay    *outbox.Relay
-	jobStore *jobs.JobStore
+	rpc     router.RPCServices
+	pool    *moderation.Pool
+	relay   *outbox.Relay
+	service *moderation.Service
 }
 
 func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig, logger *slog.Logger) serverComponents {
-	policy := jobs.PolicyFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
-	jobStore := jobs.NewJobStore(
+	policy := moderation.RetrySettingsFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
+	jobStore := moderation.NewJobService(
 		pool,
 		policy,
 		nil,
-		jobs.WithProviderIdentity(cfg.LLMBaseURL, llmpolicy.ProviderFingerprint),
+		moderation.WithProviderIdentity(cfg.LLMBaseURL),
 	)
 	reviewStore := review.NewStore(pool)
-	configStore := cfgpkg.NewStore(pool)
+	configStore := moderation.NewConfigurationStore(pool)
 
 	_ = configStore.EnsureConfigState(ctx)
 
-	settings := cfgpkg.Settings{
+	settings := moderation.Settings{
 		BaseURL:       cfg.LLMBaseURL,
 		APIKey:        cfg.LLMAPIKey,
 		PolicyVersion: "review-text-v1",
 	}
 
-	var evaluator jobs.Evaluator
-	var modelLister cfgpkg.ModelLister
-	var limiter *jobs.Limiter
+	var client moderation.CompletionClient
+	var modelLister moderation.ModelLister
+	var limiter *moderation.InferenceLimiter
 
 	if cfg.LLMAPIKey != "" && cfg.LLMBaseURL != "" {
-		// Create the evaluator chain: openaiadapter -> llmpolicy -> evaladapter
 		adapter, err := openaiadapter.New(openaiadapter.Config{
 			BaseURL: cfg.LLMBaseURL,
 			APIKey:  cfg.LLMAPIKey,
@@ -61,35 +57,34 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 		if err != nil {
 			logger.Warn("failed to create LLM adapter", "error", err)
 		} else {
-			llmEvaluator := llmpolicy.NewEvaluator(adapter)
-			evaluator = evaladapter.Wrap(llmEvaluator)
-			modelLister, _ = cfgpkg.NewModelLister(cfg.LLMBaseURL, cfg.LLMAPIKey, 10*time.Second)
-			limiter = jobs.NewLimiter(cfg.WorkerConcurrency)
+			client = adapter
+			modelLister, _ = openaiadapter.NewModelLister(cfg.LLMBaseURL, cfg.LLMAPIKey, 10*time.Second)
+			limiter = moderation.NewInferenceLimiter(cfg.WorkerConcurrency)
 		}
 	}
 
-	configService := cfgpkg.NewService(
-		configStore,
+	service := moderation.NewService(
+		configStore, jobStore,
 		modelLister,
-		evaluator,
+		client,
 		limiter,
 		settings,
 		time.Now,
 	)
 
-	var jobPool *jobs.Pool
-	if evaluator != nil {
-		jobPool = jobs.NewPool(
-			jobStore,
-			evaluator,
+	var jobPool *moderation.Pool
+	if client != nil {
+		jobPool = moderation.NewPool(
+			service,
+			service,
 			limiter,
-			jobs.PoolConfig{
+			moderation.PoolConfig{
 				Concurrency:       cfg.WorkerConcurrency,
 				Lease:             cfg.JobLease,
 				HeartbeatInterval: cfg.JobHeartbeatInterval,
 				PollInterval:      cfg.JobPollInterval,
 				LLMRequestTimeout: cfg.LLMRequestTimeout,
-				Policy:            policy,
+				RetrySettings:     policy,
 			},
 			logger,
 		)
@@ -114,8 +109,8 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 	}
 
 	ownerHandler := reviewrpc.NewOwnerHandler(reviewStore)
-	adminHandler := reviewrpc.NewAdminHandler(reviewStore)
-	configHandler := configrpc.NewHandler(configService)
+	adminHandler := reviewrpc.NewAdminHandler(reviewStore, service)
+	configHandler := configrpc.NewHandler(service)
 
 	return serverComponents{
 		rpc: router.RPCServices{
@@ -126,8 +121,8 @@ func newServerComponents(ctx context.Context, pool *pgxpool.Pool, cfg appConfig,
 			ReviewModerationAdmin: adminHandler,
 			ModerationAdmin:       configHandler,
 		},
-		pool:     jobPool,
-		relay:    outboxRelay,
-		jobStore: jobStore,
+		pool:    jobPool,
+		relay:   outboxRelay,
+		service: service,
 	}
 }

@@ -18,10 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
 )
 
 const sampleBody = `{"id":"chatcmpl-x","object":"chat.completion","created":0,"model":"m","choices":[{"index":0,"finish_reason":"stop","logprobs":null,"message":{"role":"assistant","content":"{\"decision\":\"approve\",\"reason_codes\":[]}"}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
@@ -58,13 +57,13 @@ func runServer(t *testing.T, status int, retryAfter string, body string) (*httpt
 }
 
 // testRequest is the baseline completion request.
-func testRequest(outputMode string) *llmpolicy.CompletionRequest {
-	return &llmpolicy.CompletionRequest{
+func testRequest(outputMode string) *moderation.CompletionRequest {
+	return &moderation.CompletionRequest{
 		Model:      "ornith-1.5",
 		System:     "moderation system prompt",
 		User:       "user review content",
 		OutputMode: outputMode,
-		SchemaJSON: llmpolicy.SchemaJSON,
+		SchemaJSON: moderation.SchemaJSON,
 		Timeout:    5 * time.Second,
 	}
 }
@@ -77,7 +76,7 @@ func TestCompleteValidApproveJSONSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	resp, err := adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
+	resp, err := adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +127,7 @@ func TestCompleteJSONObjectMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONObject)))
+	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONObject)))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -150,7 +149,7 @@ func TestCompleteOmittedOptionalParamsNotSent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
+	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,9 +173,9 @@ func TestCompleteSetsOptionalParamsWhenPresent(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	temperature := 0.2
-	_, err = adapter.Complete(context.Background(), func() *llmpolicy.CompletionRequest {
-		req := testRequest(string(llmpolicy.OutputModeJSONSchema))
-		req.Parameters = llmpolicy.CompletionParameters{Temperature: &temperature, Stop: []string{"END"}}
+	_, err = adapter.Complete(context.Background(), func() *moderation.CompletionRequest {
+		req := testRequest(string(moderation.OutputModeJSONSchema))
+		req.Parameters = moderation.CompletionParameters{Temperature: &temperature, Stop: []string{"END"}}
 		return req
 	}())
 	if err != nil {
@@ -207,12 +206,12 @@ func TestCompleteMaps429WithRetryAfter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
-	var rateLimited *llmpolicy.ErrRateLimited
+	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+	var rateLimited *moderation.ErrRateLimited
 	if !errors.As(err, &rateLimited) {
 		t.Fatalf("error = %v, want *ErrRateLimited", err)
 	}
-	if !rateLimited.IsRetryable() {
+	if class, _, _ := moderation.Classify(err); class != moderation.ErrorClassRateLimited {
 		t.Error("rate limit must be retryable")
 	}
 	if !rateLimited.HasRetryAfter || rateLimited.RetryAfter != 30*time.Second {
@@ -230,12 +229,12 @@ func TestCompleteMaps4xxConfiguration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		_, err = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
-		var configErr *llmpolicy.ErrConfiguration
+		_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+		var configErr *moderation.ErrConfiguration
 		if !errors.As(err, &configErr) {
 			t.Errorf("status %d: error = %v, want *ErrConfiguration", status, err)
 		}
-		if configErr.IsRetryable() {
+		if class, _, _ := moderation.Classify(err); class != moderation.ErrorClassConfiguration {
 			t.Errorf("status %d: configuration error must not be retryable", status)
 		}
 	}
@@ -248,12 +247,12 @@ func TestCompleteMaps5xxRetryable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		_, err = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
-		var connErr *llmpolicy.ErrConnection
+		_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+		var connErr *moderation.ErrConnection
 		if !errors.As(err, &connErr) {
 			t.Errorf("status %d: error = %v, want *ErrConnection", status, err)
 		}
-		if !connErr.IsRetryable() {
+		if class, _, _ := moderation.Classify(err); class != moderation.ErrorClassConnection {
 			t.Errorf("status %d: 5xx must be retryable", status)
 		}
 	}
@@ -272,7 +271,7 @@ func TestCompleteDoesNotRetryOn429(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, _ = adapter.Complete(context.Background(), testRequest(string(llmpolicy.OutputModeJSONSchema)))
+	_, _ = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
 	if rec.count != 1 {
 		t.Errorf("requests = %d, want 1 (SDK retries disabled)", rec.count)
 	}

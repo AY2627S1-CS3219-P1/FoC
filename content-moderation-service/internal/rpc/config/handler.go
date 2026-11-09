@@ -9,7 +9,7 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/config"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	moderationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1"
@@ -18,10 +18,10 @@ import (
 )
 
 type Handler struct {
-	service *config.Service
+	service *moderation.Service
 }
 
-func NewHandler(service *config.Service) *Handler {
+func NewHandler(service *moderation.Service) *Handler {
 	return &Handler{service: service}
 }
 
@@ -71,7 +71,7 @@ func (h *Handler) GetActiveModerationConfiguration(
 ) (*connect.Response[moderationv1.GetActiveModerationConfigurationResponse], error) {
 	active, err := h.service.ActiveConfiguration(ctx)
 	if err != nil {
-		if errors.Is(err, config.ErrNoActiveConfiguration) {
+		if errors.Is(err, moderation.ErrNoActiveConfiguration) {
 			resp := connect.NewResponse[moderationv1.GetActiveModerationConfigurationResponse](
 				&moderationv1.GetActiveModerationConfigurationResponse{},
 			)
@@ -170,7 +170,7 @@ func (h *Handler) ActivateModerationConfiguration(
 	}
 
 	if err := h.service.Activate(ctx, versionID, caller, expected, req.Msg.GetResumePausedJobs()); err != nil {
-		if errors.Is(err, config.ErrConfigurationConflict) {
+		if errors.Is(err, moderation.ErrConfigurationConflict) {
 			return nil, connect.NewError(
 				connect.CodeFailedPrecondition,
 				errs.NewFailedPreconditionError("active configuration changed; activation rejected"),
@@ -199,7 +199,7 @@ func callerID(ctx context.Context) (string, bool) {
 	return caller.ID, true
 }
 
-func configurationProto(v config.Version) *moderationv1.ModerationConfiguration {
+func configurationProto(v moderation.Version) *moderationv1.ModerationConfiguration {
 	proto := &moderationv1.ModerationConfiguration{
 		SystemMessage:       v.SystemMessage,
 		VersionId:           v.VersionID.String(),
@@ -220,7 +220,7 @@ func configurationProto(v config.Version) *moderationv1.ModerationConfiguration 
 	return proto
 }
 
-func parametersProto(p config.InferenceParameters) *moderationv1.ModerationInferenceParameters {
+func parametersProto(p moderation.InferenceParameters) *moderationv1.ModerationInferenceParameters {
 	params := &moderationv1.ModerationInferenceParameters{
 		AdvancedParameters: p.Advanced,
 	}
@@ -244,11 +244,11 @@ func parametersProto(p config.InferenceParameters) *moderationv1.ModerationInfer
 	return params
 }
 
-func parametersFromProto(p *moderationv1.ModerationInferenceParameters) (config.InferenceParameters, error) {
+func parametersFromProto(p *moderationv1.ModerationInferenceParameters) (moderation.InferenceParameters, error) {
 	if p == nil {
-		return config.InferenceParameters{}, nil
+		return moderation.InferenceParameters{}, nil
 	}
-	return config.InferenceParameters{
+	return moderation.InferenceParameters{
 		Temperature:         p.Temperature,
 		TopP:                p.TopP,
 		PresencePenalty:     p.PresencePenalty,
@@ -264,9 +264,9 @@ func parametersFromProto(p *moderationv1.ModerationInferenceParameters) (config.
 
 func outputModeProto(mode string) moderationv1.ModerationOutputMode {
 	switch mode {
-	case config.OutputModeJSONSchema:
+	case moderation.OutputModeJSONSchema:
 		return moderationv1.ModerationOutputMode_MODERATION_OUTPUT_MODE_JSON_SCHEMA
-	case config.OutputModeJSONObject:
+	case moderation.OutputModeJSONObject:
 		return moderationv1.ModerationOutputMode_MODERATION_OUTPUT_MODE_JSON_OBJECT
 	default:
 		return moderationv1.ModerationOutputMode_MODERATION_OUTPUT_MODE_UNSPECIFIED
@@ -276,9 +276,9 @@ func outputModeProto(mode string) moderationv1.ModerationOutputMode {
 func outputModeString(mode moderationv1.ModerationOutputMode) string {
 	switch mode {
 	case moderationv1.ModerationOutputMode_MODERATION_OUTPUT_MODE_JSON_SCHEMA:
-		return config.OutputModeJSONSchema
+		return moderation.OutputModeJSONSchema
 	case moderationv1.ModerationOutputMode_MODERATION_OUTPUT_MODE_JSON_OBJECT:
-		return config.OutputModeJSONObject
+		return moderation.OutputModeJSONObject
 	default:
 		return ""
 	}

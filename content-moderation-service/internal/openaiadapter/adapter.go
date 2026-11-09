@@ -1,9 +1,9 @@
-// Package openaiadapter implements llmpolicy.CompletionClient over an
+// Package openaiadapter implements moderation.CompletionClient over an
 // OpenAI-compatible Chat Completions endpoint (for example the NUS soclaas
 // proxy). It owns transport concerns only: URL and auth construction, disabling
 // the SDK's automatic retries, enforcing the request deadline on the whole
 // exchange including response reads, and mapping SDK/transport failures into
-// the llmpolicy error classes. It never inspects or validates the assessment
+// the moderation error classes. It never inspects or validates the assessment
 // content; that is the evaluator's job.
 package openaiadapter
 
@@ -11,12 +11,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
-	openai "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 	defaultTimeout = 90 * time.Second
 )
 
-// OpenAICompletionClient is an llmpolicy.CompletionClient backed by an
+// OpenAICompletionClient is an moderation.CompletionClient backed by an
 // OpenAI-compatible endpoint.
 type OpenAICompletionClient struct {
 	chatCompletions openai.ChatCompletionService
@@ -36,7 +37,7 @@ type OpenAICompletionClient struct {
 	timeout         time.Duration
 }
 
-var _ llmpolicy.CompletionClient = (*OpenAICompletionClient)(nil)
+var _ moderation.CompletionClient = (*OpenAICompletionClient)(nil)
 
 // Config holds explicit adapter configuration. There are no package globals;
 // every field is supplied by the composition root.
@@ -95,8 +96,8 @@ func New(cfg Config) (*OpenAICompletionClient, error) {
 // is enforced on the whole exchange, including response reads.
 func (c *OpenAICompletionClient) Complete(
 	ctx context.Context,
-	req *llmpolicy.CompletionRequest,
-) (*llmpolicy.CompletionResponse, error) {
+	req *moderation.CompletionRequest,
+) (*moderation.CompletionResponse, error) {
 	params := buildParams(req)
 
 	timeout := req.Timeout

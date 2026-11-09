@@ -13,20 +13,20 @@ integration, job execution, retries and assessment history. The two services
 communicate only through Kafka events plus reviewer-scoped read RPCs; CMS
 never writes to User's database and User never reads CMS's database.
 
-### Ownership and ports
+### Service ownership and provider boundary
 
-| Consumer | Consumer-defined port | Initial implementation |
-| --- | --- | --- |
-| CMS job engine | `jobs.Evaluator.Evaluate(ctx, EvaluationInput) (Assessment, error)` | `internal/llmpolicy` LLM review-text evaluator |
-| LLM evaluator | `llmpolicy.CompletionClient.Complete(ctx, *CompletionRequest) (*CompletionResponse, error)` | `internal/openaiadapter` over `github.com/openai/openai-go/v3` |
-| CMS job engine | `jobs.Repository` with service-owned claim snapshots | CMS PostgreSQL/sqlc repository |
-| Outbox relays | Publisher port | Injected `pkg/kafka` publisher |
+`internal/moderation.Service` owns review ingestion, durable job operations,
+LLM assessment, and admin configuration. Kafka and admin RPC handlers call this
+concrete service. The worker pool drives its job operations and assessment
+method; scheduling, heartbeats, and cancellation stay in `worker.go`, while job
+transitions and persistence live in separate files in the same package.
 
-Ports use service-owned types, never generated SDK types. The evaluator
-constructs prompts and validates model output; the transport adapter translates
-provider requests/responses/errors. The OpenAI SDK dependency stays inside CMS.
-The composition root (`cmd/server/main.go`) injects all dependencies; no
-globals or `init` registration.
+The service consumes `CompletionClient`, using service-owned request and
+response types. `internal/openaiadapter` implements that interface over the
+provider SDK. The SDK remains confined to that adapter. There is no generic
+policy implementation registry, shared evaluation framework, or evaluator
+adapter. Review rubric, reason codes, and schema are concrete moderation logic.
+The composition root injects dependencies; no globals or `init` registration.
 
 ### Concurrency
 
@@ -80,7 +80,7 @@ sequenceDiagram
     participant K as Kafka
     participant CMS as CMS job engine
     participant CDB as CMS DB
-    participant E as Review policy evaluator
+    participant E as Moderation assessment logic
     participant A as Provider adapter
     participant L as LLM provider
     actor Reviewee
@@ -166,21 +166,20 @@ The admin UI edits the message alongside model and inference parameters.
 
 The evaluator chain uses service-owned types from end to end. The OpenAI
 adapter is the only layer that knows SDK errors: it maps HTTP and transport
-failures into `llmpolicy` errors, replaces provider diagnostics with bounded
+failures into `moderation` errors, replaces provider diagnostics with bounded
 safe messages, and copies only content, finish reason, refusal, and model into
 the neutral response. It does not copy provider request/completion IDs, headers,
 credentials, or raw error bodies. The policy evaluator turns refusals, empty or
 truncated responses, and schema violations into typed technical errors; none
 can be interpreted as a content verdict.
 
-`evaladapter` is the only bridge from policy errors to the job engine. It wraps
-each policy error in a `jobs.ClassifiedError`, preserving the error for local
-`errors.Is`/`errors.As` inspection while attaching an `ErrorClass`, an internal
-retry `Kind`, and (for rate limits) `RetryAfter`. The retry kind is not the
-stable error class: for example `timeout`, `connection`, and `rate_limited` are
-distinct classes but all use the durable retry policy. `llmpolicy.Retryable`
-describes policy-level errors; persistent scheduling uses the explicit
-`evaladapter`-to-`jobs` mapping below.
+`moderation.Classify` is the single mapping from concrete provider and
+response-validation errors to a stable stored class, retry handling category,
+and optional `RetryAfter`. Admin draft tests and job execution use the same
+mapping. Errors are inspected directly with `errors.Is`/`errors.As`; there is no
+second translation wrapper around the assessment. Internal operations can
+attach explicit metadata with `ClassifiedError`, preserving the original error
+for inspection. Retry budgets, pause/recovery, and scheduling remain job logic.
 
 | Policy/transport failure | Stable `ErrorClass` | Durable job handling |
 | --- | --- | --- |

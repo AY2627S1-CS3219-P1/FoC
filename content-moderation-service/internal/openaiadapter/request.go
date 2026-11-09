@@ -3,7 +3,8 @@ package openaiadapter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/llmpolicy"
+
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -22,7 +23,7 @@ var reservedRequestFields = map[string]struct{}{
 // buildParams assembles the completion request: a fresh single-turn
 // conversation (system instruction + delimited review data), the configured
 // model, and the strict structured-output format selected by the output mode.
-func buildParams(req *llmpolicy.CompletionRequest) openai.ChatCompletionNewParams {
+func buildParams(req *moderation.CompletionRequest) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(req.System),
@@ -36,8 +37,8 @@ func buildParams(req *llmpolicy.CompletionRequest) openai.ChatCompletionNewParam
 		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
 			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
 				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:        llmpolicy.SchemaName,
-					Description: openai.Opt[string](llmpolicy.SchemaDescription),
+					Name:        moderation.SchemaName,
+					Description: openai.Opt[string](moderation.SchemaDescription),
 					Schema:      json.RawMessage(req.SchemaJSON),
 					Strict:      openai.Bool(true), // strict adherence; never silent fallback
 				},
@@ -55,7 +56,7 @@ func buildParams(req *llmpolicy.CompletionRequest) openai.ChatCompletionNewParam
 
 // applyTypedParams sets optional inference parameters, omitting any that are
 // unset so zero values are never sent.
-func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn llmpolicy.CompletionParameters) {
+func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn moderation.CompletionParameters) {
 	if paramsIn.Temperature != nil {
 		params.Temperature = openai.Opt[float64](*paramsIn.Temperature)
 	}
@@ -88,18 +89,18 @@ func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn llmpolicy
 // advancedOptions applies validated extra provider parameters via JSON merging.
 // The service-owned allowlist excludes reserved fields; this guard is a
 // defense in depth against a config that tries to override them.
-func advancedOptions(paramsIn llmpolicy.CompletionParameters) ([]option.RequestOption, error) {
+func advancedOptions(paramsIn moderation.CompletionParameters) ([]option.RequestOption, error) {
 	if len(paramsIn.Advanced) == 0 {
 		return nil, nil
 	}
 	opts := make([]option.RequestOption, 0, len(paramsIn.Advanced))
 	for key, raw := range paramsIn.Advanced {
 		if _, reserved := reservedRequestFields[key]; reserved {
-			return nil, &llmpolicy.ErrConfiguration{Detail: fmt.Sprintf("advanced parameter %q is not permitted", key)}
+			return nil, &moderation.ErrConfiguration{Detail: fmt.Sprintf("advanced parameter %q is not permitted", key)}
 		}
 		var value any
 		if err := json.Unmarshal([]byte(raw), &value); err != nil {
-			return nil, &llmpolicy.ErrConfiguration{
+			return nil, &moderation.ErrConfiguration{
 				Detail: fmt.Sprintf("advanced parameter %q is not valid JSON: %s", key, "provider transport failed"),
 			}
 		}
