@@ -11,12 +11,18 @@ describe('editing an existing moderation configuration', () => {
 		stop: ['END,KEEP COMMA', ' other '], reasoningEffort: 'high', advancedParameters: { top_k: '40' }
 	}, {maxTokens: 321n}])('round trips all settings and optional presence', (settings) => {
 		const parameters = create(ModerationInferenceParametersSchema, settings);
-		const version = create(ModerationConfigurationSchema, { modelId: 'model', parameters });
+		const version = create(ModerationConfigurationSchema, { modelId: 'model', parameters, systemMessage: 'Saved custom rubric' });
 		const form = hydrateModerationConfig(version);
+expect(form.systemMessage).toBe('Saved custom rubric');
 		const saved = buildModerationParameters(moderationParametersFromForm(form));
 		expect(toJson(ModerationInferenceParametersSchema, saved)).toEqual(toJson(ModerationInferenceParametersSchema, parameters));
 	});
-	it('does not silently discard an invalid numeric field', () => {
+	it('rejects whitespace-only and oversized system messages', () => {
+ for (const systemMessage of ['  ', 'x'.repeat(16385)]) {
+ expect(moderationConfigFormSchema.safeParse({ systemMessage }).success).toBe(false);
+ }
+ });
+ it('does not silently discard an invalid numeric field', () => {
 		const form = moderationConfigFormSchema.parse({temperatureText: 'abc'});
 		expect(() => moderationParametersFromForm(form)).toThrow('finite number');
 	});

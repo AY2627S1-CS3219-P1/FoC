@@ -36,12 +36,16 @@
 		} finally {
 			if (moderationConfigService.activeConfiguration) {
 				$form = hydrateModerationConfig(moderationConfigService.activeConfiguration);
-			}
+			} else {
+ $form.systemMessage = moderationConfigService.setup?.defaultSystemMessage ?? '';
+ }
 		}
 	}
 
 	async function saveDraft(): Promise<void> {
 		formError = '';
+ const validated = moderationConfigFormSchema.safeParse($form);
+ if (!validated.success) { formError = validated.error.issues[0]?.message ?? 'Check the configuration.'; return; }
 		let parameters;
 		try {
 			parameters = moderationParametersFromForm($form);
@@ -57,7 +61,8 @@
 			draftVersionId = await moderationConfigService.saveDraft(
 				$form.modelId.trim(),
 				parameters,
-				Number($form.outputMode) as ModerationOutputMode
+				Number($form.outputMode) as ModerationOutputMode,
+ $form.systemMessage
 			);
 			snackbarService.show('Draft saved. Test it before activating.', { severity: 'success' });
 		} catch {
@@ -195,6 +200,9 @@
 						Both modes are validated locally; strict schema is only used when the model supports it.
 					</small>
 				</div>
+
+                <TextFieldOutlinedMultiline label="System message" name="systemMessage" rows={8} bind:value={$form.systemMessage} />
+                <small class="field-meta">The review rubric saved with this configuration. Leave empty to use the default rubric.</small>
 
 				<TextFieldOutlinedMultiline
 					label="Advanced parameters (name=value per line, allowlisted)"

@@ -46,7 +46,7 @@ describe('ModerationConfigService', () => {
 		expect(service.isLoading('setup')).toBe(true);
 		expect(service.setup).toBeUndefined();
 
-		pending.resolve({ hasActiveConfiguration: true, hasProviderCredential: true, providerFingerprint: 'fp', policyVersion: 'v1' });
+		pending.resolve({ hasActiveConfiguration: true, hasProviderCredential: true, providerFingerprint: 'fp', policyVersion: 'v1', defaultSystemMessage: 'Default rubric' });
 		await request;
 
 		expect(service.setup).toMatchObject({ hasActiveConfiguration: true, providerFingerprint: 'fp' });
@@ -74,7 +74,7 @@ describe('ModerationConfigService', () => {
 		await expect(service.loadSetup()).rejects.toBeInstanceOf(ConnectError);
 		expect(service.error).not.toBeNull();
 
-		vi.mocked(api.getSetupStatus).mockResolvedValueOnce({ hasActiveConfiguration: false, hasProviderCredential: false, providerFingerprint: '', policyVersion: 'v1' });
+		vi.mocked(api.getSetupStatus).mockResolvedValueOnce({ hasActiveConfiguration: false, hasProviderCredential: false, providerFingerprint: '', policyVersion: 'v1', defaultSystemMessage: 'Default rubric' });
 		await service.loadSetup();
 
 		expect(service.error).toBeNull();

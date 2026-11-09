@@ -115,12 +115,13 @@ export class ModerationConfigService {
 	async saveDraft(
 		modelId: string,
 		parameters: ModerationParameterInput,
-		outputMode: ModerationOutputMode
+		outputMode: ModerationOutputMode,
+ systemMessage = ''
 	): Promise<string> {
 		this.#setLoading('save', true);
 		this.#error = null;
 		try {
-			return await this.#api.saveDraft(modelId, parameters, outputMode);
+			return await this.#api.saveDraft(modelId, parameters, outputMode, systemMessage);
 		} catch (error) {
 			this.#error = error;
 			throw error;

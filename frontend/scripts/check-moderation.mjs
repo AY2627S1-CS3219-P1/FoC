@@ -26,7 +26,7 @@ await page.route(/\/[^/]+\.v1\.[^/]+\//, async route => {
 		Refresh: () => ({ accessToken: 'browser-fixture', user: { id: reviewer, email: 'admin@example.test', displayName: 'Admin', role: 'USER_ROLE_SUPER_ADMIN' } }),
 		GetModerationSetupStatus: () => { settingsReads++; return { hasActiveConfiguration: true, hasProviderCredential: true, policyVersion: 'review-text-v1' }; },
 		ListAvailableModels: () => ({ models: [{ modelId: 'fake-model' }] }),
-		GetActiveModerationConfiguration: () => ({ configuration: { versionId, modelId: 'fake-model', parameters, outputMode: 'MODERATION_OUTPUT_MODE_JSON_OBJECT' } }),
+		GetActiveModerationConfiguration: () => ({ configuration: { versionId, modelId: 'fake-model', parameters, outputMode: 'MODERATION_OUTPUT_MODE_JSON_OBJECT', systemMessage: 'Original administrator rubric' } }),
 		SaveModerationConfigurationDraft: () => { saved = body; return { draftVersionId: versionId }; },
 		ActivateModerationConfiguration: () => { activated = body; return { configuration: { versionId, modelId: 'fake-model', parameters } }; },
 		ListUnpublishedReviewsForUser: () => ({ reviews: [{ id: requestId, reviewerId: reviewer, moderationRequestId: requestId, comment: 'Retry progress regression', moderationStatus: 'MODERATION_STATUS_MODERATION_ERROR', appliedRunGeneration: 1, rating: 4 }], pagination: { page: '1', pageSize: '10', totalItems: '1', totalPages: '1' } }),
@@ -39,13 +39,16 @@ try {
 	await page.getByLabel('Temperature', { exact: true }).waitFor();
 	assert.equal(await page.getByLabel('Temperature', { exact: true }).inputValue(), '0');
 	assert.equal(await page.getByLabel('Seed', { exact: true }).inputValue(), parameters.seed);
+assert.equal(await page.getByLabel('System message', { exact: true }).inputValue(), 'Original administrator rubric');
+await page.getByLabel('System message', { exact: true }).fill('Updated administrator rubric');
 	await page.getByText('Resume jobs paused by configuration errors with this version (starts a new generation)', { exact: true }).click();
 	assert.equal(await page.getByLabel(/Resume jobs paused/).isChecked(), true);
 	await Promise.all([
 		page.waitForResponse(response => response.url().endsWith('/SaveModerationConfigurationDraft')),
 		page.getByRole('button', { name: 'Save draft', exact: true }).click()
 	]);
-	assert.deepEqual(saved.parameters, parameters, 'saving a hydrated configuration preserves all settings');
+	assert.equal(saved.systemMessage, 'Updated administrator rubric');
+assert.deepEqual(saved.parameters, parameters, 'saving a hydrated configuration preserves all settings');
 	await Promise.all([
 		page.waitForResponse(response => response.url().endsWith('/ActivateModerationConfiguration')),
 		page.getByRole('button', { name: 'Activate draft', exact: true }).click()

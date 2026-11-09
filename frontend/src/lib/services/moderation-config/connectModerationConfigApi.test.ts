@@ -19,7 +19,7 @@ describe('ConnectModerationConfigApi', () => {
 				hasActiveConfiguration: true,
 				hasProviderCredential: true,
 				providerFingerprint: 'fp-1',
-				policyVersion: 'review-text-v1'
+				policyVersion: 'review-text-v1', defaultSystemMessage: 'Default rubric'
 			})),
 			listAvailableModels: vi.fn(async () => ({
 				models: [{ $typeName: 'moderation.v1.ModerationModel', modelId: 'ornith-1.5', ownedBy: 'provider' }]
@@ -30,7 +30,7 @@ describe('ConnectModerationConfigApi', () => {
 					versionId: 'v-1',
 					modelId: 'ornith-1.5',
 					outputMode: ModerationOutputMode.JSON_SCHEMA,
-					policyVersion: 'review-text-v1'
+					policyVersion: 'review-text-v1', defaultSystemMessage: 'Default rubric'
 				}
 			}))
 		});
@@ -40,7 +40,7 @@ describe('ConnectModerationConfigApi', () => {
 			hasActiveConfiguration: true,
 			hasProviderCredential: true,
 			providerFingerprint: 'fp-1',
-			policyVersion: 'review-text-v1'
+			policyVersion: 'review-text-v1', defaultSystemMessage: 'Default rubric'
 		});
 		expect((await api.listModels())[0]?.modelId).toBe('ornith-1.5');
 		const active = await api.getActiveConfiguration();
@@ -57,11 +57,12 @@ describe('ConnectModerationConfigApi', () => {
 		const save = vi.fn(async (_request: SaveModerationConfigurationDraftRequest) => ({ $typeName: 'moderation.v1.SaveModerationConfigurationDraftResponse', draftVersionId: 'draft-1' }));
 		const api = new ConnectModerationConfigApi(makeClient({ saveModerationConfigurationDraft: save }));
 
-		const draftVersionId = await api.saveDraft('ornith-1.5', { temperature: 0.3, maxTokens: 512 }, ModerationOutputMode.JSON_OBJECT);
+		const draftVersionId = await api.saveDraft('ornith-1.5', { temperature: 0.3, maxTokens: 512 }, ModerationOutputMode.JSON_OBJECT, 'Custom rubric');
 
 		expect(draftVersionId).toBe('draft-1');
 		const request = save.mock.calls[0][0];
 		expect(request.modelId).toBe('ornith-1.5');
+expect(request.systemMessage).toBe('Custom rubric');
 		expect(request.outputMode).toBe(ModerationOutputMode.JSON_OBJECT);
 		// The parameters are built by the shared builder: defaults fill the unset
 		// doubles and the token budget is converted to an int64.

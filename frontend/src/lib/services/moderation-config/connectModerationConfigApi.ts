@@ -27,7 +27,8 @@ export class ConnectModerationConfigApi implements ModerationConfigApi {
 			hasActiveConfiguration: response.hasActiveConfiguration,
 			hasProviderCredential: response.hasProviderCredential,
 			providerFingerprint: response.providerFingerprint,
-			policyVersion: response.policyVersion
+			policyVersion: response.policyVersion,
+ defaultSystemMessage: response.defaultSystemMessage
 		};
 	}
 
@@ -44,12 +45,13 @@ export class ConnectModerationConfigApi implements ModerationConfigApi {
 	async saveDraft(
 		modelId: string,
 		parameters: ModerationParameterInput,
-		outputMode: ModerationOutputMode
+		outputMode: ModerationOutputMode,
+ systemMessage = ''
 	): Promise<string> {
 		const response = await this.#client.saveModerationConfigurationDraft({
 			modelId,
 			parameters: buildModerationParameters(parameters),
-			outputMode
+			outputMode, systemMessage
 		});
 		return response.draftVersionId;
 	}

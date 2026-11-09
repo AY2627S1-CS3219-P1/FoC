@@ -5,6 +5,7 @@ import { buildModerationParameters, ParameterValidationError, type ModerationPar
 
 export const moderationConfigFormSchema = z.object({
 	modelId: z.string().default(''),
+ systemMessage: z.string().max(16384).refine((value) => value === '' || value.trim() !== '', 'System message must contain text.').default(''),
 	temperatureText: z.string().default(''), topPText: z.string().default(''),
 	presencePenaltyText: z.string().default(''), frequencyPenaltyText: z.string().default(''),
 	budgetKind: z.enum(['none', 'max_completion_tokens', 'max_tokens']).default('none'),
@@ -20,7 +21,7 @@ export type ModerationConfigForm = z.infer<typeof moderationConfigFormSchema>;
 export function hydrateModerationConfig(version: ModerationConfiguration): ModerationConfigForm {
 	const p = version.parameters;
 	return moderationConfigFormSchema.parse({
-		modelId: version.modelId, outputMode: String(version.outputMode),
+		modelId: version.modelId, systemMessage: version.systemMessage, outputMode: String(version.outputMode),
 		temperatureText: p?.temperature?.toString() ?? '', topPText: p?.topP?.toString() ?? '',
 		presencePenaltyText: p?.presencePenalty?.toString() ?? '', frequencyPenaltyText: p?.frequencyPenalty?.toString() ?? '',
 		budgetKind: p?.maxCompletionTokens !== undefined ? 'max_completion_tokens' : p?.maxTokens !== undefined ? 'max_tokens' : 'none',

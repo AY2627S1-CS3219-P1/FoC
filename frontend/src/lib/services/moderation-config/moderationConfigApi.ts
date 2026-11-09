@@ -14,13 +14,14 @@ export interface ModerationSetupStatus {
 	hasProviderCredential: boolean;
 	providerFingerprint: string;
 	policyVersion: string;
+ defaultSystemMessage: string;
 }
 
 export interface ModerationConfigApi {
 	getSetupStatus(): Promise<ModerationSetupStatus>;
 	listModels(): Promise<ModerationModel[]>;
 	getActiveConfiguration(): Promise<ModerationConfiguration | undefined>;
-	saveDraft(modelId: string, parameters: ModerationParameterInput, outputMode: ModerationOutputMode): Promise<string>;
+	saveDraft(modelId: string, parameters: ModerationParameterInput, outputMode: ModerationOutputMode, systemMessage?: string): Promise<string>;
 	testDraft(draftVersionId: string, sampleComment: string): Promise<TestModerationConfigurationDraftResponse>;
 	activateDraft(draftVersionId: string, expectedActiveVersionId: string, resumePausedJobs?: boolean): Promise<ModerationConfiguration | undefined>;
 }
