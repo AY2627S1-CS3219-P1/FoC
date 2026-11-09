@@ -27,6 +27,8 @@ type Store struct {
 	*AuthTokens
 	*Sessions
 	*UserCreatedOutbox
+	*AccountDeletion
+	*UserDeletedOutbox
 
 	db *gorm.DB
 }
@@ -38,6 +40,8 @@ func New(db *gorm.DB) *Store {
 		AuthTokens:        NewAuthTokens(db),
 		Sessions:          NewSessions(db),
 		UserCreatedOutbox: NewUserCreatedOutbox(db),
+		AccountDeletion:   NewAccountDeletion(db),
+		UserDeletedOutbox: NewUserDeletedOutbox(db),
 		db:                db,
 	}
 }
@@ -49,3 +53,4 @@ func (s *Store) WithTransaction(ctx context.Context, operation func(*Store) erro
 		return operation(New(tx))
 	})
 }
+

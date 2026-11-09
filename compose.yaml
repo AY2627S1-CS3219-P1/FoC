@@ -157,6 +157,8 @@ services:
       PORT: ${PORT:-8080}
       INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
+      ORDER_SERVICE_BASE_URL: ${ORDER_SERVICE_BASE_URL:-http://order-service:8081}
+      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL:-http://credit-service:8081}
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
@@ -321,3 +323,4 @@ volumes:
   frontend-node-modules:
   frontend-svelte-kit:
   go-modules:
+

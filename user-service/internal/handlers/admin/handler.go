@@ -20,7 +20,35 @@ type Logic interface {
 
 type Handler struct {
 	userv1connect.UnimplementedUserAdminServiceHandler
-	Logic Logic
+	Logic    Logic
+	Deletion DeletionLogic
+}
+
+type DeletionLogic interface {
+	DeleteUser(context.Context, uuid.UUID, uuid.UUID) error
+}
+
+func (h *Handler) DeleteUser(
+	ctx context.Context,
+	req *connect.Request[userv1.DeleteUserRequest],
+) (*connect.Response[userv1.DeleteUserResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	targetID, err := uuid.Parse(req.Msg.UserId)
+	if err != nil || targetID == uuid.Nil {
+		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
+	}
+	if h.Deletion == nil {
+		return nil, api.ToConnectError(ctx, errs.NewUnavailableError("Account deletion is unavailable."))
+	}
+	if err := h.Deletion.DeleteUser(ctx, actorID, targetID); err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	response := connect.NewResponse(&userv1.DeleteUserResponse{})
+	response.Header().Set("Cache-Control", "no-store")
+	return response, nil
 }
 
 func (h *Handler) GetUserByEmail(
@@ -77,3 +105,4 @@ func roleName(role userv1.UserRole) (models.RoleName, bool) {
 		return "", false
 	}
 }
+

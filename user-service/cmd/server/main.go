@@ -60,6 +60,8 @@ type config struct {
 	frontendURL     string
 	privateKey      string
 	kafkaBrokers    string
+	orderServiceURL string
+	creditServiceURL string
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 	smtp            email.SMTPSender
@@ -129,10 +131,17 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
+	deletedRelay := outbox.NewDeleted(persistence.UserDeletedOutbox, publisher)
 	relayDone := make(chan struct{})
 	go func() {
 		defer close(relayDone)
+		deletedDone := make(chan struct{})
+		go func() {
+			defer close(deletedDone)
+			deletedRelay.Run(ctx)
+		}()
 		relay.Run(ctx)
+		<-deletedDone
 	}()
 
 	profileLogic := &service.ProfileService{Users: persistence.Users}
@@ -145,9 +154,13 @@ func main() {
 		},
 	}
 	reviewLogic := newReviewService(sqlDB)
+	deletionLogic, err := newDeletionService(persistence, cfg)
+	if err != nil {
+		fatal("configure account deletion", err)
+	}
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
-		Admin:          &adminhandler.Handler{Logic: roleLogic},
+		Admin:          &adminhandler.Handler{Logic: roleLogic, Deletion: deletionLogic},
 		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
 		Review:         &review.Handler{Logic: reviewLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
@@ -254,6 +267,8 @@ func loadConfig() (config, error) {
 		frontendURL:     envString("FRONTEND_BASE_URL", ""),
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		kafkaBrokers:    envString("KAFKA_BROKERS", ""),
+		orderServiceURL: envString("ORDER_SERVICE_BASE_URL", ""),
+		creditServiceURL: envString("CREDIT_SERVICE_BASE_URL", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
 		smtp: email.SMTPSender{
@@ -460,3 +475,4 @@ func getCorsConfig(allowedOrigin string) *cors.Cors {
 		},
 	})
 }
+

@@ -49,8 +49,8 @@ func (r *PostgresRepository) RecordReviewRemoval(
 	return mapReviewError("record review removal", q.RecordReviewRemoval(ctx, reviewdb.RecordReviewRemovalParams{
 		ID:         removal.ID,
 		ReviewID:   removal.ReviewID,
-		ReviewerID: removal.ReviewerID,
-		RevieweeID: removal.RevieweeID,
+		ReviewerID: uuid.NullUUID{UUID: removal.ReviewerID, Valid: removal.ReviewerID != uuid.Nil},
+		RevieweeID: uuid.NullUUID{UUID: removal.RevieweeID, Valid: removal.RevieweeID != uuid.Nil},
 		OrderID:    removal.OrderID,
 		Reason:     removal.Reason,
 		CreatedBy:  removal.CreatedBy,
@@ -180,8 +180,8 @@ func (r *PostgresRepository) CheckReviewParticipants(
 func toReview(row reviewdb.Review) Review {
 	return Review{
 		ID:         row.ID,
-		ReviewerID: row.ReviewerID,
-		RevieweeID: row.RevieweeID,
+		ReviewerID: row.ReviewerID.UUID,
+		RevieweeID: row.RevieweeID.UUID,
 		OrderID:    row.OrderID,
 		Rating:     int(row.Rating),
 		Comment:    row.Comment,
@@ -192,45 +192,50 @@ func toReview(row reviewdb.Review) Review {
 
 func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ID:              row.ID,
+		ReviewerID:      row.ReviewerID.UUID,
+		ReviewerName:    row.ReviewerName.String,
+		ReviewerDeleted: row.ReviewerDeleted,
+		RevieweeID:      row.RevieweeID.UUID,
+		RevieweeName:    row.RevieweeName.String,
+		RevieweeDeleted: row.RevieweeDeleted,
+		OrderID:         row.OrderID,
+		Rating:          int(row.Rating),
+		Comment:         row.Comment,
+		CreatedAt:       row.CreatedAt,
+		DeletedAt:       row.DeletedAt.Time,
 	}
 }
 
 func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ID:              row.ID,
+		ReviewerID:      row.ReviewerID.UUID,
+		ReviewerName:    row.ReviewerName.String,
+		ReviewerDeleted: row.ReviewerDeleted,
+		RevieweeID:      row.RevieweeID.UUID,
+		RevieweeName:    row.RevieweeName.String,
+		RevieweeDeleted: row.RevieweeDeleted,
+		OrderID:         row.OrderID,
+		Rating:          int(row.Rating),
+		Comment:         row.Comment,
+		CreatedAt:       row.CreatedAt,
+		DeletedAt:       row.DeletedAt.Time,
 	}
 }
 
 func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
 	return ReviewRemoval{
-		ID:            row.ID,
-		ReviewID:      row.ReviewID,
-		ReviewerID:    row.ReviewerID,
-		RevieweeID:    row.RevieweeID,
-		OrderID:       row.OrderID,
-		Reason:        row.Reason,
-		CreatedAt:     row.CreatedAt,
-		CreatedBy:     row.CreatedBy,
-		CreatedByName: row.CreatedByName,
+		ID:               row.ID,
+		ReviewID:         row.ReviewID,
+		ReviewerID:       row.ReviewerID.UUID,
+		RevieweeID:       row.RevieweeID.UUID,
+		OrderID:          row.OrderID,
+		Reason:           row.Reason,
+		CreatedAt:        row.CreatedAt,
+		CreatedBy:        row.CreatedBy.UUID,
+		CreatedByName:    row.CreatedByName.String,
+		CreatedByDeleted: row.CreatedByDeleted,
 	}
 }
 
@@ -245,10 +250,20 @@ func mapReviewError(operation string, err error) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23503":
-			// Unreachable while users are never deleted. When user deletion
-			// lands, a violation on an insert means a missing reviewer/reviewee,
-			// not a missing review — distinguish by pgErr.ConstraintName then.
-			return errReviewNotFound
+			// Foreign key violation on an insert means a missing reviewer/reviewee.
+			// With the new nullable FKs (ON DELETE SET NULL), this only happens
+			// at INSERT time when the referenced user doesn't exist.
+			// Distinguish by constraint name to map to the correct error.
+			switch pgErr.ConstraintName {
+			case "reviews_reviewer_id_fkey":
+				return errReviewerNotFound
+			case "reviews_reviewee_id_fkey":
+				return errRevieweeNotFound
+			case "review_removals_review_id_fkey":
+				return errReviewNotFound
+			default:
+				return fmt.Errorf("%s: %w", operation, err)
+			}
 		case "23505":
 			return errReviewAlreadyExists
 		case "23514", "23P01":
@@ -257,3 +272,4 @@ func mapReviewError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+

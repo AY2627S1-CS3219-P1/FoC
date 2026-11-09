@@ -36,11 +36,20 @@ const (
 	// OrderInternalServiceGetOrderParticipantsProcedure is the fully-qualified name of the
 	// OrderInternalService's GetOrderParticipants RPC.
 	OrderInternalServiceGetOrderParticipantsProcedure = "/order.v1.OrderInternalService/GetOrderParticipants"
+	// OrderInternalServiceGetUserOutstandingWorkProcedure is the fully-qualified name of the
+	// OrderInternalService's GetUserOutstandingWork RPC.
+	OrderInternalServiceGetUserOutstandingWorkProcedure = "/order.v1.OrderInternalService/GetUserOutstandingWork"
 )
 
 // OrderInternalServiceClient is a client for the order.v1.OrderInternalService service.
 type OrderInternalServiceClient interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
+	// Read-only outstanding-work check for account deletion finalization. The
+	// User Service deletion worker calls this with its service identity. It
+	// never mutates state, reserves the user or installs any gate; the User
+	// Service worker postpones finalization while the result is outstanding or
+	// unknown. Timeouts and errors count as unknown, never as empty.
+	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)
 }
 
 // NewOrderInternalServiceClient constructs a client for the order.v1.OrderInternalService service.
@@ -61,12 +70,20 @@ func NewOrderInternalServiceClient(httpClient connect.HTTPClient, baseURL string
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getUserOutstandingWork: connect.NewClient[v1.GetUserOutstandingWorkRequest, v1.GetUserOutstandingWorkResponse](
+			httpClient,
+			baseURL+OrderInternalServiceGetUserOutstandingWorkProcedure,
+			connect.WithSchema(orderInternalServiceMethods.ByName("GetUserOutstandingWork")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // orderInternalServiceClient implements OrderInternalServiceClient.
 type orderInternalServiceClient struct {
-	getOrderParticipants *connect.Client[v1.GetOrderParticipantsRequest, v1.GetOrderParticipantsResponse]
+	getOrderParticipants   *connect.Client[v1.GetOrderParticipantsRequest, v1.GetOrderParticipantsResponse]
+	getUserOutstandingWork *connect.Client[v1.GetUserOutstandingWorkRequest, v1.GetUserOutstandingWorkResponse]
 }
 
 // GetOrderParticipants calls order.v1.OrderInternalService.GetOrderParticipants.
@@ -74,9 +91,20 @@ func (c *orderInternalServiceClient) GetOrderParticipants(ctx context.Context, r
 	return c.getOrderParticipants.CallUnary(ctx, req)
 }
 
+// GetUserOutstandingWork calls order.v1.OrderInternalService.GetUserOutstandingWork.
+func (c *orderInternalServiceClient) GetUserOutstandingWork(ctx context.Context, req *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error) {
+	return c.getUserOutstandingWork.CallUnary(ctx, req)
+}
+
 // OrderInternalServiceHandler is an implementation of the order.v1.OrderInternalService service.
 type OrderInternalServiceHandler interface {
 	GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error)
+	// Read-only outstanding-work check for account deletion finalization. The
+	// User Service deletion worker calls this with its service identity. It
+	// never mutates state, reserves the user or installs any gate; the User
+	// Service worker postpones finalization while the result is outstanding or
+	// unknown. Timeouts and errors count as unknown, never as empty.
+	GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error)
 }
 
 // NewOrderInternalServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -93,10 +121,19 @@ func NewOrderInternalServiceHandler(svc OrderInternalServiceHandler, opts ...con
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	orderInternalServiceGetUserOutstandingWorkHandler := connect.NewUnaryHandler(
+		OrderInternalServiceGetUserOutstandingWorkProcedure,
+		svc.GetUserOutstandingWork,
+		connect.WithSchema(orderInternalServiceMethods.ByName("GetUserOutstandingWork")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/order.v1.OrderInternalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OrderInternalServiceGetOrderParticipantsProcedure:
 			orderInternalServiceGetOrderParticipantsHandler.ServeHTTP(w, r)
+		case OrderInternalServiceGetUserOutstandingWorkProcedure:
+			orderInternalServiceGetUserOutstandingWorkHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -108,4 +145,8 @@ type UnimplementedOrderInternalServiceHandler struct{}
 
 func (UnimplementedOrderInternalServiceHandler) GetOrderParticipants(context.Context, *connect.Request[v1.GetOrderParticipantsRequest]) (*connect.Response[v1.GetOrderParticipantsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderInternalService.GetOrderParticipants is not implemented"))
+}
+
+func (UnimplementedOrderInternalServiceHandler) GetUserOutstandingWork(context.Context, *connect.Request[v1.GetUserOutstandingWorkRequest]) (*connect.Response[v1.GetUserOutstandingWorkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderInternalService.GetUserOutstandingWork is not implemented"))
 }

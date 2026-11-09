@@ -13,20 +13,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// Review is one participant's rating of the other for a single request. Reads
-// only return live rows, so DeletedAt is always the zero time in practice; the
-// field mirrors the soft-delete marker the table carries.
+// Review is one participant's rating of the other for a single request.
+// ReviewerName/RevieweeName are the joined display names; ReviewerDeleted and
+// RevieweeDeleted report whether the local reference still exists. Retained
+// history keeps the review row after a participant is hard-deleted, so the name
+// clears and the matching Deleted flag goes true to record the missing link.
 type Review struct {
-	ID           uuid.UUID
-	ReviewerID   uuid.UUID
-	ReviewerName string
-	RevieweeID   uuid.UUID
-	RevieweeName string
-	OrderID      uuid.UUID
-	Rating       int
-	Comment      string
-	CreatedAt    time.Time
-	DeletedAt    time.Time
+	ID              uuid.UUID
+	ReviewerID      uuid.UUID
+	ReviewerName    string
+	ReviewerDeleted bool
+	RevieweeID      uuid.UUID
+	RevieweeName    string
+	RevieweeDeleted bool
+	OrderID         uuid.UUID
+	Rating          int
+	Comment         string
+	CreatedAt       time.Time
+	DeletedAt       time.Time
 }
 
 type ReviewSubmission struct {
@@ -37,15 +41,16 @@ type ReviewSubmission struct {
 // ReviewRemoval is the audit row for a removed review; ReviewID references the
 // soft-deleted (retained) review.
 type ReviewRemoval struct {
-	ID            uuid.UUID
-	ReviewID      uuid.UUID
-	ReviewerID    uuid.UUID
-	RevieweeID    uuid.UUID
-	OrderID       uuid.UUID
-	Reason        string
-	CreatedAt     time.Time
-	CreatedBy     uuid.UUID
-	CreatedByName string
+	ID               uuid.UUID
+	ReviewID         uuid.UUID
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Reason           string
+	CreatedAt        time.Time
+	CreatedBy        uuid.UUID
+	CreatedByName    string
+	CreatedByDeleted bool
 }
 
 type ReviewPage struct {
@@ -85,3 +90,4 @@ var (
 	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
 	errReviewInvalid       = errors.New("review data is invalid")
 )
+

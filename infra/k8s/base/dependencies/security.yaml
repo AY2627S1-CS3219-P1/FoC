@@ -56,8 +56,8 @@ spec:
         - operation:
             ports: ["8081"]
 ---
-# Credit's reservation methods do not authenticate application callers.
-# Keep their internal listener reachable only by Order's workload identity.
+# Credit's reservation methods remain Order-only. User may call only the
+# read-only outstanding-work method; it must not gain reservation privileges.
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
@@ -70,10 +70,42 @@ spec:
   rules:
     - from:
         - source:
-            notPrincipals: [cluster.local/ns/foc/sa/order-service]
+            notPrincipals: [cluster.local/ns/foc/sa/order-service, cluster.local/ns/foc/sa/user-service]
       to:
         - operation:
             ports: ["8081"]
+    - from:
+        - source:
+            principals: [cluster.local/ns/foc/sa/user-service]
+      to:
+        - operation:
+            ports: ["8081"]
+            notPaths: ["/credit.v1.CreditInternalService/GetUserOutstandingWork"]
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/user-service]
+      to:
+        - operation:
+            ports: ["8081"]
+            paths: ["/credit.v1.CreditInternalService/GetUserOutstandingWork"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: order-outstanding-user-only
+spec:
+  selector:
+    matchLabels:
+      app: order-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/user-service]
+      to:
+        - operation:
+            ports: ["8081"]
+            paths: ["/order.v1.OrderInternalService/GetUserOutstandingWork"]
 ---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
@@ -90,3 +122,4 @@ spec:
       to:
         - operation:
             ports: ["3000"]
+

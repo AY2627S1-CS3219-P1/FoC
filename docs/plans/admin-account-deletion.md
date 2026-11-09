@@ -1,6 +1,6 @@
 # Admin-only synchronous account deletion
 
-> Implementation plan for [issue #286](https://github.com/AY2627S1-CS3219-P1/FoC/issues/286). This document records intended work; the feature and its verification are pending. Do not merge the associated draft until the acceptance checklist is implemented and validated.
+> Implementation plan for [issue #286](https://github.com/AY2627S1-CS3219-P1/FoC/issues/286). Handwritten implementation is in draft PR #287; new admin RPC/review-query generation and all execution checks are deferred at the user's direction. See [the runbook](../runbooks/admin-account-deletion.md) for exact remaining commands and media/revocation integration. Do not merge or deploy the draft until generation and validation are complete.
 
 ## Outcome and superseded work
 
@@ -197,4 +197,5 @@ Run Buf generation/lint/breaking, relevant GORM/schema and service/RPC integrati
 - [Historical wide-scope branch](https://github.com/AY2627S1-CS3219-P1/FoC/tree/iz/feat/user-deletion), inspected commit [63f8787](https://github.com/AY2627S1-CS3219-P1/FoC/commit/63f8787acf058b51bb3cc6730e51e44987dfe508).
 - [Existing admin contract](https://github.com/AY2627S1-CS3219-P1/FoC/blob/32d60dd84d6737c5d417c7a58cab49467f199558/proto/user/v1/admin.proto).
 - [Existing Manage users page](https://github.com/AY2627S1-CS3219-P1/FoC/blob/32d60dd84d6737c5d417c7a58cab49467f199558/frontend/src/routes/admin/users/+page.svelte).
+
 

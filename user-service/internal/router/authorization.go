@@ -44,6 +44,7 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 				}
 			case userv1connect.UserAdminServiceGetUserByEmailProcedure,
 				userv1connect.UserAdminServiceChangeUserRoleProcedure,
+				userv1connect.UserAdminServiceDeleteUserProcedure,
 				userv1connect.AllowedDomainAdminServiceListAllowedDomainsProcedure:
 				if !actor.Role.IsAdmin() {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
@@ -58,3 +59,4 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 		}
 	})
 }
+

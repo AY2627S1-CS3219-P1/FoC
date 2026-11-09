@@ -20,6 +20,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
+	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/orderinternal"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -147,11 +148,12 @@ func run(ctx context.Context) error {
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
 
-	// The internal listener serves the public handler until private routes are
-	// split out; binding it keeps every service on the same listener shape.
+	// Private account-deletion reads never mount on the public listener.
 	public := newServer(":"+config.Port, handler)
 	public.BaseContext = func(net.Listener) context.Context { return ctx }
-	internal := newServer(":"+config.InternalPort, handler)
+	internal := newServer(":"+config.InternalPort, router.SetupInternal(router.InternalRPCServices{
+		Internal: orderinternal.NewServer(repository),
+	}))
 	internal.BaseContext = func(net.Listener) context.Context { return ctx }
 
 	return serve(ctx, public, internal)
@@ -284,3 +286,4 @@ func cleanupImages(ctx context.Context, images *order.ItemImages) {
 		}
 	}
 }
+

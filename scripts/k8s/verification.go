@@ -247,16 +247,17 @@ func (o *operator) meshSmoke() error {
 	outsider := "foc-untrusted-" + suffix
 	client := "foc-smoke-" + suffix
 	order := "foc-order-" + suffix
+	user := "foc-user-" + suffix
 	if err := o.k("create", "namespace", outsider); err != nil {
 		return err
 	}
 	defer o.cleanupKube("delete", "namespace", outsider, "--ignore-not-found", "--wait=false")
-	defer o.cleanupKube("-n", "foc", "delete", "pod", client, order, "--ignore-not-found", "--wait=false")
+	defer o.cleanupKube("-n", "foc", "delete", "pod", client, order, user, "--ignore-not-found", "--wait=false")
 	defer o.cleanupKube("-n", "istio-ingress", "delete", "pod", client, "--ignore-not-found", "--wait=false")
 	for _, c := range []struct {
 		ns, name, sa string
 		injected     bool
-	}{{"foc", client, "default", true}, {"foc", order, "order-service", true}, {"istio-ingress", client, "foc-public", true}, {outsider, "meshed", "default", true}, {outsider, "plaintext", "default", false}} {
+}{{"foc", client, "default", true}, {"foc", order, "order-service", true}, {"foc", user, "user-service", true}, {"istio-ingress", client, "foc-public", true}, {outsider, "meshed", "default", true}, {outsider, "plaintext", "default", false}} {
 		if err := o.makeSmokeClient(c.ns, c.name, c.sa, c.injected); err != nil {
 			return err
 		}
@@ -292,10 +293,27 @@ func (o *operator) meshSmoke() error {
 	id := fmt.Sprintf("%x-%x-%x-%x-%x", requestID[:4], requestID[4:6], requestID[6:8], requestID[8:10], requestID[10:])
 	reservation := "http://credit-service-internal.foc.svc.cluster.local:8080/credit.v1.CreditReservationService/GetReservation"
 	reservationBody := fmt.Sprintf(`{"requestId":%q}`, id)
+	workBody := fmt.Sprintf(`{"userId":%q}`, id)
+	for _, service := range []string{"order", "credit"} {
+		serviceName := strings.ToUpper(service[:1]) + service[1:]
+		workURL := "http://" + service + "-service-internal.foc.svc.cluster.local:8080/" +
+			service + ".v1." + serviceName + "InternalService/GetUserOutstandingWork"
+		if err := o.clientRequest("foc", user, workURL, 200, workBody); err != nil {
+			return err
+		}
+		for _, caller := range [][2]string{{"foc", client}, {"foc", order}, {"istio-ingress", client}, {outsider, "meshed"}} {
+			if err := o.clientRequest(caller[0], caller[1], workURL, 403, workBody); err != nil {
+				return err
+			}
+		}
+		if err := o.assertTransportBlocked(outsider, "plaintext", workURL); err != nil {
+			return err
+		}
+	}
 	if err := o.clientRequest("foc", order, reservation, 404, reservationBody); err != nil {
 		return err
 	}
-	for _, caller := range [][2]string{{"foc", client}, {"istio-ingress", client}, {outsider, "meshed"}} {
+	for _, caller := range [][2]string{{"foc", client}, {"foc", user}, {"istio-ingress", client}, {outsider, "meshed"}} {
 		if err := o.clientRequest(caller[0], caller[1], reservation, 403, reservationBody); err != nil {
 			return err
 		}
@@ -803,3 +821,4 @@ func (o *operator) storageSmoke() error {
 	)
 	return err
 }
+

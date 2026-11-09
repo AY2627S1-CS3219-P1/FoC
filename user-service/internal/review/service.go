@@ -64,6 +64,10 @@ func (s *Service) SubmitReview(
 				return errs.WrapBadRequestError(err, "invalid review data")
 			case errors.Is(err, errReviewAlreadyExists):
 				return errs.WrapAlreadyExistsError(err, "review already exists")
+			case errors.Is(err, errReviewerNotFound):
+				return errs.WrapUnauthorizedError(err, "reviewer no longer exists")
+			case errors.Is(err, errRevieweeNotFound):
+				return errs.WrapNotFoundError(err, "reviewee no longer exists")
 			default:
 				// Anything else (foreign keys, connectivity, timeouts) is not a
 				// duplicate; surface it as an internal error instead of a 409.
@@ -133,6 +137,9 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		if err := s.repo.RecordReviewRemoval(ctx, q, removal); err != nil {
 			return err
 		}
+		if review.RevieweeID == uuid.Nil {
+			return nil // No live profile remains whose statistics need updating.
+		}
 		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
 	})
 }
@@ -162,3 +169,4 @@ func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
 		CreatedBy: createdBy,
 	}, nil
 }
+

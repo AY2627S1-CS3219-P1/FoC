@@ -11,7 +11,7 @@ import (
 type RoleChange struct {
 	BaseModel
 	Userstamps
-	UserID   uuid.UUID
+	UserID   uuid.UUID // uuid.Nil after the nullable live-user FK is cleared.
 	FromRole RoleName
 	ToRole   RoleName
 	Reason   *string
@@ -28,7 +28,7 @@ const (
 type AccountWarning struct {
 	BaseModel
 	Userstamps
-	UserID        uuid.UUID
+	UserID        uuid.UUID // uuid.Nil after the nullable live-user FK is cleared.
 	RequestID     uuid.UUID
 	ReportID      *uuid.UUID
 	Reason        string
@@ -38,3 +38,4 @@ type AccountWarning struct {
 	RemovedReason *string
 	AppealID      *uuid.UUID
 }
+

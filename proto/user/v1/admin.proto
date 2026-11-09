@@ -8,6 +8,9 @@ import "user/v1/auth.proto";
 service UserAdminService {
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
   rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse) {}
+  // Admin-only synchronous hard delete. Outstanding work or an unavailable
+  // prerequisite aborts the operation. Retained contributions survive.
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
 }
 
 service AllowedDomainAdminService {
@@ -66,4 +69,11 @@ message ChangeUserRoleRequest {
 message ChangeUserRoleResponse {
   UserSummary user = 1;
 }
+
+message DeleteUserRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeleteUserResponse {}
+
 

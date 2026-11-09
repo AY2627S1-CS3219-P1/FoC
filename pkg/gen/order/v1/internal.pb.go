@@ -22,6 +22,70 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type OutstandingWorkReason int32
+
+const (
+	OutstandingWorkReason_OUTSTANDING_WORK_REASON_UNSPECIFIED OutstandingWorkReason = 0
+	// Requester or current courier on a nonterminal order (pending reservation,
+	// awaiting courier/pickup, delivering, delivered).
+	OutstandingWorkReason_OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER OutstandingWorkReason = 1
+	// An open or accepting offer made by or to the user that has not resolved
+	// into an assignment or been withdrawn/voided.
+	OutstandingWorkReason_OUTSTANDING_WORK_REASON_OPEN_OFFER OutstandingWorkReason = 2
+	// Unresolved creation, assignment or cancellation/recovery workflow records
+	// involving the user. A former courier's fully resolved assignment history
+	// alone is not outstanding.
+	OutstandingWorkReason_OUTSTANDING_WORK_REASON_PENDING_WORKFLOW OutstandingWorkReason = 3
+	// A durable pending admission or recovery record that could still create or
+	// change the user's obligations after this query.
+	OutstandingWorkReason_OUTSTANDING_WORK_REASON_PENDING_ADMISSION OutstandingWorkReason = 4
+)
+
+// Enum value maps for OutstandingWorkReason.
+var (
+	OutstandingWorkReason_name = map[int32]string{
+		0: "OUTSTANDING_WORK_REASON_UNSPECIFIED",
+		1: "OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER",
+		2: "OUTSTANDING_WORK_REASON_OPEN_OFFER",
+		3: "OUTSTANDING_WORK_REASON_PENDING_WORKFLOW",
+		4: "OUTSTANDING_WORK_REASON_PENDING_ADMISSION",
+	}
+	OutstandingWorkReason_value = map[string]int32{
+		"OUTSTANDING_WORK_REASON_UNSPECIFIED":       0,
+		"OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER": 1,
+		"OUTSTANDING_WORK_REASON_OPEN_OFFER":        2,
+		"OUTSTANDING_WORK_REASON_PENDING_WORKFLOW":  3,
+		"OUTSTANDING_WORK_REASON_PENDING_ADMISSION": 4,
+	}
+)
+
+func (x OutstandingWorkReason) Enum() *OutstandingWorkReason {
+	p := new(OutstandingWorkReason)
+	*p = x
+	return p
+}
+
+func (x OutstandingWorkReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OutstandingWorkReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_order_v1_internal_proto_enumTypes[0].Descriptor()
+}
+
+func (OutstandingWorkReason) Type() protoreflect.EnumType {
+	return &file_order_v1_internal_proto_enumTypes[0]
+}
+
+func (x OutstandingWorkReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OutstandingWorkReason.Descriptor instead.
+func (OutstandingWorkReason) EnumDescriptor() ([]byte, []int) {
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{0}
+}
+
 // Used by Communication to relay chat only between an order's participants.
 type GetOrderParticipantsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -136,6 +200,106 @@ func (x *GetOrderParticipantsResponse) GetStatus() OrderStatus {
 	return OrderStatus_ORDER_STATUS_UNSPECIFIED
 }
 
+type GetUserOutstandingWorkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserOutstandingWorkRequest) Reset() {
+	*x = GetUserOutstandingWorkRequest{}
+	mi := &file_order_v1_internal_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserOutstandingWorkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserOutstandingWorkRequest) ProtoMessage() {}
+
+func (x *GetUserOutstandingWorkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_internal_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserOutstandingWorkRequest.ProtoReflect.Descriptor instead.
+func (*GetUserOutstandingWorkRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetUserOutstandingWorkRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetUserOutstandingWorkResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when the user still has outstanding work that blocks account
+	// finalization. The result reflects one consistent database snapshot.
+	HasOutstandingWork bool `protobuf:"varint,1,opt,name=has_outstanding_work,json=hasOutstandingWork,proto3" json:"has_outstanding_work,omitempty"`
+	// Stable reason categories explaining the outstanding result. Empty when
+	// has_outstanding_work is false.
+	Reasons       []OutstandingWorkReason `protobuf:"varint,2,rep,packed,name=reasons,proto3,enum=order.v1.OutstandingWorkReason" json:"reasons,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserOutstandingWorkResponse) Reset() {
+	*x = GetUserOutstandingWorkResponse{}
+	mi := &file_order_v1_internal_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserOutstandingWorkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserOutstandingWorkResponse) ProtoMessage() {}
+
+func (x *GetUserOutstandingWorkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_internal_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserOutstandingWorkResponse.ProtoReflect.Descriptor instead.
+func (*GetUserOutstandingWorkResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_internal_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetUserOutstandingWorkResponse) GetHasOutstandingWork() bool {
+	if x != nil {
+		return x.HasOutstandingWork
+	}
+	return false
+}
+
+func (x *GetUserOutstandingWorkResponse) GetReasons() []OutstandingWorkReason {
+	if x != nil {
+		return x.Reasons
+	}
+	return nil
+}
+
 var File_order_v1_internal_proto protoreflect.FileDescriptor
 
 const file_order_v1_internal_proto_rawDesc = "" +
@@ -149,9 +313,21 @@ const file_order_v1_internal_proto_rawDesc = "" +
 	"\n" +
 	"courier_id\x18\x03 \x01(\tH\x00R\tcourierId\x88\x01\x01\x12-\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x15.order.v1.OrderStatusR\x06statusB\r\n" +
-	"\v_courier_id2\x82\x01\n" +
+	"\v_courier_id\"B\n" +
+	"\x1dGetUserOutstandingWorkRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\"\x8d\x01\n" +
+	"\x1eGetUserOutstandingWorkResponse\x120\n" +
+	"\x14has_outstanding_work\x18\x01 \x01(\bR\x12hasOutstandingWork\x129\n" +
+	"\areasons\x18\x02 \x03(\x0e2\x1f.order.v1.OutstandingWorkReasonR\areasons*\xf4\x01\n" +
+	"\x15OutstandingWorkReason\x12'\n" +
+	"#OUTSTANDING_WORK_REASON_UNSPECIFIED\x10\x00\x12-\n" +
+	")OUTSTANDING_WORK_REASON_NONTERMINAL_ORDER\x10\x01\x12&\n" +
+	"\"OUTSTANDING_WORK_REASON_OPEN_OFFER\x10\x02\x12,\n" +
+	"(OUTSTANDING_WORK_REASON_PENDING_WORKFLOW\x10\x03\x12-\n" +
+	")OUTSTANDING_WORK_REASON_PENDING_ADMISSION\x10\x042\xf4\x01\n" +
 	"\x14OrderInternalService\x12j\n" +
-	"\x14GetOrderParticipants\x12%.order.v1.GetOrderParticipantsRequest\x1a&.order.v1.GetOrderParticipantsResponse\"\x03\x90\x02\x01B\x9a\x01\n" +
+	"\x14GetOrderParticipants\x12%.order.v1.GetOrderParticipantsRequest\x1a&.order.v1.GetOrderParticipantsResponse\"\x03\x90\x02\x01\x12p\n" +
+	"\x16GetUserOutstandingWork\x12'.order.v1.GetUserOutstandingWorkRequest\x1a(.order.v1.GetUserOutstandingWorkResponse\"\x03\x90\x02\x01B\x9a\x01\n" +
 	"\fcom.order.v1B\rInternalProtoP\x01Z:github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
 
 var (
@@ -166,21 +342,28 @@ func file_order_v1_internal_proto_rawDescGZIP() []byte {
 	return file_order_v1_internal_proto_rawDescData
 }
 
-var file_order_v1_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_order_v1_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_order_v1_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_order_v1_internal_proto_goTypes = []any{
-	(*GetOrderParticipantsRequest)(nil),  // 0: order.v1.GetOrderParticipantsRequest
-	(*GetOrderParticipantsResponse)(nil), // 1: order.v1.GetOrderParticipantsResponse
-	(OrderStatus)(0),                     // 2: order.v1.OrderStatus
+	(OutstandingWorkReason)(0),             // 0: order.v1.OutstandingWorkReason
+	(*GetOrderParticipantsRequest)(nil),    // 1: order.v1.GetOrderParticipantsRequest
+	(*GetOrderParticipantsResponse)(nil),   // 2: order.v1.GetOrderParticipantsResponse
+	(*GetUserOutstandingWorkRequest)(nil),  // 3: order.v1.GetUserOutstandingWorkRequest
+	(*GetUserOutstandingWorkResponse)(nil), // 4: order.v1.GetUserOutstandingWorkResponse
+	(OrderStatus)(0),                       // 5: order.v1.OrderStatus
 }
 var file_order_v1_internal_proto_depIdxs = []int32{
-	2, // 0: order.v1.GetOrderParticipantsResponse.status:type_name -> order.v1.OrderStatus
-	0, // 1: order.v1.OrderInternalService.GetOrderParticipants:input_type -> order.v1.GetOrderParticipantsRequest
-	1, // 2: order.v1.OrderInternalService.GetOrderParticipants:output_type -> order.v1.GetOrderParticipantsResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: order.v1.GetOrderParticipantsResponse.status:type_name -> order.v1.OrderStatus
+	0, // 1: order.v1.GetUserOutstandingWorkResponse.reasons:type_name -> order.v1.OutstandingWorkReason
+	1, // 2: order.v1.OrderInternalService.GetOrderParticipants:input_type -> order.v1.GetOrderParticipantsRequest
+	3, // 3: order.v1.OrderInternalService.GetUserOutstandingWork:input_type -> order.v1.GetUserOutstandingWorkRequest
+	2, // 4: order.v1.OrderInternalService.GetOrderParticipants:output_type -> order.v1.GetOrderParticipantsResponse
+	4, // 5: order.v1.OrderInternalService.GetUserOutstandingWork:output_type -> order.v1.GetUserOutstandingWorkResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_internal_proto_init() }
@@ -195,13 +378,14 @@ func file_order_v1_internal_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_internal_proto_rawDesc), len(file_order_v1_internal_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_order_v1_internal_proto_goTypes,
 		DependencyIndexes: file_order_v1_internal_proto_depIdxs,
+		EnumInfos:         file_order_v1_internal_proto_enumTypes,
 		MessageInfos:      file_order_v1_internal_proto_msgTypes,
 	}.Build()
 	File_order_v1_internal_proto = out.File
