@@ -2,6 +2,7 @@
 	import { Button } from 'm3-svelte';
 	import CreditTotalsCard from './CreditTotalsCard.svelte';
 	import OrderStatusCard from './OrderStatusCard.svelte';
+	import RecordLookupCard from './RecordLookupCard.svelte';
 	import UserCountsCard from './UserCountsCard.svelte';
 
 	// Each card reads its own service, so one unavailable service leaves the others visible.
@@ -24,6 +25,7 @@
 		<div class="orders"><OrderStatusCard {refresh} /></div>
 		<UserCountsCard {refresh} />
 		<CreditTotalsCard {refresh} />
+		<div class="lookup"><RecordLookupCard /></div>
 	</div>
 </section>
 
@@ -35,7 +37,8 @@
 		align-items: start;
 	}
 
-	.orders {
+	.orders,
+	.lookup {
 		grid-column: 1 / -1;
 	}
 
