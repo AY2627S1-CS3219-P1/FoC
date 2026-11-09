@@ -16,9 +16,16 @@ import (
 )
 
 type Logic interface {
-	SubmitReview(ctx context.Context, reviewerID, revieweeID, orderID uuid.UUID, submission ReviewSubmission) error
+	SubmitReview(
+		ctx context.Context,
+		reviewerID, revieweeID, orderID uuid.UUID,
+		submission ReviewSubmission,
+	) (SubmissionResult, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListUnpublishedReviewsForUser(
+		ctx context.Context, reviewerID uuid.UUID, filter UnpublishedFilter, page pagination.Pagination,
+	) (UnpublishedReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 }
@@ -29,8 +36,8 @@ type Handler struct {
 	Logic Logic
 }
 
-// SubmitReview records the caller's review of the other participant; `from`
-// must be the caller so impersonation is rejected.
+// SubmitReview records the caller's pending review of the other participant;
+// `from` must be the caller so impersonation is rejected.
 func (h *Handler) SubmitReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.SubmitReviewRequest],
@@ -54,16 +61,20 @@ func (h *Handler) SubmitReview(
 	if err != nil || orderID == uuid.Nil {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
 	}
-	if err := h.Logic.SubmitReview(
+	result, err := h.Logic.SubmitReview(
 		ctx,
 		actorID,
 		to,
 		orderID,
 		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
-	); err != nil {
+	)
+	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&reviewv1.SubmitReviewResponse{}), nil
+	return connect.NewResponse(&reviewv1.SubmitReviewResponse{
+		ReviewId:         result.ReviewID.String(),
+		ModerationStatus: toProtoModerationStatus(result.Status),
+	}), nil
 }
 
 // ListReviewsForUser lists the reviews a user received; a suspended caller may
@@ -113,6 +124,39 @@ func (h *Handler) ListMyReviews(
 	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
 }
 
+// ListUnpublishedReviewsForUser lists the reviewer's pending, rejected and
+// moderation-error reviews. Authorization runs before any lookup: ordinary and
+// suspended callers may only inspect their own reviews, admins any reviewer.
+func (h *Handler) ListUnpublishedReviewsForUser(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListUnpublishedReviewsForUserRequest],
+) (*connect.Response[reviewv1.ListUnpublishedReviewsForUserResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	reviewerID, err := uuid.Parse(req.Msg.GetReviewerId())
+	if err != nil || reviewerID == uuid.Nil {
+		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
+	}
+	if err := authorizeUnpublishedReviews(caller, reviewerID); err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	filter, err := unpublishedFilter(req.Msg)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+	pageResult, err := h.Logic.ListUnpublishedReviewsForUser(ctx, reviewerID, filter, page)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	return connect.NewResponse(toListUnpublishedReviewsResponse(pageResult)), nil
+}
+
 // RemoveReview soft-deletes a review and records the removal audit row; the
 // admin-only gate lives in the interceptor.
 func (h *Handler) RemoveReview(
@@ -155,11 +199,54 @@ func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	if !c.IsSuspended() {
 		return nil
 	}
+	return requireOwnIdentity(c, userID, "suspended users may only list their own reviews")
+}
+
+// authorizeUnpublishedReviews is the ABAC rule for the unpublished list:
+// administrators may select any reviewer; everyone else, including suspended
+// callers, may only inspect their own.
+func authorizeUnpublishedReviews(c userdto.Caller, reviewerID uuid.UUID) error {
+	if c.Admin && !c.IsSuspended() {
+		return nil
+	}
+	return requireOwnIdentity(c, reviewerID, "callers may only list their own unpublished reviews")
+}
+
+func requireOwnIdentity(c userdto.Caller, userID uuid.UUID, message string) error {
 	callerID, err := uuid.Parse(c.ID)
 	if err != nil || callerID != userID {
-		return errs.NewForbiddenError("suspended users may only list their own reviews")
+		return errs.NewForbiddenError(message)
 	}
 	return nil
+}
+
+// unpublishedFilter maps the optional proto filters. Only the three
+// unpublished statuses are valid; asking the collection for approved reviews is
+// a client error.
+func unpublishedFilter(req *reviewv1.ListUnpublishedReviewsForUserRequest) (UnpublishedFilter, error) {
+	filter := UnpublishedFilter{}
+	if p := req.ModerationStatusFilter; p != nil {
+		switch *p {
+		case reviewv1.ModerationStatus_MODERATION_STATUS_PENDING_MODERATION:
+			pending := ModerationPending
+			filter.Status = &pending
+		case reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED:
+			rejected := ModerationRejected
+			filter.Status = &rejected
+		case reviewv1.ModerationStatus_MODERATION_STATUS_MODERATION_ERROR:
+			errored := ModerationError
+			filter.Status = &errored
+		default:
+			return UnpublishedFilter{}, errs.NewBadRequestError(
+				"moderation status filter must be pending moderation, rejected or moderation error")
+		}
+	}
+	if orderID, err := uuid.Parse(req.GetOrderId()); err == nil && orderID != uuid.Nil {
+		filter.OrderID = &orderID
+	} else if req.GetOrderId() != "" {
+		return UnpublishedFilter{}, errs.NewBadRequestError("invalid order ID")
+	}
+	return filter, nil
 }
 
 // newPage normalizes the optional proto pagination into the shared model.
@@ -184,6 +271,17 @@ func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserR
 func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
 	return &reviewv1.ListMyReviewsResponse{
 		Reviews:    toReviewProtos(page.Reviews),
+		Pagination: toProtoPageInfo(page.PageInfo),
+	}
+}
+
+func toListUnpublishedReviewsResponse(page UnpublishedReviewPage) *reviewv1.ListUnpublishedReviewsForUserResponse {
+	out := make([]*reviewv1.UnpublishedReview, len(page.Reviews))
+	for i, review := range page.Reviews {
+		out[i] = toUnpublishedReviewProto(review)
+	}
+	return &reviewv1.ListUnpublishedReviewsForUserResponse{
+		Reviews:    out,
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }
@@ -227,6 +325,44 @@ func toReviewProto(review Review) *reviewv1.Review {
 		Rating:       int32(review.Rating),
 		Comment:      review.Comment,
 		CreatedAt:    timestamppb.New(review.CreatedAt),
+	}
+}
+
+func toUnpublishedReviewProto(review UnpublishedReview) *reviewv1.UnpublishedReview {
+	out := &reviewv1.UnpublishedReview{
+		Id:                    review.ID.String(),
+		ReviewerId:            review.ReviewerID.String(),
+		ReviewerName:          review.ReviewerName,
+		RevieweeId:            review.RevieweeID.String(),
+		RevieweeName:          review.RevieweeName,
+		OrderId:               review.OrderID.String(),
+		Rating:                int32(review.Rating),
+		Comment:               review.Comment,
+		CreatedAt:             timestamppb.New(review.CreatedAt),
+		ModerationStatus:      toProtoModerationStatus(review.ModerationStatus),
+		ModerationRequestId:   review.ModerationRequestID.String(),
+		ContentRevision:       int32(review.ContentRevision),
+		ModerationReasonCodes: review.ModerationReasonCodes,
+		AppliedRunGeneration:  review.AppliedRunGeneration,
+	}
+	if !review.ModeratedAt.IsZero() {
+		out.ModeratedAt = timestamppb.New(review.ModeratedAt)
+	}
+	return out
+}
+
+func toProtoModerationStatus(status ModerationStatus) reviewv1.ModerationStatus {
+	switch status {
+	case ModerationPending:
+		return reviewv1.ModerationStatus_MODERATION_STATUS_PENDING_MODERATION
+	case ModerationApproved:
+		return reviewv1.ModerationStatus_MODERATION_STATUS_APPROVED
+	case ModerationRejected:
+		return reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED
+	case ModerationError:
+		return reviewv1.ModerationStatus_MODERATION_STATUS_MODERATION_ERROR
+	default:
+		return reviewv1.ModerationStatus_MODERATION_STATUS_UNSPECIFIED
 	}
 }
 

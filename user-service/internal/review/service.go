@@ -7,9 +7,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	events "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // WithTransaction runs operation inside a database/sql transaction with the
@@ -25,53 +27,109 @@ func NewService(repo Repository, withTransaction WithTransaction) *Service {
 	return &Service{repo: repo, withTransaction: withTransaction}
 }
 
-// SubmitReview inserts the review and recomputes the reviewee's stats in the
-// same transaction, so the stats are current when it returns.
+// SubmitReview inserts the pending review, queues its ReviewSubmitted event in
+// the outbox and recomputes the reviewee's stats in the same transaction, so
+// the review, its moderation request and the stats are current when it returns.
+// The reviewee's stats only count approved reviews, so a pending submission
+// contributes nothing until moderation approves it.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
-) error {
+) (SubmissionResult, error) {
 	if reviewerID == revieweeID {
-		return errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
-	}
-	participants, err := s.repo.CheckReviewParticipants(ctx, reviewerID, revieweeID)
-	if err != nil {
-		return err
-	}
-	if !participants.ReviewerExists {
-		return errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
-	}
-	if !participants.RevieweeExists {
-		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
+		return SubmissionResult{}, errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
 	}
 	id, err := newID()
 	if err != nil {
+		return SubmissionResult{}, err
+	}
+	requestID, err := newID()
+	if err != nil {
+		return SubmissionResult{}, err
+	}
+	eventID, err := newID()
+	if err != nil {
+		return SubmissionResult{}, err
+	}
+
+	var result SubmissionResult
+	err = s.withTransaction(ctx, func(q *reviewdb.Queries) error {
+		participants, err := s.repo.CheckReviewParticipants(ctx, q, reviewerID, revieweeID)
+		if err != nil {
+			return err
+		}
+		if !participants.ReviewerExists {
+			return errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
+		}
+		if !participants.RevieweeExists {
+			return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
+		}
+
+		inserted, err := s.repo.InsertReview(ctx, q, ReviewInput{
+			ID:                  id,
+			ReviewerID:          reviewerID,
+			RevieweeID:          revieweeID,
+			OrderID:             orderID,
+			Rating:              submission.Rating,
+			Comment:             submission.Comment,
+			ModerationRequestID: requestID,
+		})
+		if err != nil {
+			return mapInsertReviewError(err)
+		}
+
+		// The payload is built from the saved review: the reviewer comes from
+		// the authenticated caller, never from a client-supplied field.
+		payload, err := encodeSubmittedPayload(&events.ReviewSubmitted{
+			EventId:             eventID.String(),
+			ModerationRequestId: requestID.String(),
+			ReviewId:            id.String(),
+			ReviewerId:          reviewerID.String(),
+			ContentRevision:     int32(inserted.ContentRevision),
+			Comment:             submission.Comment,
+			OccurredAt:          timestamppb.New(inserted.CreatedAt),
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.repo.AppendSubmittedOutbox(ctx, q, SubmittedOutboxRow{
+			EventID:        eventID,
+			ReviewID:       id,
+			PayloadVersion: submittedPayloadVersion,
+			Payload:        payload,
+		}); err != nil {
+			return err
+		}
+
+		if err := s.repo.RecalculateStats(ctx, q, revieweeID); err != nil {
+			return err
+		}
+
+		result = SubmissionResult{
+			ReviewID:            id,
+			ModerationRequestID: requestID,
+			Status:              inserted.ModerationStatus,
+		}
+		return nil
+	})
+	if err != nil {
+		return SubmissionResult{}, err
+	}
+	return result, nil
+}
+
+func mapInsertReviewError(err error) error {
+	switch {
+	case errors.Is(err, errReviewInvalid):
+		return errs.WrapBadRequestError(err, "invalid review data")
+	case errors.Is(err, errReviewAlreadyExists):
+		return errs.WrapAlreadyExistsError(err, "review already exists")
+	default:
+		// Anything else (foreign keys, connectivity, timeouts) is not a
+		// duplicate; surface it as an internal error instead of a 409.
 		return err
 	}
-	input := ReviewInput{
-		ID:         id,
-		ReviewerID: reviewerID,
-		RevieweeID: revieweeID,
-		OrderID:    orderID,
-		Rating:     submission.Rating,
-		Comment:    submission.Comment,
-	}
-	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
-		if err := s.repo.InsertReview(ctx, q, input); err != nil {
-			switch {
-			case errors.Is(err, errReviewInvalid):
-				return errs.WrapBadRequestError(err, "invalid review data")
-			case errors.Is(err, errReviewAlreadyExists):
-				return errs.WrapAlreadyExistsError(err, "review already exists")
-			default:
-				// Anything else (foreign keys, connectivity, timeouts) is not a
-				// duplicate; surface it as an internal error instead of a 409.
-				return err
-			}
-		}
-		return s.repo.RecalculateStats(ctx, q, revieweeID)
-	})
 }
 
 func (s *Service) ListReviewsForUser(
@@ -104,6 +162,28 @@ func (s *Service) ListReviewsFromUser(
 		return ReviewPage{}, err
 	}
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
+}
+
+// ListUnpublishedReviewsForUser lists the reviewer's pending, rejected and
+// moderation-error reviews with aligned page totals.
+func (s *Service) ListUnpublishedReviewsForUser(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	filter UnpublishedFilter,
+	page pagination.Pagination,
+) (UnpublishedReviewPage, error) {
+	reviews, err := s.repo.ListUnpublishedReviewsForUser(ctx, reviewerID, filter, page.Offset(), page.PageSize())
+	if err != nil {
+		return UnpublishedReviewPage{}, err
+	}
+	total, err := s.repo.CountUnpublishedReviewsForUser(ctx, reviewerID, filter)
+	if err != nil {
+		return UnpublishedReviewPage{}, err
+	}
+	return UnpublishedReviewPage{
+		Reviews:  reviews,
+		PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total),
+	}, nil
 }
 
 // RemoveReview soft-deletes the review, records the audit row and recomputes

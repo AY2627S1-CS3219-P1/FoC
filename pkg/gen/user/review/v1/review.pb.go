@@ -28,6 +28,70 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Moderation lifecycle of a review. Ordinary published reads and rating
+// aggregates include only APPROVED reviews; rejected and errored reviews stay
+// stored and visible to their author and authorised admins here.
+type ModerationStatus int32
+
+const (
+	ModerationStatus_MODERATION_STATUS_UNSPECIFIED ModerationStatus = 0
+	// Committed but not yet assessed. Contributes nothing to published
+	// statistics.
+	ModerationStatus_MODERATION_STATUS_PENDING_MODERATION ModerationStatus = 1
+	// Assessed and published.
+	ModerationStatus_MODERATION_STATUS_APPROVED ModerationStatus = 2
+	// Assessed and rejected by the content policy; retained for its author.
+	ModerationStatus_MODERATION_STATUS_REJECTED ModerationStatus = 3
+	// No valid content verdict was obtained; a technical outcome, never a
+	// content judgement.
+	ModerationStatus_MODERATION_STATUS_MODERATION_ERROR ModerationStatus = 4
+)
+
+// Enum value maps for ModerationStatus.
+var (
+	ModerationStatus_name = map[int32]string{
+		0: "MODERATION_STATUS_UNSPECIFIED",
+		1: "MODERATION_STATUS_PENDING_MODERATION",
+		2: "MODERATION_STATUS_APPROVED",
+		3: "MODERATION_STATUS_REJECTED",
+		4: "MODERATION_STATUS_MODERATION_ERROR",
+	}
+	ModerationStatus_value = map[string]int32{
+		"MODERATION_STATUS_UNSPECIFIED":        0,
+		"MODERATION_STATUS_PENDING_MODERATION": 1,
+		"MODERATION_STATUS_APPROVED":           2,
+		"MODERATION_STATUS_REJECTED":           3,
+		"MODERATION_STATUS_MODERATION_ERROR":   4,
+	}
+)
+
+func (x ModerationStatus) Enum() *ModerationStatus {
+	p := new(ModerationStatus)
+	*p = x
+	return p
+}
+
+func (x ModerationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ModerationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_user_review_v1_review_proto_enumTypes[0].Descriptor()
+}
+
+func (ModerationStatus) Type() protoreflect.EnumType {
+	return &file_user_review_v1_review_proto_enumTypes[0]
+}
+
+func (x ModerationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ModerationStatus.Descriptor instead.
+func (ModerationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{0}
+}
+
 // A review given by one participant about another for a single request.
 type Review struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
@@ -262,10 +326,16 @@ func (x *SubmitReviewRequest) GetSubmission() *ReviewSubmission {
 	return nil
 }
 
+// SubmitReview acknowledges a persisted pending review. Publication follows
+// only after asynchronous content moderation approves it; a successful
+// response never means the review is public.
 type SubmitReviewResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ReviewId string                 `protobuf:"bytes,1,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
+	// Always PENDING_MODERATION for newly gated submissions.
+	ModerationStatus ModerationStatus `protobuf:"varint,3,opt,name=moderation_status,json=moderationStatus,proto3,enum=user.review.v1.ModerationStatus" json:"moderation_status,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SubmitReviewResponse) Reset() {
@@ -296,6 +366,20 @@ func (x *SubmitReviewResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SubmitReviewResponse.ProtoReflect.Descriptor instead.
 func (*SubmitReviewResponse) Descriptor() ([]byte, []int) {
 	return file_user_review_v1_review_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SubmitReviewResponse) GetReviewId() string {
+	if x != nil {
+		return x.ReviewId
+	}
+	return ""
+}
+
+func (x *SubmitReviewResponse) GetModerationStatus() ModerationStatus {
+	if x != nil {
+		return x.ModerationStatus
+	}
+	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
 }
 
 type ListReviewsForUserResponse struct {
@@ -785,6 +869,299 @@ func (x *ListReviewRemovalsResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
+// Lists the caller's (or an admin-selected reviewer's) reviews that are not
+// published: pending, rejected and moderation-error. Queried by author, not
+// reviewee — ListReviewsForUser's target semantics concern reviews received.
+// This endpoint never calls the content moderation service, so it works even
+// while moderation is unavailable.
+type ListUnpublishedReviewsForUserRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The review author. Ordinary callers may request only their own id;
+	// admin/super-admin may select another reviewer. A suspended caller may
+	// inspect only their own. Enforced before any database lookup.
+	ReviewerId string         `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	Pagination *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	// Optional filter. Only pending, rejected and moderation-error are valid
+	// here; approved reviews are never in this collection.
+	ModerationStatusFilter *ModerationStatus `protobuf:"varint,3,opt,name=moderation_status_filter,json=moderationStatusFilter,proto3,enum=user.review.v1.ModerationStatus,oneof" json:"moderation_status_filter,omitempty"`
+	// Optional: recover a submission after an ambiguous response by the order
+	// the review was submitted for.
+	OrderId       *string `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3,oneof" json:"order_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) Reset() {
+	*x = ListUnpublishedReviewsForUserRequest{}
+	mi := &file_user_review_v1_review_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUnpublishedReviewsForUserRequest) ProtoMessage() {}
+
+func (x *ListUnpublishedReviewsForUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnpublishedReviewsForUserRequest.ProtoReflect.Descriptor instead.
+func (*ListUnpublishedReviewsForUserRequest) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) GetReviewerId() string {
+	if x != nil {
+		return x.ReviewerId
+	}
+	return ""
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) GetModerationStatusFilter() ModerationStatus {
+	if x != nil && x.ModerationStatusFilter != nil {
+		return *x.ModerationStatusFilter
+	}
+	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
+}
+
+func (x *ListUnpublishedReviewsForUserRequest) GetOrderId() string {
+	if x != nil && x.OrderId != nil {
+		return *x.OrderId
+	}
+	return ""
+}
+
+type ListUnpublishedReviewsForUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reviews       []*UnpublishedReview   `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
+	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUnpublishedReviewsForUserResponse) Reset() {
+	*x = ListUnpublishedReviewsForUserResponse{}
+	mi := &file_user_review_v1_review_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUnpublishedReviewsForUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUnpublishedReviewsForUserResponse) ProtoMessage() {}
+
+func (x *ListUnpublishedReviewsForUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnpublishedReviewsForUserResponse.ProtoReflect.Descriptor instead.
+func (*ListUnpublishedReviewsForUserResponse) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListUnpublishedReviewsForUserResponse) GetReviews() []*UnpublishedReview {
+	if x != nil {
+		return x.Reviews
+	}
+	return nil
+}
+
+func (x *ListUnpublishedReviewsForUserResponse) GetPagination() *v1.PageInfo {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+// A not-yet-published review with its moderation metadata.
+type UnpublishedReview struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReviewerId       string                 `protobuf:"bytes,2,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	RevieweeId       string                 `protobuf:"bytes,3,opt,name=reviewee_id,json=revieweeId,proto3" json:"reviewee_id,omitempty"`
+	OrderId          string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Rating           int32                  `protobuf:"varint,5,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment          string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
+	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ReviewerName     string                 `protobuf:"bytes,8,opt,name=reviewer_name,json=reviewerName,proto3" json:"reviewer_name,omitempty"`
+	RevieweeName     string                 `protobuf:"bytes,9,opt,name=reviewee_name,json=revieweeName,proto3" json:"reviewee_name,omitempty"`
+	ModerationStatus ModerationStatus       `protobuf:"varint,10,opt,name=moderation_status,json=moderationStatus,proto3,enum=user.review.v1.ModerationStatus" json:"moderation_status,omitempty"`
+	// Correlates unpublished reviews with moderation job lookups.
+	ModerationRequestId string `protobuf:"bytes,11,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
+	ContentRevision     int32  `protobuf:"varint,12,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
+	// Known rejection reason codes when rejected; empty otherwise.
+	ModerationReasonCodes []string `protobuf:"bytes,13,rep,name=moderation_reason_codes,json=moderationReasonCodes,proto3" json:"moderation_reason_codes,omitempty"`
+	// When the latest moderation result was applied, when present.
+	ModeratedAt *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=moderated_at,json=moderatedAt,proto3,oneof" json:"moderated_at,omitempty"`
+	// Generation of the last result applied by User, for distinguishing newer CMS retries.
+	AppliedRunGeneration int32 `protobuf:"varint,15,opt,name=applied_run_generation,json=appliedRunGeneration,proto3" json:"applied_run_generation,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UnpublishedReview) Reset() {
+	*x = UnpublishedReview{}
+	mi := &file_user_review_v1_review_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnpublishedReview) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnpublishedReview) ProtoMessage() {}
+
+func (x *UnpublishedReview) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnpublishedReview.ProtoReflect.Descriptor instead.
+func (*UnpublishedReview) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *UnpublishedReview) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetReviewerId() string {
+	if x != nil {
+		return x.ReviewerId
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetRevieweeId() string {
+	if x != nil {
+		return x.RevieweeId
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetRating() int32 {
+	if x != nil {
+		return x.Rating
+	}
+	return 0
+}
+
+func (x *UnpublishedReview) GetComment() string {
+	if x != nil {
+		return x.Comment
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *UnpublishedReview) GetReviewerName() string {
+	if x != nil {
+		return x.ReviewerName
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetRevieweeName() string {
+	if x != nil {
+		return x.RevieweeName
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetModerationStatus() ModerationStatus {
+	if x != nil {
+		return x.ModerationStatus
+	}
+	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
+}
+
+func (x *UnpublishedReview) GetModerationRequestId() string {
+	if x != nil {
+		return x.ModerationRequestId
+	}
+	return ""
+}
+
+func (x *UnpublishedReview) GetContentRevision() int32 {
+	if x != nil {
+		return x.ContentRevision
+	}
+	return 0
+}
+
+func (x *UnpublishedReview) GetModerationReasonCodes() []string {
+	if x != nil {
+		return x.ModerationReasonCodes
+	}
+	return nil
+}
+
+func (x *UnpublishedReview) GetModeratedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ModeratedAt
+	}
+	return nil
+}
+
+func (x *UnpublishedReview) GetAppliedRunGeneration() int32 {
+	if x != nil {
+		return x.AppliedRunGeneration
+	}
+	return 0
+}
+
 var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
@@ -812,8 +1189,10 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\border_id\x18\x03 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12H\n" +
 	"\n" +
 	"submission\x18\x04 \x01(\v2 .user.review.v1.ReviewSubmissionB\x06\xbaH\x03\xc8\x01\x01R\n" +
-	"submission\"\x16\n" +
-	"\x14SubmitReviewResponse\"\x87\x01\n" +
+	"submission\"\x9f\x01\n" +
+	"\x14SubmitReviewResponse\x12\x1b\n" +
+	"\treview_id\x18\x01 \x01(\tR\breviewId\x12M\n" +
+	"\x11moderation_status\x18\x03 \x01(\x0e2 .user.review.v1.ModerationStatusR\x10moderationStatusJ\x04\b\x02\x10\x03R\x15moderation_request_id\"\x87\x01\n" +
 	"\x1aListReviewsForUserResponse\x120\n" +
 	"\areviews\x18\x01 \x03(\v2\x16.user.review.v1.ReviewR\areviews\x127\n" +
 	"\n" +
@@ -858,11 +1237,54 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\bremovals\x18\x01 \x03(\v2\x1d.user.review.v1.ReviewRemovalR\bremovals\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination2\x87\x04\n" +
+	"pagination\"\xc1\x02\n" +
+	"$ListUnpublishedReviewsForUserRequest\x12)\n" +
+	"\vreviewer_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
+	"reviewerId\x129\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x19.pagination.v1.PaginationR\n" +
+	"pagination\x12_\n" +
+	"\x18moderation_status_filter\x18\x03 \x01(\x0e2 .user.review.v1.ModerationStatusH\x00R\x16moderationStatusFilter\x88\x01\x01\x12(\n" +
+	"\border_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\aorderId\x88\x01\x01B\x1b\n" +
+	"\x19_moderation_status_filterB\v\n" +
+	"\t_order_id\"\x9d\x01\n" +
+	"%ListUnpublishedReviewsForUserResponse\x12;\n" +
+	"\areviews\x18\x01 \x03(\v2!.user.review.v1.UnpublishedReviewR\areviews\x127\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
+	"pagination\"\xa8\x05\n" +
+	"\x11UnpublishedReview\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\vreviewer_id\x18\x02 \x01(\tR\n" +
+	"reviewerId\x12\x1f\n" +
+	"\vreviewee_id\x18\x03 \x01(\tR\n" +
+	"revieweeId\x12\x19\n" +
+	"\border_id\x18\x04 \x01(\tR\aorderId\x12\x16\n" +
+	"\x06rating\x18\x05 \x01(\x05R\x06rating\x12\x18\n" +
+	"\acomment\x18\x06 \x01(\tR\acomment\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"\rreviewer_name\x18\b \x01(\tR\freviewerName\x12#\n" +
+	"\rreviewee_name\x18\t \x01(\tR\frevieweeName\x12M\n" +
+	"\x11moderation_status\x18\n" +
+	" \x01(\x0e2 .user.review.v1.ModerationStatusR\x10moderationStatus\x122\n" +
+	"\x15moderation_request_id\x18\v \x01(\tR\x13moderationRequestId\x12)\n" +
+	"\x10content_revision\x18\f \x01(\x05R\x0fcontentRevision\x126\n" +
+	"\x17moderation_reason_codes\x18\r \x03(\tR\x15moderationReasonCodes\x12B\n" +
+	"\fmoderated_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampH\x00R\vmoderatedAt\x88\x01\x01\x124\n" +
+	"\x16applied_run_generation\x18\x0f \x01(\x05R\x14appliedRunGenerationB\x0f\n" +
+	"\r_moderated_at*\xc7\x01\n" +
+	"\x10ModerationStatus\x12!\n" +
+	"\x1dMODERATION_STATUS_UNSPECIFIED\x10\x00\x12(\n" +
+	"$MODERATION_STATUS_PENDING_MODERATION\x10\x01\x12\x1e\n" +
+	"\x1aMODERATION_STATUS_APPROVED\x10\x02\x12\x1e\n" +
+	"\x1aMODERATION_STATUS_REJECTED\x10\x03\x12&\n" +
+	"\"MODERATION_STATUS_MODERATION_ERROR\x10\x042\x98\x05\n" +
 	"\rReviewService\x12[\n" +
 	"\fSubmitReview\x12#.user.review.v1.SubmitReviewRequest\x1a$.user.review.v1.SubmitReviewResponse\"\x00\x12m\n" +
 	"\x12ListReviewsForUser\x12).user.review.v1.ListReviewsForUserRequest\x1a*.user.review.v1.ListReviewsForUserResponse\"\x00\x12^\n" +
-	"\rListMyReviews\x12$.user.review.v1.ListMyReviewsRequest\x1a%.user.review.v1.ListMyReviewsResponse\"\x00\x12[\n" +
+	"\rListMyReviews\x12$.user.review.v1.ListMyReviewsRequest\x1a%.user.review.v1.ListMyReviewsResponse\"\x00\x12\x8e\x01\n" +
+	"\x1dListUnpublishedReviewsForUser\x124.user.review.v1.ListUnpublishedReviewsForUserRequest\x1a5.user.review.v1.ListUnpublishedReviewsForUserResponse\"\x00\x12[\n" +
 	"\fRemoveReview\x12#.user.review.v1.RemoveReviewRequest\x1a$.user.review.v1.RemoveReviewResponse\"\x00\x12m\n" +
 	"\x12ListReviewRemovals\x12).user.review.v1.ListReviewRemovalsRequest\x1a*.user.review.v1.ListReviewRemovalsResponse\"\x00B\xbe\x01\n" +
 	"\x12com.user.review.v1B\vReviewProtoP\x01ZAgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1;reviewv1\xa2\x02\x03URX\xaa\x02\x0eUser.Review.V1\xca\x02\x0eUser\\Review\\V1\xe2\x02\x1aUser\\Review\\V1\\GPBMetadata\xea\x02\x10User::Review::V1b\x06proto3"
@@ -879,53 +1301,68 @@ func file_user_review_v1_review_proto_rawDescGZIP() []byte {
 	return file_user_review_v1_review_proto_rawDescData
 }
 
-var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_user_review_v1_review_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_user_review_v1_review_proto_goTypes = []any{
-	(*Review)(nil),                     // 0: user.review.v1.Review
-	(*ReviewSubmission)(nil),           // 1: user.review.v1.ReviewSubmission
-	(*SubmitReviewRequest)(nil),        // 2: user.review.v1.SubmitReviewRequest
-	(*SubmitReviewResponse)(nil),       // 3: user.review.v1.SubmitReviewResponse
-	(*ListReviewsForUserResponse)(nil), // 4: user.review.v1.ListReviewsForUserResponse
-	(*ListMyReviewsResponse)(nil),      // 5: user.review.v1.ListMyReviewsResponse
-	(*ListReviewsForUserRequest)(nil),  // 6: user.review.v1.ListReviewsForUserRequest
-	(*ListMyReviewsRequest)(nil),       // 7: user.review.v1.ListMyReviewsRequest
-	(*RemoveReviewRequest)(nil),        // 8: user.review.v1.RemoveReviewRequest
-	(*RemoveReviewResponse)(nil),       // 9: user.review.v1.RemoveReviewResponse
-	(*ReviewRemoval)(nil),              // 10: user.review.v1.ReviewRemoval
-	(*ListReviewRemovalsRequest)(nil),  // 11: user.review.v1.ListReviewRemovalsRequest
-	(*ListReviewRemovalsResponse)(nil), // 12: user.review.v1.ListReviewRemovalsResponse
-	(*timestamppb.Timestamp)(nil),      // 13: google.protobuf.Timestamp
-	(*v1.PageInfo)(nil),                // 14: pagination.v1.PageInfo
-	(*v1.Pagination)(nil),              // 15: pagination.v1.Pagination
+	(ModerationStatus)(0),                         // 0: user.review.v1.ModerationStatus
+	(*Review)(nil),                                // 1: user.review.v1.Review
+	(*ReviewSubmission)(nil),                      // 2: user.review.v1.ReviewSubmission
+	(*SubmitReviewRequest)(nil),                   // 3: user.review.v1.SubmitReviewRequest
+	(*SubmitReviewResponse)(nil),                  // 4: user.review.v1.SubmitReviewResponse
+	(*ListReviewsForUserResponse)(nil),            // 5: user.review.v1.ListReviewsForUserResponse
+	(*ListMyReviewsResponse)(nil),                 // 6: user.review.v1.ListMyReviewsResponse
+	(*ListReviewsForUserRequest)(nil),             // 7: user.review.v1.ListReviewsForUserRequest
+	(*ListMyReviewsRequest)(nil),                  // 8: user.review.v1.ListMyReviewsRequest
+	(*RemoveReviewRequest)(nil),                   // 9: user.review.v1.RemoveReviewRequest
+	(*RemoveReviewResponse)(nil),                  // 10: user.review.v1.RemoveReviewResponse
+	(*ReviewRemoval)(nil),                         // 11: user.review.v1.ReviewRemoval
+	(*ListReviewRemovalsRequest)(nil),             // 12: user.review.v1.ListReviewRemovalsRequest
+	(*ListReviewRemovalsResponse)(nil),            // 13: user.review.v1.ListReviewRemovalsResponse
+	(*ListUnpublishedReviewsForUserRequest)(nil),  // 14: user.review.v1.ListUnpublishedReviewsForUserRequest
+	(*ListUnpublishedReviewsForUserResponse)(nil), // 15: user.review.v1.ListUnpublishedReviewsForUserResponse
+	(*UnpublishedReview)(nil),                     // 16: user.review.v1.UnpublishedReview
+	(*timestamppb.Timestamp)(nil),                 // 17: google.protobuf.Timestamp
+	(*v1.PageInfo)(nil),                           // 18: pagination.v1.PageInfo
+	(*v1.Pagination)(nil),                         // 19: pagination.v1.Pagination
 }
 var file_user_review_v1_review_proto_depIdxs = []int32{
-	13, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
-	1,  // 1: user.review.v1.SubmitReviewRequest.submission:type_name -> user.review.v1.ReviewSubmission
-	0,  // 2: user.review.v1.ListReviewsForUserResponse.reviews:type_name -> user.review.v1.Review
-	14, // 3: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
-	0,  // 4: user.review.v1.ListMyReviewsResponse.reviews:type_name -> user.review.v1.Review
-	14, // 5: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
-	15, // 6: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	15, // 7: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
-	13, // 8: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
-	15, // 9: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
-	10, // 10: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	14, // 11: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
-	2,  // 12: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	6,  // 13: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	7,  // 14: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	8,  // 15: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	11, // 16: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	3,  // 17: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	4,  // 18: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	5,  // 19: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	9,  // 20: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	12, // 21: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	17, // [17:22] is the sub-list for method output_type
-	12, // [12:17] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	17, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
+	2,  // 1: user.review.v1.SubmitReviewRequest.submission:type_name -> user.review.v1.ReviewSubmission
+	0,  // 2: user.review.v1.SubmitReviewResponse.moderation_status:type_name -> user.review.v1.ModerationStatus
+	1,  // 3: user.review.v1.ListReviewsForUserResponse.reviews:type_name -> user.review.v1.Review
+	18, // 4: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	1,  // 5: user.review.v1.ListMyReviewsResponse.reviews:type_name -> user.review.v1.Review
+	18, // 6: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
+	19, // 7: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	19, // 8: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
+	17, // 9: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
+	19, // 10: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	11, // 11: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
+	18, // 12: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	19, // 13: user.review.v1.ListUnpublishedReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	0,  // 14: user.review.v1.ListUnpublishedReviewsForUserRequest.moderation_status_filter:type_name -> user.review.v1.ModerationStatus
+	16, // 15: user.review.v1.ListUnpublishedReviewsForUserResponse.reviews:type_name -> user.review.v1.UnpublishedReview
+	18, // 16: user.review.v1.ListUnpublishedReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	17, // 17: user.review.v1.UnpublishedReview.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 18: user.review.v1.UnpublishedReview.moderation_status:type_name -> user.review.v1.ModerationStatus
+	17, // 19: user.review.v1.UnpublishedReview.moderated_at:type_name -> google.protobuf.Timestamp
+	3,  // 20: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	7,  // 21: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	8,  // 22: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	14, // 23: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:input_type -> user.review.v1.ListUnpublishedReviewsForUserRequest
+	9,  // 24: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	12, // 25: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	4,  // 26: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	5,  // 27: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	6,  // 28: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	15, // 29: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:output_type -> user.review.v1.ListUnpublishedReviewsForUserResponse
+	10, // 30: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	13, // 31: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	26, // [26:32] is the sub-list for method output_type
+	20, // [20:26] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }
@@ -933,18 +1370,21 @@ func file_user_review_v1_review_proto_init() {
 	if File_user_review_v1_review_proto != nil {
 		return
 	}
+	file_user_review_v1_review_proto_msgTypes[13].OneofWrappers = []any{}
+	file_user_review_v1_review_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_review_v1_review_proto_rawDesc), len(file_user_review_v1_review_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   13,
+			NumEnums:      1,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_user_review_v1_review_proto_goTypes,
 		DependencyIndexes: file_user_review_v1_review_proto_depIdxs,
+		EnumInfos:         file_user_review_v1_review_proto_enumTypes,
 		MessageInfos:      file_user_review_v1_review_proto_msgTypes,
 	}.Build()
 	File_user_review_v1_review_proto = out.File

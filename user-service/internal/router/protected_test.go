@@ -61,8 +61,10 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 
 type reviewStub struct{}
 
-func (reviewStub) SubmitReview(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission) error {
-	return nil
+func (reviewStub) SubmitReview(
+	context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission,
+) (review.SubmissionResult, error) {
+	return review.SubmissionResult{}, nil
 }
 
 func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
@@ -71,6 +73,12 @@ func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagi
 
 func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
 	return review.ReviewPage{}, nil
+}
+
+func (reviewStub) ListUnpublishedReviewsForUser(
+	context.Context, uuid.UUID, review.UnpublishedFilter, pagination.Pagination,
+) (review.UnpublishedReviewPage, error) {
+	return review.UnpublishedReviewPage{}, nil
 }
 
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
