@@ -236,6 +236,10 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if len(received.Reviews) != 2 {
 			t.Fatalf("want 2 reviews, got %d", len(received.Reviews))
 		}
+		beforeRemovals, err := service.ListReviewRemovals(ctx, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatalf("list removals before deletion: %v", err)
+		}
 		if err := service.RemoveReview(ctx, firstReview, "abuse", admin); err != nil {
 			t.Fatalf("remove review: %v", err)
 		}
@@ -247,11 +251,12 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list removals: %v", err)
 		}
-		if len(removals.Removals) != 1 || removals.Removals[0].Reason != "abuse" ||
+		if len(removals.Removals) == 0 || removals.Removals[0].ReviewID != firstReview ||
+			removals.Removals[0].Reason != "abuse" ||
 			removals.Removals[0].CreatedBy != admin {
 			t.Fatalf("audit row not recorded: %+v", removals)
 		}
-		if removals.TotalItems() != 1 || removals.TotalPages() != 1 {
+		if removals.TotalItems() != beforeRemovals.TotalItems()+1 {
 			t.Fatalf("unexpected page info: %+v", removals.PageInfo)
 		}
 		// The removed review's row is retained with deleted_at set, so the
