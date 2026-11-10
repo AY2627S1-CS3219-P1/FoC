@@ -122,12 +122,10 @@ describe('review moderation batch merge API', () => {
 		const pagination = create(PaginationSchema, { page: 2n, pageSize: 10n });
 		const { records, pageInfo } = await api.loadReviewsForUser({
 			reviewerId: 'rev-1',
-			pagination,
-			moderationStatusFilter: ModerationStatus.PENDING_MODERATION
+			pagination
 		});
 		expect(reviewCalls[0]).toMatchObject({
-			reviewerId: 'rev-1',
-			moderationStatusFilter: ModerationStatus.PENDING_MODERATION
+			reviewerId: 'rev-1'
 		});
 		expect((reviewCalls[0] as { pagination?: { page: bigint } }).pagination?.page).toBe(2n);
 		expect(records).toHaveLength(1);

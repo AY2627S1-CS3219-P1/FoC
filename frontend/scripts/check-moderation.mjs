@@ -28,6 +28,7 @@ try {
 	assert.equal(await page.getByText('Model configuration', { exact: true }).count(), 0);
 	await page.goto(base + '/profile/reviews/unpublished');
 	await page.getByText('Being assessed again', { exact: true }).waitFor();
+	assert.equal(await page.getByRole('combobox').count(), 0, 'no unpublished status filter');
 	await page.getByText('Retry progress regression', { exact: true }).waitFor();
 	assert.match(await page.locator('.review-detail').innerText(), /unpublished/);
 	assert.deepEqual(errors, [], 'no browser runtime errors');

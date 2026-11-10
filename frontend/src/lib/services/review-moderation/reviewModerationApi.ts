@@ -34,7 +34,6 @@ export interface ReviewModerationRecord {
 
 export interface LoadReviewsForUserParams {
 	reviewerId: string;
-	moderationStatusFilter?: ModerationStatus;
 	pagination?: Pagination;
 }
 

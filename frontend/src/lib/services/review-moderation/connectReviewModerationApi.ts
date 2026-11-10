@@ -42,12 +42,10 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 
 	async loadReviewsForUser({
 		reviewerId,
-		moderationStatusFilter,
 		pagination
 	}: LoadReviewsForUserParams): Promise<ReviewModerationPage> {
 		const { reviews, pagination: pageInfo } = await this.#review.listUnpublishedReviewsForUser({
 			reviewerId,
-			moderationStatusFilter,
 			pagination
 		});
 

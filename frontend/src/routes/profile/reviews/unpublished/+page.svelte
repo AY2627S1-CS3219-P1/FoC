@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
-	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
 	import { create } from '@bufbuild/protobuf';
 	import { PaginationSchema } from '$lib/gen/pagination/v1/pagination_pb';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
@@ -38,7 +37,6 @@
 	const POLL_INTERVAL_MS = 20000;
 
 	let page = $state(1n);
-	let statusFilter = $state<ModerationStatus | undefined>(undefined);
 	let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 	const records = $derived(reviewPage.records);
@@ -49,15 +47,6 @@
 	const cmsAvailable = $derived(reviewPage.cmsAvailable);
 	const cmsError = $derived(reviewPage.cmsError);
 
-	function statusOptions() {
-		return [
-			{ value: undefined, label: 'All unpublished' },
-			{ value: ModerationStatus.PENDING_MODERATION, label: 'Pending' },
-			{ value: ModerationStatus.REJECTED, label: 'Rejected' },
-			{ value: ModerationStatus.MODERATION_ERROR, label: 'Assessment error' }
-		];
-	}
-
 	async function load(targetPage: bigint = page): Promise<void> {
 		if (!ownerId) {
 			await initialize();
@@ -66,7 +55,6 @@
 		try {
 			const applied = await reviewPage.loadReviews({
 				reviewerId: ownerId,
-				moderationStatusFilter: statusFilter,
 				pagination: create(PaginationSchema, { page: targetPage, pageSize: PAGE_SIZE })
 			});
 			if (applied) page = targetPage;
@@ -80,13 +68,6 @@
 
 	function changePage(target: number): void {
 		void load(BigInt(target));
-	}
-
-	function changeFilter(event: Event): void {
-		const value = (event.currentTarget as HTMLSelectElement).value;
-		statusFilter = value === '' ? undefined : (Number(value) as ModerationStatus);
-		page = 1n;
-		void load(1n);
 	}
 
 	function startPolling(): void {
@@ -171,16 +152,6 @@
 			</p>
 		{/if}
 		<div class="list-controls">
-			<label class="filter-label">
-				Show
-				<select class="filter-select" value={statusFilter ?? ''} onchange={changeFilter}>
-					{#each statusOptions() as option (option.label)}
-						<option value={option.value === undefined ? '' : String(option.value)}
-							>{option.label}</option
-						>
-					{/each}
-				</select>
-			</label>
 			<Button variant="text" disabled={isLoading} onclick={() => void load()}>Refresh</Button>
 		</div>
 
@@ -188,9 +159,8 @@
 			<Card variant="outlined">
 				<div class="panel-body">
 					<p class="notice" role="status">
-						{statusFilter === undefined
-							? 'You have no unpublished reviews. Reviews appear here while they await assessment, or if they cannot be published.'
-							: 'No unpublished reviews match this filter.'}
+						You have no unpublished reviews. Reviews appear here while they await assessment, or if
+						they cannot be published.
 					</p>
 				</div>
 			</Card>
