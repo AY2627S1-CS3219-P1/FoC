@@ -72,7 +72,14 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 		return Order{}, err
 	}
 	in.ProofIDs, err = normalizedProofIDs(in.ProofIDs)
-	if err != nil || (len(in.ProofIDs) == 0) != in.WithoutProof {
+	if err != nil {
+		return Order{}, err
+	}
+	// Proof is mandatory; the outage option is the only zero-photo exception.
+	if len(in.ProofIDs) == 0 && !in.WithoutProof {
+		return Order{}, ErrProofRequired
+	}
+	if len(in.ProofIDs) > 0 && in.WithoutProof {
 		return Order{}, ErrInvalid
 	}
 	// A zero-photo exception must already have authoritative evidence when
@@ -148,15 +155,17 @@ func (s *ProofReceipts) ConfirmDelivery(ctx context.Context, c Caller, in Confir
 			if outageErr != nil && !errors.Is(outageErr, ErrPrecondition) {
 				return nil, ErrUnavailable
 			}
+			// Without a server-confirmed outage this is still a photoless
+			// confirmation, so the same proof-required reason applies.
 			if outage == nil || !s.proofs.isCurrentProofOutage(*outage, now) {
-				return nil, ErrPrecondition
+				return nil, ErrProofRequired
 			}
 			current, e := tx.IsProofOutageCurrent(ctx, *outage)
 			if e != nil {
 				return nil, e
 			}
 			if !current {
-				return nil, ErrPrecondition
+				return nil, ErrProofRequired
 			}
 		}
 		receipt = DeliveryReceipt{
