@@ -127,6 +127,11 @@
 						{#if warning.removedAt}<div><dt>Removed</dt><dd>{dateFormat.format(warning.removedAt)}</dd></div>{/if}
 						{#if warning.removedReason}<div class="removal-reason"><dt>Removal reason</dt><dd>{warning.removedReason}</dd></div>{/if}
 					</dl>
+					{#if !isRemoved}
+						<div class="warning-actions">
+							<Button variant="text" href={`/appeals/new?warningId=${encodeURIComponent(warning.id)}`}>Appeal</Button>
+						</div>
+					{/if}
 				</article>
 			{/each}
 		</div>
@@ -183,6 +188,8 @@
 	.is-removed .warning-reason { color: var(--m3c-on-surface-variant); }
 
 	.view-order { flex: none; margin-left: auto; }
+
+	.warning-actions { display: flex; justify-content: flex-end; }
 
 	.warning-meta {
 		display: flex;

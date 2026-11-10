@@ -12,6 +12,6 @@
 	load={(pagination, signal) => reviewApi.listReceived(pagination, signal)}
 >
 	{#snippet row(review)}
-		<ReviewRow {review} counterpart={review.reviewerName} />
+		<ReviewRow {review} counterpart={review.reviewerName} reportable />
 	{/snippet}
 </ReviewListPage>
