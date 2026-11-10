@@ -70,6 +70,26 @@ func (r *PostgresRepository) CountByStatus(ctx context.Context) (map[Status]int6
 	return counts, nil
 }
 
+// CountByDay counts orders created in [from, to) on each Asia/Singapore day that
+// has any.
+func (r *PostgresRepository) CountByDay(ctx context.Context, from, to time.Time) (map[Date]int64, error) {
+	rows, err := db.New(r.pool).CountOrdersByDay(ctx, db.CountOrdersByDayParams{FromAt: from, ToAt: to})
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+
+	counts := make(map[Date]int64, len(rows))
+	for _, row := range rows {
+		if !row.Day.Valid {
+			return nil, fmt.Errorf("order count day is null")
+		}
+		day := row.Day.Time
+		counts[Date{Year: day.Year(), Month: day.Month(), Day: day.Day()}] = row.Total
+	}
+
+	return counts, nil
+}
+
 // Each list/count and Order/offer read sees one read-only snapshot, without locks.
 func (r *PostgresRepository) snapshot(ctx context.Context, fn func(*db.Queries) error) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})

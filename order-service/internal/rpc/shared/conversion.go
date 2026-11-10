@@ -8,6 +8,7 @@ import (
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -43,6 +44,22 @@ func OrderStatusCounts(counts map[app.Status]int64) []*pb.OrderStatusCount {
 		}
 		out = append(out, &pb.OrderStatusCount{Status: value, Count: counts[status]})
 	}
+}
+
+// OrderDate converts a protobuf calendar date. Validity is checked by the domain.
+func OrderDate(d *date.Date) app.Date {
+	return app.Date{Year: int(d.GetYear()), Month: time.Month(d.GetMonth()), Day: int(d.GetDay())}
+}
+
+func DailyOrderCounts(days []app.DailyCount) []*pb.DailyOrderCount {
+	out := make([]*pb.DailyOrderCount, len(days))
+	for i, d := range days {
+		out[i] = &pb.DailyOrderCount{
+			Date:  &date.Date{Year: int32(d.Date.Year), Month: int32(d.Date.Month), Day: int32(d.Date.Day)},
+			Count: d.Count,
+		}
+	}
+	return out
 }
 
 var roles = map[pb.ParticipantRole]app.Role{

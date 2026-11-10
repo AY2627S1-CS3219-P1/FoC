@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -104,6 +105,15 @@ func (f *fakeOperations) ListUserOrders(
 func (f *fakeOperations) CountOrdersByStatus(_ context.Context, c app.Caller) (map[app.Status]int64, error) {
 	f.called, f.caller = "stats", c
 	return map[app.Status]int64{app.AwaitingCourier: 3, app.Completed: 5}, f.err
+}
+
+func (f *fakeOperations) CountOrdersByDay(
+	_ context.Context,
+	c app.Caller,
+	start, end app.Date,
+) ([]app.DailyCount, error) {
+	f.called, f.caller = "daily", c
+	return []app.DailyCount{{Date: start, Count: 2}, {Date: end, Count: 0}}, f.err
 }
 
 func (f *fakeOperations) ListOffers(
@@ -564,5 +574,52 @@ func TestGetOrderStats(t *testing.T) {
 	}
 	if !f.caller.Admin {
 		t.Fatalf("caller = %+v", f.caller)
+	}
+}
+
+func TestGetDailyOrderCounts(t *testing.T) {
+	request := func() *connect.Request[pb.GetDailyOrderCountsRequest] {
+		return connect.NewRequest(&pb.GetDailyOrderCountsRequest{
+			StartDate: &date.Date{Year: 2026, Month: 11, Day: 9},
+			EndDate:   &date.Date{Year: 2026, Month: 11, Day: 10},
+		})
+	}
+	for _, role := range []string{"", "user", "suspended_user"} {
+		t.Run(role, func(t *testing.T) {
+			f := &fakeOperations{}
+			c := mount(t, f, role)
+			_, err := c.admin.GetDailyOrderCounts(context.Background(), request())
+			want := connect.CodePermissionDenied
+			if role == "" {
+				want = connect.CodeUnauthenticated
+			}
+			if connect.CodeOf(err) != want || f.called != "" {
+				t.Fatalf("code=%v called=%q want=%v", connect.CodeOf(err), f.called, want)
+			}
+		})
+	}
+
+	f := &fakeOperations{}
+	c := mount(t, f, "admin")
+	_, err := c.admin.GetDailyOrderCounts(context.Background(), connect.NewRequest(&pb.GetDailyOrderCountsRequest{}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || f.called != "" {
+		t.Fatalf("missing dates: code=%v called=%q", connect.CodeOf(err), f.called)
+	}
+
+	f.err = app.ErrInvalid
+	if _, err := c.admin.GetDailyOrderCounts(context.Background(), request()); connect.CodeOf(err) !=
+		connect.CodeInvalidArgument {
+		t.Fatalf("invalid range: %v", err)
+	}
+
+	f.err = nil
+	got, err := c.admin.GetDailyOrderCounts(context.Background(), request())
+	if err != nil {
+		t.Fatal(err)
+	}
+	days := got.Msg.GetDays()
+	if len(days) != 2 || days[0].GetDate().GetDay() != 9 || days[0].GetCount() != 2 ||
+		days[1].GetDate().GetDay() != 10 || days[1].GetCount() != 0 || !f.caller.Admin {
+		t.Fatalf("days = %v, caller %+v", days, f.caller)
 	}
 }
