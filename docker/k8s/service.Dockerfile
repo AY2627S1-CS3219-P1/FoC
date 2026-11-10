@@ -16,8 +16,9 @@ COPY communication-service/go.mod communication-service/go.sum ./communication-s
 COPY credit-service/go.mod credit-service/go.sum ./credit-service/
 COPY content-moderation-service/go.mod content-moderation-service/go.sum ./content-moderation-service/
 COPY moderation-service/go.mod moderation-service/go.sum ./moderation-service/
-RUN --mount=type=cache,target=/go/pkg/mod \
-    case "$SERVICE" in \
+# Modules stay in this layer, not a cache mount, so a registry layer cache
+# restores them on a fresh builder.
+RUN case "$SERVICE" in \
         user-service|supplier-service|order-service|credit-service|communication-service|content-moderation-service|moderation-service) ;; \
         *) echo "Unsupported Go SERVICE" >&2; exit 1 ;; \
     esac \
@@ -34,8 +35,7 @@ COPY moderation-service/ ./moderation-service/
 COPY docker/k8s/healthcheck/ ./docker/k8s/healthcheck/
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GO111MODULE=off go test ./docker/k8s/healthcheck
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/root/.cache/go-build \
     cd "$SERVICE" \
     && go build -mod=readonly -trimpath -ldflags="-s -w" -o /out/server ./cmd/server \
     && go build -trimpath -ldflags="-s -w" -o /out/healthcheck /src/docker/k8s/healthcheck/main.go \
