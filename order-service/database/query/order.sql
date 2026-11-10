@@ -35,6 +35,14 @@ SELECT count(*) FROM orders WHERE
 -- name: CountOrdersByStatus :many
 SELECT status, count(*) AS total FROM orders GROUP BY status;
 
+-- name: CountOrdersByDay :many
+-- Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= sqlc.arg(from_at)::timestamptz AND created_at < sqlc.arg(to_at)::timestamptz
+GROUP BY day
+ORDER BY day;
+
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;
 
