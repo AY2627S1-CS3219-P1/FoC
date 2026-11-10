@@ -18,7 +18,7 @@ func TestOutboxLeaseExcludesLiveOwnersAndFencesExpiredOwners(t *testing.T) {
 	pool := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := store.Ingest(ctx, ingestInput("outbox")); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCrashRecoveryEndsAtAttemptBudgetWithOneTerminalOutbox(t *testing.T) {
 		pool,
 		moderationjob.RetrySettingsFromConfig(2, time.Millisecond, time.Millisecond),
 		nil,
-	)
+		"test-model")
 	in := ingestInput("repeated crash")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestShutdownReleaseIsBoundedWhileDatabaseRowIsLocked(t *testing.T) {
 	pool := newTestPool(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	in := ingestInput("shutdown")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestShutdownReleaseIsBoundedWhileDatabaseRowIsLocked(t *testing.T) {
 	p := moderationjob.NewPool(
 		store,
 		eval,
-		moderation.NewInferenceLimiter(1),
+		moderationjob.NewInferenceLimiter(1),
 		moderationjob.PoolConfig{
 			Concurrency:       1,
 			CleanupTimeout:    30 * time.Millisecond,
@@ -203,7 +203,7 @@ func TestRepeatedShutdownReleaseCannotBypassAttemptBudget(t *testing.T) {
 		pool,
 		moderationjob.RetrySettingsFromConfig(2, time.Millisecond, time.Millisecond),
 		nil,
-	)
+		"test-model")
 	if _, err := store.Ingest(ctx, ingestInput("release budget")); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestFailureFinalizationLocksJobBeforeAttemptHistory(t *testing.T) {
 	pool := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := store.Ingest(ctx, ingestInput("lock order")); err != nil {
 		t.Fatal(err)
 	}
@@ -288,12 +288,12 @@ func TestOccupiedInferenceGateLeavesJobAvailableToAnotherReplica(t *testing.T) {
 	pool := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	in := ingestInput("shared inference capacity")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)
 	}
-	gate := moderation.NewInferenceLimiter(1)
+	gate := moderationjob.NewInferenceLimiter(1)
 	if err := gate.Acquire(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestJobWritesRejectLeaseExpiryDuringRowLockWait(t *testing.T) {
 			pool := newTestPool(t)
 
 			ctx := context.Background()
-			store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+			store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 			if _, err := store.Ingest(ctx, ingestInput("blocked transition")); err != nil {
 				t.Fatal(err)
 			}

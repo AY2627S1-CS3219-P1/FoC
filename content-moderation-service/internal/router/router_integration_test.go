@@ -43,7 +43,7 @@ func newMux(
 	caller *auth.Caller,
 ) (*http.ServeMux, reviewv1connect.ReviewModerationServiceClient, reviewv1connect.ReviewModerationAdminServiceClient) {
 	t.Helper()
-	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	services := router.RPCServices{
 		Health:                grpchealth.NewStaticChecker(),
 		ReviewModeration:      reviewrpc.NewOwnerHandler(service),
@@ -79,7 +79,7 @@ func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uu
 		ContentRevision:     1,
 		Comment:             "abac target",
 	}
-	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestInternalListenerServesOnlyHealth(t *testing.T) {
 	// The internal listener mounts the standard health protocol only — no
 	// business or admin RPCs.
 	pool := setupDB(t)
-	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	services := router.RPCServices{
 		Health:                grpchealth.NewStaticChecker(),
 		ReviewModeration:      reviewrpc.NewOwnerHandler(service),

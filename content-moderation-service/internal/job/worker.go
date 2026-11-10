@@ -26,7 +26,7 @@ type PoolConfig struct {
 type Pool struct {
 	store   jobOperations
 	service Assessor
-	limiter *moderation.InferenceLimiter
+	limiter *InferenceLimiter
 	cfg     PoolConfig
 	logger  *slog.Logger
 	stats   poolStats
@@ -37,7 +37,7 @@ type Pool struct {
 func NewPool(
 	repository jobOperations,
 	service Assessor,
-	limiter *moderation.InferenceLimiter,
+	limiter *InferenceLimiter,
 	cfg PoolConfig,
 	logger *slog.Logger,
 ) *Pool {
@@ -166,11 +166,7 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 		p.release(ctx, claimed)
 		return
 	}
-	input, err := evaluationInput(claimed)
-	if err != nil {
-		p.finalizeFailed(ctx, claimed, moderation.WrapConfigurationError(err))
-		return
-	}
+	input := evaluationInput(claimed)
 	heartbeatStop, claimLost, claimDone := p.heartbeat(ctx, evalCtx, cancelEval, claimed)
 
 	assessment, evalErr := p.service.AssessReview(evalCtx, input)
@@ -316,14 +312,14 @@ func (p *Pool) idleSleep(ctx context.Context, d time.Duration) {
 	}
 }
 
-func evaluationInput(claimed *ClaimedJob) (moderation.ReviewInput, error) {
+func evaluationInput(claimed *ClaimedJob) moderation.ReviewInput {
 	return moderation.ReviewInput{
 		ModerationRequestID: claimed.Job.ModerationRequestID.String(),
 		ReviewID:            claimed.Job.ReviewID.String(),
 		ReviewerID:          claimed.Job.ReviewerID.String(),
 		ContentRevision:     claimed.Job.ContentRevision,
 		Comment:             claimed.Job.Comment,
-	}, nil
+	}
 }
 
 type poolStats struct {

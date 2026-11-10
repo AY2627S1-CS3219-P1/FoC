@@ -1,10 +1,8 @@
-package moderation
+package job
 
 import "context"
 
-// InferenceLimiter is a bounded in-flight gate shared by the worker pool and the
-// configuration test operation, so a configuration test never runs alongside
-// more than the configured number of live assessments.
+// InferenceLimiter bounds concurrent assessments before a worker claims a job.
 type InferenceLimiter struct {
 	ch chan struct{}
 }

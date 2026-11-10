@@ -69,8 +69,8 @@ func (p RetrySettings) decide(
 	}
 	switch kind {
 	case moderation.KindConfiguration:
-		// The fenced failure transaction blocks this configuration in the database.
-		// Only successful admin revalidation can make it eligible again.
+		// Provider configuration failures are intercepted by the worker, which
+		// releases its claim and stops the pool until restart.
 		return decision{retry: true}
 	case moderation.KindInvalidOutput:
 		if invalidCount >= p.InvalidBudget {

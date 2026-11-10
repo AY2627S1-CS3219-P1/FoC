@@ -16,7 +16,7 @@ func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 	db := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	for range 3 {
 		if _, err := store.Ingest(ctx, ingestInput("finalization contention")); err != nil {
 			t.Fatal(err)
@@ -43,7 +43,7 @@ func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 	worker := moderationjob.NewPool(
 		store,
 		evaluator,
-		moderation.NewInferenceLimiter(2),
+		moderationjob.NewInferenceLimiter(2),
 		moderationjob.PoolConfig{
 			Concurrency:       2,
 			Lease:             300 * time.Millisecond,
@@ -94,7 +94,7 @@ func TestAsyncReviewTerminalOutboxFailureRollsBackResultAndAttempt(t *testing.T)
 	db := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := store.Ingest(ctx, ingestInput("atomic result publication")); err != nil {
 		t.Fatal(err)
 	}

@@ -76,7 +76,7 @@ func approvedAssessment() moderation.ReviewAssessment {
 }
 
 func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(1)
+	limiter := NewInferenceLimiter(1)
 	if !limiter.TryAcquire() {
 		t.Fatal("occupy gate")
 	}
@@ -106,7 +106,7 @@ func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
 }
 
 func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(1)
+	limiter := NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	var evaluated, released bool
 	store := &repositoryFake{
@@ -130,7 +130,7 @@ func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
 }
 
 func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(1)
+	limiter := NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	entered := make(chan struct{})
 	var heartbeats atomic.Int32
@@ -168,7 +168,7 @@ func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
 }
 
 func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(1)
+	limiter := NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	released := false
 	store := &repositoryFake{
@@ -209,7 +209,7 @@ func TestConfigurationFailureReleasesClaimAndStopsPool(t *testing.T) {
 			t.Fatal("cleanup context cancelled")
 		}
 		return true, nil
-	}}, nil, moderation.NewInferenceLimiter(1), regressionConfig(), nil)
+	}}, nil, NewInferenceLimiter(1), regressionConfig(), nil)
 	p.stop = func() { stopped = true }
 	p.finalizeFailed(
 		context.Background(),

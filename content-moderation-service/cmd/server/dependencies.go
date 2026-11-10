@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"log/slog"
 
@@ -30,11 +31,10 @@ func newServerComponents(
 	logger *slog.Logger,
 ) (serverComponents, error) {
 	policy := moderationjob.RetrySettingsFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
-	jobStore := moderationjob.NewService(pool, policy, nil)
-	jobStore.SetModelID(cfg.LLMModelID)
+	jobStore := moderationjob.NewService(pool, policy, nil, cfg.LLMModelID)
 
 	var client moderation.CompletionClient
-	var limiter *moderation.InferenceLimiter
+	var limiter *moderationjob.InferenceLimiter
 
 	if cfg.LLMAPIKey != "" && cfg.LLMBaseURL != "" {
 		adapter, err := openaiadapter.New(openaiadapter.Config{
@@ -43,10 +43,10 @@ func newServerComponents(
 			Timeout: cfg.LLMRequestTimeout,
 		})
 		if err != nil {
-			logger.Warn("failed to create LLM adapter", "error", err)
+			return serverComponents{}, fmt.Errorf("create moderation provider: %w", err)
 		} else {
 			client = adapter
-			limiter = moderation.NewInferenceLimiter(cfg.WorkerConcurrency)
+			limiter = moderationjob.NewInferenceLimiter(cfg.WorkerConcurrency)
 		}
 	}
 

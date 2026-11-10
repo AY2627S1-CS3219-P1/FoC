@@ -80,7 +80,7 @@ func jobIDByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) uuid.
 
 func jobByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) moderationdb.ModerationJob {
 	t.Helper()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	job, err := store.GetJobByID(context.Background(), jobIDByRequest(t, pool, requestID))
 	if err != nil {
 		t.Fatalf("load job: %v", err)
@@ -177,7 +177,7 @@ func waitFor(t *testing.T, cond func() bool, within time.Duration, what string) 
 
 func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 	pool := newTestPool(t)
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	t.Run("first delivery inserts one queued job", func(t *testing.T) {
@@ -257,7 +257,7 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	const total = 6
@@ -315,7 +315,7 @@ func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 func TestStaleClaimCannotFinalize(t *testing.T) {
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("fencing target")
@@ -362,7 +362,7 @@ func TestStaleClaimCannotFinalize(t *testing.T) {
 func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("recover me")
@@ -415,7 +415,7 @@ func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 	pool := newTestPool(t)
 
 	policy := moderationjob.DefaultRetrySettings()
-	store := moderationjob.NewService(pool, policy, nil)
+	store := moderationjob.NewService(pool, policy, nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("doomed review")
@@ -498,7 +498,7 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 	pool := newTestPool(t)
 
 	policy := moderationjob.DefaultRetrySettings()
-	store := moderationjob.NewService(pool, policy, nil)
+	store := moderationjob.NewService(pool, policy, nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("invalid output case")
@@ -536,7 +536,7 @@ func TestRetryThenSucceedCompletesCleanly(t *testing.T) {
 	// successful retry — CompleteJob clears error_class and next_attempt_at.
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("retry then succeed")
@@ -580,7 +580,7 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 	// rejection to ERROR silently discarded every rejection.
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("this is harassment")
@@ -625,7 +625,7 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 	// write on UNIQUE(job_id, run_generation) forever.
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("stale finalize target")
@@ -682,7 +682,7 @@ func TestReleaseRequeuesForPromptRetry(t *testing.T) {
 	// CHECK and silently waiting out the lease.
 	pool := newTestPool(t)
 
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 
 	in := ingestInput("release me")
@@ -717,16 +717,16 @@ func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
 	pool := newTestPool(t)
 
 	in := ingestInput("cancel then release")
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := store.Ingest(context.Background(), in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 
 	eval := newBlockingEvaluator()
 	p := moderationjob.NewPool(
-		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model"),
 		eval,
-		moderation.NewInferenceLimiter(1),
+		moderationjob.NewInferenceLimiter(1),
 		moderationjob.PoolConfig{
 			Concurrency:       1,
 			Lease:             30 * time.Second,
@@ -785,7 +785,7 @@ func TestAdminAuditRejectsUnknownAction(t *testing.T) {
 
 func TestConcurrentIngestionVerifiesImmutableSnapshot(t *testing.T) {
 	pool := newTestPool(t)
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	ctx := context.Background()
 	in := ingestInput("original immutable text")
 	errorsC := make(chan error, 8)
@@ -819,7 +819,7 @@ func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 	pool := newTestPool(t)
 
 	ctx := context.Background()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	in := ingestInput("clock fencing")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)

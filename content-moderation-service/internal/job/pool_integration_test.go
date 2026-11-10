@@ -88,7 +88,7 @@ func (e *blockingEvaluator) peakConcurrency() int {
 
 func ingestJobs(t *testing.T, pool *poolT, n int) {
 	t.Helper()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	for range n {
 		if _, err := store.Ingest(context.Background(), ingestInput("pool me")); err != nil {
 			t.Fatalf("ingest: %v", err)
@@ -113,9 +113,9 @@ func TestPoolRespectsConcurrencyCap(t *testing.T) {
 
 	eval := newBlockingEvaluator()
 	p := moderationjob.NewPool(
-		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model"),
 		eval,
-		moderation.NewInferenceLimiter(2),
+		moderationjob.NewInferenceLimiter(2),
 		moderationjob.PoolConfig{
 			Concurrency:       2,
 			Lease:             30 * time.Second,
@@ -167,9 +167,9 @@ func TestPoolConcurrencyOneSerializes(t *testing.T) {
 
 	eval := newBlockingEvaluator()
 	p := moderationjob.NewPool(
-		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model"),
 		eval,
-		moderation.NewInferenceLimiter(1),
+		moderationjob.NewInferenceLimiter(1),
 		moderationjob.PoolConfig{
 			Concurrency:       1,
 			Lease:             30 * time.Second,
@@ -217,9 +217,9 @@ func TestIndependentPoolsScaleConcurrency(t *testing.T) {
 			})
 			for range tc.replicas {
 				p := moderationjob.NewPool(
-					moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
+					moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model"),
 					eval,
-					moderation.NewInferenceLimiter(tc.concurrency),
+					moderationjob.NewInferenceLimiter(tc.concurrency),
 					moderationjob.PoolConfig{
 						Concurrency: tc.concurrency, Lease: 30 * time.Second,
 						HeartbeatInterval: time.Second, PollInterval: 10 * time.Millisecond,

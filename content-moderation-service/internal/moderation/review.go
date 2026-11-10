@@ -15,7 +15,7 @@ const (
 	OutcomeError ModerationOutcome = "error"
 )
 
-// ReviewInput is the immutable job snapshot passed to Service.AssessReview.
+// ReviewInput is the immutable review content passed to Service.AssessReview.
 type ReviewInput struct {
 	// ModerationRequestID identifies the assessment request.
 	ModerationRequestID string

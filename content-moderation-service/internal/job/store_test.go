@@ -21,7 +21,7 @@ func TestDefaultPolicy(t *testing.T) {
 }
 
 func TestLimiter(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(2)
+	limiter := moderationjob.NewInferenceLimiter(2)
 
 	if limiter == nil {
 		t.Fatal("NewInferenceLimiter returned nil")
@@ -109,7 +109,7 @@ func TestPolicy(t *testing.T) {
 }
 
 func TestLimiterAcquire(t *testing.T) {
-	limiter := moderation.NewInferenceLimiter(1)
+	limiter := moderationjob.NewInferenceLimiter(1)
 
 	ctx := context.Background()
 

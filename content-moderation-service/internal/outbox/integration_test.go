@@ -94,7 +94,7 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 		ContentRevision:     1,
 		Comment:             "relay me",
 	}
-	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
+	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}

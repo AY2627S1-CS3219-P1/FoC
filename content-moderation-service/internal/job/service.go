@@ -37,11 +37,11 @@ type Service struct {
 	rng   *rand.Rand
 }
 
-func NewService(pool *pgxpool.Pool, retry RetrySettings, rng *rand.Rand) *Service {
+func NewService(pool *pgxpool.Pool, retry RetrySettings, rng *rand.Rand, modelID string) *Service {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
-	store := &Service{pool: pool, retry: retry, rng: rng}
+	store := &Service{pool: pool, retry: retry, rng: rng, modelID: modelID}
 	return store
 }
 
@@ -95,9 +95,8 @@ func (s *Service) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.
 	return released, err
 }
 
-// Claim performs the short claim transaction: lock the oldest eligible job, pin
-// the immutable content, mark it processing, and
-// record the started attempt. The claim lock is released by the transaction, so
+// Claim locks the oldest eligible job, marks it processing, and records the
+// started attempt. The claim lock is released by the transaction, so
 // no lock is held during inference.
 func (s *Service) Claim(
 	ctx context.Context,
@@ -418,5 +417,3 @@ func exhaustJob(ctx context.Context, q *moderationdb.Queries, job moderationdb.M
 		AvailableAt:    now,
 	})
 }
-
-func (s *Service) SetModelID(modelID string) { s.modelID = modelID }
