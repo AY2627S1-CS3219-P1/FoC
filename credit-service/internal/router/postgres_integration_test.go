@@ -29,6 +29,7 @@ import (
 	userseventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -53,7 +54,7 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	services := router.RPCServices{
 		Health:      &healthrpc.Checker{DB: pool},
 		Account:     &accountrpc.Server{Accounts: accounts},
-		Admin:       &adminrpc.Server{Totals: accountStore},
+		Admin:       &adminrpc.Server{Totals: accountStore, Volumes: account.NewVolumes(accountStore)},
 		Reservation: &reservationrpc.Server{Reservations: reservations},
 	}
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
@@ -311,5 +312,38 @@ func TestCreditTotalsOverPostgres(t *testing.T) {
 	}
 	if m := res.Msg; m.GetReserved() != 7 || m.GetReturned() != 25 || m.GetTransferred() != 15 {
 		t.Fatalf("totals: %v", m)
+	}
+
+	// Payouts are recorded at settlement, which is now. Requester-side PAYOUT
+	// entries record the same payment and are not counted again.
+	today := time.Now().In(time.FixedZone("Asia/Singapore", 8*60*60))
+	yesterday := today.AddDate(0, 0, -1)
+	daily, err := c.admin.GetDailyTransactionVolume(
+		ctx,
+		withBearer(&creditv1.GetDailyTransactionVolumeRequest{
+			StartDate: &date.Date{
+				Year:  int32(yesterday.Year()),
+				Month: int32(yesterday.Month()),
+				Day:   int32(yesterday.Day()),
+			},
+			EndDate: &date.Date{Year: int32(today.Year()), Month: int32(today.Month()), Day: int32(today.Day())},
+		}, uuid.NewString()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One day holds the payment and the other is filled with zeros, whichever
+	// side of midnight the settlement fell on.
+	days := daily.Msg.GetDays()
+	var credits, payments, emptyDays int64
+	for _, d := range days {
+		credits += d.GetCreditsTransferred()
+		payments += d.GetPaymentCount()
+		if d.GetPaymentCount() == 0 {
+			emptyDays++
+		}
+	}
+	if len(days) != 2 || credits != 15 || payments != 1 || emptyDays != 1 {
+		t.Fatalf("daily volume: %v", days)
 	}
 }

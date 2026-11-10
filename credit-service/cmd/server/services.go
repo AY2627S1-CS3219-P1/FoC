@@ -40,7 +40,7 @@ func newServices(pool *pgxpool.Pool) services {
 				},
 			},
 			Account:     &accountrpc.Server{Accounts: accounts},
-			Admin:       &adminrpc.Server{Totals: accountStore},
+			Admin:       &adminrpc.Server{Totals: accountStore, Volumes: account.NewVolumes(accountStore)},
 			Reservation: &reservationrpc.Server{Reservations: reservations},
 		},
 		outcomes: &events.Outcomes{Settler: reservations, Backoff: 100 * time.Millisecond},
