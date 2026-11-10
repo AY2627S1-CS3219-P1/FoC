@@ -18,8 +18,8 @@ variable "name" {
   type        = string
   default     = "foc-demo"
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{2,24}$", var.name)) && !startswith(var.name, "internal-")
-    error_message = "Use 3-25 lowercase letters, digits, or hyphens, starting with a letter and not the ELB-reserved internal- prefix."
+    condition     = can(regex("^[a-z][a-z0-9-]{1,23}[a-z0-9]$", var.name)) && !strcontains(var.name, "--") && !startswith(var.name, "internal-")
+    error_message = "Use 3-25 lowercase letters, digits, or single internal hyphens, starting with a letter, ending with a letter or digit, and not the ELB-reserved internal- prefix."
   }
 }
 
@@ -32,12 +32,32 @@ variable "expires_on" {
   }
 }
 
+locals {
+  # IANA IPv4 Special-Purpose registry, plus multicast and deprecated 6to4 relay space.
+  nonpublic_operator_ipv4_ranges = [
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
+    "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
+    "192.88.99.0/24", "192.168.0.0/16", "198.18.0.0/15",
+    "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
+  ]
+}
+
 variable "operator_cidr" {
-  description = "Operator's public IPv4 /32, allowed to reach the EKS API (not the application)."
+  description = "Operator's currently observed public IPv4 /32, allowed to reach the EKS API (not the application)."
   type        = string
   validation {
-    condition     = can(cidrnetmask(var.operator_cidr)) && endswith(var.operator_cidr, "/32")
-    error_message = "Supply a single public IPv4 address with /32, never an internet-wide CIDR."
+    condition = try(
+      can(cidrnetmask(var.operator_cidr)) && endswith(var.operator_cidr, "/32") && (
+        # IANA marks these two assignments within 192.0.0.0/24 globally reachable.
+        contains(["192.0.0.9", "192.0.0.10"], cidrhost(var.operator_cidr, 0)) ||
+        alltrue([
+          for block in local.nonpublic_operator_ipv4_ranges :
+          cidrhost("${cidrhost(var.operator_cidr, 0)}/${split("/", block)[1]}", 0) != cidrhost(block, 0)
+        ])
+      ),
+      false,
+    )
+    error_message = "Supply your currently observed public IPv4 address with /32, not private, special-use, multicast, deprecated relay space, or a wider CIDR. Validation cannot establish your actual NAT/VPN egress address."
   }
 }
 

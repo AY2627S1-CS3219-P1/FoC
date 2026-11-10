@@ -74,7 +74,7 @@ override_module {
 
 variables {
   account_id    = "123456789012"
-  operator_cidr = "203.0.113.10/32"
+  operator_cidr = "8.8.8.8/32"
   expires_on    = "2026-11-16"
 }
 
@@ -132,6 +132,34 @@ run "reject_reserved_nlb_name" {
   expect_failures = [var.name]
 }
 
+# RDS CreateDBInstance identifiers cannot end with a hyphen or contain consecutive hyphens.
+run "reject_trailing_hyphen_name" {
+  command = plan
+  variables {
+    name = "demo-"
+  }
+  expect_failures = [var.name]
+}
+
+run "reject_consecutive_hyphens_name" {
+  command = plan
+  variables {
+    name = "demo--blue"
+  }
+  expect_failures = [var.name]
+}
+
+run "accept_internal_hyphen_name" {
+  command = plan
+  variables {
+    name = "demo-blue1"
+  }
+  assert {
+    condition     = aws_db_instance.database.identifier == "demo-blue1"
+    error_message = "A valid RDS identifier must reach the database unchanged."
+  }
+}
+
 run "reject_open_operator_api" {
   command = plan
   variables {
@@ -173,4 +201,194 @@ run "reject_display_name_sender" {
     ses_sender_email = "FoC <sender@example.test>"
   }
   expect_failures = [var.ses_sender_email]
+}
+
+# IANA special-purpose registry and RFC 5771 define these non-public source ranges.
+run "reject_operator_private_class_a" {
+  command = plan
+  variables {
+    operator_cidr = "10.0.0.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_private_class_b" {
+  command = plan
+  variables {
+    operator_cidr = "172.16.0.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_private_class_c" {
+  command = plan
+  variables {
+    operator_cidr = "192.168.1.20/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_loopback" {
+  command = plan
+  variables {
+    operator_cidr = "127.1.2.3/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_link_local" {
+  command = plan
+  variables {
+    operator_cidr = "169.254.1.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_shared_address_space" {
+  command = plan
+  variables {
+    operator_cidr = "100.64.0.0/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_benchmark" {
+  command = plan
+  variables {
+    operator_cidr = "198.18.0.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_documentation_one" {
+  command = plan
+  variables {
+    operator_cidr = "192.0.2.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_documentation_two" {
+  command = plan
+  variables {
+    operator_cidr = "198.51.100.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_documentation_three" {
+  command = plan
+  variables {
+    operator_cidr = "203.0.113.10/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_this_network" {
+  command = plan
+  variables {
+    operator_cidr = "0.1.2.3/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_protocol_assignment" {
+  command = plan
+  variables {
+    operator_cidr = "192.0.0.8/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_deprecated_relay" {
+  command = plan
+  variables {
+    operator_cidr = "192.88.99.2/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_multicast" {
+  command = plan
+  variables {
+    operator_cidr = "224.0.0.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_reserved" {
+  command = plan
+  variables {
+    operator_cidr = "240.0.0.1/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_broadcast" {
+  command = plan
+  variables {
+    operator_cidr = "255.255.255.255/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_ipv6" {
+  command = plan
+  variables {
+    operator_cidr = "2001:4860:4860::8888/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_malformed" {
+  command = plan
+  variables {
+    operator_cidr = "not-an-address/32"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_operator_wider_public" {
+  command = plan
+  variables {
+    operator_cidr = "8.8.8.8/31"
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+run "reject_null_operator" {
+  command = plan
+  variables {
+    operator_cidr = null
+  }
+  expect_failures = [var.operator_cidr]
+}
+
+# These are mock-only globally reachable addresses, never operator deployment defaults.
+run "accept_operator_pcp_anycast" {
+  command = plan
+  variables {
+    operator_cidr = "192.0.0.9/32"
+  }
+}
+
+run "accept_operator_turn_anycast" {
+  command = plan
+  variables {
+    operator_cidr = "192.0.0.10/32"
+  }
+}
+
+run "accept_operator_shared_space_boundary" {
+  command = plan
+  variables {
+    operator_cidr = "100.63.255.255/32"
+  }
+}
+
+run "accept_operator_global_special_purpose" {
+  command = plan
+  variables {
+    operator_cidr = "192.31.196.1/32"
+  }
 }
