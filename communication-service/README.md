@@ -50,7 +50,8 @@ GROUP BY n.status, (u.user_id IS NULL);
   | -- | -- |
   | Drop if late: sent only within 15 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), picked up, a courier's new offer (to the requester) |
   | Still current: sent however late, but only while no later status change has been applied to the order | Offer accepted (to the courier), courier unassigned (to the requester) |
-  | Always: sent however late | Unassigned (to the removed courier), delivered, and every outcome: completed, cancelled, expired, failed, rejected |
+  | Unless reassigned: sent however late, unless the same courier accepts again; checked again before queued email delivery | Unassigned (to the removed courier) |
+  | Always: sent however late | Delivered, and every outcome: completed, cancelled, expired, failed, rejected |
 
 - **A new environment skips its backlog.** The first time notifications run, `notifications_start` records the time, and earlier events aren't sent. An installation that already handled order events before this table existed starts at 1970 instead, so nothing waiting during its upgrade is skipped. The consumer still reads them from the earliest offset to fill in chat participants. A group that loses its offsets, such as after a week-long outage, replays retained events: anything already sent is skipped, and the rest follow their class.
 - **Unreachable chats are unlinked.** If Telegram says the user blocked the bot or the chat doesn't exist, the chat is unlinked and the message skipped. Other 4xx rejections are logged and skipped, because they would fail every time.

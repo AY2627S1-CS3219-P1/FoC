@@ -33,18 +33,19 @@ type ChatSelection struct {
 }
 
 type NotificationEmail struct {
-	EventID       uuid.UUID
-	UserID        uuid.UUID
-	Body          string
-	CreatedAt     time.Time
-	AvailableAt   time.Time
-	Status        string
-	Attempts      int32
-	AttemptedAt   *time.Time
-	LastError     string
-	ExpiresAt     *time.Time
-	OrderID       *uuid.UUID
-	OrderRevision *int64
+	EventID          uuid.UUID
+	UserID           uuid.UUID
+	Body             string
+	CreatedAt        time.Time
+	AvailableAt      time.Time
+	Status           string
+	Attempts         int32
+	AttemptedAt      *time.Time
+	LastError        string
+	ExpiresAt        *time.Time
+	OrderID          *uuid.UUID
+	OrderRevision    *int64
+	UnlessReassigned bool
 }
 
 type NotificationsStart struct {

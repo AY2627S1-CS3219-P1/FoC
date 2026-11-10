@@ -48,14 +48,16 @@ type Links interface {
 type Orders interface {
 	// Revision reports found=false for an order with no stored change.
 	Revision(ctx context.Context, orderID uuid.UUID) (revision int64, found bool, err error)
+	IsCourier(ctx context.Context, orderID, userID uuid.UUID) (bool, error)
 }
 
 // EmailValidity preserves the event's delivery class while email is pending.
 // Zero fields mean an always-deliver notification.
 type EmailValidity struct {
-	ExpiresAt time.Time
-	OrderID   uuid.UUID
-	Revision  int64
+	ExpiresAt        time.Time
+	OrderID          uuid.UUID
+	Revision         int64
+	UnlessReassigned bool
 }
 
 // EmailQueue durably accepts email fallback before Kafka commits the event.
@@ -127,6 +129,19 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 				log.Info("skipping superseded notification", "role", r.role)
 				continue
 			}
+		case unlessReassigned:
+			orderID, orderErr := uuid.Parse(e.GetOrderId())
+			userID, userErr := uuid.Parse(r.userID)
+			if orderErr != nil || userErr != nil {
+				continue
+			}
+			assigned, err := h.Orders.IsCourier(ctx, orderID, userID)
+			if err != nil {
+				return fmt.Errorf("check removed courier assignment: %w", err)
+			}
+			if assigned {
+				continue
+			}
 		case alwaysDeliver:
 		}
 		userID, err := uuid.Parse(r.userID)
@@ -138,6 +153,10 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 		if class == ifStillCurrent {
 			validity.OrderID, _ = uuid.Parse(e.GetOrderId())
 			validity.Revision = e.GetRevision()
+		}
+		if class == unlessReassigned {
+			validity.OrderID, _ = uuid.Parse(e.GetOrderId())
+			validity.UnlessReassigned = true
 		}
 		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text, emailed(e, r.role), validity); err != nil {
 			return err

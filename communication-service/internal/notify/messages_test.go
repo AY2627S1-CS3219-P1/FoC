@@ -175,7 +175,7 @@ func TestDeliveryClasses(t *testing.T) {
 		{"accepted, to requester", awaitingCourier, awaitingPickup, requester, dropIfLate},
 		{"accepted, to courier", awaitingCourier, awaitingPickup, courier, ifStillCurrent},
 		{"unassigned, to requester", awaitingPickup, awaitingCourier, requester, ifStillCurrent},
-		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, alwaysDeliver},
+		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, unlessReassigned},
 		{"picked up", awaitingPickup, delivering, requester, dropIfLate},
 		{"delivered", delivering, delivered, requester, alwaysDeliver},
 		{"completed, to courier", delivered, completed, courier, alwaysDeliver},

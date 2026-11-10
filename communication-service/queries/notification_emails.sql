@@ -1,7 +1,7 @@
 -- name: EnqueueNotificationEmail :exec
-INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at, expires_at, order_id, order_revision)
+INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at, expires_at, order_id, order_revision, unless_reassigned)
 SELECT sqlc.arg(event_id), sqlc.arg(user_id), sqlc.arg(body), sqlc.arg(created_at), sqlc.arg(created_at),
-       sqlc.narg(expires_at), sqlc.narg(order_id), sqlc.narg(order_revision)
+       sqlc.narg(expires_at), sqlc.narg(order_id), sqlc.narg(order_revision), sqlc.arg(unless_reassigned)
 WHERE NOT EXISTS (
     SELECT 1 FROM order_notifications_sent
     WHERE event_id = sqlc.arg(event_id) AND user_id = sqlc.arg(user_id)
@@ -17,7 +17,10 @@ LEFT JOIN user_emails u ON u.user_id = n.user_id
 CROSS JOIN LATERAL (
     SELECT CASE
         WHEN n.expires_at < sqlc.arg(now)::timestamptz THEN 'notification expired'
-        WHEN n.order_id IS NOT NULL AND NOT EXISTS (
+        WHEN n.unless_reassigned AND EXISTS (
+            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.courier_id = n.user_id
+        ) THEN 'courier reassigned'
+        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND NOT EXISTS (
             SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision <= n.order_revision
         ) THEN 'order superseded'
         ELSE ''

@@ -51,3 +51,5 @@ acceptance notice requires an order projection at or before its revision. The
 worker rechecks these conditions when claiming a row, even if its user's email is
 still missing. Obsolete notifications become `skipped` with a recorded reason and
 remain accepted for deduplication. Always-deliver outcomes retain no expiry.
+
+Removed-courier notices survive assignment to a different courier, but are suppressed if the same courier accepts again. This recipient-specific condition is checked before Telegram delivery and persisted with queued email so a delayed address or SMTP retry cannot revive a stale unassignment.

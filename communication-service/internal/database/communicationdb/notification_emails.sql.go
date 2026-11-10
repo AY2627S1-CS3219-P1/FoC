@@ -28,9 +28,9 @@ func (q *Queries) DeleteNotificationEmail(ctx context.Context, arg DeleteNotific
 }
 
 const enqueueNotificationEmail = `-- name: EnqueueNotificationEmail :exec
-INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at, expires_at, order_id, order_revision)
+INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at, expires_at, order_id, order_revision, unless_reassigned)
 SELECT $1, $2, $3, $4, $4,
-       $5, $6, $7
+       $5, $6, $7, $8
 WHERE NOT EXISTS (
     SELECT 1 FROM order_notifications_sent
     WHERE event_id = $1 AND user_id = $2
@@ -39,13 +39,14 @@ ON CONFLICT DO NOTHING
 `
 
 type EnqueueNotificationEmailParams struct {
-	EventID       uuid.UUID
-	UserID        uuid.UUID
-	Body          string
-	CreatedAt     time.Time
-	ExpiresAt     *time.Time
-	OrderID       *uuid.UUID
-	OrderRevision *int64
+	EventID          uuid.UUID
+	UserID           uuid.UUID
+	Body             string
+	CreatedAt        time.Time
+	ExpiresAt        *time.Time
+	OrderID          *uuid.UUID
+	OrderRevision    *int64
+	UnlessReassigned bool
 }
 
 func (q *Queries) EnqueueNotificationEmail(ctx context.Context, arg EnqueueNotificationEmailParams) error {
@@ -57,6 +58,7 @@ func (q *Queries) EnqueueNotificationEmail(ctx context.Context, arg EnqueueNotif
 		arg.ExpiresAt,
 		arg.OrderID,
 		arg.OrderRevision,
+		arg.UnlessReassigned,
 	)
 	return err
 }
@@ -68,7 +70,10 @@ LEFT JOIN user_emails u ON u.user_id = n.user_id
 CROSS JOIN LATERAL (
     SELECT CASE
         WHEN n.expires_at < $1::timestamptz THEN 'notification expired'
-        WHEN n.order_id IS NOT NULL AND NOT EXISTS (
+        WHEN n.unless_reassigned AND EXISTS (
+            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.courier_id = n.user_id
+        ) THEN 'courier reassigned'
+        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND NOT EXISTS (
             SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision <= n.order_revision
         ) THEN 'order superseded'
         ELSE ''

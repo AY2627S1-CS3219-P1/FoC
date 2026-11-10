@@ -77,12 +77,17 @@ func (f *fakeLinks) UnlinkChat(_ context.Context, chatID int64) error {
 // fakeOrders holds each order's latest applied revision.
 type fakeOrders struct {
 	revisions map[string]int64
+	courierID uuid.UUID
 	err       error
 }
 
 func (f *fakeOrders) Revision(_ context.Context, id uuid.UUID) (int64, bool, error) {
 	revision, ok := f.revisions[id.String()]
 	return revision, ok, f.err
+}
+
+func (f *fakeOrders) IsCourier(_ context.Context, _, userID uuid.UUID) (bool, error) {
+	return f.courierID == userID, f.err
 }
 
 type fakeDeliveries map[[2]uuid.UUID]bool
@@ -531,5 +536,34 @@ func TestHandleEmailsTheRemovedCourierHoweverLate(t *testing.T) {
 	}
 	if len(sender.sent) != 0 || len(queue.queued) != 1 || queue.queued[0].userID != courierID {
 		t.Fatalf("telegram=%+v email=%+v", sender.sent, queue.queued)
+	}
+}
+
+func TestUnassignmentSkipsReturningCourier(t *testing.T) {
+	for _, email := range []bool{false, true} {
+		name := "Telegram"
+		if email {
+			name = "email"
+		}
+		t.Run(name, func(t *testing.T) {
+			h, sender, links, _ := newHandler()
+			queue := withEmail(h, links)
+			if !email {
+				links.chats[courierID] = 2
+			}
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+				user(requesterID),
+			)
+			e.CourierId, e.PreviousCourierId = nil, proto.String(courierID.String())
+			h.Orders = &fakeOrders{courierID: courierID}
+			if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+				t.Fatal(err)
+			}
+			if len(sender.sent) != 0 || len(queue.queued) != 0 {
+				t.Fatalf("sent stale unassignment: telegram=%v email=%v", sender.sent, queue.queued)
+			}
+		})
 	}
 }

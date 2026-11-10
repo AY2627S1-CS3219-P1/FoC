@@ -50,6 +50,8 @@ const (
 	alwaysDeliver delivery = iota
 	// dropIfLate is sent only within LateWindow of the change.
 	dropIfLate
+	// unlessReassigned is sent unless the removed courier has accepted again.
+	unlessReassigned
 	// ifStillCurrent is sent only while the change is the order's latest.
 	ifStillCurrent
 )
@@ -58,8 +60,8 @@ const (
 func deliveryFor(e *eventsv1.OrderStatusChanged, r role) delivery {
 	switch {
 	case r == previousCourier:
-		// Still true for them even if the order has since been reassigned.
-		return alwaysDeliver
+		// Another courier may take over, but this courier may also accept again.
+		return unlessReassigned
 	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP && r == courier:
 		return ifStillCurrent
 	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER && r == requester &&
@@ -77,7 +79,7 @@ func deliveryFor(e *eventsv1.OrderStatusChanged, r role) delivery {
 // Telegram can't reach: outcomes and anything they must act on. Progress the
 // app already shows stays Telegram-only.
 func emailed(e *eventsv1.OrderStatusChanged, r role) bool {
-	return deliveryFor(e, r) == alwaysDeliver ||
+	return deliveryFor(e, r) == alwaysDeliver || deliveryFor(e, r) == unlessReassigned ||
 		(e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP && r == courier)
 }
 

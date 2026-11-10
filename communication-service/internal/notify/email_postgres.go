@@ -42,7 +42,7 @@ func (q *PostgresEmailQueue) Enqueue(
 	}
 	if err := db.New(q.Pool).EnqueueNotificationEmail(ctx, db.EnqueueNotificationEmailParams{
 		EventID: eventID, UserID: userID, Body: text, CreatedAt: at,
-		ExpiresAt: expiresAt, OrderID: orderID, OrderRevision: revision,
+		ExpiresAt: expiresAt, OrderID: orderID, OrderRevision: revision, UnlessReassigned: validity.UnlessReassigned,
 	}); err != nil {
 		return fmt.Errorf("enqueue email: %w", err)
 	}
