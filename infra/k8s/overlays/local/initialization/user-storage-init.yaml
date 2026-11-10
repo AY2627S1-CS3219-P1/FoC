@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: user-storage-init
+  namespace: foc
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: user-storage-init
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: user-storage-init
+      restartPolicy: Never
+      containers:
+        - name: user-storage-init
+          image: foc/user-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["/app/storage-init"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: APP_ENV, value: local}
+            - {name: USER_S3_BUCKET, value: user-images}
+            - {name: USER_S3_ENDPOINT, value: "http://floci:4566"}
+            - {name: AWS_REGION, value: us-east-1}
+            - name: FRONTEND_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: foc-config
+                  key: FRONTEND_BASE_URL
+          envFrom:
+            - secretRef:
+                name: object-storage

@@ -12,3 +12,12 @@ patches:
         value:
           secretRef:
             name: object-storage
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value:
+          secretRef:
+            name: object-storage

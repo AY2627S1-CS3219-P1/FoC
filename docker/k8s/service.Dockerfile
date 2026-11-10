@@ -35,9 +35,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd "$SERVICE" \
     && go build -mod=readonly -trimpath -ldflags="-s -w" -o /out/server ./cmd/server \
     && go build -trimpath -ldflags="-s -w" -o /out/healthcheck /src/docker/k8s/healthcheck/main.go \
+    && if [ "$SERVICE" = order-service ] || [ "$SERVICE" = user-service ]; then \
+         go build -mod=readonly -trimpath -o /out/storage-init ./cmd/storage-init; \
+       fi \
     && if [ "$SERVICE" = order-service ]; then \
-         go build -mod=readonly -trimpath -o /out/storage-init ./cmd/storage-init \
-         && go build -mod=readonly -trimpath -o /out/proof-image-check ./cmd/proof-image-check; \
+         go build -mod=readonly -trimpath -o /out/proof-image-check ./cmd/proof-image-check; \
        fi
 
 # Distroless static includes system CA certificates and no compiler or shell.

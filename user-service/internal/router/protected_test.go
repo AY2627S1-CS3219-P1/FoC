@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	userv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 	warningv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1"
 	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	pagination "github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -64,16 +66,36 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 
 type reviewStub struct{}
 
-func (reviewStub) SubmitReview(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission) error {
+func (reviewStub) SubmitReview(
+	context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission, []uuid.UUID,
+) error {
 	return nil
+}
+
+func (reviewStub) CreateReviewPhotoUpload(
+	context.Context, uuid.UUID, string, int64,
+) (uuid.UUID, images.UploadGrant, error) {
+	return uuid.Nil, images.UploadGrant{}, nil
 }
 
 func (reviewStub) ListReviewsForUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
 	return review.ReviewPage{}, nil
 }
 
+func (reviewStub) ListMyReviewsReceived(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
+	return review.ReviewPage{}, nil
+}
+
 func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pagination) (review.ReviewPage, error) {
 	return review.ReviewPage{}, nil
+}
+
+func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
+	return review.ReviewOrderStatuses{}, nil
+}
+
+func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
+	return review.Review{}, errors.New("review not found")
 }
 
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }

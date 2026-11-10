@@ -3,42 +3,29 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/rs/cors"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
-	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
-	"gorm.io/gorm"
 )
 
 const (
@@ -129,7 +116,7 @@ func main() {
 			})
 		},
 	}
-	reviewLogic := newReviewService(sqlDB)
+	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -146,6 +133,26 @@ func main() {
 	// the internal listener so local and deployed behaviour stay identical.
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	servers := []*http.Server{public, internal}
+
+	if reviewPhotos != nil {
+		// Orphan staging rows are reaped on a minute ticker; the domain's
+		// claim/delete steps are retryable and idempotent.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 
 	// The courier-warning consumer runs alongside the HTTP listeners and
 	// rebuilds its subscription after a transient failure, so one bad delivery
@@ -156,7 +163,7 @@ func main() {
 		consume(ctx, cfg.kafkaBrokers, warningLogic)
 	}()
 
-	if err := serve(ctx, public, internal); err != nil {
+	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
@@ -258,117 +265,4 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
-}
-
-func newReviewService(sqlDB *sql.DB) *review.Service {
-	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	return review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		tx, err := sqlDB.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback() }()
-		if err := operation(reviewdb.New(tx)); err != nil {
-			return err
-		}
-		return tx.Commit()
-	})
-}
-
-func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
-	var repo allowedadmin.AllowedDomainRepository = allowedadmin.NewPostgresAllowedAdminRepository(alloweddomaindb.New(db))
-	return allowedadmin.NewAllowedDomainService(repo)
-}
-
-func newWarningService(db warningdb.DBTX) *warningdomain.Service {
-	return warningdomain.NewService(warningdomain.NewPostgresRepository(warningdb.New(db)))
-}
-
-func authResources(persistence *store.Store, policy service.EmailDomainPolicy) service.Resources {
-	return service.Resources{
-		Users:             persistence.Users,
-		AuthTokens:        persistence.AuthTokens,
-		Sessions:          persistence.Sessions,
-		DomainPolicy:      policy,
-		UserCreatedEvents: persistence.UserCreatedOutbox,
-	}
-}
-
-func authTransactions(db *gorm.DB) service.WithTransaction {
-	return func(ctx context.Context, operation func(service.Resources) error) error {
-		return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Bind sqlc and GORM to the same transaction, without acquiring another connection.
-			policy := newAllowedDomainService(tx.Statement.ConnPool)
-			return operation(authResources(store.New(tx), policy))
-		})
-	}
-}
-
-func newAuthServices(
-	db *gorm.DB,
-	cfg config,
-	domainPolicy service.EmailDomainPolicy,
-) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
-	frontendURL, err := url.Parse(cfg.frontendURL)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
-	}
-	key, err := userservicejwt.LoadPrivateKeyPEM(cfg.privateKey)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	kid, err := keyID(&key.PublicKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
-	}
-	codec, err := userservicejwt.NewES256Codec(key, kid,
-		httpauth.TokenIssuer, httpauth.TokenAudience)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
-	}
-	persistence := store.New(db)
-
-	logic, err := service.NewService(service.Dependencies{
-		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
-	}, service.Config{
-		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
-		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
-	})
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
-	}
-	allowedOrigin := frontendURL.Scheme + "://" + frontendURL.Host
-	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
-}
-
-func keyID(key *ecdsa.PublicKey) (string, error) {
-	point, err := key.Bytes()
-	if err != nil {
-		return "", err
-	}
-	fingerprint := sha256.Sum256(point)
-	return hex.EncodeToString(fingerprint[:]), nil
-}
-
-func getCorsConfig(allowedOrigin string) *cors.Cors {
-	return cors.New(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{
-			"Authorization",
-			"Content-Type",
-			"Connect-Protocol-Version",
-			"Connect-Timeout-Ms",
-			"Grpc-Timeout",
-			"X-Grpc-Web",
-			"X-User-Agent",
-		},
-		ExposedHeaders: []string{
-			"Grpc-Status",
-			"Grpc-Message",
-			"Grpc-Status-Details-Bin",
-		},
-	})
 }

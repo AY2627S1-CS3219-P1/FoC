@@ -28,7 +28,9 @@ sql:
         emit_empty_slices: true
   - name: "review"
     engine: "postgresql"
-    queries: "query/reviews.sql"
+    queries:
+      - "query/reviews.sql"
+      - "query/review_photos.sql"
     schema: "../migrations"
     gen:
       go:

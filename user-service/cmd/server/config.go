@@ -15,20 +15,26 @@ import (
 )
 
 type config struct {
-	port            string
-	internalPort    string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	kafkaBrokers    []string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
+	port             string
+	internalPort     string
+	databaseURL      string
+	dbMaxOpen        int
+	dbMaxIdle        int
+	runMigrations    bool
+	appEnv           string
+	frontendURL      string
+	privateKey       string
+	kafkaBrokers     []string
+	accessTokenTTL   time.Duration
+	refreshTokenTTL  time.Duration
+	smtp             email.SMTPSender
+	bootstrap        bootstrap.Config
+	s3Bucket         string
+	s3Endpoint       string
+	s3PublicEndpoint string
+	s3UploadTTL      time.Duration
+	s3DownloadTTL    time.Duration
+	awsRegion        string
 }
 
 // loadConfig reads .env (if present) and the environment once, applying
@@ -62,7 +68,16 @@ func loadConfig() (config, error) {
 			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
 			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
 		},
-		kafkaBrokers: envList("KAFKA_BROKERS", ""),
+		// Review photo storage is optional: without a bucket the photo RPCs
+		// report unavailability and reviews submit without photos.
+		s3Bucket:         envString("USER_S3_BUCKET", ""),
+		s3Endpoint:       envString("USER_S3_ENDPOINT", ""),
+		s3PublicEndpoint: envString("USER_S3_PUBLIC_ENDPOINT", ""),
+		// Zero means the adapter's default grant lifetimes.
+		s3UploadTTL:   envDuration("USER_S3_UPLOAD_TTL", 0, &errs),
+		s3DownloadTTL: envDuration("USER_S3_DOWNLOAD_TTL", 0, &errs),
+		awsRegion:     strings.TrimSpace(envString("AWS_REGION", "")),
+		kafkaBrokers:  envList("KAFKA_BROKERS", ""),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
