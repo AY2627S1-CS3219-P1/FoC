@@ -4,21 +4,23 @@ Infrastructure publication and application release are separate entry points. Bo
 
 ## Configuration contract
 
-Schema version `2` contains `environment`, `infrastructure_commit`, `terraform_plan_sha256`, `rds_ca_sha256`, and a `deployment` object with exactly these fields:
+Schema version `3` contains `environment`, `infrastructure_commit`, `terraform_plan_sha256`, `rds_ca_sha256`, and a `deployment` object with exactly these fields:
 
 ```text
 region, cluster_name, vpc_id, public_hostname, public_origin,
 gateway_target_arn, image_prefix, order_bucket, order_role_arn,
-ingress_role_arn, ses_sender_email, communication_email_role_arn, loki_bucket, loki_role_arn
+ingress_role_arn, ses_sender_email, communication_email_role_arn, loki_bucket, loki_role_arn,
+evidence_bucket, evidence_role_arn
 ```
 
 The two SES fields are either both null or both populated. Public origin must match the HTTPS hostname. ECR, gateway, and workload-role identifiers must belong to the selected account/region. The database administrator, Secrets Manager reference, database connection credentials, and unrecognized Terraform outputs are never exported. Existing `*-db` Secrets own database connection configuration; reconcile those separately if infrastructure changes their endpoints or credentials.
 
 Documents use content-addressed keys `<prefix>/config/<environment>/<sha256>.json`. The publication receipt provides the exact S3 `VersionId` and SHA-256 used by a release. Never substitute an unpinned latest object. Unknown schema versions/fields, altered bytes, wrong environment/account/region, or a changed CA bundle fail before deployment.
 
-Version 2 requires the dedicated Loki bucket and role from the infrastructure
-outputs. Version 1 documents are rejected; publish a new reviewed configuration
-after the logging infrastructure change. Never edit an existing published object
+Version 3 requires the dedicated Loki bucket and role, and the reports
+moderation evidence bucket and workload role (`enable_moderation_service = true`).
+Earlier versions are rejected; publish a new reviewed configuration after the
+infrastructure change. Never edit an existing published object
 or fill missing settings from inherited shell variables or Terraform state.
 The release derives all four `K8S_LOKI_*` settings from this pinned document and
 the renderer-owned `foc-gp3` storage class.
@@ -29,7 +31,7 @@ These are explicit prerequisites, not resources created by the wrappers. The sep
 
 - A dedicated private S3 bucket in the approved account, with versioning enabled, all four public-access blocks, HTTPS-only access, and encryption. The publisher writes AES256-encrypted objects. Do not grant application CI access to a Terraform-state bucket or prefix.
 - An infrastructure operator with the existing Terraform backend/provider permissions and publication-prefix access. Publication also reads bucket versioning/public-access settings and existing objects for idempotent upload recovery.
-- A separate deployment IAM role. Grant `eks:DescribeCluster` for the target cluster, ECR authorization plus describe/push operations for the nine application repositories, `s3:GetObjectVersion` on the configuration prefix, `s3:GetBucketVersioning` on the configuration bucket, and `s3:PutObject`/`s3:DeleteObjectVersion` only on `<prefix>/locks/*`. ECR authorization requires `ecr:GetAuthorizationToken` on `*`; do not broaden other permissions. No Terraform backend, Secrets Manager, IAM administration, or infrastructure provisioning permissions are needed.
+- A separate deployment IAM role. Grant `eks:DescribeCluster` for the target cluster, ECR authorization plus describe/push operations for the ten application repositories, `s3:GetObjectVersion` on the configuration prefix, `s3:GetBucketVersioning` on the configuration bucket, and `s3:PutObject`/`s3:DeleteObjectVersion` only on `<prefix>/locks/*`. ECR authorization requires `ecr:GetAuthorizationToken` on `*`; do not broaden other permissions. No Terraform backend, Secrets Manager, IAM administration, or infrastructure provisioning permissions are needed.
 - EKS identity mapping and Kubernetes RBAC for the existing operator. It reconciles application resources in `foc`, the named ingress/binding in `istio-ingress`, logging workloads in `foc-observability`, and the existing named StorageClass. Namespaces, admission, CRDs and RBAC remain administrator-owned. The logging Role permits Helm's namespace-local release-history Secrets as well as the existing Grafana credential Secret; this is trusted deployment access. Review the rendered operator resource set rather than granting unrelated AWS administrator privileges.
 - Existing Istio, Gateway API, AWS Load Balancer Controller, encrypted storage support, database schemas/extensions, and ten application workload Secrets (including `content-moderation-db` and `moderation-llm`). Install `infra/k8s/base/observability-rbac` with an administrator and supply `foc-observability/grafana-admin` (`username`/`password`) privately, following the AWS runbook. SMTP deployments additionally need `smtp`; SES deployments do not.
 - An approved network path from the runner to the restricted EKS endpoint. Do not open the endpoint to the internet. AWS CLI v2, Docker with linux/amd64 build capability, Python 3.9+, Make, Go, and the pinned aqua tools must be available.
@@ -88,7 +90,7 @@ python3 scripts/aws/deploy_release.py \
 
 Use a new lowercase release ID (1–63 letters/digits/hyphens) for every attempt. A release checkout must not contain a root `.env`; AWS authentication comes from its approved session/profile. The wrapper creates an isolated kubeconfig and Docker login, verifies existing application/Grafana Secrets, CRDs and immutable ECR repositories, and forces the full `make k8s-deploy service=` path with linux/amd64 images tagged `<source-commit>-<release-id>`. It rejects any existing tag instead of overwriting or resuming partial pushes. The operator owns dependency and observability rollout, initialization/migration completion, application rollout, and its existing running/terminal Job handling.
 
-The CA is retrieved from the fixed AWS HTTPS trust-store URL and checked against the publication's digest. An optional `--rds-ca <file>` supplies exactly the same pinned bytes for an offline/pre-fetched bundle. Overlays are always regenerated with the current source's renderer. `make k8s-public-smoke` checks trusted public HTTPS frontend/health and private-route exclusion without local forwards or mesh-mutating probes. A private release receipt records source/configuration provenance, nine ECR digests, and smoke success. This is not proof of login, email, uploads, or business-workflow acceptance.
+The CA is retrieved from the fixed AWS HTTPS trust-store URL and checked against the publication's digest. An optional `--rds-ca <file>` supplies exactly the same pinned bytes for an offline/pre-fetched bundle. Overlays are always regenerated with the current source's renderer. `make k8s-public-smoke` checks trusted public HTTPS frontend/health and private-route exclusion without local forwards or mesh-mutating probes. A private release receipt records source/configuration provenance, ten ECR digests, and smoke success. This is not proof of login, email, uploads, or business-workflow acceptance.
 
 ## Serialization and recovery
 

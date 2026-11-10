@@ -16,6 +16,8 @@ output "deployment" {
     order_role_arn               = aws_iam_role.order.arn
     loki_bucket                  = aws_s3_bucket.loki.id
     loki_role_arn                = aws_iam_role.loki.arn
+    evidence_bucket              = try(aws_s3_bucket.moderation_evidence[0].id, null)
+    evidence_role_arn            = try(aws_iam_role.moderation[0].arn, null)
     ingress_role_arn             = aws_iam_role.ingress.arn
     database_host                = aws_db_instance.database.address
     database_port                = aws_db_instance.database.port

@@ -13,12 +13,13 @@ FIELDS = (
     "region", "cluster_name", "vpc_id", "public_hostname", "public_origin",
     "gateway_target_arn", "image_prefix", "order_bucket", "order_role_arn",
     "ingress_role_arn", "ses_sender_email", "communication_email_role_arn",
-    "loki_bucket", "loki_role_arn",
+    "loki_bucket", "loki_role_arn", "evidence_bucket", "evidence_role_arn",
 )
 ENVELOPE = {"schema_version", "environment", "infrastructure_commit", "terraform_plan_sha256",
             "rds_ca_sha256", "deployment"}
 IMAGES = ("user-service", "supplier-service", "order-service", "credit-service",
-          "communication-service", "content-moderation-service", "frontend", "kafka-init", "migrations")
+          "communication-service", "content-moderation-service", "moderation-service", "frontend", "kafka-init",
+          "migrations")
 
 
 class ReleaseError(Exception):
@@ -66,7 +67,7 @@ def encode(value):
 
 def validate(document, environment, account, region):
     require(isinstance(document, dict) and set(document) == ENVELOPE, "Unexpected release configuration fields")
-    require(type(document["schema_version"]) is int and document["schema_version"] == 2,
+    require(type(document["schema_version"]) is int and document["schema_version"] == 3,
             "Unsupported release configuration schema")
     require(document["environment"] == identifier(environment), "Release configuration environment mismatch")
     require(isinstance(document["infrastructure_commit"], str) and
@@ -90,11 +91,13 @@ def validate(document, environment, account, region):
     prefix = account + ".dkr.ecr." + region + ".amazonaws.com/"
     require(config["image_prefix"].startswith(prefix) and
             re.fullmatch(r"[a-z0-9]+(?:[._/-][a-z0-9]+)*", config["image_prefix"][len(prefix):]), "ECR account/region mismatch")
-    for field in ("order_bucket", "loki_bucket"):
+    for field in ("order_bucket", "loki_bucket", "evidence_bucket"):
         require(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", config[field]), "Invalid storage bucket: " + field)
     require(config["loki_bucket"] != config["order_bucket"] and config["loki_role_arn"] != config["order_role_arn"],
             "Loki requires its own bucket and workload role")
-    for field in ("order_role_arn", "ingress_role_arn", "communication_email_role_arn", "loki_role_arn"):
+    require(len({config["order_bucket"], config["loki_bucket"], config["evidence_bucket"]}) == 3,
+            "Moderation evidence requires its own bucket")
+    for field in ("order_role_arn", "ingress_role_arn", "communication_email_role_arn", "loki_role_arn", "evidence_role_arn"):
         if config[field] is not None:
             require(re.fullmatch(r"arn:aws:iam::" + account + r":role/[A-Za-z0-9+=,.@_/-]+", config[field]),
                     "Workload role account mismatch: " + field)
@@ -109,7 +112,7 @@ def validate(document, environment, account, region):
 def configuration(outputs, environment, source, plan_sha, ca_sha, account, region):
     # Deliberately exclude database_admin/database_secret_arn and any future outputs.
     config = {key: outputs.get(key) for key in FIELDS}
-    document = {"schema_version": 2, "environment": environment, "infrastructure_commit": source,
+    document = {"schema_version": 3, "environment": environment, "infrastructure_commit": source,
                 "terraform_plan_sha256": plan_sha, "rds_ca_sha256": ca_sha, "deployment": config}
     validate(document, environment, account, region)
     return document

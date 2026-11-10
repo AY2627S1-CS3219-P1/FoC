@@ -62,6 +62,7 @@ class ReleaseCLITest(unittest.TestCase):
             "image_prefix": ACCOUNT + ".dkr.ecr." + REGION + ".amazonaws.com/foc-demo",
             "order_bucket": "fixture-order-images", "order_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/order",
             "loki_bucket": "fixture-loki-logs", "loki_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/loki",
+            "evidence_bucket": "fixture-moderation-evidence", "evidence_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/evidence",
             "ingress_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/ingress",
             "gateway_target_arn": "arn:aws:elasticloadbalancing:" + REGION + ":" + ACCOUNT + ":targetgroup/fixture/0123456789abcdef",
             "ses_sender_email": "sender@example.test", "communication_email_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/email",
@@ -159,7 +160,7 @@ class ReleaseCLITest(unittest.TestCase):
         release = self.private / "aws/releases/demo/attempt1/release-receipt.json"
         record = json.loads(release.read_text())
         self.assertEqual(record["configuration"]["version_id"], receipt["version_id"])
-        self.assertEqual(len(record["images"]), 9)
+        self.assertEqual(len(record["images"]), 10)
         self.assertTrue(any("/content-moderation-service:" in image["reference"] for image in record["images"]))
         self.assertEqual(record["public_smoke"], "passed")
         self.assertTrue(all(not versions for key, versions in state["objects"].items() if "/locks/" in key))
@@ -184,11 +185,11 @@ class ReleaseCLITest(unittest.TestCase):
         self.assertIn("moderation-llm", secret_check)
         self.assertIn(["kubectl", "--context", "foc-release", "--request-timeout=15s", "-n",
                        "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], calls)
-        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> nine digest receipts -> smoke gate")
+        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> ten digest receipts -> smoke gate")
 
     def test_logging_configuration_rejects_legacy_missing_shared_or_foreign_inputs(self):
         document = configuration(self.outputs, "demo", SOURCE, "a" * 64, checksum(CA), ACCOUNT, REGION)
-        self.assertEqual(document["schema_version"], 2)
+        self.assertEqual(document["schema_version"], 3)
         for changes in ({"loki_bucket": None}, {"loki_role_arn": None},
                         {"loki_bucket": self.outputs["order_bucket"]},
                         {"loki_role_arn": self.outputs["order_role_arn"]},
