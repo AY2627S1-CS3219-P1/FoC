@@ -5,6 +5,7 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { reviewApi, snackbarService } from '$lib/services';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
+	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
 	import {
 		ReviewPhotosController,
 		type ReviewPhotosSnapshot
@@ -20,6 +21,7 @@
 	import { reviewSchema } from '$lib/services/review/reviewSchema';
 	import PhotoUploader from '$lib/components/photo-uploader/PhotoUploader.svelte';
 	import ReviewPhotos from '$lib/components/review/ReviewPhotos.svelte';
+	import ReviewStatusChip from '$lib/components/review-moderation/ReviewStatusChip.svelte';
 
 	// Review card at the bottom of a request page: the caller's stored review or
 	// the form that creates it.
@@ -151,6 +153,7 @@
 						myReview = null;
 					}
 					myReview ??= {
+						moderationStatus: ModerationStatus.PENDING_MODERATION,
 						id: '',
 						reviewerId: callerId,
 						revieweeId,
@@ -251,6 +254,20 @@
 						{myReview.createdAt
 							? `${reviewDate.format(new Date(myReview.createdAt))} · `
 							: ''}about the {revieweeRole}
+						{#if myReview.moderationStatus !== ModerationStatus.APPROVED}
+							<span class="review-status">
+								<ReviewStatusChip
+									label={myReview.moderationStatus === ModerationStatus.REJECTED
+										? 'Rejected'
+										: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+											? 'Assessment error' : 'Awaiting assessment'}
+									tone={myReview.moderationStatus === ModerationStatus.REJECTED
+										? 'rejected'
+										: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+											? 'error' : 'pending'}
+								/>
+							</span>
+						{/if}
 					</p>
 				</header>
 				<p class="review-rating" role="img" aria-label={`Rated ${myReview.rating} out of 5`}>
@@ -331,6 +348,7 @@
 	.field-error { color: var(--m3c-error, #b3261e); }
 	.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 	.review-card .sub { margin: 0; }
+	.review-status { margin-inline-start: 0.5rem; }
 	.review-rating { margin: 0; line-height: 1; }
 	.review-photos { margin-top: 0.4rem; }
 	.stars { color: var(--m3c-primary); letter-spacing: 0.1rem; }

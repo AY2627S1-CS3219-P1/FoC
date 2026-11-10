@@ -1,3 +1,5 @@
+import type { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
+
 // The adapter marks only authoritative server rejections as Rejected.
 // Transport failures and ambiguous responses remain Failed/unknown.
 export class ReviewRejectedError extends Error {
@@ -61,6 +63,7 @@ export type ReviewPhotoRecord = {
 };
 
 export type ReviewRecord = {
+	moderationStatus?: ModerationStatus;
 	id: string;
 	reviewerId: string;
 	reviewerName: string;
