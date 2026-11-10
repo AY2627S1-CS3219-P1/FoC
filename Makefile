@@ -121,6 +121,17 @@ seed-demo-reset:
 	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
 	@go run ./scripts/seed --manifest data/seeds/manifest.json --reset
 
+.PHONY: perf-build perf-test
+# Private operator tools; see docs/testing/aws-performance.md.
+perf-build:
+	@mkdir -p .tools/bin
+	GOWORK=off go -C scripts build -mod=readonly -o $(CURDIR)/.tools/bin/perf ./perf
+
+perf-test:
+	GOWORK=off go -C scripts test -mod=readonly ./perf
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/perf -p 'test_*.py'
+	node --test scripts/perf/workload.test.mjs
+
 .PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
 k8s-test: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" K8S_RENDER_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./k8s

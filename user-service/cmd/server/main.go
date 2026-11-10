@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
@@ -101,14 +103,22 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
-	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
-	relayDone := make(chan struct{})
-	go func() {
-		defer close(relayDone)
-		relay.Run(ctx)
-	}()
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+	workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
+	workers.Go(func() { consume(workerCtx, cfg.kafkaBrokers, warningLogic) })
 
-	profileLogic := &service.ProfileService{Users: persistence.Users}
+	profileLogic := &service.ProfileService{
+		Users:    persistence.Users,
+		Pictures: persistence.ProfilePictures,
+		Storage:  profilePictureStorage(imageStorage),
+	}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
@@ -117,7 +127,6 @@ func main() {
 			})
 		},
 	}
-	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	reportLogic := newReportService(db, sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
@@ -138,15 +147,18 @@ func main() {
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 	servers := []*http.Server{public, internal}
 
-	if reviewPhotos != nil {
-		// Orphan staging rows are reaped on a minute ticker; the domain's
-		// claim/delete steps are retryable and idempotent.
+	if imageStorage != nil {
+		// Orphan review photos and profile pictures are reaped on a minute
+		// ticker; both domains' claim/delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := profileLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "profile picture cleanup deferred", "err", err)
 				}
 				select {
 				case <-ctx.Done():
@@ -157,22 +169,13 @@ func main() {
 		}()
 	}
 
-	// The courier-warning consumer runs alongside the HTTP listeners and
-	// rebuilds its subscription after a transient failure, so one bad delivery
-	// cannot stall warnings. rootCancel() stops it during shutdown.
-	consumeDone := make(chan struct{})
-	go func() {
-		defer close(consumeDone)
-		consume(ctx, cfg.kafkaBrokers, warningLogic)
-	}()
-
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	rootCancel()
-	<-consumeDone
-	<-relayDone
+	stopWorkers()
+	workers.Wait()
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts
