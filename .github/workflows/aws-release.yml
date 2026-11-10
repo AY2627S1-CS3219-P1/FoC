@@ -8,6 +8,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      commit:
+        description: Full SHA of a main commit to release; defaults to the dispatch commit
+        required: false
+        type: string
       config_version:
         description: Exact S3 configuration VersionId; defaults to the aws-demo AWS_CONFIG_VERSION variable
         required: false
@@ -29,7 +33,7 @@ concurrency:
 
 env:
   # The exact commit CI tested, not whatever main points to when this job starts.
-  SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  SOURCE_SHA: ${{ github.event.workflow_run.head_sha || inputs.commit || github.sha }}
 
 jobs:
   check-latest:
@@ -57,8 +61,12 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -eu
-          # A manual dispatch is an explicit operator choice and may recover an earlier main commit.
+          # A manual dispatch is an explicit operator choice and may recover an
+          # earlier commit, but only one that is already on main.
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::commit must be a full 40-character SHA"; exit 1; }
+            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$SOURCE_SHA...$DEFAULT_BRANCH" --jq .status)
+            [[ "$status" = identical || "$status" = ahead ]] || { echo "::error::$SOURCE_SHA is not on $DEFAULT_BRANCH"; exit 1; }
             echo deploy=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
