@@ -52,7 +52,9 @@
 
 <style>
 	.route-map {
+		/* Positioned so the child z-index below applies: contains the legend within this panel. */
 		position: relative;
+		z-index: 0;
 		height: 100%;
 		min-height: 12rem;
 	}
@@ -61,7 +63,7 @@
 		position: absolute;
 		left: 0.5rem;
 		bottom: 0.5rem;
-		z-index: 500;
+		z-index: 10; /* Above the map panel's internals, below the top bar (30) and drawer (50). */
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
