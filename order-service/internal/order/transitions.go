@@ -54,6 +54,7 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 			Deliver:            Delivered,
 			Timeout:            Failed,
 			ConfirmReceipt:     Completed,
+			AutoComplete:       Completed,
 		}
 		if action == Cancel && courier {
 			return Failed, false, nil
@@ -90,7 +91,7 @@ func isActionAllowed(s Status, a Action, k ActorKind, requester, courier bool) b
 	case Delivering:
 		return (a == Deliver && courier) || (a == Cancel && (requester || courier)) || (a == Timeout && k == System)
 	case Delivered:
-		return a == ConfirmReceipt && requester
+		return (a == ConfirmReceipt && requester) || (a == AutoComplete && k == System)
 	}
 
 	return false

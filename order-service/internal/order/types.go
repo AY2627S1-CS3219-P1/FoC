@@ -138,6 +138,8 @@ const (
 	Deliver            Action = "deliver"
 	Timeout            Action = "timeout"
 	ConfirmReceipt     Action = "confirm_receipt"
+	// AutoComplete completes a delivered order whose requester never confirmed.
+	AutoComplete       Action = "auto_complete"
 	RecordItemLocation Action = "record_item_location"
 )
 
