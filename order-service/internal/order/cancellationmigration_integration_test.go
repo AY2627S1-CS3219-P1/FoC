@@ -111,14 +111,15 @@ func TestPostgresCancellationMigrationRefusesPendingWithdrawal(t *testing.T) {
 		resourceID != pending.OperationID {
 		t.Fatalf("downgrade lost retry identity: %s %v", resourceID, err)
 	}
+	// The failed multi-migration downgrade already removed newer migrations,
+	// including columns the aggregate queries select. Restore the current
+	// application schema before exercising any repository operation.
+	if _, err := provider.Up(f.ctx); err != nil {
+		t.Fatal(err)
+	}
 	current, err := f.repo.Get(f.ctx, o.ID)
 	if err != nil || current.PendingCancellationID == nil || *current.PendingCancellationID != pending.OperationID {
 		t.Fatalf("downgrade lost pending reference: %+v %v", current, err)
-	}
-	// The failed multi-migration downgrade already removed newer migrations.
-	// Restore the current application schema before exercising live operations.
-	if _, err := provider.Up(f.ctx); err != nil {
-		t.Fatal(err)
 	}
 	closed, err := NewCanceller(
 		f.repo,
