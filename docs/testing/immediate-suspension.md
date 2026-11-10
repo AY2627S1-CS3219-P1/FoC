@@ -21,6 +21,11 @@ Local verification passed with Go 1.27.0 and disposable PostgreSQL 18 databases:
   the integrated main baseline passed. Local and production dependency overlays
   rendered with the User-only DENY intact.
 
+The suites ran against main `6cd9843f`. Upstream `883a485f` was subsequently
+merged without conflicts; binary diff comparison confirmed the suspension delta
+was unchanged. Only verification notes were then updated. The combined head has
+not received another local test run; CI remains the combined-head gate.
+
 The final constructor return-type/nil-interface correction was included in the
 lint/type checks, but its unit test was not rerun after that adjustment. Live mesh
 tests require a managed local Kubernetes context; none is configured here.

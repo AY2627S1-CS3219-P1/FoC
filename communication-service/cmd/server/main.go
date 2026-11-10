@@ -60,7 +60,10 @@ const (
 	sendTimeout = 10 * time.Second
 	// A stopped notification consumer restarts after a delay that doubles up to
 	// the maximum, and replays the event that stopped it.
-	consumerGroup        = "communication-service"
+	consumerGroup = "communication-service"
+	// The chat participants consume order.status_changed in their own group, so
+	// a Telegram outage that pauses notifications doesn't pause them too.
+	participantsGroup    = "communication-participants"
 	consumerRestartDelay = time.Second
 	consumerMaxDelay     = time.Minute
 )
@@ -357,8 +360,10 @@ func startEmailWorker(
 }
 
 // startNotifications consumes order status changes in the background when
-// Kafka is configured: it updates the chat participants, then sends
-// notifications. It also stores users' emails from users.create. It runs only
+// Kafka is configured. One consumer keeps the chat participants current and
+// another sends notifications, which also stores users' emails from
+// users.create. Because the participants don't wait for sends, a notification
+// delayed by an outage can be checked against changes made since. It runs only
 // with a working bot or email, so offsets aren't committed for messages that
 // were never sent.
 func startNotifications(
@@ -392,10 +397,15 @@ func startNotifications(
 	}
 	userEmails := (&users.Projection{Store: emails, Log: log}).Handle
 	projection := &chat.Projection{Store: chats, Log: log, Now: time.Now}
+	workers.Go(func() { runParticipants(ctx, cfg.kafkaBrokers, participantsGroup, log, projection.Apply) })
+
+	// Apply here too so a notification never mistakes an older assignment for
+	// a reassignment. Revision guards preserve changes applied by the other group.
 	handle := func(ctx context.Context, meta kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
 		if err := projection.Apply(ctx, e); err != nil {
 			return err
 		}
+
 		return handler.Handle(ctx, meta, e)
 	}
 	workers.Go(func() {
@@ -505,6 +515,42 @@ func runRealtime(ctx context.Context, brokers []string, group string, consumer *
 		case <-time.After(delay):
 		}
 		delay = min(delay*2, 30*time.Second)
+	}
+}
+
+// runParticipants keeps the chat participants current from order status
+// changes, restarting its consumer until ctx is cancelled. It runs in its own
+// group, so it keeps going while notifications wait for Telegram.
+func runParticipants(ctx context.Context, brokers []string, group string, log *slog.Logger,
+	apply func(context.Context, *eventsv1.OrderStatusChanged) error,
+) {
+	handle := func(ctx context.Context, _ kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
+		return apply(ctx, e)
+	}
+	delay := consumerRestartDelay
+	for ctx.Err() == nil {
+		subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: group})
+		if err == nil {
+			err = kafka.Register(subscriber, notify.Topic,
+				func() *eventsv1.OrderStatusChanged { return new(eventsv1.OrderStatusChanged) }, handle)
+		}
+		started := time.Now()
+		if err == nil {
+			err = subscriber.Run(ctx)
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if time.Since(started) > consumerMaxDelay {
+			delay = consumerRestartDelay
+		}
+		log.Error("chat participants consumer stopped; restarting", "err", err, "delay", delay.String())
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, consumerMaxDelay)
 	}
 }
 
