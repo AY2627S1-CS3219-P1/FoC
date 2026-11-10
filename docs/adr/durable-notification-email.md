@@ -46,7 +46,7 @@ throttling and account-availability errors retry. SES acceptance has the same
 send-before-database-commit window as SMTP, and failures never switch providers.
 
 Time-sensitive action emails added by the offer-notification feature also persist
-their delivery validity: offers expire after 15 minutes from the event, and an
+their delivery validity: offers expire 30 minutes after the event, and an
 acceptance notice requires an order projection at or before its revision. The
 worker rechecks these conditions when claiming a row, even if its user's email is
 still missing. Obsolete notifications become `skipped` with a recorded reason and

@@ -24,7 +24,7 @@ const OfferTopic = "order.offer_made"
 
 // LateWindow is how long after a change a drop-if-late notification can still
 // be sent, including retries.
-const LateWindow = 15 * time.Minute
+const LateWindow = 30 * time.Minute
 
 // Sender is the part of the Bot API the handler needs.
 type Sender interface {
