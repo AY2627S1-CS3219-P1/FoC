@@ -28,6 +28,26 @@ RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, c
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
+-- Locks the row; a concurrent restoration sees no removed row and reports not found.
+-- name: RestoreReview :one
+UPDATE reviews
+SET deleted_at = NULL
+WHERE id = @id::UUID AND deleted_at IS NOT NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at;
+
+-- The removal a restoration answers: the latest one not yet restored.
+-- name: LatestUnrestoredRemoval :one
+SELECT rr.id
+FROM review_removals rr
+WHERE rr.review_id = @review_id::UUID
+  AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT 1;
+
+-- name: RecordReviewRestoration :exec
+INSERT INTO review_restorations (id, removal_id, review_id, appeal_id, reason, created_at, created_by)
+VALUES (@id::UUID, @removal_id::UUID, @review_id::UUID, sqlc.narg(appeal_id)::UUID, @reason, now(), @created_by::UUID);
+
 -- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,

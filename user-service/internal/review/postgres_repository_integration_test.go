@@ -910,3 +910,73 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	})
 
 }
+
+func TestReviewRestorationIntegration(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	db, err := database.Open(dsn, 5, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := database.Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	service := buildReviewService(t, sqlDB)
+
+	reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+		insertUser(t, ctx, sqlDB, id)
+	}
+	if err := service.SubmitReview(
+		ctx, reviewer, reviewee, uuid.New(), ReviewSubmission{Rating: 5, Comment: "great"}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	var reviewID uuid.UUID
+	if err := sqlDB.QueryRowContext(ctx, "SELECT id FROM reviews WHERE reviewer_id = $1", reviewer).
+		Scan(&reviewID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.RestoreReview(ctx, reviewID, "not removed", uuid.Nil, admin); err == nil {
+		t.Fatal("expected restoring a live review to fail")
+	}
+	if err := service.RemoveReview(ctx, reviewID, "abuse", admin); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 0 {
+		t.Fatalf("after removal: count=%d, want 0", c)
+	}
+
+	if err := service.RestoreReview(ctx, reviewID, "overturned", uuid.Nil, admin); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 1 || avg != 5 {
+		t.Fatalf("after restoration: count=%d avg=%v, want 1 and 5", c, avg)
+	}
+
+	if err := service.RemoveReview(ctx, reviewID, "abuse again", admin); err != nil {
+		t.Fatalf("remove a restored review again: %v", err)
+	}
+	if err := service.RestoreReview(ctx, reviewID, "overturned again", uuid.Nil, admin); err != nil {
+		t.Fatalf("restore the second removal: %v", err)
+	}
+	var removals, restorations int
+	if err := sqlDB.QueryRowContext(ctx,
+		`SELECT (SELECT count(*) FROM review_removals WHERE review_id = $1),
+		        (SELECT count(*) FROM review_restorations WHERE review_id = $1)`, reviewID,
+	).Scan(&removals, &restorations); err != nil {
+		t.Fatal(err)
+	}
+	if removals != 2 || restorations != 2 {
+		t.Fatalf("removals=%d restorations=%d, want 2 and 2", removals, restorations)
+	}
+}

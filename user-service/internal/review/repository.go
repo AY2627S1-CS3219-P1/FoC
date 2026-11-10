@@ -14,6 +14,12 @@ type Repository interface {
 	// SoftDeleteReview removes a live review and returns it for the audit row.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	// RestoreReview undeletes a removed review and returns it.
+	RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
+	// LatestUnrestoredRemoval returns the removal a restoration answers, or
+	// errReviewNotFound when every removal is already restored.
+	LatestUnrestoredRemoval(ctx context.Context, q *reviewdb.Queries, reviewID uuid.UUID) (uuid.UUID, error)
+	RecordReviewRestoration(ctx context.Context, q *reviewdb.Queries, restoration ReviewRestoration) error
 	// RecalculateStats locks the reviewee row, then updates its stats in q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
 

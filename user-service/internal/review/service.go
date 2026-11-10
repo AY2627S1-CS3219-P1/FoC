@@ -193,6 +193,50 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 	})
 }
 
+// RestoreReview undoes the latest unrestored removal of a review, records the
+// restoration and recomputes the reviewee's rating (RP12.3). appealID is
+// uuid.Nil when no appeal is involved.
+func (s *Service) RestoreReview(ctx context.Context, id uuid.UUID, reason string, appealID, actorID uuid.UUID) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" || utf8.RuneCountInString(reason) > 2000 {
+		return errs.NewBadRequestError("restoration reason must contain between 1 and 2000 characters")
+	}
+	restorationID, err := newID()
+	if err != nil {
+		return err
+	}
+
+	return s.withTransaction(ctx, func(q *reviewdb.Queries) error {
+		review, err := s.repo.RestoreReview(ctx, q, id)
+		if errors.Is(err, errReviewNotFound) {
+			return errs.WrapNotFoundError(err, "removed review not found")
+		}
+		if err != nil {
+			return err
+		}
+		removalID, err := s.repo.LatestUnrestoredRemoval(ctx, q, id)
+		if errors.Is(err, errReviewNotFound) {
+			return errs.WrapFailedPreconditionError(err, "review has no removal to restore")
+		}
+		if err != nil {
+			return err
+		}
+
+		restoration := ReviewRestoration{
+			ID:        restorationID,
+			RemovalID: removalID,
+			ReviewID:  id,
+			AppealID:  appealID,
+			Reason:    reason,
+			CreatedBy: actorID,
+		}
+		if err := s.repo.RecordReviewRestoration(ctx, q, restoration); err != nil {
+			return err
+		}
+		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
+	})
+}
+
 func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error) {
 	removals, err := s.repo.ListReviewRemovals(ctx, page.Offset(), page.PageSize())
 	if err != nil {

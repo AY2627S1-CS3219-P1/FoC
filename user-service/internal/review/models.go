@@ -65,6 +65,17 @@ type ReviewRemoval struct {
 	CreatedByName string
 }
 
+// ReviewRestoration audits a restored review, answering one removal. AppealID
+// is set when an overturned appeal restored it.
+type ReviewRestoration struct {
+	ID        uuid.UUID
+	RemovalID uuid.UUID
+	ReviewID  uuid.UUID
+	AppealID  uuid.UUID
+	Reason    string
+	CreatedBy uuid.UUID
+}
+
 // newID generates UUIDv7 identifiers until the column default catches up.
 func newID() (uuid.UUID, error) {
 	id, err := uuid.NewV7()

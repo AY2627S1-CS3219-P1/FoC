@@ -38,8 +38,14 @@ type fakeRepository struct {
 	recalcCount    int
 	insertedID     uuid.UUID
 	audited        ReviewRemoval
-	softDeleted    uuid.UUID
-	recalculated   uuid.UUID
+
+	reviewToRestore   Review
+	restoreErr        error
+	unrestoredRemoval uuid.UUID
+	unrestoredErr     error
+	restored          ReviewRestoration
+	softDeleted       uuid.UUID
+	recalculated      uuid.UUID
 
 	// Existing reviews per (reviewer, order), exercised by the duplicate
 	// pre-check in SubmitReview.
@@ -110,6 +116,32 @@ func (f *fakeRepository) SoftDeleteReview(_ context.Context, _ *reviewdb.Queries
 func (f *fakeRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Queries, removal ReviewRemoval) error {
 	f.audited = removal
 	return f.removalErr
+}
+
+func (f *fakeRepository) RestoreReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	if f.restoreErr != nil {
+		return Review{}, f.restoreErr
+	}
+	review := f.reviewToRestore
+	review.ID = id
+	return review, nil
+}
+
+func (f *fakeRepository) LatestUnrestoredRemoval(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	_ uuid.UUID,
+) (uuid.UUID, error) {
+	return f.unrestoredRemoval, f.unrestoredErr
+}
+
+func (f *fakeRepository) RecordReviewRestoration(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	restoration ReviewRestoration,
+) error {
+	f.restored = restoration
+	return nil
 }
 
 func (f *fakeRepository) RecalculateStats(_ context.Context, _ *reviewdb.Queries, revieweeID uuid.UUID) error {
@@ -434,6 +466,55 @@ func TestRemoveReview(t *testing.T) {
 			t.Fatalf("want review-not-found sentinel, got: %v", err)
 		}
 		assertExternal(t, err, http.StatusNotFound)
+	})
+}
+
+func TestRestoreReview(t *testing.T) {
+	t.Run("restores the review, audits the removal it answers, and recomputes stats", func(t *testing.T) {
+		reviewee, removalID, appealID, actorID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			reviewToRestore:   Review{RevieweeID: reviewee},
+			unrestoredRemoval: removalID,
+		}
+		svc := newTestService(fake)
+		id := uuid.New()
+
+		if err := svc.RestoreReview(context.Background(), id, " overturned ", appealID, actorID); err != nil {
+			t.Fatal(err)
+		}
+		want := ReviewRestoration{
+			ID:        fake.restored.ID,
+			RemovalID: removalID,
+			ReviewID:  id,
+			AppealID:  appealID,
+			Reason:    "overturned",
+			CreatedBy: actorID,
+		}
+		if fake.restored != want || fake.restored.ID == uuid.Nil {
+			t.Fatalf("restoration = %+v, want %+v", fake.restored, want)
+		}
+		if fake.recalcCount != 1 || fake.recalculated != reviewee {
+			t.Fatalf("stats not recomputed after restoration: %+v", fake)
+		}
+	})
+	t.Run("blank reason is rejected", func(t *testing.T) {
+		svc := newTestService(&fakeRepository{})
+		err := svc.RestoreReview(context.Background(), uuid.New(), " ", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("a live review is not found", func(t *testing.T) {
+		svc := newTestService(&fakeRepository{restoreErr: errReviewNotFound})
+		err := svc.RestoreReview(context.Background(), uuid.New(), "reason", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusNotFound)
+	})
+	t.Run("a review without an unrestored removal cannot be restored", func(t *testing.T) {
+		fake := &fakeRepository{unrestoredErr: errReviewNotFound}
+		svc := newTestService(fake)
+		err := svc.RestoreReview(context.Background(), uuid.New(), "reason", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusPreconditionFailed)
+		if fake.recalcCount != 0 {
+			t.Fatal("stats recomputed for a failed restoration")
+		}
 	})
 }
 
