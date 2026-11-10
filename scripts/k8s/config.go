@@ -34,30 +34,13 @@ var jobs = []string{
 	"kafka-init",
 }
 
-// releaseApps lists workloads the current overlay deploys. The reports and
-// appeals moderation service is local-only until AWS release wiring enables it.
+// releaseApps lists workloads the current overlay deploys.
 func (o *operator) releaseApps() []string {
-	if o.isLocal() {
-		return apps
-	}
-	return withoutName(apps, "moderation-service")
+	return apps
 }
 
 func (o *operator) releaseJobs() []string {
-	if o.isLocal() {
-		return jobs
-	}
-	return withoutName(jobs, "moderation-migrate")
-}
-
-func withoutName(names []string, name string) []string {
-	out := make([]string, 0, len(names))
-	for _, candidate := range names {
-		if candidate != name {
-			out = append(out, candidate)
-		}
-	}
-	return out
+	return jobs
 }
 
 var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}
