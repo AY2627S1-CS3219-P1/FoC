@@ -457,3 +457,36 @@ flowchart TB
 - Operational runbooks: `docs/runbooks/`
 - Project glossary: [`glossary.md`](glossary.md)
 - Non-obvious failure notes (update when a problem bites): `LANDMINES/`
+
+---
+
+## AI Use Summary
+
+In line with the CS3219 AI usage policy (Appendix 2 of the project
+document), this project used AI tools as follows.
+
+**Tools:** LLM-based AI coding assistants (chat-based and agentic coding
+tools).
+
+**Prohibited phases avoided:** requirements elicitation and prioritization;
+architecture and design decisions (component boundaries, design patterns,
+data schemas, interfaces); and drafting of decision rationales.
+
+**Used for:**
+
+- Learning support to understand and compare candidate tools, technologies,
+  architectures, and design approaches, and to evaluate the trade-offs
+  between them. All final decisions, their rationale, and the records in
+  `docs/adr/` were made, written, and validated by the team.
+- Generating scaffolding and boilerplate when creating a new service (folder
+  structure, configuration, build and container definitions, generated-code
+  stubs). The team reviewed every scaffold before pushing it and opening a
+  pull request.
+- Writing implementation code (functions, classes, unit tests) after the
+  team finalized the relevant requirements and design.
+- Debugging assistance (error explanations, test suggestions) and
+  refactoring and documentation improvements (docstrings, comments, README
+  content).
+
+**Verification:** All AI outputs were reviewed, edited, tested, and verified
+by the team, which remains fully accountable for the entire codebase.
