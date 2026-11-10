@@ -64,6 +64,18 @@ run "isolated_release_identity_and_private_disposable_runner" {
   }
 }
 
+run "release_build_cache_and_runner_size" {
+  command = plan
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.release.policy).Statement[4].Resource == "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/build-cache" && !contains(jsondecode(aws_iam_role_policy.release.policy).Statement[4].Action, "ecr:DeleteRepository")
+    error_message = "The release may read and write only the dedicated build-cache repository."
+  }
+  assert {
+    condition     = aws_launch_template.runner.instance_type == "t3.xlarge"
+    error_message = "Parallel image builds need the four-vCPU runner."
+  }
+}
+
 run "launcher_identity_can_only_launch_the_runner" {
   command = plan
   assert {

@@ -436,6 +436,14 @@ run "logging_has_dedicated_private_storage_and_identity" {
 
 # The extraction requires an isolated service identity/database. The AWS demo
 # preparation contract keeps evidence private and leaves runtime deployment off.
+run "build_cache_is_separate_and_mutable" {
+  command = plan
+  assert {
+    condition     = aws_ecr_repository.build_cache.name == "foc-demo/build-cache" && aws_ecr_repository.build_cache.image_tag_mutability == "MUTABLE" && !aws_ecr_repository.build_cache.force_delete && !contains(keys(aws_ecr_repository.images), "build-cache")
+    error_message = "Layer cache tags are rewritten each release, so the cache needs its own mutable repository outside the immutable release images."
+  }
+}
+
 run "moderation_is_disabled_by_default" {
   command = plan
   assert {
