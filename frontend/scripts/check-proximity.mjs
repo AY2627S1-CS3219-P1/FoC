@@ -14,7 +14,7 @@ const order = { id: '44444444-4444-4444-8444-444444444444', requesterId: supplie
 const shots = process.env.PROXIMITY_SCREENSHOT_DIR ?? '/tmp/foc-proximity-screenshots';
 await mkdir(shots, { recursive: true });
 
-async function open(path, outcome = 'success', viewport = { width: 390, height: 900 }) {
+async function open(path, outcome = 'success', viewport = { width: 390, height: 900 }, role = user.role) {
 	const context = await browser.newContext({ viewport });
 	await context.addInitScript(({ outcome, origin }) => {
 		window.locationCalls = 0;
@@ -41,7 +41,7 @@ async function open(path, outcome = 'success', viewport = { width: 390, height: 
 		calls.push({ method, body });
 		if (method === 'WatchChanges') return route.fulfill({ status: 501, json: { code: 'unimplemented' } });
 		const defaults = {
-			Refresh: { accessToken: 'fixture', user },
+			Refresh: { accessToken: 'fixture', user: { ...user, role } },
 			ListBuildings: { buildings: [building] },
 			ListCategories: {},
 			ListLocations: { locations: [supplier], page: body.page || 1, pageSize: 20, totalItems: '40', totalPages: 2 },
@@ -74,6 +74,29 @@ async function waitCall(page, calls, method, predicate) {
 }
 
 try {
+	for (const path of ['/admin/suppliers', '/admin/suppliers?sort=proximity']) {
+		const { page, context, calls } = await open(path, 'success', undefined, 'USER_ROLE_ADMIN');
+		await waitCall(page, calls, 'ListLocations', body => body?.sortField === 'LOCATION_SORT_FIELD_NAME');
+		await page.getByRole('button', { name: 'Show filters', exact: true }).click();
+		const sort = page.getByRole('combobox', { name: 'Sort by', exact: true });
+		assert.deepEqual(await sort.locator('option').evaluateAll(options => options.map(option => option.value)),
+			['name-asc', 'name-desc', 'building-asc', 'building-desc'], 'admin only offers sorts it supports');
+		for (const [value, field, direction] of [
+			['name-desc', 'LOCATION_SORT_FIELD_NAME', 'SORT_DIRECTION_DESCENDING'],
+			['building-asc', 'LOCATION_SORT_FIELD_BUILDING', 'SORT_DIRECTION_ASCENDING'],
+			['building-desc', 'LOCATION_SORT_FIELD_BUILDING', 'SORT_DIRECTION_DESCENDING'],
+			['name-asc', 'LOCATION_SORT_FIELD_NAME', 'SORT_DIRECTION_ASCENDING']
+		]) {
+			await sort.selectOption(value);
+			await waitCall(page, calls, 'ListLocations', body => body?.sortField === field && body.sortDirection === direction);
+			await page.getByRole('link', { name: supplier.name, exact: true }).waitFor();
+		}
+		assert.equal(await page.evaluate(() => window.locationCalls), 0, 'admin sorts do not request browser location');
+		assert(calls.filter(call => call.method === 'ListLocations').every(call => call.body.sortField !== 'LOCATION_SORT_FIELD_PROXIMITY'));
+		await context.close();
+	}
+	console.log('PASS administration supports every displayed sort and safely ignores public proximity links');
+
 	let { page, context, calls } = await open('/');
 	await page.getByText('Finding your location…', { exact: true }).waitFor({timeout: 10000}).catch(async error => { await page.screenshot({path: shots + '/failure.png', fullPage:true}); console.log(await page.locator('body').innerText(), calls, errors); throw error; });
 	await waitCall(page, calls, 'ListOpenOrders', body => body?.sort === 'OPEN_ORDER_SORT_PROXIMITY');

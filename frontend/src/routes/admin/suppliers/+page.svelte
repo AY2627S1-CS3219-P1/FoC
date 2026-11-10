@@ -17,7 +17,11 @@
 		categories = $state<Category[]>([]);
 	let reload = $state(0),
 		references = $state(0);
-	const query = $derived(queryFromParams(page.url.searchParams));
+	const query = $derived.by(() => {
+		const parsed = queryFromParams(page.url.searchParams);
+		// Administration has no browser-origin lifecycle; ignore public proximity links.
+		return parsed.sort === 'proximity' ? { ...parsed, sort: undefined } : parsed;
+	});
 	$effect(() => {
 		void references;
 		let stale = false;

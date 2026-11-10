@@ -140,7 +140,7 @@
 			<Button variant="text" onclick={() => referenceReload++}>Retry filters</Button>
 		{/if}
 		<LocationStatus {proximity} fallback="Showing suppliers by name." />
-	<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
+	<LocationFilters allowProximity {query} {buildings} {categories} {isAdmin} onchange={update} />
 
 		<div class="results" aria-live="polite">
 			{#if error}
