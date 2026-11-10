@@ -17,7 +17,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
@@ -74,6 +76,13 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 func newReportService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
 	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
 	return report.NewService(repo, reportoutcome.WithTransaction(db))
+}
+
+// newAppealService closes appeals in a GORM transaction, so overturned
+// outcomes reuse the same domains as report outcomes.
+func newAppealService(db *gorm.DB, sqlDB *sql.DB) *appeal.Service {
+	repo := appeal.NewPostgresRepository(appealdb.New(sqlDB))
+	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db))
 }
 
 func newWarningService(db warningdb.DBTX) *warningdomain.Service {

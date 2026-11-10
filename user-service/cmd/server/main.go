@@ -15,6 +15,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -119,6 +120,7 @@ func main() {
 	}
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	reportLogic := newReportService(db, sqlDB)
+	appealLogic := newAppealService(db, sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -127,6 +129,7 @@ func main() {
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
 		Report:         &report.Handler{Logic: reportLogic},
+		Appeal:         &appeal.Handler{Logic: appealLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
