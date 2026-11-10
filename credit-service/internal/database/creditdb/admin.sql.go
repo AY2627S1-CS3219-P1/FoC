@@ -7,7 +7,56 @@ package creditdb
 
 import (
 	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const dailyPayouts = `-- name: DailyPayouts :many
+SELECT
+    (created_at AT TIME ZONE 'Asia/Singapore')::date AS day,
+    SUM(balance_delta)::bigint AS credits,
+    count(*) AS payments
+FROM ledger_entries
+WHERE kind = 'PAYOUT' AND balance_delta > 0
+    AND created_at >= $1::timestamptz AND created_at < $2::timestamptz
+GROUP BY day
+ORDER BY day
+`
+
+type DailyPayoutsParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type DailyPayoutsRow struct {
+	Day      pgtype.Date
+	Credits  int64
+	Payments int64
+}
+
+// Credits paid to couriers in [from_at, to_at), and the number of those
+// payments, by Asia/Singapore calendar day. Requester-side PAYOUT entries
+// record the same payment from the hold, so only courier credits count.
+func (q *Queries) DailyPayouts(ctx context.Context, arg DailyPayoutsParams) ([]DailyPayoutsRow, error) {
+	rows, err := q.db.Query(ctx, dailyPayouts, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DailyPayoutsRow
+	for rows.Next() {
+		var i DailyPayoutsRow
+		if err := rows.Scan(&i.Day, &i.Credits, &i.Payments); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getCreditTotals = `-- name: GetCreditTotals :one
 SELECT
