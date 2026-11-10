@@ -361,3 +361,19 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+
+  # Single required check for the main ruleset, so adding or renaming CI jobs
+  # does not require editing branch protection. Skipped jobs count as passing.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [performance-harness, go-tests, go-lint, supplier-integration, order-integration, credit-integration, moderation-integration, user-service-integration, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job to succeed or be skipped
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          echo "$RESULTS" | jq -e 'all(.[]; . == "success" or . == "skipped")'
