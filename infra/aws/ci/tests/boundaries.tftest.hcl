@@ -57,3 +57,14 @@ run "isolated_release_identity_and_private_disposable_runner" {
     error_message = "Bootstrap identity must not inherit deployment or state permissions."
   }
 }
+
+run "moderation_release_access_is_repository_scoped" {
+  command = plan
+  variables {
+    enable_moderation_service = true
+  }
+  assert {
+    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 9 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/moderation-service") && alltrue([for repository in jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource : startswith(repository, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/") && !strcontains(repository, "*")]) && !strcontains(aws_iam_role_policy.release.policy, "iam:") && !strcontains(aws_iam_role_policy.release.policy, "tfstate")
+    error_message = "Enabling moderation must add only its exact image repository, not IAM, Terraform state, or wildcard registry access."
+  }
+}

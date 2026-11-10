@@ -559,3 +559,65 @@ created by Kubernetes and is not directly tracked by this Terraform stack.
 The state bootstrap bucket is deliberately separate and protected. Retain it for
 recovery/audit until its removal is separately approved. Do not erase local
 credentials or state before confirming the intended teardown succeeded.
+
+## Reports and appeals resource preparation
+
+`enable_moderation_service = true` prepares resources for `moderation-service`
+(reports and appeals), not `content-moderation-service` (LLM review assessment).
+It defaults to false and does not deploy a workload or change existing image
+builds, Gateway routes, Kafka topics, or application migrations.
+
+| Resource | Scope |
+| --- | --- |
+| ECR | One additional immutable `<name>/moderation-service` repository and untagged-image lifecycle policy. No automatic image deletion on destroy. |
+| PostgreSQL | `prepare-database` includes `moderation_db`, owned by login `foc_moderation`, and Secret `foc/moderation-db`. It reuses the private RDS instance with verified TLS, denies PUBLIC connections, and retains existing service credentials. Terraform itself does not create the logical database or password. |
+| Evidence S3 | One separate bucket, AES256 encryption, all public access blocked, HTTPS-only access, and GET/HEAD/PUT CORS restricted to the application origin. Objects are retained by default. |
+| Workload IAM | `<name>-moderation-evidence`, assumed only by `system:serviceaccount:foc:moderation-service` with the STS audience. Allows only GetObject, PutObject, and DeleteObject under `evidence/*` in the evidence bucket. HeadObject uses GetObject permission; DeleteObject supports the runtime's 24-hour orphan-upload cleanup. No listing, other prefixes/buckets, mail, database administration, ECR push, or infrastructure permissions. |
+| Release IAM | The CI root has a separate opt-in with the same name. It adds only this exact ECR repository to the existing release image permissions. It does not extend the workload's permissions or enable release builds. |
+| Compute and networking | Reuse EKS, RDS, Kafka, API Gateway, and the existing mesh. No new node group, database instance, broker, NAT, public load balancer, or public database port. |
+
+The main Terraform root adds nine resources when enabled: two ECR resources,
+five S3 resources, and two IAM resources. `terraform output -json moderation`
+exposes non-secret storage, image, identity, and database names. The existing
+`deployment` output carries a boolean `moderation_enabled` for database
+preparation. Refresh that output before running the existing `prepare-database`
+command; retain the existing private database directory so enabling moderation
+cannot rotate the other five credentials. Preparing files does not apply them;
+review and explicitly run the provisioning Job separately.
+
+### Assumptions and deployment boundaries
+
+- The initial evidence-storage choice is a dedicated bucket rather than a prefix
+  in User's bucket. The runtime must use these bucket settings before receiving
+  this role. This does not migrate existing evidence or grant access to User's
+  bucket. If the extraction uses shared storage, reconcile that contract before
+  enabling it, rather than broadening this role to all application buckets.
+- The runtime already cleans unattached uploads after 24 hours, so its role needs
+  object deletion. IAM cannot distinguish an orphan from attached evidence: the
+  role can delete any object under its evidence prefix. Retention of attached
+  evidence remains undecided. There is no bucket-wide lifecycle expiry, public
+  read, or additional KMS key. Review audit/privacy retention before real use.
+- Existing demo capacity is a starting assumption, not a measured guarantee.
+  CPU, memory, replica count, RDS load, Kafka partitioning, and service latency
+  need evaluation with the completed runtime. This change does not resize them.
+- PostgreSQL credentials and Kubernetes/Istio caller authorization are separate
+  from AWS IAM. Internal User/Order RPC access must be restricted to the required
+  methods. Kafka outbox/consumer wiring uses the existing broker, not MSK/IAM
+  broker administration. No new SES, LLM, or model-provider credentials are
+  assumed for reports and appeals.
+- Runtime/release integration is not included. The extraction branch already
+  supplies its Docker target, migrations, Deployment/Service/ServiceAccount,
+  public RPC routes, Kafka outcome contract/topic, and health checks. These must
+  be present in the release source; AWS role annotation, S3 settings, RDS CA
+  mounts, release inventories, and internal caller authorization still need
+  integration and verification. Current release configuration does not
+  publish these optional resource outputs. Do not interpret enabled Terraform
+  resources as a deployable or verified service.
+
+After an approved apply, prepare and provision the isolated database, integrate
+those runtime contracts, review the rendered manifests, then verify evidence
+upload/read authorization, database isolation, RPC caller restrictions, Kafka
+retry/idempotency, and user-visible report/appeal flows before enabling traffic.
+Do not use a full-environment apply just to add the service without reviewing
+all unrelated plan changes. Retained evidence needs an explicit deletion
+choice during teardown, just like the other application buckets.

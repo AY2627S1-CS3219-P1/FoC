@@ -1,8 +1,8 @@
 locals {
-  images = toset([
+  images = setunion(toset([
     "user-service", "supplier-service", "order-service", "credit-service",
     "communication-service", "frontend", "migrations", "kafka-init",
-  ])
+  ]), var.enable_moderation_service ? toset(["moderation-service"]) : toset([]))
 }
 
 resource "aws_ecr_repository" "images" {

@@ -7,6 +7,12 @@ variable "account_id" {
   }
 }
 
+variable "enable_moderation_service" {
+  description = "Prepare isolated AWS resources for reports and appeals. Does not deploy the moderation runtime."
+  type        = bool
+  default     = false
+}
+
 variable "region" {
   description = "AWS deployment region."
   type        = string

@@ -32,10 +32,20 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 	if value, ok := admin["host"]; ok && value != host {
 		return errors.New("administrator secret belongs to a different database host")
 	}
+	databaseServices := append([]string(nil), services...)
+	if enabled, exists := config["moderation_enabled"]; exists {
+		value, ok := enabled.(bool)
+		if !ok {
+			return errors.New("moderation_enabled must be a boolean")
+		}
+		if value {
+			databaseServices = append(databaseServices, "moderation")
+		}
+	}
 	objects := []any{}
 	statements := []string{`\set ON_ERROR_STOP on`}
 	cleanup := []string{}
-	for _, service := range services {
+	for _, service := range databaseServices {
 		path := filepath.Join(directory, service+".json")
 		var value map[string]any
 		if _, err := os.Stat(path); err == nil {
@@ -168,7 +178,7 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 	_, _ = fmt.Fprintf(
 		a.out,
 		"Prepared %d service database Secrets and the RDS provisioning Job in %s\n",
-		len(services),
+		len(databaseServices),
 		directory,
 	)
 	_, _ = fmt.Fprintln(
