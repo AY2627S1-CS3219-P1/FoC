@@ -20,6 +20,13 @@ WHERE event_id = (
     FROM outcome_outbox candidate
     WHERE candidate.published_at IS NULL
       AND (candidate.lease_until IS NULL OR candidate.lease_until <= $3::TIMESTAMPTZ)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM outcome_outbox earlier
+          WHERE earlier.message_key = candidate.message_key
+            AND earlier.published_at IS NULL
+            AND (earlier.occurred_at, earlier.event_id) < (candidate.occurred_at, candidate.event_id)
+      )
     ORDER BY candidate.occurred_at, candidate.event_id
     LIMIT 1
     FOR UPDATE OF candidate SKIP LOCKED
@@ -39,7 +46,9 @@ type ClaimOutcomeRow struct {
 	Payload    []byte
 }
 
-// Leases the oldest unpublished outcome that no live lease holds.
+// Leases the oldest unpublished outcome that no live lease holds. An outcome
+// waits while an earlier one with its key is unpublished, even when that one is
+// leased or waiting to retry, so a reversal never overtakes what it reverses.
 func (q *Queries) ClaimOutcome(ctx context.Context, arg ClaimOutcomeParams) (ClaimOutcomeRow, error) {
 	row := q.db.QueryRowContext(ctx, claimOutcome, arg.LeaseToken, arg.LeaseUntil, arg.NowAt)
 	var i ClaimOutcomeRow
