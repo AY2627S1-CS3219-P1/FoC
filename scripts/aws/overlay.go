@@ -255,7 +255,8 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 			}
 			resources = append(resources, "storage-class.json", "rds-ca.json")
 		case "applications", "initialization":
-			for _, service := range services {
+			// Every release workload connecting to RDS needs its CA, including the reports moderation service.
+			for _, service := range append(append([]string{}, services...), "moderation") {
 				kind, name := "Deployment", service+"-service"
 				if stage == "initialization" {
 					kind, name = "Job", service+"-migrate"

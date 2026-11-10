@@ -1,7 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: foc
   name: moderation-service
   labels:
     foc.dev/stage: applications
@@ -63,7 +62,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: foc
   name: moderation-service-external
 spec:
   selector:
@@ -74,7 +72,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: foc
   name: moderation-service-internal
 spec:
   selector:
@@ -85,7 +82,6 @@ spec:
 apiVersion: networking.istio.io/v1
 kind: Sidecar
 metadata:
-  namespace: foc
   name: moderation-service
 spec:
   workloadSelector:
