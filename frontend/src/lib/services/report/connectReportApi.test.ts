@@ -3,7 +3,7 @@ import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import type { Client } from '@connectrpc/connect';
 import { PageInfoSchema } from '$lib/gen/pagination/v1/pagination_pb';
-import { EvidenceSchema } from '$lib/gen/user/evidence/v1/evidence_pb';
+import { EvidenceSchema } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import {
 	ReportCategory,
 	ReportOutcome,
@@ -11,7 +11,7 @@ import {
 	ReportService,
 	ReportStatus,
 	type Report
-} from '$lib/gen/user/report/v1/report_pb';
+} from '$lib/gen/moderation/report/v1/report_pb';
 import { ConnectReportApi } from './connectReportApi.ts';
 import { appealableDecision, type ReportRecord } from './reportApi.ts';
 

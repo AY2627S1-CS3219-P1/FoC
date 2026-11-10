@@ -80,10 +80,14 @@ export const deliveryProofApi = createDeliveryProofService(orderTransport);
 // redirects on unauthenticated calls.
 export const reviewApi = createReviewApi(protectedUserTransport);
 
-// Reports and appeals live in User Service. Participants and administrators
-// share the transport; role checks happen per RPC on the server.
-export const reportApi = createReportApi(protectedUserTransport);
-export const appealApi = createAppealApi(protectedUserTransport);
+// Reports and appeals live in Moderation Service. Participants and
+// administrators share the transport; role checks happen per RPC on the server.
+const moderationTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086',
+	interceptors: [authRedirectInterceptor, authService.interceptor]
+});
+export const reportApi = createReportApi(moderationTransport);
+export const appealApi = createAppealApi(moderationTransport);
 
 const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
 const communicationTransport = createCustomTransport({

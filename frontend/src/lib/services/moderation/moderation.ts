@@ -1,7 +1,7 @@
 // Shared by reports and appeals: both move through the same lifecycle, carry
 // image evidence and page their lists the same way.
 import { timestampDate, type Timestamp } from '@bufbuild/protobuf/wkt';
-import type { Evidence as ProtoEvidence } from '$lib/gen/user/evidence/v1/evidence_pb';
+import type { Evidence as ProtoEvidence } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import type { PageInfo } from '$lib/gen/pagination/v1/pagination_pb';
 
 /** OPEN -> UNDER_REVIEW <-> AWAITING_RESPONSE -> CLOSED. */

@@ -1,4 +1,4 @@
-import type { EvidenceUploadGrant } from '$lib/gen/user/evidence/v1/evidence_pb';
+import type { EvidenceUploadGrant } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import type { CaseStatus, EvidenceRecord, EvidenceUploadInput, PageQuery, PageResult } from '../moderation/index.ts';
 
 /** The kind of decision an appeal challenges. */
