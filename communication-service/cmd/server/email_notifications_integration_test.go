@@ -100,6 +100,7 @@ func TestQueuedEmailRecoversWhileTelegramStartupRetries(t *testing.T) {
 		userID,
 		"retained outcome",
 		time.Now(),
+		notify.EmailValidity{},
 	); err != nil {
 		t.Fatal(err)
 	}

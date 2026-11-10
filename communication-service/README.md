@@ -2,9 +2,28 @@
 
 Sends FoC's messages to users. It runs the FoC Telegram bot, which links FoC accounts to Telegram chats, sends order updates and relays chat between an order's requester and courier. It also sends all FoC email: magic links for User Service, and order outcomes to users Telegram can't reach.
 
-Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: without `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
+Also serves authenticated browser updates through
+`RealtimeService.WatchChanges`. A separate `communication-realtime` Kafka group
+consumes Credit and Order changes and fans out resource invalidations across
+replicas using PostgreSQL LISTEN/NOTIFY. This runs without a Telegram token.
+Browsers refetch through domain RPCs and recover missed hints on reconnect,
+focus, and a slow fallback poll. Without `KAFKA_BROKERS`, the stream reports
+`unavailable` and browser fallback reads continue. See the
+[architecture](../docs/adr/realtime-invalidation.md) and
+[verification](../docs/testing/realtime-invalidation.md) notes.
+
+Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: with the default SMTP provider and no `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
 
 ## Email
+
+SMTP remains the default (`EMAIL_PROVIDER=smtp`), including local Mailpit. For
+AWS SES API delivery, select `EMAIL_PROVIDER=ses`, set `EMAIL_FROM` to a verified
+regional sender and `AWS_REGION` to that region. The SDK uses its default
+credential chain, including IRSA temporary credentials. `SES_TIMEOUT` defaults
+to `5s` when the caller has no deadline. SMTP settings are ignored in this mode.
+The selected adapter sends both magic links and queued order notifications;
+SES failures never switch delivery to SMTP. The AWS overlay grants the email
+role only to Communication Service.
 
 - **Magic links.** User Service calls `EmailService.SendMagicLink` with the address, the complete link and whether it signs in or finishes sign-up. Communication writes the email. The RPC is served only on the internal listener (`INTERNAL_PORT`), never the public one, and requires no access token: the caller hasn't signed in yet. In Kubernetes, an Istio policy lets only User Service reach that port. Any send failure returns `unavailable`, which User Service reports to the user.
 - **User emails.** The notification consumer also reads `users.create` and keeps each user's email in `user_emails`. Users created before the consumer first read the topic, and outside Kafka's retention, have no stored email.
@@ -19,13 +38,13 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 
 ## Order notifications
 
-The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
+The service consumes `order.status_changed` and `order.offer_made` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
 
-- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary SMTP failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) remain recorded as `rejected` with their error and attempt time.
+- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets outcome and action notifications by email: every always-deliver notification, offer accepted (to the courier), and new offers (to the requester). Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary delivery failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) and SES message rejections remain recorded as `rejected` with their error and attempt time.
 
-- **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
+- **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued, skipped or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
 
-Pending emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
+Queued new offers expire after 15 minutes from the event; queued offer-acceptance notices are skipped if the order has advanced beyond their revision. These checks run again before email delivery, including while an address is missing. Skipped rows remain recorded with their reason. Always-deliver emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
 
 ```sql
 SELECT n.status, (u.user_id IS NULL) AS missing_email,
@@ -39,8 +58,9 @@ GROUP BY n.status, (u.user_id IS NULL);
 
   | Class | Notifications |
   | -- | -- |
-  | Drop if late: sent only within 15 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), courier unassigned (to the requester), picked up |
-  | Still current: sent however late, but only while no later status change has been applied to the order | Offer accepted (to the courier), unassigned (to the removed courier) |
+  | Drop if late: sent only within 15 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), picked up, a courier's new offer (to the requester) |
+  | Still current: sent however late, but only while no later status change has been applied to the order | Offer accepted (to the courier), courier unassigned (to the requester) |
+  | Unless reassigned: sent however late, except while the same courier is currently assigned; checked again before queued email delivery | Unassigned (to the removed courier) |
   | Always: sent however late | Delivered, and every outcome: completed, cancelled, expired, failed, rejected |
 
 - **A new environment skips its backlog.** The first time notifications run, `notifications_start` records the time, and earlier events aren't sent. An installation that already handled order events before this table existed starts at 1970 instead, so nothing waiting during its upgrade is skipped. The consumer still reads them from the earliest offset to fill in chat participants. A group that loses its offsets, such as after a week-long outage, replays retained events: anything already sent is skipped, and the rest follow their class.
@@ -89,8 +109,12 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 | `RUN_MIGRATIONS` | `true` | Set `false` to skip migrations on startup. |
 | `TELEGRAM_BOT_TOKEN` | empty | Bot token from BotFather. Empty disables Telegram. |
 | `TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL, for pointing tests at a fake server. |
-| `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications. |
-| `SMTP_ADDR` | empty | SMTP relay `host:port`. Compose uses Mailpit at `mailpit:1025`. Empty disables email. |
+| `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications and browser change streams. |
+| `EMAIL_PROVIDER` | `smtp` | Email transport: `smtp` or `ses`. |
+| `EMAIL_FROM` | required for SES | Verified SES sender address. |
+| `AWS_REGION` | required for SES | Region containing the verified sender. |
+| `SES_TIMEOUT` | `5s` | Bounds SES delivery when the caller has no deadline. |
+| `SMTP_ADDR` | empty | SMTP relay `host:port`. Compose uses Mailpit at `mailpit:1025`. Empty disables email with the SMTP provider. |
 | `SMTP_FROM` | required with `SMTP_ADDR` | Sender address, such as `FoC <no-reply@foc.local>`. |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | empty | Relay credentials, sent only when `SMTP_USERNAME` is set. STARTTLS is used when the server offers it. |
 | `SMTP_TIMEOUT` | `5s` | Bounds each SMTP exchange. |
@@ -136,7 +160,7 @@ TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=dis
 docker rm -f communication-test-db
 ```
 
-The notification tests also need a dedicated broker with `order.status_changed` and `users.create` provisioned. They check Telegram replay after a failed send, and commit an outcome before its user's event, restart the consumer, then verify the later projection delivers exactly one email across an outcome replay. PostgreSQL tests cover missing-user isolation, retries, recorded rejections, concurrent workers, cancellation, atomic completion and migration down/up.
+The notification tests also need a dedicated broker with `order.status_changed`, `users.create` and `order.offer_made` provisioned. They check Telegram replay after a failed send, and commit an outcome before its user's event, restart the consumer, then verify the later projection delivers exactly one email across an outcome replay. PostgreSQL tests cover missing-user isolation, retries, recorded rejections, concurrent workers, cancellation, atomic completion and migration down/up.
 
 ```sh
 TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' \

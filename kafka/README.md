@@ -10,7 +10,17 @@ declare messages and enums without RPC services.
 | `order.status_changed` | `order.events.v1.OrderStatusChanged` | Order UUID as UTF-8 text |
 | `order.outcome` | `order.events.v1.OrderOutcome` | Order UUID as UTF-8 text |
 | `order.courier_warning_requested` | `order.events.v1.CourierWarningRequested` | Order UUID as UTF-8 text |
+| `order.offer_made` | `order.events.v1.OrderOfferMade` | Order UUID as UTF-8 text |
 | `users.create` | `users.events.v1.UserCreated` | User UUID as UTF-8 text |
+| `credit.account_changed` | `credit.events.v1.AccountChanged` | User UUID as UTF-8 text |
+| `order.changed` | `order.events.v1.OrderChanged` | Order UUID as UTF-8 text |
+
+Credit publishes account changes with each committed nonzero ledger posting.
+Order publishes read-model changes through its existing outbox, including offers
+and workflow-only changes. Communication's separate `communication-realtime`
+group turns these events into advisory browser invalidations. Duplicates are
+safe; do not deduplicate Order changes solely by aggregate revision. See
+[the live-update ADR](../docs/adr/realtime-invalidation.md).
 
 `users.create` announces a newly created user. Its payload contains the event
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
@@ -19,10 +29,12 @@ event from its transactional outbox after registration commits. Credit consumes
 it to open the user's account with the starting credits, and Communication
 keeps each user's email for email notifications.
 
-Order publishes its three topics from its outbox. Topic names match the outbox
+Order publishes its four topics from its outbox. Topic names match the outbox
 fact kinds. `order.status_changed` drives Communication's notifications,
-`order.outcome` reports how an order ended, and
-`order.courier_warning_requested` asks User Service to warn a courier.
+`order.outcome` reports how an order ended,
+`order.courier_warning_requested` asks User Service to warn a courier, and
+`order.offer_made` lets Communication tell the requester about a courier's
+offer.
 
 Values use binary Protobuf (`proto.Marshal` / `proto.Unmarshal`), without a
 schema registry framing prefix. The topic identifies its value message.

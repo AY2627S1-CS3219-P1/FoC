@@ -19,6 +19,8 @@ import { createAppealApi } from './appeal/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
+import { CreditService } from './credit/service.svelte';
+import { createRealtimeService } from './realtime';
 import { createTelegramLinkApi } from './telegram/index.ts';
 import { SnackbarService } from './snackbar/service.ts';
 
@@ -90,3 +92,5 @@ const communicationTransport = createCustomTransport({
 });
 
 export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
+export const realtimeService = createRealtimeService(communicationTransport, () => authService.refresh());
+export const creditService = new CreditService(creditAccountApi, realtimeService);

@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (ignored). No credentials belong in this file.
+account_id      = "123456789012"
+name            = "foc-demo"
+region          = "ap-southeast-1"
+operator_cidr   = "203.0.113.10/32" # Intentionally invalid TEST-NET placeholder. Replace with your observed public IPv4 /32.
+expires_on      = "2026-11-19"      # Replace with ten days after actual deployment.
+# API Gateway supplies the public HTTPS hostname. No domain or certificate input.
+
+# Confirm regional availability, sandbox permissions, and pricing before apply.
+kubernetes_version      = "1.35"
+postgres_version        = "18"
+postgres_instance_class = "db.t4g.small"
+
+# Optional SES API delivery for Communication Service; null/default retains SMTP.
+# Verify this email in the region above before enabling. No SMTP login needed.
+# ses_sender_email = "sender@example.edu"

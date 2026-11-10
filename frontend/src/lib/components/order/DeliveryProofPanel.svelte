@@ -3,6 +3,7 @@
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import type { DeliveryProofRead, DeliveryProofService } from '$lib/services/delivery-proof';
 	import DeliveryProofForm from './DeliveryProofForm.svelte';
+	import { realtimeService } from '$lib/services';
 
 	let { order, callerId, api, refresh }: {
 		order: Order; callerId: string; api: DeliveryProofService; refresh: () => Promise<void>;
@@ -51,8 +52,8 @@
 			proof = null;
 		}
 		error = '';
-		if (key.endsWith(':true')) void load(key);
-		return () => { request++; active?.abort(); clearTimeout(refreshTimer); };
+		const stop = key.endsWith(':true') ? realtimeService.subscribe(['orders'], () => load(key)) : undefined;
+		return () => { request++; stop?.(); active?.abort(); clearTimeout(refreshTimer); };
 	});
 </script>
 

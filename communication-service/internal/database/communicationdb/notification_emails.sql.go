@@ -28,8 +28,9 @@ func (q *Queries) DeleteNotificationEmail(ctx context.Context, arg DeleteNotific
 }
 
 const enqueueNotificationEmail = `-- name: EnqueueNotificationEmail :exec
-INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at)
-SELECT $1, $2, $3, $4, $4
+INSERT INTO notification_emails (event_id, user_id, body, created_at, available_at, expires_at, order_id, order_revision, unless_reassigned)
+SELECT $1, $2, $3, $4, $4,
+       $5, $6, $7, $8
 WHERE NOT EXISTS (
     SELECT 1 FROM order_notifications_sent
     WHERE event_id = $1 AND user_id = $2
@@ -38,10 +39,14 @@ ON CONFLICT DO NOTHING
 `
 
 type EnqueueNotificationEmailParams struct {
-	EventID   uuid.UUID
-	UserID    uuid.UUID
-	Body      string
-	CreatedAt time.Time
+	EventID          uuid.UUID
+	UserID           uuid.UUID
+	Body             string
+	CreatedAt        time.Time
+	ExpiresAt        *time.Time
+	OrderID          *uuid.UUID
+	OrderRevision    *int64
+	UnlessReassigned bool
 }
 
 func (q *Queries) EnqueueNotificationEmail(ctx context.Context, arg EnqueueNotificationEmailParams) error {
@@ -50,25 +55,43 @@ func (q *Queries) EnqueueNotificationEmail(ctx context.Context, arg EnqueueNotif
 		arg.UserID,
 		arg.Body,
 		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.OrderID,
+		arg.OrderRevision,
+		arg.UnlessReassigned,
 	)
 	return err
 }
 
 const nextNotificationEmail = `-- name: NextNotificationEmail :one
-SELECT n.event_id, n.user_id, n.body, u.email
+SELECT n.event_id, n.user_id, n.body, COALESCE(u.email, '')::text AS email, validity.skip_reason
 FROM notification_emails n
-JOIN user_emails u ON u.user_id = n.user_id
+LEFT JOIN user_emails u ON u.user_id = n.user_id
+CROSS JOIN LATERAL (
+    SELECT CASE
+        WHEN n.expires_at < $1::timestamptz THEN 'notification expired'
+        WHEN n.unless_reassigned AND EXISTS (
+            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.courier_id = n.user_id
+        ) THEN 'courier reassigned'
+        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND NOT EXISTS (
+            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision <= n.order_revision
+        ) THEN 'order superseded'
+        ELSE ''
+    END::text AS skip_reason
+) validity
 WHERE n.status = 'pending' AND n.available_at <= $1::timestamptz
+  AND (u.user_id IS NOT NULL OR validity.skip_reason <> '')
 ORDER BY n.available_at, n.created_at, n.event_id, n.user_id
 LIMIT 1
 FOR UPDATE OF n SKIP LOCKED
 `
 
 type NextNotificationEmailRow struct {
-	EventID uuid.UUID
-	UserID  uuid.UUID
-	Body    string
-	Email   string
+	EventID    uuid.UUID
+	UserID     uuid.UUID
+	Body       string
+	Email      string
+	SkipReason string
 }
 
 // Unknown emails never block ready recipients. Keep the row locked through
@@ -81,6 +104,7 @@ func (q *Queries) NextNotificationEmail(ctx context.Context, now time.Time) (Nex
 		&i.UserID,
 		&i.Body,
 		&i.Email,
+		&i.SkipReason,
 	)
 	return i, err
 }
@@ -127,6 +151,29 @@ type RetryNotificationEmailParams struct {
 func (q *Queries) RetryNotificationEmail(ctx context.Context, arg RetryNotificationEmailParams) error {
 	_, err := q.db.Exec(ctx, retryNotificationEmail,
 		arg.AvailableAt,
+		arg.AttemptedAt,
+		arg.LastError,
+		arg.EventID,
+		arg.UserID,
+	)
+	return err
+}
+
+const skipNotificationEmail = `-- name: SkipNotificationEmail :exec
+UPDATE notification_emails
+SET status = 'skipped', attempted_at = $1, last_error = $2
+WHERE event_id = $3 AND user_id = $4
+`
+
+type SkipNotificationEmailParams struct {
+	AttemptedAt *time.Time
+	LastError   string
+	EventID     uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) SkipNotificationEmail(ctx context.Context, arg SkipNotificationEmailParams) error {
+	_, err := q.db.Exec(ctx, skipNotificationEmail,
 		arg.AttemptedAt,
 		arg.LastError,
 		arg.EventID,

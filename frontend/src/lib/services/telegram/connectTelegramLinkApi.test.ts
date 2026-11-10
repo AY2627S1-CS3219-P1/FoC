@@ -37,6 +37,16 @@ describe('ConnectTelegramLinkApi', () => {
 		expect(await linkApi.getStatus()).toEqual({ linked: false });
 	});
 
+	it('passes on the running bot', async () => {
+		const getTelegramLink = vi.fn()
+			.mockResolvedValueOnce({ linked: false, botUrl: 'https://t.me/foc_bot' })
+			.mockResolvedValueOnce({ linked: true, linkedAt: timestampFromDate(linkedAt), botUrl: 'https://t.me/foc_bot' });
+		const { api: linkApi } = api({ getTelegramLink });
+
+		expect((await linkApi.getStatus()).botUrl).toBe('https://t.me/foc_bot');
+		expect((await linkApi.getStatus()).botUrl).toBe('https://t.me/foc_bot');
+	});
+
 	it('unlinks', async () => {
 		const { client, api: linkApi } = api({});
 		await linkApi.unlink();
