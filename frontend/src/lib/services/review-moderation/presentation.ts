@@ -9,10 +9,6 @@ export interface Presentation {
 
 export function presentReviewModeration(record: ReviewModerationRecord): Presentation {
 	const { review, job } = record;
-	if (job?.configurationPaused && (review.moderationStatus === ModerationStatus.PENDING_MODERATION ||
-		job.runGeneration > review.appliedRunGeneration)) {
-		return { label: 'Assessment paused', tone: 'pending', detail: 'An administrator must correct the assessment configuration. Your review remains unpublished.' };
-	}
 	if (review.moderationStatus === ModerationStatus.REJECTED) {
 		return {
 			label: 'Rejected',

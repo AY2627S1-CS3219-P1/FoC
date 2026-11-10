@@ -26,8 +26,3 @@ describe('newer retry progress over the last applied error', () => {
 	});
 });
 
-it('explains a configuration pause instead of promising a timed retry', () => {
-	const review = create(UnpublishedReviewSchema, { moderationStatus: ModerationStatus.PENDING_MODERATION });
-	const job = create(ReviewModerationJobSummarySchema, { status: ModerationJobStatus.RETRY_WAIT, configurationPaused: true, runGeneration: 1 });
-	expect(presentReviewModeration(mergeReviewModeration(review,job)).label).toBe('Assessment paused');
-});

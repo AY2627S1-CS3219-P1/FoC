@@ -21,7 +21,6 @@ import { CreditService } from './credit/service.svelte';
 import { createRealtimeService } from './realtime';
 import { createTelegramLinkApi } from './telegram/index.ts';
 import { createReviewModerationService } from './review-moderation/index.ts';
-import { createModerationConfigService } from './moderation-config/index.ts';
 import { SnackbarService } from './snackbar/service.ts';
 
 export const snackbarService = new SnackbarService();
@@ -90,9 +89,7 @@ export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
 export const realtimeService = createRealtimeService(communicationTransport, () => authService.refresh());
 export const creditService = new CreditService(creditAccountApi, realtimeService);
 
-// The CMS transport carries protected reviewer-scoped job lookups and admin
-// configuration; User's review RPCs share the existing protected user
-// transport.
+// CMS supplies protected job progress; User owns review publication.
 const moderationServiceBaseUrl = env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086';
 const moderationTransport = createCustomTransport({
 	baseUrl: moderationServiceBaseUrl,
@@ -102,6 +99,5 @@ export const reviewModerationService = createReviewModerationService(
 	protectedUserTransport,
 	moderationTransport
 );
-export const moderationConfigService = createModerationConfigService(moderationTransport);
 
 export { ReviewPageState } from './review-moderation/index.ts';
