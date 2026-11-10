@@ -53,7 +53,6 @@
 	.review-heading {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
 		gap: 0.75rem;
 		flex-wrap: wrap;
 	}
@@ -62,6 +61,7 @@
 		font-size: 0.875rem;
 	}
 	.order-link {
+		margin-inline-start: auto;
 		color: var(--m3c-primary);
 		font-size: 0.875rem;
 	}
