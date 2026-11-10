@@ -117,6 +117,7 @@
 					snackbarService.show('Appeal submitted. An administrator will review it.', { severity: 'success' });
 					await goto(`/appeals/${appeal.id}`, { replaceState: true });
 				} catch (cause) {
+					evidenceField?.rejectFrom(cause);
 					setMessage(validated, describeModerationError(cause, 'submit the appeal'));
 				}
 			}

@@ -4,7 +4,8 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { EvidenceUploadGrantSchema } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import { ReviewLimitedError, ReviewRejectedError } from '$lib/services/review/reviewApi';
 import { asPhotoUploadApi } from './evidence.ts';
-import { describeModerationError } from './errors.ts';
+import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
+import { describeModerationError, unusableEvidenceIds } from './errors.ts';
 import { boundedText, responseSchema } from './schemas.ts';
 
 const signal = new AbortController().signal;
@@ -74,6 +75,32 @@ describe('describeModerationError', () => {
 		expect(describeModerationError(new Error('offline'), 'close the report')).toBe(
 			'Could not close the report. Please try again.'
 		);
+	});
+});
+
+describe('unusableEvidenceIds', () => {
+	const evidenceError = (reason: string, ids: string[]) =>
+		new ConnectError('image is not ready', Code.FailedPrecondition, undefined, [
+			{
+				desc: ErrorDetailSchema,
+				value: {
+					reason,
+					message: 'image is not ready',
+					fieldViolations: ids.map((id) => ({ field: 'evidence_ids', description: `${id}: image is not ready` }))
+				}
+			}
+		]);
+	const id = '0190a5d2-7c1e-7a3b-9f00-1234567890ab';
+
+	it('names the images a submission rejected as unusable', () => {
+		expect(unusableEvidenceIds(evidenceError('EVIDENCE_NOT_READY', [id]))).toEqual([id]);
+		expect(unusableEvidenceIds(evidenceError('EVIDENCE_NOT_STAGED', [id]))).toEqual([id]);
+	});
+
+	it('keeps images for failures a retry can fix', () => {
+		expect(unusableEvidenceIds(evidenceError('UPLOAD_TEMPORARILY_UNAVAILABLE', [id]))).toEqual([]);
+		expect(unusableEvidenceIds(new ConnectError('down', Code.Unavailable))).toEqual([]);
+		expect(unusableEvidenceIds(new Error('offline'))).toEqual([]);
 	});
 });
 

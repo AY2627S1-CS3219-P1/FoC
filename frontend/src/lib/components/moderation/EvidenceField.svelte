@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { snackbarService } from '$lib/services';
-	import { asPhotoUploadApi, type CreateEvidenceUpload } from '$lib/services/moderation';
+	import { asPhotoUploadApi, unusableEvidenceIds, type CreateEvidenceUpload } from '$lib/services/moderation';
 	import {
 		ReviewPhotosController,
 		type ReviewPhotosSnapshot
@@ -42,6 +42,17 @@
 			return null;
 		}
 		return controller?.photoIds() ?? [];
+	}
+
+	/**
+	 * Marks the images a failed submission rejected, so the next submission
+	 * asks the user to remove them instead of resending their IDs.
+	 */
+	export function rejectFrom(cause: unknown): void {
+		controller?.markNotReady(
+			unusableEvidenceIds(cause),
+			"This image didn't make it. Remove and re-add it, or submit without it."
+		);
 	}
 
 	function describeBlocker(): string | null {

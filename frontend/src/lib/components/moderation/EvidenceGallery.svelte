@@ -15,20 +15,25 @@
 		label?: string;
 	} = $props();
 
-	let fresh = $state<Record<string, EvidenceRecord>>({});
-	let broken = $state<Record<string, boolean>>({});
+	// Renewals and failures are recorded against the URL they replace, so a newer
+	// URL from a reloaded case supersedes both.
+	let fresh = $state<Record<string, { forUrl: string; record: EvidenceRecord }>>({});
+	let broken = $state<Record<string, string>>({});
 
-	const current = (item: EvidenceRecord) => fresh[item.id] ?? item;
+	const renewed = (item: EvidenceRecord) => (fresh[item.id]?.forUrl === item.url ? fresh[item.id] : undefined);
+	const current = (item: EvidenceRecord) => renewed(item)?.record ?? item;
+	const isBroken = (item: EvidenceRecord) => broken[item.id] === item.url;
 	const expired = (item: EvidenceRecord) => item.expiresAt > 0 && item.expiresAt <= Date.now();
 
-	async function renew(id: string): Promise<EvidenceRecord | null> {
+	async function renew(item: EvidenceRecord): Promise<EvidenceRecord | null> {
+		const forUrl = item.url;
 		try {
-			const renewed = await refresh(id);
-			fresh[id] = renewed;
-			broken[id] = false;
-			return renewed;
+			const record = await refresh(item.id);
+			fresh[item.id] = { forUrl, record };
+			delete broken[item.id];
+			return record;
 		} catch {
-			broken[id] = true;
+			broken[item.id] = forUrl;
 			return null;
 		}
 	}
@@ -37,9 +42,12 @@
 		if (!expired(current(item))) return;
 		event.preventDefault();
 		// Open the tab synchronously so the browser does not block it as a popup.
-		const tab = window.open('', '_blank', 'noreferrer');
-		const renewed = await renew(item.id);
-		if (tab && renewed) tab.location.href = renewed.url;
+		// A 'noreferrer' feature would make window.open return null, so detach the
+		// opener by hand instead.
+		const tab = window.open('', '_blank');
+		if (tab) tab.opener = null;
+		const record = await renew(item);
+		if (tab && record) tab.location.replace(record.url);
 		else tab?.close();
 	}
 </script>
@@ -56,7 +64,7 @@
 					title="Open image {index + 1} in a new tab"
 					onclick={(event) => void open(event, item)}
 				>
-					{#if broken[item.id]}
+					{#if isBroken(item)}
 						<span class="placeholder" role="img" aria-label={`Image ${index + 1} is unavailable`}>
 							<Icon icon={brokenImageIcon} size={24} aria-hidden="true" />
 						</span>
@@ -68,8 +76,8 @@
 							referrerpolicy="no-referrer"
 							onerror={() => {
 								// Retry once with a fresh URL; a second failure stays broken.
-								if (fresh[item.id]) broken[item.id] = true;
-								else void renew(item.id);
+								if (renewed(item)) broken[item.id] = item.url;
+								else void renew(item);
 							}}
 						/>
 					{/if}

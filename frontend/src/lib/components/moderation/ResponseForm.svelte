@@ -42,6 +42,7 @@
 				attempt++;
 				snackbarService.show('Response sent.', { severity: 'success' });
 			} catch (cause) {
+				evidenceField?.rejectFrom(cause);
 				setMessage(validated, describeModerationError(cause, 'send your response'));
 			}
 		}

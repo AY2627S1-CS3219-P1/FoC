@@ -13,6 +13,15 @@ const clientCodes = new Set<Code>([
 	Code.Unimplemented
 ]);
 
+// Evidence failures that retrying the same image cannot fix.
+const unusableEvidenceReasons = new Set(['EVIDENCE_NOT_READY', 'EVIDENCE_NOT_STAGED']);
+
+/** The evidence image IDs a submission rejected as unusable, or none for any other failure. */
+export function unusableEvidenceIds(cause: unknown): string[] {
+	const parsed = parseRpcError(cause);
+	return parsed?.reason && unusableEvidenceReasons.has(parsed.reason) ? parsed.photoIds : [];
+}
+
 /** Describes a report or appeal RPC failure; `action` reads as "submit the report". */
 export function describeModerationError(cause: unknown, action: string): string {
 	if (cause instanceof ConnectError) {

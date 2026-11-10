@@ -54,6 +54,7 @@
 					snackbarService.show('Report submitted. An administrator will review it.', { severity: 'success' });
 					await goto(`/reports/${report.id}`, { replaceState: true });
 				} catch (cause) {
+					evidenceField?.rejectFrom(cause);
 					setMessage(validated, describeModerationError(cause, 'submit the report'));
 				}
 			}
