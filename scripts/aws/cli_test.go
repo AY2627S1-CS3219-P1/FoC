@@ -48,7 +48,7 @@ func TestCLIProducesOnlyPrivateOverlayAndRetainedDatabaseCredentials(t *testing.
 	for i := 0; i < 2; i++ {
 		run("prepare-database", "--outputs", outputs, "--admin-secret", admin, "--directory", database)
 	}
-	if len(array(readTestObject(t, filepath.Join(database, "secrets.json"))["items"])) != 7 {
-		t.Fatal("CLI did not prepare five database Secrets and the provisioning inputs")
+	if len(array(readTestObject(t, filepath.Join(database, "secrets.json"))["items"])) != 8 {
+		t.Fatal("CLI did not prepare six database Secrets and the provisioning inputs")
 	}
 }

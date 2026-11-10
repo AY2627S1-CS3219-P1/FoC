@@ -32,5 +32,14 @@ patches:
         path: /data/USER_S3_PUBLIC_ENDPOINT
         value: https://localhost:5173
       - op: add
+        path: /data/MODERATION_S3_BUCKET
+        value: moderation-images
+      - op: add
+        path: /data/MODERATION_S3_ENDPOINT
+        value: http://floci:4566
+      - op: add
+        path: /data/MODERATION_S3_PUBLIC_ENDPOINT
+        value: https://localhost:5173
+      - op: add
         path: /data/AWS_REGION
         value: us-east-1

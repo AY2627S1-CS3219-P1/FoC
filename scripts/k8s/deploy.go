@@ -269,6 +269,7 @@ var originKeys = []string{
 	"PUBLIC_ORDER_SERVICE_URL",
 	"PUBLIC_COMMUNICATION_SERVICE_URL",
 	"PUBLIC_CREDIT_SERVICE_URL",
+	"PUBLIC_MODERATION_SERVICE_URL",
 	"ORDER_S3_PUBLIC_ENDPOINT",
 }
 
@@ -322,7 +323,7 @@ func (o *operator) deployAll() error {
 			return err
 		}
 	} else {
-		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "kafka-ui-auth", "telegram"} {
+		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "moderation-db", "jwt-signing", "kafka-ui-auth", "telegram"} {
 			if _, err := o.query("-n", "foc", "get", "secret", name); err != nil {
 				return err
 			}
@@ -384,6 +385,9 @@ func (o *operator) deployAll() error {
 		if err := o.prepareJob("user-storage-init"); err != nil {
 			return err
 		}
+		if err := o.prepareJob("moderation-storage-init"); err != nil {
+			return err
+		}
 	}
 	if err := o.deployObservability(); err != nil {
 		return err
@@ -408,6 +412,9 @@ func (o *operator) deployAll() error {
 		if err := o.waitJob("user-storage-init"); err != nil {
 			return err
 		}
+		if err := o.waitJob("moderation-storage-init"); err != nil {
+			return err
+		}
 	}
 	if err := o.applyStage("applications"); err != nil {
 		return err
@@ -424,7 +431,7 @@ func (o *operator) deployAll() error {
 		}
 	}
 	note(
-		"Bootstrap deployed User, Supplier, Order, Credit, Communication and frontend; the complete D3 business workflow remains unverified.",
+		"Bootstrap deployed User, Supplier, Order, Credit, Communication, Moderation and frontend; the complete D3 business workflow remains unverified.",
 	)
 	return nil
 }

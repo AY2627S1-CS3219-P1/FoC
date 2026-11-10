@@ -31,11 +31,12 @@ func (o *operator) publicSmoke() error {
 	for _, path := range []string{
 		"/user.v1.PublicKeyService/GetPublicKeys",
 		"/credit.v1.CreditReservationService/Reserve",
+		"/user.v1.UserInternalService/GetUsers",
 	} {
 		if _, err := o.smokeRequest(origin, "", path, 404, true); err != nil {
 			return err
 		}
 	}
-	note("Public HTTPS smoke passed: frontend, five health RPCs, and private RPC routes")
+	note("Public HTTPS smoke passed: frontend, six health RPCs, and private RPC routes")
 	return nil
 }

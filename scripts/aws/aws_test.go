@@ -214,8 +214,8 @@ func TestDatabaseCredentialRetryAndProvisioningContract(t *testing.T) {
 			}
 		}
 	}
-	if count != 5 {
-		t.Fatalf("got %d database credentials, want five", count)
+	if count != 6 {
+		t.Fatalf("got %d database credentials, want six", count)
 	}
 	info, err := os.Stat(filepath.Join(directory, "secrets.json"))
 	if err != nil || info.Mode().Perm() != 0600 {

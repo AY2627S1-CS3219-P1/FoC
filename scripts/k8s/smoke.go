@@ -12,6 +12,7 @@ var publicHealthPaths = []string{
 	"/supplier.v1.HealthService/Check",
 	"/order.v1.HealthService/Check",
 	"/communication.v1.HealthService/Check",
+	"/moderation.v1.HealthService/Check",
 	"/grpc.health.v1.Health/Check",
 }
 
