@@ -121,6 +121,11 @@ export interface ReviewApi extends ReviewPhotoUploadAPI {
 	listMine(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
 	/** Live review or null when unreviewed; throws ReviewRemovedError after removal. */
 	getMyReviewForOrder(orderId: string, signal: AbortSignal): Promise<ReviewRecord | null>;
+	/**
+	 * One review for a report page. Administrators may read removed reviews;
+	 * participants only live ones.
+	 */
+	getReview(id: string, signal: AbortSignal): Promise<{ review: ReviewRecord; removed: boolean }>;
 	/** The caller's reviews removed outside a report, which they may appeal. */
 	listMyRemovals(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewRemovalPage>;
 }

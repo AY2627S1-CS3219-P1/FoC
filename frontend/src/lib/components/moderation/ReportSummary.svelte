@@ -7,6 +7,7 @@
 	import type { EvidenceRecord } from '$lib/services/moderation';
 	import CaseStatusChip from './CaseStatusChip.svelte';
 	import EvidenceGallery from './EvidenceGallery.svelte';
+	import ReportTarget from './ReportTarget.svelte';
 
 	// The body of a report, shared by the participant and administrator pages.
 	let {
@@ -50,6 +51,8 @@
 		<div><dt>Filed</dt><dd>{date.format(report.createdAt)}</dd></div>
 		{#if report.closedAt}<div><dt>Closed</dt><dd>{date.format(report.closedAt)}</dd></div>{/if}
 	</dl>
+
+	<ReportTarget target={report.target} />
 
 	<section>
 		<h2>What happened</h2>

@@ -121,6 +121,16 @@ export class ConnectReviewApi implements ReviewApi {
 		}
 	}
 
+	async getReview(id: string, signal: AbortSignal): Promise<{ review: ReviewRecord; removed: boolean }> {
+		try {
+			const response = await this.#client.getReview({ reviewId: id }, { signal, timeoutMs: 15000 });
+			if (!response.review) throw new Error('Review response did not include the review');
+			return { review: toReview(response.review), removed: response.removed };
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
 	async listMyRemovals(
 		page: { page: number; pageSize: number },
 		signal: AbortSignal

@@ -121,6 +121,23 @@ describe('ConnectReviewApi', () => {
 		);
 	});
 
+	it('reads one review with its removed flag', async () => {
+		const getReview = vi.fn(async () => ({
+			review: {
+				id: 'review-7', reviewerId: 'a', reviewerName: 'A', revieweeId: 'b', revieweeName: 'B',
+				orderId: 'order-7', rating: 1, comment: 'Rude', createdAt: { seconds: 1700000000n, nanos: 0 }, photos: []
+			},
+			removed: true
+		}));
+		const api = new ConnectReviewApi({ getReview } as unknown as Client<typeof ReviewServiceDefinition>);
+
+		const got = await api.getReview('review-7', new AbortController().signal);
+
+		expect(getReview).toHaveBeenCalledWith({ reviewId: 'review-7' }, expect.objectContaining({ timeoutMs: 15000 }));
+		expect(got.removed).toBe(true);
+		expect(got.review).toMatchObject({ id: 'review-7', reviewerName: 'A', comment: 'Rude', createdAt: 1700000000000 });
+	});
+
 	it('lists removed reviews with their review ids', async () => {
 		const listMyReviewRemovals = vi.fn(async () => ({
 			removals: [{
