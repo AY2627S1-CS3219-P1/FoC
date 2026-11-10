@@ -16,6 +16,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:wireframe": "node scripts/check-wireframe.mjs",
+		"test:realtime": "node scripts/check-realtime.mjs",
+		"test:profile-pictures": "node scripts/check-profile-pictures.mjs",
 		"buf:lint": "cd .. && buf lint",
 		"buf:generate": "cd .. && buf generate"
 	},

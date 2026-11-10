@@ -32,9 +32,10 @@ func AuthorizeInterceptor() connect.Interceptor {
 // procedure not matched is allowed for any authenticated caller.
 func authorizeCaller(c userdto.Caller, procedure string) error {
 	switch procedure {
-	case reviewv1connect.ReviewServiceSubmitReviewProcedure:
+	case reviewv1connect.ReviewServiceSubmitReviewProcedure,
+		reviewv1connect.ReviewServiceCreateReviewPhotoUploadProcedure:
 		if c.IsSuspended() {
-			return errs.NewForbiddenError("suspended users cannot submit reviews")
+			return errs.NewForbiddenError("suspended users cannot submit reviews or upload review photos")
 		}
 	case reviewv1connect.ReviewServiceRemoveReviewProcedure, reviewv1connect.ReviewServiceListReviewRemovalsProcedure:
 		if !c.Admin {

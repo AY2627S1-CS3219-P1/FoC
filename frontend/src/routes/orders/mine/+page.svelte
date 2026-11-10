@@ -6,7 +6,7 @@
 	import iconBag from '@ktibow/iconset-material-symbols/shopping-bag-outline';
 	import iconBike from '@ktibow/iconset-material-symbols/pedal-bike';
 	import { OrderStatus, ParticipantRole, type Order } from '$lib/gen/order/v1/shared_types_pb';
-	import { authService, orderApi } from '$lib/services';
+	import { authService, orderApi, realtimeService } from '$lib/services';
 	import type { OrderPage } from '$lib/services/order';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { orderStatuses, participationLabel, roleFromQuery, statusLabel } from '$lib/services/order/presentation';
@@ -22,21 +22,29 @@
 	let error = $state('');
 	let loading = $state(false);
 	let revision = $state(0);
+ let loadedCaller: string | undefined;
 
 	$effect(() => {
 		const caller = authService.user?.id;
+        if (loadedCaller !== caller) { result = null; loadedCaller = caller; }
 		const query = { activeOnly: view === 'active', role, status, page: pageNumber };
 		void revision;
 		error = '';
 		if (!caller) return;
 		let active = true;
 		loading = true;
-		orderApi
+		const stop = realtimeService.subscribe(['orders'], () => orderApi
 			.listMyOrders(query)
-			.then((value) => active && (result = value))
+			.then((value) => {
+                if (!active) return;
+                if (query.page > Math.max(1, value.totalPages)) {
+                    void goto(hrefWith({ page: String(Math.max(1, value.totalPages)) }), { noScroll: true, keepFocus: true }); return;
+                }
+                error = ""; result = value;
+            })
 			.catch((cause) => active && (error = describeOrderError(cause)))
-			.finally(() => active && (loading = false));
-		return () => (active = false);
+			.finally(() => active && (loading = false)));
+		return () => { active = false; stop(); };
 	});
 
 	function hrefWith(changes: Record<string, string | null>): string {

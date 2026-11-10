@@ -137,6 +137,8 @@ func (o *operator) runCLI(args []string) error {
 		return o.showStatus()
 	case "smoke":
 		return o.meshSmoke()
+	case "public-smoke":
+		return o.publicSmoke()
 	case "persistence-smoke":
 		return o.persistenceSmoke()
 	case "proxy-startup-smoke":
@@ -155,7 +157,7 @@ func (o *operator) runCLI(args []string) error {
 		return o.deleteCluster()
 	default:
 		return errors.New(
-			"usage: k8s up|deploy [service]|render <stage>|access|status|smoke|logging-smoke|logging-validate|demo|delete-cluster|kafka-ui|mailpit|grafana",
+			"usage: k8s up|deploy [service]|render <stage>|access|status|smoke|public-smoke|logging-smoke|logging-validate|demo|delete-cluster|kafka-ui|mailpit|grafana",
 		)
 	}
 }

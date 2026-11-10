@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package communication.v1;
+
+// Advisory invalidations. Fetch current state after ready or reconnecting;
+// notifications are not an operation log and have no resume cursor.
+service RealtimeService {
+  rpc WatchChanges(WatchChangesRequest) returns (stream WatchChangesResponse) {}
+}
+
+message WatchChangesRequest {}
+
+enum ChangeScope {
+  CHANGE_SCOPE_UNSPECIFIED = 0;
+  CHANGE_SCOPE_CREDITS = 1;
+  CHANGE_SCOPE_ORDERS = 2;
+  CHANGE_SCOPE_OPEN_ORDERS = 3;
+}
+
+message WatchChangesResponse {
+  bool ready = 1;
+  bool heartbeat = 2;
+  repeated ChangeScope scopes = 3;
+}

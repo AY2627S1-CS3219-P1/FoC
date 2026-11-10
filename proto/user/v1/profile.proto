@@ -3,11 +3,15 @@ syntax = "proto3";
 package user.v1;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 import "user/v1/auth.proto";
 
 service ProfileService {
   rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse) {}
   rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse) {}
+  rpc CreateProfilePictureUpload(CreateProfilePictureUploadRequest) returns (CreateProfilePictureUploadResponse) {}
+  rpc UpdateMyProfilePicture(UpdateMyProfilePictureRequest) returns (UpdateMyProfilePictureResponse) {}
+  rpc RemoveMyProfilePicture(RemoveMyProfilePictureRequest) returns (RemoveMyProfilePictureResponse) {}
 }
 
 message Profile {
@@ -20,6 +24,10 @@ message Profile {
   // E.164. Absent only for the bootstrapped admin until they add one.
   optional string phone_number = 6;
   UserRole role = 7;
+  // Pre-signed GET; responses carrying it are not cacheable.
+  string profile_picture_url = 8;
+  google.protobuf.Timestamp profile_picture_expires_at = 9;
+  string profile_picture_id = 10;
 }
 
 message GetMyProfileRequest {}
@@ -40,5 +48,44 @@ message UpdateMyProfileRequest {
 }
 
 message UpdateMyProfileResponse {
+  Profile profile = 1;
+}
+
+message CreateProfilePictureUploadRequest {
+  string content_type = 1 [(buf.validate.field).string = {
+    in: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif"
+    ]
+  }];
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {
+    gte: 1
+    lte: 10000000
+  }];
+}
+
+message CreateProfilePictureUploadResponse {
+  // Row ID; also Profile.profile_picture_id once active.
+  string picture_id = 1;
+  string upload_url = 2;
+  map<string, string> upload_headers = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+// Idempotent; the picture must belong to the caller.
+message UpdateMyProfilePictureRequest {
+  string picture_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UpdateMyProfilePictureResponse {
+  Profile profile = 1;
+}
+
+message RemoveMyProfilePictureRequest {}
+
+message RemoveMyProfilePictureResponse {
   Profile profile = 1;
 }

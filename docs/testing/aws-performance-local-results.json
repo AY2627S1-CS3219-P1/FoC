@@ -1,0 +1,479 @@
+{
+  "scope": "Local integration and bounded pilots; AWS acceptance incomplete",
+  "runDate": "2026-11-10",
+  "sourceRevision": "ae4ee3cf3ca415d1784150eb3de6ed3b8f1bb9d7",
+  "tools": {
+    "go": "1.27.3-X:nodwarf5",
+    "python": "3.14.9",
+    "node": "24.15.0",
+    "k6": "2.3.0",
+    "playwright": "1.64.1",
+    "kafkaGo": "0.4.49"
+  },
+  "environment": {
+    "capturedAt": "2026-11-10T06:29:29.557488+00:00",
+    "sourceRevision": "ae4ee3cf3ca415d1784150eb3de6ed3b8f1bb9d7",
+    "platform": "Linux-7.3.3-1-cachyos-x86_64-with-glibc2.44",
+    "logicalCPUs": 22,
+    "memoryTotal": "MemTotal:       32263076 kB",
+    "containers": [
+      {
+        "name": "foc-perf-local-order",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T06:08:44.148636487Z"
+      },
+      {
+        "name": "foc-perf-local-frontend",
+        "imageName": "node:24-bookworm-slim",
+        "imageId": "sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:57:33.101048586Z"
+      },
+      {
+        "name": "foc-perf-local-communication",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:30.000873485Z"
+      },
+      {
+        "name": "foc-perf-local-credit",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:29.163935296Z"
+      },
+      {
+        "name": "foc-perf-local-supplier",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:28.676314219Z"
+      },
+      {
+        "name": "foc-perf-local-user",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:28.230945347Z"
+      },
+      {
+        "name": "foc-perf-local-recorder",
+        "imageName": "postgres:18",
+        "imageId": "sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:27.886683683Z"
+      },
+      {
+        "name": "foc-perf-local-mailpit",
+        "imageName": "axllent/mailpit:v1.31",
+        "imageId": "sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:55:27.522840907Z"
+      },
+      {
+        "name": "foc-perf-kafka-verification",
+        "imageName": "apache/kafka:4.2.2",
+        "imageId": "sha256:1213eb3943d551e5ed1fca7a4e109001cee35770b66a02a0c37a8964efe09b69",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:52:25.733066951Z"
+      },
+      {
+        "name": "foc-perf-verification",
+        "imageName": "postgis/postgis:18-3.6",
+        "imageId": "sha256:4a43e3c3e5d55b9208240fc71db543b79c638766280c625a425bd0a2390989c4",
+        "memoryLimitBytes": 0,
+        "nanoCPUs": 0,
+        "startedAt": "2026-11-10T05:19:57.88844394Z"
+      }
+    ],
+    "sourceBinaries": {
+      "user": "562d8e8d4ca6be3a17ae92d634541ddb7b50f3b77a47c4516403edf7999b9b9c",
+      "order": "873e11265deb3ba1f2d022bb0daf770f33d09768cf9ec2adadf42b264521fd5e",
+      "supplier": "cb234d8140189047ce3c38ab6b88e17e9b8966f27b5364ba30bbfd52de737efe",
+      "credit": "3a2e1c27668e26fd9958a78bebb91553a66d1f68432817b8720d1cdb9b9eaa10",
+      "communication": "b3f0ff909f6426f6837bb7c7c4daef6315e8dddda53c27fc3addd0c29b598d72",
+      "perf": "259e7f74921612af6b90e07c8fcc3d39c8084cf2a44165f8378608fe5b2b0e87"
+    },
+    "replicasPerApplication": 1,
+    "scope": "Local Docker; generator, broker, databases and applications share the host; no AWS metrics or gateway"
+  },
+  "dataset": {
+    "requirement": "dataset",
+    "status": "pass",
+    "details": {
+      "accounts": 20000,
+      "fixtures": {
+        "seed": 93219,
+        "users": 20000,
+        "suppliers": 1000,
+        "open": 10000,
+        "history": 100000,
+        "at": "2026-11-10T05:00:00Z"
+      },
+      "historical": 100000,
+      "historicalTotal": 105000,
+      "inconsistentAccounts": 0,
+      "missingReservations": 0,
+      "open": 10000,
+      "openTotal": 12500,
+      "seed": 93219,
+      "suppliers": 1000,
+      "suppliersTotal": 1000,
+      "users": 20000,
+      "usersTotal": 22500
+    }
+  },
+  "apiPilot": {
+    "requirement": "api",
+    "status": "fail",
+    "details": {
+      "checks": {
+        "completeCallsAndDrain": true,
+        "twoMinuteWarmup": false,
+        "tenMinuteWindow": false,
+        "drainWithin30Seconds": true,
+        "concurrencyEverySecond": false,
+        "successfulWithin500ms": true,
+        "p95AtMost500ms": true,
+        "failedBelowOnePercent": true,
+        "workloadMix": false
+      },
+      "measurementStart": 1794290459.06,
+      "measurementEnd": 1794290489.06,
+      "durationSeconds": 30.0,
+      "attempts": 13849,
+      "finished": 13849,
+      "scenarioFinishedAt": 1794290489.278,
+      "requestsPerSecond": 461.6333333333333,
+      "failureRate": 0.0,
+      "successfulWithin500msRate": 1.0,
+      "categoryCounts": {
+        "read": 9692,
+        "auth": 2771,
+        "mutation": 1386
+      },
+      "categoryShares": {
+        "read": 0.6998339230269334,
+        "auth": 0.20008664885551303,
+        "mutation": 0.10007942811755362
+      },
+      "mixTolerancePercentagePoints": 0,
+      "latencyMs": {
+        "p50": 13.0,
+        "p90": 159.0,
+        "p95": 258.0,
+        "p99": 301.0,
+        "max": 435
+      },
+      "httpDurationMs": {
+        "p95": 257.6849893999998
+      },
+      "concurrencyPerSecond": [
+        18.57435917854309,
+        19.84669017791748,
+        19.850398778915405,
+        19.85836172103882,
+        19.84338355064392,
+        19.85168957710266,
+        19.84385395050049,
+        19.84666633605957,
+        19.84901237487793,
+        19.83503270149231,
+        19.842170476913452,
+        19.84244656562805,
+        19.850588083267212,
+        19.841825246810913,
+        19.854246377944946,
+        19.84260892868042,
+        19.835453748703003,
+        19.849958658218384,
+        19.84311556816101,
+        19.843236207962036,
+        19.83223557472229,
+        19.850568056106567,
+        19.84145212173462,
+        19.84924054145813,
+        19.8343288898468,
+        19.847488403320312,
+        19.841959238052368,
+        19.84449529647827,
+        19.84559917449951,
+        19.842952013015747
+      ],
+      "minimumConcurrency": 18.57435917854309,
+      "concurrencyDefinition": "time-weighted mean actual outstanding measured calls in each one-second measurement interval; warmup calls excluded",
+      "callBoundaryBalanceAfterDrain": 0,
+      "errors": [],
+      "localPilot": true
+    },
+    "scope": "Local functional pilot, not an AWS acceptance run",
+    "k6ExitCode": 0
+  },
+  "contention": {
+    "status": "pass",
+    "rounds": 100,
+    "passedRounds": 100,
+    "couriersPerRound": 50,
+    "attemptsIncludingReplay": 10000,
+    "maximumCallStartSpreadMs": 0.924,
+    "originalRunHarnessFailure": "First 100 races had correct database effects but the original validator confused the client retry key with the server workflow ID. The corrected check passed 100 fresh requests."
+  },
+  "coreWithBacklog": {
+    "checks": [
+      {
+        "actual": "HELD",
+        "args": [
+          "c830186e-df4c-4cf6-94de-10fe5f8c00c2"
+        ],
+        "expected": "RELEASED",
+        "name": "cancelled core order has committed credit release",
+        "passed": false,
+        "query": "SELECT status FROM reservations WHERE order_id=$1::uuid"
+      }
+    ],
+    "status": "fail"
+  },
+  "outbox": {
+    "pending": {
+      "order.outcome": 877,
+      "order.status_changed": 2626
+    },
+    "capturedAt": "2026-11-10T06:08:10.151446+00:00",
+    "oldestPendingSeconds": 437.411398,
+    "recentPublishIntervalsSeconds": [
+      null,
+      1.021448,
+      1.019157,
+      1.019369,
+      1.015945,
+      1.016681,
+      1.026131,
+      1.016227,
+      1.015763,
+      1.018391,
+      1.025143,
+      1.019939,
+      1.018981,
+      1.023879,
+      1.024783,
+      1.02185,
+      1.01988,
+      1.022157,
+      1.029566,
+      1.024853
+    ]
+  },
+  "coreIsolated": {
+    "requirement": "workflow",
+    "status": "pass",
+    "details": {
+      "courierDelta": 1,
+      "inconsistentAccounts": 0,
+      "orderIds": [
+        "2e23c633-d6bd-4dab-b92c-e102fda6c276",
+        "fb4cb4c4-3dc8-428d-8811-69c619ded42a"
+      ],
+      "requesterDelta": -1
+    }
+  },
+  "eventPilot": {
+    "requirement": "events",
+    "status": "fail",
+    "details": {
+      "accepted": 100,
+      "allReceiptsClean": true,
+      "clock": "single generator clock; no broker/application timestamp subtraction",
+      "inconsistentAccounts": 0,
+      "pollMs": 100,
+      "publicationWindowSeconds": 6,
+      "reconciled": 100,
+      "reconciledAccounts": 51,
+      "timing": "publish-start to observed committed DB effect; conservative upper bound; lastAbsentAt includes DB read uncertainty",
+      "topics": {
+        "order.courier_warning_requested": 25,
+        "order.outcome": 25,
+        "order.status_changed": 25,
+        "users.create": 25
+      },
+      "withinFiveSeconds": 100,
+      "localPilot": true,
+      "evidenceDirectory": "event-pilot-v8",
+      "fixtureSeed": 93220
+    }
+  },
+  "eventLatencyUpperMs": {
+    "min": 141.905145,
+    "p50": 864.2549865,
+    "p95": 1105.413178,
+    "max": 1204.744685
+  },
+  "replay": {
+    "requirement": "replay",
+    "status": "pass",
+    "details": {
+      "accepted": 4,
+      "allReceiptsClean": true,
+      "clock": "single generator clock; no broker/application timestamp subtraction",
+      "inconsistentAccounts": 0,
+      "pollMs": 100,
+      "publicationWindowSeconds": 600,
+      "reconciled": 4,
+      "reconciledAccounts": 3,
+      "timing": "publish-start to observed committed DB effect; conservative upper bound; lastAbsentAt includes DB read uncertainty",
+      "topics": {
+        "order.courier_warning_requested": 1,
+        "order.outcome": 1,
+        "order.status_changed": 1,
+        "users.create": 1
+      },
+      "withinFiveSeconds": 4,
+      "localPilot": false,
+      "evidenceDirectory": "replay-v8",
+      "fixtureSeed": 93220
+    }
+  },
+  "browser": {
+    "status": "fail",
+    "startedAt": "2026-11-10T06:23:04.093Z",
+    "tileRequestsFailed": 18,
+    "runtimeErrors": [],
+    "rpcFailures": [],
+    "checks": {
+      "coreControlsUsable": true,
+      "explicitUnavailable": false,
+      "requestCreated": true,
+      "cancelled": true,
+      "mapRecovered": true
+    },
+    "visibleMapText": "+\n\u2212\n Leaflet | \u00a9 OpenStreetMap contributors",
+    "orderId": "3014697c-430d-495c-a53d-dddb7caeb2e2",
+    "recoveredTiles": 6,
+    "finishedAt": "2026-11-10T06:23:09.907Z"
+  },
+  "browserRunnerRecoveryStatus": "pass",
+  "issues": [
+    "https://github.com/AY2627S1-CS3219-P1/FoC/issues/321",
+    "https://github.com/AY2627S1-CS3219-P1/FoC/issues/322"
+  ],
+  "requirements": [
+    {
+      "requirement": "environment",
+      "status": "blocked"
+    },
+    {
+      "requirement": "generator",
+      "status": "blocked"
+    },
+    {
+      "requirement": "dataset",
+      "status": "pass"
+    },
+    {
+      "requirement": "api",
+      "status": "fail"
+    },
+    {
+      "requirement": "contention",
+      "status": "pass"
+    },
+    {
+      "requirement": "events",
+      "status": "fail"
+    },
+    {
+      "requirement": "replay",
+      "status": "pass"
+    },
+    {
+      "requirement": "outage-map-connection_failure",
+      "status": "fail"
+    },
+    {
+      "requirement": "outage-map-server_error",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-map-timeout",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-chat-connection_failure",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-chat-server_error",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-chat-timeout",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-ai-connection_failure",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-ai-server_error",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-ai-timeout",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-notifications-connection_failure",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-notifications-server_error",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-notifications-timeout",
+      "status": "blocked"
+    },
+    {
+      "requirement": "outage-combined",
+      "status": "blocked"
+    },
+    {
+      "requirement": "crash-producer-ack",
+      "status": "blocked"
+    },
+    {
+      "requirement": "crash-consumer-before-commit",
+      "status": "blocked"
+    },
+    {
+      "requirement": "crash-consumer-after-commit",
+      "status": "blocked"
+    },
+    {
+      "requirement": "crash-notification-send",
+      "status": "blocked"
+    },
+    {
+      "requirement": "overdue",
+      "status": "blocked"
+    }
+  ],
+  "privateEvidenceRoot": ".local/perf/local/results",
+  "fixturesNote": "The initial API/contention pilots used pre-correction raw-MD5 fixture IDs (seed 93219). Browser and final event/replay checks used corrected UUIDv8 fixtures (seed 93220). The corrected generator passed full-size repeated-seed database integration (seed 3219).",
+  "cleanup": {
+    "finishedAt": "2026-11-10T06:38:25.677804+00:00",
+    "remainingContainers": [],
+    "networkRemoved": true
+  }
+}

@@ -38,7 +38,10 @@ func authorizeProtected(users ActorReader) connect.Interceptor {
 				return nil, api.ToConnectError(ctx, fmt.Errorf("resolve authenticated user: %w", err))
 			}
 			switch req.Spec().Procedure {
-			case userv1connect.ProfileServiceUpdateMyProfileProcedure:
+			case userv1connect.ProfileServiceUpdateMyProfileProcedure,
+				userv1connect.ProfileServiceCreateProfilePictureUploadProcedure,
+				userv1connect.ProfileServiceUpdateMyProfilePictureProcedure,
+				userv1connect.ProfileServiceRemoveMyProfilePictureProcedure:
 				if actor.Role == models.RoleSuspended {
 					return nil, api.ToConnectError(ctx, errs.NewForbiddenError("permission denied"))
 				}

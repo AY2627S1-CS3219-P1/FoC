@@ -231,7 +231,7 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
-	for _, job := range append([]string{"db-provision", "order-storage-init"}, jobs...) {
+	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, jobs...) {
 		if err := o.waitJob(job); err != nil {
 			return err
 		}
@@ -375,7 +375,7 @@ func (o *operator) meshSmoke() error {
 	if _, err := o.gatewaySmokeRequest(gateway, "/", 200, false); err != nil {
 		return err
 	}
-	for _, path := range []string{"/user.v1.HealthService/Check", "/supplier.v1.HealthService/Check", "/order.v1.HealthService/Check", "/communication.v1.HealthService/Check", "/grpc.health.v1.Health/Check"} {
+	for _, path := range publicHealthPaths {
 		if err := o.assertPublicHealth(gateway, path); err != nil {
 			return err
 		}

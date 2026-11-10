@@ -18,6 +18,16 @@ import (
 	healthhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 )
 
+func TestImageStorageWiringKeepsAbsentStorageNil(t *testing.T) {
+	if profilePictureStorage(nil) != nil {
+		t.Fatal("absent storage must stay a nil interface")
+	}
+	reviewLogic, _ := newReviewService(nil, config{})
+	if err := reviewLogic.CleanupOnce(context.Background()); err != nil {
+		t.Fatalf("review cleanup without storage: %v", err)
+	}
+}
+
 func TestKeyIDPreservesSEC1Fingerprint(t *testing.T) {
 	point, err := hex.DecodeString(
 		"046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
@@ -48,7 +58,8 @@ func TestKeyIDRejectsInvalidPublicKey(t *testing.T) {
 func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
 	setValidConfigEnv(t)
 	t.Setenv("KAFKA_BROKERS", "")
-	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "KAFKA_BROKERS is not set") {
+	if _, err := loadConfig(); err == nil ||
+		!strings.Contains(err.Error(), "KAFKA_BROKERS must contain at least one broker") {
 		t.Fatalf("loadConfig error = %v, want missing KAFKA_BROKERS", err)
 	}
 }
@@ -61,7 +72,7 @@ func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig with configured broker: %v", err)
 	}
-	if cfg.kafkaBrokers != brokers {
+	if len(cfg.kafkaBrokers) != 1 || cfg.kafkaBrokers[0] != brokers {
 		t.Fatalf("KAFKA_BROKERS = %q, want %q", cfg.kafkaBrokers, brokers)
 	}
 }
@@ -80,11 +91,7 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_PRIVATE_KEY_FILE":              "/tmp/user-service-key.pem",
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
-		"SMTP_ADDR":                         "smtp.example.test:25",
-		"SMTP_FROM":                         "FoC <no-reply@example.test>",
-		"SMTP_USERNAME":                     "",
-		"SMTP_PASSWORD":                     "",
-		"SMTP_TIMEOUT":                      "5s",
+		"COMMUNICATION_SERVICE_BASE_URL":    "http://communication-service:8081",
 		"BOOTSTRAP_SUPERADMIN_EMAIL":        "",
 		"BOOTSTRAP_SUPERADMIN_DISPLAY_NAME": "",
 	} {
@@ -152,5 +159,18 @@ func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 				t.Fatalf("status = %q, want ok", response.Msg.Status)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRequiresTheCommunicationURL(t *testing.T) {
+	for value, want := range map[string]string{
+		"":                      "COMMUNICATION_SERVICE_BASE_URL is not set",
+		"communication-service": "COMMUNICATION_SERVICE_BASE_URL must be an http(s) URL",
+	} {
+		setValidConfigEnv(t)
+		t.Setenv("COMMUNICATION_SERVICE_BASE_URL", value)
+		if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("COMMUNICATION_SERVICE_BASE_URL=%q: err = %v, want %q", value, err, want)
+		}
 	}
 }

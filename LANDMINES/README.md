@@ -4,6 +4,9 @@ This directory records non-obvious failures that can affect future work. Each en
 
 | Entry | Applies when |
 | -- | -- |
+| [Synchronous Kafka batching delays outbox publication](kafka-synchronous-batching.md) | A deployment uses the default synchronous Kafka batching settings, or event health relies only on consumer lag. |
+| [Map tile failures have no explicit unavailable state](map-tile-unavailable-state.md) | Testing optional map outages or interpreting map controls as dependency health. |
+| [EKS worker credits can differ from Terraform state](eks-worker-credit-mode.md) | Creating or replacing the AWS demo's burstable EKS workers from `infra/aws`. |
 | [Go line formatting can need multiple passes](golines-multiple-passes.md) | `golangci-lint` v2.14.0 runs `golines` at 120 characters on long boolean expressions. |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
 | [Recreated services rebuild Go dependencies](go-cache.md) | Compose replaces a Go service container, including after `docker compose down` or `docker compose up --force-recreate`. |

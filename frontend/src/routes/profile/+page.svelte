@@ -12,14 +12,17 @@
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
+	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { authService, profileService } from '$lib/services';
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
 	import { roleLabel } from '$lib/services/admin/roles';
 	import PhoneField from '$lib/components/PhoneField.svelte';
+	import ProfilePictureEditor from './ProfilePictureEditor.svelte';
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
+	import ReviewsCard from './ReviewsCard.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -84,6 +87,13 @@
 		}
 	}
 
+	// An expired signed avatar URL is refreshed without replacing the whole
+	// profile view with a loading state.
+	async function refreshPicture() {
+		const updated = await profileService.refreshPicture();
+		if (updated) profile = updated;
+	}
+
 	onMount(() => {
 		void (async () => {
 			if (!authService.isAuthenticated) {
@@ -99,11 +109,15 @@
 
 <section class="page-content profile-page" aria-labelledby="profile-title">
 	<header class="page-heading">
-		<div>
-			<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
-			{#if profile}<p>{profile.email}</p>{/if}
+		<div class="identity">
+			{#if profile}
+				<ProfilePictureEditor {profile} onchange={(updated) => (profile = updated)} />
+			{/if}
+			<div class="identity-copy">
+				<h1 id="profile-title">{profile?.displayName || 'Your profile'}</h1>
+				{#if profile}<p>{profile.email}</p>{/if}
+			</div>
 		</div>
-		{#if profile}<span class="role-chip">{roleLabel(profile.role)}</span>{/if}
 	</header>
 
 	{#if loading}
@@ -125,6 +139,7 @@
 			<CreditsCard />
 			<RecentRequestsCard />
 		</div>
+		<ReviewsCard />
 		<Card variant="outlined">
 			<div class="panel-body">
 				<h2 class="card-title">Account details</h2>
@@ -198,6 +213,9 @@
 						</div>
 					</form>
 				{/if}
+				<div class="form-actions warnings-actions">
+					<Button variant="outlined" href="/profile/warnings">View My Warnings</Button>
+				</div>
 			</div>
 		</Card>
 		<Card variant="outlined">
@@ -209,7 +227,17 @@
 	{/if}
 </section>
 
+
 <style>
+	.identity { display: flex; align-items: center; gap: 1.25rem; min-width: 0; }
+	.identity-copy { display: grid; gap: 0.2rem; min-width: 0; }
+	.identity-copy h1 { margin: 0; font-size: clamp(1.5rem, 2.4vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
+	.identity-copy p { margin: 0; color: var(--m3c-on-surface-variant); overflow-wrap: anywhere; }
+	@media (max-width: 36rem) {
+		.identity { gap: 0.875rem; }
+		.identity-copy h1 { font-size: 1.5rem; }
+	}
+
 	/* Wireframe: current credits and request history sit beside each other. */
 	.activity {
 		display: grid;
@@ -221,5 +249,17 @@
 	.card-title {
 		margin: 0.1rem 0 0;
 		font-size: 1.25rem;
+	}
+
+	.panel-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.warnings-actions {
+		/* .form-actions defaults to flex-end; keep the warnings link pinned to the bottom-left. */
+		justify-content: flex-start;
+		margin-top: auto;
 	}
 </style>

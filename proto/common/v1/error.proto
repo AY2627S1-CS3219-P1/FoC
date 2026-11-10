@@ -1,0 +1,16 @@
+// Shared error vocabulary: attach google.rpc.ErrorInfo (domain + reason) and
+// the detail below so clients branch on reasons, not provider strings.
+syntax = "proto3";
+
+package common.v1;
+
+import "google/rpc/error_details.proto";
+
+message ErrorDetail {
+  // Stable token callers branch on, e.g. UPLOAD_TEMPORARILY_UNAVAILABLE.
+  string reason = 1;
+  // User-facing text; safe to display.
+  string message = 2;
+  // Input locations to surface, e.g. the photo that failed to attach.
+  repeated google.rpc.BadRequest.FieldViolation field_violations = 3;
+}

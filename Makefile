@@ -58,7 +58,7 @@ $(K8S_CLI): $(wildcard scripts/k8s/*.go) scripts/go.mod scripts/go.sum
 	@mkdir -p "$(@D)"
 	GOWORK=off go -C scripts build -mod=readonly -o "$@" ./k8s
 
-.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
+.PHONY: k8s-tools k8s-up k8s-deploy k8s-access k8s-status k8s-smoke k8s-public-smoke k8s-demo k8s-delete-cluster k8s-kafka-ui k8s-mailpit
 
 # Install the pinned CLI tools (kind, kubectl, helm, istioctl) via aqua.
 k8s-tools:
@@ -89,6 +89,10 @@ k8s-status: k8s-tools $(K8S_CLI)
 k8s-smoke: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" smoke
 
+# Read-only trusted HTTPS checks for an existing edge; no local forwards or probes.
+k8s-public-smoke: k8s-tools $(K8S_CLI)
+	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" public-smoke
+
 # Unavailable by design until the integrated business workflow is verified.
 k8s-demo: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" demo
@@ -117,6 +121,17 @@ seed-demo-reset:
 	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
 	@go run ./scripts/seed --manifest data/seeds/manifest.json --reset
 
+.PHONY: perf-build perf-test
+# Private operator tools; see docs/testing/aws-performance.md.
+perf-build:
+	@mkdir -p .tools/bin
+	GOWORK=off go -C scripts build -mod=readonly -o $(CURDIR)/.tools/bin/perf ./perf
+
+perf-test:
+	GOWORK=off go -C scripts test -mod=readonly ./perf
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/perf -p 'test_*.py'
+	node --test scripts/perf/workload.test.mjs
+
 .PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
 k8s-test: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" K8S_RENDER_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./k8s
@@ -140,3 +155,19 @@ k8s-logging-smoke: k8s-tools $(K8S_CLI)
 .PHONY: k8s-logging-validate
 k8s-logging-validate: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-validate
+
+# AWS operations use the same Go tooling module as the Kubernetes operator.
+AWS_CLI := $(CURDIR)/.tools/bin/aws
+
+$(AWS_CLI): $(wildcard scripts/aws/*.go) scripts/go.mod scripts/go.sum
+	@mkdir -p "$(@D)"
+	GOWORK=off go -C scripts build -mod=readonly -o "$@" ./aws
+
+.PHONY: aws-tools aws-render-overlay aws-prepare-database
+aws-tools: $(AWS_CLI)
+
+aws-render-overlay: $(AWS_CLI)
+	"$(AWS_CLI)" render-overlay $(args)
+
+aws-prepare-database: $(AWS_CLI)
+	"$(AWS_CLI)" prepare-database $(args)

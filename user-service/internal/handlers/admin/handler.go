@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
@@ -86,7 +87,7 @@ func (h *Handler) GetUser(
 		return nil, api.ToConnectError(ctx, err)
 	}
 
-	response := connect.NewResponse(&userv1.GetUserResponse{Profile: userdto.Profile(user)})
+	response := connect.NewResponse(&userv1.GetUserResponse{Profile: userdto.ProfileWithPicture(user, "", time.Time{})})
 	response.Header().Set("Cache-Control", "no-store")
 	return response, nil
 }

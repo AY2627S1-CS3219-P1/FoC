@@ -4,6 +4,7 @@ export type OfferAction = {
  dispatchedAt?: number;
  credits?: string;
  offerId?: string;
+ attemptId?: string;
  outcome: 'uncertain' | 'pending' | 'compensating' | 'succeeded' | 'rejected';
 };
 export type RetryStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -25,6 +26,7 @@ export function loadOfferAction(storage: RetryStorage, caller: string, order: st
  try { value = JSON.parse(raw); } catch { throw new Error('Stored retry data is unreadable. No new action was sent.'); }
  if (!value || !['accept','proposal','counteroffer'].includes(value.kind) || !uuid.test(value.key) ||
   !['uncertain','pending','compensating','succeeded','rejected'].includes(value.outcome) ||
+  (value.attemptId !== undefined && !uuid.test(value.attemptId)) ||
   (value.kind === 'proposal' && (!value.credits || !/^[1-9][0-9]{0,18}$/.test(value.credits) || BigInt(value.credits) > 9223372036854775807n)) ||
   (value.kind === 'counteroffer' && (!value.offerId || !uuid.test(value.offerId)))) {
   throw new Error('Stored retry data is invalid. No new action was sent.');

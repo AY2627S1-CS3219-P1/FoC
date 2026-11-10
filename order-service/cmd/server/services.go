@@ -29,7 +29,8 @@ func newRPCServices(
 	service := order.NewService(repository)
 	mutator := order.NewMutator(repository)
 	participantServer := orderrpc.NewServerWithCancellation(service, creator, images, assignments, cancellations).
-		WithParticipantActions(order.NewProgress(mutator), order.NewDisposition(mutator))
+		WithParticipantActions(order.NewProgress(mutator), order.NewDisposition(mutator)).
+		WithOperationStatus(&order.OperationStatus{Reader: repository})
 
 	if len(proofs) > 0 && proofs[0] != nil {
 		participantServer.WithProofs(proofs[0].proofs, proofs[0].receipts)

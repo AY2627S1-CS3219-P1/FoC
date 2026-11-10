@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const countReviewRemovals = `-- name: CountReviewRemovals :one
@@ -28,7 +29,7 @@ func (q *Queries) CountReviewRemovals(ctx context.Context) (int64, error) {
 const countReviewsForUser = `-- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL AND moderation_status = 'approved'
 `
 
 func (q *Queries) CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -41,7 +42,7 @@ func (q *Queries) CountReviewsForUser(ctx context.Context, userID uuid.UUID) (in
 const countReviewsFromUser = `-- name: CountReviewsFromUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewer_id = $1::UUID AND deleted_at IS NULL
+WHERE reviewer_id = $1::UUID AND deleted_at IS NULL AND moderation_status = 'approved'
 `
 
 func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -51,30 +52,154 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
-const insertReview = `-- name: InsertReview :exec
-INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
-VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now())
+const countUnpublishedReviewsForUser = `-- name: CountUnpublishedReviewsForUser :one
+SELECT COUNT(*)
+FROM reviews
+WHERE reviewer_id = $1::UUID
+  AND deleted_at IS NULL
+  AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
+`
+
+func (q *Queries) CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnpublishedReviewsForUser, reviewerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID AND r.order_id = $2::UUID
+`
+
+type GetReviewByReviewerAndOrderParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+type GetReviewByReviewerAndOrderRow struct {
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+	ReviewerName     string
+	RevieweeName     string
+}
+
+func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReviewByReviewerAndOrderParams) (GetReviewByReviewerAndOrderRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewByReviewerAndOrder, arg.ReviewerID, arg.OrderID)
+	var i GetReviewByReviewerAndOrderRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ModerationStatus,
+		&i.ReviewerName,
+		&i.RevieweeName,
+	)
+	return i, err
+}
+
+const insertReview = `-- name: InsertReview :one
+INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at,
+                     moderation_status, content_revision, moderation_request_id)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, $6, now(),
+        'pending_moderation', 1, $7::UUID)
+RETURNING id, created_at, moderation_status, content_revision, moderation_request_id
 `
 
 type InsertReviewParams struct {
-	ID         uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int32
-	Comment    string
+	ID                  uuid.UUID
+	ReviewerID          uuid.UUID
+	RevieweeID          uuid.UUID
+	OrderID             uuid.UUID
+	Rating              int32
+	Comment             string
+	ModerationRequestID uuid.UUID
 }
 
-func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) error {
-	_, err := q.db.ExecContext(ctx, insertReview,
+type InsertReviewRow struct {
+	ID                  uuid.UUID
+	CreatedAt           time.Time
+	ModerationStatus    string
+	ContentRevision     int32
+	ModerationRequestID uuid.NullUUID
+}
+
+func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) (InsertReviewRow, error) {
+	row := q.db.QueryRowContext(ctx, insertReview,
 		arg.ID,
 		arg.ReviewerID,
 		arg.RevieweeID,
 		arg.OrderID,
 		arg.Rating,
 		arg.Comment,
+		arg.ModerationRequestID,
 	)
-	return err
+	var i InsertReviewRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ModerationStatus,
+		&i.ContentRevision,
+		&i.ModerationRequestID,
+	)
+	return i, err
+}
+
+const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many
+SELECT order_id::TEXT, (deleted_at IS NOT NULL)::BOOLEAN AS removed
+FROM reviews
+WHERE reviewer_id = $1::UUID AND order_id = ANY($2::UUID[])
+`
+
+type ListReviewOrderStatusesParams struct {
+	ReviewerID uuid.UUID
+	OrderIds   []uuid.UUID
+}
+
+type ListReviewOrderStatusesRow struct {
+	OrderID string
+	Removed bool
+}
+
+// Include removed rows so callers can distinguish blocked orders from unreviewed ones.
+func (q *Queries) ListReviewOrderStatuses(ctx context.Context, arg ListReviewOrderStatusesParams) ([]ListReviewOrderStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewOrderStatuses, arg.ReviewerID, pq.Array(arg.OrderIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewOrderStatusesRow{}
+	for rows.Next() {
+		var i ListReviewOrderStatusesRow
+		if err := rows.Scan(&i.OrderID, &i.Removed); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listReviewRemovals = `-- name: ListReviewRemovals :many
@@ -143,7 +268,7 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL
+WHERE r.reviewee_id = $1::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -202,13 +327,13 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 }
 
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3::bigint OFFSET $2::bigint
 `
@@ -220,16 +345,17 @@ type ListReviewsFromUserParams struct {
 }
 
 type ListReviewsFromUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+	ReviewerName     string
+	RevieweeName     string
 }
 
 func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
@@ -250,6 +376,85 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ModerationStatus,
+			&i.ReviewerName,
+			&i.RevieweeName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnpublishedReviewsForUser = `-- name: ListUnpublishedReviewsForUser :many
+SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = $1::UUID
+  AND r.deleted_at IS NULL
+  AND r.moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
+`
+
+type ListUnpublishedReviewsForUserParams struct {
+	ReviewerID uuid.UUID
+	PageOffset int64
+	PageLimit  int64
+}
+
+type ListUnpublishedReviewsForUserRow struct {
+	ID                   uuid.UUID
+	ReviewerID           uuid.UUID
+	RevieweeID           uuid.UUID
+	OrderID              uuid.UUID
+	Rating               int32
+	Comment              string
+	CreatedAt            time.Time
+	ModerationStatus     string
+	ModerationRequestID  uuid.NullUUID
+	ContentRevision      int32
+	ReasonCodes          []string
+	ModeratedAt          sql.NullTime
+	AppliedRunGeneration int32
+	ReviewerName         string
+	RevieweeName         string
+}
+
+func (q *Queries) ListUnpublishedReviewsForUser(ctx context.Context, arg ListUnpublishedReviewsForUserParams) ([]ListUnpublishedReviewsForUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnpublishedReviewsForUser, arg.ReviewerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnpublishedReviewsForUserRow{}
+	for rows.Next() {
+		var i ListUnpublishedReviewsForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewerID,
+			&i.RevieweeID,
+			&i.OrderID,
+			&i.Rating,
+			&i.Comment,
+			&i.CreatedAt,
+			&i.ModerationStatus,
+			&i.ModerationRequestID,
+			&i.ContentRevision,
+			pq.Array(&i.ReasonCodes),
+			&i.ModeratedAt,
+			&i.AppliedRunGeneration,
 			&i.ReviewerName,
 			&i.RevieweeName,
 		); err != nil {
@@ -270,12 +475,8 @@ const lockReviewee = `-- name: LockReviewee :exec
 SELECT id FROM users WHERE id = $1::UUID FOR NO KEY UPDATE
 `
 
-// Lock the reviewee row first, then read the aggregate in a separate statement,
-// so a concurrent submit/remove about the same reviewee converges on the count
-// and mean. A locking query must not also read the aggregate (see LANDMINES).
-// FOR NO KEY UPDATE rather than FOR UPDATE so the lock does not conflict with
-// the FOR KEY SHARE locks InsertReview's foreign-key checks take on the same
-// users rows.
+// Lock the row before the aggregate read; FOR NO KEY UPDATE avoids conflicting
+// with the key-share locks InsertReview's foreign keys take.
 func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockReviewee, revieweeID)
 	return err
@@ -309,6 +510,26 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 	return err
 }
 
+const reviewExists = `-- name: ReviewExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reviews
+    WHERE reviewer_id = $1::UUID AND order_id = $2::UUID
+)
+`
+
+type ReviewExistsParams struct {
+	ReviewerID uuid.UUID
+	OrderID    uuid.UUID
+}
+
+// A removed review still blocks re-review, matching the insert's unique rule.
+func (q *Queries) ReviewExists(ctx context.Context, arg ReviewExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, reviewExists, arg.ReviewerID, arg.OrderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const reviewParticipantsExist = `-- name: ReviewParticipantsExist :one
 SELECT EXISTS (
            SELECT 1 FROM users WHERE id = $1::UUID
@@ -338,7 +559,7 @@ func (q *Queries) ReviewParticipantsExist(ctx context.Context, arg ReviewPartici
 const revieweeStatistics = `-- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
-WHERE reviewee_id = $1::UUID AND deleted_at IS NULL
+WHERE reviewee_id = $1::UUID AND deleted_at IS NULL AND moderation_status = 'approved'
 `
 
 type RevieweeStatisticsRow struct {
@@ -357,15 +578,25 @@ const softDeleteReview = `-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = $1::UUID AND deleted_at IS NULL
-RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status
 `
 
-// The update locks the row and returns the data needed for the removal audit.
-// A concurrent removal waits, then finds no live row and reports not found.
-// The row is retained so review_removals can keep referencing it.
-func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, error) {
+type SoftDeleteReviewRow struct {
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+}
+
+// Locks the row; a concurrent removal sees no live row and reports not found.
+func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (SoftDeleteReviewRow, error) {
 	row := q.db.QueryRowContext(ctx, softDeleteReview, id)
-	var i Review
+	var i SoftDeleteReviewRow
 	err := row.Scan(
 		&i.ID,
 		&i.DeletedAt,
@@ -375,6 +606,7 @@ func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (Review, e
 		&i.Rating,
 		&i.Comment,
 		&i.CreatedAt,
+		&i.ModerationStatus,
 	)
 	return i, err
 }

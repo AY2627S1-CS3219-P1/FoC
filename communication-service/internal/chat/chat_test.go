@@ -481,3 +481,44 @@ func TestPermanentFeedbackFailureIsConsumed(t *testing.T) {
 		t.Fatalf("permanent failure should not retry: %v", err)
 	}
 }
+
+func TestOpenChat(t *testing.T) {
+	open, ended := order(Delivering), order(Completed)
+	ended.EndedAt = now.Add(-2 * GracePeriod)
+	for _, tc := range []struct {
+		name     string
+		chatID   int64
+		orderID  uuid.UUID
+		opened   bool
+		reply    string
+		selected bool
+	}{
+		{"participant", courierChat, open.ID, true,
+			"Your messages now go to your requester for the Fine Food order. Send a message to start.", true},
+		{"chat closed", courierChat, ended.ID, true, closedReply, false},
+		{"stranger", strangerChat, open.ID, false, "", false},
+		{"unlinked chat", 999, open.ID, false, "", false},
+		{"unknown order", courierChat, uuid.New(), false, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, sender, store, _ := newRelay(open, ended)
+			opened, err := r.OpenChat(
+				context.Background(),
+				text(tc.chatID, "/start chat_"+tc.orderID.String()),
+				tc.orderID,
+			)
+			if err != nil || opened != tc.opened {
+				t.Fatalf("opened = %v, %v", opened, err)
+			}
+			if tc.reply == "" && len(sender.sent) != 0 {
+				t.Fatalf("revealed the order: %+v", sender.sent)
+			}
+			if tc.reply != "" && (len(sender.sent) != 1 || sender.sent[0].text != tc.reply) {
+				t.Fatalf("sent = %+v", sender.sent)
+			}
+			if _, ok := store.selections[courier]; ok != tc.selected {
+				t.Fatalf("selections = %v", store.selections)
+			}
+		})
+	}
+}
