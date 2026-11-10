@@ -12,7 +12,6 @@ resources:
   - gateway.yaml
   - communication-service.yaml
   - content-moderation-service.yaml
-  - moderation-service.yaml
 patches:
   # Match Order's existing Compose budget for the application and its two
   # bounded native proof decoders; the shared Go default is only 256Mi.

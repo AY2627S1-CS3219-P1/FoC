@@ -221,7 +221,7 @@ func (o *operator) meshSmoke() error {
 	if err := o.requireManagedLocal(); err != nil {
 		return err
 	}
-	for _, app := range apps {
+	for _, app := range o.releaseApps() {
 		if err := o.rollout("deployment/" + app); err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
-	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, jobs...) {
+	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, o.releaseJobs()...) {
 		if err := o.waitJob(job); err != nil {
 			return err
 		}
@@ -643,7 +643,7 @@ func (o *operator) persistenceSmoke() error {
 	if err := read(); err != nil {
 		return err
 	}
-	for _, app := range apps {
+	for _, app := range o.releaseApps() {
 		if err := o.rollout("deployment/" + app); err != nil {
 			return err
 		}
