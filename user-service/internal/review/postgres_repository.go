@@ -369,16 +369,17 @@ func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
 
 func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		ReviewerName:     row.ReviewerName,
+		RevieweeID:       row.RevieweeID,
+		RevieweeName:     row.RevieweeName,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
 	}
 }
 

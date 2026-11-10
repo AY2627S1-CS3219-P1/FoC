@@ -146,6 +146,7 @@ message GetMyReviewForOrderRequest {
 
 message GetMyReviewForOrderResponse {
   Review review = 1;
+  ModerationStatus moderation_status = 2;
 }
 
 message RemoveReviewRequest {

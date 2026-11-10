@@ -1011,10 +1011,11 @@ func (x *GetMyReviewForOrderRequest) GetOrderId() string {
 }
 
 type GetMyReviewForOrderResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Review        *Review                `protobuf:"bytes,1,opt,name=review,proto3" json:"review,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Review           *Review                `protobuf:"bytes,1,opt,name=review,proto3" json:"review,omitempty"`
+	ModerationStatus ModerationStatus       `protobuf:"varint,2,opt,name=moderation_status,json=moderationStatus,proto3,enum=user.review.v1.ModerationStatus" json:"moderation_status,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetMyReviewForOrderResponse) Reset() {
@@ -1052,6 +1053,13 @@ func (x *GetMyReviewForOrderResponse) GetReview() *Review {
 		return x.Review
 	}
 	return nil
+}
+
+func (x *GetMyReviewForOrderResponse) GetModerationStatus() ModerationStatus {
+	if x != nil {
+		return x.ModerationStatus
+	}
+	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
 }
 
 type RemoveReviewRequest struct {
@@ -1696,9 +1704,10 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x12reviewed_order_ids\x18\x01 \x03(\tR\x10reviewedOrderIds\x12*\n" +
 	"\x11removed_order_ids\x18\x02 \x03(\tR\x0fremovedOrderIds\"A\n" +
 	"\x1aGetMyReviewForOrderRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"M\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\x9c\x01\n" +
 	"\x1bGetMyReviewForOrderResponse\x12.\n" +
-	"\x06review\x18\x01 \x01(\v2\x16.user.review.v1.ReviewR\x06review\"T\n" +
+	"\x06review\x18\x01 \x01(\v2\x16.user.review.v1.ReviewR\x06review\x12M\n" +
+	"\x11moderation_status\x18\x02 \x01(\x0e2 .user.review.v1.ModerationStatusR\x10moderationStatus\"T\n" +
 	"\x13RemoveReviewRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12#\n" +
 	"\x06reason\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\xa0\x8d\x06R\x06reason\"\x16\n" +
@@ -1840,41 +1849,42 @@ var file_user_review_v1_review_proto_depIdxs = []int32{
 	1,  // 14: user.review.v1.ListMyReviewsReceivedResponse.reviews:type_name -> user.review.v1.Review
 	28, // 15: user.review.v1.ListMyReviewsReceivedResponse.pagination:type_name -> pagination.v1.PageInfo
 	1,  // 16: user.review.v1.GetMyReviewForOrderResponse.review:type_name -> user.review.v1.Review
-	27, // 17: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
-	29, // 18: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
-	20, // 19: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	28, // 20: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
-	29, // 21: user.review.v1.ListUnpublishedReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	25, // 22: user.review.v1.ListUnpublishedReviewsForUserResponse.reviews:type_name -> user.review.v1.UnpublishedReview
-	28, // 23: user.review.v1.ListUnpublishedReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
-	27, // 24: user.review.v1.UnpublishedReview.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 25: user.review.v1.UnpublishedReview.moderation_status:type_name -> user.review.v1.ModerationStatus
-	27, // 26: user.review.v1.UnpublishedReview.moderated_at:type_name -> google.protobuf.Timestamp
-	4,  // 27: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	6,  // 28: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
-	10, // 29: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	11, // 30: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	23, // 31: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:input_type -> user.review.v1.ListUnpublishedReviewsForUserRequest
-	12, // 32: user.review.v1.ReviewService.ListMyReviewsReceived:input_type -> user.review.v1.ListMyReviewsReceivedRequest
-	14, // 33: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
-	16, // 34: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
-	18, // 35: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	21, // 36: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	5,  // 37: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	7,  // 38: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
-	8,  // 39: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	9,  // 40: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	24, // 41: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:output_type -> user.review.v1.ListUnpublishedReviewsForUserResponse
-	13, // 42: user.review.v1.ReviewService.ListMyReviewsReceived:output_type -> user.review.v1.ListMyReviewsReceivedResponse
-	15, // 43: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
-	17, // 44: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
-	19, // 45: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	22, // 46: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	37, // [37:47] is the sub-list for method output_type
-	27, // [27:37] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	0,  // 17: user.review.v1.GetMyReviewForOrderResponse.moderation_status:type_name -> user.review.v1.ModerationStatus
+	27, // 18: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
+	29, // 19: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	20, // 20: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
+	28, // 21: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	29, // 22: user.review.v1.ListUnpublishedReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	25, // 23: user.review.v1.ListUnpublishedReviewsForUserResponse.reviews:type_name -> user.review.v1.UnpublishedReview
+	28, // 24: user.review.v1.ListUnpublishedReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	27, // 25: user.review.v1.UnpublishedReview.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 26: user.review.v1.UnpublishedReview.moderation_status:type_name -> user.review.v1.ModerationStatus
+	27, // 27: user.review.v1.UnpublishedReview.moderated_at:type_name -> google.protobuf.Timestamp
+	4,  // 28: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	6,  // 29: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
+	10, // 30: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	11, // 31: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	23, // 32: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:input_type -> user.review.v1.ListUnpublishedReviewsForUserRequest
+	12, // 33: user.review.v1.ReviewService.ListMyReviewsReceived:input_type -> user.review.v1.ListMyReviewsReceivedRequest
+	14, // 34: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
+	16, // 35: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
+	18, // 36: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	21, // 37: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	5,  // 38: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	7,  // 39: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
+	8,  // 40: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	9,  // 41: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	24, // 42: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:output_type -> user.review.v1.ListUnpublishedReviewsForUserResponse
+	13, // 43: user.review.v1.ReviewService.ListMyReviewsReceived:output_type -> user.review.v1.ListMyReviewsReceivedResponse
+	15, // 44: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
+	17, // 45: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
+	19, // 46: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	22, // 47: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	38, // [38:48] is the sub-list for method output_type
+	28, // [28:38] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }

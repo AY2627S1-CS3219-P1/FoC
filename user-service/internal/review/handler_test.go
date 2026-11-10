@@ -844,3 +844,22 @@ func (s *handlerLogicStub) GetMyReviewForOrder(
 	}
 	return s.myReview, nil
 }
+
+func TestOwnerReviewReportsModerationStatus(t *testing.T) {
+	for _, status := range []ModerationStatus{ModerationPending, ModerationRejected, ModerationApproved, ModerationError} {
+		t.Run(string(status), func(t *testing.T) {
+			client := reviewClient(
+				t,
+				&handlerLogicStub{myReview: Review{ID: uuid.New(), ModerationStatus: status}},
+				auth.Caller{ID: uuid.NewString()},
+			)
+			response, err := client.GetMyReviewForOrder(
+				context.Background(),
+				connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{OrderId: uuid.NewString()}),
+			)
+			if err != nil || response.Msg.ModerationStatus != toProtoModerationStatus(status) {
+				t.Fatalf("owner status: %v, %v", response, err)
+			}
+		})
+	}
+}

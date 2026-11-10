@@ -68,7 +68,7 @@ func (q *Queries) CountUnpublishedReviewsForUser(ctx context.Context, reviewerID
 }
 
 const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
@@ -83,16 +83,17 @@ type GetReviewByReviewerAndOrderParams struct {
 }
 
 type GetReviewByReviewerAndOrderRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+	ReviewerName     string
+	RevieweeName     string
 }
 
 func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReviewByReviewerAndOrderParams) (GetReviewByReviewerAndOrderRow, error) {
@@ -107,6 +108,7 @@ func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReview
 		&i.Rating,
 		&i.Comment,
 		&i.CreatedAt,
+		&i.ModerationStatus,
 		&i.ReviewerName,
 		&i.RevieweeName,
 	)
@@ -325,7 +327,7 @@ func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUser
 }
 
 const listReviewsFromUser = `-- name: ListReviewsFromUser :many
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
@@ -343,16 +345,17 @@ type ListReviewsFromUserParams struct {
 }
 
 type ListReviewsFromUserRow struct {
-	ID           uuid.UUID
-	DeletedAt    sql.NullTime
-	ReviewerID   uuid.UUID
-	RevieweeID   uuid.UUID
-	OrderID      uuid.UUID
-	Rating       int32
-	Comment      string
-	CreatedAt    time.Time
-	ReviewerName string
-	RevieweeName string
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+	ReviewerName     string
+	RevieweeName     string
 }
 
 func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUserParams) ([]ListReviewsFromUserRow, error) {
@@ -373,6 +376,7 @@ func (q *Queries) ListReviewsFromUser(ctx context.Context, arg ListReviewsFromUs
 			&i.Rating,
 			&i.Comment,
 			&i.CreatedAt,
+			&i.ModerationStatus,
 			&i.ReviewerName,
 			&i.RevieweeName,
 		); err != nil {

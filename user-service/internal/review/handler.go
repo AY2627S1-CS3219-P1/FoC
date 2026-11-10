@@ -245,7 +245,12 @@ func (h *Handler) GetMyReviewForOrder(
 	if err != nil {
 		return nil, toConnectError(ctx, err)
 	}
-	resp := connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{Review: toReviewProto(review)})
+	resp := connect.NewResponse(
+		&reviewv1.GetMyReviewForOrderResponse{
+			Review:           toReviewProto(review),
+			ModerationStatus: toProtoModerationStatus(review.ModerationStatus),
+		},
+	)
 	noStore(resp)
 	return resp, nil
 }

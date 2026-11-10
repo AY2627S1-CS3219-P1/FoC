@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -568,5 +569,49 @@ func TestUnpublishedTransitionsDoNotLockRevieweeStatistics(t *testing.T) {
 	}
 	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || average != 0 {
 		t.Fatalf("approved removal did not update ratings: count=%d average=%v", count, average)
+	}
+}
+
+func TestRejectedReviewStillBlocksResubmission(t *testing.T) {
+	stack := openModerationStack(t)
+	ctx := context.Background()
+	reviewer, reviewee := uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee} {
+		insertUser(t, ctx, stack.sqlDB, id)
+	}
+	reviewID, orderID := submitReview(t, ctx, stack, reviewer, reviewee, "original review")
+	pending, err := stack.service.GetMyReviewForOrder(ctx, reviewer, orderID)
+	if err != nil || pending.ModerationStatus != ModerationPending {
+		t.Fatalf("pending owner lookup: %+v, %v", pending, err)
+	}
+	event := completionEvent(reviewID, reviewer, requestIDOf(t, ctx, stack, reviewID),
+		moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, []string{"HATE"}, 1)
+	if err := applyCompletion(t, ctx, stack, event); err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := stack.service.GetMyReviewForOrder(ctx, reviewer, orderID)
+	if err != nil || rejected.ModerationStatus != ModerationRejected {
+		t.Fatalf("rejected owner lookup: %+v, %v", rejected, err)
+	}
+	statuses, err := stack.service.ListMyReviewsForOrders(ctx, reviewer, []uuid.UUID{orderID})
+	if err != nil || len(statuses.ReviewedOrderIDs) != 1 || statuses.ReviewedOrderIDs[0] != orderID {
+		t.Fatalf("rejected review no longer counts as left: %+v, %v", statuses, err)
+	}
+	_, err = stack.service.SubmitReview(
+		ctx,
+		reviewer,
+		reviewee,
+		orderID,
+		ReviewSubmission{Rating: 5, Comment: "replacement"},
+		nil,
+	)
+	if !errors.Is(err, errReviewAlreadyExists) {
+		t.Fatalf("rejected review allowed resubmission: %v", err)
+	}
+	var count int
+	if err := stack.sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM reviews WHERE reviewer_id = $1 AND order_id = $2", reviewer, orderID).
+		Scan(&count); err != nil ||
+		count != 1 {
+		t.Fatalf("review count = %d, error = %v", count, err)
 	}
 }

@@ -43,7 +43,7 @@ ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: ListReviewsFromUser :many
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
@@ -91,7 +91,7 @@ FROM reviews
 WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[]);
 
 -- name: GetReviewByReviewerAndOrder :one
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
