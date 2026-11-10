@@ -33,7 +33,7 @@ variables {
 run "isolated_release_identity_and_private_disposable_runner" {
   command = plan
   assert {
-    condition     = jsondecode(aws_iam_role.release.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo"
+    condition     = jsondecode(aws_iam_role.release.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo"
     error_message = "Only the repository's protected environment may assume the release identity."
   }
   assert {
