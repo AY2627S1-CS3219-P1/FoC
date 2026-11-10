@@ -13,3 +13,4 @@ configMapGenerator:
     files:
       - dashboards/provider.yaml
       - dashboards/foc-logs.json
+      - dashboards/foc-service-logs.json
