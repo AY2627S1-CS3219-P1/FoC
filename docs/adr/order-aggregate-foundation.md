@@ -118,9 +118,8 @@ mutation locks. Ordering is created_at DESC, id DESC. Visibility is filtered bef
 counting/pagination. Browsers receive eligible Awaiting Courier orders without
 instructions. Requester/current-courier history survives suspension; only the
 requester/admin sees all offers, while a courier sees their own historical offers.
-The internal participant service is mounted on its private listener only; see
-[the participant lookup ADR](order-participant-lookup.md). Mutation/upload RPCs retain
-generated unimplemented handlers.
+The internal participant service is mounted on its private listener only.
+Mutation/upload RPCs retain generated unimplemented handlers.
 
 Runtime requires PostgreSQL and User Service authentication keys, with bounded
 cancellation-aware startup. Embedded migrations can be disabled externally.
