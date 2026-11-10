@@ -1,6 +1,6 @@
 -include .env
 
-MODERATION_DB ?= moderation_dev
+REPORTS_MODERATION_DB ?= reports_moderation_dev
 SQLC_PATH=./database
 
 sqlc:
@@ -23,7 +23,7 @@ goose-create:
 	@cd database/schema && goose create $(name) sql
 
 dropDB:
-	@dropdb --if-exists $(MODERATION_DB)
+	@dropdb --if-exists $(REPORTS_MODERATION_DB)
 
 createDB:
-	@createdb $(MODERATION_DB)
+	@createdb $(REPORTS_MODERATION_DB)

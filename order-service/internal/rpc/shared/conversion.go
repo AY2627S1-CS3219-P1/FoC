@@ -8,6 +8,7 @@ import (
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -30,6 +31,35 @@ var statuses = map[pb.OrderStatus]app.Status{
 	pb.OrderStatus_ORDER_STATUS_EXPIRED:             app.Expired,
 	pb.OrderStatus_ORDER_STATUS_FAILED:              app.Failed,
 	pb.OrderStatus_ORDER_STATUS_REJECTED:            app.Rejected,
+}
+
+// OrderStatusCounts lists every defined status in enum order, including
+// statuses absent from counts.
+func OrderStatusCounts(counts map[app.Status]int64) []*pb.OrderStatusCount {
+	out := make([]*pb.OrderStatusCount, 0, len(statuses)-1)
+	for value := pb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION; ; value++ {
+		status, ok := statuses[value]
+		if !ok {
+			return out
+		}
+		out = append(out, &pb.OrderStatusCount{Status: value, Count: counts[status]})
+	}
+}
+
+// OrderDate converts a protobuf calendar date. Validity is checked by the domain.
+func OrderDate(d *date.Date) app.Date {
+	return app.Date{Year: int(d.GetYear()), Month: time.Month(d.GetMonth()), Day: int(d.GetDay())}
+}
+
+func DailyOrderCounts(days []app.DailyCount) []*pb.DailyOrderCount {
+	out := make([]*pb.DailyOrderCount, len(days))
+	for i, d := range days {
+		out[i] = &pb.DailyOrderCount{
+			Date:  &date.Date{Year: int32(d.Date.Year), Month: int32(d.Date.Month), Day: int32(d.Date.Day)},
+			Count: d.Count,
+		}
+	}
+	return out
 }
 
 var roles = map[pb.ParticipantRole]app.Role{

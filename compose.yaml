@@ -14,6 +14,7 @@ services:
       PUBLIC_SUPPLIER_SERVICE_URL: ${PUBLIC_SUPPLIER_SERVICE_URL:-http://localhost:${SUPPLIER_PORT:-8082}}
       PUBLIC_COMMUNICATION_SERVICE_URL: ${PUBLIC_COMMUNICATION_SERVICE_URL:-http://localhost:${COMMUNICATION_PORT:-8084}}
       PUBLIC_MODERATION_SERVICE_URL: ${PUBLIC_MODERATION_SERVICE_URL:-http://localhost:${MODERATION_PORT:-8086}}
+      PUBLIC_REPORTS_MODERATION_SERVICE_URL: ${PUBLIC_REPORTS_MODERATION_SERVICE_URL:-http://localhost:${REPORTS_MODERATION_PORT:-8087}}
       PUBLIC_TELEGRAM_BOT_URL: ${PUBLIC_TELEGRAM_BOT_URL:-}
     volumes:
       - ./frontend:/app
@@ -33,6 +34,7 @@ services:
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
       MODERATION_DB: ${MODERATION_DB:-moderation_dev}
+      REPORTS_MODERATION_DB: ${REPORTS_MODERATION_DB:-reports_moderation_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -188,7 +190,6 @@ services:
       KAFKA_BROKERS: kafka:9092
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
-      ORDER_SERVICE_BASE_URL: ${ORDER_SERVICE_BASE_URL:-http://order-service:8081}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
@@ -355,6 +356,42 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  content-moderation-service:
+    build:
+      context: .
+      dockerfile: content-moderation-service/Dockerfile.dev
+    container_name: foc-content-moderation-service
+    # Only the public listener is published. No service calls CMS internally.
+    ports:
+      - "${MODERATION_PORT:-8086}:${PORT:-8080}"
+    environment:
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
+      APP_ENV: ${APP_ENV:-local}
+      # Defaults to the shared Postgres so existing .env files keep working.
+      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      KAFKA_BROKERS: kafka:9092
+      CMS_LOGGING_INTERVAL: ${CMS_LOGGING_INTERVAL:-5m}
+      # OpenAI-compatible inference. The key stays server-side; an empty key
+      # starts the service degraded: submissions queue, admin APIs and setup
+      # status still work, no inference attempts are burned.
+      CMS_LLM_BASE_URL: ${CMS_LLM_BASE_URL:-https://soclaas-api.comp.nus.edu.sg/v1}
+      CMS_LLM_MODEL_ID: ${CMS_LLM_MODEL_ID:-gemma4:26b}
+      CMS_LLM_API_KEY: ${CMS_LLM_API_KEY:-}
+    volumes:
+      - ./content-moderation-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   moderation-storage-init:
     build:
       context: .
@@ -386,12 +423,12 @@ services:
     container_name: foc-moderation-service
     # Only the public listener is published.
     ports:
-      - "${MODERATION_PORT:-8086}:${PORT:-8080}"
+      - "${REPORTS_MODERATION_PORT:-8087}:${PORT:-8080}"
     environment:
       PORT: ${PORT:-8080}
       INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
-      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      DATABASE_URL: ${REPORTS_MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${REPORTS_MODERATION_DB:-reports_moderation_dev}?sslmode=disable}
       # User's internal listener serves signing keys, names and review and
       # warning facts; Order's serves order participants.
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}

@@ -584,11 +584,189 @@ func (x *ChangeUserRoleResponse) GetUser() *UserSummary {
 	return nil
 }
 
+type GetUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserRequest) Reset() {
+	*x = GetUserRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserRequest) ProtoMessage() {}
+
+func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
+func (*GetUserRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *Profile               `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserResponse) Reset() {
+	*x = GetUserResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserResponse) ProtoMessage() {}
+
+func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
+func (*GetUserResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetUserResponse) GetProfile() *Profile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type GetUserStatsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserStatsRequest) Reset() {
+	*x = GetUserStatsRequest{}
+	mi := &file_user_v1_admin_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserStatsRequest) ProtoMessage() {}
+
+func (x *GetUserStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserStatsRequest.ProtoReflect.Descriptor instead.
+func (*GetUserStatsRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{14}
+}
+
+// Counts exclude deleted users. Active users are every user who is not
+// suspended, including administrators.
+type GetUserStatsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ActiveCount    int64                  `protobuf:"varint,1,opt,name=active_count,json=activeCount,proto3" json:"active_count,omitempty"`
+	SuspendedCount int64                  `protobuf:"varint,2,opt,name=suspended_count,json=suspendedCount,proto3" json:"suspended_count,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetUserStatsResponse) Reset() {
+	*x = GetUserStatsResponse{}
+	mi := &file_user_v1_admin_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserStatsResponse) ProtoMessage() {}
+
+func (x *GetUserStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_admin_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserStatsResponse.ProtoReflect.Descriptor instead.
+func (*GetUserStatsResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_admin_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetUserStatsResponse) GetActiveCount() int64 {
+	if x != nil {
+		return x.ActiveCount
+	}
+	return 0
+}
+
+func (x *GetUserStatsResponse) GetSuspendedCount() int64 {
+	if x != nil {
+		return x.SuspendedCount
+	}
+	return 0
+}
+
 var File_user_v1_admin_proto protoreflect.FileDescriptor
 
 const file_user_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\"7\n" +
+	"\x13user/v1/admin.proto\x12\auser.v1\x1a\x1bbuf/validate/validate.proto\x1a\x12user/v1/auth.proto\x1a\x15user/v1/profile.proto\"7\n" +
 	"\rAllowedDomain\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\"\x1b\n" +
@@ -618,10 +796,20 @@ const file_user_v1_admin_proto_rawDesc = "" +
 	"\n" +
 	"_report_id\"B\n" +
 	"\x16ChangeUserRoleResponse\x12(\n" +
-	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user2\xbc\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"3\n" +
+	"\x0eGetUserRequest\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\"=\n" +
+	"\x0fGetUserResponse\x12*\n" +
+	"\aprofile\x18\x01 \x01(\v2\x10.user.v1.ProfileR\aprofile\"\x15\n" +
+	"\x13GetUserStatsRequest\"b\n" +
+	"\x14GetUserStatsResponse\x12!\n" +
+	"\factive_count\x18\x01 \x01(\x03R\vactiveCount\x12'\n" +
+	"\x0fsuspended_count\x18\x02 \x01(\x03R\x0esuspendedCount2\xcb\x02\n" +
 	"\x10UserAdminService\x12S\n" +
 	"\x0eGetUserByEmail\x12\x1e.user.v1.GetUserByEmailRequest\x1a\x1f.user.v1.GetUserByEmailResponse\"\x00\x12S\n" +
-	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x002\xac\x02\n" +
+	"\x0eChangeUserRole\x12\x1e.user.v1.ChangeUserRoleRequest\x1a\x1f.user.v1.ChangeUserRoleResponse\"\x00\x12>\n" +
+	"\aGetUser\x12\x17.user.v1.GetUserRequest\x1a\x18.user.v1.GetUserResponse\"\x00\x12M\n" +
+	"\fGetUserStats\x12\x1c.user.v1.GetUserStatsRequest\x1a\x1d.user.v1.GetUserStatsResponse\"\x002\xac\x02\n" +
 	"\x19AllowedDomainAdminService\x12_\n" +
 	"\x12ListAllowedDomains\x12\".user.v1.ListAllowedDomainsRequest\x1a#.user.v1.ListAllowedDomainsResponse\"\x00\x12J\n" +
 	"\vAllowDomain\x12\x1b.user.v1.AllowDomainRequest\x1a\x1c.user.v1.AllowDomainResponse\"\x00\x12b\n" +
@@ -641,7 +829,7 @@ func file_user_v1_admin_proto_rawDescGZIP() []byte {
 	return file_user_v1_admin_proto_rawDescData
 }
 
-var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_user_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_user_v1_admin_proto_goTypes = []any{
 	(*AllowedDomain)(nil),               // 0: user.v1.AllowedDomain
 	(*ListAllowedDomainsRequest)(nil),   // 1: user.v1.ListAllowedDomainsRequest
@@ -655,29 +843,39 @@ var file_user_v1_admin_proto_goTypes = []any{
 	(*GetUserByEmailResponse)(nil),      // 9: user.v1.GetUserByEmailResponse
 	(*ChangeUserRoleRequest)(nil),       // 10: user.v1.ChangeUserRoleRequest
 	(*ChangeUserRoleResponse)(nil),      // 11: user.v1.ChangeUserRoleResponse
-	(UserRole)(0),                       // 12: user.v1.UserRole
+	(*GetUserRequest)(nil),              // 12: user.v1.GetUserRequest
+	(*GetUserResponse)(nil),             // 13: user.v1.GetUserResponse
+	(*GetUserStatsRequest)(nil),         // 14: user.v1.GetUserStatsRequest
+	(*GetUserStatsResponse)(nil),        // 15: user.v1.GetUserStatsResponse
+	(UserRole)(0),                       // 16: user.v1.UserRole
+	(*Profile)(nil),                     // 17: user.v1.Profile
 }
 var file_user_v1_admin_proto_depIdxs = []int32{
 	0,  // 0: user.v1.ListAllowedDomainsResponse.allowed_domains:type_name -> user.v1.AllowedDomain
-	12, // 1: user.v1.UserSummary.role:type_name -> user.v1.UserRole
+	16, // 1: user.v1.UserSummary.role:type_name -> user.v1.UserRole
 	7,  // 2: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.UserSummary
-	12, // 3: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
+	16, // 3: user.v1.ChangeUserRoleRequest.to_role:type_name -> user.v1.UserRole
 	7,  // 4: user.v1.ChangeUserRoleResponse.user:type_name -> user.v1.UserSummary
-	8,  // 5: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
-	10, // 6: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
-	1,  // 7: user.v1.AllowedDomainAdminService.ListAllowedDomains:input_type -> user.v1.ListAllowedDomainsRequest
-	3,  // 8: user.v1.AllowedDomainAdminService.AllowDomain:input_type -> user.v1.AllowDomainRequest
-	5,  // 9: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:input_type -> user.v1.RemoveAllowedDomainRequest
-	9,  // 10: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
-	11, // 11: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
-	2,  // 12: user.v1.AllowedDomainAdminService.ListAllowedDomains:output_type -> user.v1.ListAllowedDomainsResponse
-	4,  // 13: user.v1.AllowedDomainAdminService.AllowDomain:output_type -> user.v1.AllowDomainResponse
-	6,  // 14: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:output_type -> user.v1.RemoveAllowedDomainResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	17, // 5: user.v1.GetUserResponse.profile:type_name -> user.v1.Profile
+	8,  // 6: user.v1.UserAdminService.GetUserByEmail:input_type -> user.v1.GetUserByEmailRequest
+	10, // 7: user.v1.UserAdminService.ChangeUserRole:input_type -> user.v1.ChangeUserRoleRequest
+	12, // 8: user.v1.UserAdminService.GetUser:input_type -> user.v1.GetUserRequest
+	14, // 9: user.v1.UserAdminService.GetUserStats:input_type -> user.v1.GetUserStatsRequest
+	1,  // 10: user.v1.AllowedDomainAdminService.ListAllowedDomains:input_type -> user.v1.ListAllowedDomainsRequest
+	3,  // 11: user.v1.AllowedDomainAdminService.AllowDomain:input_type -> user.v1.AllowDomainRequest
+	5,  // 12: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:input_type -> user.v1.RemoveAllowedDomainRequest
+	9,  // 13: user.v1.UserAdminService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
+	11, // 14: user.v1.UserAdminService.ChangeUserRole:output_type -> user.v1.ChangeUserRoleResponse
+	13, // 15: user.v1.UserAdminService.GetUser:output_type -> user.v1.GetUserResponse
+	15, // 16: user.v1.UserAdminService.GetUserStats:output_type -> user.v1.GetUserStatsResponse
+	2,  // 17: user.v1.AllowedDomainAdminService.ListAllowedDomains:output_type -> user.v1.ListAllowedDomainsResponse
+	4,  // 18: user.v1.AllowedDomainAdminService.AllowDomain:output_type -> user.v1.AllowDomainResponse
+	6,  // 19: user.v1.AllowedDomainAdminService.RemoveAllowedDomain:output_type -> user.v1.RemoveAllowedDomainResponse
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_admin_proto_init() }
@@ -686,6 +884,7 @@ func file_user_v1_admin_proto_init() {
 		return
 	}
 	file_user_v1_auth_proto_init()
+	file_user_v1_profile_proto_init()
 	file_user_v1_admin_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -693,7 +892,7 @@ func file_user_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_admin_proto_rawDesc), len(file_user_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

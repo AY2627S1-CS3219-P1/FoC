@@ -4,10 +4,13 @@ package user.v1;
 
 import "buf/validate/validate.proto";
 import "user/v1/auth.proto";
+import "user/v1/profile.proto";
 
 service UserAdminService {
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
   rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse) {}
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+  rpc GetUserStats(GetUserStatsRequest) returns (GetUserStatsResponse) {}
 }
 
 service AllowedDomainAdminService {
@@ -70,3 +73,19 @@ message ChangeUserRoleResponse {
   UserSummary user = 1;
 }
 
+message GetUserRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetUserResponse {
+  Profile profile = 1;
+}
+
+message GetUserStatsRequest {}
+
+// Counts exclude deleted users. Active users are every user who is not
+// suspended, including administrators.
+message GetUserStatsResponse {
+  int64 active_count = 1;
+  int64 suspended_count = 2;
+}

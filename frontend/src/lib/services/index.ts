@@ -84,7 +84,7 @@ export const reviewApi = createReviewApi(protectedUserTransport);
 // Reports and appeals live in Moderation Service. Participants and
 // administrators share the transport; role checks happen per RPC on the server.
 const moderationTransport = createCustomTransport({
-	baseUrl: env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086',
+	baseUrl: env.PUBLIC_REPORTS_MODERATION_SERVICE_URL ?? 'http://localhost:8087',
 	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
 export const reportApi = createReportApi(moderationTransport);

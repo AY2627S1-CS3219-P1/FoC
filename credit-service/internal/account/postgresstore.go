@@ -99,3 +99,31 @@ var (
 	_ Store  = (*PostgresStore)(nil)
 	_ Opener = (*PostgresStore)(nil)
 )
+
+// Totals reads credit totals across all accounts from one snapshot.
+func (s *PostgresStore) Totals(ctx context.Context) (Totals, error) {
+	row, err := creditdb.New(s.pool).GetCreditTotals(ctx)
+	if err != nil {
+		return Totals{}, fmt.Errorf("get credit totals: %w", err)
+	}
+	return Totals{Reserved: row.Reserved, Returned: row.Returned, Transferred: row.Transferred}, nil
+}
+
+// DailyPayouts sums courier payouts in [from, to) for each Asia/Singapore day
+// that has any.
+func (s *PostgresStore) DailyPayouts(ctx context.Context, from, to time.Time) (map[Date]DailyVolume, error) {
+	rows, err := creditdb.New(s.pool).DailyPayouts(ctx, creditdb.DailyPayoutsParams{FromAt: from, ToAt: to})
+	if err != nil {
+		return nil, fmt.Errorf("get daily payouts: %w", err)
+	}
+
+	volumes := make(map[Date]DailyVolume, len(rows))
+	for _, row := range rows {
+		if !row.Day.Valid {
+			return nil, errors.New("daily payout day is null")
+		}
+		day := Date{Year: row.Day.Time.Year(), Month: row.Day.Time.Month(), Day: row.Day.Time.Day()}
+		volumes[day] = DailyVolume{Date: day, Credits: row.Credits, Payments: row.Payments}
+	}
+	return volumes, nil
+}

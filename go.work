@@ -2,6 +2,7 @@ go 1.27.0
 
 use (
 	./communication-service
+	./content-moderation-service
 	./credit-service
 	./moderation-service
 	./order-service

@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	db "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/database/orderdb"
@@ -48,6 +49,45 @@ func (r *PostgresRepository) GetWithParticipation(ctx context.Context, id, calle
 		return err
 	})
 	return result, historical, persistenceError(err)
+}
+
+// CountByStatus counts orders in each status present in the table.
+func (r *PostgresRepository) CountByStatus(ctx context.Context) (map[Status]int64, error) {
+	rows, err := db.New(r.pool).CountOrdersByStatus(ctx)
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+
+	counts := make(map[Status]int64, len(rows))
+	for _, row := range rows {
+		status := Status(row.Status)
+		if !status.IsValid() {
+			return nil, fmt.Errorf("unknown order status %q", row.Status)
+		}
+		counts[status] = row.Total
+	}
+
+	return counts, nil
+}
+
+// CountByDay counts orders created in [from, to) on each Asia/Singapore day that
+// has any.
+func (r *PostgresRepository) CountByDay(ctx context.Context, from, to time.Time) (map[Date]int64, error) {
+	rows, err := db.New(r.pool).CountOrdersByDay(ctx, db.CountOrdersByDayParams{FromAt: from, ToAt: to})
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+
+	counts := make(map[Date]int64, len(rows))
+	for _, row := range rows {
+		if !row.Day.Valid {
+			return nil, fmt.Errorf("order count day is null")
+		}
+		day := row.Day.Time
+		counts[Date{Year: day.Year(), Month: day.Month(), Day: day.Day()}] = row.Total
+	}
+
+	return counts, nil
 }
 
 // Each list/count and Order/offer read sees one read-only snapshot, without locks.

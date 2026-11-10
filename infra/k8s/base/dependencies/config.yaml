@@ -25,7 +25,7 @@ data:
   PUBLIC_ORDER_SERVICE_URL: https://localhost:5173
   PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
   PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
-  PUBLIC_MODERATION_SERVICE_URL: https://localhost:5173
+  PUBLIC_REPORTS_MODERATION_SERVICE_URL: https://localhost:5173
 
   # Service-to-service addresses: in-cluster DNS names read by backend
   # processes; browsers never see them. Plain HTTP is fine because Istio

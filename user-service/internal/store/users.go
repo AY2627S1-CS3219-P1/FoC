@@ -160,6 +160,26 @@ func (s *Users) List(ctx context.Context, p ListParams) ([]models.User, int64, e
 	return users, total, err
 }
 
+// CountByRole counts users that are not deleted, by role. Roles with no users
+// are absent.
+func (s *Users) CountByRole(ctx context.Context) (map[models.RoleName]int64, error) {
+	var rows []struct {
+		Role  models.RoleName
+		Total int64
+	}
+	err := s.db.WithContext(ctx).Model(&models.User{}).
+		Select("role, count(*) AS total").Group("role").Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[models.RoleName]int64, len(rows))
+	for _, row := range rows {
+		counts[row.Role] = row.Total
+	}
+	return counts, nil
+}
+
 func (s *Users) Update(ctx context.Context, id uuid.UUID, in UserUpdate) error {
 	fields := map[string]any{"updated_by": in.UpdatedBy}
 	if in.DisplayName != nil {

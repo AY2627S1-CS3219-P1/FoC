@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, moderation-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, content-moderation-service, moderation-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, moderation-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, content-moderation-service, moderation-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -72,6 +72,7 @@ jobs:
             order-service/go.sum
             communication-service/go.sum
             credit-service/go.sum
+            content-moderation-service/go.sum
             moderation-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -208,6 +209,122 @@ jobs:
           cache-dependency-path: credit-service/go.sum
       - name: Run Credit database integration tests
         if: steps.changes.outputs.run == 'true'
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
+
+  moderation-integration:
+    name: Moderation integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: content-moderation-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: foc
+          POSTGRES_PASSWORD: foc
+          POSTGRES_DB: moderation_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: content-moderation-service/go.mod
+          cache-dependency-path: |
+            content-moderation-service/go.sum
+            pkg/go.sum
+      - name: Run moderation database integration tests
+        if: steps.changes.outputs.run == 'true'
+        env:
+          TEST_DATABASE_URL: postgresql://foc:foc@localhost:5432/moderation_test?sslmode=disable
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
+
+  user-service-integration:
+    name: User-service integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: user-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: foc
+          POSTGRES_PASSWORD: foc
+          POSTGRES_DB: user_service_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: user-service/go.mod
+          cache-dependency-path: user-service/go.sum
+      - name: Run user-service database integration tests
+        if: steps.changes.outputs.run == 'true'
+        env:
+          TEST_DATABASE_URL: postgresql://foc:foc@localhost:5432/user_service_test?sslmode=disable
         run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
 
   frontend:
