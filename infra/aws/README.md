@@ -153,13 +153,12 @@ auditable when current prices change.
 
 ## Local validation (no AWS resources)
 
-Requirements: Terraform 1.13+, kubectl, Python 3.9+, and the repository's Go
-version, plus OpenSSL supporting `pkey -check` for the existing credential tests.
-The verifier also checks Go formatting and the tooling module tests.
-The Python scripts themselves
-use only Python's standard library. Tests also require PyYAML. Use an explicit
-checkout-local virtualenv so different shell PATHs cannot select an interpreter
-without the test dependency.
+Requirements: Terraform 1.13+, the repository's Go version, Aqua's pinned
+Kubernetes/Helm tools, and OpenSSL supporting `pkey -check` for the credential
+tests. The verifier also checks Go formatting and tooling-module tests.
+Operational code and tests live in the existing Go tooling module; its YAML
+test parser is pinned in scripts/go.mod. No Python or virtualenv is required.
+Live setup additionally requires the AWS CLI.
 
 From the repository root, the repeatable check is:
 
@@ -176,12 +175,12 @@ terraform -chdir=infra/aws init -backend=false -input=false
 terraform -chdir=infra/aws fmt -check -recursive
 terraform -chdir=infra/aws validate
 terraform -chdir=infra/aws test
-python3 -m venv .tools/aws-python
-.tools/aws-python/bin/python -m pip install -r scripts/aws/requirements-test.txt
-.tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
+make k8s-tools aws-tools
+PATH="$PWD/.tools/bin:$PWD/.tools/aqua/bin:$PATH" \
+  K8S_RENDER_TESTS=1 GOWORK=off go -C scripts test -mod=readonly ./aws -v
 ```
 
-Tests mock all AWS calls and the upstream VPC/EKS modules. They exercise root
+Go CLI fixtures mock all AWS calls; Terraform tests mock the upstream VPC/EKS modules. They exercise root
 resource safeguards, render the actual Kubernetes bases with a non-default
 hostname, preserve the private RPC boundary, mount RDS certificates in all five
 services and migration Jobs, and preserve private database passwords on retry.
@@ -274,7 +273,8 @@ After apply, obtain the AWS RDS trust bundle and generate ignored overlay files:
 curl --fail --location --proto '=https' --tlsv1.2 \
   https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
   --output .local/aws/global-bundle.pem
-python3 scripts/aws/render_overlay.py \
+make aws-tools
+.tools/bin/aws render-overlay \
   --outputs .local/aws/deployment.json --rds-ca .local/aws/global-bundle.pem
 kubectl kustomize .local/aws/production > .local/aws/rendered.yaml
 ```
@@ -361,7 +361,8 @@ terminal output. Set `DATABASE_SECRET_ARN` from deployment outputs:
 ```sh
 aws secretsmanager get-secret-value --secret-id "$DATABASE_SECRET_ARN" \
   --region "$AWS_REGION" --query SecretString --output text > .local/aws/rds-admin.json
-python3 scripts/aws/prepare_database.py --outputs .local/aws/deployment.json \
+make aws-tools
+.tools/bin/aws prepare-database --outputs .local/aws/deployment.json \
   --admin-secret .local/aws/rds-admin.json
 k apply -f .local/aws/db/secrets.json
 k apply -f .local/aws/db/job.json
