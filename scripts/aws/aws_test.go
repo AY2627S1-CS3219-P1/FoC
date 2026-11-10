@@ -530,6 +530,22 @@ func TestLegacyContentModerationCredentialsFollowRenamedDatabase(t *testing.T) {
 		t.Fatal("provisioning does not rename the original content moderation database and login")
 	}
 
+	fresh, freshRoot, _ := testApplication(t)
+	freshDirectory := filepath.Join(freshRoot, "fresh")
+	if err := os.MkdirAll(freshDirectory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := fresh.prepareDatabase(testConfiguration(), admin, freshDirectory); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range array(readTestObject(t, filepath.Join(freshDirectory, "secrets.json"))["items"]) {
+		value := object(item)
+		if stringValue(object(value["metadata"]), "name") == "rds-provision-admin" &&
+			strings.Contains(stringValue(object(value["stringData"]), "setup.sql"), "moderation_db RENAME") {
+			t.Fatal("provisioning without original content moderation credentials renames a bare moderation database")
+		}
+	}
+
 	mismatched := strings.ReplaceAll(string(legacy), "foc_moderation", "foc_other")
 	b, root, _ := testApplication(t)
 	other := filepath.Join(root, "other")

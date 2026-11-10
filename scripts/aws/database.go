@@ -35,6 +35,8 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 	if err := a.migrateLegacyContentModeration(directory, host); err != nil {
 		return err
 	}
+	_, err = os.Stat(filepath.Join(directory, "moderation.legacy.json"))
+	renameLegacy := err == nil
 	databaseServices := append([]string(nil), services...)
 	if enabled, exists := config["moderation_enabled"]; exists {
 		value, ok := enabled.(bool)
@@ -92,7 +94,7 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 			escaped := strings.ReplaceAll(strings.ReplaceAll(text, "'", "''"), `\`, `\\`)
 			statements = append(statements, fmt.Sprintf(`\set %s '%s'`, strings.ToLower(key), escaped))
 		}
-		if service == "content-moderation" {
+		if service == "content-moderation" && renameLegacy {
 			statements = append(statements, legacyContentModerationRename...)
 		}
 		statements = append(
@@ -236,7 +238,8 @@ func (a *application) migrateLegacyContentModeration(directory, host string) err
 }
 
 // Renames content moderation's original database and login in place, keeping its data.
-// Catalog guards make retries and fresh installations no-ops.
+// Emitted only while its original credentials are set aside, so another bare moderation database is never taken.
+// Catalog guards make retries no-ops.
 var legacyContentModerationRename = []string{
 	`SELECT EXISTS (SELECT FROM pg_database WHERE datname = 'moderation_db' AND pg_get_userbyid(datdba) = 'foc_moderation') AND NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db_name') AS rename_database \gset`,
 	`\if :rename_database`,
