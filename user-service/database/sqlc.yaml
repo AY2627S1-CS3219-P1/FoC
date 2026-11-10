@@ -64,3 +64,15 @@ sql:
         sql_package: "database/sql"
         omit_unused_structs: true
         emit_empty_slices: true
+  - name: "evidence"
+    engine: "postgresql"
+    queries: "query/evidence.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "evidencedb"
+        out: "../internal/database/evidencedb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
