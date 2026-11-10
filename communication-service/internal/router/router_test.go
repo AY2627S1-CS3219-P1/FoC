@@ -76,3 +76,45 @@ func TestTelegramLinkRequiresCaller(t *testing.T) {
 		t.Fatalf("with caller: %+v, %v", resp, err)
 	}
 }
+
+type fakeEmailService struct {
+	communicationv1connect.UnimplementedEmailServiceHandler
+}
+
+func (fakeEmailService) SendMagicLink(
+	context.Context, *connect.Request[communicationv1.SendMagicLinkRequest],
+) (*connect.Response[communicationv1.SendMagicLinkResponse], error) {
+	return connect.NewResponse(&communicationv1.SendMagicLinkResponse{}), nil
+}
+
+func TestEmailIsOnlyOnTheInternalListener(t *testing.T) {
+	services := Services{
+		Health:       &health.Handler{TelegramEnabled: func() bool { return true }},
+		TelegramLink: fakeLinkService{},
+		Email:        fakeEmailService{},
+	}
+	internal := httptest.NewServer(Internal(services))
+	t.Cleanup(internal.Close)
+	public := httptest.NewServer(New(services, fakeAuthenticate))
+	t.Cleanup(public.Close)
+	valid := &communicationv1.SendMagicLinkRequest{
+		Email: "alice@foc.local", Link: "http://localhost:5173/login?token=abc",
+		Purpose: communicationv1.MagicLinkPurpose_MAGIC_LINK_PURPOSE_LOGIN,
+	}
+
+	client := communicationv1connect.NewEmailServiceClient(internal.Client(), internal.URL)
+	if _, err := client.SendMagicLink(context.Background(), connect.NewRequest(valid)); err != nil {
+		t.Fatalf("internal: %v", err)
+	}
+	invalid := &communicationv1.SendMagicLinkRequest{Email: "not-an-email", Link: valid.Link, Purpose: valid.Purpose}
+	if _, err := client.SendMagicLink(context.Background(), connect.NewRequest(invalid)); connect.CodeOf(err) !=
+		connect.CodeInvalidArgument {
+		t.Fatalf("invalid request: err = %v", err)
+	}
+	client = communicationv1connect.NewEmailServiceClient(public.Client(), public.URL)
+	req := connect.NewRequest(valid)
+	req.Header().Set("X-Test-User", "a1b2c3d4-0000-4000-8000-000000000000")
+	if _, err := client.SendMagicLink(context.Background(), req); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("public: err = %v, want unimplemented", err)
+	}
+}

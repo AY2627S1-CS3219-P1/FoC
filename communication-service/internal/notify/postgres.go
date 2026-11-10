@@ -16,13 +16,16 @@ type PostgresDeliveries struct {
 	Queries *db.Queries
 }
 
-// HasBeenSent implements Deliveries.
-func (d *PostgresDeliveries) HasBeenSent(ctx context.Context, eventID, userID uuid.UUID) (bool, error) {
-	sent, err := d.Queries.NotificationSent(ctx, db.NotificationSentParams{EventID: eventID, UserID: userID})
+// HasBeenAccepted implements Deliveries, including pending and rejected email.
+func (d *PostgresDeliveries) HasBeenAccepted(ctx context.Context, eventID, userID uuid.UUID) (bool, error) {
+	accepted, err := d.Queries.NotificationAccepted(
+		ctx,
+		db.NotificationAcceptedParams{EventID: eventID, UserID: userID},
+	)
 	if err != nil {
-		return false, fmt.Errorf("check sent: %w", err)
+		return false, fmt.Errorf("check accepted: %w", err)
 	}
-	return sent, nil
+	return accepted, nil
 }
 
 // RecordSent implements Deliveries. Recording twice is harmless.

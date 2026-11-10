@@ -20,13 +20,18 @@ spec:
         - name: order-migrate
           image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["-dir", "/migrations/order", "postgres", "$(DATABASE_URL)", "up"]
+          args: ["-dir", "/migrations/order", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-          envFrom:
-            - secretRef:
-                name: order-db
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: order-db
+                  key: DATABASE_URL

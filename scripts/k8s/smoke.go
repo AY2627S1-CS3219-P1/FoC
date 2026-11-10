@@ -7,21 +7,41 @@ import (
 	"strings"
 )
 
+var publicHealthPaths = []string{
+	"/user.v1.HealthService/Check",
+	"/supplier.v1.HealthService/Check",
+	"/order.v1.HealthService/Check",
+	"/communication.v1.HealthService/Check",
+	"/grpc.health.v1.Health/Check",
+}
+
 func (o *operator) gatewaySmokeRequest(
 	forward forwardSpec,
 	path string,
 	expectedStatus int,
 	connect bool,
 ) (string, error) {
+	return o.smokeRequest(
+		fmt.Sprintf("https://localhost:%d", forward.localPort),
+		o.localCA(),
+		path,
+		expectedStatus,
+		connect,
+	)
+}
+
+func (o *operator) smokeRequest(origin, ca, path string, expectedStatus int, connect bool) (string, error) {
 	args := []string{
+		"--disable",
 		"--silent",
 		"--show-error",
 		"--max-time",
 		"10",
 		"--write-out",
 		"\n%{http_code}",
-		"--cacert",
-		o.localCA(),
+	}
+	if ca != "" {
+		args = append(args, "--cacert", ca)
 	}
 	if connect {
 		// Request JSON for RPC responses; frontend 404 pages may still be HTML.
@@ -37,7 +57,7 @@ func (o *operator) gatewaySmokeRequest(
 			"{}",
 		)
 	}
-	args = append(args, fmt.Sprintf("https://localhost:%d%s", forward.localPort, path))
+	args = append(args, origin+path)
 	result, err := o.run("curl", args, commandOptions{capture: true})
 	if err != nil {
 		return "", err
@@ -58,6 +78,10 @@ func (o *operator) assertPublicHealth(forward forwardSpec, path string) error {
 	if err != nil {
 		return err
 	}
+	return assertHealthResponse(body, path)
+}
+
+func assertHealthResponse(body, path string) error {
 	var response struct{ Status string }
 	if err := json.Unmarshal([]byte(body), &response); err != nil {
 		return fmt.Errorf("health RPC %s did not return JSON: %w", path, err)

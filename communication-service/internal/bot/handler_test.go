@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -40,7 +41,12 @@ func (f *fakeLinker) UnlinkChat(_ context.Context, chatID int64) error {
 }
 
 // fakeChat records which relay entry point the handler used.
-type fakeChat struct{ calls []string }
+type fakeChat struct {
+	calls []string
+	// opens is OpenChat's answer.
+	opens  bool
+	opened []uuid.UUID
+}
 
 func (f *fakeChat) HandleMessage(context.Context, *telegram.Message) error {
 	f.calls = append(f.calls, "message")
@@ -53,6 +59,10 @@ func (f *fakeChat) ShowChats(context.Context, *telegram.Message) error {
 func (f *fakeChat) HandleCallback(context.Context, *telegram.CallbackQuery) error {
 	f.calls = append(f.calls, "callback")
 	return nil
+}
+func (f *fakeChat) OpenChat(_ context.Context, _ *telegram.Message, orderID uuid.UUID) (bool, error) {
+	f.opened = append(f.opened, orderID)
+	return f.opens, nil
 }
 
 func message(chatType, text string) telegram.Update {
@@ -188,5 +198,36 @@ func TestUnknownCommandsGetHelp(t *testing.T) {
 		if len(sender.sent) != 1 || sender.sent[0] != helpReply || len(h.Chat.(*fakeChat).calls) != 0 {
 			t.Fatalf("%s: sent %v", text, sender.sent)
 		}
+	}
+}
+
+func TestStartWithAnOrderOpensItsChat(t *testing.T) {
+	orderID := uuid.New()
+	for _, tc := range []struct {
+		name    string
+		opens   bool
+		payload string
+		want    []string
+		opened  int
+	}{
+		{"participant", true, "chat_" + orderID.String(), nil, 1},
+		{"not allowed", false, "chat_" + orderID.String(), []string{startReply}, 1},
+		{"malformed order ID", true, "chat_not-an-id", []string{startReply}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			linker := &fakeLinker{}
+			h, sender := newHandler(linker)
+			chat := &fakeChat{opens: tc.opens}
+			h.Chat = chat
+			if err := h.Handle(context.Background(), message("private", "/start "+tc.payload)); err != nil {
+				t.Fatal(err)
+			}
+			if len(chat.opened) != tc.opened || (tc.opened == 1 && chat.opened[0] != orderID) {
+				t.Fatalf("opened = %v", chat.opened)
+			}
+			if fmt.Sprint(sender.sent) != fmt.Sprint(tc.want) || linker.redeemedCode != "" {
+				t.Fatalf("sent = %v, redeemed %q", sender.sent, linker.redeemedCode)
+			}
+		})
 	}
 }

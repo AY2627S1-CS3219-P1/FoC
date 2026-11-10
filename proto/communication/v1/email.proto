@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package communication.v1;
+
+import "buf/validate/validate.proto";
+
+// Sends account email on behalf of other services. Communication owns the
+// message text. Served only on the internal listener, for User Service.
+//
+// Errors: invalid_argument for a malformed request; unavailable when email is
+// not configured or the mail server didn't accept the message.
+service EmailService {
+  rpc SendMagicLink(SendMagicLinkRequest) returns (SendMagicLinkResponse) {}
+}
+
+enum MagicLinkPurpose {
+  MAGIC_LINK_PURPOSE_UNSPECIFIED = 0;
+  // Signs in an existing account.
+  MAGIC_LINK_PURPOSE_LOGIN = 1;
+  // Finishes creating an account.
+  MAGIC_LINK_PURPOSE_REGISTER = 2;
+}
+
+message SendMagicLinkRequest {
+  string email = 1 [(buf.validate.field).string.email = true];
+  // The complete sign-in URL, including its single-use token.
+  string link = 2 [(buf.validate.field).string.uri = true];
+  MagicLinkPurpose purpose = 3 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+message SendMagicLinkResponse {}

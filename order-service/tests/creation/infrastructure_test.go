@@ -92,7 +92,13 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 	// which surfaces as EOF or a connection reset. Retry the handshake until
 	// the broker answers; CreateTopics is idempotent, so retries are harmless.
 	var topics []kafkago.TopicConfig
-	for _, name := range []string{"order.status_changed", "order.outcome", "order.courier_warning_requested"} {
+	for _, name := range []string{
+		"order.status_changed",
+		"order.outcome",
+		"order.courier_warning_requested",
+		"order.offer_made",
+		"order.changed",
+	} {
 		topics = append(topics, kafkago.TopicConfig{Topic: name, NumPartitions: 1, ReplicationFactor: 1})
 	}
 	handshake, cancelHandshake := context.WithTimeout(ctx, time.Minute)

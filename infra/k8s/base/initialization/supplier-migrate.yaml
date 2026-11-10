@@ -20,13 +20,18 @@ spec:
         - name: supplier-migrate
           image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["-dir", "/migrations/supplier", "postgres", "$(DATABASE_URL)", "up"]
+          args: ["-dir", "/migrations/supplier", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-          envFrom:
-            - secretRef:
-                name: supplier-db
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: supplier-db
+                  key: DATABASE_URL
