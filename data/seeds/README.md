@@ -200,3 +200,11 @@ restore the fixed fixtures. Fixture definitions,
 including all simulated workflow states and relative dates, stay in this
 directory. The assignment CSV importer remains independent. Only use these
 fixtures with development databases; they are never startup migrations.
+
+## Review moderation
+
+Moderation has no database configuration seed. Configure `CMS_LLM_MODEL_ID`
+(the local Compose default is `gemma4:26b`), `CMS_LLM_BASE_URL` and the secret
+`CMS_LLM_API_KEY` on the CMS process, then restart it. Running the demo fixture
+loader does not change assessment settings. Without credentials, submitted
+reviews stay queued until a configured worker runs.
