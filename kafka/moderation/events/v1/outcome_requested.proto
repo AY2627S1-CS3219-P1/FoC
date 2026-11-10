@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package moderation.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// OutcomeRequested asks User Service to apply one consequence of a closed
+// report or appeal. Moderation Service publishes it from its transactional
+// outbox when the report or appeal closes; User Service applies it once per
+// event_id and acknowledges rejections it can never apply.
+message OutcomeRequested {
+  // Stable across retries; consumers deduplicate on it.
+  string event_id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  // The administrator who closed the report or appeal.
+  string actor_id = 3;
+  // Shown to the affected user and recorded on the consequence.
+  string reason = 4;
+  // The report the consequence belongs to: the closed report, or the report
+  // whose outcome an appeal overturned. Empty when none applies.
+  string report_id = 5;
+  // Set when an appeal overturned a decision.
+  string appeal_id = 6;
+
+  oneof action {
+    WarnUser warn_user = 10;
+    SuspendUser suspend_user = 11;
+    RemoveReview remove_review = 12;
+    RemoveWarning remove_warning = 13;
+    RestoreReview restore_review = 14;
+    ReinstateUser reinstate_user = 15;
+  }
+}
+
+// Records an active warning about the user, linked to report_id.
+message WarnUser {
+  string user_id = 1;
+  string request_id = 2;
+}
+
+// Suspends the user, linked to report_id.
+message SuspendUser {
+  string user_id = 1;
+}
+
+// Removes a live review. A report outcome links the removal to report_id.
+message RemoveReview {
+  string review_id = 1;
+}
+
+// Marks a warning removed and links appeal_id. A warning a report issued is
+// named by report_id instead of its ID.
+message RemoveWarning {
+  oneof target {
+    string warning_id = 1;
+    string by_report_id = 2;
+  }
+}
+
+// Restores a removed review and links appeal_id.
+message RestoreReview {
+  string review_id = 1;
+}
+
+// Lifts a suspension report_id imposed, back to the user's previous role. A
+// user who is no longer suspended keeps their current role.
+message ReinstateUser {
+  string user_id = 1;
+}

@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "buf/validate/validate.proto";
+
+// Service-to-service reads, served only on User Service's internal listener.
+// Moderation Service uses them to name participants and to check that a
+// review or warning can be reported or appealed. Not exposed to the frontend.
+service UserInternalService {
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  rpc GetReviewFacts(GetReviewFactsRequest) returns (GetReviewFactsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  rpc GetWarningFacts(GetWarningFactsRequest) returns (GetWarningFactsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+}
+
+message GetUsersRequest {
+  repeated string ids = 1 [(buf.validate.field).repeated = {
+    max_items: 100
+    items: {string: {uuid: true}}
+  }];
+}
+
+// Users that exist, in no particular order. Unknown IDs are omitted.
+message GetUsersResponse {
+  repeated InternalUser users = 1;
+}
+
+message InternalUser {
+  string id = 1;
+  string display_name = 2;
+  // The role name as carried in access tokens, such as "user", "admin",
+  // "super_admin" or "suspended_user".
+  string role = 3;
+}
+
+message GetReviewFactsRequest {
+  string review_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// NOT_FOUND when the review never existed.
+message GetReviewFactsResponse {
+  string reviewer_id = 1;
+  string reviewee_id = 2;
+  string order_id = 3;
+  // The review is currently removed.
+  bool removed = 4;
+  // Set while the review is removed: the report whose outcome removed it, if
+  // a report did. Empty for a removal an administrator made directly.
+  optional string removal_report_id = 5;
+}
+
+message GetWarningFactsRequest {
+  string warning_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// NOT_FOUND when the warning does not exist.
+message GetWarningFactsResponse {
+  string user_id = 1;
+  string request_id = 2;
+  // The report that issued the warning, if any.
+  optional string report_id = 3;
+  bool active = 4;
+}
