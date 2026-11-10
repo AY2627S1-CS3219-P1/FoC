@@ -63,6 +63,8 @@ func testConfiguration() map[string]any {
 		"order_role_arn":               "arn:aws:iam::123456789012:role/order",
 		"loki_bucket":                  "fixture-loki-logs",
 		"loki_role_arn":                "arn:aws:iam::123456789012:role/loki",
+		"evidence_bucket":              "fixture-moderation-evidence",
+		"evidence_role_arn":            "arn:aws:iam::123456789012:role/evidence",
 		"ingress_role_arn":             "arn:aws:iam::123456789012:role/ingress",
 		"gateway_target_arn":           "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/fixture/0123456789abcdef",
 		"database_host":                "offline.database.invalid",
@@ -281,8 +283,8 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 				}
 			}
 		}
-		if len(images) != 9 {
-			t.Fatalf("got %d application image names, want nine", len(images))
+		if len(images) != 10 {
+			t.Fatalf("got %d application image names, want ten", len(images))
 		}
 		for _, service := range services {
 			for _, pair := range [][2]string{{"Deployment", service + "-service"}, {"Job", service + "-migrate"}} {

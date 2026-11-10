@@ -100,7 +100,7 @@ def main():
                       "--alias", "foc-release", "--kubeconfig", env["KUBECONFIG"]], env=env)
         Path(env["KUBECONFIG"]).chmod(0o600)
         kubectl = ["kubectl", "--context", "foc-release", "--request-timeout=15s"]
-        secrets = [name + "-db" for name in ("user", "supplier", "order", "credit", "communication", "content-moderation")]
+        secrets = [name + "-db" for name in ("user", "supplier", "order", "credit", "communication", "content-moderation", "moderation")]
         secrets += ["jwt-signing", "kafka-ui-auth", "telegram", "moderation-llm"]
         if not config["ses_sender_email"]:
             secrets.append("smtp")
@@ -113,7 +113,7 @@ def main():
         repos = commands.json("ecr", "describe-repositories", "--repository-names", *names)["repositories"]
         require({r["repositoryName"] for r in repos} == set(names) and
                 all(r["imageTagMutability"] == "IMMUTABLE" and not r.get("imageTagMutabilityExclusionFilters") for r in repos),
-                "All nine release repositories must enforce immutable tags without exclusions")
+                "All ten release repositories must enforce immutable tags without exclusions")
         for name in names:
             result = commands.aws("ecr", "describe-images", "--repository-name", name,
                                   "--image-ids", "imageTag=" + env["K8S_IMAGE_TAG"], allow_failure=True)
@@ -129,7 +129,7 @@ def main():
         commands.run(["docker", "login", "--username", "AWS", "--password-stdin", registry], env=env, input_data=password)
         logged_in = True
         del password
-        print("OPERATOR: build/push nine linux/amd64 images, deploy dependencies, wait for migrations, and roll out applications", flush=True)
+        print("OPERATOR: build/push ten linux/amd64 images, deploy dependencies, wait for migrations, and roll out applications", flush=True)
         commands.logged(["make", "k8s-deploy", "service="], env, directory / "deploy.PRIVATE.log")
         images = []
         for name, image in zip(names, IMAGES):
@@ -164,7 +164,7 @@ def main():
             finally:
                 shutil.rmtree(docker_config, ignore_errors=True)
                 store.release(key, version)
-    print("OUTPUT: release complete; nine immutable ECR digests recorded, public HTTPS smoke passed, environment lock released", flush=True)
+    print("OUTPUT: release complete; ten immutable ECR digests recorded, public HTTPS smoke passed, environment lock released", flush=True)
     print("Receipt: " + str(directory / "release-receipt.json"), flush=True)
 
 

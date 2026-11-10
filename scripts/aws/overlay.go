@@ -62,7 +62,7 @@ func (a *application) saveKustomization(directory string, value map[string]any) 
 }
 
 func (a *application) renderOverlay(config map[string]any, destination, ca string) error {
-	for _, key := range []string{"region", "cluster_name", "vpc_id", "public_hostname", "image_prefix", "order_bucket", "order_role_arn", "ingress_role_arn", "gateway_target_arn", "loki_bucket", "loki_role_arn"} {
+	for _, key := range []string{"region", "cluster_name", "vpc_id", "public_hostname", "image_prefix", "order_bucket", "order_role_arn", "ingress_role_arn", "gateway_target_arn", "loki_bucket", "loki_role_arn", "evidence_bucket", "evidence_role_arn"} {
 		if stringValue(config, key) == "" {
 			return fmt.Errorf("missing Terraform output: %s", key)
 		}
@@ -149,12 +149,29 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 			resources = append(resources, "target-group-binding.json")
 		case "dependencies":
 			values := map[string]any{
-				"AWS_REGION":                 config["region"],
-				"AWS_STS_REGIONAL_ENDPOINTS": "regional",
-				"ORDER_S3_BUCKET":            config["order_bucket"],
-				"ORDER_S3_ENDPOINT":          "",
-				"ORDER_S3_PUBLIC_ENDPOINT":   "https://s3." + stringValue(config, "region") + ".amazonaws.com",
+				"AWS_REGION":                    config["region"],
+				"AWS_STS_REGIONAL_ENDPOINTS":    "regional",
+				"ORDER_S3_BUCKET":               config["order_bucket"],
+				"ORDER_S3_ENDPOINT":             "",
+				"ORDER_S3_PUBLIC_ENDPOINT":      "https://s3." + stringValue(config, "region") + ".amazonaws.com",
+				"MODERATION_S3_BUCKET":          config["evidence_bucket"],
+				"MODERATION_S3_ENDPOINT":        "",
+				"MODERATION_S3_PUBLIC_ENDPOINT": "https://s3." + stringValue(config, "region") + ".amazonaws.com",
 			}
+			patches = append(
+				patches,
+				manifestPatch(
+					"ServiceAccount",
+					"moderation-service",
+					[]any{
+						map[string]any{
+							"op":    "add",
+							"path":  "/metadata/annotations",
+							"value": map[string]any{"eks.amazonaws.com/role-arn": config["evidence_role_arn"]},
+						},
+					},
+				),
+			)
 			for _, key := range []string{"FRONTEND_BASE_URL", "ORIGIN", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL", "PUBLIC_REPORTS_MODERATION_SERVICE_URL"} {
 				values[key] = "https://" + hostname
 			}
