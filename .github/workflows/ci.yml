@@ -221,4 +221,8 @@ jobs:
         working-directory: .
       - run: npm run check
       - run: npm test
+      - name: Install Chromium for browser tests
+        run: npx playwright install --with-deps chromium
+      - name: Test signed-image browser scenarios
+        run: npm run test:signed-images
       - run: npm run build
