@@ -173,12 +173,5 @@ generic expired-key cleanup that could remove unresolved creation mappings.
 
 `OrderInternalService.GetOrderParticipants` is mounted only on `INTERNAL_PORT`.
 It returns the persisted requester, current assigned courier (absent when
-unassigned), and current status for one order. Unknown orders return NotFound;
-malformed or zero order UUIDs return InvalidArgument. It grants no mutation or
-historical-courier authority.
-
-User Service calls it via `ORDER_SERVICE_URL` to authorize reviews of completed
-orders. Compose leaves the internal port unpublished. Kubernetes permits only
-User and Communication workload identities to reach Order's internal port;
-the gateway has no route for this service. Public JWTs do not grant internal
-listener access. Keep public and private routers separate.
+unassigned), and current status for one order. User Service calls it via
+`ORDER_SERVICE_URL` to authorize reviews of completed orders.
