@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"html"
 	"log/slog"
 	"net/mail"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -85,26 +83,14 @@ func (s *Service) RequestLink(ctx context.Context, email string) error {
 	query := link.Query()
 	query.Set("token", token)
 	link.RawQuery = query.Encode()
-	if err := s.sendMagicLinkEmail(ctx, normalizedEmail, link.String()); err != nil {
-		return err
+	purpose := MagicLinkRegister
+	if isLogin {
+		purpose = MagicLinkLogin
 	}
-	return nil
-}
-
-func (s *Service) sendMagicLinkEmail(ctx context.Context, recipient, link string) error {
-	err := s.deps.EmailSender.Send(ctx, email.Email{
-		To:      []string{recipient},
-		Subject: "Your sign-in link",
-		HTMLBody: "<p>Use this link to sign in or create an account:</p><p><a href=\"" + html.EscapeString(
-			link,
-		) + "\">Continue</a></p>",
-		TextBody: "Use this link to sign in or create an account:\n" + link,
-	})
-	if err != nil {
-		slog.WarnContext(ctx, "send magic link email failed", "err", err)
+	if err := s.deps.MagicLinks.SendMagicLink(ctx, normalizedEmail, link.String(), purpose); err != nil {
+		slog.WarnContext(ctx, "send magic link failed", "err", err)
 		return jwt.ErrUnavailable
 	}
-
 	return nil
 }
 

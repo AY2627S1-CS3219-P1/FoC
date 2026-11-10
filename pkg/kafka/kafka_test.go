@@ -107,6 +107,9 @@ func TestConfiguration(t *testing.T) {
 		}
 	}()
 	w := p.writer.(*kafkago.Writer)
+	if w.BatchTimeout != 10*time.Millisecond || w.BatchSize != 0 {
+		t.Fatal("expected a short flush timeout with the default batch size")
+	}
 	if w.RequiredAcks != kafkago.RequireAll || w.Async || w.AllowAutoTopicCreation || w.WriteTimeout != 5*time.Second {
 		t.Fatal("incorrect writer settings")
 	}

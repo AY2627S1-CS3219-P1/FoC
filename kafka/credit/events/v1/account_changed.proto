@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package credit.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Committed account/ledger change, keyed by user_id. Duplicate events are safe.
+message AccountChanged {
+  string event_id = 1;
+  string user_id = 2;
+  int64 revision = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+}

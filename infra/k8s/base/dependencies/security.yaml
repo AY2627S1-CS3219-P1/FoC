@@ -75,6 +75,25 @@ spec:
         - operation:
             ports: ["8081"]
 ---
+# Communication's internal listener sends email, so only User Service, which
+# sends magic links, may reach it.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: communication-internal-user-only
+spec:
+  selector:
+    matchLabels:
+      app: communication-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/user-service]
+      to:
+        - operation:
+            ports: ["8081"]
+---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

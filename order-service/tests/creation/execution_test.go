@@ -80,8 +80,11 @@ func TestCreationExecution(t *testing.T) {
 		if _, err := create(c, f.ctx, retry); connect.CodeOf(err) != connect.CodeAlreadyExists {
 			t.Fatalf("changed retry=%v", err)
 		}
-		if f.count(t, "orders") != 1 || f.count(t, "order_audit") != 2 || f.count(t, "order_outbox") != 2 {
-			t.Fatal("duplicate persisted change")
+		// Both creation transactions persist a status fact and an advisory change.
+		for table, want := range map[string]int{"orders": 1, "order_audit": 2, "order_outbox": 4} {
+			if got := f.count(t, table); got != want {
+				t.Fatalf("%s rows after replay = %d, want %d", table, got, want)
+			}
 		}
 		s.remotes.mu.Lock()
 		defer s.remotes.mu.Unlock()

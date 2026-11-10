@@ -98,6 +98,13 @@ func TestAuthSmokeLoginRefreshLogoutAndProtectedRoutes(t *testing.T) {
 			}
 			cookie("second", 3600)
 			write(map[string]any{"user": user, "accessToken": "d.e.f"})
+		case realtimePath:
+			if r.Header.Get("Authorization") == "" || r.Header.Get("Cookie") != "" {
+				t.Error("invalid streaming credentials")
+			}
+			w.Header().Set("Content-Type", "application/connect+json")
+			_, _ = w.Write([]byte{0, 0, 0, 0, 14})
+			_, _ = w.Write([]byte(`{"ready":true}` + "\n"))
 		case authPath + "Logout":
 			revoked = true
 			cookie("", -1)

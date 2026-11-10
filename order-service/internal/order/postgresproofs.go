@@ -349,7 +349,7 @@ func (t *postgresTx) InsertDeliveryReceipt(ctx context.Context, r DeliveryReceip
 	if err != nil {
 		return t.writeResult(err)
 	}
-	return t.writeResult(t.q.InsertDeliveryReceipt(ctx, db.InsertDeliveryReceiptParams{
+	err = t.writeResult(t.q.InsertDeliveryReceipt(ctx, db.InsertDeliveryReceiptParams{
 		ID:           uuid.MustParse(r.ID),
 		OrderID:      uuid.MustParse(r.OrderID),
 		CourierID:    uuid.MustParse(r.CourierID),
@@ -359,17 +359,26 @@ func (t *postgresTx) InsertDeliveryReceipt(ctx context.Context, r DeliveryReceip
 		ReceivedAt:   r.ReceivedAt,
 		Outage:       outage,
 	}))
+	if err == nil {
+		t.markChanged(r.OrderID, false)
+	}
+	return err
 }
 
 func (t *postgresTx) FinishDeliveryReceipt(ctx context.Context, id, state string, at time.Time) error {
-	if _, err := t.GetDeliveryReceipt(ctx, id); err != nil {
+	receipt, err := t.GetDeliveryReceipt(ctx, id)
+	if err != nil {
 		return t.writeResult(err)
 	}
 	n, err := t.q.FinishDeliveryReceipt(
 		ctx,
 		db.FinishDeliveryReceiptParams{ID: uuid.MustParse(id), State: state, ProcessedAt: &at},
 	)
-	return t.proofWrite(n, err)
+	err = t.proofWrite(n, err)
+	if err == nil && receipt.State != state {
+		t.markChanged(receipt.OrderID, false)
+	}
+	return err
 }
 
 func (r *PostgresRepository) DeliveryReceipt(ctx context.Context, id string) (DeliveryReceipt, error) {
