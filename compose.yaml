@@ -32,7 +32,7 @@ services:
       ORDER_DB: ${ORDER_DB:-order_dev}
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
-      MODERATION_DB: ${MODERATION_DB:-moderation_dev}
+      CONTENT_MODERATION_DB: ${CONTENT_MODERATION_DB:-content_moderation_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -78,6 +78,27 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     restart: unless-stopped
+
+  # Reruns the idempotent database setup, which Postgres skips for existing volumes.
+  postgres-init:
+    image: postgis/postgis:18-3.6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-foc}
+      USER_DB: ${USER_DB:-user_dev}
+      SUPPLIER_DB: ${SUPPLIER_DB:-supplier_dev}
+      ORDER_DB: ${ORDER_DB:-order_dev}
+      CREDIT_DB: ${CREDIT_DB:-credit_dev}
+      COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
+      CONTENT_MODERATION_DB: ${CONTENT_MODERATION_DB:-content_moderation_dev}
+    volumes:
+      - ./docker/postgres/init-dbs.sh:/setup/init-dbs.sh:ro
+    entrypoint: ["/bin/bash", "/setup/init-dbs.sh"]
 
   kafka-init:
     image: apache/kafka:4.2.2
@@ -367,7 +388,7 @@ services:
       INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
-      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      DATABASE_URL: ${CONTENT_MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CONTENT_MODERATION_DB:-content_moderation_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
@@ -384,8 +405,8 @@ services:
       - go-modules:/go/pkg/mod
       - /app/tmp
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     restart: unless-stopped

@@ -61,3 +61,14 @@ PYTHONDONTWRITEBYTECODE=1 .tools/aws-python/bin/python -m unittest discover -s s
 ```
 
 Mock-provider assertions cover the environment-only OIDC trust, nine-repository/state-excluded deployment policy, encrypted disposable private runner, IMDSv2, Standard CPU credits, private/versioned bucket, and non-deploying bootstrap role. Offline CLI fixtures cover probe cleanup, expiring encrypted registration, refusal of unexpected workflow access or an existing instance, closed-group release rejection, and bootstrap failure. Live registration must be followed by read-back of runner-group/environment restrictions, IAM/EKS bindings, bucket settings, instance/profile/credit/network state, parameter deletion, and actual instance termination.
+
+## Optional moderation image access
+
+Set `enable_moderation_service = true` in this CI root only when preparing the
+reports/appeals service. It adds the exact
+`<cluster-name>/moderation-service` ECR ARN to the release role's existing image
+permissions; the default remains the original nine repositories. The main AWS
+root has a separate switch that creates the repository and isolated evidence
+resources. Neither switch adds the service to release build/deploy inventories.
+No additional Terraform-state, IAM-admin, evidence-bucket, or database-admin
+access is granted to the release role.

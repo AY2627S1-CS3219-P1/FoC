@@ -1,6 +1,7 @@
 output "deployment" {
   description = "Non-secret inputs for the generated production overlay and operator commands."
   value = {
+    moderation_enabled           = var.enable_moderation_service
     ses_sender_email             = var.ses_sender_email
     user_email_role_arn          = try(aws_iam_role.email[0].arn, null)
     communication_email_role_arn = try(aws_iam_role.communication_email[0].arn, null)

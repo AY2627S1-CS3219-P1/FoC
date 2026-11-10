@@ -10,6 +10,6 @@ COPY supplier-service/database/schema /migrations/supplier
 COPY order-service/database/schema /migrations/order
 COPY credit-service/database/schema /migrations/credit
 COPY communication-service/migrations /migrations/communication
-COPY content-moderation-service/database/schema /migrations/moderation
+COPY content-moderation-service/database/schema /migrations/content-moderation
 USER 65532:65532
 ENTRYPOINT ["/app/goose"]
