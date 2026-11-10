@@ -32,7 +32,9 @@ type MalformedInput struct {
 type ingestionResult int
 
 const (
-	IngestionInserted ingestionResult = iota
+	// Zero value for a failed attempt; the error carries the outcome.
+	IngestionUnknown ingestionResult = iota
+	IngestionInserted
 	IngestionDeduplicated
 	IngestionConflictQuarantined
 	IngestionMalformedQuarantined
@@ -40,6 +42,8 @@ const (
 
 func (r ingestionResult) String() string {
 	switch r {
+	case IngestionUnknown:
+		return "unknown"
 	case IngestionInserted:
 		return "ingested"
 	case IngestionDeduplicated:
@@ -106,7 +110,7 @@ func (s *Service) Ingest(ctx context.Context, in IngestionInput) (ingestionResul
 		return nil
 	})
 	if err != nil {
-		return IngestionInserted, err
+		return IngestionUnknown, err
 	}
 	return result, nil
 }
