@@ -50,6 +50,9 @@ func (r *PostgresRepository) within(ctx context.Context, fn func(*postgresTx) er
 	if t.failed != nil {
 		return t.failed
 	}
+	if err := t.flushChanges(ctx); err != nil {
+		return persistenceError(err)
+	}
 
 	return persistenceError(tx.Commit(ctx))
 }
@@ -69,6 +72,7 @@ type postgresTx struct {
 	failed             error
 	idempotencyCallers map[IdempotencyScope]bool
 	creationBaselines  map[string]CreationWorkflow
+	changes            map[string]bool
 }
 
 // LockOrder keeps an independent baseline for validating the eventual change.
@@ -288,6 +292,7 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 	}
 
 	t.applied[o.ID] = true
+	t.markChanged(o.ID, before != nil && before.Status == AwaitingCourier || o.Status == AwaitingCourier)
 	return nil
 }
 

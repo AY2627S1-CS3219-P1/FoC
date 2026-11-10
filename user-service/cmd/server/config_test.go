@@ -8,8 +8,8 @@ func TestTransportConfigurationPreservesComposeDefaults(t *testing.T) {
 		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
 		"PORT": "", "INTERNAL_PORT": "8081", "RUN_MIGRATIONS": "",
 		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "",
-		"SMTP_ADDR": "", "SMTP_FROM": "",
-		"DB_MAX_OPEN": "", "DB_MAX_IDLE": "", "SMTP_TIMEOUT": "",
+		"COMMUNICATION_SERVICE_BASE_URL": "",
+		"DB_MAX_OPEN":                    "", "DB_MAX_IDLE": "",
 		"JWT_ACCESS_TOKEN_TTL": "", "JWT_REFRESH_TOKEN_TTL": "",
 	} {
 		t.Setenv(key, value)
@@ -19,7 +19,7 @@ func TestTransportConfigurationPreservesComposeDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.port != "8080" || cfg.internalPort != "8081" || !cfg.runMigrations ||
-		cfg.frontendURL != "http://localhost:5173" {
+		cfg.frontendURL != "http://localhost:5173" || cfg.communicationURL != "http://communication-service:8081" {
 		t.Fatalf("Compose defaults changed: %+v", cfg)
 	}
 
@@ -36,7 +36,7 @@ func TestTransportConfigurationRejectsInvalidPorts(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for key, value := range map[string]string{
 		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
-		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "", "SMTP_ADDR": "", "SMTP_FROM": "",
+		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "", "COMMUNICATION_SERVICE_BASE_URL": "",
 	} {
 		t.Setenv(key, value)
 	}

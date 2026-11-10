@@ -160,8 +160,12 @@ type GetTelegramLinkResponse struct {
 	// unlinked or when the Telegram account has no username.
 	TelegramUsername *string                `protobuf:"bytes,2,opt,name=telegram_username,json=telegramUsername,proto3,oneof" json:"telegram_username,omitempty"`
 	LinkedAt         *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=linked_at,json=linkedAt,proto3" json:"linked_at,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The running bot, such as https://t.me/foc_bot, whether or not the caller
+	// is linked. Append ?start=chat_<order id> to open that order's chat as a
+	// linked participant. Absent while the bot is disabled.
+	BotUrl        *string `protobuf:"bytes,4,opt,name=bot_url,json=botUrl,proto3,oneof" json:"bot_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetTelegramLinkResponse) Reset() {
@@ -213,6 +217,13 @@ func (x *GetTelegramLinkResponse) GetLinkedAt() *timestamppb.Timestamp {
 		return x.LinkedAt
 	}
 	return nil
+}
+
+func (x *GetTelegramLinkResponse) GetBotUrl() string {
+	if x != nil && x.BotUrl != nil {
+		return *x.BotUrl
+	}
+	return ""
 }
 
 // Stops all Telegram messages to the caller. Succeeds when nothing is linked.
@@ -298,12 +309,15 @@ const file_communication_v1_telegram_link_proto_rawDesc = "" +
 	"\blink_url\x18\x01 \x01(\tR\alinkUrl\x129\n" +
 	"\n" +
 	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x18\n" +
-	"\x16GetTelegramLinkRequest\"\xb2\x01\n" +
+	"\x16GetTelegramLinkRequest\"\xdc\x01\n" +
 	"\x17GetTelegramLinkResponse\x12\x16\n" +
 	"\x06linked\x18\x01 \x01(\bR\x06linked\x120\n" +
 	"\x11telegram_username\x18\x02 \x01(\tH\x00R\x10telegramUsername\x88\x01\x01\x127\n" +
-	"\tlinked_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blinkedAtB\x14\n" +
-	"\x12_telegram_username\"\x17\n" +
+	"\tlinked_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blinkedAt\x12\x1c\n" +
+	"\abot_url\x18\x04 \x01(\tH\x01R\x06botUrl\x88\x01\x01B\x14\n" +
+	"\x12_telegram_usernameB\n" +
+	"\n" +
+	"\b_bot_url\"\x17\n" +
 	"\x15UnlinkTelegramRequest\"\x18\n" +
 	"\x16UnlinkTelegramResponse2\xdf\x02\n" +
 	"\x13TelegramLinkService\x12q\n" +

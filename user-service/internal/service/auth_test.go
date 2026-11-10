@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -283,17 +282,22 @@ func bytesToDigest(value []byte) [32]byte {
 	return digest
 }
 
-type mockEmailSender struct{ messages []email.Email }
+type sentLink struct {
+	to, link string
+	purpose  MagicLinkPurpose
+}
 
-func (e *mockEmailSender) Send(_ context.Context, message email.Email) error {
-	e.messages = append(e.messages, message)
+type mockMagicLinks struct{ messages []sentLink }
+
+func (m *mockMagicLinks) SendMagicLink(_ context.Context, to, link string, purpose MagicLinkPurpose) error {
+	m.messages = append(m.messages, sentLink{to, link, purpose})
 	return nil
 }
 
-func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, sender email.EmailSender) *Service {
+func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, sender MagicLinkSender) *Service {
 	t.Helper()
 	if sender == nil {
-		sender = &mockEmailSender{}
+		sender = &mockMagicLinks{}
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -312,7 +316,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 		t.Fatal(err)
 	}
 	service, err := NewService(Dependencies{Resources: store.resources(), WithTransaction: store.withTransaction,
-		TokenCodec: codec, EmailSender: sender},
+		TokenCodec: codec, MagicLinks: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
 	if err != nil {
@@ -323,7 +327,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 
 func requestLink(t *testing.T, service *Service, email string) string {
 	t.Helper()
-	sender := service.deps.EmailSender.(*mockEmailSender)
+	sender := service.deps.MagicLinks.(*mockMagicLinks)
 	before := len(sender.messages)
 	if err := service.RequestLink(context.Background(), email); err != nil {
 		t.Fatal(err)
@@ -331,8 +335,7 @@ func requestLink(t *testing.T, service *Service, email string) string {
 	if len(sender.messages) != before+1 {
 		t.Fatal("magic link was not sent")
 	}
-	return strings.TrimSpace(strings.TrimPrefix(sender.messages[before].TextBody,
-		"Use this link to sign in or create an account:"))
+	return sender.messages[before].link
 }
 
 func linkToken(t *testing.T, link string) string {
@@ -557,7 +560,7 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 	store := newFakeStore()
 	user := testModelUser("user@example.com", models.RoleSuspended)
 	store.users[user.ID] = user
-	service := setupService(t, store, &now, false, &mockEmailSender{})
+	service := setupService(t, store, &now, false, &mockMagicLinks{})
 	link := requestLink(t, service, "user@example.com")
 	_, tokens, err := service.Login(context.Background(), linkToken(t, link))
 	if err != nil {
@@ -586,13 +589,12 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 func TestProductionLinkIsEmailOnly(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore()
-	sender := &mockEmailSender{}
+	sender := &mockMagicLinks{}
 	service := setupService(t, store, &now, false, sender)
 	if err := service.RequestLink(context.Background(), "user@example.com"); err != nil || len(sender.messages) != 1 {
 		t.Fatalf("production email failed: %v", err)
 	}
-	digest := sha256.Sum256([]byte(linkToken(t, strings.TrimSpace(strings.TrimPrefix(sender.messages[0].TextBody,
-		"Use this link to sign in or create an account:")))))
+	digest := sha256.Sum256([]byte(linkToken(t, sender.messages[0].link)))
 	if _, ok := store.registrations[digest]; !ok {
 		t.Fatal("emailed token digest was not stored")
 	}
@@ -827,9 +829,9 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		return setupService(t, store, &now, true, nil)
 	}
 
-	t.Run("email sender", func(t *testing.T) {
+	t.Run("magic link sender", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.EmailSender = nil
+		service.deps.MagicLinks = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("auth store while requesting link", func(t *testing.T) {
@@ -962,4 +964,23 @@ func assertPanics(t *testing.T, call func()) {
 		}
 	}()
 	call()
+}
+
+func TestRequestLinkPurposeFollowsAccountExistence(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	user := testModelUser("existing@example.com", models.RoleUser)
+	store.users[user.ID] = user
+	sender := &mockMagicLinks{}
+	service := setupService(t, store, &now, false, sender)
+	for _, address := range []string{"existing@example.com", "new@example.com"} {
+		if err := service.RequestLink(context.Background(), address); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(sender.messages) != 2 || sender.messages[0].purpose != MagicLinkLogin ||
+		!strings.Contains(sender.messages[0].link, "/login?token=") ||
+		sender.messages[1].purpose != MagicLinkRegister || !strings.Contains(sender.messages[1].link, "/register?token=") {
+		t.Fatalf("sent = %+v", sender.messages)
+	}
 }

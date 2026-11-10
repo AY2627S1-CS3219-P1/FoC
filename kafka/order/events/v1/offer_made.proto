@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Published when a courier offers more credits than an Awaiting Courier
+// order's reward. Keyed by order_id as UTF-8 text, through the same outbox as
+// the order's status changes, so it stays in order with them. Delivery is at
+// least once: consumers skip event_ids they have already processed. Consumed
+// by Communication to tell the requester.
+message OrderOfferMade {
+  string event_id = 1;
+  string order_id = 2;
+  // The order's revision after the offer.
+  int64 revision = 3;
+  string offer_id = 4;
+  string courier_id = 5;
+  string requester_id = 6;
+  // The courier's proposed reward, above the order's current reward.
+  int64 credits = 7;
+  string pickup_location_name = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+}

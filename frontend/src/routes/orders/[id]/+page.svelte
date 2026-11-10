@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
+ import { Code, ConnectError } from '@connectrpc/connect';
 	import { env } from '$env/dynamic/public';
 	import { Button, Card, Dialog, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi } from '$lib/services';
+	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi, telegramLinkApi, realtimeService } from '$lib/services';
+	import type { TelegramLinkStatus } from '$lib/services/telegram';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { durationNanos, isTerminal, orderDeadline, statusLabel, timestampNanos } from '$lib/services/order/presentation';
@@ -33,7 +35,10 @@
 				error = '';
 			}
 		} catch (cause) {
-			if (request === generation) error = describeOrderError(cause, 'refresh this order');
+			if (request === generation) {
+ if ([Code.NotFound, Code.PermissionDenied].includes(ConnectError.from(cause).code)) order = null;
+ error = describeOrderError(cause, 'refresh this order');
+ }
 		} finally {
 			if (request === generation) loading = false;
 		}
@@ -45,13 +50,12 @@
 		generation++;
 		order = null;
 		error = '';
-		if (id && user) void refresh();
-		return () => { generation++; };
+		const stop = id && user ? realtimeService.subscribe(['orders', 'openOrders'], refresh) : undefined;
+		return () => { generation++; stop?.(); };
 	});
 
 	$effect(() => {
 		if (!authService.user) return;
-		let lastPoll = Date.now();
 		let checkedDeadline: number | undefined;
 		const timer = setInterval(() => {
 			now = Date.now();
@@ -59,19 +63,10 @@
 			const deadline = orderDeadline(order);
 			if (deadline && now >= deadline && checkedDeadline !== deadline) {
 				checkedDeadline = deadline;
-				lastPoll = now;
-				void refresh();
-			} else if (!loading && now - lastPoll >= 15000) {
-				lastPoll = now;
-				void refresh();
+				realtimeService.invalidate(['orders']);
 			}
 		}, 1000);
-		const visible = () => {
-			if (!document.hidden) { lastPoll = Date.now(); void refresh(); }
-		};
-		document.addEventListener('visibilitychange', visible);
-		window.addEventListener('online', visible);
-		return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('online', visible); };
+		return () => clearInterval(timer);
 	});
 
 	const deadline = $derived(order ? orderDeadline(order) : undefined);
@@ -98,6 +93,47 @@
 		Boolean(order && (isRequester || isCourier) && order.courierId && !isTerminal(order.status))
 	);
 	const telegramBotUrl = env.PUBLIC_TELEGRAM_BOT_URL ?? '';
+	// The Chat button opens this order's chat in the bot, using the running
+	// bot's URL from Communication Service.
+	let telegram = $state<TelegramLinkStatus | null>(null);
+	$effect(() => {
+		const identity = authService.user?.id;
+		telegram = null;
+		if (!identity || !canChat) return;
+		let active = true;
+		let pending = false;
+		let foundBot = false;
+		async function refreshTelegram() {
+			if (pending || foundBot) return;
+			pending = true;
+			try {
+				const status = await telegramLinkApi.getStatus();
+				if (active && authService.user?.id === identity) {
+					telegram = status;
+					foundBot = Boolean(status.botUrl);
+				}
+			} catch {
+				// Keep the configured fallback and retry a startup/outage response.
+			} finally {
+				pending = false;
+			}
+		}
+		void refreshTelegram();
+		const retry = () => { if (!document.hidden) void refreshTelegram(); };
+		const timer = setInterval(retry, 15000);
+		document.addEventListener('visibilitychange', retry);
+		window.addEventListener('online', retry);
+		return () => {
+			active = false;
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', retry);
+			window.removeEventListener('online', retry);
+		};
+	});
+	const chatUrl = $derived.by(() => {
+		const bot = telegram?.botUrl || telegramBotUrl;
+		return order && bot ? `${bot}?start=chat_${order.id}` : '';
+	});
 
 	// Courier's "Update status" opens proof of delivery in a dialog.
 	let proofOpen = $state(false);
@@ -185,8 +221,10 @@
 							{/if}
 
 							<div class="actions">
-								{#if canChat && telegramBotUrl}
-									<Button variant="tonal" href={telegramBotUrl} target="_blank" rel="noreferrer" title="Send /chat in the bot and choose this request">Chat on Telegram</Button>
+								{#if canChat && telegram?.botUrl && !telegram.linked}
+									<Button variant="text" href="/profile">Connect Telegram to chat</Button>
+								{:else if canChat && chatUrl}
+									<Button variant="tonal" href={chatUrl} target="_blank" rel="noreferrer">Chat on Telegram</Button>
 								{/if}
 								{#if isCourier && order.status === OrderStatus.DELIVERING}
 									<Button onclick={() => (proofOpen = true)}>Update status: delivered</Button>
