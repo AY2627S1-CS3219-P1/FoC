@@ -2,9 +2,13 @@ syntax = "proto3";
 
 package credit.v1;
 
+import "buf/validate/validate.proto";
+import "google/type/date.proto";
+
 // Administrator-only Credit reads, identified by the caller's User Service JWT.
 service CreditAdminService {
   rpc GetCreditTotals(GetCreditTotalsRequest) returns (GetCreditTotalsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  rpc GetDailyTransactionVolume(GetDailyTransactionVolumeRequest) returns (GetDailyTransactionVolumeResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
 message GetCreditTotalsRequest {}
@@ -17,4 +21,27 @@ message GetCreditTotalsResponse {
   int64 returned = 2;
   // Credits paid to couriers by every settled reservation.
   int64 transferred = 3;
+}
+
+// An inclusive range of Asia/Singapore calendar days. The end must not precede
+// the start, and the range covers at most 366 days.
+message GetDailyTransactionVolumeRequest {
+  google.type.Date start_date = 1 [(buf.validate.field).required = true];
+  google.type.Date end_date = 2 [(buf.validate.field).required = true];
+}
+
+// Payments to couriers settled on one Asia/Singapore calendar day.
+message DailyTransactionVolume {
+  google.type.Date date = 1;
+  // Credits paid to couriers.
+  int64 credits_transferred = 2;
+  // Settlements that paid a courier credits. A settlement that paid the
+  // courier nothing is not counted.
+  int64 payment_count = 3;
+}
+
+// One entry for every day in the requested range, oldest first, including days
+// with no payments.
+message GetDailyTransactionVolumeResponse {
+  repeated DailyTransactionVolume days = 1;
 }

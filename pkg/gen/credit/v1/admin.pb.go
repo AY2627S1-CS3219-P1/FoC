@@ -7,6 +7,8 @@
 package creditv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	date "google.golang.org/genproto/googleapis/type/date"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -121,18 +123,193 @@ func (x *GetCreditTotalsResponse) GetTransferred() int64 {
 	return 0
 }
 
+// An inclusive range of Asia/Singapore calendar days. The end must not precede
+// the start, and the range covers at most 366 days.
+type GetDailyTransactionVolumeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartDate     *date.Date             `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	EndDate       *date.Date             `protobuf:"bytes,2,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDailyTransactionVolumeRequest) Reset() {
+	*x = GetDailyTransactionVolumeRequest{}
+	mi := &file_credit_v1_admin_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDailyTransactionVolumeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDailyTransactionVolumeRequest) ProtoMessage() {}
+
+func (x *GetDailyTransactionVolumeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_credit_v1_admin_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDailyTransactionVolumeRequest.ProtoReflect.Descriptor instead.
+func (*GetDailyTransactionVolumeRequest) Descriptor() ([]byte, []int) {
+	return file_credit_v1_admin_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetDailyTransactionVolumeRequest) GetStartDate() *date.Date {
+	if x != nil {
+		return x.StartDate
+	}
+	return nil
+}
+
+func (x *GetDailyTransactionVolumeRequest) GetEndDate() *date.Date {
+	if x != nil {
+		return x.EndDate
+	}
+	return nil
+}
+
+// Payments to couriers settled on one Asia/Singapore calendar day.
+type DailyTransactionVolume struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Date  *date.Date             `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	// Credits paid to couriers.
+	CreditsTransferred int64 `protobuf:"varint,2,opt,name=credits_transferred,json=creditsTransferred,proto3" json:"credits_transferred,omitempty"`
+	// Settlements that paid a courier credits. A settlement that paid the
+	// courier nothing is not counted.
+	PaymentCount  int64 `protobuf:"varint,3,opt,name=payment_count,json=paymentCount,proto3" json:"payment_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DailyTransactionVolume) Reset() {
+	*x = DailyTransactionVolume{}
+	mi := &file_credit_v1_admin_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DailyTransactionVolume) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DailyTransactionVolume) ProtoMessage() {}
+
+func (x *DailyTransactionVolume) ProtoReflect() protoreflect.Message {
+	mi := &file_credit_v1_admin_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DailyTransactionVolume.ProtoReflect.Descriptor instead.
+func (*DailyTransactionVolume) Descriptor() ([]byte, []int) {
+	return file_credit_v1_admin_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DailyTransactionVolume) GetDate() *date.Date {
+	if x != nil {
+		return x.Date
+	}
+	return nil
+}
+
+func (x *DailyTransactionVolume) GetCreditsTransferred() int64 {
+	if x != nil {
+		return x.CreditsTransferred
+	}
+	return 0
+}
+
+func (x *DailyTransactionVolume) GetPaymentCount() int64 {
+	if x != nil {
+		return x.PaymentCount
+	}
+	return 0
+}
+
+// One entry for every day in the requested range, oldest first, including days
+// with no payments.
+type GetDailyTransactionVolumeResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Days          []*DailyTransactionVolume `protobuf:"bytes,1,rep,name=days,proto3" json:"days,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDailyTransactionVolumeResponse) Reset() {
+	*x = GetDailyTransactionVolumeResponse{}
+	mi := &file_credit_v1_admin_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDailyTransactionVolumeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDailyTransactionVolumeResponse) ProtoMessage() {}
+
+func (x *GetDailyTransactionVolumeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_credit_v1_admin_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDailyTransactionVolumeResponse.ProtoReflect.Descriptor instead.
+func (*GetDailyTransactionVolumeResponse) Descriptor() ([]byte, []int) {
+	return file_credit_v1_admin_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetDailyTransactionVolumeResponse) GetDays() []*DailyTransactionVolume {
+	if x != nil {
+		return x.Days
+	}
+	return nil
+}
+
 var File_credit_v1_admin_proto protoreflect.FileDescriptor
 
 const file_credit_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x15credit/v1/admin.proto\x12\tcredit.v1\"\x18\n" +
+	"\x15credit/v1/admin.proto\x12\tcredit.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16google/type/date.proto\"\x18\n" +
 	"\x16GetCreditTotalsRequest\"s\n" +
 	"\x17GetCreditTotalsResponse\x12\x1a\n" +
 	"\breserved\x18\x01 \x01(\x03R\breserved\x12\x1a\n" +
 	"\breturned\x18\x02 \x01(\x03R\breturned\x12 \n" +
-	"\vtransferred\x18\x03 \x01(\x03R\vtransferred2s\n" +
+	"\vtransferred\x18\x03 \x01(\x03R\vtransferred\"\x92\x01\n" +
+	" GetDailyTransactionVolumeRequest\x128\n" +
+	"\n" +
+	"start_date\x18\x01 \x01(\v2\x11.google.type.DateB\x06\xbaH\x03\xc8\x01\x01R\tstartDate\x124\n" +
+	"\bend_date\x18\x02 \x01(\v2\x11.google.type.DateB\x06\xbaH\x03\xc8\x01\x01R\aendDate\"\x95\x01\n" +
+	"\x16DailyTransactionVolume\x12%\n" +
+	"\x04date\x18\x01 \x01(\v2\x11.google.type.DateR\x04date\x12/\n" +
+	"\x13credits_transferred\x18\x02 \x01(\x03R\x12creditsTransferred\x12#\n" +
+	"\rpayment_count\x18\x03 \x01(\x03R\fpaymentCount\"Z\n" +
+	"!GetDailyTransactionVolumeResponse\x125\n" +
+	"\x04days\x18\x01 \x03(\v2!.credit.v1.DailyTransactionVolumeR\x04days2\xf0\x01\n" +
 	"\x12CreditAdminService\x12]\n" +
-	"\x0fGetCreditTotals\x12!.credit.v1.GetCreditTotalsRequest\x1a\".credit.v1.GetCreditTotalsResponse\"\x03\x90\x02\x01B\x9e\x01\n" +
+	"\x0fGetCreditTotals\x12!.credit.v1.GetCreditTotalsRequest\x1a\".credit.v1.GetCreditTotalsResponse\"\x03\x90\x02\x01\x12{\n" +
+	"\x19GetDailyTransactionVolume\x12+.credit.v1.GetDailyTransactionVolumeRequest\x1a,.credit.v1.GetDailyTransactionVolumeResponse\"\x03\x90\x02\x01B\x9e\x01\n" +
 	"\rcom.credit.v1B\n" +
 	"AdminProtoP\x01Z<github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1;creditv1\xa2\x02\x03CXX\xaa\x02\tCredit.V1\xca\x02\tCredit\\V1\xe2\x02\x15Credit\\V1\\GPBMetadata\xea\x02\n" +
 	"Credit::V1b\x06proto3"
@@ -149,19 +326,29 @@ func file_credit_v1_admin_proto_rawDescGZIP() []byte {
 	return file_credit_v1_admin_proto_rawDescData
 }
 
-var file_credit_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_credit_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_credit_v1_admin_proto_goTypes = []any{
-	(*GetCreditTotalsRequest)(nil),  // 0: credit.v1.GetCreditTotalsRequest
-	(*GetCreditTotalsResponse)(nil), // 1: credit.v1.GetCreditTotalsResponse
+	(*GetCreditTotalsRequest)(nil),            // 0: credit.v1.GetCreditTotalsRequest
+	(*GetCreditTotalsResponse)(nil),           // 1: credit.v1.GetCreditTotalsResponse
+	(*GetDailyTransactionVolumeRequest)(nil),  // 2: credit.v1.GetDailyTransactionVolumeRequest
+	(*DailyTransactionVolume)(nil),            // 3: credit.v1.DailyTransactionVolume
+	(*GetDailyTransactionVolumeResponse)(nil), // 4: credit.v1.GetDailyTransactionVolumeResponse
+	(*date.Date)(nil),                         // 5: google.type.Date
 }
 var file_credit_v1_admin_proto_depIdxs = []int32{
-	0, // 0: credit.v1.CreditAdminService.GetCreditTotals:input_type -> credit.v1.GetCreditTotalsRequest
-	1, // 1: credit.v1.CreditAdminService.GetCreditTotals:output_type -> credit.v1.GetCreditTotalsResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	5, // 0: credit.v1.GetDailyTransactionVolumeRequest.start_date:type_name -> google.type.Date
+	5, // 1: credit.v1.GetDailyTransactionVolumeRequest.end_date:type_name -> google.type.Date
+	5, // 2: credit.v1.DailyTransactionVolume.date:type_name -> google.type.Date
+	3, // 3: credit.v1.GetDailyTransactionVolumeResponse.days:type_name -> credit.v1.DailyTransactionVolume
+	0, // 4: credit.v1.CreditAdminService.GetCreditTotals:input_type -> credit.v1.GetCreditTotalsRequest
+	2, // 5: credit.v1.CreditAdminService.GetDailyTransactionVolume:input_type -> credit.v1.GetDailyTransactionVolumeRequest
+	1, // 6: credit.v1.CreditAdminService.GetCreditTotals:output_type -> credit.v1.GetCreditTotalsResponse
+	4, // 7: credit.v1.CreditAdminService.GetDailyTransactionVolume:output_type -> credit.v1.GetDailyTransactionVolumeResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_credit_v1_admin_proto_init() }
@@ -175,7 +362,7 @@ func file_credit_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_credit_v1_admin_proto_rawDesc), len(file_credit_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

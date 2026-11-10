@@ -36,11 +36,15 @@ const (
 	// CreditAdminServiceGetCreditTotalsProcedure is the fully-qualified name of the
 	// CreditAdminService's GetCreditTotals RPC.
 	CreditAdminServiceGetCreditTotalsProcedure = "/credit.v1.CreditAdminService/GetCreditTotals"
+	// CreditAdminServiceGetDailyTransactionVolumeProcedure is the fully-qualified name of the
+	// CreditAdminService's GetDailyTransactionVolume RPC.
+	CreditAdminServiceGetDailyTransactionVolumeProcedure = "/credit.v1.CreditAdminService/GetDailyTransactionVolume"
 )
 
 // CreditAdminServiceClient is a client for the credit.v1.CreditAdminService service.
 type CreditAdminServiceClient interface {
 	GetCreditTotals(context.Context, *connect.Request[v1.GetCreditTotalsRequest]) (*connect.Response[v1.GetCreditTotalsResponse], error)
+	GetDailyTransactionVolume(context.Context, *connect.Request[v1.GetDailyTransactionVolumeRequest]) (*connect.Response[v1.GetDailyTransactionVolumeResponse], error)
 }
 
 // NewCreditAdminServiceClient constructs a client for the credit.v1.CreditAdminService service. By
@@ -61,12 +65,20 @@ func NewCreditAdminServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getDailyTransactionVolume: connect.NewClient[v1.GetDailyTransactionVolumeRequest, v1.GetDailyTransactionVolumeResponse](
+			httpClient,
+			baseURL+CreditAdminServiceGetDailyTransactionVolumeProcedure,
+			connect.WithSchema(creditAdminServiceMethods.ByName("GetDailyTransactionVolume")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // creditAdminServiceClient implements CreditAdminServiceClient.
 type creditAdminServiceClient struct {
-	getCreditTotals *connect.Client[v1.GetCreditTotalsRequest, v1.GetCreditTotalsResponse]
+	getCreditTotals           *connect.Client[v1.GetCreditTotalsRequest, v1.GetCreditTotalsResponse]
+	getDailyTransactionVolume *connect.Client[v1.GetDailyTransactionVolumeRequest, v1.GetDailyTransactionVolumeResponse]
 }
 
 // GetCreditTotals calls credit.v1.CreditAdminService.GetCreditTotals.
@@ -74,9 +86,15 @@ func (c *creditAdminServiceClient) GetCreditTotals(ctx context.Context, req *con
 	return c.getCreditTotals.CallUnary(ctx, req)
 }
 
+// GetDailyTransactionVolume calls credit.v1.CreditAdminService.GetDailyTransactionVolume.
+func (c *creditAdminServiceClient) GetDailyTransactionVolume(ctx context.Context, req *connect.Request[v1.GetDailyTransactionVolumeRequest]) (*connect.Response[v1.GetDailyTransactionVolumeResponse], error) {
+	return c.getDailyTransactionVolume.CallUnary(ctx, req)
+}
+
 // CreditAdminServiceHandler is an implementation of the credit.v1.CreditAdminService service.
 type CreditAdminServiceHandler interface {
 	GetCreditTotals(context.Context, *connect.Request[v1.GetCreditTotalsRequest]) (*connect.Response[v1.GetCreditTotalsResponse], error)
+	GetDailyTransactionVolume(context.Context, *connect.Request[v1.GetDailyTransactionVolumeRequest]) (*connect.Response[v1.GetDailyTransactionVolumeResponse], error)
 }
 
 // NewCreditAdminServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -93,10 +111,19 @@ func NewCreditAdminServiceHandler(svc CreditAdminServiceHandler, opts ...connect
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	creditAdminServiceGetDailyTransactionVolumeHandler := connect.NewUnaryHandler(
+		CreditAdminServiceGetDailyTransactionVolumeProcedure,
+		svc.GetDailyTransactionVolume,
+		connect.WithSchema(creditAdminServiceMethods.ByName("GetDailyTransactionVolume")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/credit.v1.CreditAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CreditAdminServiceGetCreditTotalsProcedure:
 			creditAdminServiceGetCreditTotalsHandler.ServeHTTP(w, r)
+		case CreditAdminServiceGetDailyTransactionVolumeProcedure:
+			creditAdminServiceGetDailyTransactionVolumeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -108,4 +135,8 @@ type UnimplementedCreditAdminServiceHandler struct{}
 
 func (UnimplementedCreditAdminServiceHandler) GetCreditTotals(context.Context, *connect.Request[v1.GetCreditTotalsRequest]) (*connect.Response[v1.GetCreditTotalsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("credit.v1.CreditAdminService.GetCreditTotals is not implemented"))
+}
+
+func (UnimplementedCreditAdminServiceHandler) GetDailyTransactionVolume(context.Context, *connect.Request[v1.GetDailyTransactionVolumeRequest]) (*connect.Response[v1.GetDailyTransactionVolumeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("credit.v1.CreditAdminService.GetDailyTransactionVolume is not implemented"))
 }
