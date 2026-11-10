@@ -50,8 +50,11 @@ func TestProfilePictureStorageLifecycle(t *testing.T) {
 		bucket = "profile-storage-integration"
 	}
 	storage, err := images.NewS3(ctx, images.S3Config{
-		Bucket: bucket, Endpoint: endpoint, PublicEndpoint: endpoint,
-		UploadTTL: time.Minute, DownloadTTL: time.Minute,
+		Bucket:         bucket,
+		Endpoint:       endpoint,
+		PublicEndpoint: endpoint,
+		UploadTTL:      time.Minute,
+		DownloadTTL:    time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +63,11 @@ func TestProfilePictureStorageLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	persistence := store.New(db)
-	logic := &service.ProfileService{Users: persistence.Users, Pictures: persistence.ProfilePictures, Storage: storage}
+	logic := &service.ProfileService{
+		Users:    persistence.Users,
+		Pictures: persistence.ProfilePictures,
+		Storage:  storage,
+	}
 	handler := &profilehandler.Handler{Logic: logic}
 	newCaller := func() (models.User, context.Context) {
 		t.Helper()
@@ -107,7 +114,8 @@ func TestProfilePictureStorageLifecycle(t *testing.T) {
 		grant, err := handler.CreateProfilePictureUpload(
 			caller,
 			connect.NewRequest(&userv1.CreateProfilePictureUploadRequest{
-				ContentType: "image/png", SizeBytes: int64(len(png)),
+				ContentType: "image/png",
+				SizeBytes:   int64(len(png)),
 			}),
 		)
 		if err != nil {
@@ -263,7 +271,8 @@ func TestProfilePictureStorageLifecycle(t *testing.T) {
 		t.Fatalf("suspended apply: %v", err)
 	}
 	_, err = handler.CreateProfilePictureUpload(caller, connect.NewRequest(&userv1.CreateProfilePictureUploadRequest{
-		ContentType: "image/png", SizeBytes: int64(len(png)),
+		ContentType: "image/png",
+		SizeBytes:   int64(len(png)),
 	}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("suspended grant: %v", err)
