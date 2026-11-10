@@ -13,6 +13,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const activeWarningForReport = `-- name: ActiveWarningForReport :one
+SELECT id
+FROM account_warnings
+WHERE report_id = $1 AND status = 'active' AND deleted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+// The active warning a report issued, which an overturned report outcome removes.
+func (q *Queries) ActiveWarningForReport(ctx context.Context, reportID uuid.NullUUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, activeWarningForReport, reportID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const countAccountWarningsByUser = `-- name: CountAccountWarningsByUser :one
 SELECT COUNT(*)
 FROM account_warnings
@@ -63,6 +79,32 @@ func (q *Queries) CreateAccountWarning(ctx context.Context, arg CreateAccountWar
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getAccountWarningFacts = `-- name: GetAccountWarningFacts :one
+SELECT user_id, request_id, report_id, (status = 'active')::BOOLEAN AS active
+FROM account_warnings
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+type GetAccountWarningFactsRow struct {
+	UserID    uuid.UUID
+	RequestID uuid.UUID
+	ReportID  uuid.NullUUID
+	Active    bool
+}
+
+// Facts Moderation Service needs to accept an appeal of a warning.
+func (q *Queries) GetAccountWarningFacts(ctx context.Context, id uuid.UUID) (GetAccountWarningFactsRow, error) {
+	row := q.db.QueryRowContext(ctx, getAccountWarningFacts, id)
+	var i GetAccountWarningFactsRow
+	err := row.Scan(
+		&i.UserID,
+		&i.RequestID,
+		&i.ReportID,
+		&i.Active,
+	)
+	return i, err
 }
 
 const listAccountWarningsByUser = `-- name: ListAccountWarningsByUser :many

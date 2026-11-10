@@ -20,20 +20,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
@@ -91,36 +84,6 @@ func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*
 		return tx.Commit()
 	}, reviewStorage, orderGateway)
 	return service, photos
-}
-
-// newEvidenceService stores report and appeal images in the review photo
-// bucket under evidence/. storage is nil without a bucket.
-func newEvidenceService(sqlDB *sql.DB, storage *images.S3) *evidence.Service {
-	// A typed-nil *images.S3 would bypass the domain's availability checks.
-	var evidenceStorage evidence.Storage
-	if storage != nil {
-		evidenceStorage = storage
-	}
-	return evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), evidenceStorage)
-}
-
-// newReportService reads through the shared pool and closes reports in a GORM
-// transaction, so outcomes reuse the role, warning and review domains.
-func newReportService(
-	db *gorm.DB,
-	sqlDB *sql.DB,
-	images *evidence.Service,
-	orderGateway orders.Gateway,
-) *report.Service {
-	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
-	return report.NewService(repo, reportoutcome.WithTransaction(db), images, orderGateway)
-}
-
-// newAppealService closes appeals in a GORM transaction, so overturned
-// outcomes reuse the same domains as report outcomes.
-func newAppealService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *appeal.Service {
-	repo := appeal.NewPostgresRepository(appealdb.New(sqlDB))
-	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db), images)
 }
 
 func newWarningService(db warningdb.DBTX) *warningdomain.Service {

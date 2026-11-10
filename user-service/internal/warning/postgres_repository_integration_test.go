@@ -168,7 +168,7 @@ func TestPostgresRepositoryListForAdminJoinsUpdaterName(t *testing.T) {
 }
 
 func TestPostgresRepositoryListForAdminShowsRemovedWarnings(t *testing.T) {
-	repository, db, actor, user := setupWarningRepository(t)
+	repository, _, actor, user := setupWarningRepository(t)
 	ctx := context.Background()
 	warningID := uuid.New()
 	if _, err := repository.Create(ctx, Warning{
@@ -184,18 +184,6 @@ func TestPostgresRepositoryListForAdminShowsRemovedWarnings(t *testing.T) {
 
 	removedAt := time.Date(2026, time.November, 3, 9, 0, 0, 0, time.UTC)
 	removedReason, appealID := "appeal overturned", uuid.New()
-	missingAppeal := uuid.New()
-	_, err = repository.Remove(ctx, warningID, removedAt, &removedReason, &missingAppeal, &actor.ID)
-	if !errors.Is(err, ErrAppealNotFound) {
-		t.Fatalf("remove with a missing appeal: %v, want ErrAppealNotFound", err)
-	}
-	if err := db.Exec(
-		`INSERT INTO user_appeals (id, appellant_id, reason, idempotency_key, request_hash)
-		 VALUES (?, ?, 'unfair', ?, repeat('a', 64))`,
-		appealID, user.ID, uuid.New(),
-	).Error; err != nil {
-		t.Fatal(err)
-	}
 	removed, err := repository.Remove(ctx, warningID, removedAt, &removedReason, &appealID, &actor.ID)
 	if err != nil {
 		t.Fatal(err)

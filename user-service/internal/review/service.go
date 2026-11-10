@@ -184,6 +184,31 @@ func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID u
 
 // RemoveReview soft-deletes a review, records the audit row and recomputes stats.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
+	return s.removeReview(ctx, id, reason, uuid.Nil, createdBy)
+}
+
+// RemoveReviewForReport removes a review as a report's outcome and links the
+// removal to the report, so an appeal of it goes through that report.
+func (s *Service) RemoveReviewForReport(
+	ctx context.Context,
+	id uuid.UUID,
+	reason string,
+	reportID, createdBy uuid.UUID,
+) error {
+	return s.removeReview(ctx, id, reason, reportID, createdBy)
+}
+
+// ReviewFacts reads the facts Moderation Service checks before accepting a
+// report or appeal about a review.
+func (s *Service) ReviewFacts(ctx context.Context, id uuid.UUID) (Facts, error) {
+	facts, err := s.repo.ReviewFacts(ctx, id)
+	if errors.Is(err, errReviewNotFound) {
+		return Facts{}, errs.WrapNotFoundError(err, "review not found")
+	}
+	return facts, err
+}
+
+func (s *Service) removeReview(ctx context.Context, id uuid.UUID, reason string, reportID, createdBy uuid.UUID) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 100000 {
 		return errs.NewBadRequestError("removal reason must contain between 1 and 100000 characters")
@@ -205,6 +230,7 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		removal.ReviewerID = review.ReviewerID
 		removal.RevieweeID = review.RevieweeID
 		removal.OrderID = review.OrderID
+		removal.ReportID = reportID
 		if err := s.repo.RecordReviewRemoval(ctx, q, removal); err != nil {
 			return err
 		}

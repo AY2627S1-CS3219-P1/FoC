@@ -14,7 +14,6 @@ var (
 	ErrNotFound          = errors.New("not found")
 	ErrDuplicate         = errors.New("duplicate")
 	ErrRoleConflict      = errors.New("role changed concurrently")
-	ErrReportNotFound    = errors.New("referenced report not found")
 	ErrChallengeRejected = errors.New("challenge invalid, expired, or used")
 	ErrSessionRejected   = errors.New("session invalid, expired, or revoked")
 	// ErrInUse: the user is still referenced with ON DELETE RESTRICT

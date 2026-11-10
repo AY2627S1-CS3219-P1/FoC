@@ -56,7 +56,22 @@ func (r *PostgresRepository) RecordReviewRemoval(
 		OrderID:    removal.OrderID,
 		Reason:     removal.Reason,
 		CreatedBy:  removal.CreatedBy,
+		ReportID:   uuid.NullUUID{UUID: removal.ReportID, Valid: removal.ReportID != uuid.Nil},
 	}))
+}
+
+func (r *PostgresRepository) ReviewFacts(ctx context.Context, id uuid.UUID) (Facts, error) {
+	row, err := r.queries.GetReviewFacts(ctx, id)
+	if err != nil {
+		return Facts{}, mapReviewError("review facts", err)
+	}
+	return Facts{
+		ReviewerID:      row.ReviewerID,
+		RevieweeID:      row.RevieweeID,
+		OrderID:         row.OrderID,
+		Removed:         row.Removed,
+		RemovalReportID: row.RemovalReportID.UUID,
+	}, nil
 }
 
 func (r *PostgresRepository) RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {

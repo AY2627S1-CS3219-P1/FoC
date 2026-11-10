@@ -63,6 +63,19 @@ type ReviewRemoval struct {
 	CreatedAt     time.Time
 	CreatedBy     uuid.UUID
 	CreatedByName string
+	// ReportID is the report whose outcome removed the review, or uuid.Nil for
+	// a removal an administrator made directly.
+	ReportID uuid.UUID
+}
+
+// Facts describes a review for Moderation Service's report and appeal checks.
+// RemovalReportID is set while the review is removed by a report's outcome.
+type Facts struct {
+	ReviewerID      uuid.UUID
+	RevieweeID      uuid.UUID
+	OrderID         uuid.UUID
+	Removed         bool
+	RemovalReportID uuid.UUID
 }
 
 // ReviewRestoration audits a restored review, answering one removal. AppealID

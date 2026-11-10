@@ -386,18 +386,6 @@ func TestMarkWarningAsRemovedValidatesAndMapsRepositoryErrors(t *testing.T) {
 		t.Fatalf("missing warning error = %v, want external NotFound", err)
 	}
 
-	appealID := uuid.New()
-	err = NewService(&repositoryStub{removeErr: ErrAppealNotFound}).MarkWarningAsRemoved(
-		context.Background(),
-		warningID,
-		"appeal overturned",
-		&appealID,
-		actorID,
-	)
-	if !errors.Is(err, ErrAppealNotFound) || !errors.As(err, &external) || external.Code() != http.StatusNotFound {
-		t.Fatalf("missing appeal error = %v, want external NotFound", err)
-	}
-
 	for _, tc := range []struct {
 		name        string
 		warningID   uuid.UUID

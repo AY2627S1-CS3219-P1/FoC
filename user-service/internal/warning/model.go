@@ -56,3 +56,12 @@ type CourierWarningRequest struct {
 	Reason     string
 	OccurredAt time.Time
 }
+
+// Facts describes a warning for Moderation Service's appeal checks. ReportID
+// is uuid.Nil when no report issued the warning.
+type Facts struct {
+	UserID    uuid.UUID
+	RequestID uuid.UUID
+	ReportID  uuid.UUID
+	Active    bool
+}

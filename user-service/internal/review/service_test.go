@@ -28,6 +28,8 @@ type fakeRepository struct {
 	listRemovals    []ReviewRemoval
 	countRemovals   int64
 	myRemovalsFor   uuid.UUID
+	facts           Facts
+	factsErr        error
 	participantsErr error
 	listErr         error
 	countErr        error
@@ -187,6 +189,10 @@ func (f *fakeRepository) ListMyReviewRemovals(
 
 func (f *fakeRepository) CountMyReviewRemovals(_ context.Context, _ uuid.UUID) (int64, error) {
 	return f.countRemovals, f.countErr
+}
+
+func (f *fakeRepository) ReviewFacts(_ context.Context, _ uuid.UUID) (Facts, error) {
+	return f.facts, f.factsErr
 }
 
 func newTestService(repo Repository) *Service {
