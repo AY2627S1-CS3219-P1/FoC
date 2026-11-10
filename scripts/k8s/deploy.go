@@ -168,10 +168,22 @@ func (o *operator) buildImages(names []string) error {
 			return errors.New("K8S_BUILD_CACHE must be a registry repository and requires pushed images")
 		}
 		// The default docker driver cannot export a registry cache.
-		if result, err := o.run("docker", []string{"buildx", "inspect", buildCacheBuilder}, commandOptions{capture: true, allowFailure: true}); err != nil {
+		if result, err := o.run(
+			"docker",
+			[]string{"buildx", "inspect", buildCacheBuilder},
+			commandOptions{capture: true, allowFailure: true},
+		); err != nil {
 			return err
 		} else if result.exitCode != 0 {
-			if err := o.execute("docker", "buildx", "create", "--name", buildCacheBuilder, "--driver", "docker-container"); err != nil {
+			if err := o.execute(
+				"docker",
+				"buildx",
+				"create",
+				"--name",
+				buildCacheBuilder,
+				"--driver",
+				"docker-container",
+			); err != nil {
 				return err
 			}
 		}
@@ -183,8 +195,16 @@ func (o *operator) buildImages(names []string) error {
 		slots    = make(chan struct{}, parallelism)
 	)
 	for _, name := range names {
-		wait.Add(1)
 		slots <- struct{}{}
+		// Stop starting builds after a failure so a failed attempt pushes as few images as possible.
+		mu.Lock()
+		failed := firstErr != nil
+		mu.Unlock()
+		if failed {
+			<-slots
+			break
+		}
+		wait.Add(1)
 		go func(name string) {
 			defer func() { <-slots; wait.Done() }()
 			if err := o.buildImage(name, cache); err != nil {
