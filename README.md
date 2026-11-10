@@ -26,7 +26,8 @@ withdrawn, or exchanged for money, and only circulate within the platform.
 
 This repository follows a **one-service-per-folder** structure: each
 microservice (`user-service/`, `supplier-service/`, `order-service/`,
-`credit-service/`) lives in its own top-level folder.
+`credit-service/`, `communication-service/`, `moderation-service/`) lives in
+its own top-level folder.
 Shared Go HTTP utilities live in the `pkg` module (`api` and `middleware`).
 Each service module refers to the shared module as `../pkg`. Compose mounts
 each service at `/app` and the shared package at `/pkg`, so the same relative
@@ -40,6 +41,8 @@ path works inside the containers. Builds run from the repository use the root
 ├── supplier-service/
 ├── order-service/
 ├── credit-service/
+├── communication-service/
+├── moderation-service/
 ├── frontend/
 ├── pkg/
 ├── <n2h-service>/
@@ -101,7 +104,7 @@ Credit and Communication cannot fetch public keys and fail authentication
 startup after retrying. After editing `.env`, run:
 
 ```sh
-docker compose up -d user-service supplier-service order-service credit-service communication-service
+docker compose up -d user-service supplier-service order-service credit-service communication-service moderation-service
 ```
 
 Use `up` so Compose recreates containers with the updated environment;
