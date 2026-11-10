@@ -23,3 +23,21 @@ This design accepts a single-instance failure domain, retained PVC management,
 and shared local Floci disk capacity in exchange for a small operational footprint.
 It does not promise high availability or loss-free collection. Retention is
 configuration-validated; no seven-day elapsed test is claimed.
+
+## AWS demo integration
+
+The AWS Terraform stack owns a dedicated private encrypted log bucket and a role
+whose web-identity trust names only `foc-observability:loki` and the STS audience.
+The role can list that bucket and read, write and delete its objects; deletion
+is needed by the compactor. Order uploads, Terraform state and their identities
+remain separate. No static AWS credentials are supplied to Loki.
+
+The generated AWS overlay includes Grafana/Alloy and mesh policies, with encrypted
+retained `foc-gp3` claims. The operator supplies Loki's bucket, region, role and
+storage class to the existing pinned Helm chart. The platform administrator
+installs `base/observability-rbac` separately and supplies the private Grafana
+admin Secret, so application releases do not gain RBAC administration.
+
+All three logging disks and S3 objects require explicit teardown decisions.
+Seven-day retention requires a running compactor and does not clean up a stopped
+deployment. See the [AWS runbook](../../infra/aws/README.md) for setup and costing.

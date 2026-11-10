@@ -53,7 +53,7 @@ func submitReview(
 	t.Helper()
 	orderID := uuid.New()
 	if _, err := stack.service.SubmitReview(ctx, reviewerID, revieweeID, orderID,
-		ReviewSubmission{Rating: 3, Comment: comment}); err != nil {
+		ReviewSubmission{Rating: 3, Comment: comment}, nil); err != nil {
 		t.Fatalf("submit review: %v", err)
 	}
 	return reviewRowID(t, ctx, stack.sqlDB, orderID), orderID

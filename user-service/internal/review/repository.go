@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
@@ -33,7 +34,32 @@ type Repository interface {
 	) ([]UnpublishedReview, error)
 	CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID) (int64, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
-	CountReviewRemovals(ctx context.Context) (int64, error)
+	CountReviewRemovals(
+		ctx context.Context,
+	) (int64, error) // ListReviewOrderStatuses separates live and removed reviews in one snapshot.
+	ListReviewOrderStatuses(
+		ctx context.Context,
+		reviewerID uuid.UUID,
+		orderIDs []uuid.UUID,
+	) (ReviewOrderStatuses, error)
+	// ReviewForOrder returns a live review, or errReviewRemoved without removed content.
+	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
+	// ReviewExists reports an existing review, including removed ones (mirrors the unique index).
+	ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error)
+
+	// Review photos; only AttachReviewPhoto takes transaction-bound queries.
+	InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error
+	GetReviewPhoto(ctx context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error)
+	AttachReviewPhoto(
+		ctx context.Context,
+		q *reviewdb.Queries,
+		ownerID, reviewID uuid.UUID,
+		ordinal int,
+		photo ReviewPhoto,
+	) (int64, error)
+	ListReviewPhotosForReviews(ctx context.Context, reviewIDs []uuid.UUID) ([]ReviewPhotoAttached, error)
+	ClaimOrphanReviewPhotos(ctx context.Context, createdBefore, now time.Time) ([]ClaimedReviewPhoto, error)
+	DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
 // Deduplication, verdict and statistics share the consumer transaction.

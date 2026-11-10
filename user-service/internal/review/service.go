@@ -21,10 +21,11 @@ type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries)
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
+	photos          PhotoStorage
 }
 
-func NewService(repo Repository, withTransaction WithTransaction) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction}
+func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, photos: photos}
 }
 
 // SubmitReview commits the pending review and submission outbox atomically.
@@ -33,9 +34,23 @@ func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
 	submission ReviewSubmission,
+	photoIDs []uuid.UUID,
 ) (SubmissionResult, error) {
 	if reviewerID == revieweeID {
 		return SubmissionResult{}, errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
+	}
+	// A prior submission committed, usually a lost-response retry; the pre-check
+	// runs before photo preparation so the retry gets the canonical 409.
+	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
+	if err != nil {
+		return SubmissionResult{}, err
+	}
+	if exists {
+		return SubmissionResult{}, errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
+	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
+	if err != nil {
+		return SubmissionResult{}, err
 	}
 	id, err := newID()
 	if err != nil {
@@ -74,6 +89,10 @@ func (s *Service) SubmitReview(
 		})
 		if err != nil {
 			return mapInsertReviewError(err)
+		}
+
+		if err := s.attachPhotos(ctx, q, reviewerID, id, prepared); err != nil {
+			return err
 		}
 
 		// The payload is built from the saved review: the reviewer comes from
@@ -138,6 +157,10 @@ func (s *Service) ListReviewsForUser(
 	if err != nil {
 		return ReviewPage{}, err
 	}
+	reviews, err = s.fillPhotos(ctx, reviews)
+	if err != nil {
+		return ReviewPage{}, err
+	}
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
@@ -151,6 +174,10 @@ func (s *Service) ListReviewsFromUser(
 		return ReviewPage{}, err
 	}
 	total, err := s.repo.CountReviewsFromUser(ctx, userID)
+	if err != nil {
+		return ReviewPage{}, err
+	}
+	reviews, err = s.fillPhotos(ctx, reviews)
 	if err != nil {
 		return ReviewPage{}, err
 	}
@@ -234,4 +261,32 @@ func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {
 		Reason:    reason,
 		CreatedBy: createdBy,
 	}, nil
+}
+
+func (s *Service) ListMyReviewsReceived(
+	ctx context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	return s.ListReviewsForUser(ctx, userID, page)
+}
+
+func (s *Service) ListMyReviewsForOrders(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) (ReviewOrderStatuses, error) {
+	return s.repo.ListReviewOrderStatuses(ctx, reviewerID, orderIDs)
+}
+
+func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	review, err := s.repo.ReviewForOrder(ctx, reviewerID, orderID)
+	if err != nil {
+		return Review{}, err
+	}
+	filled, err := s.fillPhotos(ctx, []Review{review})
+	if err != nil {
+		return Review{}, err
+	}
+	return filled[0], nil
 }

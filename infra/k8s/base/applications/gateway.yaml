@@ -14,6 +14,7 @@ spec:
         - path: {type: PathPrefix, value: /user.v1.ProfileService}
         - path: {type: PathPrefix, value: /user.v1.UserAdminService}
         - path: {type: PathPrefix, value: /user.v1.AllowedDomainAdminService}
+        - path: {type: PathPrefix, value: /user.review.v1.ReviewService}
         - path: {type: PathPrefix, value: /user.warning.v1.WarningService}
         - path: {type: PathPrefix, value: /user.warning.v1.WarningAdminService}
       backendRefs:
@@ -68,6 +69,14 @@ spec:
       namespace: istio-ingress
       sectionName: https
   rules:
+    - matches:
+        - path: {type: PathPrefix, value: /communication.v1.RealtimeService}
+      timeouts:
+        request: 0s
+        backendRequest: 0s
+      backendRefs:
+        - name: communication-service-external
+          port: 8080
     - matches:
         - path: {type: PathPrefix, value: /communication.v1.HealthService}
         - path: {type: PathPrefix, value: /communication.v1.TelegramLinkService}

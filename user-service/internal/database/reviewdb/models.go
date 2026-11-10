@@ -3,3 +3,23 @@
 //   sqlc v1.30.0
 
 package reviewdb
+
+import (
+	"database/sql"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type ReviewPhoto struct {
+	ID              uuid.UUID
+	OwnerID         uuid.NullUUID
+	ObjectKey       string
+	ContentType     string
+	SizeBytes       int64
+	State           string
+	ReviewID        uuid.NullUUID
+	Ordinal         sql.NullInt32
+	CreatedAt       time.Time
+	UploadExpiresAt time.Time
+}

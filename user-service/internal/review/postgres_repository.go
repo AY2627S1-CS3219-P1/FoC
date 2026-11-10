@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -21,29 +22,7 @@ func NewPostgresRepository(queries *reviewdb.Queries) *PostgresRepository {
 	return &PostgresRepository{queries: queries}
 }
 
-var (
-	_ Repository       = (*PostgresRepository)(nil)
-	_ ModerationStore  = (*PostgresRepository)(nil)
-	_ OutboxRepository = (*PostgresRepository)(nil)
-)
-
-func (r *PostgresRepository) CheckReviewParticipants(
-	ctx context.Context,
-	q *reviewdb.Queries,
-	reviewerID, revieweeID uuid.UUID,
-) (ReviewParticipantExistence, error) {
-	exists, err := q.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
-		ReviewerID: reviewerID,
-		RevieweeID: revieweeID,
-	})
-	if err != nil {
-		return ReviewParticipantExistence{}, fmt.Errorf("check review participants exist: %w", err)
-	}
-	return ReviewParticipantExistence{
-		ReviewerExists: exists.ReviewerExists,
-		RevieweeExists: exists.RevieweeExists,
-	}, nil
-}
+var _ Repository = (*PostgresRepository)(nil)
 
 func (r *PostgresRepository) InsertReview(
 	ctx context.Context,
@@ -71,20 +50,6 @@ func (r *PostgresRepository) InsertReview(
 		ModerationStatus: status,
 		ContentRevision:  int(row.ContentRevision),
 	}, nil
-}
-
-func (r *PostgresRepository) AppendSubmittedOutbox(
-	ctx context.Context,
-	q *reviewdb.Queries,
-	row SubmittedOutboxRow,
-) error {
-	return mapReviewError("append review-submitted outbox row", q.InsertReviewSubmittedOutbox(ctx,
-		reviewdb.InsertReviewSubmittedOutboxParams{
-			EventID:        row.EventID,
-			ReviewID:       row.ReviewID,
-			PayloadVersion: row.PayloadVersion,
-			Payload:        json.RawMessage(row.Payload),
-		}))
 }
 
 func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
@@ -191,6 +156,332 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
+func (r *PostgresRepository) ListReviewOrderStatuses(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) (ReviewOrderStatuses, error) {
+	rows, err := r.queries.ListReviewOrderStatuses(ctx, reviewdb.ListReviewOrderStatusesParams{
+		ReviewerID: reviewerID,
+		OrderIds:   orderIDs,
+	})
+	if err != nil {
+		return ReviewOrderStatuses{}, fmt.Errorf("list review order statuses: %w", err)
+	}
+	var out ReviewOrderStatuses
+	for _, row := range rows {
+		id, parseErr := uuid.Parse(row.OrderID)
+		if parseErr != nil {
+			return ReviewOrderStatuses{}, fmt.Errorf("parse reviewed order id %q: %w", row.OrderID, parseErr)
+		}
+		if row.Removed {
+			out.RemovedOrderIDs = append(out.RemovedOrderIDs, id)
+		} else {
+			out.ReviewedOrderIDs = append(out.ReviewedOrderIDs, id)
+		}
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error) {
+	row, err := r.queries.GetReviewByReviewerAndOrder(ctx, reviewdb.GetReviewByReviewerAndOrderParams{
+		ReviewerID: reviewerID,
+		OrderID:    orderID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Review{}, errReviewNotFound
+		}
+		return Review{}, fmt.Errorf("get review for order: %w", err)
+	}
+	if row.DeletedAt.Valid {
+		return Review{}, errReviewRemoved
+	}
+	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), nil
+}
+
+func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
+	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
+		PageOffset: offset,
+		PageLimit:  limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list removals: %w", err)
+	}
+	out := make([]ReviewRemoval, len(rows))
+	for i, row := range rows {
+		out[i] = toReviewRemovalListed(row)
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, error) {
+	count, err := r.queries.CountReviewRemovals(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count removals: %w", err)
+	}
+	return count, nil
+}
+
+func (r *PostgresRepository) CheckReviewParticipants(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	reviewerID, revieweeID uuid.UUID,
+) (ReviewParticipantExistence, error) {
+	exists, err := q.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+		ReviewerID: reviewerID,
+		RevieweeID: revieweeID,
+	})
+	if err != nil {
+		return ReviewParticipantExistence{}, fmt.Errorf("check review participants exist: %w", err)
+	}
+	return ReviewParticipantExistence{
+		ReviewerExists: exists.ReviewerExists,
+		RevieweeExists: exists.RevieweeExists,
+	}, nil
+}
+
+func (r *PostgresRepository) ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
+	exists, err := r.queries.ReviewExists(ctx, reviewdb.ReviewExistsParams{
+		ReviewerID: reviewerID,
+		OrderID:    orderID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("check review exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *PostgresRepository) InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error {
+	err := r.queries.InsertReviewPhoto(ctx, reviewdb.InsertReviewPhotoParams{
+		ID:              input.ID,
+		OwnerID:         input.OwnerID,
+		ObjectKey:       input.ObjectKey,
+		ContentType:     input.ContentType,
+		SizeBytes:       input.SizeBytes,
+		UploadExpiresAt: input.UploadExpiresAt,
+	})
+	return mapPhotoError("insert review photo", err)
+}
+
+func (r *PostgresRepository) GetReviewPhoto(ctx context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error) {
+	row, err := r.queries.GetReviewPhoto(ctx, reviewdb.GetReviewPhotoParams{ID: id, OwnerID: ownerID})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ReviewPhoto{}, errPhotoNotFound
+		}
+		return ReviewPhoto{}, fmt.Errorf("get review photo: %w", err)
+	}
+	return toReviewPhoto(row), nil
+}
+
+func (r *PostgresRepository) AttachReviewPhoto(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	ownerID, reviewID uuid.UUID,
+	ordinal int,
+	photo ReviewPhoto,
+) (int64, error) {
+	n, err := q.AttachReviewPhoto(ctx, reviewdb.AttachReviewPhotoParams{
+		ReviewID:    reviewID,
+		Ordinal:     sql.NullInt32{Int32: int32(ordinal), Valid: true},
+		ID:          photo.ID,
+		OwnerID:     ownerID,
+		ObjectKey:   photo.ObjectKey,
+		ContentType: photo.ContentType,
+		SizeBytes:   photo.SizeBytes,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("attach review photo: %w", err)
+	}
+	return n, nil
+}
+
+func (r *PostgresRepository) ListReviewPhotosForReviews(
+	ctx context.Context,
+	reviewIDs []uuid.UUID,
+) ([]ReviewPhotoAttached, error) {
+	rows, err := r.queries.ListReviewPhotosForReviews(ctx, reviewIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list review photos: %w", err)
+	}
+	out := make([]ReviewPhotoAttached, len(rows))
+	for i, row := range rows {
+		out[i] = toReviewPhotoAttached(row)
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) ClaimOrphanReviewPhotos(
+	ctx context.Context,
+	createdBefore, now time.Time,
+) ([]ClaimedReviewPhoto, error) {
+	rows, err := r.queries.ClaimOrphanReviewPhotos(ctx, reviewdb.ClaimOrphanReviewPhotosParams{
+		CreatedBefore: createdBefore,
+		NowAt:         now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("claim orphan review photos: %w", err)
+	}
+	out := make([]ClaimedReviewPhoto, len(rows))
+	for i, row := range rows {
+		out[i] = ClaimedReviewPhoto{ID: row.ID, ObjectKey: row.ObjectKey}
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) DeleteOrphanReviewPhoto(ctx context.Context, id uuid.UUID) (int64, error) {
+	n, err := r.queries.DeleteOrphanReviewPhoto(ctx, id)
+	if err != nil {
+		return 0, fmt.Errorf("delete orphan review photo row: %w", err)
+	}
+	return n, nil
+}
+
+func toReview(row reviewdb.SoftDeleteReviewRow) Review {
+	return Review{
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		RevieweeID:       row.RevieweeID,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
+	}
+}
+
+func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
+	}
+}
+
+func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
+	}
+}
+
+func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
+	return ReviewRemoval{
+		ID:            row.ID,
+		ReviewID:      row.ReviewID,
+		ReviewerID:    row.ReviewerID,
+		RevieweeID:    row.RevieweeID,
+		OrderID:       row.OrderID,
+		Reason:        row.Reason,
+		CreatedAt:     row.CreatedAt,
+		CreatedBy:     row.CreatedBy,
+		CreatedByName: row.CreatedByName,
+	}
+}
+
+func mapReviewError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return errReviewNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			// Unreachable while users are never deleted. When user deletion
+			// lands, a violation on an insert means a missing reviewer/reviewee,
+			// not a missing review — distinguish by pgErr.ConstraintName then.
+			return errReviewNotFound
+		case "23505":
+			return errReviewAlreadyExists
+		case "23514", "23P01":
+			return errReviewInvalid
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+// mapPhotoError translates persistence failures of photo rows. Unlike reviews,
+// a missing photo row is an expected client-outcome ("not staged"), not a
+// review lookup miss.
+func mapPhotoError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return errPhotoNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			// owner_id references a missing user.
+			return errPhotoNotFound
+		case "23514", "23P01":
+			return errs.NewBadRequestError("photo metadata violates the accepted limits")
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func toReviewPhoto(row reviewdb.ReviewPhoto) ReviewPhoto {
+	return ReviewPhoto{
+		ID:              row.ID,
+		OwnerID:         row.OwnerID,
+		ObjectKey:       row.ObjectKey,
+		ContentType:     row.ContentType,
+		SizeBytes:       row.SizeBytes,
+		State:           row.State,
+		ReviewID:        row.ReviewID.UUID,
+		Ordinal:         int(row.Ordinal.Int32),
+		CreatedAt:       row.CreatedAt,
+		UploadExpiresAt: row.UploadExpiresAt,
+	}
+}
+
+func toReviewPhotoAttached(row reviewdb.ListReviewPhotosForReviewsRow) ReviewPhotoAttached {
+	return ReviewPhotoAttached{
+		ID:          row.ID,
+		ReviewID:    row.ReviewID.UUID,
+		ObjectKey:   row.ObjectKey,
+		ContentType: row.ContentType,
+		Ordinal:     int(row.Ordinal.Int32),
+	}
+}
+
+func (r *PostgresRepository) AppendSubmittedOutbox(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	row SubmittedOutboxRow,
+) error {
+	return mapReviewError("append review-submitted outbox row", q.InsertReviewSubmittedOutbox(ctx,
+		reviewdb.InsertReviewSubmittedOutboxParams{
+			EventID:        row.EventID,
+			ReviewID:       row.ReviewID,
+			PayloadVersion: row.PayloadVersion,
+			Payload:        json.RawMessage(row.Payload),
+		}))
+}
+
 func (r *PostgresRepository) ListUnpublishedReviewsForUser(
 	ctx context.Context,
 	reviewerID uuid.UUID,
@@ -222,29 +513,6 @@ func (r *PostgresRepository) CountUnpublishedReviewsForUser(
 	count, err := r.queries.CountUnpublishedReviewsForUser(ctx, reviewerID)
 	if err != nil {
 		return 0, fmt.Errorf("count unpublished reviews: %w", err)
-	}
-	return count, nil
-}
-
-func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
-	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
-		PageOffset: offset,
-		PageLimit:  limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list removals: %w", err)
-	}
-	out := make([]ReviewRemoval, len(rows))
-	for i, row := range rows {
-		out[i] = toReviewRemovalListed(row)
-	}
-	return out, nil
-}
-
-func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, error) {
-	count, err := r.queries.CountReviewRemovals(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("count removals: %w", err)
 	}
 	return count, nil
 }
@@ -387,52 +655,6 @@ func (r *PostgresRepository) ScheduleSubmittedOutboxRetry(
 	return nil
 }
 
-func toReview(row reviewdb.SoftDeleteReviewRow) Review {
-	return Review{
-		ID:               row.ID,
-		ReviewerID:       row.ReviewerID,
-		RevieweeID:       row.RevieweeID,
-		OrderID:          row.OrderID,
-		Rating:           int(row.Rating),
-		Comment:          row.Comment,
-		CreatedAt:        row.CreatedAt,
-		DeletedAt:        row.DeletedAt.Time,
-		ModerationStatus: ModerationStatus(row.ModerationStatus),
-	}
-}
-
-func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
-	return Review{
-		ID:               row.ID,
-		ReviewerID:       row.ReviewerID,
-		ReviewerName:     row.ReviewerName,
-		RevieweeID:       row.RevieweeID,
-		RevieweeName:     row.RevieweeName,
-		OrderID:          row.OrderID,
-		Rating:           int(row.Rating),
-		Comment:          row.Comment,
-		CreatedAt:        row.CreatedAt,
-		DeletedAt:        row.DeletedAt.Time,
-		ModerationStatus: ModerationApproved,
-	}
-}
-
-func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
-	return Review{
-		ID:               row.ID,
-		ReviewerID:       row.ReviewerID,
-		ReviewerName:     row.ReviewerName,
-		RevieweeID:       row.RevieweeID,
-		RevieweeName:     row.RevieweeName,
-		OrderID:          row.OrderID,
-		Rating:           int(row.Rating),
-		Comment:          row.Comment,
-		CreatedAt:        row.CreatedAt,
-		DeletedAt:        row.DeletedAt.Time,
-		ModerationStatus: ModerationApproved,
-	}
-}
-
 func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (UnpublishedReview, error) {
 	status, err := parseModerationStatus(row.ModerationStatus)
 	if err != nil {
@@ -455,42 +677,4 @@ func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (Unpubli
 		AppliedRunGeneration:  row.AppliedRunGeneration,
 		ModeratedAt:           row.ModeratedAt.Time,
 	}, nil
-}
-
-func toReviewRemovalListed(row reviewdb.ListReviewRemovalsRow) ReviewRemoval {
-	return ReviewRemoval{
-		ID:            row.ID,
-		ReviewID:      row.ReviewID,
-		ReviewerID:    row.ReviewerID,
-		RevieweeID:    row.RevieweeID,
-		OrderID:       row.OrderID,
-		Reason:        row.Reason,
-		CreatedAt:     row.CreatedAt,
-		CreatedBy:     row.CreatedBy,
-		CreatedByName: row.CreatedByName,
-	}
-}
-
-func mapReviewError(operation string, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return errReviewNotFound
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		switch pgErr.Code {
-		case "23503":
-			// Unreachable while users are never deleted. When user deletion
-			// lands, a violation on an insert means a missing reviewer/reviewee,
-			// not a missing review — distinguish by pgErr.ConstraintName then.
-			return errReviewNotFound
-		case "23505":
-			return errReviewAlreadyExists
-		case "23514", "23P01":
-			return errReviewInvalid
-		}
-	}
-	return fmt.Errorf("%s: %w", operation, err)
 }

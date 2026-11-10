@@ -163,10 +163,18 @@ func (s *Assigner) MakeOffer(
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
-		change, err := s.metadata(o, caller, ProposeOffer, now)
+		details, err := json.Marshal(OfferFact{ID: result.ID, CourierID: caller.ID, Credits: credits})
 		if err != nil {
 			return nil, err
 		}
+		after := cloneOrder(o)
+		after.Revision++
+		after.UpdatedAt = now
+		built, err := NewChange(&o, after, Actor{Kind: User, ID: caller.ID}, ProposeOffer, details, s.newID)
+		if err != nil {
+			return nil, err
+		}
+		change := &built
 		for _, f := range offers {
 			if f.CourierID == caller.ID && f.Status == OfferOpen {
 				old := f

@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
@@ -20,11 +20,23 @@ type Logic interface {
 		ctx context.Context,
 		reviewerID, revieweeID, orderID uuid.UUID,
 		submission ReviewSubmission,
+		photoIDs []uuid.UUID,
 	) (SubmissionResult, error)
+	CreateReviewPhotoUpload(
+		ctx context.Context,
+		callerID uuid.UUID,
+		contentType string,
+		sizeBytes int64,
+	) (uuid.UUID, images.UploadGrant, error)
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListMyReviewsReceived(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
+	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) (ReviewOrderStatuses, error)
+	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	ListUnpublishedReviewsForUser(
-		ctx context.Context, reviewerID uuid.UUID, page pagination.Pagination,
+		ctx context.Context,
+		reviewerID uuid.UUID,
+		page pagination.Pagination,
 	) (UnpublishedReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
@@ -36,28 +48,33 @@ type Handler struct {
 	Logic Logic
 }
 
+// SubmitReview records the caller's review of the other participant.
 func (h *Handler) SubmitReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.SubmitReviewRequest],
 ) (*connect.Response[reviewv1.SubmitReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	from, err := uuid.Parse(req.Msg.GetFrom())
 	if err != nil || from == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
 	}
 	if from != actorID {
-		return nil, api.ToConnectError(ctx, errs.NewForbiddenError("reviewer must be the authenticated caller"))
+		return nil, toConnectError(ctx, errs.NewForbiddenError("reviewer must be the authenticated caller"))
 	}
 	to, err := uuid.Parse(req.Msg.GetTo())
 	if err != nil || to == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewee ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid reviewee ID"))
 	}
 	orderID, err := uuid.Parse(req.Msg.GetOrderId())
 	if err != nil || orderID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+	}
+	photoIDs, err := reviewv1PhotoIDsToDomain(req.Msg.GetPhotoIds())
+	if err != nil {
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid photo ID"))
 	}
 	result, err := h.Logic.SubmitReview(
 		ctx,
@@ -65,42 +82,71 @@ func (h *Handler) SubmitReview(
 		to,
 		orderID,
 		reviewv1SubmissionToDomain(req.Msg.GetSubmission()),
+		photoIDs,
 	)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(&reviewv1.SubmitReviewResponse{
-		ReviewId:         result.ReviewID.String(),
-		ModerationStatus: toProtoModerationStatus(result.Status),
-	}), nil
+	return connect.NewResponse(
+		&reviewv1.SubmitReviewResponse{
+			ReviewId:         result.ReviewID.String(),
+			ModerationStatus: toProtoModerationStatus(result.Status),
+		},
+	), nil
 }
 
-// ListReviewsForUser lists the reviews a user received; a suspended caller may
-// only list their own.
+// CreateReviewPhotoUpload grants one pre-signed PUT; bytes go straight to storage.
+func (h *Handler) CreateReviewPhotoUpload(
+	ctx context.Context,
+	req *connect.Request[reviewv1.CreateReviewPhotoUploadRequest],
+) (*connect.Response[reviewv1.CreateReviewPhotoUploadResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	photoID, grant, err := h.Logic.CreateReviewPhotoUpload(
+		ctx, actorID, req.Msg.GetContentType(), req.Msg.GetSizeBytes(),
+	)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reviewv1.CreateReviewPhotoUploadResponse{
+		PhotoId:       photoID.String(),
+		UploadUrl:     grant.URL,
+		UploadHeaders: grant.Headers,
+		ExpiresAt:     timestamppb.New(grant.ExpiresAt),
+	})
+	noStore(resp)
+	return resp, nil
+}
+
+// ListReviewsForUser lists received reviews; a suspended caller may only list their own.
 func (h *Handler) ListReviewsForUser(
 	ctx context.Context,
 	req *connect.Request[reviewv1.ListReviewsForUserRequest],
 ) (*connect.Response[reviewv1.ListReviewsForUserResponse], error) {
 	caller, err := userdto.Actor(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	userID, err := uuid.Parse(req.Msg.GetUserId())
 	if err != nil || userID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid user ID"))
 	}
 	if err := authorizeSelfReviews(caller, userID); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewsForUser(ctx, userID, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(toListReviewsForUserResponse(pageResult)), nil
+	resp := connect.NewResponse(toListReviewsForUserResponse(pageResult))
+	noStore(resp)
+	return resp, nil
 }
 
 func (h *Handler) ListMyReviews(
@@ -109,61 +155,116 @@ func (h *Handler) ListMyReviews(
 ) (*connect.Response[reviewv1.ListMyReviewsResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewsFromUser(ctx, actorID, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
+	resp := connect.NewResponse(toListMyReviewsResponse(pageResult))
+	noStore(resp)
+	return resp, nil
 }
 
-func (h *Handler) ListUnpublishedReviewsForUser(
+// noStore marks responses embedding short-lived pre-signed URLs as non-cacheable.
+func noStore[R any](resp *connect.Response[R]) {
+	resp.Header().Set("Cache-Control", "no-store")
+}
+
+// ListMyReviewsReceived lists the reviews the caller received. It mirrors
+// ListMyReviews and derives the user from the caller.
+func (h *Handler) ListMyReviewsReceived(
 	ctx context.Context,
-	req *connect.Request[reviewv1.ListUnpublishedReviewsForUserRequest],
-) (*connect.Response[reviewv1.ListUnpublishedReviewsForUserResponse], error) {
-	caller, err := userdto.Actor(ctx)
+	req *connect.Request[reviewv1.ListMyReviewsReceivedRequest],
+) (*connect.Response[reviewv1.ListMyReviewsReceivedResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
-	}
-	reviewerID, err := uuid.Parse(req.Msg.GetReviewerId())
-	if err != nil || reviewerID == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
-	}
-	if err := authorizeUnpublishedReviews(caller, reviewerID); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
-	pageResult, err := h.Logic.ListUnpublishedReviewsForUser(ctx, reviewerID, page)
+	pageResult, err := h.Logic.ListMyReviewsReceived(ctx, actorID, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
-	return connect.NewResponse(toListUnpublishedReviewsResponse(pageResult)), nil
+	resp := connect.NewResponse(&reviewv1.ListMyReviewsReceivedResponse{
+		Reviews:    toReviewProtos(pageResult.Reviews),
+		Pagination: toProtoPageInfo(pageResult.PageInfo),
+	})
+	noStore(resp)
+	return resp, nil
 }
 
-// RemoveReview soft-deletes a review and records the removal audit row; the
-// admin-only gate lives in the interceptor.
+// ListMyReviewsForOrders returns which of the requests the caller has reviewed.
+func (h *Handler) ListMyReviewsForOrders(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewsForOrdersRequest],
+) (*connect.Response[reviewv1.ListMyReviewsForOrdersResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderIDs := make([]uuid.UUID, 0, len(req.Msg.GetOrderIds()))
+	for _, raw := range req.Msg.GetOrderIds() {
+		id, parseErr := uuid.Parse(raw)
+		if parseErr != nil || id == uuid.Nil {
+			return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+		}
+		orderIDs = append(orderIDs, id)
+	}
+	reviewed, err := h.Logic.ListMyReviewsForOrders(ctx, callerID, orderIDs)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	return connect.NewResponse(&reviewv1.ListMyReviewsForOrdersResponse{
+		ReviewedOrderIds: uuidStrings(reviewed.ReviewedOrderIDs),
+		RemovedOrderIds:  uuidStrings(reviewed.RemovedOrderIDs),
+	}), nil
+}
+
+// GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
+func (h *Handler) GetMyReviewForOrder(
+	ctx context.Context,
+	req *connect.Request[reviewv1.GetMyReviewForOrderRequest],
+) (*connect.Response[reviewv1.GetMyReviewForOrderResponse], error) {
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	orderID, parseErr := uuid.Parse(req.Msg.GetOrderId())
+	if parseErr != nil || orderID == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid order ID"))
+	}
+	review, err := h.Logic.GetMyReviewForOrder(ctx, callerID, orderID)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reviewv1.GetMyReviewForOrderResponse{Review: toReviewProto(review)})
+	noStore(resp)
+	return resp, nil
+}
+
+// RemoveReview soft-deletes a review and records the audit row.
 func (h *Handler) RemoveReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.RemoveReviewRequest],
 ) (*connect.Response[reviewv1.RemoveReviewResponse], error) {
 	actorID, err := userdto.ActorID(ctx)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	id, err := uuid.Parse(req.Msg.GetId())
 	if err != nil || id == uuid.Nil {
-		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
 	}
 	if err := h.Logic.RemoveReview(ctx, id, req.Msg.GetReason(), actorID); err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reviewv1.RemoveReviewResponse{}), nil
 }
@@ -174,37 +275,23 @@ func (h *Handler) ListReviewRemovals(
 ) (*connect.Response[reviewv1.ListReviewRemovalsResponse], error) {
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
-		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
 	pageResult, err := h.Logic.ListReviewRemovals(ctx, page)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }
 
-// authorizeSelfReviews is the ABAC rule that is too tied to the request message
-// for the token-claim interceptor: a suspended caller may only list the reviews
-// received by their own user.
+// A suspended caller may only list reviews received by their own user.
 func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	if !c.IsSuspended() {
 		return nil
 	}
-	return requireOwnIdentity(c, userID, "suspended users may only list their own reviews")
-}
-
-// Suspended callers may inspect their own unpublished reviews; admins may inspect any reviewer.
-func authorizeUnpublishedReviews(c userdto.Caller, reviewerID uuid.UUID) error {
-	if c.Admin && !c.IsSuspended() {
-		return nil
-	}
-	return requireOwnIdentity(c, reviewerID, "callers may only list their own unpublished reviews")
-}
-
-func requireOwnIdentity(c userdto.Caller, userID uuid.UUID, message string) error {
 	callerID, err := uuid.Parse(c.ID)
 	if err != nil || callerID != userID {
-		return errs.NewForbiddenError(message)
+		return errs.NewForbiddenError("suspended users may only list their own reviews")
 	}
 	return nil
 }
@@ -221,6 +308,24 @@ func reviewv1SubmissionToDomain(submission *reviewv1.ReviewSubmission) ReviewSub
 	return ReviewSubmission{Rating: int(submission.GetRating()), Comment: submission.GetComment()}
 }
 
+// reviewv1PhotoIDsToDomain parses the validated photo IDs. Every entry must be
+// a well-formed, non-zero UUID: a silent nil on a malformed entry would drop
+// the whole attachment list and submit a review without its photos.
+func reviewv1PhotoIDsToDomain(ids []string) ([]uuid.UUID, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		id, err := uuid.Parse(raw)
+		if err != nil || id == uuid.Nil {
+			return nil, errs.NewBadRequestError("photo IDs must be non-zero UUIDs")
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserResponse {
 	return &reviewv1.ListReviewsForUserResponse{
 		Reviews:    toReviewProtos(page.Reviews),
@@ -231,17 +336,6 @@ func toListReviewsForUserResponse(page ReviewPage) *reviewv1.ListReviewsForUserR
 func toListMyReviewsResponse(page ReviewPage) *reviewv1.ListMyReviewsResponse {
 	return &reviewv1.ListMyReviewsResponse{
 		Reviews:    toReviewProtos(page.Reviews),
-		Pagination: toProtoPageInfo(page.PageInfo),
-	}
-}
-
-func toListUnpublishedReviewsResponse(page UnpublishedReviewPage) *reviewv1.ListUnpublishedReviewsForUserResponse {
-	out := make([]*reviewv1.UnpublishedReview, len(page.Reviews))
-	for i, review := range page.Reviews {
-		out[i] = toUnpublishedReviewProto(review)
-	}
-	return &reviewv1.ListUnpublishedReviewsForUserResponse{
-		Reviews:    out,
 		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }
@@ -285,6 +379,100 @@ func toReviewProto(review Review) *reviewv1.Review {
 		Rating:       int32(review.Rating),
 		Comment:      review.Comment,
 		CreatedAt:    timestamppb.New(review.CreatedAt),
+		Photos:       toReviewPhotoProtos(review.Photos),
+	}
+}
+
+func toReviewPhotoProtos(photos []ReviewPhotoView) []*reviewv1.ReviewPhoto {
+	if len(photos) == 0 {
+		return nil
+	}
+	out := make([]*reviewv1.ReviewPhoto, len(photos))
+	for i, photo := range photos {
+		out[i] = toReviewPhotoProto(photo)
+	}
+	return out
+}
+
+func toReviewPhotoProto(photo ReviewPhotoView) *reviewv1.ReviewPhoto {
+	return &reviewv1.ReviewPhoto{
+		Id:          photo.ID.String(),
+		Url:         photo.URL,
+		ContentType: photo.ContentType,
+		ExpiresAt:   timestamppb.New(photo.ExpiresAt),
+	}
+}
+
+func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
+	return &reviewv1.ReviewRemoval{
+		Id:            removal.ID.String(),
+		ReviewerId:    removal.ReviewerID.String(),
+		RevieweeId:    removal.RevieweeID.String(),
+		OrderId:       removal.OrderID.String(),
+		Reason:        removal.Reason,
+		CreatedAt:     timestamppb.New(removal.CreatedAt),
+		CreatedBy:     removal.CreatedBy.String(),
+		CreatedByName: removal.CreatedByName,
+	}
+}
+
+func uuidStrings(ids []uuid.UUID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.String())
+	}
+	return out
+}
+
+func (h *Handler) ListUnpublishedReviewsForUser(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListUnpublishedReviewsForUserRequest],
+) (*connect.Response[reviewv1.ListUnpublishedReviewsForUserResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	reviewerID, err := uuid.Parse(req.Msg.GetReviewerId())
+	if err != nil || reviewerID == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid reviewer ID"))
+	}
+	if err := authorizeUnpublishedReviews(caller, reviewerID); err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+	pageResult, err := h.Logic.ListUnpublishedReviewsForUser(ctx, reviewerID, page)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	return connect.NewResponse(toListUnpublishedReviewsResponse(pageResult)), nil
+}
+
+func authorizeUnpublishedReviews(c userdto.Caller, reviewerID uuid.UUID) error {
+	if c.Admin && !c.IsSuspended() {
+		return nil
+	}
+	return requireOwnIdentity(c, reviewerID, "callers may only list their own unpublished reviews")
+}
+
+func requireOwnIdentity(c userdto.Caller, userID uuid.UUID, message string) error {
+	callerID, err := uuid.Parse(c.ID)
+	if err != nil || callerID != userID {
+		return errs.NewForbiddenError(message)
+	}
+	return nil
+}
+
+func toListUnpublishedReviewsResponse(page UnpublishedReviewPage) *reviewv1.ListUnpublishedReviewsForUserResponse {
+	out := make([]*reviewv1.UnpublishedReview, len(page.Reviews))
+	for i, review := range page.Reviews {
+		out[i] = toUnpublishedReviewProto(review)
+	}
+	return &reviewv1.ListUnpublishedReviewsForUserResponse{
+		Reviews:    out,
+		Pagination: toProtoPageInfo(page.PageInfo),
 	}
 }
 
@@ -323,18 +511,5 @@ func toProtoModerationStatus(status ModerationStatus) reviewv1.ModerationStatus 
 		return reviewv1.ModerationStatus_MODERATION_STATUS_MODERATION_ERROR
 	default:
 		return reviewv1.ModerationStatus_MODERATION_STATUS_UNSPECIFIED
-	}
-}
-
-func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
-	return &reviewv1.ReviewRemoval{
-		Id:            removal.ID.String(),
-		ReviewerId:    removal.ReviewerID.String(),
-		RevieweeId:    removal.RevieweeID.String(),
-		OrderId:       removal.OrderID.String(),
-		Reason:        removal.Reason,
-		CreatedAt:     timestamppb.New(removal.CreatedAt),
-		CreatedBy:     removal.CreatedBy.String(),
-		CreatedByName: removal.CreatedByName,
 	}
 }
