@@ -44,6 +44,16 @@ terraform -chdir=infra/aws plan -input=false -lock-timeout=60s \
 
 This command creates a new plan, not the fingerprinted binary above. Inspect its JSON for the exact six create actions and no other managed-resource changes before requesting approval.
 
+## Application release gates
+
+Logging is not the only prerequisite for releasing the selected application commit.
+
+- B1: New reviews are inserted as `pending_moderation` in `user-service/database/query/reviews.sql`. User publishes submissions and consumes completion events, but `infra/k8s/base/applications/kustomization.yaml` and the eight-image release inventory do not deploy `content-moderation-service`. New reviews would remain pending without that worker. Add its tracked deployment and required resources before claiming this application release is complete. This is distinct from the reports/appeals `moderation-service` in PR #342. Review moderation is tracked in issue #264.
+- B2: Review-photo and profile-picture storage is optional in `user-service/cmd/server/config.go`, but the AWS renderer does not configure `USER_S3_BUCKET` or a storage identity. Those image features would remain unavailable. The local-only storage initialization Job must not be deployed to AWS as a substitute.
+- B3: User migration 12 drops `users.profile_picture_key`. A live TLS-verified, read-only preflight confirmed User is at migration 9 and found zero populated legacy keys; its temporary Job was removed. Recheck before migrating and assess rollback compatibility rather than assuming reverting images alone restores the old schema.
+
+These gates do not expand the six-resource logging plan. No content-moderation or User image-storage resources are included in it.
+
 ## Release prerequisites and acceptance
 
 - A1: After explicit approval, apply only the fingerprinted saved plan. Record its actual apply result and verify bucket encryption/public-access/HTTPS controls, exact workload trust, and bucket-scoped policy. Preserve existing email roles and unrelated resources.
