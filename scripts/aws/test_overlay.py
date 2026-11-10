@@ -7,6 +7,7 @@ Expected outcomes: eight image names (deployment operator), five service DBs
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -35,6 +36,8 @@ class AWSOverlayTest(unittest.TestCase):
             "ingress_role_arn": "arn:aws:iam::123456789012:role/demo-ingress",
             "gateway_target_arn": "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/foc-demo-gw/0123456789abcdef",
             "database_host": "demo.database.invalid",
+            "loki_bucket": "foc-demo-loki-example",
+            "loki_role_arn": "arn:aws:iam::123456789012:role/demo-loki",
         }
         self.overlay = self.root / "production"
         self.output = io.StringIO()
@@ -44,7 +47,7 @@ class AWSOverlayTest(unittest.TestCase):
     def test_rendered_stages_preserve_security_storage_and_database_contracts(self):
         self.assertIsNotNone(shutil.which("kubectl"), "kubectl is required for offline manifest rendering")
         # checkOverlay() in scripts/k8s/config.go requires this exact filename.
-        for stage in ("gateway", "dependencies", "provisioning", "initialization", "applications"):
+        for stage in ("gateway", "dependencies", "provisioning", "observability", "initialization", "applications"):
             self.assertTrue((self.overlay / stage / "kustomization.yaml").is_file())
         rendered = subprocess.check_output(["kubectl", "kustomize", str(self.overlay)], text=True)
         objects = list(yaml.safe_load_all(rendered))
@@ -102,6 +105,53 @@ class AWSOverlayTest(unittest.TestCase):
             self.assertEqual(env["GOOSE_DBSTRING"]["valueFrom"]["secretKeyRef"], {
                 "name": f"{service}-db", "key": "DATABASE_URL",
             })
+
+    def test_generated_overlay_is_accepted_by_actual_operator(self):
+        operator = self.root / "k8s"
+        subprocess.run(["go", "build", "-o", str(operator), "./k8s"], cwd=ROOT / "scripts",
+                       env=dict(os.environ, GOWORK="off"), check=True, capture_output=True, text=True)
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("K8S_")}
+        environment.update(K8S_OVERLAY=str(self.overlay), K8S_STATE_DIR=str(self.root / "operator"))
+        result = subprocess.run([str(operator), "render", "gateway"], cwd=ROOT, env=environment,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("kind: Gateway", result.stdout)
+        settings = dict(line.split("=", 1) for line in self.output.getvalue().splitlines()
+                        if line.startswith("K8S_"))
+        self.assertEqual({key: settings[key] for key in (
+            "K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS",
+        )}, {
+            "K8S_LOKI_BUCKET": self.config["loki_bucket"], "K8S_LOKI_REGION": self.config["region"],
+            "K8S_LOKI_IRSA_ROLE": self.config["loki_role_arn"], "K8S_LOKI_STORAGE_CLASS": "foc-gp3",
+        })
+        rendered = subprocess.check_output(["kubectl", "kustomize", str(self.overlay / "observability")], text=True)
+        objects = list(yaml.safe_load_all(rendered))
+        claims = [obj for obj in objects if obj["kind"] == "PersistentVolumeClaim"]
+        self.assertEqual({obj["metadata"]["name"] for obj in claims}, {"grafana-data", "alloy-data"})
+        self.assertTrue(all(obj["spec"]["storageClassName"] == "foc-gp3" for obj in claims))
+        self.assertFalse(any(obj["kind"] in ("Role", "RoleBinding", "Secret", "StatefulSet") for obj in objects))
+        grafana = next(obj for obj in objects if obj["kind"] == "Deployment" and obj["metadata"]["name"] == "grafana")
+        self.assertEqual({item["valueFrom"]["secretKeyRef"]["name"] for item in
+                          grafana["spec"]["template"]["spec"]["containers"][0]["env"] if "valueFrom" in item}, {"grafana-admin"})
+        if os.environ.get("K8S_RENDER_TESTS") == "1":
+            # Exercise the real pinned Helm chart as well when it is cached.
+            environment.update(settings)
+            result = subprocess.run([str(operator), "render", "observability"], cwd=ROOT, env=environment,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            objects = [obj for obj in yaml.safe_load_all(result.stdout) if obj]
+            account = next(obj for obj in objects if obj["kind"] == "ServiceAccount" and obj["metadata"]["name"] == "loki")
+            self.assertEqual(account["metadata"]["annotations"]["eks.amazonaws.com/role-arn"], self.config["loki_role_arn"])
+            loki = next(obj for obj in objects if obj["kind"] == "StatefulSet")
+            self.assertEqual(loki["spec"]["volumeClaimTemplates"][0]["spec"]["storageClassName"], "foc-gp3")
+            self.assertIn(self.config["loki_bucket"], result.stdout)
+
+    def test_logging_requires_its_own_bucket_and_identity(self):
+        for changes in ({"loki_bucket": None}, {"loki_role_arn": None},
+                        {"loki_bucket": self.config["order_bucket"]},
+                        {"loki_role_arn": self.config["order_role_arn"]}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                render(dict(self.config, **changes), self.overlay, "-----BEGIN CERTIFICATE-----")
 
     def test_ses_overlay_uses_only_user_role_and_removes_smtp_dependency(self):
         config = dict(self.config, ses_sender_email="sender@example.test",

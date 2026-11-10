@@ -4,7 +4,7 @@ This directory records non-obvious failures that can affect future work. Each en
 
 | Entry | Applies when |
 | -- | -- |
-| [AWS demo validation and logging integration](aws-demo-validation-and-logging.md) | Validating or deploying the AWS demo against current main, especially its read-only Terraform checks on Linux amd64. |
+| [AWS demo verification needs Linux provider hashes](aws-demo-validation-and-logging.md) | Running the AWS demo's read-only Terraform checks on Linux amd64. |
 | [EKS worker credits can differ from Terraform state](eks-worker-credit-mode.md) | Creating or replacing the AWS demo's burstable EKS workers from `infra/aws`. |
 | [Go line formatting can need multiple passes](golines-multiple-passes.md) | `golangci-lint` v2.14.0 runs `golines` at 120 characters on long boolean expressions. |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |

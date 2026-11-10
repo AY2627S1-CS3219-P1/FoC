@@ -51,6 +51,15 @@ mock_provider "aws" {
   }
 }
 
+override_resource {
+  target          = aws_s3_bucket.loki
+  override_during = plan
+  values = {
+    id  = "demo-loki"
+    arn = "arn:aws:s3:::demo-loki"
+  }
+}
+
 override_module {
   target = module.vpc
   outputs = {
@@ -390,5 +399,25 @@ run "accept_operator_global_special_purpose" {
   command = plan
   variables {
     operator_cidr = "192.31.196.1/32"
+  }
+}
+
+run "logging_has_dedicated_private_storage_and_identity" {
+  command = plan
+  assert {
+    condition     = !aws_s3_bucket.loki.force_destroy && aws_s3_bucket.loki.bucket_prefix != aws_s3_bucket.orders.bucket_prefix && aws_s3_bucket_public_access_block.loki.block_public_acls && aws_s3_bucket_public_access_block.loki.block_public_policy && aws_s3_bucket_public_access_block.loki.ignore_public_acls && aws_s3_bucket_public_access_block.loki.restrict_public_buckets
+    error_message = "Logging needs its own private bucket with deliberate object deletion."
+  }
+  assert {
+    condition     = one(one(aws_s3_bucket_server_side_encryption_configuration.loki.rule).apply_server_side_encryption_by_default).sse_algorithm == "AES256" && jsondecode(aws_s3_bucket_policy.loki.policy).Statement[0].Condition.Bool["aws:SecureTransport"] == "false"
+    error_message = "Log storage must encrypt at rest and deny insecure transport."
+  }
+  assert {
+    condition     = local.workload_identities["loki"] == "system:serviceaccount:foc-observability:loki" && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["loki"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc-observability:loki"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["loki"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    error_message = "Only the Helm-owned Loki service account may assume the logging role."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.loki.policy).Statement[0].Resource == "arn:aws:s3:::demo-loki" && jsondecode(aws_iam_role_policy.loki.policy).Statement[0].Action == ["s3:ListBucket"] && jsondecode(aws_iam_role_policy.loki.policy).Statement[1].Resource == "arn:aws:s3:::demo-loki/*" && toset(jsondecode(aws_iam_role_policy.loki.policy).Statement[1].Action) == toset(["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
+    error_message = "Loki may list and manage objects only in its own bucket, including compactor deletion."
   }
 }

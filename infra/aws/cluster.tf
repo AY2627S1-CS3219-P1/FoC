@@ -86,6 +86,7 @@ locals {
     order   = "system:serviceaccount:foc:order-service"
     ebs     = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
     ingress = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+    loki    = "system:serviceaccount:foc-observability:loki"
     }, var.ses_sender_email == null ? {} : {
     email = "system:serviceaccount:foc:user-service"
   })

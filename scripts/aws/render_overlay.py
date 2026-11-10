@@ -49,10 +49,13 @@ def certificate_patch():
 
 def render(config, destination, ca):
     required = ("region", "cluster_name", "vpc_id", "public_hostname", "image_prefix",
-                "order_bucket", "order_role_arn", "ingress_role_arn", "gateway_target_arn")
+                "order_bucket", "order_role_arn", "ingress_role_arn", "gateway_target_arn",
+                "loki_bucket", "loki_role_arn")
     for key in required:
         if not config.get(key):
             raise ValueError(f"Missing Terraform output: {key}")
+    if config["loki_bucket"] == config["order_bucket"] or config["loki_role_arn"] == config["order_role_arn"]:
+        raise ValueError("Loki requires its own bucket and workload role")
     ses_sender = config.get("ses_sender_email")
     ses_role = config.get("user_email_role_arn")
     if bool(ses_sender) != bool(ses_role):
@@ -70,7 +73,7 @@ def render(config, destination, ca):
     if not destination.is_relative_to(private_root):
         raise ValueError("Output must be inside this checkout's ignored .local directory")
 
-    stages = ("gateway", "dependencies", "provisioning", "initialization", "applications")
+    stages = ("gateway", "dependencies", "provisioning", "observability", "initialization", "applications")
     for stage in stages:
         directory = destination / stage
         base = ROOT / "infra/k8s/base" / stage
@@ -156,6 +159,12 @@ def render(config, destination, ca):
                         {"secretRef": {"name": "user-db"}},
                     ]
                 patches.append({"patch": json.dumps(value)})
+        if stage == "observability":
+            # Loki resources remain Helm-owned. Alloy's cross-namespace log RBAC
+            # is installed separately by the platform administrator.
+            patches.append(patch("PersistentVolumeClaim", None, [{
+                "op": "add", "path": "/spec/storageClassName", "value": "foc-gp3",
+            }]))
         if stage == "initialization":
             for service in SERVICES:
                 value = certificate_patch()
@@ -170,8 +179,12 @@ def render(config, destination, ca):
     save_kustomization(destination, {
         "apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": list(stages),
     })
-    print(f"Rendered five deployment stages in {destination}")
+    print(f"Rendered six deployment stages in {destination}")
     print(f"K8S_IMAGE_PREFIX={config['image_prefix']}")
+    print(f"K8S_LOKI_BUCKET={config['loki_bucket']}")
+    print(f"K8S_LOKI_REGION={config['region']}")
+    print(f"K8S_LOKI_IRSA_ROLE={config['loki_role_arn']}")
+    print("K8S_LOKI_STORAGE_CLASS=foc-gp3")
     print("Build for linux/amd64; choose a new immutable K8S_IMAGE_TAG for each image build.")
 
 

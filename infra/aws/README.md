@@ -20,8 +20,9 @@ prove that the school permits deployment.
 - D3: T3 standard credits avoid surplus-credit charges but can throttle sustained
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
-- D4: IRSA supplies short-lived AWS credentials only to Order, the EBS CSI driver,
-  and the load-balancer controller. Application AWS access keys are not needed.
+- D4: IRSA supplies short-lived AWS credentials to Order, Loki, the EBS CSI driver,
+  the load-balancer controller, and optionally User for SES. Each has a separate
+  workload role. Application AWS access keys are not needed.
   RDS manages the administrator password in Secrets Manager. Terraform does not
   read that password or generate SMTP/JWT/application database credentials.
 - D5: State uses a separate versioned, encrypted S3 bucket with native S3 locking.
@@ -34,6 +35,10 @@ prove that the school permits deployment.
   This does not provide TLS on every network segment. Private ingress has no
   hostname constraint because the proxy may supply an integration Host header.
   Public browser origins remain exact HTTPS origins.
+- D8: Logging follows the [Kubernetes logging ADR](../../docs/adr/0001-kubernetes-logging.md):
+  Helm owns Loki, Kustomize owns private Grafana/Alloy workloads, and the platform
+  administrator installs Alloy's log-reading RBAC. Terraform supplies a dedicated
+  private Loki bucket/IRSA role. All three logging claims use encrypted retained gp3.
 - B1: SMTP credentials, a verified SES sender, SES production approval, bootstrap
   email, expiry date, and approved AWS account must be supplied privately. These
   inputs do not block offline preparation. They block a complete deployment.
@@ -59,10 +64,10 @@ month approximation; actual billing is prorated. Recheck prices before apply.
 | NAT gateway | 240 hours x $0.059/hour | 14.16 | P1 |
 | NAT gateway public IPv4 | 240 address-hours x $0.005/hour | 1.20 | P5 |
 | Internal NLB | 240 hours x $0.0252/hour | 6.05 | P4 |
-| Worker root disks and Kafka gp3 | (2 x 20 + 5) GB x $0.096/GB-month x 10/30 | 1.44 | P1 |
+| Worker root disks, Kafka and logging gp3 | (2 x 20 + 5 + 5 + 1 + 1) GB x $0.096/GB-month x 10/30 | 1.66 | P1 |
 | RDS gp3 storage | 20 GB x $0.138/GB-month x 10/30 | 0.92 | P3 |
 | RDS-managed administrator secret | 1 secret x $0.40/month x 10/30 | 0.13 | P6 |
-| **Capacity subtotal, before usage** | **240 hours** | **161.52** | |
+| **Capacity subtotal, before usage** | **240 hours** | **161.74** | |
 
 Private workers, private RDS, and the internal NLB do not require additional
 public IPv4 addresses. Kafka compute is included in the workers, not a separate
@@ -70,6 +75,9 @@ managed Kafka service. No separate VPC Link hourly fee is assumed for this HTTP
 API integration; this is not a PrivateLink interface endpoint. NLB, request,
 and data-transfer charges still apply. No domain purchase or separate public
 certificate fee is included for API Gateway's default HTTPS endpoint.
+Loki/Grafana/Alloy compute shares the existing workers; logging adds 7 GiB of
+claims (5 GiB Loki, 1 GiB Grafana, 1 GiB Alloy), approximated as 7 GB for pricing.
+These additions reuse the dated catalog rates below, not a new price check.
 
 ### Illustrative usage, not measured traffic
 
@@ -83,20 +91,21 @@ Totals use unrounded amounts.
 | NLB capacity | 240 used NLCU-hours x $0.006 | 1.44 | P4 |
 | NAT processing | 20 GB x $0.059/GB | 1.18 | P1 |
 | HTTP API requests | 100,000 billable request units x $1.25/million | 0.13 | P7 |
-| Standard log ingestion | 5 GB x $0.70/GB | 3.50 | P8 |
-| Log storage | 1 GB x $0.03/GB-month x 10/30 | 0.01 | P8 |
+| CloudWatch log ingestion | 5 GB x $0.70/GB | 3.50 | P8 |
+| CloudWatch log storage | 1 GB x $0.03/GB-month x 10/30 | 0.01 | P8 |
 | ECR private image storage | 5 GB x $0.10/GB-month x 10/30 | 0.17 | P9 |
 | SES outbound recipients | 1,000 x $0.10/1,000 recipients | 0.10 | P10 |
 | S3 objects/state and requests | 1 GB x $0.025/GB-month x 10/30; 10,000 PUT/LIST x $0.005/1,000; 100,000 GET x $0.0004/1,000 | 0.10 | P11 |
+| Loki S3 logs and requests | 5 GB average x $0.025/GB-month x 10/30; 10,000 PUT/LIST x $0.005/1,000; 100,000 GET x $0.0004/1,000 | 0.13 | P11 |
 | Secrets Manager API calls | 100 x $0.05/10,000 calls | <0.01 | P6 |
-| **Example usage subtotal** | | **6.62** | |
-| **Capacity plus example usage** | | **168.14** | |
+| **Example usage subtotal** | | **6.75** | |
+| **Capacity plus example usage** | | **168.49** | |
 
 The accepted planning allowance is **US$200** for this light-demo scenario,
 replacing the US$150 target, which was below the capacity subtotal alone. It is
 not a cap or a claim that heavier use fits. Accepting the allowance authorizes
 planning, not provisioning; review the saved plans before approving any apply.
-Every extra full-stack day adds approximately **US$16.15 plus usage**. Budget alerts and expiry tags do not stop resources.
+Every extra full-stack day adds approximately **US$16.17 plus usage**. Budget alerts and expiry tags do not stop resources.
 
 ### Additional charges and retained data
 
@@ -112,7 +121,10 @@ Every extra full-stack day adds approximately **US$16.15 plus usage**. Budget al
   scan-on-push has no additional scan fee. The estimate assumes AWS-managed keys,
   not an extra customer-managed KMS key.
 - C4: Retained data continues billing after compute teardown. Kafka's retained
-  5 GB gp3 disk is approximately $0.48/month (P1). RDS backup storage above the
+  5 GB and logging's retained 7 GB gp3 total approximately $1.15/month (P1).
+  Loki log objects also persist after the compactor stops; seven-day retention
+  depends on a running compactor and is not an S3 teardown policy.
+  RDS backup storage above the
   included allocation, including retained final snapshots after deletion, is
   $0.095/GB-month (P3). S3 state versions, objects, and tagged ECR images persist
   until explicitly cleaned up. Deletion protection and `ExpiresOn` do not
@@ -173,6 +185,10 @@ Tests mock all AWS calls and the upstream VPC/EKS modules. They exercise root
 resource safeguards, render the actual Kubernetes bases with a non-default
 hostname, preserve the private RPC boundary, mount RDS certificates in all five
 services and migration Jobs, and preserve private database passwords on retry.
+They also invoke the actual Go operator against the generated AWS overlay.
+For the full pinned Helm/IRSA/claim rendering check, install the pinned Helm tool
+and cache the checksum-verified Loki chart, then run the overlay tests with
+`K8S_RENDER_TESTS=1`; this invokes `render observability` without a cluster.
 They do not validate upstream module internals, AWS authorization, pod injection,
 image builds, RDS SQL execution, DNS, email delivery, or actual application flows.
 An optional real PostgreSQL 16+ test runs when `AWS_SQL_TEST_SOCKET` points to a
@@ -285,6 +301,8 @@ k() { aqua exec -- kubectl --context "$K8S_CONTEXT" "$@"; }
 k apply -f infra/k8s/platform/gateway-api/standard-install.yaml
 k apply -f infra/k8s/platform/namespaces.yaml
 k apply -f infra/k8s/platform/admission.yaml
+# Administrator-owned log access is separate from release reconciliation.
+k apply -k infra/k8s/base/observability-rbac
 ISTIOCTL=$(aqua which istioctl)
 ISTIO_CHARTS="$(dirname "$(dirname "$ISTIOCTL")")/manifests/charts"
 aqua exec -- helm upgrade --install istio-base "$ISTIO_CHARTS/base" \
@@ -394,6 +412,19 @@ and unset `ses_sender_email`; removing SES does not provide an SMTP login.
 Provide the remaining Secrets through private files or the approved secret
 manager, following docs/runbooks/kubernetes.md:
 
+- `foc-observability/grafana-admin`: keys `username` and `password`, supplied by
+  the operator. Retain the credentials privately; do not store them in Terraform
+  or release configuration. Given private files containing the chosen values
+  without trailing newlines, create it with:
+
+  ```sh
+  k -n foc-observability create secret generic grafana-admin \
+    --from-file=username=.local/aws/grafana/username \
+    --from-file=password=.local/aws/grafana/password
+  ```
+
+  Existing credentials remain authoritative on retry. Grafana has no public
+  Gateway route; access it with the existing operator port-forward command.
 - `smtp` (SMTP mode only): SMTP_ADDR, SMTP_FROM, SMTP_USERNAME, SMTP_PASSWORD. Use SES port 587
   with STARTTLS. Verify an email identity in the same AWS region separately from
   Terraform, and set SMTP_FROM to that address. No domain identity is configured
@@ -439,7 +470,11 @@ information URL is not evidence that the application has been deployed.
 ECR repositories have immutable tags. Use a unique commit/build tag every time;
 rebuilding an existing tag will fail. All eight images must target linux/amd64
 because the worker nodes are x86_64, even when building on Apple Silicon.
-Set `K8S_IMAGE_PREFIX` from deployment outputs:
+Set `K8S_IMAGE_PREFIX` from deployment outputs. Export the four `K8S_LOKI_*`
+settings printed by the renderer: bucket and role come from
+`loki_bucket`/`loki_role_arn`, region matches `AWS_REGION`, and the generated
+storage class is `foc-gp3`. The renderer prints values without changing your
+shell environment. Re-export them after rerendering or changing deployments:
 
 ```sh
 aws ecr get-login-password --region "$AWS_REGION" | \
@@ -452,7 +487,7 @@ export K8S_BOOTSTRAP_SUPERADMIN_EMAIL="REPLACE_WITH_APPROVED_ADMIN_EMAIL"
 make k8s-deploy
 ```
 
-The operator applies gateway, dependencies, initialization, then applications.
+The operator applies gateway, dependencies, observability, initialization, then applications.
 Its production provisioning stage is intentionally empty. It waits for migration
 and Kafka initialization Jobs and rejects template origins/local image tags.
 Terraform does not claim that successful resource creation means FoC works.
@@ -472,6 +507,9 @@ and test Order-to-Credit versus unauthorized in-cluster callers. Inspect actual
 pod injection and storage persistence. Keep a repeatable script/report and any
 UI evidence. Existing local-only smoke checks are not proof of external HTTPS.
 The repository still explicitly does not claim the complete D3 demo workflow.
+Verify Loki's assumed role and encrypted claims, query a unique application log
+marker through authenticated Grafana, and test log readability after Loki pod
+replacement. Offline rendering does not prove S3 writes or log delivery.
 
 ## 7. Teardown after ten days (separate approval)
 
@@ -479,7 +517,7 @@ Remove the Kubernetes target binding before destroying Terraform infrastructure.
 Terraform owns API Gateway, its VPC Link, and the internal NLB. Kafka's disk is
 created by Kubernetes and is not directly tracked by this Terraform stack.
 
-1. Decide which database, images, objects, and Kafka data must be retained.
+1. Decide which database, images, objects, Kafka and logging data must be retained.
    Record snapshot IDs, bucket names, and retained disk IDs with their ongoing cost.
 2. Delete the manually managed `istio-ingress/foc-public` TargetGroupBinding
    while the load-balancer controller is still running. Wait for deregistration
@@ -489,7 +527,13 @@ created by Kubernetes and is not directly tracked by this Terraform stack.
 3. Delete Kafka's StatefulSet/PVC after the data decision. Its Retain policy
    leaves the PV/EBS disk. Explicitly preserve or delete that disk; deleting the
    EKS cluster does not dispose of it.
-4. Empty only the intended ECR repositories and S3 order bucket if their data
+   For logging, stop Alloy/Grafana, then uninstall the Helm release with
+   `helm --kube-context "$K8S_CONTEXT" uninstall loki -n foc-observability`.
+   Inventory Loki, Grafana and Alloy PVCs/PVs and their EBS IDs before deleting
+   claims: all use Retain, including Helm's Loki claim. Preserve or explicitly
+   delete those disks and Loki's S3 log objects after the data decision. Stop the
+   compactor before final object deletion; a stopped compactor performs no retention.
+4. Empty only the intended ECR repositories and S3 Order/Loki buckets if their data
    deletion was approved. Do not enable force deletion as a timeout workaround.
 5. Disable RDS deletion protection through a reviewed Terraform change/apply.
    Keep final snapshots by default. Ensure the chosen final snapshot name does

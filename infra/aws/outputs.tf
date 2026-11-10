@@ -12,6 +12,8 @@ output "deployment" {
     image_prefix        = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.name}"
     order_bucket        = aws_s3_bucket.orders.id
     order_role_arn      = aws_iam_role.order.arn
+    loki_bucket         = aws_s3_bucket.loki.id
+    loki_role_arn       = aws_iam_role.loki.arn
     ingress_role_arn    = aws_iam_role.ingress.arn
     database_host       = aws_db_instance.database.address
     database_port       = aws_db_instance.database.port
