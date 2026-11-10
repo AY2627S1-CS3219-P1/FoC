@@ -6,6 +6,7 @@
 		title,
 		label = 'Confirm',
 		busy = false,
+		danger = false,
 		onconfirm,
 		children
 	}: {
@@ -13,6 +14,8 @@
 		title: string;
 		label?: string;
 		busy?: boolean;
+		/** Style the confirm action as destructive. */
+		danger?: boolean;
 		onconfirm: () => void;
 		children: Snippet;
 	} = $props();
@@ -21,7 +24,12 @@
 {#snippet buttons()}
 	<Button type="button" variant="text" disabled={busy} onclick={() => (open = false)}>Cancel</Button
 	>
-	<Button type="button" disabled={busy} onclick={onconfirm}>{busy ? 'Working…' : label}</Button>
+	<Button
+		type="button"
+		disabled={busy}
+		style={danger ? '--m3c-primary: var(--m3c-error); --m3c-on-primary: #fff;' : undefined}
+		onclick={onconfirm}>{busy ? 'Working…' : label}</Button
+	>
 {/snippet}
 <Dialog
 	bind:open
