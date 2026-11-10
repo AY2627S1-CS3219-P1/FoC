@@ -3,7 +3,6 @@ import {
 	MODERATION_REASON_CODES,
 	isModerationReasonCode,
 	moderationReasonMessage,
-	moderationReasonMessages,
 	UNRECOGNIZED_REASON_MESSAGE
 } from './reasonMessages.ts';
 
@@ -40,10 +39,4 @@ describe('review moderation reason message mirror', () => {
 		expect(isModerationReasonCode('TOSLICK')).toBe(false);
 	});
 
-	it('preserves position when some codes are unrecognized', () => {
-		const messages = moderationReasonMessages(['HATE', 'TOSLICK', 'SPAM']);
-		expect(messages[0]).toBe('This review was removed because it contained hateful content.');
-		expect(messages[1]).toBe(UNRECOGNIZED_REASON_MESSAGE);
-		expect(messages[2]).toBe('This review was removed because it looked like spam or advertising.');
-	});
 });

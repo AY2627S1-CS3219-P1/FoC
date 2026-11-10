@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Card } from 'm3-svelte';
+	import { Card } from 'm3-svelte';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import type { Timestamp } from '@bufbuild/protobuf/wkt';
 	import type { ReviewModerationRecord } from '$lib/services/review-moderation/reviewModerationApi';

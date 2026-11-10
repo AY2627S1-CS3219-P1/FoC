@@ -9,7 +9,7 @@ export const MODERATION_REASON_CODES = [
 
 export type ModerationReasonCode = (typeof MODERATION_REASON_CODES)[number];
 
-// Keep user-facing messages aligned with moderation.ReasonMessage.
+
 const REASON_MESSAGES: Record<ModerationReasonCode, string> = {
 	HARASSMENT: 'This review was removed because it contained harassing content.',
 	HATE: 'This review was removed because it contained hateful content.',
@@ -26,8 +26,4 @@ export function isModerationReasonCode(code: string): code is ModerationReasonCo
 
 export function moderationReasonMessage(code: string): string {
 	return REASON_MESSAGES[code as ModerationReasonCode] ?? UNRECOGNIZED_REASON_MESSAGE;
-}
-
-export function moderationReasonMessages(codes: readonly string[]): string[] {
-	return codes.map((code) => moderationReasonMessage(code));
 }

@@ -1,8 +1,6 @@
-import { Code, ConnectError, createClient, createRouterTransport } from '@connectrpc/connect';
+import { Code, ConnectError } from '@connectrpc/connect';
 import type { Client } from '@connectrpc/connect';
-import type { Pagination } from '$lib/gen/pagination/v1/pagination_pb';
 import {
-	ModerationStatus,
 	ReviewService as ReviewServiceDefinition,
 	type UnpublishedReview
 } from '$lib/gen/user/review/v1/review_pb';
@@ -92,5 +90,3 @@ function jobById(
 	}
 	return best;
 }
-
-export { ModerationStatus };

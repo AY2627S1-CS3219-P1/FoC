@@ -16,7 +16,7 @@ describe('newer retry progress over the last applied error', () => {
 		const job = create(ReviewModerationJobSummarySchema, { status, runGeneration: 2, outcome: ModerationOutcomeType.APPROVED });
 		const record = mergeReviewModeration(review, job);
 		expect(presentReviewModeration(record).label).toBe(label);
-		expect(record.publicationStatus).toBe(ModerationStatus.MODERATION_ERROR);
+		expect(record.review.moderationStatus).toBe(ModerationStatus.MODERATION_ERROR);
 		expect(presentReviewModeration(record).detail).toContain('unpublished');
 	});
 	it('retains the error for stale progress', () => {

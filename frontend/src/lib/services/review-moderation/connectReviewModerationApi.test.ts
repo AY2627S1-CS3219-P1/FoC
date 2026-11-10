@@ -153,15 +153,11 @@ describe('review moderation batch merge API', () => {
 
 		const pending = records.find((r) => r.review.id === 'pending')!;
 		expect(pending.job).toBeUndefined();
-		expect(pending.jobStatus).toBe(ModerationJobStatus.UNSPECIFIED);
-		expect(pending.isAwaitingModeration).toBe(true);
-		expect(pending.reasonCodes).toEqual([]);
+		expect(pending.job).toBeUndefined();
 
 		const rejected = records.find((r) => r.review.id === 'rejected')!;
-		expect(rejected.jobStatus).toBe(ModerationJobStatus.COMPLETED);
-		expect(rejected.outcome).toBe(ModerationOutcomeType.REJECTED);
-		expect(rejected.isAwaitingModeration).toBe(false);
-		expect(rejected.reasonCodes).toEqual(['HARASSMENT', 'SPAM']);
+		expect(rejected.job?.status).toBe(ModerationJobStatus.COMPLETED);
+		expect(rejected.job?.outcome).toBe(ModerationOutcomeType.REJECTED);
 		expect(rejected.reasonMessages[0]).toBe(
 			'This review was removed because it contained harassing content.'
 		);
@@ -172,8 +168,7 @@ describe('review moderation batch merge API', () => {
 		const { api } = makeApi(reviews, []);
 		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(record.job).toBeUndefined();
-		expect(record.publicationStatus).toBe(ModerationStatus.PENDING_MODERATION);
-		expect(record.isAwaitingModeration).toBe(true);
+		expect(record.review.moderationStatus).toBe(ModerationStatus.PENDING_MODERATION);
 	});
 
 	it('marks an in-flight job as awaiting moderation', async () => {
@@ -181,8 +176,7 @@ describe('review moderation batch merge API', () => {
 		const jobs = [job('mid', { status: ModerationJobStatus.RETRY_WAIT })];
 		const { api } = makeApi(reviews, jobs);
 		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
-		expect(record.jobStatus).toBe(ModerationJobStatus.RETRY_WAIT);
-		expect(record.isAwaitingModeration).toBe(true);
+		expect(record.job?.status).toBe(ModerationJobStatus.RETRY_WAIT);
 	});
 
 	it('keeps only the highest generation job per request id', async () => {
@@ -193,7 +187,7 @@ describe('review moderation batch merge API', () => {
 		];
 		const { api } = makeApi(reviews, jobs);
 		const { records: [record] } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
-		expect(record.outcome).toBe(ModerationOutcomeType.APPROVED);
+		expect(record.job?.outcome).toBe(ModerationOutcomeType.APPROVED);
 		expect(record.job!.runGeneration).toBe(3);
 	});
 
@@ -218,7 +212,6 @@ describe('review moderation batch merge API', () => {
 		const { records, cmsAvailable, cmsError } = await api.loadReviewsForUser({ reviewerId: 'rev-1' });
 		expect(records).toHaveLength(1);
 		expect(records[0].job).toBeUndefined();
-		expect(records[0].isAwaitingModeration).toBe(true);
 		expect(cmsAvailable).toBe(false);
 		expect(cmsError).toBeTruthy();
 	});

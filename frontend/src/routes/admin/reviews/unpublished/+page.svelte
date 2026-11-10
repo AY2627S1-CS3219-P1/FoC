@@ -3,7 +3,6 @@
 	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { create } from '@bufbuild/protobuf';
-	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
 	import { PaginationSchema } from '$lib/gen/pagination/v1/pagination_pb';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import UnpublishedReviewList from '$lib/components/review-moderation/UnpublishedReviewList.svelte';

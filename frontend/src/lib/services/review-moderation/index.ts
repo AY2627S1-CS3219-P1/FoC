@@ -1,7 +1,6 @@
 import { createClient, type Transport } from '@connectrpc/connect';
 import {
-	ReviewService as ReviewServiceDefinition,
-	type ModerationStatus
+	ReviewService as ReviewServiceDefinition
 } from '$lib/gen/user/review/v1/review_pb';
 import {
 	ReviewModerationService as ReviewModerationServiceDefinition
@@ -19,7 +18,6 @@ export function createReviewModerationService(
 }
 
 export type { ReviewModerationService };
-export type { ModerationStatus };
 export type {
 	ReviewModerationApi,
 	ReviewModerationRecord,
