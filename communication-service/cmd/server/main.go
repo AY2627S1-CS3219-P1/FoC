@@ -301,12 +301,18 @@ func startNotifications(
 	}
 	deliveries := &notify.PostgresDeliveries{Queries: db.New(pool)}
 	emails := &users.PostgresStore{Queries: db.New(pool)}
+	var emailQueue notify.EmailQueue
+	if mailer != nil {
+		queue := &notify.PostgresEmailQueue{Pool: pool}
+		emailQueue = queue
+		worker := &notify.EmailWorker{Queue: queue, Sender: mailer, Log: log, Now: time.Now}
+		workers.Go(func() { worker.Run(ctx) })
+	}
 	handler := &notify.Handler{
 		Links:        links,
 		Deliveries:   deliveries,
 		Orders:       chats,
-		Email:        mailer,
-		Emails:       emails,
+		EmailQueue:   emailQueue,
 		ReplyTargets: chats,
 		Log:          log,
 		Now:          time.Now,

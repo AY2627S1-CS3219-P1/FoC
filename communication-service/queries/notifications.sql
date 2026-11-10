@@ -1,6 +1,9 @@
--- name: NotificationSent :one
+-- name: NotificationAccepted :one
+-- One snapshot sees either the queued email or its committed sent record.
 SELECT EXISTS (
-    SELECT 1 FROM order_notifications_sent WHERE event_id = sqlc.arg(event_id) AND user_id = sqlc.arg(user_id)
+    SELECT 1 FROM order_notifications_sent s WHERE s.event_id = sqlc.arg(event_id) AND s.user_id = sqlc.arg(user_id)
+    UNION ALL
+    SELECT 1 FROM notification_emails n WHERE n.event_id = sqlc.arg(event_id) AND n.user_id = sqlc.arg(user_id)
 );
 
 -- name: RecordNotificationSent :exec

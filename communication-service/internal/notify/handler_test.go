@@ -6,14 +6,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/textproto"
 	"testing"
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
-	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/users"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 	"github.com/google/uuid"
@@ -89,7 +87,7 @@ func (f *fakeOrders) Revision(_ context.Context, id uuid.UUID) (int64, bool, err
 
 type fakeDeliveries map[[2]uuid.UUID]bool
 
-func (f fakeDeliveries) HasBeenSent(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
+func (f fakeDeliveries) HasBeenAccepted(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
 	return f[[2]uuid.UUID{eventID, userID}], nil
 }
 
@@ -348,77 +346,90 @@ func (f *fakeMailer) Send(_ context.Context, e email.Email) error {
 	return nil
 }
 
-type fakeEmails map[uuid.UUID]string
-
-func (f fakeEmails) Email(_ context.Context, userID uuid.UUID) (string, error) {
-	if address, ok := f[userID]; ok {
-		return address, nil
-	}
-	return "", users.ErrNotFound
+type queuedEmail struct {
+	eventID uuid.UUID
+	userID  uuid.UUID
+	text    string
 }
 
-// withEmail gives the handler email, with the requester unlinked from Telegram.
-func withEmail(h *Handler, links *fakeLinks) *fakeMailer {
-	mailer := &fakeMailer{}
-	h.Email, h.Emails = mailer, fakeEmails{requesterID: "alice@foc.local", courierID: "ben@foc.local"}
+type fakeEmailQueue struct {
+	queued []queuedEmail
+	err    error
+}
+
+func (f *fakeEmailQueue) Enqueue(_ context.Context, eventID, userID uuid.UUID, text string, _ time.Time) error {
+	if f.err != nil {
+		return f.err
+	}
+	for _, queued := range f.queued {
+		if queued.eventID == eventID && queued.userID == userID {
+			return nil
+		}
+	}
+	f.queued = append(f.queued, queuedEmail{eventID, userID, text})
+	return nil
+}
+
+// withEmail enables durable fallback with the requester unlinked from Telegram.
+func withEmail(h *Handler, links *fakeLinks) *fakeEmailQueue {
+	queue := &fakeEmailQueue{}
+	h.EmailQueue = queue
 	delete(links.chats, requesterID)
-	return mailer
+	return queue
 }
 
 func outcome() *eventsv1.OrderStatusChanged {
 	return event(eventsv1.OrderStatus_ORDER_STATUS_DELIVERED, eventsv1.OrderStatus_ORDER_STATUS_COMPLETED, system)
 }
 
-func TestHandleEmailsOutcomesToUsersWithoutTelegram(t *testing.T) {
+func TestHandleQueuesOutcomesWithoutNeedingTheUserEmail(t *testing.T) {
 	h, sender, links, deliveries := newHandler()
-	mailer := withEmail(h, links)
-	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
-		t.Fatal(err)
+	queue := withEmail(h, links)
+	for range 2 {
+		if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if len(mailer.sent) != 1 || mailer.sent[0].To[0] != "alice@foc.local" ||
-		mailer.sent[0].TextBody[:len("Your order from Fine Food is complete.")] != "Your order from Fine Food is complete." {
-		t.Fatalf("emails = %+v", mailer.sent)
+	if len(queue.queued) != 1 || queue.queued[0].eventID != eventID || queue.queued[0].userID != requesterID ||
+		queue.queued[0].text != "Your order from Fine Food is complete." {
+		t.Fatalf("queued = %+v", queue.queued)
 	}
 	if len(sender.sent) != 1 || sender.sent[0].chatID != 2 {
 		t.Fatalf("telegram = %+v", sender.sent)
 	}
-	if !deliveries[[2]uuid.UUID{eventID, requesterID}] {
-		t.Fatal("the email was not recorded as sent")
-	}
-	// A replay doesn't email again.
-	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil || len(mailer.sent) != 1 {
-		t.Fatalf("replay: err=%v emails=%d", err, len(mailer.sent))
+	if deliveries[[2]uuid.UUID{eventID, requesterID}] {
+		t.Fatal("an unsent email was recorded as sent")
 	}
 }
 
 func TestHandleDoesNotEmailProgressUpdates(t *testing.T) {
 	h, _, links, _ := newHandler()
-	mailer := withEmail(h, links)
+	queue := withEmail(h, links)
 	e := event(
 		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
 		eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
 		user(courierID),
 	)
-	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil || len(mailer.sent) != 0 {
-		t.Fatalf("err=%v emails=%+v", err, mailer.sent)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil || len(queue.queued) != 0 {
+		t.Fatalf("err=%v queued=%+v", err, queue.queued)
 	}
 }
 
-func TestHandleEmailsEveryoneWhileTelegramIsDisabled(t *testing.T) {
+func TestHandleQueuesEveryoneWhileTelegramIsDisabled(t *testing.T) {
 	h, _, links, _ := newHandler()
-	mailer := withEmail(h, links)
+	queue := withEmail(h, links)
 	h.Sender = nil
 	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
 		t.Fatal(err)
 	}
-	if len(mailer.sent) != 2 {
-		t.Fatalf("emails = %+v", mailer.sent)
+	if len(queue.queued) != 2 {
+		t.Fatalf("queued = %+v", queue.queued)
 	}
 }
 
-func TestHandleEmailsWhenTheTelegramChatIsGone(t *testing.T) {
+func TestHandleQueuesEmailWhenTheTelegramChatIsGone(t *testing.T) {
 	h, sender, links, _ := newHandler()
-	mailer := withEmail(h, links)
+	queue := withEmail(h, links)
 	sender.errs[2] = &telegram.APIError{
 		Code:        http.StatusForbidden,
 		Description: "Forbidden: bot was blocked by the user",
@@ -426,38 +437,19 @@ func TestHandleEmailsWhenTheTelegramChatIsGone(t *testing.T) {
 	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
 		t.Fatal(err)
 	}
-	if len(links.unlinked) != 1 || len(mailer.sent) != 2 || mailer.sent[1].To[0] != "ben@foc.local" {
-		t.Fatalf("unlinked=%v emails=%+v", links.unlinked, mailer.sent)
+	if len(links.unlinked) != 1 || len(queue.queued) != 2 || queue.queued[1].userID != courierID {
+		t.Fatalf("unlinked=%v queued=%+v", links.unlinked, queue.queued)
 	}
 }
 
-func TestHandleEmailFailures(t *testing.T) {
-	cases := []struct {
-		name     string
-		emails   fakeEmails
-		err      error
-		wantErr  bool
-		recorded bool
-	}{
-		{"no stored email", fakeEmails{}, nil, false, false},
-		{"mail server down", nil, errors.New("email: dial mailpit:1025: connection refused"), true, false},
-		{"recipient rejected", nil, &textproto.Error{Code: 550, Msg: "no such user"}, false, false},
+func TestHandleReplaysWhenEmailCannotBePersisted(t *testing.T) {
+	h, sender, links, deliveries := newHandler()
+	queue := withEmail(h, links)
+	queue.err = errors.New("database unavailable")
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err == nil {
+		t.Fatal("email was acknowledged without being persisted")
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h, _, links, deliveries := newHandler()
-			mailer := withEmail(h, links)
-			mailer.err = tc.err
-			if tc.emails != nil {
-				h.Emails = tc.emails
-			}
-			err := h.Handle(context.Background(), kafka.Metadata{}, outcome())
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
-			}
-			if deliveries[[2]uuid.UUID{eventID, requesterID}] != tc.recorded {
-				t.Fatalf("recorded = %v", deliveries)
-			}
-		})
+	if len(queue.queued) != 0 || len(sender.sent) != 0 || len(deliveries) != 0 {
+		t.Fatalf("queued=%+v sent=%+v deliveries=%+v", queue.queued, sender.sent, deliveries)
 	}
 }

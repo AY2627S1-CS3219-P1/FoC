@@ -21,9 +21,20 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 
 The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
 
-- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. A user with no stored email is skipped. A permanent SMTP rejection (5xx) is logged and skipped; other SMTP errors pause and retry the consumer like a Telegram outage.
+- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary SMTP failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) remain recorded as `rejected` with their error and attempt time.
 
-- **At least once.** After each send, `order_notifications_sent` records the event and recipient, and a redelivered event skips recorded recipients. A crash between sending and recording can repeat one message.
+- **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
+
+Pending emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
+
+```sql
+SELECT n.status, (u.user_id IS NULL) AS missing_email,
+       count(*) AS notifications, min(n.created_at) AS oldest
+FROM notification_emails n
+LEFT JOIN user_emails u ON u.user_id = n.user_id
+GROUP BY n.status, (u.user_id IS NULL);
+```
+
 - **Each notification has a delivery class.** It decides what happens when a message can't go out promptly, during an outage, retries or a consumer restart:
 
   | Class | Notifications |
@@ -125,7 +136,7 @@ TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=dis
 docker rm -f communication-test-db
 ```
 
-The notifications test also needs a broker with the `order.status_changed` topic. It runs the consumer against a fake Telegram API that fails the first send, then checks the replay sends once:
+The notification tests also need a dedicated broker with `order.status_changed` and `users.create` provisioned. They check Telegram replay after a failed send, and commit an outcome before its user's event, restart the consumer, then verify the later projection delivers exactly one email across an outcome replay. PostgreSQL tests cover missing-user isolation, retries, recorded rejections, concurrent workers, cancellation, atomic completion and migration down/up.
 
 ```sh
 TEST_DATABASE_URL='postgres://postgres:test@localhost:55432/postgres?sslmode=disable' \

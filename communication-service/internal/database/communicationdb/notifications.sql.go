@@ -12,19 +12,22 @@ import (
 	"github.com/google/uuid"
 )
 
-const notificationSent = `-- name: NotificationSent :one
+const notificationAccepted = `-- name: NotificationAccepted :one
 SELECT EXISTS (
-    SELECT 1 FROM order_notifications_sent WHERE event_id = $1 AND user_id = $2
+    SELECT 1 FROM order_notifications_sent s WHERE s.event_id = $1 AND s.user_id = $2
+    UNION ALL
+    SELECT 1 FROM notification_emails n WHERE n.event_id = $1 AND n.user_id = $2
 )
 `
 
-type NotificationSentParams struct {
+type NotificationAcceptedParams struct {
 	EventID uuid.UUID
 	UserID  uuid.UUID
 }
 
-func (q *Queries) NotificationSent(ctx context.Context, arg NotificationSentParams) (bool, error) {
-	row := q.db.QueryRow(ctx, notificationSent, arg.EventID, arg.UserID)
+// One snapshot sees either the queued email or its committed sent record.
+func (q *Queries) NotificationAccepted(ctx context.Context, arg NotificationAcceptedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, notificationAccepted, arg.EventID, arg.UserID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
