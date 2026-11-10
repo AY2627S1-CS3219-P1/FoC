@@ -21,6 +21,7 @@
 	import { reviewSchema } from '$lib/services/review/reviewSchema';
 	import PhotoUploader from '$lib/components/photo-uploader/PhotoUploader.svelte';
 	import ReviewPhotos from '$lib/components/review/ReviewPhotos.svelte';
+	import ReviewStatusChip from '$lib/components/review-moderation/ReviewStatusChip.svelte';
 
 	// Review card at the bottom of a request page: the caller's stored review or
 	// the form that creates it.
@@ -248,16 +249,23 @@
 				<Button variant="outlined" onclick={() => reviewRevision++}>Try again</Button>
 			{:else if myReview}
 				<header class="title">
-					<h2 id="review-heading" tabindex="-1">
-						Your review
-						{#if myReview.moderationStatus !== ModerationStatus.APPROVED}
-							<span>{myReview.moderationStatus === ModerationStatus.REJECTED ? '[rejected]' : '[pending]'}</span>
-						{/if}
-					</h2>
+					<h2 id="review-heading" tabindex="-1">Your review</h2>
 					<p class="sub">
 						{myReview.createdAt
 							? `${reviewDate.format(new Date(myReview.createdAt))} · `
 							: ''}about the {revieweeRole}
+						{#if myReview.moderationStatus !== ModerationStatus.APPROVED}
+							<ReviewStatusChip
+								label={myReview.moderationStatus === ModerationStatus.REJECTED
+									? 'Rejected'
+									: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+										? 'Assessment error' : 'Awaiting assessment'}
+								tone={myReview.moderationStatus === ModerationStatus.REJECTED
+									? 'rejected'
+									: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+										? 'error' : 'pending'}
+							/>
+						{/if}
 					</p>
 				</header>
 				<p class="review-rating" role="img" aria-label={`Rated ${myReview.rating} out of 5`}>

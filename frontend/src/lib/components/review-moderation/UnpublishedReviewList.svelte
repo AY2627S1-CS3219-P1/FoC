@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Card } from 'm3-svelte';
+	import ReviewStatusChip from './ReviewStatusChip.svelte';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import type { Timestamp } from '@bufbuild/protobuf/wkt';
 	import type { ReviewModerationRecord } from '$lib/services/review-moderation/reviewModerationApi';
@@ -21,7 +22,7 @@
 			<Card variant="outlined">
 				<div class="review-body" data-tone={view.tone}>
 					<header class="review-heading">
-						<span class="status-chip" data-tone={view.tone}>{view.label}</span>
+						<ReviewStatusChip label={view.label} tone={view.tone} />
 						<span class="review-meta">
 							{record.review.rating}/5 · {formatDate(record.review.createdAt)}
 						</span>
@@ -69,28 +70,5 @@
 		margin: 0;
 		font-size: 0.9rem;
 		color: var(--md-sys-color-on-surface-variant, #5f6368);
-	}
-	.status-chip {
-		display: inline-block;
-		padding: 0.2rem 0.75rem;
-		border-radius: 999px;
-		font-size: 0.8rem;
-		font-weight: 600;
-	}
-	.status-chip[data-tone='pending'] {
-		background: var(--md-sys-color-secondary-container, #e8def8);
-		color: var(--md-sys-color-on-secondary-container, #1d192b);
-	}
-	.status-chip[data-tone='approved'] {
-		background: var(--md-sys-color-primary-container, #d7e3ff);
-		color: var(--md-sys-color-on-primary-container, #001b3f);
-	}
-	.status-chip[data-tone='rejected'] {
-		background: var(--md-sys-color-error-container, #f9dedc);
-		color: var(--md-sys-color-on-error-container, #410e0b);
-	}
-	.status-chip[data-tone='error'] {
-		background: var(--md-sys-color-tertiary-container, #ffd8e4);
-		color: var(--md-sys-color-on-tertiary-container, #31111d);
 	}
 </style>
