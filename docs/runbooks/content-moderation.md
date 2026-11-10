@@ -50,8 +50,9 @@ The overlay sets the public CMS URL and mounts the RDS CA in CMS and its migrati
 ### 3. Provision the service database and database Secret
 
 Use the **same retained** `.local/aws/db` directory on retries. The preparer
-preserves existing credentials and adds `foc_content_moderation` / `content_moderation_db`, with
-a `content-moderation-db` Secret containing its TLS-verified `DATABASE_URL`.
+preserves existing credentials and gives CMS `foc_content_moderation` / `content_moderation_db`,
+with a `content-moderation-db` Secret containing its TLS-verified `DATABASE_URL`. A
+new installation creates them; an upgrade renames CMS's original database (below).
 
 ```sh
 DATABASE_SECRET_ARN=$(python3 -c 'import json; print(json.load(open(".local/aws/deployment.json"))["database_secret_arn"])')
