@@ -10,6 +10,7 @@ import (
 	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserCreatedOutbox struct{ db *gorm.DB }
@@ -19,7 +20,21 @@ func NewUserCreatedOutbox(db *gorm.DB) *UserCreatedOutbox {
 }
 
 func (s *UserCreatedOutbox) Append(ctx context.Context, event userdomain.CreatedEvent) error {
-	row := models.UserCreatedOutbox{
+	row := userCreatedOutboxRow(event)
+	return s.db.WithContext(ctx).Create(&row).Error
+}
+
+// AppendIfMissing appends event unless the user already has a user-created
+// event, published or not, so repeated calls never queue a second fact.
+func (s *UserCreatedOutbox) AppendIfMissing(ctx context.Context, event userdomain.CreatedEvent) error {
+	row := userCreatedOutboxRow(event)
+	return s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoNothing: true}).
+		Create(&row).Error
+}
+
+func userCreatedOutboxRow(event userdomain.CreatedEvent) models.UserCreatedOutbox {
+	return models.UserCreatedOutbox{
 		EventID:        event.EventID,
 		UserID:         event.UserID,
 		Email:          event.Email,
@@ -27,7 +42,6 @@ func (s *UserCreatedOutbox) Append(ctx context.Context, event userdomain.Created
 		UserCreatedAt:  event.CreatedAt,
 		PayloadVersion: 1,
 	}
-	return s.db.WithContext(ctx).Create(&row).Error
 }
 
 func (s *UserCreatedOutbox) Claim(ctx context.Context, eligibleAt, leaseUntil time.Time) (*outbox.Fact, error) {

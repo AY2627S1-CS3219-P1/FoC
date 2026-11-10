@@ -169,6 +169,13 @@ the configured email does not create a second first admin, and bootstrap does
 not undo a later role demotion. Never delete the bootstrap row to make a test
 pass.
 
+Bootstrap also queues the superadmin's user-created event, so Credit opens
+their account with the starting credits. A superadmin bootstrapped before this
+had no Credit account. Redeploy with `K8S_BOOTSTRAP_SUPERADMIN_EMAIL` set to any
+address: User restarts, finds the existing bootstrap row and queues the missing
+event for the original superadmin. No second admin is created and existing
+balances are unchanged.
+
 Sign in through the normal magic-link flow. Mailpit receives local SMTP at
 `mailpit:1025`; its web UI is port-forwarded only. Production omits Mailpit and
 requires operator-provided SMTP credentials compatible with the existing sender.
