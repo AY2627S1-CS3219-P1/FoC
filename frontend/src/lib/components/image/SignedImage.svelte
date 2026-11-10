@@ -2,12 +2,12 @@
 	import type { Snippet } from 'svelte';
 	import type { ImageGrant, RefreshImageGrant } from './types';
 
-	let {
-		objectId, initialGrant, refresh, sessionKey, alt,
-		loading = 'lazy', fit = 'cover', fallback
-	}: {
+	type Props = {
+		/** Stable application ID, independent of the signed URL. */
 		objectId: string;
+		/** Use this URL first; refresh on a load error rather than an expiry timer. */
 		initialGrant?: ImageGrant;
+		/** The parent supplies the domain API call, including authentication. */
 		refresh: RefreshImageGrant;
 		/** Stable caller identity/role; access-token rotation must not reset retries. */
 		sessionKey?: string;
@@ -15,59 +15,114 @@
 		loading?: 'lazy' | 'eager';
 		fit?: 'cover' | 'contain';
 		fallback?: Snippet;
-	} = $props();
+	};
 
-	// Each effect owns its request, grant and single retry budget. Neither an old
-	// image event nor a late RPC may mutate a newer image/session.
-	let attempt = $state<{ url?: string; failed: boolean; recover: () => void }>();
+	let {
+		objectId,
+		initialGrant,
+		refresh,
+		sessionKey,
+		alt,
+		loading = 'lazy',
+		fit = 'cover',
+		fallback
+	}: Props = $props();
+
+	type ImageDisplayState = {
+		url?: string;
+		failed: boolean;
+		retryWithFreshGrant: () => void;
+	};
+
+	// Rendering has three states: an image URL, a loading placeholder (no URL),
+	// or a terminal fallback (failed). Each update creates a new state object.
+	let displayState = $state<ImageDisplayState>();
+
 	$effect(() => {
-		const id = objectId;
+		const imageId = objectId;
 		const initial = initialGrant;
-		const callback = refresh;
-		void sessionKey;
-		const controller = new AbortController();
-		let used = false;
-		const current = { url: initial?.url, failed: false, recover };
-		attempt = current;
+		const requestGrant = refresh;
 
-		function recover() {
-			if (controller.signal.aborted) return;
-			if (used) {
-				attempt = { ...current, failed: true };
-				return;
-			}
-			used = true;
-			// Clear src while waiting, so repeated events from the old img cannot
-			// consume the retry intended for the replacement image.
-			attempt = { ...current, url: undefined };
-			void Promise.resolve().then(() => callback(id, controller.signal)).then((grant) => {
+		// Read this prop so a user/role change also restarts the effect, even if
+		// the image ID and initial URL stay the same.
+		void sessionKey;
+
+		// This effect owns one refresh budget and request. Cleanup aborts it on
+		// prop changes or unmount; late results cannot update the next image.
+		const controller = new AbortController();
+		let hasRequestedFreshGrant = false;
+		const imageState: ImageDisplayState = {
+			url: initial?.url,
+			failed: false,
+			retryWithFreshGrant
+		};
+		displayState = imageState;
+
+		async function loadFreshGrant() {
+			try {
+				const grant = await requestGrant(imageId, controller.signal);
 				if (controller.signal.aborted) return;
 				if (!grant.url) throw new Error('Missing image URL');
-				current.url = grant.url;
-				attempt = { ...current };
-			}).catch(() => {
-				if (!controller.signal.aborted) attempt = { ...current, failed: true };
-			});
+
+				imageState.url = grant.url;
+				displayState = { ...imageState };
+			} catch {
+				if (controller.signal.aborted) return;
+				displayState = { ...imageState, failed: true };
+			}
 		}
 
-		if (!initial?.url) recover();
+		function retryWithFreshGrant() {
+			if (controller.signal.aborted) return;
+
+			// A failed replacement image ends at the fallback, never another RPC.
+			if (hasRequestedFreshGrant) {
+				displayState = { ...imageState, failed: true };
+				return;
+			}
+			hasRequestedFreshGrant = true;
+
+			// Remove the old <img> while fetching. Its remaining error events must
+			// not consume the retry intended for the replacement image.
+			displayState = { ...imageState, url: undefined };
+
+			// Defer the callback so its reactive reads are outside this effect's
+			// dependency tracking. Both thrown errors and rejected requests are
+			// handled by loadFreshGrant.
+			void Promise.resolve().then(loadFreshGrant);
+		}
+
+		// Viewers may have no initial grant. Their first fetch uses the same
+		// single-request budget as recovery from a failed thumbnail URL.
+		if (!initial?.url) retryWithFreshGrant();
+
 		return () => controller.abort();
 	});
 </script>
 
-{#if attempt?.failed}
+{#if displayState?.failed}
 	<span class="fallback" role="img" aria-label={`${alt} is unavailable`}>
-		{#if fallback}{@render fallback()}{:else}Photo unavailable{/if}
+		{#if fallback}
+			{@render fallback()}
+		{:else}
+			Photo unavailable
+		{/if}
 	</span>
-{:else if attempt?.url}
-	{#key attempt}
-		{@const imageAttempt = attempt}
+{:else if displayState?.url}
+	<!-- Recreate the image for each state update. The captured state lets us
+	     ignore an error delivered by an image that has already been replaced. -->
+	{#key displayState}
+		{@const renderedState = displayState}
 		<img
-			src={attempt.url}
+			src={renderedState.url}
 			{alt}
 			{loading}
 			referrerpolicy="no-referrer"
-			onerror={() => { if (attempt === imageAttempt) imageAttempt.recover(); }}
+			onerror={() => {
+				if (displayState === renderedState) {
+					renderedState.retryWithFreshGrant();
+				}
+			}}
 			style:object-fit={fit}
 		/>
 	{/key}
@@ -76,6 +131,17 @@
 {/if}
 
 <style>
-	img { width: 100%; height: 100%; display: block; }
-	.fallback { display: grid; place-items: center; width: 100%; height: 100%; color: var(--m3c-on-surface-variant); }
+	img {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+
+	.fallback {
+		display: grid;
+		place-items: center;
+		width: 100%;
+		height: 100%;
+		color: var(--m3c-on-surface-variant);
+	}
 </style>
