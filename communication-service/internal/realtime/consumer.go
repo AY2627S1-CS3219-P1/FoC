@@ -3,8 +3,6 @@ package realtime
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"time"
 
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/communication/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
@@ -59,44 +57,4 @@ func (c *Consumer) Order(ctx context.Context, _ kafka.Metadata, e *orders.OrderC
 		)
 	}
 	return nil
-}
-
-func (c *Consumer) Run(ctx context.Context, brokers []string, group string) {
-	delay := time.Second
-	for ctx.Err() == nil {
-		subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: group})
-		if err == nil {
-			err = kafka.Register(
-				subscriber,
-				"credit.account_changed",
-				func() *credits.AccountChanged { return new(credits.AccountChanged) },
-				c.Account,
-			)
-		}
-		if err == nil {
-			err = kafka.Register(
-				subscriber,
-				"order.changed",
-				func() *orders.OrderChanged { return new(orders.OrderChanged) },
-				c.Order,
-			)
-		}
-		started := time.Now()
-		if err == nil {
-			err = subscriber.Run(ctx)
-		}
-		if ctx.Err() != nil {
-			return
-		}
-		slog.WarnContext(ctx, "Live update consumer restarting", "error", err, "delay", delay)
-		if time.Since(started) > time.Minute {
-			delay = time.Second
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(delay):
-		}
-		delay = min(delay*2, 30*time.Second)
-	}
 }

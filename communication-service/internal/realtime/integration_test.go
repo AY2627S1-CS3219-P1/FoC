@@ -61,9 +61,26 @@ func TestKafkaChangesReachBothReplicasAndRecover(t *testing.T) {
 	}
 	consumerCtx, stopConsumer := context.WithCancel(ctx)
 	defer stopConsumer()
+	consumer := &Consumer{Fanout: fanouts[0]}
+	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{
+		Brokers: []string{broker}, GroupID: "realtime-test-" + uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := kafka.Register(subscriber, "credit.account_changed",
+		func() *credits.AccountChanged { return new(credits.AccountChanged) }, consumer.Account); err != nil {
+		t.Fatal(err)
+	}
+	if err := kafka.Register(subscriber, "order.changed",
+		func() *orders.OrderChanged { return new(orders.OrderChanged) }, consumer.Order); err != nil {
+		t.Fatal(err)
+	}
 	consumed := make(chan struct{})
 	go func() {
-		(&Consumer{Fanout: fanouts[0]}).Run(consumerCtx, []string{broker}, "realtime-test-"+uuid.NewString())
+		if err := subscriber.Run(consumerCtx); err != nil && consumerCtx.Err() == nil {
+			t.Error(err)
+		}
 		close(consumed)
 	}()
 	defer func() { stopConsumer(); <-consumed }()
