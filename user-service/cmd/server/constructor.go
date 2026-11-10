@@ -101,9 +101,14 @@ func newEvidenceService(sqlDB *sql.DB, storage *images.S3) *evidence.Service {
 
 // newReportService reads through the shared pool and closes reports in a GORM
 // transaction, so outcomes reuse the role, warning and review domains.
-func newReportService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *report.Service {
+func newReportService(
+	db *gorm.DB,
+	sqlDB *sql.DB,
+	images *evidence.Service,
+	orderGateway orders.Gateway,
+) *report.Service {
 	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
-	return report.NewService(repo, reportoutcome.WithTransaction(db), images)
+	return report.NewService(repo, reportoutcome.WithTransaction(db), images, orderGateway)
 }
 
 // newAppealService closes appeals in a GORM transaction, so overturned

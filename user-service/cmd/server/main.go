@@ -121,7 +121,7 @@ func main() {
 	orderGateway := newOrderGateway(cfg)
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg, orderGateway)
 	evidenceLogic := newEvidenceService(sqlDB, reviewPhotos)
-	reportLogic := newReportService(db, sqlDB, evidenceLogic)
+	reportLogic := newReportService(db, sqlDB, evidenceLogic, orderGateway)
 	appealLogic := newAppealService(db, sqlDB, evidenceLogic)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},

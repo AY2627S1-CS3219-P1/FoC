@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ type integration struct {
 	ctx     context.Context
 	sqlDB   *sql.DB
 	service *report.Service
+	orders  testOrders
 	admin   uuid.UUID
 }
 
@@ -48,22 +50,26 @@ func setupIntegration(t *testing.T) integration {
 		t.Fatal(err)
 	}
 
+	known := testOrders{}
 	it := integration{
 		t:       t,
 		ctx:     context.Background(),
 		sqlDB:   sqlDB,
-		service: newService(db, sqlDB),
+		service: newService(db, sqlDB, known),
+		orders:  known,
 	}
 	it.admin = it.user("Admin", "admin")
 	return it
 }
 
-// newService wires the report service exactly as the composition root does.
-func newService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
+// newService wires the report service as the composition root does, with
+// known orders in place of Order Service.
+func newService(db *gorm.DB, sqlDB *sql.DB, known orders.Gateway) *report.Service {
 	return report.NewService(
 		report.NewPostgresRepository(reportdb.New(sqlDB)),
 		reportoutcome.WithTransaction(db),
 		evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), nil),
+		known,
 	)
 }
 
@@ -134,7 +140,7 @@ func TestReportLifecycleIntegration(t *testing.T) {
 
 	requester := it.user("Requester", "user")
 	courier := it.user("Courier", "user")
-	orderID := uuid.New()
+	orderID := it.order(requester, courier)
 
 	// Submission and participant visibility (RP1, RP4)
 
@@ -213,7 +219,7 @@ func TestReportSuspensionOutcomeIntegration(t *testing.T) {
 
 	reporter := it.user("Reporter", "user")
 	subject := it.user("Subject", "user")
-	submitted := it.submit(reporter, report.OrderTarget(uuid.New(), subject))
+	submitted := it.submit(reporter, report.OrderTarget(it.order(reporter, subject), subject))
 
 	if _, err := it.service.CloseReport(it.ctx, it.admin, submitted.ID, report.OutcomeSuspension, "fraud"); err != nil {
 		t.Fatal(err)
@@ -231,7 +237,7 @@ func TestReportSuspensionOutcomeIntegration(t *testing.T) {
 	}
 
 	// A consequence the role rules reject rolls back the whole close.
-	other := it.submit(reporter, report.OrderTarget(uuid.New(), subject))
+	other := it.submit(reporter, report.OrderTarget(it.order(reporter, subject), subject))
 	_, err := it.service.CloseReport(it.ctx, it.admin, other.ID, report.OutcomeSuspension, "again")
 	wantStatus(t, err, http.StatusPreconditionFailed)
 	if n := it.count("SELECT count(*) FROM user_reports WHERE id = $1 AND status = 'open'", other.ID); n != 1 {
@@ -291,4 +297,22 @@ func TestReportWarningUsesReviewOrderIntegration(t *testing.T) {
 	); n != 1 {
 		t.Fatal("warning did not record the review's order")
 	}
+}
+
+// testOrders stands in for Order Service, answering for registered orders.
+type testOrders map[uuid.UUID]orders.Participants
+
+func (o testOrders) GetOrderParticipants(_ context.Context, id uuid.UUID) (orders.Participants, error) {
+	participants, ok := o[id]
+	if !ok {
+		return orders.Participants{}, orders.ErrNotFound
+	}
+	return participants, nil
+}
+
+// order registers an order between requester and courier.
+func (it integration) order(requester, courier uuid.UUID) uuid.UUID {
+	id := uuid.New()
+	it.orders[id] = orders.Participants{RequesterID: requester, CourierID: courier, Completed: true}
+	return id
 }
