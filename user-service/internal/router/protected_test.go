@@ -88,7 +88,14 @@ func (a adminStub) GetUserByEmail(context.Context, uuid.UUID, string) (models.Us
 	return a.user, nil
 }
 
-func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string) (models.User, error) {
+func (a adminStub) ChangeUserRole(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	models.RoleName,
+	string,
+	*uuid.UUID,
+) (models.User, error) {
 	return a.user, nil
 }
 
@@ -135,6 +142,14 @@ func (reviewStub) ListUnpublishedReviewsForUser(
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
 
 func (reviewStub) ListReviewRemovals(context.Context, pagination.Pagination) (review.RemovalPage, error) {
+	return review.RemovalPage{}, nil
+}
+
+func (reviewStub) GetReview(context.Context, uuid.UUID, bool, uuid.UUID) (review.Review, bool, error) {
+	return review.Review{}, false, nil
+}
+
+func (reviewStub) ListMyReviewRemovals(context.Context, uuid.UUID, pagination.Pagination) (review.RemovalPage, error) {
 	return review.RemovalPage{}, nil
 }
 

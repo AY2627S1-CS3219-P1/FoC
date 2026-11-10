@@ -12,7 +12,6 @@ import (
 type Repository interface {
 	CheckReviewParticipants(
 		ctx context.Context,
-		q *reviewdb.Queries,
 		reviewerID, revieweeID uuid.UUID,
 	) (ReviewParticipantExistence, error)
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) (InsertedReview, error)
@@ -21,6 +20,13 @@ type Repository interface {
 	// audit. The row remains so the audit can reference it.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	ReviewFacts(ctx context.Context, id uuid.UUID) (Facts, error)
+	// RestoreReview undeletes a removed review and returns it.
+	RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
+	// LatestUnrestoredRemoval returns the removal a restoration answers, or
+	// errReviewNotFound when every removal is already restored.
+	LatestUnrestoredRemoval(ctx context.Context, q *reviewdb.Queries, reviewID uuid.UUID) (uuid.UUID, error)
+	RecordReviewRestoration(ctx context.Context, q *reviewdb.Queries, restoration ReviewRestoration) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
 	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
@@ -43,6 +49,11 @@ type Repository interface {
 	) (ReviewOrderStatuses, error)
 	// ReviewForOrder returns a live review, or errReviewRemoved without removed content.
 	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
+	// ReviewByID returns a review, including a removed one, and whether it is
+	// removed, or errReviewNotFound.
+	ReviewByID(ctx context.Context, id uuid.UUID) (Review, bool, error)
+	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, offset, limit int64) ([]ReviewRemoval, error)
+	CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error)
 	// ReviewExists reports an existing review, including removed ones (mirrors the unique index).
 	ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error)
 

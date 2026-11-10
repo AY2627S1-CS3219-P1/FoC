@@ -37,6 +37,7 @@ spec:
             - {name: credit, mountPath: /secrets/credit, readOnly: true}
             - {name: communication, mountPath: /secrets/communication, readOnly: true}
             - {name: content-moderation, mountPath: /secrets/content-moderation, readOnly: true}
+            - {name: moderation, mountPath: /secrets/moderation, readOnly: true}
       volumes:
         - name: script
           configMap:
@@ -59,3 +60,6 @@ spec:
         - name: content-moderation
           secret:
             secretName: content-moderation-db
+        - name: moderation
+          secret:
+            secretName: moderation-db

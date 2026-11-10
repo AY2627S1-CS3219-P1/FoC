@@ -17,6 +17,7 @@ erDiagram
     roles ||--o{ role_changes : "from/to"
     users ||--o{ account_warnings : receives
     users ||--o{ favourite_suppliers : saves
+    review_removals ||--o| review_restorations : "undone by"
     users ||--o{ profile_pictures : owns
     users ||--o| profile_pictures : "current picture"
 
@@ -73,7 +74,7 @@ erDiagram
         text from_role FK
         text to_role FK
         text reason
-        uuid report_id "no FK"
+        uuid report_id "Moderation report, no FK"
     }
     account_warnings {
         uuid id PK
@@ -82,10 +83,22 @@ erDiagram
         text reason
         text status "active|removed"
         uuid source_event_id UK
+        uuid appeal_id "Moderation appeal, no FK"
     }
     favourite_suppliers {
         uuid user_id PK
         uuid supplier_id PK "no FK"
+    }
+    review_restorations {
+        uuid id PK
+        uuid removal_id FK,UK
+        uuid review_id FK
+        uuid appeal_id "Moderation appeal, no FK"
+        text reason
+    }
+    moderation_outcome_events {
+        uuid event_id PK
+        text outcome "applied|rejected"
     }
 ```
 
@@ -105,6 +118,11 @@ erDiagram
 | 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#126) |
 | 00007 | `user_created_outbox` | Credit | durable, lease-based queue of user-created events; published to Kafka and consumed by the Credit service |
 | 00008 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
+| 00014 | `user_reports`, `user_report_responses` | RP1–RP5 | exactly one of `review_id` / `order_id`; one unclosed report per reporter and target; closed ⇔ outcome, reason and `closed_at`; review removal only for review targets; adds `report_id` FKs on `role_changes` and `account_warnings`. Numbered after profile pictures (00012) and review moderation (00013) |
+| 00015 | `user_appeals`, `user_appeal_decisions`, `user_appeal_responses` | RP7–RP12 | `(appellant_id, idempotency_key)` unique; one target column per decision, matching `kind`; a decision is in at most one unclosed appeal (`active` partial unique index); outcome and reason set exactly when the decision is no longer active; `credit_adjustment` rejected until #302; adds the `appeal_id` FK on `account_warnings` |
+| 00016 | `review_restorations` | RP12.3 | one restoration per removal; drops the unique `review_removals.review_id`, so a restored review can be removed again |
+| 00017 | `evidence_attachments` | RP1.6, RP2.2, RP8.2, RP9.4 | staged while uploading, then attached to exactly one report, appeal or response; at most five per parent; same content types and size cap as review photos; unattached rows are reaped |
+| 00018 | drops the moderation tables; `review_removals.report_id`; `moderation_outcome_events` | #336 | reports, appeals and evidence moved to Moderation Service; the `report_id`/`appeal_id` foreign keys on `role_changes`, `account_warnings` and `review_restorations` are dropped, keeping opaque IDs; `review_removals.report_id` marks a removal a report made; each applied outcome event is recorded once |
 
 ## Soft delete
 
@@ -168,5 +186,5 @@ change enters or leaves `suspended`.
 
 - Migrations use goose: one `0000N_name.sql` per change with `-- +goose Up` / `-- +goose Down`. Never edit an applied migration.
 - Text columns are `TEXT`; length and format limits are `CHECK` constraints.
-- Cross-service IDs (`supplier_id`, `request_id`, `report_id`, `appeal_id`) are plain UUIDs, no FK.
+- Cross-service IDs (`supplier_id`, `request_id`, `order_id`, `credit_entry_id`) are plain UUIDs, no FK. `report_id` and `appeal_id` name Moderation Service reports and appeals, also without a FK (see `docs/adr/moderation-service.md`).
 - Tokens are never stored raw, only `sha256`.

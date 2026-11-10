@@ -10,7 +10,13 @@ import type { AccountWarning, WarningApi, WarningPage, WarningQuery, WarningStat
 
 type WarningClient = Client<typeof WarningServiceDefinition>;
 
-function toWarning(warning: ProtoAccountWarning): AccountWarning {
+// The participant and administrator views share these fields.
+type WarningFields = Pick<
+	ProtoAccountWarning,
+	'id' | 'requestId' | 'reason' | 'status' | 'createdAt' | 'removedAt' | 'removedReason'
+>;
+
+export function toWarning(warning: WarningFields): AccountWarning {
 	if (!warning.createdAt) throw new Error('Warning response did not include a creation time');
 	return {
 		id: warning.id,
@@ -55,7 +61,7 @@ export class ConnectWarningApi implements WarningApi {
 	}
 }
 
-function toPageInfo(info: PageInfo | undefined): Omit<WarningPage, 'warnings'> {
+export function toPageInfo(info: PageInfo | undefined): Omit<WarningPage, 'warnings'> {
 	if (!info) throw new Error('Warning response did not include pagination');
 	return {
 		page: Number(info.page),

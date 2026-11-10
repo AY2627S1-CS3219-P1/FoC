@@ -44,7 +44,7 @@
 		{:else}
 			<ul>
 				{#each reviews as review (review.id)}
-					<ReviewRow {review} counterpart={review.reviewerName} />
+					<ReviewRow {review} counterpart={review.reviewerName} reportable />
 				{/each}
 			</ul>
 		{/if}

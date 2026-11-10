@@ -16,6 +16,7 @@ declare messages and enums without RPC services.
 | `moderation.review_moderation_finished` | `moderation.events.v1.ReviewModerationFinished` | Review UUID as UTF-8 text |
 | `credit.account_changed` | `credit.events.v1.AccountChanged` | User UUID as UTF-8 text |
 | `order.changed` | `order.events.v1.OrderChanged` | Order UUID as UTF-8 text |
+| `moderation.outcome_requested` | `moderation.events.v1.OutcomeRequested` | Affected user or review UUID as UTF-8 text |
 
 Credit publishes account changes with each committed nonzero ledger posting.
 Order publishes read-model changes through its existing outbox, including offers
@@ -72,6 +73,17 @@ cannot delete each other's output. Commit schemas and generated code together.
 Reserve removed field numbers and names; check `buf breaking` against the
 target branch before merging. Add compatible fields to v1; a future incompatible
 contract needs a deliberate schema/topic migration.
+
+`moderation.outcome_requested` asks User Service to apply one consequence of a
+closed report or appeal: a warning, a suspension or its reinstatement, or a
+review removal or restoration. Moderation Service publishes it from its
+transactional outbox when the report or appeal closes. The key is the user or
+review the consequence changes, so a report's outcome and the appeal that
+undoes it arrive in order. User Service records each event ID in
+`moderation_outcome_events` in the same transaction as the change, and records
+an outcome it can never apply (for example, a warning already removed) as
+rejected instead of retrying it. See
+[the moderation-service ADR](../docs/adr/moderation-service.md).
 
 ## Topic provisioning
 

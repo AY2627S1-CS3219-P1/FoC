@@ -92,6 +92,15 @@
 	const canChat = $derived(
 		Boolean(order && (isRequester || isCourier) && order.courierId && !isTerminal(order.status))
 	);
+	// Either participant may report the other once a courier is assigned.
+	const reportSubjectId = $derived(
+		order && order.courierId && (isRequester || isCourier) ? (isRequester ? order.courierId : order.requesterId) : ''
+	);
+	const reportHref = $derived(
+		order && reportSubjectId
+			? `/reports/new?orderId=${encodeURIComponent(order.id)}&subjectId=${encodeURIComponent(reportSubjectId)}`
+			: ''
+	);
 	const telegramBotUrl = env.PUBLIC_TELEGRAM_BOT_URL ?? '';
 	// The Chat button opens this order's chat in the bot, using the running
 	// bot's URL from Communication Service.
@@ -228,6 +237,9 @@
 								{/if}
 								{#if isCourier && order.status === OrderStatus.DELIVERING}
 									<Button onclick={() => (proofOpen = true)}>Update status: delivered</Button>
+								{/if}
+								{#if reportHref}
+									<Button variant="text" href={reportHref}>Report the {isRequester ? 'courier' : 'requester'}</Button>
 								{/if}
 							</div>
 

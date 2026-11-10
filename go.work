@@ -4,6 +4,7 @@ use (
 	./communication-service
 	./content-moderation-service
 	./credit-service
+	./moderation-service
 	./order-service
 	./pkg
 	./scripts

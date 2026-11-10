@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
@@ -25,18 +26,30 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
 
+// newOrderGateway reads order participants from Order's internal listener, and
+// fails closed while ORDER_SERVICE_BASE_URL is unset.
+func newOrderGateway(cfg config) orders.Gateway {
+	if cfg.orderServiceURL == "" {
+		slog.Warn("ORDER_SERVICE_BASE_URL is not set; order participant checks fail closed")
+		return orders.UnavailableGateway{}
+	}
+	return orders.NewConnectGateway(orderv1connect.NewOrderInternalServiceClient(
+		&http.Client{Timeout: 5 * time.Second}, cfg.orderServiceURL))
+}
+
 // Communication sends magic links synchronously; its SMTP exchange is
 // bounded at 5s by default.
 const magicLinkTimeout = 15 * time.Second
 
 // newReviewService builds the review domain; photo storage is optional.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
+func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	var photos *images.S3
 	if cfg.s3Bucket != "" {
@@ -59,7 +72,7 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	if photos != nil {
 		reviewStorage = photos
 	}
-	service := review.NewService(repo, reviewTransactions(sqlDB), reviewStorage)
+	service := review.NewService(repo, reviewTransactions(sqlDB), reviewStorage, orderGateway)
 	return service, photos
 }
 

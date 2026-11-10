@@ -93,6 +93,22 @@ export type ReviewPage = {
 	totalPages: number;
 };
 
+/** A review the caller wrote that an administrator removed outside a report. */
+export type ReviewRemovalRecord = {
+	id: string;
+	reviewId: string;
+	revieweeId: string;
+	orderId: string;
+	reason: string;
+	createdAt: number;
+};
+
+export type ReviewRemovalPage = {
+	removals: ReviewRemovalRecord[];
+	totalItems: number;
+	totalPages: number;
+};
+
 export interface ReviewApi extends ReviewPhotoUploadAPI {
 	submit(input: SubmitReviewInput, signal: AbortSignal): Promise<void>;
 	listForUser(
@@ -108,4 +124,11 @@ export interface ReviewApi extends ReviewPhotoUploadAPI {
 	listMine(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
 	/** Live review or null when unreviewed; throws ReviewRemovedError after removal. */
 	getMyReviewForOrder(orderId: string, signal: AbortSignal): Promise<ReviewRecord | null>;
+	/**
+	 * One review for a report page. Administrators may read removed reviews;
+	 * participants only live ones.
+	 */
+	getReview(id: string, signal: AbortSignal): Promise<{ review: ReviewRecord; removed: boolean }>;
+	/** The caller's reviews removed outside a report, which they may appeal. */
+	listMyRemovals(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewRemovalPage>;
 }

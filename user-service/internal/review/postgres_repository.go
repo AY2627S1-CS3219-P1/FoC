@@ -73,7 +73,58 @@ func (r *PostgresRepository) RecordReviewRemoval(
 		OrderID:    removal.OrderID,
 		Reason:     removal.Reason,
 		CreatedBy:  removal.CreatedBy,
+		ReportID:   uuid.NullUUID{UUID: removal.ReportID, Valid: removal.ReportID != uuid.Nil},
 	}))
+}
+
+func (r *PostgresRepository) ReviewFacts(ctx context.Context, id uuid.UUID) (Facts, error) {
+	row, err := r.queries.GetReviewFacts(ctx, id)
+	if err != nil {
+		return Facts{}, mapReviewError("review facts", err)
+	}
+	return Facts{
+		ReviewerID:      row.ReviewerID,
+		RevieweeID:      row.RevieweeID,
+		OrderID:         row.OrderID,
+		Removed:         row.Removed,
+		RemovalReportID: row.RemovalReportID.UUID,
+	}, nil
+}
+
+func (r *PostgresRepository) RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	row, err := q.RestoreReview(ctx, id)
+	if err != nil {
+		return Review{}, mapReviewError("restore review", err)
+	}
+	return toRestoredReview(row), nil
+}
+
+func (r *PostgresRepository) LatestUnrestoredRemoval(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	reviewID uuid.UUID,
+) (uuid.UUID, error) {
+	id, err := q.LatestUnrestoredRemoval(ctx, reviewID)
+	if err != nil {
+		return uuid.Nil, mapReviewError("find unrestored review removal", err)
+	}
+	return id, nil
+}
+
+func (r *PostgresRepository) RecordReviewRestoration(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	restoration ReviewRestoration,
+) error {
+	return mapReviewError("record review restoration", q.RecordReviewRestoration(ctx,
+		reviewdb.RecordReviewRestorationParams{
+			ID:        restoration.ID,
+			RemovalID: restoration.RemovalID,
+			ReviewID:  restoration.ReviewID,
+			AppealID:  uuid.NullUUID{UUID: restoration.AppealID, Valid: restoration.AppealID != uuid.Nil},
+			Reason:    restoration.Reason,
+			CreatedBy: restoration.CreatedBy,
+		}))
 }
 
 // The lock-then-read-then-write order matters; see the LockReviewee query for
@@ -200,6 +251,17 @@ func (r *PostgresRepository) ReviewForOrder(ctx context.Context, reviewerID, ord
 	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), nil
 }
 
+func (r *PostgresRepository) ReviewByID(ctx context.Context, id uuid.UUID) (Review, bool, error) {
+	row, err := r.queries.GetReviewByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Review{}, false, errReviewNotFound
+	}
+	if err != nil {
+		return Review{}, false, fmt.Errorf("get review: %w", err)
+	}
+	return toReviewByID(row), row.DeletedAt.Valid, nil
+}
+
 func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
 	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
 		PageOffset: offset,
@@ -223,12 +285,40 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 	return count, nil
 }
 
+func (r *PostgresRepository) ListMyReviewRemovals(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	offset, limit int64,
+) ([]ReviewRemoval, error) {
+	rows, err := r.queries.ListMyReviewRemovals(ctx, reviewdb.ListMyReviewRemovalsParams{
+		ReviewerID: reviewerID,
+		PageOffset: offset,
+		PageLimit:  limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list my removals: %w", err)
+	}
+
+	out := make([]ReviewRemoval, len(rows))
+	for i, row := range rows {
+		out[i] = toReviewRemovalListed(reviewdb.ListReviewRemovalsRow(row))
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	count, err := r.queries.CountMyReviewRemovals(ctx, reviewerID)
+	if err != nil {
+		return 0, fmt.Errorf("count my removals: %w", err)
+	}
+	return count, nil
+}
+
 func (r *PostgresRepository) CheckReviewParticipants(
 	ctx context.Context,
-	q *reviewdb.Queries,
 	reviewerID, revieweeID uuid.UUID,
 ) (ReviewParticipantExistence, error) {
-	exists, err := q.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+	exists, err := r.queries.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
 		ReviewerID: reviewerID,
 		RevieweeID: revieweeID,
 	})
@@ -349,6 +439,35 @@ func toReview(row reviewdb.SoftDeleteReviewRow) Review {
 		CreatedAt:        row.CreatedAt,
 		DeletedAt:        row.DeletedAt.Time,
 		ModerationStatus: ModerationStatus(row.ModerationStatus),
+	}
+}
+
+func toRestoredReview(row reviewdb.RestoreReviewRow) Review {
+	return Review{
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		RevieweeID:       row.RevieweeID,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
+	}
+}
+
+func toReviewByID(row reviewdb.GetReviewByIDRow) Review {
+	return Review{
+		ID:           row.ID,
+		ReviewerID:   row.ReviewerID,
+		ReviewerName: row.ReviewerName,
+		RevieweeID:   row.RevieweeID,
+		RevieweeName: row.RevieweeName,
+		OrderID:      row.OrderID,
+		Rating:       int(row.Rating),
+		Comment:      row.Comment,
+		CreatedAt:    row.CreatedAt,
+		DeletedAt:    row.DeletedAt.Time,
 	}
 }
 

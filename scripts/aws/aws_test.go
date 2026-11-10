@@ -380,7 +380,7 @@ func assertRenderedAWSContracts(t *testing.T, objects []map[string]any, config m
 		t.Fatal("Order workload role changed")
 	}
 	values := object(namedManifest(t, objects, "ConfigMap", "foc-config")["data"])
-	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
+	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL", "PUBLIC_REPORTS_MODERATION_SERVICE_URL"} {
 		if values[key] != "https://"+stringValue(config, "public_hostname") {
 			t.Fatalf("wrong public origin: %s", key)
 		}

@@ -471,10 +471,13 @@ func (x *GetUserByEmailResponse) GetUser() *UserSummary {
 }
 
 type ChangeUserRoleRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ToRole        UserRole               `protobuf:"varint,2,opt,name=to_role,json=toRole,proto3,enum=user.v1.UserRole" json:"to_role,omitempty"`
-	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ToRole UserRole               `protobuf:"varint,2,opt,name=to_role,json=toRole,proto3,enum=user.v1.UserRole" json:"to_role,omitempty"`
+	Reason string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	// The user report that prompted a suspension or reinstatement. Only allowed
+	// when moving to or from the suspended role.
+	ReportId      *string `protobuf:"bytes,4,opt,name=report_id,json=reportId,proto3,oneof" json:"report_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -526,6 +529,13 @@ func (x *ChangeUserRoleRequest) GetToRole() UserRole {
 func (x *ChangeUserRoleRequest) GetReason() string {
 	if x != nil {
 		return x.Reason
+	}
+	return ""
+}
+
+func (x *ChangeUserRoleRequest) GetReportId() string {
+	if x != nil && x.ReportId != nil {
+		return *x.ReportId
 	}
 	return ""
 }
@@ -777,11 +787,14 @@ const file_user_v1_admin_proto_rawDesc = "" +
 	"\x15GetUserByEmailRequest\x12\x1f\n" +
 	"\x05email\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01`\x01R\x05email\"B\n" +
 	"\x16GetUserByEmailResponse\x12(\n" +
-	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"\x88\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"\xc2\x01\n" +
 	"\x15ChangeUserRoleRequest\x12!\n" +
 	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x12*\n" +
 	"\ato_role\x18\x02 \x01(\x0e2\x11.user.v1.UserRoleR\x06toRole\x12 \n" +
-	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\"B\n" +
+	"\x06reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xd0\x0fR\x06reason\x12*\n" +
+	"\treport_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\breportId\x88\x01\x01B\f\n" +
+	"\n" +
+	"_report_id\"B\n" +
 	"\x16ChangeUserRoleResponse\x12(\n" +
 	"\x04user\x18\x01 \x01(\v2\x14.user.v1.UserSummaryR\x04user\"3\n" +
 	"\x0eGetUserRequest\x12!\n" +
@@ -872,6 +885,7 @@ func file_user_v1_admin_proto_init() {
 	}
 	file_user_v1_auth_proto_init()
 	file_user_v1_profile_proto_init()
+	file_user_v1_admin_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

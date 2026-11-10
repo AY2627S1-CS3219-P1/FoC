@@ -14,6 +14,28 @@ import (
 	"github.com/lib/pq"
 )
 
+const countMyReviewRemovals = `-- name: CountMyReviewRemovals :one
+SELECT COUNT(*)
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.created_at, rr.report_id
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NOT NULL
+  AND latest.report_id IS NULL
+`
+
+func (q *Queries) CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countMyReviewRemovals, reviewerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countReviewRemovals = `-- name: CountReviewRemovals :one
 SELECT COUNT(*)
 FROM review_removals
@@ -67,6 +89,48 @@ func (q *Queries) CountUnpublishedReviewsForUser(ctx context.Context, reviewerID
 	return count, err
 }
 
+const getReviewByID = `-- name: GetReviewByID :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.id = $1::UUID
+`
+
+type GetReviewByIDRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+// Includes a removed review; the service decides who may see it.
+func (q *Queries) GetReviewByID(ctx context.Context, id uuid.UUID) (GetReviewByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewByID, id)
+	var i GetReviewByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ReviewerName,
+		&i.RevieweeName,
+	)
+	return i, err
+}
+
 const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
@@ -111,6 +175,45 @@ func (q *Queries) GetReviewByReviewerAndOrder(ctx context.Context, arg GetReview
 		&i.ModerationStatus,
 		&i.ReviewerName,
 		&i.RevieweeName,
+	)
+	return i, err
+}
+
+const getReviewFacts = `-- name: GetReviewFacts :one
+SELECT r.reviewer_id, r.reviewee_id, r.order_id, (r.deleted_at IS NOT NULL)::BOOLEAN AS removed,
+       latest.report_id AS removal_report_id
+FROM reviews r
+LEFT JOIN LATERAL (
+    SELECT rr.report_id
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON r.deleted_at IS NOT NULL
+WHERE r.id = $1::UUID
+`
+
+type GetReviewFactsRow struct {
+	ReviewerID      uuid.UUID
+	RevieweeID      uuid.UUID
+	OrderID         uuid.UUID
+	Removed         bool
+	RemovalReportID uuid.NullUUID
+}
+
+// Facts Moderation Service needs to accept a report or appeal about a review.
+// removal_report_id is the report behind the latest unrestored removal, if a
+// report removed it.
+func (q *Queries) GetReviewFacts(ctx context.Context, id uuid.UUID) (GetReviewFactsRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewFacts, id)
+	var i GetReviewFactsRow
+	err := row.Scan(
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Removed,
+		&i.RemovalReportID,
 	)
 	return i, err
 }
@@ -160,6 +263,96 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) (Ins
 		&i.ModerationRequestID,
 	)
 	return i, err
+}
+
+const latestUnrestoredRemoval = `-- name: LatestUnrestoredRemoval :one
+SELECT rr.id
+FROM review_removals rr
+WHERE rr.review_id = $1::UUID
+  AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT 1
+`
+
+// The removal a restoration answers: the latest one not yet restored.
+func (q *Queries) LatestUnrestoredRemoval(ctx context.Context, reviewID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, latestUnrestoredRemoval, reviewID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const listMyReviewRemovals = `-- name: ListMyReviewRemovals :many
+SELECT latest.id, r.id AS review_id, r.reviewer_id, r.reviewee_id, r.order_id, latest.reason, latest.created_at,
+       latest.created_by, creator.display_name AS created_by_name
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.id, rr.reason, rr.created_at, rr.created_by, rr.report_id
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+JOIN users creator ON creator.id = latest.created_by
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NOT NULL
+  AND latest.report_id IS NULL
+ORDER BY latest.created_at DESC, latest.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
+`
+
+type ListMyReviewRemovalsParams struct {
+	ReviewerID uuid.UUID
+	PageOffset int64
+	PageLimit  int64
+}
+
+type ListMyReviewRemovalsRow struct {
+	ID            uuid.UUID
+	ReviewID      uuid.UUID
+	ReviewerID    uuid.UUID
+	RevieweeID    uuid.UUID
+	OrderID       uuid.UUID
+	Reason        string
+	CreatedAt     time.Time
+	CreatedBy     uuid.UUID
+	CreatedByName string
+}
+
+// The caller's removed reviews, each with its latest unrestored removal. A
+// removal that a report outcome applied is excluded; it is appealed through
+// the report.
+func (q *Queries) ListMyReviewRemovals(ctx context.Context, arg ListMyReviewRemovalsParams) ([]ListMyReviewRemovalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMyReviewRemovals, arg.ReviewerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMyReviewRemovalsRow{}
+	for rows.Next() {
+		var i ListMyReviewRemovalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewID,
+			&i.ReviewerID,
+			&i.RevieweeID,
+			&i.OrderID,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.CreatedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many
@@ -483,8 +676,9 @@ func (q *Queries) LockReviewee(ctx context.Context, revieweeID uuid.UUID) error 
 }
 
 const recordReviewRemoval = `-- name: RecordReviewRemoval :exec
-INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
-VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID)
+INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by, report_id)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6, now(), $7::UUID,
+        $8::UUID)
 `
 
 type RecordReviewRemovalParams struct {
@@ -495,8 +689,10 @@ type RecordReviewRemovalParams struct {
 	OrderID    uuid.UUID
 	Reason     string
 	CreatedBy  uuid.UUID
+	ReportID   uuid.NullUUID
 }
 
+// report_id is set when a report's outcome removed the review.
 func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemovalParams) error {
 	_, err := q.db.ExecContext(ctx, recordReviewRemoval,
 		arg.ID,
@@ -506,8 +702,72 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 		arg.OrderID,
 		arg.Reason,
 		arg.CreatedBy,
+		arg.ReportID,
 	)
 	return err
+}
+
+const recordReviewRestoration = `-- name: RecordReviewRestoration :exec
+INSERT INTO review_restorations (id, removal_id, review_id, appeal_id, reason, created_at, created_by)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, now(), $6::UUID)
+`
+
+type RecordReviewRestorationParams struct {
+	ID        uuid.UUID
+	RemovalID uuid.UUID
+	ReviewID  uuid.UUID
+	AppealID  uuid.NullUUID
+	Reason    string
+	CreatedBy uuid.UUID
+}
+
+func (q *Queries) RecordReviewRestoration(ctx context.Context, arg RecordReviewRestorationParams) error {
+	_, err := q.db.ExecContext(ctx, recordReviewRestoration,
+		arg.ID,
+		arg.RemovalID,
+		arg.ReviewID,
+		arg.AppealID,
+		arg.Reason,
+		arg.CreatedBy,
+	)
+	return err
+}
+
+const restoreReview = `-- name: RestoreReview :one
+UPDATE reviews
+SET deleted_at = NULL
+WHERE id = $1::UUID AND deleted_at IS NOT NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status
+`
+
+type RestoreReviewRow struct {
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+}
+
+// Locks the row; a concurrent restoration sees no removed row and reports not found.
+func (q *Queries) RestoreReview(ctx context.Context, id uuid.UUID) (RestoreReviewRow, error) {
+	row := q.db.QueryRowContext(ctx, restoreReview, id)
+	var i RestoreReviewRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ModerationStatus,
+	)
+	return i, err
 }
 
 const reviewExists = `-- name: ReviewExists :one

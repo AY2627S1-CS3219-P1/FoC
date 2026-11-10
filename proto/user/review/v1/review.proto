@@ -17,6 +17,8 @@ service ReviewService {
   rpc GetMyReviewForOrder(GetMyReviewForOrderRequest) returns (GetMyReviewForOrderResponse) {}
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
   rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
+  rpc ListMyReviewRemovals(ListMyReviewRemovalsRequest) returns (ListMyReviewRemovalsResponse) {}
+  rpc GetReview(GetReviewRequest) returns (GetReviewResponse) {}
 }
 
 message Review {
@@ -172,6 +174,8 @@ message ReviewRemoval {
   google.protobuf.Timestamp created_at = 6;
   string created_by = 7;
   string created_by_name = 8;
+  // The removed review, which an appeal names as removed_review_id.
+  string review_id = 9;
 }
 
 message ListReviewRemovalsRequest {
@@ -181,6 +185,32 @@ message ListReviewRemovalsRequest {
 message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
   pagination.v1.PageInfo pagination = 2;
+}
+
+// Reviews the caller wrote that are currently removed outside a report, each
+// with its latest unrestored removal. A removal applied by a report outcome is
+// appealed through that report instead. Open to suspended users.
+message ListMyReviewRemovalsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
+
+message ListMyReviewRemovalsResponse {
+  repeated ReviewRemoval removals = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+// One review, for moderation. Administrators may read any review, including a
+// removed one; its reviewer and reviewee may read it while it is live. Anyone
+// else gets NOT_FOUND. Responses carry pre-signed photo URLs and are not
+// cacheable.
+message GetReviewRequest {
+  string review_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetReviewResponse {
+  Review review = 1;
+  // The review is currently removed; only administrators see removed reviews.
+  bool removed = 2;
 }
 
 // Public reads and ratings include only APPROVED reviews.

@@ -112,6 +112,25 @@ func (p *PostgresRepository) Remove(
 	return warningFromRow(row), nil
 }
 
+// Facts reads what Moderation Service checks before accepting an appeal of
+// a warning.
+func (p *PostgresRepository) Facts(ctx context.Context, id uuid.UUID) (Facts, error) {
+	row, err := p.queries.GetAccountWarningFacts(ctx, id)
+	if err != nil {
+		return Facts{}, mapNotFound(err, "warning facts")
+	}
+	return Facts{UserID: row.UserID, RequestID: row.RequestID, ReportID: row.ReportID.UUID, Active: row.Active}, nil
+}
+
+// ActiveForReport finds the active warning a report issued, or ErrNotFound.
+func (p *PostgresRepository) ActiveForReport(ctx context.Context, reportID uuid.UUID) (uuid.UUID, error) {
+	id, err := p.queries.ActiveWarningForReport(ctx, uuid.NullUUID{UUID: reportID, Valid: true})
+	if err != nil {
+		return uuid.Nil, mapNotFound(err, "warning for report")
+	}
+	return id, nil
+}
+
 func warningFromRow(row warningdb.AccountWarning) Warning {
 	warning := Warning{
 		ID: row.ID, UserID: row.UserID, RequestID: row.RequestID, Reason: row.Reason,

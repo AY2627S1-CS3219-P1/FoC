@@ -33,6 +33,7 @@ type Logic interface {
 	ListMyReviewsReceived(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) (ReviewOrderStatuses, error)
 	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
+	GetReview(ctx context.Context, callerID uuid.UUID, isAdmin bool, id uuid.UUID) (Review, bool, error)
 	ListUnpublishedReviewsForUser(
 		ctx context.Context,
 		reviewerID uuid.UUID,
@@ -40,6 +41,7 @@ type Logic interface {
 	) (UnpublishedReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
+	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, page pagination.Pagination) (RemovalPage, error)
 }
 
 // Handler adapts the review proto RPCs to the review service.
@@ -228,6 +230,34 @@ func (h *Handler) ListMyReviewsForOrders(
 	}), nil
 }
 
+// GetReview returns one review for moderation; not cacheable.
+func (h *Handler) GetReview(
+	ctx context.Context,
+	req *connect.Request[reviewv1.GetReviewRequest],
+) (*connect.Response[reviewv1.GetReviewResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	callerID, err := uuid.Parse(caller.ID)
+	if err != nil {
+		return nil, toConnectError(ctx, userdto.ErrMissingActor)
+	}
+	id, parseErr := uuid.Parse(req.Msg.GetReviewId())
+	if parseErr != nil || id == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
+	}
+
+	review, removed, err := h.Logic.GetReview(ctx, callerID, caller.Admin, id)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+
+	resp := connect.NewResponse(&reviewv1.GetReviewResponse{Review: toReviewProto(review), Removed: removed})
+	noStore(resp)
+	return resp, nil
+}
+
 // GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
 func (h *Handler) GetMyReviewForOrder(
 	ctx context.Context,
@@ -287,6 +317,33 @@ func (h *Handler) ListReviewRemovals(
 		return nil, toConnectError(ctx, err)
 	}
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
+}
+
+// ListMyReviewRemovals lists the caller's removed reviews. Suspended callers may
+// use it, because they may appeal (U6.8).
+func (h *Handler) ListMyReviewRemovals(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewRemovalsRequest],
+) (*connect.Response[reviewv1.ListMyReviewRemovalsResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+
+	pageResult, err := h.Logic.ListMyReviewRemovals(ctx, actorID, page)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+
+	listed := toListReviewRemovalsResponse(pageResult)
+	return connect.NewResponse(&reviewv1.ListMyReviewRemovalsResponse{
+		Removals:   listed.GetRemovals(),
+		Pagination: listed.GetPagination(),
+	}), nil
 }
 
 // A suspended caller may only list reviews received by their own user.
@@ -418,6 +475,7 @@ func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 		CreatedAt:     timestamppb.New(removal.CreatedAt),
 		CreatedBy:     removal.CreatedBy.String(),
 		CreatedByName: removal.CreatedByName,
+		ReviewId:      removal.ReviewID.String(),
 	}
 }
 

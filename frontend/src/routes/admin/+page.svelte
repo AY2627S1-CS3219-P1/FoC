@@ -32,6 +32,20 @@
 			<Button href="/admin/supplier-requests">Review requests</Button>
 		</div></Card
 	>
+	<Card variant="outlined"
+		><div class="panel-body">
+			<h2>Reports</h2>
+			<p>Review reports about orders and reviews, ask for responses and record outcomes.</p>
+			<Button href="/admin/reports">Review reports</Button>
+		</div></Card
+	>
+	<Card variant="outlined"
+		><div class="panel-body">
+			<h2>Appeals</h2>
+			<p>Decide whether appealed decisions stand or are overturned.</p>
+			<Button href="/admin/appeals">Review appeals</Button>
+		</div></Card
+	>
 	<Card variant="outlined"><div class="panel-body">
 		<h2>Unpublished reviews</h2>
 		<p>Search by email to see a reviewer&rsquo;s unpublished reviews.</p>

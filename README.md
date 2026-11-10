@@ -105,6 +105,7 @@ the default `slog` logger at startup.
 ├── order-service/           # errand orders, offers, delivery workflow
 ├── credit-service/          # closed credit economy and reservation holds
 ├── communication-service/   # chat, email and Telegram notifications
+├── moderation-service/      # reports, appeals and moderation outcomes
 ├── frontend/                # SvelteKit web application
 ├── pkg/                     # shared Go modules (api, auth, kafka, gen, ...)
 ├── proto/                   # Connect RPC API contracts (Buf)
@@ -215,7 +216,7 @@ the line from `.env` so the default from `compose.yaml` wins. After
 editing `.env`, run:
 
 ```sh
-docker compose up -d user-service supplier-service order-service communication-service credit-service
+docker compose up -d user-service supplier-service order-service credit-service communication-service moderation-service
 ```
 
 Use `up` so Compose recreates containers with the updated environment;

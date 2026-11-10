@@ -6,7 +6,7 @@ import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createAllowedDomainService } from './allowedDomain/index.ts';
 import { createLocationApi } from './location/index.ts';
-import { createWarningService } from './warning/index.ts';
+import { createWarningAdminApi, createWarningService } from './warning/index.ts';
 import { createLocationAdminApi } from './location-admin';
 import { createAdditionRequestApi } from './addition-request';
 import { createDisablementApi } from './disablement';
@@ -14,6 +14,8 @@ import { SupplierAdminAccess } from './location-admin/service.svelte';
 import { createOrderApi } from './order/index.ts';
 import { createDeliveryProofService } from './delivery-proof/index.ts';
 import { createReviewApi } from './review/index.ts';
+import { createReportApi } from './report/index.ts';
+import { createAppealApi } from './appeal/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
@@ -40,6 +42,7 @@ const protectedUserTransport = createCustomTransport({
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
 export const warningService = createWarningService(protectedUserTransport);
+export const warningAdminApi = createWarningAdminApi(protectedUserTransport);
 export const allowedDomainService = createAllowedDomainService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
@@ -82,6 +85,15 @@ export const deliveryProofApi = createDeliveryProofService(orderTransport);
 // ReviewService lives in User Service; the transport already refreshes and
 // redirects on unauthenticated calls.
 export const reviewApi = createReviewApi(protectedUserTransport);
+
+// Reports and appeals live in Moderation Service. Participants and
+// administrators share the transport; role checks happen per RPC on the server.
+const reportsModerationTransport = createCustomTransport({
+	baseUrl: env.PUBLIC_REPORTS_MODERATION_SERVICE_URL ?? 'http://localhost:8087',
+	interceptors: [authRedirectInterceptor, authService.interceptor]
+});
+export const reportApi = createReportApi(reportsModerationTransport);
+export const appealApi = createAppealApi(reportsModerationTransport);
 
 const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
 const communicationTransport = createCustomTransport({

@@ -4,11 +4,13 @@
 
 	// One review row, shared by the profile card and both paginated review
 	// pages. `counterpart` names the other party in the row's heading.
+	// `reportable` offers a report link; set it only on reviews the caller received.
 	let {
 		review,
 		counterpart,
-		orderLink = false
-	}: { review: ReviewRecord; counterpart: string; orderLink?: boolean } = $props();
+		orderLink = false,
+		reportable = false
+	}: { review: ReviewRecord; counterpart: string; orderLink?: boolean; reportable?: boolean } = $props();
 	const date = new Intl.DateTimeFormat('en-SG', {
 		day: 'numeric',
 		month: 'short',
@@ -26,6 +28,9 @@
 			{#if review.createdAt}<span class="date">{date.format(new Date(review.createdAt))}</span>{/if}
 			{#if orderLink}
 				<a class="order-link" href={`/orders/${review.orderId}`}>Go to Order</a>
+			{/if}
+			{#if reportable}
+				<a class="order-link" href={`/reports/new?reviewId=${encodeURIComponent(review.id)}`}>Report</a>
 			{/if}
 		</div>
 	</div>

@@ -28,3 +28,6 @@ patches:
       - op: replace
         path: /data/PUBLIC_CREDIT_SERVICE_URL
         value: https://foc.example.invalid
+      - op: replace
+        path: /data/PUBLIC_REPORTS_MODERATION_SERVICE_URL
+        value: https://foc.example.invalid

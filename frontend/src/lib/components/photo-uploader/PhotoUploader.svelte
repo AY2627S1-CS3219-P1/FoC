@@ -16,10 +16,19 @@
 	// covered by a red overlay and every failed photo is retried together, so
 	// there is one "Retry photo uploads" action instead of per-photo retries.
 	// The backend reaper collects staged uploads that are removed or abandoned.
-	let { controller, view, disabled = false }: {
+	let {
+		controller,
+		view,
+		disabled = false,
+		title = 'Photos',
+		listLabel = 'Photos attached to this review'
+	}: {
 		controller: ReviewPhotosController | undefined;
 		view: ReviewPhotosSnapshot;
 		disabled?: boolean;
+		/** Heading above the picker; evidence forms call these images. */
+		title?: string;
+		listLabel?: string;
 	} = $props();
 	let fileInput: HTMLInputElement | undefined = $state();
 	let cameraInput: HTMLInputElement | undefined = $state();
@@ -54,7 +63,7 @@
 
 <div class="photo-uploader">
 	<div class="head">
-		<h3>Photos</h3>
+		<h3>{title}</h3>
 		<span>{view.files.length} / 5</span>
 	</div>
 	<p id="photo-uploader-help" class="help">
@@ -105,7 +114,7 @@
 		</Button>
 	</div>
 	{#if view.files.length > 0}
-		<ul class="thumbnails" aria-label="Photos attached to this review">
+		<ul class="thumbnails" aria-label={listLabel}>
 			{#each view.files as row, index (row.id)}
 				{@const failed = row.outcome === 'Failed' || row.outcome === 'Rejected'}
 				{@const stateLabel =

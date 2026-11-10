@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: foc
+  name: moderation-service
+  labels:
+    foc.dev/stage: applications
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 180
+  selector:
+    matchLabels:
+      app: moderation-service
+  template:
+    metadata:
+      labels:
+        app: moderation-service
+        foc.dev/rpc: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: moderation-service
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: moderation-service
+          image: foc/moderation-service:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          startupProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            failureThreshold: 40
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            periodSeconds: 10
+          envFrom:
+            - configMapRef:
+                name: foc-config
+            - secretRef:
+                name: moderation-db
+          ports:
+            - {name: http2-public, containerPort: 8080}
+            - {name: http2-internal, containerPort: 8081}
+          readinessProbe:
+            exec:
+              command: ["/app/healthcheck", "ready", "8080", "/moderation.v1.HealthService/Check"]
+            periodSeconds: 5
+            timeoutSeconds: 4
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: foc
+  name: moderation-service-external
+spec:
+  selector:
+    app: moderation-service
+  ports:
+    - {name: http2-public, port: 8080, targetPort: 8080, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: foc
+  name: moderation-service-internal
+spec:
+  selector:
+    app: moderation-service
+  ports:
+    - {name: http2-internal, port: 8080, targetPort: 8081, appProtocol: kubernetes.io/h2c}
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  namespace: foc
+  name: moderation-service
+spec:
+  workloadSelector:
+    labels:
+      app: moderation-service
+  ingress:
+    - port:
+        number: 8080
+        name: http2-public
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8080
+    - port:
+        number: 8081
+        name: http2-internal
+        protocol: HTTP2
+      defaultEndpoint: 127.0.0.1:8081
+  egress:
+    - hosts: ["./*", "istio-system/*"]

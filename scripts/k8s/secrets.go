@@ -79,7 +79,7 @@ func (o *operator) generateLocalSecrets() error {
 		return err
 	}
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "content-moderation-password", "kafka-ui-password", "grafana-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "content-moderation-password", "moderation-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -208,7 +208,7 @@ func (o *operator) generateLocalSecrets() error {
 		return errors.New("local TLS certificate and key do not match")
 	}
 
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation", "moderation"} {
 		identifier := strings.ReplaceAll(service, "-", "_")
 		if err := persistValue(directory, service+"-db-user", identifier+"_app", false); err != nil {
 			return err
@@ -238,7 +238,7 @@ func (o *operator) generateLocalSecrets() error {
 	); err != nil {
 		return err
 	}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation", "moderation"} {
 		if err := o.applySecret(
 			"foc",
 			service+"-db",

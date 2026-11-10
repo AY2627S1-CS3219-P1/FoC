@@ -221,7 +221,7 @@ func (o *operator) meshSmoke() error {
 	if err := o.requireManagedLocal(); err != nil {
 		return err
 	}
-	for _, app := range apps {
+	for _, app := range o.releaseApps() {
 		if err := o.rollout("deployment/" + app); err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
-	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, jobs...) {
+	for _, job := range append([]string{"db-provision", "order-storage-init", "user-storage-init"}, o.releaseJobs()...) {
 		if err := o.waitJob(job); err != nil {
 			return err
 		}
@@ -375,7 +375,7 @@ func (o *operator) meshSmoke() error {
 	if _, err := o.gatewaySmokeRequest(gateway, "/", 200, false); err != nil {
 		return err
 	}
-	for _, path := range publicHealthPaths {
+	for _, path := range o.publicHealthPaths() {
 		if err := o.assertPublicHealth(gateway, path); err != nil {
 			return err
 		}
@@ -405,7 +405,21 @@ func (o *operator) meshSmoke() error {
 	if _, err := o.gatewaySmokeRequest(gateway, "/credit.v1.CreditReservationService/Reserve", 404, true); err != nil {
 		return err
 	}
-	for _, service := range []string{"user-service", "credit-service"} {
+	if _, err := o.gatewaySmokeRequest(
+		gateway,
+		"/order.v1.OrderInternalService/GetOrderParticipants",
+		404,
+		true,
+	); err != nil {
+		return err
+	}
+	for _, service := range []string{
+		"user-service",
+		"credit-service",
+		"order-service",
+		"content-moderation-service",
+		"moderation-service",
+	} {
 		for _, target := range []struct {
 			suffix string
 			port   int
@@ -629,7 +643,7 @@ func (o *operator) persistenceSmoke() error {
 	if err := read(); err != nil {
 		return err
 	}
-	for _, app := range apps {
+	for _, app := range o.releaseApps() {
 		if err := o.rollout("deployment/" + app); err != nil {
 			return err
 		}

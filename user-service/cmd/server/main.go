@@ -19,9 +19,12 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/internaluser"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/moderationoutcome"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
@@ -102,8 +105,10 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
+	outcomeLogic := &moderationoutcome.Service{DB: db}
 	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	orderGateway := newOrderGateway(cfg)
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg, orderGateway)
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	defer func() { stopWorkers(); workers.Wait() }()
@@ -111,7 +116,12 @@ func main() {
 	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
 	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
 	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
-	workers.Go(func() { consume(workerCtx, cfg.kafkaBrokers, warningLogic) })
+	workers.Go(func() {
+		consume(workerCtx, cfg.kafkaBrokers, consumers{
+			warnings: &warningdomain.CourierWarningConsumer{Logic: warningLogic},
+			outcomes: &moderationoutcome.Consumer{Outcomes: outcomeLogic},
+		})
+	})
 
 	profileLogic := &service.ProfileService{
 		Users:    persistence.Users,
@@ -142,7 +152,12 @@ func main() {
 	// routes on INTERNAL_PORT. Services without private routes yet still bind
 	// the internal listener so local and deployed behaviour stay identical.
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
-	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	internalReads := &internaluser.Handler{
+		Users:    persistence.Users,
+		Reviews:  reviewLogic,
+		Warnings: warningdomain.NewPostgresRepository(warningdb.New(sqlDB)),
+	}
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth, internalReads))
 	servers := []*http.Server{public, internal}
 
 	if imageStorage != nil {
@@ -216,14 +231,20 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 	return errors.Join(failures...)
 }
 
-// consume runs the courier-warning subscription until ctx ends. A failed
-// subscriber cannot restart, so each failure builds a new one after a growing
-// delay; the uncommitted delivery is then redelivered.
-func consume(ctx context.Context, brokers []string, logic *warningdomain.Service) {
+// consumers are the Kafka handlers User Service registers.
+type consumers struct {
+	warnings *warningdomain.CourierWarningConsumer
+	outcomes *moderationoutcome.Consumer
+}
+
+// consume runs the Kafka subscription until ctx ends. A failed subscriber
+// cannot restart, so each failure builds a new one after a growing delay; the
+// uncommitted delivery is then redelivered.
+func consume(ctx context.Context, brokers []string, handlers consumers) {
 	backoff := minWarningConsumeBackoff
 	for ctx.Err() == nil {
 		started := time.Now()
-		err := subscribe(ctx, brokers, logic)
+		err := subscribe(ctx, brokers, handlers)
 		if ctx.Err() != nil {
 			return
 		}
@@ -245,15 +266,15 @@ func consume(ctx context.Context, brokers []string, logic *warningdomain.Service
 	}
 }
 
-func subscribe(ctx context.Context, brokers []string, logic *warningdomain.Service) error {
+func subscribe(ctx context.Context, brokers []string, handlers consumers) error {
 	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: warningConsumerGroup})
 	if err != nil {
 		return err
 	}
-	if err := warningdomain.RegisterCourierWarningConsumer(
-		subscriber,
-		&warningdomain.CourierWarningConsumer{Logic: logic},
-	); err != nil {
+	if err := warningdomain.RegisterCourierWarningConsumer(subscriber, handlers.warnings); err != nil {
+		return err
+	}
+	if err := moderationoutcome.RegisterConsumer(subscriber, handlers.outcomes); err != nil {
 		return err
 	}
 	return subscriber.Run(ctx)

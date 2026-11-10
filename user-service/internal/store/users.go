@@ -51,6 +51,18 @@ type Users struct{ db *gorm.DB }
 
 func NewUsers(db *gorm.DB) *Users { return &Users{db: db} }
 
+// ListByIDs returns the users that exist among ids, in no particular order.
+func (s *Users) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var users []models.User
+	if err := s.db.WithContext(ctx).Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 // GetByEmail returns the user or ErrNotFound if absent.
 func (s *Users) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User

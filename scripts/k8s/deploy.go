@@ -209,7 +209,7 @@ func (o *operator) renderStage(stage string) (string, error) {
 	config.WriteString(
 		"apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - resources.yaml\nimages:\n",
 	)
-	for _, name := range append(append([]string{}, apps...), "kafka-init", "migrations") {
+	for _, name := range append(append([]string{}, o.releaseApps()...), "kafka-init", "migrations") {
 		fmt.Fprintf(
 			&config,
 			"  - name: foc/%s\n    newName: %s/%s\n    newTag: %q\n",
@@ -270,6 +270,7 @@ var originKeys = []string{
 	"PUBLIC_COMMUNICATION_SERVICE_URL",
 	"PUBLIC_CREDIT_SERVICE_URL",
 	"PUBLIC_MODERATION_SERVICE_URL",
+	"PUBLIC_REPORTS_MODERATION_SERVICE_URL",
 	"ORDER_S3_PUBLIC_ENDPOINT",
 }
 
@@ -286,6 +287,26 @@ func (o *operator) patchLocalConfig() error {
 		data[key] = origin
 	}
 	return o.patchConfig(data)
+}
+
+// pruneReportsModeration removes resources from releases that predate the
+// decision to keep the reports moderation service out of the AWS release.
+func (o *operator) pruneReportsModeration() error {
+	if o.isLocal() || contains(o.releaseApps(), "moderation-service") {
+		return nil
+	}
+	for _, resource := range []string{
+		"deployment/moderation-service",
+		"service/moderation-service-external",
+		"service/moderation-service-internal",
+		"httproute/moderation-service",
+		"job/moderation-migrate",
+	} {
+		if err := o.k("-n", "foc", "delete", resource, "--ignore-not-found"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (o *operator) deployAll() error {
@@ -315,7 +336,7 @@ func (o *operator) deployAll() error {
 			return errors.New("production requires a registry K8S_IMAGE_PREFIX and immutable K8S_IMAGE_TAG")
 		}
 	}
-	if err := o.buildImages(append(append([]string{}, apps...), "kafka-init", "migrations")); err != nil {
+	if err := o.buildImages(append(append([]string{}, o.releaseApps()...), "kafka-init", "migrations")); err != nil {
 		return err
 	}
 	if o.isLocal() {
@@ -335,6 +356,9 @@ func (o *operator) deployAll() error {
 			return err
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.")
+	}
+	if err := o.pruneReportsModeration(); err != nil {
+		return err
 	}
 	for _, stage := range []string{"gateway", "dependencies"} {
 		if err := o.applyStage(stage); err != nil {
@@ -385,11 +409,14 @@ func (o *operator) deployAll() error {
 		if err := o.prepareJob("user-storage-init"); err != nil {
 			return err
 		}
+		if err := o.prepareJob("moderation-storage-init"); err != nil {
+			return err
+		}
 	}
 	if err := o.deployObservability(); err != nil {
 		return err
 	}
-	for _, job := range jobs {
+	for _, job := range o.releaseJobs() {
 		if err := o.prepareJob(job); err != nil {
 			return err
 		}
@@ -397,7 +424,7 @@ func (o *operator) deployAll() error {
 	if err := o.applyStage("initialization"); err != nil {
 		return err
 	}
-	for _, job := range jobs {
+	for _, job := range o.releaseJobs() {
 		if err := o.waitJob(job); err != nil {
 			return err
 		}
@@ -409,6 +436,9 @@ func (o *operator) deployAll() error {
 		if err := o.waitJob("user-storage-init"); err != nil {
 			return err
 		}
+		if err := o.waitJob("moderation-storage-init"); err != nil {
+			return err
+		}
 	}
 	if err := o.applyStage("applications"); err != nil {
 		return err
@@ -416,7 +446,7 @@ func (o *operator) deployAll() error {
 	if err := o.waitForGateway(); err != nil {
 		return err
 	}
-	for _, app := range apps {
+	for _, app := range o.releaseApps() {
 		if err := o.k("-n", "foc", "rollout", "restart", "deployment/"+app); err != nil {
 			return err
 		}
@@ -435,8 +465,8 @@ func (o *operator) rollout(resource string) error {
 }
 
 func (o *operator) deployOne(service string) error {
-	if !contains(apps, service) {
-		return fmt.Errorf("unknown service %q; use %s", service, strings.Join(apps, ", "))
+	if !contains(o.releaseApps(), service) {
+		return fmt.Errorf("unknown service %q; use %s", service, strings.Join(o.releaseApps(), ", "))
 	}
 	if err := o.checkOverlay(); err != nil {
 		return err

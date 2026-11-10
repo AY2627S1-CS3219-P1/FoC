@@ -104,6 +104,8 @@ Note: aggregate rating / review count are computed by Order Service (R3.6, R3.7)
 
 Enforcement is shared: Order Service must block create/accept/review (R2, R1.6.12), Supplier Service must block supplier-addition requests.
 
+Reports and appeals (RP1–RP12) live in Moderation Service (`docs/adr/moderation-service.md`). User Service applies their consequences: it consumes `moderation.outcome_requested` and records warnings, suspensions and their reinstatement, and review removals and restorations once per event, each linked to its report or appeal (NFR-10.3). It serves `UserInternalService` on its internal listener so Moderation Service can name participants and check review and warning facts. `ReviewService.ListMyReviewRemovals` lists a reviewer's reviews removed outside a report, which they may appeal. Reviews are checked against the order's requester and courier through Order's internal listener, and fail closed when Order is unavailable.
+
 ## U7 — Account Warnings
 
 | ID | Requirement | Priority | Planned |
@@ -116,7 +118,7 @@ Enforcement is shared: Order Service must block create/accept/review (R2, R1.6.1
 | U7.5 | Retain a warning when its appeal outcome is Upheld. | Low | Week 10 |
 | U7.6 | Mark a warning as removed when its appeal outcome is Overturned. | Low | Week 10 |
 
-Producers: Order Service requests warnings (R1.4.1, R1.4.2); Report Service requests warnings (RP5.2). Appeals resolved via Report Service (RP12.1, RP12.2).
+Producers: Order Service requests warnings (R1.4.1, R1.4.2); Moderation Service report outcomes issue warnings (RP5.2), and its appeals retain or remove them (RP12.1, RP12.2).
 
 ## Relevant NFRs
 

@@ -109,3 +109,45 @@ spec:
       to:
         - operation:
             ports: ["3000"]
+
+---
+# Participant IDs are private: only their service consumers may query Order.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: order-internal-participants-only
+spec:
+  selector:
+    matchLabels:
+      app: order-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals:
+              - cluster.local/ns/foc/sa/user-service
+              - cluster.local/ns/foc/sa/communication-service
+              - cluster.local/ns/foc/sa/moderation-service
+      to:
+        - operation:
+            ports: ["8081"]
+---
+# Participant names and review and warning facts are private: only Moderation
+# may read them. Signing keys on the same listener stay open to every service.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: user-internal-reads-moderation-only
+spec:
+  selector:
+    matchLabels:
+      app: user-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/moderation-service]
+      to:
+        - operation:
+            ports: ["8081"]
+            paths: ["/user.v1.UserInternalService/*"]

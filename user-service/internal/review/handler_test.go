@@ -54,9 +54,10 @@ type handlerLogicStub struct {
 	removedBy     uuid.UUID
 	removeErr     error
 
-	removalsPage RemovalPage
-	removalsErr  error
-	removalsFor  pagination.Pagination
+	removalsPage       RemovalPage
+	removalsErr        error
+	removalsFor        pagination.Pagination
+	myRemovalsReviewer uuid.UUID
 
 	reviewedFor      uuid.UUID
 	reviewedOrderIDs []uuid.UUID
@@ -64,6 +65,12 @@ type handlerLogicStub struct {
 	reviewedErr      error
 	myReview         Review
 	myReviewErr      error
+
+	review          Review
+	reviewRemoved   bool
+	reviewErr       error
+	getReviewCaller uuid.UUID
+	getReviewAdmin  bool
 }
 
 func (s *handlerLogicStub) SubmitReview(
@@ -120,6 +127,37 @@ func (s *handlerLogicStub) ListUnpublishedReviewsForUser(
 	return s.unpubPage, s.unpubErr
 }
 
+func (s *handlerLogicStub) ListMyReviewsForOrders(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	orderIDs []uuid.UUID,
+) (ReviewOrderStatuses, error) {
+	s.reviewedFor = reviewerID
+	s.reviewedOrderIDs = orderIDs
+	return s.reviewedResult, s.reviewedErr
+}
+
+func (s *handlerLogicStub) GetReview(
+	_ context.Context,
+	callerID uuid.UUID,
+	isAdmin bool,
+	_ uuid.UUID,
+) (Review, bool, error) {
+	s.getReviewCaller, s.getReviewAdmin = callerID, isAdmin
+	return s.review, s.reviewRemoved, s.reviewErr
+}
+
+func (s *handlerLogicStub) GetMyReviewForOrder(
+	_ context.Context,
+	reviewerID, _ uuid.UUID,
+) (Review, error) {
+	s.reviewedFor = reviewerID
+	if s.myReviewErr != nil {
+		return Review{}, s.myReviewErr
+	}
+	return s.myReview, nil
+}
+
 func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	s.removedID = id
 	s.removedReason = reason
@@ -128,6 +166,16 @@ func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason 
 }
 
 func (s *handlerLogicStub) ListReviewRemovals(_ context.Context, page pagination.Pagination) (RemovalPage, error) {
+	s.removalsFor = page
+	return s.removalsPage, s.removalsErr
+}
+
+func (s *handlerLogicStub) ListMyReviewRemovals(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	page pagination.Pagination,
+) (RemovalPage, error) {
+	s.myRemovalsReviewer = reviewerID
 	s.removalsFor = page
 	return s.removalsPage, s.removalsErr
 }
@@ -711,6 +759,34 @@ func TestRemoveReviewRPC(t *testing.T) {
 	})
 }
 
+func TestListMyReviewRemovalsRPC(t *testing.T) {
+	caller := uuid.New()
+	reviewID := uuid.New()
+	stub := &handlerLogicStub{removalsPage: RemovalPage{
+		Removals: []ReviewRemoval{{ID: uuid.New(), ReviewID: reviewID, ReviewerID: caller, Reason: "abuse"}},
+		PageInfo: pagination.NewPageInfo(1, 20, 1),
+	}}
+	client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+
+	resp, err := client.ListMyReviewRemovals(
+		context.Background(),
+		connect.NewRequest(&reviewv1.ListMyReviewRemovalsRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("list my removals: %v", err)
+	}
+
+	if stub.myRemovalsReviewer != caller {
+		t.Fatalf("reviewer = %v, want the caller %v", stub.myRemovalsReviewer, caller)
+	}
+	if len(resp.Msg.Removals) != 1 || resp.Msg.Removals[0].GetReviewId() != reviewID.String() {
+		t.Fatalf("unexpected removals: %+v", resp.Msg.Removals)
+	}
+	if resp.Msg.Pagination.GetTotalItems() != 1 {
+		t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
+	}
+}
+
 func TestListReviewRemovalsRPC(t *testing.T) {
 	removalsPage := RemovalPage{
 		Removals: []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}},
@@ -808,6 +884,34 @@ func TestReviewRPCErrorMapping(t *testing.T) {
 	}
 }
 
+func TestGetReviewRPC(t *testing.T) {
+	admin, reviewID := uuid.New(), uuid.New()
+	stub := &handlerLogicStub{review: Review{ID: reviewID, Rating: 2, Comment: "rude"}, reviewRemoved: true}
+	client := reviewClient(t, stub, auth.Caller{ID: admin.String(), Admin: true})
+
+	resp, err := client.GetReview(
+		context.Background(),
+		connect.NewRequest(&reviewv1.GetReviewRequest{ReviewId: reviewID.String()}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetReview().GetId() != reviewID.String() || !resp.Msg.GetRemoved() {
+		t.Fatalf("response = %+v", resp.Msg)
+	}
+	if stub.getReviewCaller != admin || !stub.getReviewAdmin {
+		t.Fatalf("caller = %v admin = %v", stub.getReviewCaller, stub.getReviewAdmin)
+	}
+	if resp.Header().Get("Cache-Control") == "" {
+		t.Fatal("review with signed photo URLs must not be cacheable")
+	}
+
+	_, err = client.GetReview(context.Background(), connect.NewRequest(&reviewv1.GetReviewRequest{ReviewId: "bad"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid id: %v", err)
+	}
+}
+
 func TestUnpublishedReviewCarriesLastAppliedGeneration(t *testing.T) {
 	message := toUnpublishedReviewProto(UnpublishedReview{AppliedRunGeneration: 3})
 	if message.GetAppliedRunGeneration() != 3 {
@@ -822,27 +926,6 @@ func (s *handlerLogicStub) ListMyReviewsReceived(
 ) (ReviewPage, error) {
 	s.listedFor = userID
 	return s.forUserPage, s.forUserErr
-}
-
-func (s *handlerLogicStub) ListMyReviewsForOrders(
-	_ context.Context,
-	reviewerID uuid.UUID,
-	orderIDs []uuid.UUID,
-) (ReviewOrderStatuses, error) {
-	s.reviewedFor = reviewerID
-	s.reviewedOrderIDs = orderIDs
-	return s.reviewedResult, s.reviewedErr
-}
-
-func (s *handlerLogicStub) GetMyReviewForOrder(
-	_ context.Context,
-	reviewerID, _ uuid.UUID,
-) (Review, error) {
-	s.reviewedFor = reviewerID
-	if s.myReviewErr != nil {
-		return Review{}, s.myReviewErr
-	}
-	return s.myReview, nil
 }
 
 func TestOwnerReviewReportsModerationStatus(t *testing.T) {

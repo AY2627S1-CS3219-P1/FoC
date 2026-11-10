@@ -27,13 +27,15 @@ data:
   PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
   PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
   PUBLIC_MODERATION_SERVICE_URL: https://localhost:5173
+  PUBLIC_REPORTS_MODERATION_SERVICE_URL: https://localhost:5173
 
   # Service-to-service addresses: in-cluster DNS names read by backend
   # processes; browsers never see them. Plain HTTP is fine because Istio
   # STRICT mTLS encrypts and authenticates the hop. Internal listeners
-  # (user-service-internal, credit-service-internal,
+  # (user-service-internal, order-service-internal, credit-service-internal,
   # communication-service-internal) host the private RPCs.
   USER_SERVICE_BASE_URL: http://user-service-internal:8080
+  ORDER_SERVICE_BASE_URL: http://order-service-internal:8080
   COMMUNICATION_SERVICE_BASE_URL: http://communication-service-internal:8080
   SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
   CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080

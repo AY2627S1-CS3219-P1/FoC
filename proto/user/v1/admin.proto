@@ -64,6 +64,9 @@ message ChangeUserRoleRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
   UserRole to_role = 2;
   string reason = 3 [(buf.validate.field).string.max_len = 2000];
+  // The user report that prompted a suspension or reinstatement. Only allowed
+  // when moving to or from the suspended role.
+  optional string report_id = 4 [(buf.validate.field).string.uuid = true];
 }
 
 message ChangeUserRoleResponse {

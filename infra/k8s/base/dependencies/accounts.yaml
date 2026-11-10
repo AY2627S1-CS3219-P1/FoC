@@ -157,3 +157,27 @@ metadata:
   labels:
     foc.dev/stage: dependencies
 automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: moderation-service
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: moderation-migrate
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: moderation-storage-init
+  labels:
+    foc.dev/stage: dependencies
+automountServiceAccountToken: false

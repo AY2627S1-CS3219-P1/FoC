@@ -527,9 +527,23 @@ func TestLegacyContentModerationPasswordFollowsRenamedLogin(t *testing.T) {
 		!strings.Contains(string(url), "content_moderation_app:legacy-test-only@postgres:5432/content_moderation_db") {
 		t.Fatal("content moderation URL does not target the renamed login and database")
 	}
-	for _, name := range []string{"moderation-password", "moderation-db-user", "moderation-db-name", "moderation-database-url"} {
-		if _, err := os.Stat(filepath.Join(directory, name)); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("legacy %s remains available under the bare moderation name", name)
+	reportsPassword, err := os.ReadFile(filepath.Join(directory, "moderation-password"))
+	if err != nil || string(reportsPassword) == "legacy-test-only" {
+		t.Fatal("reports moderation did not generate its own password")
+	}
+	for name, value := range map[string]string{
+		"moderation-db-user":      "moderation_app",
+		"moderation-db-name":      "moderation_db",
+		"moderation-database-url": "moderation_app:" + string(reportsPassword) + "@postgres:5432/moderation_db",
+	} {
+		got, err := os.ReadFile(filepath.Join(directory, name))
+		if err != nil || !strings.Contains(string(got), value) {
+			t.Fatalf("reports %s = %q: %v", name, got, err)
+		}
+	}
+	for _, name := range []string{"moderation-db-user", "moderation-db-name", "moderation-database-url"} {
+		if _, err := os.Stat(filepath.Join(directory, name+".legacy")); err != nil {
+			t.Fatalf("legacy %s was not set aside: %v", name, err)
 		}
 	}
 }

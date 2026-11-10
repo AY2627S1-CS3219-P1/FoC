@@ -4,3 +4,5 @@ resources:
   - ../../../base/initialization
   - order-storage-init.yaml
   - user-storage-init.yaml
+  - moderation-storage-init.yaml
+  - moderation-migrate.yaml

@@ -24,5 +24,6 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Credit's reservation listener accepts unauthenticated calls](credit-internal-listener-unauthenticated.md) | Credit's `INTERNAL_PORT` is published, exposed through a Service or ingress, or merged into the public listener. |
 | [Stack rebases replay integrated merge history](gh-stack-merge-history.md) | `gh stack` v0.1.1 rebases imported branches with merge commits and squash-merged dependencies. |
 | [Sandbox blocks local HTTP test servers](sandbox-test-sockets.md) | Go tests use `httptest.NewServer` and the agent sandbox denies local socket creation. |
+| [Production moderation evidence uploads are unavailable](moderation-evidence-production-storage.md) | Deploying `moderation-service` with the AWS or production overlay, or testing evidence uploads outside the local stack. |
 | [Service lint configurations are not symlinks on Windows](golangci-symlinks-windows.md) | `git config core.symlinks` is `false` and golangci-lint runs inside a Go module. |
 | [Supplier review fixtures omit required revisions](supplier-review-fixture-revisions.md) | Running Supplier operational RPC/PostGIS integration tests under `tests/location/rpc`. |

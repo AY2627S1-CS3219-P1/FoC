@@ -215,6 +215,8 @@
 				{/if}
 				<div class="form-actions warnings-actions">
 					<Button variant="outlined" href="/profile/warnings">View My Warnings</Button>
+					<Button variant="outlined" href="/reports">My Reports</Button>
+					<Button variant="outlined" href="/appeals">My Appeals</Button>
 				</div>
 			</div>
 		</Card>
@@ -258,8 +260,9 @@
 	}
 
 	.warnings-actions {
-		/* .form-actions defaults to flex-end; keep the warnings link pinned to the bottom-left. */
+		/* .form-actions defaults to flex-end; keep the account links pinned to the bottom-left. */
 		justify-content: flex-start;
+		flex-wrap: wrap;
 		margin-top: auto;
 	}
 </style>

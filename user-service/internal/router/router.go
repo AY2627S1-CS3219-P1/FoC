@@ -52,10 +52,18 @@ func Public(
 }
 
 // Internal mounts the internal-only RPCs.
-func Internal(auth *authhandler.Handler) http.Handler {
+// Internal serves the service-to-service RPCs: the token signing keys for
+// every service, and the reads Moderation Service needs.
+func Internal(auth *authhandler.Handler, reads userv1connect.UserInternalServiceHandler) http.Handler {
 	mux := http.NewServeMux()
 	keysPath, keysService := publicKeyHandler(auth)
 	mux.Handle(keysPath, keysService)
+	readsPath, readsService := userv1connect.NewUserInternalServiceHandler(
+		reads,
+		connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
+		connect.WithReadMaxBytes(maxRPCMessageBytes),
+	)
+	mux.Handle(readsPath, readsService)
 	return mux
 }
 

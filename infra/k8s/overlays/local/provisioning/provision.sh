@@ -26,7 +26,7 @@ SELECT format('ALTER ROLE moderation_app RENAME TO %I', :'db_user') \gexec
 SELECT format('ALTER ROLE %I PASSWORD %L', :'db_user', :'db_password') \gexec
 \endif
 SQL
-for service in user supplier order credit communication content-moderation; do
+for service in user supplier order credit communication content-moderation moderation; do
   DB_USER=$(cat "/secrets/$service/DB_USER")
   DB_PASSWORD=$(cat "/secrets/$service/DB_PASSWORD")
   DB_NAME=$(cat "/secrets/$service/DB_NAME")

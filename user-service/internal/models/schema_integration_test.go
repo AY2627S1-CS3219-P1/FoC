@@ -412,6 +412,94 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("moderation_service: moderation tables moved out, links kept as opaque IDs", func(t *testing.T) {
+		for _, table := range []string{
+			"user_reports", "user_report_responses", "user_appeals",
+			"user_appeal_decisions", "user_appeal_responses", "evidence_attachments",
+		} {
+			if db.Migrator().HasTable(table) {
+				t.Fatalf("%s still exists in User Service", table)
+			}
+		}
+
+		// Report and appeal IDs name Moderation Service rows, so nothing checks them.
+		reportID, appealID := uuid.New(), uuid.New()
+		if err := db.Exec(
+			`INSERT INTO account_warnings (user_id, request_id, report_id, appeal_id, reason, status)
+			 VALUES (?, ?, ?, ?, 'opaque links', 'active')`,
+			alice.ID, uuid.New(), reportID, appealID,
+		).Error; err != nil {
+			t.Fatalf("warning with opaque report and appeal IDs: %v", err)
+		}
+		if !db.Migrator().HasColumn("review_removals", "report_id") {
+			t.Fatal("review_removals.report_id missing")
+		}
+
+		eventID := uuid.New()
+		insertEvent := func() error {
+			return db.Exec(
+				"INSERT INTO moderation_outcome_events (event_id, outcome) VALUES (?, 'applied')", eventID,
+			).Error
+		}
+		if err := insertEvent(); err != nil {
+			t.Fatal(err)
+		}
+		if err := insertEvent(); err == nil {
+			t.Fatal("an outcome event was recorded twice")
+		}
+		if err := db.Exec(
+			"INSERT INTO moderation_outcome_events (event_id, outcome) VALUES (?, 'skipped')", uuid.New(),
+		).Error; err == nil {
+			t.Fatal("an unknown outcome result was accepted")
+		}
+	})
+
+	t.Run("review_restorations: one per removal, removal repeatable", func(t *testing.T) {
+		reviewID := uuid.New()
+		if err := db.Exec(
+			`INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, deleted_at)
+			 VALUES (?, ?, ?, ?, 2, 'bad', now())`,
+			reviewID, alice.ID, admin.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		removal := func() (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_by)
+				 SELECT ?, id, reviewer_id, reviewee_id, order_id, 'abuse', ? FROM reviews WHERE id = ?`,
+				id, admin.ID, reviewID,
+			).Error
+			return id, err
+		}
+		first, err := removal()
+		if err != nil {
+			t.Fatal(err)
+		}
+		restore := func(removalID uuid.UUID) error {
+			return db.Exec(
+				`INSERT INTO review_restorations (id, removal_id, review_id, reason, created_by)
+				 VALUES (?, ?, ?, 'overturned', ?)`,
+				uuid.New(), removalID, reviewID, admin.ID,
+			).Error
+		}
+		if err := restore(first); err != nil {
+			t.Fatal(err)
+		}
+		if err := restore(first); err == nil {
+			t.Fatal("expected a second restoration of one removal to fail")
+		}
+		if _, err := removal(); err != nil {
+			t.Fatalf("removing a restored review again: %v", err)
+		}
+
+		// review_removals restricts deleting the review, so later user
+		// cascades would fail on this fixture.
+		if err := db.Exec("DELETE FROM review_removals WHERE review_id = ?", reviewID).Error; err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)

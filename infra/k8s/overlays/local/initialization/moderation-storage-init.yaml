@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: moderation-storage-init
+  namespace: foc
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: moderation-storage-init
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: moderation-storage-init
+      restartPolicy: Never
+      containers:
+        - name: moderation-storage-init
+          image: foc/moderation-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["/app/storage-init"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - {name: APP_ENV, value: local}
+            - {name: MODERATION_S3_BUCKET, value: moderation-images}
+            - {name: MODERATION_S3_ENDPOINT, value: "http://floci:4566"}
+            - {name: AWS_REGION, value: us-east-1}
+            - name: FRONTEND_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: foc-config
+                  key: FRONTEND_BASE_URL
+          envFrom:
+            - secretRef:
+                name: object-storage

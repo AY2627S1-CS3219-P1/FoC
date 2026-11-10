@@ -19,6 +19,7 @@ var apps = []string{
 	"credit-service",
 	"communication-service",
 	"content-moderation-service",
+	"moderation-service",
 	"frontend",
 }
 
@@ -29,8 +30,36 @@ var jobs = []string{
 	"credit-migrate",
 	"communication-migrate",
 	"content-moderation-migrate",
+	"moderation-migrate",
 	"kafka-init",
 }
+
+// releaseApps lists workloads the current overlay deploys. The reports and
+// appeals moderation service is local-only until AWS release wiring enables it.
+func (o *operator) releaseApps() []string {
+	if o.isLocal() {
+		return apps
+	}
+	return withoutName(apps, "moderation-service")
+}
+
+func (o *operator) releaseJobs() []string {
+	if o.isLocal() {
+		return jobs
+	}
+	return withoutName(jobs, "moderation-migrate")
+}
+
+func withoutName(names []string, name string) []string {
+	out := make([]string, 0, len(names))
+	for _, candidate := range names {
+		if candidate != name {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
 var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}
 
 type operator struct {

@@ -19,6 +19,7 @@ on:
       - 'order-service/**'
       - 'communication-service/**'
       - 'credit-service/**'
+      - 'moderation-service/**'
       - 'frontend/**'
       - 'Makefile'
   workflow_dispatch:

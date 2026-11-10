@@ -253,7 +253,7 @@ func TestRoleChangePolicyAndReasons(t *testing.T) {
 			s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
 				return fn(RoleStore{Users: f, Admin: f})
 			}}
-			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason)
+			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, tc.to, tc.reason, nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
 			}
@@ -284,6 +284,7 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 		targetID,
 		models.RoleAdmin,
 		"",
+		nil,
 	); !errors.Is(
 		err,
 		ErrConcurrentRoleEdit,
@@ -293,6 +294,63 @@ func TestRoleChangeConflictDoesNotAudit(t *testing.T) {
 	if len(f.changes) != 0 || f.users[targetID].Role != models.RoleUser {
 		t.Fatal("conflict mutated role or audit")
 	}
+}
+
+func TestRoleChangeReportLink(t *testing.T) {
+	reportID := uuid.New()
+
+	newService := func(target models.RoleName, writeErr error) (*RoleService, *accountFixture, uuid.UUID, uuid.UUID) {
+		actorID, targetID := uuid.New(), uuid.New()
+		f := &accountFixture{users: map[uuid.UUID]models.User{
+			actorID:  {ID: actorID, Role: models.RoleSuperAdmin},
+			targetID: {ID: targetID, Role: target},
+		}, writeErr: writeErr}
+		s := &RoleService{Users: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+			return fn(RoleStore{Users: f, Admin: f})
+		}}
+		return s, f, actorID, targetID
+	}
+
+	t.Run("suspension records the report", func(t *testing.T) {
+		s, f, actorID, targetID := newService(models.RoleUser, nil)
+		if _, err := s.ChangeUserRole(
+			context.Background(), actorID, targetID, models.RoleSuspended, "harassment", &reportID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(f.changes) != 1 || f.changes[0].ReportID == nil || *f.changes[0].ReportID != reportID {
+			t.Fatalf("audit = %+v", f.changes)
+		}
+	})
+
+	t.Run("reinstatement may record the report", func(t *testing.T) {
+		s, f, actorID, targetID := newService(models.RoleSuspended, nil)
+		if _, err := s.ChangeUserRole(
+			context.Background(), actorID, targetID, models.RoleUser, "report overturned", &reportID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(f.changes) != 1 || f.changes[0].ReportID == nil {
+			t.Fatalf("audit = %+v", f.changes)
+		}
+	})
+
+	t.Run("other role changes reject a report", func(t *testing.T) {
+		s, f, actorID, targetID := newService(models.RoleUser, nil)
+		_, err := s.ChangeUserRole(context.Background(), actorID, targetID, models.RoleAdmin, "", &reportID)
+		if !errors.Is(err, ErrInvalidRoleChange) || len(f.changes) != 0 {
+			t.Fatalf("error = %v, audit = %+v", err, f.changes)
+		}
+	})
+
+	t.Run("nil report id is rejected", func(t *testing.T) {
+		s, _, actorID, targetID := newService(models.RoleUser, nil)
+		nilID := uuid.Nil
+		_, err := s.ChangeUserRole(context.Background(), actorID, targetID, models.RoleSuspended, "abuse", &nilID)
+		if !errors.Is(err, ErrInvalidRoleChange) {
+			t.Fatalf("error = %v", err)
+		}
+	})
 }
 
 func TestAdminUserLookupAndStats(t *testing.T) {

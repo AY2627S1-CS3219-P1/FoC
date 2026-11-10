@@ -130,7 +130,7 @@ func (o *operator) waitForGateway() error {
 	); err != nil {
 		return err
 	}
-	routes := append([]string{}, apps...)
+	routes := append([]string{}, o.releaseApps()...)
 	if o.isLocal() {
 		routes = append(routes, "floci-images")
 	}
