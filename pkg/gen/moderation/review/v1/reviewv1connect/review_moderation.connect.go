@@ -126,12 +126,9 @@ func (UnimplementedReviewModerationServiceHandler) GetReviewModerationJobsForRev
 // ReviewModerationAdminServiceClient is a client for the
 // moderation.review.v1.ReviewModerationAdminService service.
 type ReviewModerationAdminServiceClient interface {
-	// Returns bounded operational detail for one job, including sanitized
-	// attempt history. Never exposes provider raw bodies, prompts or keys.
+	// Sanitized attempt history; excludes prompts, credentials and provider bodies.
 	GetReviewModerationJob(context.Context, *connect.Request[v1.GetReviewModerationJobRequest]) (*connect.Response[v1.GetReviewModerationJobResponse], error)
-	// Queues a terminal errored job for another run. Increments run_generation
-	// exactly once from expected_run_generation; a mismatch fails with
-	// failed_precondition. Completed jobs are never retried.
+	// Retry terminal errors only; stale expected generations fail with failed_precondition.
 	RetryErroredJob(context.Context, *connect.Request[v1.RetryErroredJobRequest]) (*connect.Response[v1.RetryErroredJobResponse], error)
 }
 
@@ -183,12 +180,9 @@ func (c *reviewModerationAdminServiceClient) RetryErroredJob(ctx context.Context
 // ReviewModerationAdminServiceHandler is an implementation of the
 // moderation.review.v1.ReviewModerationAdminService service.
 type ReviewModerationAdminServiceHandler interface {
-	// Returns bounded operational detail for one job, including sanitized
-	// attempt history. Never exposes provider raw bodies, prompts or keys.
+	// Sanitized attempt history; excludes prompts, credentials and provider bodies.
 	GetReviewModerationJob(context.Context, *connect.Request[v1.GetReviewModerationJobRequest]) (*connect.Response[v1.GetReviewModerationJobResponse], error)
-	// Queues a terminal errored job for another run. Increments run_generation
-	// exactly once from expected_run_generation; a mismatch fails with
-	// failed_precondition. Completed jobs are never retried.
+	// Retry terminal errors only; stale expected generations fail with failed_precondition.
 	RetryErroredJob(context.Context, *connect.Request[v1.RetryErroredJobRequest]) (*connect.Response[v1.RetryErroredJobResponse], error)
 }
 

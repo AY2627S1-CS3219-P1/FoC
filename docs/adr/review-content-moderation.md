@@ -214,6 +214,8 @@ replaced through a later explicit retry. Admin removal remains separate:
 approval cannot clear `deleted_at` or bypass removal. All public review reads,
 counts and rating statistics require approval and exclude deleted reviews.
 
+Both services store reason codes as native PostgreSQL text arrays.
+
 ## Data exposure
 
 The provider adapter returns only service-owned completion data; SDK types,

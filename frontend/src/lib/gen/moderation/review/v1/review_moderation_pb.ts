@@ -20,17 +20,11 @@ export const file_moderation_review_v1_review_moderation: GenFile = /*@__PURE__*
  */
 export type GetReviewModerationJobsForReviewerRequest = Message<"moderation.review.v1.GetReviewModerationJobsForReviewerRequest"> & {
   /**
-   * The review author whose jobs are queried. Must match the authenticated
-   * caller unless the caller is an admin.
-   *
    * @generated from field: string reviewer_id = 1;
    */
   reviewerId: string;
 
   /**
-   * Bounded set of moderation request IDs from the current User page of
-   * unpublished reviews; at most 100, no paging through the job store.
-   *
    * @generated from field: repeated string moderation_request_ids = 2;
    */
   moderationRequestIds: string[];
@@ -48,9 +42,6 @@ export const GetReviewModerationJobsForReviewerRequestSchema: GenMessage<GetRevi
  */
 export type GetReviewModerationJobsForReviewerResponse = Message<"moderation.review.v1.GetReviewModerationJobsForReviewerResponse"> & {
   /**
-   * Only jobs belonging to reviewer_id are returned; missing request IDs mean
-   * no visible job (not yet ingested), which is not approval.
-   *
    * @generated from field: repeated moderation.review.v1.ReviewModerationJobSummary jobs = 1;
    */
   jobs: ReviewModerationJobSummary[];
@@ -64,9 +55,6 @@ export const GetReviewModerationJobsForReviewerResponseSchema: GenMessage<GetRev
   messageDesc(file_moderation_review_v1_review_moderation, 1);
 
 /**
- * Owner-visible summary. Contains status and outcome metadata only: no review
- * content, no prompts, no provider diagnostics.
- *
  * @generated from message moderation.review.v1.ReviewModerationJobSummary
  */
 export type ReviewModerationJobSummary = Message<"moderation.review.v1.ReviewModerationJobSummary"> & {
@@ -91,7 +79,7 @@ export type ReviewModerationJobSummary = Message<"moderation.review.v1.ReviewMod
   status: ModerationJobStatus;
 
   /**
-   * Attempts within the current run generation.
+   * Resets on explicit retry.
    *
    * @generated from field: int32 attempt_count = 5;
    */
@@ -188,9 +176,6 @@ export const GetReviewModerationJobResponseSchema: GenMessage<GetReviewModeratio
   messageDesc(file_moderation_review_v1_review_moderation, 4);
 
 /**
- * One recorded evaluation attempt. Diagnostics are classified and bounded;
- * they never contain credentials, raw provider bodies or prompts.
- *
  * @generated from message moderation.review.v1.ModerationAttempt
  */
 export type ModerationAttempt = Message<"moderation.review.v1.ModerationAttempt"> & {
@@ -220,8 +205,7 @@ export type ModerationAttempt = Message<"moderation.review.v1.ModerationAttempt"
   finishedAt?: Timestamp | undefined;
 
   /**
-   * "completed" or a stable error class, e.g. "timeout", "rate_limited",
-   * "invalid_output", "configuration".
+   * "completed", "released", "abandoned", or the stable error class for a failed attempt.
    *
    * @generated from field: string outcome = 7;
    */
@@ -250,8 +234,7 @@ export type RetryErroredJobRequest = Message<"moderation.review.v1.RetryErroredJ
   jobId: string;
 
   /**
-   * Optimistic concurrency: the caller's known current generation. The retry
-   * is applied only if this still matches the job's generation.
+   * Retry is applied only while this matches the current generation.
    *
    * @generated from field: int32 expected_run_generation = 2;
    */
@@ -283,9 +266,6 @@ export const RetryErroredJobResponseSchema: GenMessage<RetryErroredJobResponse> 
   messageDesc(file_moderation_review_v1_review_moderation, 7);
 
 /**
- * Terminal job states. PROCESSING covers an active claim; RETRY_WAIT means a
- * durable delayed retry is scheduled.
- *
  * @generated from enum moderation.review.v1.ModerationJobStatus
  */
 export enum ModerationJobStatus {
@@ -360,15 +340,8 @@ export const ModerationOutcomeTypeSchema: GenEnum<ModerationOutcomeType> = /*@__
   enumDesc(file_moderation_review_v1_review_moderation, 1);
 
 /**
- * Owner-visible progress for review moderation jobs, and admin operations on
- * them. Publication is authoritative in User Service; a completed approval
- * that User has not yet applied still shows as pending publication on the
- * review itself. Missing jobs are valid: they mean not yet ingested, never
- * approval.
- *
- * Owner-or-admin authorization: ordinary callers may only query their own
- * reviewer_id; admins may query any reviewer. Requesting another reviewer's
- * identifiers without authorization fails before any lookup.
+ * User owns publication; missing CMS jobs mean not yet ingested, never approval.
+ * Ordinary callers may query only their own reviewer_id; admins may query any.
  *
  * @generated from service moderation.review.v1.ReviewModerationService
  */
@@ -391,8 +364,7 @@ export const ReviewModerationService: GenService<{
  */
 export const ReviewModerationAdminService: GenService<{
   /**
-   * Returns bounded operational detail for one job, including sanitized
-   * attempt history. Never exposes provider raw bodies, prompts or keys.
+   * Sanitized attempt history; excludes prompts, credentials and provider bodies.
    *
    * @generated from rpc moderation.review.v1.ReviewModerationAdminService.GetReviewModerationJob
    */
@@ -402,9 +374,7 @@ export const ReviewModerationAdminService: GenService<{
     output: typeof GetReviewModerationJobResponseSchema;
   },
   /**
-   * Queues a terminal errored job for another run. Increments run_generation
-   * exactly once from expected_run_generation; a mismatch fails with
-   * failed_precondition. Completed jobs are never retried.
+   * Retry terminal errors only; stale expected generations fail with failed_precondition.
    *
    * @generated from rpc moderation.review.v1.ReviewModerationAdminService.RetryErroredJob
    */

@@ -23,8 +23,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Terminal job states. PROCESSING covers an active claim; RETRY_WAIT means a
-// durable delayed retry is scheduled.
 type ModerationJobStatus int32
 
 const (
@@ -137,13 +135,9 @@ func (ModerationOutcomeType) EnumDescriptor() ([]byte, []int) {
 }
 
 type GetReviewModerationJobsForReviewerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The review author whose jobs are queried. Must match the authenticated
-	// caller unless the caller is an admin.
-	ReviewerId string `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	// Bounded set of moderation request IDs from the current User page of
-	// unpublished reviews; at most 100, no paging through the job store.
-	ModerationRequestIds []string `protobuf:"bytes,2,rep,name=moderation_request_ids,json=moderationRequestIds,proto3" json:"moderation_request_ids,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ReviewerId           string                 `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	ModerationRequestIds []string               `protobuf:"bytes,2,rep,name=moderation_request_ids,json=moderationRequestIds,proto3" json:"moderation_request_ids,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -193,9 +187,7 @@ func (x *GetReviewModerationJobsForReviewerRequest) GetModerationRequestIds() []
 }
 
 type GetReviewModerationJobsForReviewerResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Only jobs belonging to reviewer_id are returned; missing request IDs mean
-	// no visible job (not yet ingested), which is not approval.
+	state         protoimpl.MessageState        `protogen:"open.v1"`
 	Jobs          []*ReviewModerationJobSummary `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -238,15 +230,13 @@ func (x *GetReviewModerationJobsForReviewerResponse) GetJobs() []*ReviewModerati
 	return nil
 }
 
-// Owner-visible summary. Contains status and outcome metadata only: no review
-// content, no prompts, no provider diagnostics.
 type ReviewModerationJobSummary struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	JobId               string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	ModerationRequestId string                 `protobuf:"bytes,2,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	ReviewId            string                 `protobuf:"bytes,3,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
 	Status              ModerationJobStatus    `protobuf:"varint,4,opt,name=status,proto3,enum=moderation.review.v1.ModerationJobStatus" json:"status,omitempty"`
-	// Attempts within the current run generation.
+	// Resets on explicit retry.
 	AttemptCount int32 `protobuf:"varint,5,opt,name=attempt_count,json=attemptCount,proto3" json:"attempt_count,omitempty"`
 	// Present when status is RETRY_WAIT.
 	NextRetryAt   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=next_retry_at,json=nextRetryAt,proto3" json:"next_retry_at,omitempty"`
@@ -473,8 +463,6 @@ func (x *GetReviewModerationJobResponse) GetAttempts() []*ModerationAttempt {
 	return nil
 }
 
-// One recorded evaluation attempt. Diagnostics are classified and bounded;
-// they never contain credentials, raw provider bodies or prompts.
 type ModerationAttempt struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RunGeneration int32                  `protobuf:"varint,1,opt,name=run_generation,json=runGeneration,proto3" json:"run_generation,omitempty"`
@@ -482,8 +470,7 @@ type ModerationAttempt struct {
 	ModelId       string                 `protobuf:"bytes,4,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	// "completed" or a stable error class, e.g. "timeout", "rate_limited",
-	// "invalid_output", "configuration".
+	// "completed", "released", "abandoned", or the stable error class for a failed attempt.
 	Outcome       string `protobuf:"bytes,7,opt,name=outcome,proto3" json:"outcome,omitempty"`
 	ErrorClass    string `protobuf:"bytes,8,opt,name=error_class,json=errorClass,proto3" json:"error_class,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -572,8 +559,7 @@ func (x *ModerationAttempt) GetErrorClass() string {
 type RetryErroredJobRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	JobId string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Optimistic concurrency: the caller's known current generation. The retry
-	// is applied only if this still matches the job's generation.
+	// Retry is applied only while this matches the current generation.
 	ExpectedRunGeneration int32 `protobuf:"varint,2,opt,name=expected_run_generation,json=expectedRunGeneration,proto3" json:"expected_run_generation,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
