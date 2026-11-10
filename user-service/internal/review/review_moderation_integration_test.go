@@ -274,7 +274,7 @@ func TestReviewModerationIntegration(t *testing.T) {
 		}
 
 		list, err := stack.service.ListUnpublishedReviewsForUser(
-			ctx, reviewer1, UnpublishedFilter{}, mustPage(t, 1, 20))
+			ctx, reviewer1, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -415,14 +415,14 @@ func TestReviewModerationIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("unpublished list filters and pagination totals align", func(t *testing.T) {
+	t.Run("unpublished list includes every status with aligned pagination totals", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, stack.sqlDB, id)
 		}
 
 		pendingReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "still pending")
-		rejectedReview, rejectedOrder := submitReview(t, ctx, stack, reviewer, reviewee, "rejected")
+		rejectedReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "rejected")
 		rejected := reviewCompletionRequest{
 			reviewID:   rejectedReview,
 			reviewerID: reviewer,
@@ -462,7 +462,7 @@ func TestReviewModerationIntegration(t *testing.T) {
 		approveReview(t, ctx, stack.completions, stack.sqlDB, approvedReview)
 
 		unpublished, err := stack.service.ListUnpublishedReviewsForUser(
-			ctx, reviewer, UnpublishedFilter{}, mustPage(t, 1, 20))
+			ctx, reviewer, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -472,28 +472,14 @@ func TestReviewModerationIntegration(t *testing.T) {
 		if len(unpublished.Reviews) != 3 || unpublished.Reviews[0].ID != erroredReview {
 			t.Fatalf("unexpected order: %+v", unpublished.Reviews)
 		}
-
-		pendingStatus := ModerationPending
-		filtered, err := stack.service.ListUnpublishedReviewsForUser(
-			ctx, reviewer, UnpublishedFilter{Status: &pendingStatus}, mustPage(t, 1, 20))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if filtered.TotalItems() != 1 || len(filtered.Reviews) != 1 || filtered.Reviews[0].ID != pendingReview {
-			t.Fatalf("pending filter = %+v", filtered)
-		}
-
-		byOrder, err := stack.service.ListUnpublishedReviewsForUser(
-			ctx, reviewer, UnpublishedFilter{OrderID: &rejectedOrder}, mustPage(t, 1, 20))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if byOrder.TotalItems() != 1 || len(byOrder.Reviews) != 1 || byOrder.Reviews[0].ID != rejectedReview {
-			t.Fatalf("order filter = %+v", byOrder)
+		for i, status := range []ModerationStatus{ModerationError, ModerationRejected, ModerationPending} {
+			if unpublished.Reviews[i].ModerationStatus != status {
+				t.Fatalf("review %d status = %q, want %q", i, unpublished.Reviews[i].ModerationStatus, status)
+			}
 		}
 
 		paged, err := stack.service.ListUnpublishedReviewsForUser(
-			ctx, reviewer, UnpublishedFilter{}, mustPage(t, 2, 2))
+			ctx, reviewer, mustPage(t, 2, 2))
 		if err != nil {
 			t.Fatal(err)
 		}

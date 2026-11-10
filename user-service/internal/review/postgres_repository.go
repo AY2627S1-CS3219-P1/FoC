@@ -194,15 +194,12 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 func (r *PostgresRepository) ListUnpublishedReviewsForUser(
 	ctx context.Context,
 	reviewerID uuid.UUID,
-	filter UnpublishedFilter,
 	offset, limit int64,
 ) ([]UnpublishedReview, error) {
 	rows, err := r.queries.ListUnpublishedReviewsForUser(ctx, reviewdb.ListUnpublishedReviewsForUserParams{
-		ReviewerID:             reviewerID,
-		ModerationStatusFilter: statusFilterParam(filter),
-		OrderID:                orderFilterParam(filter),
-		PageOffset:             offset,
-		PageLimit:              limit,
+		ReviewerID: reviewerID,
+		PageOffset: offset,
+		PageLimit:  limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list unpublished reviews: %w", err)
@@ -221,13 +218,8 @@ func (r *PostgresRepository) ListUnpublishedReviewsForUser(
 func (r *PostgresRepository) CountUnpublishedReviewsForUser(
 	ctx context.Context,
 	reviewerID uuid.UUID,
-	filter UnpublishedFilter,
 ) (int64, error) {
-	count, err := r.queries.CountUnpublishedReviewsForUser(ctx, reviewdb.CountUnpublishedReviewsForUserParams{
-		ReviewerID:             reviewerID,
-		ModerationStatusFilter: statusFilterParam(filter),
-		OrderID:                orderFilterParam(filter),
-	})
+	count, err := r.queries.CountUnpublishedReviewsForUser(ctx, reviewerID)
 	if err != nil {
 		return 0, fmt.Errorf("count unpublished reviews: %w", err)
 	}
@@ -393,20 +385,6 @@ func (r *PostgresRepository) ScheduleSubmittedOutboxRetry(
 		return errors.New("review-submitted outbox lease lost before retry was scheduled")
 	}
 	return nil
-}
-
-func statusFilterParam(filter UnpublishedFilter) sql.NullString {
-	if filter.Status == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: string(*filter.Status), Valid: true}
-}
-
-func orderFilterParam(filter UnpublishedFilter) uuid.NullUUID {
-	if filter.OrderID == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *filter.OrderID, Valid: true}
 }
 
 func toReview(row reviewdb.SoftDeleteReviewRow) Review {

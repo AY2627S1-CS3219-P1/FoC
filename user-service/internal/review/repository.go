@@ -29,9 +29,9 @@ type Repository interface {
 	CountReviewsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	ListUnpublishedReviewsForUser(
-		ctx context.Context, reviewerID uuid.UUID, filter UnpublishedFilter, offset, limit int64,
+		ctx context.Context, reviewerID uuid.UUID, offset, limit int64,
 	) ([]UnpublishedReview, error)
-	CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID, filter UnpublishedFilter) (int64, error)
+	CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID) (int64, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 }

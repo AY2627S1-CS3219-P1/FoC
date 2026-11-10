@@ -25,7 +25,6 @@ type fakeRepository struct {
 	countFromUser   int64
 	unpublished     []UnpublishedReview
 	unpublishedCnt  int64
-	filterSeen      UnpublishedFilter
 	listRemovals    []ReviewRemoval
 	countRemovals   int64
 	participantsErr error
@@ -130,17 +129,14 @@ func (f *fakeRepository) CountReviewsFromUser(_ context.Context, _ uuid.UUID) (i
 func (f *fakeRepository) ListUnpublishedReviewsForUser(
 	_ context.Context,
 	_ uuid.UUID,
-	filter UnpublishedFilter,
 	_, _ int64,
 ) ([]UnpublishedReview, error) {
-	f.filterSeen = filter
 	return f.unpublished, f.listErr
 }
 
 func (f *fakeRepository) CountUnpublishedReviewsForUser(
 	_ context.Context,
 	_ uuid.UUID,
-	_ UnpublishedFilter,
 ) (int64, error) {
 	return f.unpublishedCnt, f.countErr
 }
@@ -415,10 +411,8 @@ func TestListReviews(t *testing.T) {
 func TestListUnpublishedReviews(t *testing.T) {
 	reviewer := uuid.New()
 	unpublished := []UnpublishedReview{{ID: uuid.New(), ReviewerID: reviewer, Rating: 3}}
-	status := ModerationRejected
-	orderID := uuid.New()
 
-	t.Run("lists with page totals and passes the filter through", func(t *testing.T) {
+	t.Run("lists with page totals", func(t *testing.T) {
 		fake := &fakeRepository{unpublished: unpublished, unpublishedCnt: 5}
 		svc := newTestService(fake)
 		page, err := pagination.New(3, 10)
@@ -426,7 +420,7 @@ func TestListUnpublishedReviews(t *testing.T) {
 			t.Fatal(err)
 		}
 		result, err := svc.ListUnpublishedReviewsForUser(
-			context.Background(), reviewer, UnpublishedFilter{Status: &status, OrderID: &orderID}, page)
+			context.Background(), reviewer, page)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -440,27 +434,6 @@ func TestListUnpublishedReviews(t *testing.T) {
 				result.PageSize(),
 				result.TotalItems(),
 			)
-		}
-		if fake.filterSeen.Status == nil || *fake.filterSeen.Status != ModerationRejected {
-			t.Fatalf("status filter not passed through: %+v", fake.filterSeen)
-		}
-		if fake.filterSeen.OrderID == nil || *fake.filterSeen.OrderID != orderID {
-			t.Fatalf("order filter not passed through: %+v", fake.filterSeen)
-		}
-	})
-	t.Run("an empty filter stays unset", func(t *testing.T) {
-		fake := &fakeRepository{unpublishedCnt: 1}
-		svc := newTestService(fake)
-		page, err := pagination.New(1, 10)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := svc.ListUnpublishedReviewsForUser(
-			context.Background(), reviewer, UnpublishedFilter{}, page); err != nil {
-			t.Fatal(err)
-		}
-		if fake.filterSeen.Status != nil || fake.filterSeen.OrderID != nil {
-			t.Fatalf("empty filter should stay unset: %+v", fake.filterSeen)
 		}
 	})
 }

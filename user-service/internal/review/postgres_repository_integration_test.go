@@ -142,7 +142,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("list given at large offset: reviews=%v err=%v", given.Reviews, err)
 		}
 
-		unpublished, err := service.ListUnpublishedReviewsForUser(ctx, userID, UnpublishedFilter{}, page)
+		unpublished, err := service.ListUnpublishedReviewsForUser(ctx, userID, page)
 		if err != nil || len(unpublished.Reviews) != 0 {
 			t.Fatalf("list unpublished at large offset: reviews=%v err=%v", unpublished.Reviews, err)
 		}
@@ -175,7 +175,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		firstUnpublished, err := service.ListUnpublishedReviewsForUser(
 			ctx,
 			reviewer,
-			UnpublishedFilter{},
 			mustPage(t, 1, 20),
 		)
 		if err != nil || len(firstUnpublished.Reviews) != 1 {
@@ -214,7 +213,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		secondUnpublished, err := service.ListUnpublishedReviewsForUser(
 			ctx,
 			second,
-			UnpublishedFilter{},
 			mustPage(t, 1, 20),
 		)
 		if err != nil || len(secondUnpublished.Reviews) != 1 {
@@ -734,7 +732,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			t.Fatalf("after removal: count=%d avg=%v, want 0 and 0", count, avg)
 		}
 	})
-
 }
 
 func TestReviewSubmittedOutboxIntegration(t *testing.T) {

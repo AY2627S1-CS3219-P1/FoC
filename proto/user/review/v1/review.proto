@@ -131,10 +131,8 @@ message ListUnpublishedReviewsForUserRequest {
   // Owner or admin only, checked before lookup. Suspended callers may inspect their own.
   string reviewer_id = 1 [(buf.validate.field).string.uuid = true];
   pagination.v1.Pagination pagination = 2;
-  // Only pending, rejected and moderation-error filters are accepted.
-  optional ModerationStatus moderation_status_filter = 3;
-  // Recover a submission after an ambiguous response.
-  optional string order_id = 4 [(buf.validate.field).string.uuid = true];
+  reserved 3, 4;
+  reserved "moderation_status_filter", "order_id";
 }
 
 message ListUnpublishedReviewsForUserResponse {

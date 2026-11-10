@@ -79,7 +79,7 @@ func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pag
 }
 
 func (reviewStub) ListUnpublishedReviewsForUser(
-	context.Context, uuid.UUID, review.UnpublishedFilter, pagination.Pagination,
+	context.Context, uuid.UUID, pagination.Pagination,
 ) (review.UnpublishedReviewPage, error) {
 	return review.UnpublishedReviewPage{}, nil
 }

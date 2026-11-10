@@ -82,11 +82,6 @@ type InsertedReview struct {
 	ContentRevision  int
 }
 
-type UnpublishedFilter struct {
-	Status  *ModerationStatus
-	OrderID *uuid.UUID
-}
-
 type ModerationTarget struct {
 	ID                   uuid.UUID
 	ReviewerID           uuid.UUID

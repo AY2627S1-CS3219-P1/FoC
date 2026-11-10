@@ -164,14 +164,13 @@ func (s *Service) ListReviewsFromUser(
 func (s *Service) ListUnpublishedReviewsForUser(
 	ctx context.Context,
 	reviewerID uuid.UUID,
-	filter UnpublishedFilter,
 	page pagination.Pagination,
 ) (UnpublishedReviewPage, error) {
-	reviews, err := s.repo.ListUnpublishedReviewsForUser(ctx, reviewerID, filter, page.Offset(), page.PageSize())
+	reviews, err := s.repo.ListUnpublishedReviewsForUser(ctx, reviewerID, page.Offset(), page.PageSize())
 	if err != nil {
 		return UnpublishedReviewPage{}, err
 	}
-	total, err := s.repo.CountUnpublishedReviewsForUser(ctx, reviewerID, filter)
+	total, err := s.repo.CountUnpublishedReviewsForUser(ctx, reviewerID)
 	if err != nil {
 		return UnpublishedReviewPage{}, err
 	}

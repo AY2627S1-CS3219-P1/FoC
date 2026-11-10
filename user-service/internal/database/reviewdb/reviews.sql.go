@@ -58,19 +58,10 @@ FROM reviews
 WHERE reviewer_id = $1::UUID
   AND deleted_at IS NULL
   AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
-  AND ($2::text IS NULL
-       OR moderation_status = $2::text)
-  AND ($3::uuid IS NULL OR order_id = $3::uuid)
 `
 
-type CountUnpublishedReviewsForUserParams struct {
-	ReviewerID             uuid.UUID
-	ModerationStatusFilter sql.NullString
-	OrderID                uuid.NullUUID
-}
-
-func (q *Queries) CountUnpublishedReviewsForUser(ctx context.Context, arg CountUnpublishedReviewsForUserParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUnpublishedReviewsForUser, arg.ReviewerID, arg.ModerationStatusFilter, arg.OrderID)
+func (q *Queries) CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnpublishedReviewsForUser, reviewerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -323,19 +314,14 @@ JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = $1::UUID
   AND r.deleted_at IS NULL
   AND r.moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
-  AND ($2::text IS NULL
-       OR r.moderation_status = $2::text)
-  AND ($3::uuid IS NULL OR r.order_id = $3::uuid)
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $5::bigint OFFSET $4::bigint
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListUnpublishedReviewsForUserParams struct {
-	ReviewerID             uuid.UUID
-	ModerationStatusFilter sql.NullString
-	OrderID                uuid.NullUUID
-	PageOffset             int64
-	PageLimit              int64
+	ReviewerID uuid.UUID
+	PageOffset int64
+	PageLimit  int64
 }
 
 type ListUnpublishedReviewsForUserRow struct {
@@ -357,13 +343,7 @@ type ListUnpublishedReviewsForUserRow struct {
 }
 
 func (q *Queries) ListUnpublishedReviewsForUser(ctx context.Context, arg ListUnpublishedReviewsForUserParams) ([]ListUnpublishedReviewsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUnpublishedReviewsForUser,
-		arg.ReviewerID,
-		arg.ModerationStatusFilter,
-		arg.OrderID,
-		arg.PageOffset,
-		arg.PageLimit,
-	)
+	rows, err := q.db.QueryContext(ctx, listUnpublishedReviewsForUser, arg.ReviewerID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

@@ -31,8 +31,8 @@ type handlerLogicStub struct {
 	submitErr   error
 	submitValue SubmissionResult
 
-	listedFor    uuid.UUID
-	filterSeen   UnpublishedFilter
+	listedFor uuid.UUID
+
 	forUserPage  ReviewPage
 	unpubPage    UnpublishedReviewPage
 	forUserErr   error
@@ -83,11 +83,9 @@ func (s *handlerLogicStub) ListReviewsFromUser(
 func (s *handlerLogicStub) ListUnpublishedReviewsForUser(
 	_ context.Context,
 	reviewerID uuid.UUID,
-	filter UnpublishedFilter,
 	_ pagination.Pagination,
 ) (UnpublishedReviewPage, error) {
 	s.unpubSubject = reviewerID
-	s.filterSeen = filter
 	return s.unpubPage, s.unpubErr
 }
 
@@ -329,29 +327,19 @@ func TestListUnpublishedReviewsRPC(t *testing.T) {
 		PageInfo: pagination.NewPageInfo(1, 20, 1),
 	}
 
-	t.Run("maps reviews, filters and page info", func(t *testing.T) {
+	t.Run("maps reviews and page info", func(t *testing.T) {
 		stub := &handlerLogicStub{unpubPage: unpublished}
 		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
-		rejected := reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED
-		orderID := uuid.New().String()
 		resp, err := client.ListUnpublishedReviewsForUser(context.Background(),
 			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
-				ReviewerId:             reviewer.String(),
-				Pagination:             &paginationv1.Pagination{Page: 1, PageSize: 20},
-				ModerationStatusFilter: &rejected,
-				OrderId:                &orderID,
+				ReviewerId: reviewer.String(),
+				Pagination: &paginationv1.Pagination{Page: 1, PageSize: 20},
 			}))
 		if err != nil {
 			t.Fatalf("list unpublished: %v", err)
 		}
 		if stub.unpubSubject != reviewer {
 			t.Fatalf("wrong reviewer listed: %v", stub.unpubSubject)
-		}
-		if stub.filterSeen.Status == nil || *stub.filterSeen.Status != ModerationRejected {
-			t.Fatalf("status filter not mapped: %+v", stub.filterSeen)
-		}
-		if stub.filterSeen.OrderID == nil || stub.filterSeen.OrderID.String() != orderID {
-			t.Fatalf("order filter not mapped: %+v", stub.filterSeen)
 		}
 		if len(resp.Msg.Reviews) != 1 {
 			t.Fatalf("unexpected reviews: %+v", resp.Msg.Reviews)
@@ -451,51 +439,6 @@ func TestListUnpublishedReviewsRPC(t *testing.T) {
 			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{ReviewerId: other.String()}))
 		if connect.CodeOf(err) != connect.CodePermissionDenied {
 			t.Fatalf("suspended cross-user list should be forbidden: %v", err)
-		}
-	})
-
-	t.Run("approved status filter is invalid", func(t *testing.T) {
-		stub := &handlerLogicStub{}
-		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
-		approved := reviewv1.ModerationStatus_MODERATION_STATUS_APPROVED
-		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
-			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
-				ReviewerId:             reviewer.String(),
-				ModerationStatusFilter: &approved,
-			}))
-		if connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Fatalf("approved filter should be invalid argument: %v", err)
-		}
-		if stub.unpubSubject != uuid.Nil {
-			t.Fatal("invalid filter reached the logic")
-		}
-	})
-
-	t.Run("unspecified status filter is invalid", func(t *testing.T) {
-		stub := &handlerLogicStub{}
-		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
-		unspecified := reviewv1.ModerationStatus_MODERATION_STATUS_UNSPECIFIED
-		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
-			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
-				ReviewerId:             reviewer.String(),
-				ModerationStatusFilter: &unspecified,
-			}))
-		if connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Fatalf("unspecified filter should be invalid argument: %v", err)
-		}
-	})
-
-	t.Run("invalid order filter is rejected", func(t *testing.T) {
-		stub := &handlerLogicStub{}
-		client := reviewClient(t, stub, auth.Caller{ID: reviewer.String()})
-		bad := "not-a-uuid"
-		_, err := client.ListUnpublishedReviewsForUser(context.Background(),
-			connect.NewRequest(&reviewv1.ListUnpublishedReviewsForUserRequest{
-				ReviewerId: reviewer.String(),
-				OrderId:    &bad,
-			}))
-		if connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Fatalf("invalid order filter should be invalid argument: %v", err)
 		}
 	})
 

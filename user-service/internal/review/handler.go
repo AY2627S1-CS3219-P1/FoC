@@ -24,7 +24,7 @@ type Logic interface {
 	ListReviewsForUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListReviewsFromUser(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListUnpublishedReviewsForUser(
-		ctx context.Context, reviewerID uuid.UUID, filter UnpublishedFilter, page pagination.Pagination,
+		ctx context.Context, reviewerID uuid.UUID, page pagination.Pagination,
 	) (UnpublishedReviewPage, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
@@ -137,15 +137,11 @@ func (h *Handler) ListUnpublishedReviewsForUser(
 	if err := authorizeUnpublishedReviews(caller, reviewerID); err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	filter, err := unpublishedFilter(req.Msg)
-	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
-	}
 	page, err := newPage(req.Msg.GetPagination())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
 	}
-	pageResult, err := h.Logic.ListUnpublishedReviewsForUser(ctx, reviewerID, filter, page)
+	pageResult, err := h.Logic.ListUnpublishedReviewsForUser(ctx, reviewerID, page)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
@@ -211,35 +207,6 @@ func requireOwnIdentity(c userdto.Caller, userID uuid.UUID, message string) erro
 		return errs.NewForbiddenError(message)
 	}
 	return nil
-}
-
-// unpublishedFilter maps the optional proto filters. Only the three
-// unpublished statuses are valid; asking the collection for approved reviews is
-// a client error.
-func unpublishedFilter(req *reviewv1.ListUnpublishedReviewsForUserRequest) (UnpublishedFilter, error) {
-	filter := UnpublishedFilter{}
-	if p := req.ModerationStatusFilter; p != nil {
-		switch *p {
-		case reviewv1.ModerationStatus_MODERATION_STATUS_PENDING_MODERATION:
-			pending := ModerationPending
-			filter.Status = &pending
-		case reviewv1.ModerationStatus_MODERATION_STATUS_REJECTED:
-			rejected := ModerationRejected
-			filter.Status = &rejected
-		case reviewv1.ModerationStatus_MODERATION_STATUS_MODERATION_ERROR:
-			errored := ModerationError
-			filter.Status = &errored
-		default:
-			return UnpublishedFilter{}, errs.NewBadRequestError(
-				"moderation status filter must be pending moderation, rejected or moderation error")
-		}
-	}
-	if orderID, err := uuid.Parse(req.GetOrderId()); err == nil && orderID != uuid.Nil {
-		filter.OrderID = &orderID
-	} else if req.GetOrderId() != "" {
-		return UnpublishedFilter{}, errs.NewBadRequestError("invalid order ID")
-	}
-	return filter, nil
 }
 
 // newPage normalizes the optional proto pagination into the shared model.

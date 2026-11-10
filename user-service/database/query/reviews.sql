@@ -69,9 +69,6 @@ JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = @reviewer_id::UUID
   AND r.deleted_at IS NULL
   AND r.moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
-  AND (sqlc.narg('moderation_status_filter')::text IS NULL
-       OR r.moderation_status = sqlc.narg('moderation_status_filter')::text)
-  AND (sqlc.narg('order_id')::uuid IS NULL OR r.order_id = sqlc.narg('order_id')::uuid)
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
@@ -80,10 +77,7 @@ SELECT COUNT(*)
 FROM reviews
 WHERE reviewer_id = @reviewer_id::UUID
   AND deleted_at IS NULL
-  AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
-  AND (sqlc.narg('moderation_status_filter')::text IS NULL
-       OR moderation_status = sqlc.narg('moderation_status_filter')::text)
-  AND (sqlc.narg('order_id')::uuid IS NULL OR order_id = sqlc.narg('order_id')::uuid);
+  AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error');
 
 -- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,

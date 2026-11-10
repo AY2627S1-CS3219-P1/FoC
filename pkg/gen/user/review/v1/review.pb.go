@@ -865,12 +865,8 @@ func (x *ListReviewRemovalsResponse) GetPagination() *v1.PageInfo {
 type ListUnpublishedReviewsForUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Owner or admin only, checked before lookup. Suspended callers may inspect their own.
-	ReviewerId string         `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	Pagination *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
-	// Only pending, rejected and moderation-error filters are accepted.
-	ModerationStatusFilter *ModerationStatus `protobuf:"varint,3,opt,name=moderation_status_filter,json=moderationStatusFilter,proto3,enum=user.review.v1.ModerationStatus,oneof" json:"moderation_status_filter,omitempty"`
-	// Recover a submission after an ambiguous response.
-	OrderId       *string `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3,oneof" json:"order_id,omitempty"`
+	ReviewerId    string         `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	Pagination    *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -917,20 +913,6 @@ func (x *ListUnpublishedReviewsForUserRequest) GetPagination() *v1.Pagination {
 		return x.Pagination
 	}
 	return nil
-}
-
-func (x *ListUnpublishedReviewsForUserRequest) GetModerationStatusFilter() ModerationStatus {
-	if x != nil && x.ModerationStatusFilter != nil {
-		return *x.ModerationStatusFilter
-	}
-	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
-}
-
-func (x *ListUnpublishedReviewsForUserRequest) GetOrderId() string {
-	if x != nil && x.OrderId != nil {
-		return *x.OrderId
-	}
-	return ""
 }
 
 type ListUnpublishedReviewsForUserResponse struct {
@@ -1219,17 +1201,13 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\bremovals\x18\x01 \x03(\v2\x1d.user.review.v1.ReviewRemovalR\bremovals\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination\"\xc1\x02\n" +
+	"pagination\"\xbc\x01\n" +
 	"$ListUnpublishedReviewsForUserRequest\x12)\n" +
 	"\vreviewer_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
 	"reviewerId\x129\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x19.pagination.v1.PaginationR\n" +
-	"pagination\x12_\n" +
-	"\x18moderation_status_filter\x18\x03 \x01(\x0e2 .user.review.v1.ModerationStatusH\x00R\x16moderationStatusFilter\x88\x01\x01\x12(\n" +
-	"\border_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x01R\aorderId\x88\x01\x01B\x1b\n" +
-	"\x19_moderation_status_filterB\v\n" +
-	"\t_order_id\"\x9d\x01\n" +
+	"paginationJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\x18moderation_status_filterR\border_id\"\x9d\x01\n" +
 	"%ListUnpublishedReviewsForUserResponse\x12;\n" +
 	"\areviews\x18\x01 \x03(\v2!.user.review.v1.UnpublishedReviewR\areviews\x127\n" +
 	"\n" +
@@ -1322,29 +1300,28 @@ var file_user_review_v1_review_proto_depIdxs = []int32{
 	11, // 11: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
 	18, // 12: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
 	19, // 13: user.review.v1.ListUnpublishedReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	0,  // 14: user.review.v1.ListUnpublishedReviewsForUserRequest.moderation_status_filter:type_name -> user.review.v1.ModerationStatus
-	16, // 15: user.review.v1.ListUnpublishedReviewsForUserResponse.reviews:type_name -> user.review.v1.UnpublishedReview
-	18, // 16: user.review.v1.ListUnpublishedReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
-	17, // 17: user.review.v1.UnpublishedReview.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 18: user.review.v1.UnpublishedReview.moderation_status:type_name -> user.review.v1.ModerationStatus
-	17, // 19: user.review.v1.UnpublishedReview.moderated_at:type_name -> google.protobuf.Timestamp
-	3,  // 20: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	7,  // 21: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	8,  // 22: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	14, // 23: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:input_type -> user.review.v1.ListUnpublishedReviewsForUserRequest
-	9,  // 24: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	12, // 25: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	4,  // 26: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	5,  // 27: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	6,  // 28: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	15, // 29: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:output_type -> user.review.v1.ListUnpublishedReviewsForUserResponse
-	10, // 30: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	13, // 31: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	26, // [26:32] is the sub-list for method output_type
-	20, // [20:26] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	16, // 14: user.review.v1.ListUnpublishedReviewsForUserResponse.reviews:type_name -> user.review.v1.UnpublishedReview
+	18, // 15: user.review.v1.ListUnpublishedReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	17, // 16: user.review.v1.UnpublishedReview.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 17: user.review.v1.UnpublishedReview.moderation_status:type_name -> user.review.v1.ModerationStatus
+	17, // 18: user.review.v1.UnpublishedReview.moderated_at:type_name -> google.protobuf.Timestamp
+	3,  // 19: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	7,  // 20: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	8,  // 21: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	14, // 22: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:input_type -> user.review.v1.ListUnpublishedReviewsForUserRequest
+	9,  // 23: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	12, // 24: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	4,  // 25: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	5,  // 26: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	6,  // 27: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	15, // 28: user.review.v1.ReviewService.ListUnpublishedReviewsForUser:output_type -> user.review.v1.ListUnpublishedReviewsForUserResponse
+	10, // 29: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	13, // 30: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	25, // [25:31] is the sub-list for method output_type
+	19, // [19:25] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }
@@ -1352,7 +1329,6 @@ func file_user_review_v1_review_proto_init() {
 	if File_user_review_v1_review_proto != nil {
 		return
 	}
-	file_user_review_v1_review_proto_msgTypes[13].OneofWrappers = []any{}
 	file_user_review_v1_review_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
