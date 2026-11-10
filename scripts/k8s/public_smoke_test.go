@@ -33,8 +33,8 @@ esac`)
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
-	if len(lines) != len(publicHealthPaths)+3 {
-		t.Fatalf("expected frontend, all public health and two private-route requests, got %d", len(lines))
+	if len(lines) != 1+len(publicHealthPaths)+len(publicSmokePrivatePaths) {
+		t.Fatalf("expected frontend, all public health and all private-route requests, got %d", len(lines))
 	}
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "--disable --silent --show-error") {
@@ -44,6 +44,11 @@ esac`)
 	for _, path := range publicHealthPaths {
 		if !strings.Contains(string(calls), "https://release.example.test"+path) {
 			t.Fatalf("missing public health RPC: %s", path)
+		}
+	}
+	for _, path := range publicSmokePrivatePaths {
+		if !strings.Contains(string(calls), "https://release.example.test"+path) {
+			t.Fatalf("missing private-route RPC: %s", path)
 		}
 	}
 }
