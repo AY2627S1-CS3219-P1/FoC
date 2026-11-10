@@ -83,6 +83,32 @@ applier.
   `review_removals` no longer has a unique `review_id`; each restoration answers
   one removal, so a restored review can be removed again.
 
+### Image evidence (RP1.6, RP2.2, RP8.2, RP9.4)
+
+Reports, appeals and their responses accept up to five images each, stored in
+`evidence_attachments` (`user-service/internal/evidence`). The flow reuses the
+review photo design (`docs/adr/review-photo-uploads.md`) and its
+`pkg/images` storage:
+
+- The browser uploads straight to the user image bucket under
+  `evidence/<id>`, through a grant from `CreateEvidenceUpload` on
+  `ReportService` or `AppealService`.
+- Submission checks each staged image against the stored object before its
+  transaction, then attaches it to exactly one parent inside the transaction.
+  An image that changed in between fails the submission.
+- Reads return short-lived download URLs. `GetEvidenceDownload` signs a fresh
+  one, and applies the owning report's or appeal's visibility, also for
+  images on responses.
+- Unattached images are reaped by the review photo cleanup loop. Without a
+  bucket, uploads are unavailable and submissions without images still work.
+
+Validation is metadata only (content type, size and an unchanged object), like
+review photos. Evidence carries more weight than a review photo, but an
+administrator judges it by eye, and nothing is decided automatically from its
+content. Objects are written once (`If-None-Match: *`), so an attached image
+cannot be replaced afterwards. Revisit this if evidence ever drives an
+automatic decision.
+
 Reasons for keeping reports in User Service:
 
 - Every consequence in RP5.2–RP5.4 lands on data User Service owns: warnings,
@@ -100,14 +126,13 @@ Reasons for keeping reports in User Service:
 - **Credit adjustment (RP5.5)** — #302. Credit has no administrative adjustment
   entry type.
 - **Response-request notification (RP9.1)** — #303, for reports and appeals.
-- **Image evidence (RP1.6, RP2.2).** User Service has no object storage. A
-  separate attachments table can be added without changing the report tables.
 - **Review-moderation decisions (RP7.4).** Content moderation (#264) does not
   produce appealable decisions yet.
 
 ## Consequences
 
-- The reports migration is `00012`, and appeals add `00013` and `00014`. Draft #287 already uses `00010` and
+- The reports migration is `00012`, appeals add `00013` and `00014`, and
+  evidence adds `00015`. Draft #287 already uses `00010` and
   `00011`, and goose here refuses missing versions, so whichever change merges
   second must renumber.
 - `user_reports.review_id` uses the default `NO ACTION` foreign key, like
