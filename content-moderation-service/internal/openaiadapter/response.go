@@ -15,6 +15,5 @@ func extractResponse(resp *openai.ChatCompletion) *moderation.CompletionResponse
 		Content:      choice.Message.Content,
 		FinishReason: choice.FinishReason,
 		Refusal:      choice.Message.Refusal,
-		Model:        resp.Model,
 	}
 }

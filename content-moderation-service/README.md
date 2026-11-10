@@ -19,7 +19,8 @@ The model must be available at that endpoint.
 
 Settings are read once at startup. Restart CMS to change the model, endpoint
 or key. The prompt, rubric, response format and inference parameter choices
-are defined in code. Jobs contain no configuration references.
+are defined in code. Jobs contain no configuration references. The provider
+request has no per-job parameters, alternate output mode or timeout override.
 
 Worker defaults: concurrency 2, request timeout 120s, lease 180s, heartbeat 10s,
 maximum attempts 5, retry delay 10s to 5m, poll interval 1s, logging interval 5m.

@@ -205,8 +205,6 @@ export type ModerationAttempt = Message<"moderation.review.v1.ModerationAttempt"
   finishedAt?: Timestamp | undefined;
 
   /**
-   * "completed", "released", "abandoned", or the stable error class for a failed attempt.
-   *
    * @generated from field: string outcome = 7;
    */
   outcome: string;

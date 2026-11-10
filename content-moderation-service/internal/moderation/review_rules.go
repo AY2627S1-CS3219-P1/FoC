@@ -17,41 +17,6 @@ const maxReasonCodes = 5
 
 const finishReasonLength = "length"
 
-// Local validation contract; also used by adapter requests in strict schema mode.
-const SchemaJSON = `{
-  "type": "object",
-  "required": ["decision", "reason_codes"],
-  "additionalProperties": false,
-  "properties": {
-    "decision": { "enum": ["approve", "reject"] },
-    "reason_codes": {
-      "type": "array",
-      "items": { "enum": ["HARASSMENT", "HATE", "THREAT", "SEXUAL_CONTENT", "SPAM"] },
-      "maxItems": 5
-    }
-  }
-}`
-
-const SchemaName = "review_assessment"
-
-const SchemaDescription = "Structured verdict for a single user review against the review-text-v1 moderation policy."
-
-var reasonMessages = map[string]string{
-	ReasonHarassment:    "This review was removed because it contained harassing content.",
-	ReasonHate:          "This review was removed because it contained hateful content.",
-	ReasonThreat:        "This review was removed because it contained threats.",
-	ReasonSexualContent: "This review was removed because it contained sexually explicit content.",
-	ReasonSpam:          "This review was removed because it looked like spam or advertising.",
-}
-
-// Unknown codes map to a neutral message rather than exposing provider text.
-func ReasonMessage(code string) string {
-	if msg, ok := reasonMessages[code]; ok {
-		return msg
-	}
-	return "This review could not be published."
-}
-
 // Review content belongs only in the user message, never trusted instructions.
 func systemMessage() string {
 	return `You are a careful content-moderation assistant evaluating exactly one user-submitted review against a fixed policy.

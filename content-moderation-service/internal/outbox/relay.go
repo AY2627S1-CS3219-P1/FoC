@@ -115,8 +115,7 @@ func (r *Relay) relayOnce(ctx context.Context) error {
 		return nil
 	}
 
-	// Version 0 was written by pre-release binaries with the same v1 schema.
-	if outboxRow.PayloadVersion != 0 && outboxRow.PayloadVersion != 1 {
+	if outboxRow.PayloadVersion != 1 {
 		return fmt.Errorf("unsupported completion payload version %d", outboxRow.PayloadVersion)
 	}
 	var event moderationevents.ReviewModerationFinished

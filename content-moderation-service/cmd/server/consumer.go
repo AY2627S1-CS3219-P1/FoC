@@ -86,7 +86,6 @@ func (h *ingestionHandler) Handle(
 	if sourceErr != nil || reqErr != nil || reviewErr != nil || reviewerErr != nil ||
 		event.ContentRevision <= 0 || event.OccurredAt == nil || event.OccurredAt.CheckValid() != nil {
 		if qErr := h.store.QuarantineMalformed(ctx, moderationjob.MalformedInput{
-			Topic:      moderationjob.UsersReviewSubmittedTopic,
 			MessageKey: string(meta.Key),
 			EventID:    event.EventId,
 			Reason:     "missing or malformed submission metadata",

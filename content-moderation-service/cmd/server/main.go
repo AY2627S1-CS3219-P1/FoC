@@ -63,7 +63,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	components, err := newServerComponents(startupCtx, pool, config, slog.Default())
+	components, err := newServerComponents(pool, config, slog.Default())
 	if err != nil {
 		return err
 	}

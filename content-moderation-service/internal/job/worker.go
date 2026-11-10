@@ -25,7 +25,6 @@ type PoolConfig struct {
 type Pool struct {
 	store   jobOperations
 	service Assessor
-	limiter *InferenceLimiter
 	cfg     PoolConfig
 	logger  *slog.Logger
 	stats   poolStats
@@ -36,7 +35,6 @@ type Pool struct {
 func NewPool(
 	repository jobOperations,
 	service Assessor,
-	limiter *InferenceLimiter,
 	cfg PoolConfig,
 	logger *slog.Logger,
 ) *Pool {
@@ -46,7 +44,6 @@ func NewPool(
 	return &Pool{
 		store:   repository,
 		service: service,
-		limiter: limiter,
 		cfg:     cfg,
 		logger:  logger,
 	}
@@ -106,15 +103,10 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 			return
 		}
 
-		if err := p.limiter.Acquire(ctx); err != nil {
-			return
-		}
-
 		claimCtx, cancelClaim := p.persistenceContext(ctx)
 		outcome, claimed, err := p.store.Claim(claimCtx, workerID, p.cfg.Lease)
 		cancelClaim()
 		if err != nil {
-			p.limiter.Release()
 			if ctx.Err() != nil {
 				return
 			}
@@ -125,10 +117,7 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 
 		switch outcome {
 		case ClaimNone:
-			p.limiter.Release()
 			p.idleSleep(ctx, p.cfg.PollInterval)
-		case ClaimExhausted:
-			p.limiter.Release()
 		case ClaimReady:
 			p.processClaimed(ctx, claimed)
 		}
@@ -136,7 +125,6 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 }
 
 func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
-	defer p.limiter.Release()
 	p.stats.inFlight.Add(1)
 	defer p.stats.inFlight.Add(-1)
 

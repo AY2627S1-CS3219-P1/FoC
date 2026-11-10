@@ -58,11 +58,7 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		LLMAPIKey:            strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
 	}
 
-	// Accept USER_SERVICE_URL as a legacy alias.
 	c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_BASE_URL"))
-	if c.UserServiceURL == "" {
-		c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_URL"))
-	}
 
 	if c.LLMModelID == "" {
 		return appConfig{}, errors.New("CMS_LLM_MODEL_ID is required")

@@ -33,6 +33,8 @@ versions, activation APIs, model discovery or configuration seeds.
 - `cmd/server`: construct dependencies once and own process lifecycle.
 
 The assessor receives content, not a database job or configuration version.
+Its completion port accepts only the model and two prompt messages. The adapter
+always requests JSON object output and uses the process request timeout.
 Jobs never select settings. An attempt after restart uses the new process's
 settings. Model IDs in attempt history and policy versions on results are
 historical metadata; they do not control future execution.
@@ -60,7 +62,8 @@ Terminal writes atomically save the verdict, attempt and outbox event and
 reject stale claims. Writers lock jobs before attempts. Lease validity is
 checked after acquiring the row lock using the database clock.
 
-Worker concurrency is bounded per process. Shutdown cancels inference and
+Worker concurrency is bounded by the number of worker goroutines per process.
+There is no separate semaphore or draft-inference pool. Shutdown cancels inference and
 uses bounded detached cleanup to release claims. Crash recovery uses lease
 expiry. Normal technical failures retry with bounded backoff and an attempt
 limit; invalid output and provider filtering have smaller bounded budgets.
@@ -155,7 +158,7 @@ acknowledgement, using the original event ID.
 flowchart TD
     Start[Start CMS with validated runtime settings] --> Key{Provider key present?}
     Key -->|No| Idle[Ingestion continues; workers stay idle]
-    Key -->|Yes| Claim[Acquire local capacity and claim eligible job]
+    Key -->|Yes| Claim[Available worker claims eligible job]
     Claim --> Budget{Attempt budget available?}
     Budget -->|No| Error[Commit terminal ERROR and outbox]
     Budget -->|Yes| Assess[Assess immutable content; renew lease]
@@ -215,6 +218,12 @@ Approved/rejected verdicts are final in User; only a technical error can be
 replaced through a later explicit retry. Admin removal remains separate:
 approval cannot clear `deleted_at` or bypass removal. All public review reads,
 counts and rating statistics require approval and exclude deleted reviews.
+
+Ratings change only when User applies an approval or removes an approved
+review. Pending submission, rejection, technical error and removal of an
+unpublished review do not lock or rewrite the reviewee's statistics. Approval
+and removal hold the review row before recalculating, so concurrent publication
+and removal still converge.
 
 Both services store reason codes as native PostgreSQL text arrays.
 

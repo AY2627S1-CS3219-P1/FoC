@@ -263,103 +263,6 @@ func (q *Queries) GetJobByModerationRequest(ctx context.Context, moderationReque
 	return i, err
 }
 
-const getJobViewByID = `-- name: GetJobViewByID :one
-SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j WHERE j.id = $1
-`
-
-type GetJobViewByIDRow struct {
-	ModerationJob ModerationJob
-}
-
-func (q *Queries) GetJobViewByID(ctx context.Context, id uuid.UUID) (GetJobViewByIDRow, error) {
-	row := q.db.QueryRow(ctx, getJobViewByID, id)
-	var i GetJobViewByIDRow
-	err := row.Scan(
-		&i.ModerationJob.ID,
-		&i.ModerationJob.ModerationRequestID,
-		&i.ModerationJob.SourceEventID,
-		&i.ModerationJob.ReviewID,
-		&i.ModerationJob.ReviewerID,
-		&i.ModerationJob.ContentRevision,
-		&i.ModerationJob.Comment,
-		&i.ModerationJob.PolicyVersion,
-		&i.ModerationJob.RunGeneration,
-		&i.ModerationJob.Status,
-		&i.ModerationJob.AttemptCount,
-		&i.ModerationJob.NextAttemptAt,
-		&i.ModerationJob.ClaimToken,
-		&i.ModerationJob.WorkerID,
-		&i.ModerationJob.LeaseUntil,
-		&i.ModerationJob.HeartbeatAt,
-		&i.ModerationJob.Outcome,
-		&i.ModerationJob.ReasonCodes,
-		&i.ModerationJob.ErrorClass,
-		&i.ModerationJob.CreatedAt,
-		&i.ModerationJob.UpdatedAt,
-		&i.ModerationJob.FinishedAt,
-	)
-	return i, err
-}
-
-const getJobViewsForReviewer = `-- name: GetJobViewsForReviewer :many
-SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j
-WHERE reviewer_id = $1
-AND moderation_request_id = ANY($2)
-ORDER BY created_at DESC
-`
-
-type GetJobViewsForReviewerParams struct {
-	ReviewerID           uuid.UUID
-	ModerationRequestIds []uuid.UUID
-}
-
-type GetJobViewsForReviewerRow struct {
-	ModerationJob ModerationJob
-}
-
-func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsForReviewerParams) ([]GetJobViewsForReviewerRow, error) {
-	rows, err := q.db.Query(ctx, getJobViewsForReviewer, arg.ReviewerID, arg.ModerationRequestIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetJobViewsForReviewerRow
-	for rows.Next() {
-		var i GetJobViewsForReviewerRow
-		if err := rows.Scan(
-			&i.ModerationJob.ID,
-			&i.ModerationJob.ModerationRequestID,
-			&i.ModerationJob.SourceEventID,
-			&i.ModerationJob.ReviewID,
-			&i.ModerationJob.ReviewerID,
-			&i.ModerationJob.ContentRevision,
-			&i.ModerationJob.Comment,
-			&i.ModerationJob.PolicyVersion,
-			&i.ModerationJob.RunGeneration,
-			&i.ModerationJob.Status,
-			&i.ModerationJob.AttemptCount,
-			&i.ModerationJob.NextAttemptAt,
-			&i.ModerationJob.ClaimToken,
-			&i.ModerationJob.WorkerID,
-			&i.ModerationJob.LeaseUntil,
-			&i.ModerationJob.HeartbeatAt,
-			&i.ModerationJob.Outcome,
-			&i.ModerationJob.ReasonCodes,
-			&i.ModerationJob.ErrorClass,
-			&i.ModerationJob.CreatedAt,
-			&i.ModerationJob.UpdatedAt,
-			&i.ModerationJob.FinishedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getJobsForReviewer = `-- name: GetJobsForReviewer :many
 SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE reviewer_id = $1
@@ -634,12 +537,12 @@ func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (Moderat
 	return i, err
 }
 
-const retryErroredJob = `-- name: RetryErroredJob :execrows
+const retryErroredJob = `-- name: RetryErroredJob :one
 UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,
     status = 'queued',
-    policy_version = $1,
+    policy_version = NULL,
     next_attempt_at = NULL,
     outcome = NULL,
     error_class = NULL,
@@ -649,23 +552,45 @@ SET run_generation = run_generation + 1,
     lease_until = NULL,
     heartbeat_at = NULL,
     updated_at = now()
-WHERE id = $2
-  AND run_generation = $3
+WHERE id = $1
+  AND run_generation = $2
   AND status = 'errored'
+RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
 `
 
 type RetryErroredJobParams struct {
-	PolicyVersion *string
 	ID            uuid.UUID
 	RunGeneration int32
 }
 
-func (q *Queries) RetryErroredJob(ctx context.Context, arg RetryErroredJobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, retryErroredJob, arg.PolicyVersion, arg.ID, arg.RunGeneration)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+func (q *Queries) RetryErroredJob(ctx context.Context, arg RetryErroredJobParams) (ModerationJob, error) {
+	row := q.db.QueryRow(ctx, retryErroredJob, arg.ID, arg.RunGeneration)
+	var i ModerationJob
+	err := row.Scan(
+		&i.ID,
+		&i.ModerationRequestID,
+		&i.SourceEventID,
+		&i.ReviewID,
+		&i.ReviewerID,
+		&i.ContentRevision,
+		&i.Comment,
+		&i.PolicyVersion,
+		&i.RunGeneration,
+		&i.Status,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.ClaimToken,
+		&i.WorkerID,
+		&i.LeaseUntil,
+		&i.HeartbeatAt,
+		&i.Outcome,
+		&i.ReasonCodes,
+		&i.ErrorClass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
 }
 
 const scheduleJobRetry = `-- name: ScheduleJobRetry :execrows

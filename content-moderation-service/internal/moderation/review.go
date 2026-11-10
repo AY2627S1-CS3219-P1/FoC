@@ -5,8 +5,6 @@ type ModerationOutcome string
 const (
 	OutcomeApproved ModerationOutcome = "approved"
 	OutcomeRejected ModerationOutcome = "rejected"
-	// Technical failure to assess; must carry no content reasons.
-	OutcomeError ModerationOutcome = "error"
 )
 
 type ReviewInput struct {
@@ -17,13 +15,6 @@ type ReviewInput struct {
 	// Comment is the complete immutable review snapshot; never truncated.
 	Comment string
 }
-
-type OutputMode string
-
-const (
-	OutputModeJSONSchema = "json_schema"
-	OutputModeJSONObject = "json_object"
-)
 
 // Valid only when AssessReview returns no error.
 type ReviewAssessment struct {

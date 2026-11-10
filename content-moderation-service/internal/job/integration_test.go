@@ -234,8 +234,8 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 	t.Run("malformed event is quarantined and acknowledged", func(t *testing.T) {
 		before := countQuarantined(t, pool)
 		err := store.QuarantineMalformed(ctx, moderationjob.MalformedInput{
-			Topic: moderationjob.UsersReviewSubmittedTopic, MessageKey: "not-a-uuid",
-			EventID: "evt-1", Reason: "unparseable identifiers", Comment: "",
+			MessageKey: "not-a-uuid",
+			EventID:    "evt-1", Reason: "unparseable identifiers", Comment: "",
 		})
 		if err != nil {
 			t.Fatalf("quarantine malformed: %v", err)
@@ -689,7 +689,7 @@ func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
 	p := moderationjob.NewPool(
 		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model"),
 		eval,
-		moderationjob.NewInferenceLimiter(1),
+
 		moderationjob.PoolConfig{
 			Concurrency:       1,
 			Lease:             30 * time.Second,

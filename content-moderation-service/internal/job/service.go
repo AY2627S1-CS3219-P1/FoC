@@ -247,23 +247,19 @@ func (s *Service) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr erro
 			return err
 		}
 
-		invalidClass := moderation.ErrorClassInvalidOutput
-		invalidCount, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
-			JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &invalidClass,
-		})
-		if err != nil {
-			return err
-		}
-		filterClass := moderation.ErrorClassContentFilter
-		filterCount, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
-			JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &filterClass,
-		})
-		if err != nil {
-			return err
+		classCount := 0
+		if kind == moderation.KindInvalidOutput || kind == moderation.KindContentFilter {
+			count, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
+				JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &errorClass,
+			})
+			if err != nil {
+				return err
+			}
+			classCount = int(count)
 		}
 
 		s.rngMu.Lock()
-		decision := s.retry.decide(kind, int(c.AttemptNumber), int(invalidCount)+1, int(filterCount)+1, s.rng)
+		decision := s.retry.decide(kind, int(c.AttemptNumber), classCount+1, s.rng)
 		s.rngMu.Unlock()
 		wait := decision.wait
 		if kind == moderation.KindDurable && retryAfter > 0 {
@@ -326,34 +322,14 @@ func (s *Service) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb.Mo
 	return job, err
 }
 
-type JobView struct {
-	moderationdb.ModerationJob
-}
-
-func (s *Service) GetJobViewByID(ctx context.Context, id uuid.UUID) (JobView, error) {
-	row, err := moderationdb.New(s.pool).GetJobViewByID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return JobView{}, ErrJobNotFound
-	}
-	return JobView{ModerationJob: row.ModerationJob}, err
-}
-
 func (s *Service) GetJobsForReviewer(
 	ctx context.Context,
 	reviewerID uuid.UUID,
 	requestIDs []uuid.UUID,
-) ([]JobView, error) {
-	rows, err := moderationdb.New(s.pool).GetJobViewsForReviewer(ctx, moderationdb.GetJobViewsForReviewerParams{
+) ([]moderationdb.ModerationJob, error) {
+	return moderationdb.New(s.pool).GetJobsForReviewer(ctx, moderationdb.GetJobsForReviewerParams{
 		ReviewerID: reviewerID, ModerationRequestIds: requestIDs,
 	})
-	if err != nil {
-		return nil, err
-	}
-	views := make([]JobView, 0, len(rows))
-	for _, row := range rows {
-		views = append(views, JobView{ModerationJob: row.ModerationJob})
-	}
-	return views, nil
 }
 
 func (s *Service) GetAttempts(

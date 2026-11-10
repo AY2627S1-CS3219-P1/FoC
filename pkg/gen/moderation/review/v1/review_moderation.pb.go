@@ -470,9 +470,8 @@ type ModerationAttempt struct {
 	ModelId       string                 `protobuf:"bytes,4,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	// "completed", "released", "abandoned", or the stable error class for a failed attempt.
-	Outcome       string `protobuf:"bytes,7,opt,name=outcome,proto3" json:"outcome,omitempty"`
-	ErrorClass    string `protobuf:"bytes,8,opt,name=error_class,json=errorClass,proto3" json:"error_class,omitempty"`
+	Outcome       string                 `protobuf:"bytes,7,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	ErrorClass    string                 `protobuf:"bytes,8,opt,name=error_class,json=errorClass,proto3" json:"error_class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

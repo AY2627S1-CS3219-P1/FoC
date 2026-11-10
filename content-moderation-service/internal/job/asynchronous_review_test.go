@@ -43,7 +43,7 @@ func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 	worker := moderationjob.NewPool(
 		store,
 		evaluator,
-		moderationjob.NewInferenceLimiter(2),
+
 		moderationjob.PoolConfig{
 			Concurrency:       2,
 			Lease:             300 * time.Millisecond,

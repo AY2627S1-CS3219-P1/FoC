@@ -46,30 +46,26 @@ type decision struct {
 	wait time.Duration
 }
 
-// Counters include the current failed attempt.
+// Counts include the current failed attempt.
 func (p RetrySettings) decide(
 	kind moderation.ErrorKind,
-	attemptCount, invalidCount, filterCount int,
+	attemptCount, classCount int,
 	rng *rand.Rand,
 ) decision {
-	if kind != moderation.KindConfiguration && attemptCount >= p.MaxAttempts {
+	if attemptCount >= p.MaxAttempts {
 		return decision{retry: false}
 	}
 	switch kind {
-	case moderation.KindConfiguration:
-		// Provider configuration failures are intercepted by the worker, which
-		// releases its claim and stops the pool until restart.
-		return decision{retry: true}
 	case moderation.KindInvalidOutput:
-		if invalidCount >= p.InvalidBudget {
+		if classCount >= p.InvalidBudget {
 			return decision{retry: false}
 		}
-		return decision{retry: true, wait: backoffDelay(invalidCount, p.InitialDelay, p.InitialDelay, rng)}
+		return decision{retry: true, wait: backoffDelay(classCount, p.InitialDelay, p.InitialDelay, rng)}
 	case moderation.KindContentFilter:
-		if filterCount >= p.FilterBudget {
+		if classCount >= p.FilterBudget {
 			return decision{retry: false}
 		}
-		return decision{retry: true, wait: backoffDelay(filterCount, p.InitialDelay, p.InitialDelay, rng)}
+		return decision{retry: true, wait: backoffDelay(classCount, p.InitialDelay, p.InitialDelay, rng)}
 	default:
 		if attemptCount >= p.MaxAttempts {
 			return decision{retry: false}

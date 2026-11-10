@@ -23,13 +23,10 @@ func (e *Service) AssessReview(ctx context.Context, input ReviewInput) (ReviewAs
 
 func buildRequest(input ReviewInput, modelID string) *CompletionRequest {
 	return &CompletionRequest{
-		Model:      modelID,
-		System:     systemMessage(),
-		User:       userMessage(input.Comment),
-		OutputMode: OutputModeJSONObject,
-		SchemaJSON: SchemaJSON,
+		Model:  modelID,
+		System: systemMessage(),
+		User:   userMessage(input.Comment),
 	}
-
 }
 
 // Refusal, empty content and truncation are technical failures, even if JSON looks valid.

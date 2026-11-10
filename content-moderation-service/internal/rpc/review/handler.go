@@ -83,7 +83,7 @@ func (h *AdminHandler) GetReviewModerationJob(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError("invalid job_id"))
 	}
-	job, err := h.service.GetJobViewByID(ctx, jobID)
+	job, err := h.service.GetJobByID(ctx, jobID)
 	if err != nil {
 		if errors.Is(err, moderationjob.ErrJobNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, errs.NewNotFoundError("job not found"))

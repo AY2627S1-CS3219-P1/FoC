@@ -116,3 +116,8 @@ To rotate a nonempty key, remove only that provider-key file, supply the new
 value through `K8S_LLM_API_KEY`, and redeploy. The deployment restarts CMS to
 read its new environment. Database passwords and signing keys retain their
 existing preservation rules. Do not print keys in logs or command output.
+
+The statistics regression holds the reviewee's row lock while submitting,
+rejecting/erroring and removing unpublished reviews. Those operations must
+complete without waiting for the ratings lock. Applying approval and removing
+an approved review still update the count and average atomically.

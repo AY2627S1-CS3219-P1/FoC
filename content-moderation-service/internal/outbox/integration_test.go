@@ -294,7 +294,7 @@ func TestConcurrentRelaysDoNotStealLivePublication(t *testing.T) {
 	}
 }
 
-func TestRelayPayloadVersionCompatibility(t *testing.T) {
+func TestRelayRejectsUnsupportedPayloadVersions(t *testing.T) {
 	for _, version := range []int{0, 2} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			pool := setup(t)
@@ -316,13 +316,10 @@ func TestRelayPayloadVersionCompatibility(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer func() { cancel(); relay.Wait() }()
 			relay.Start(ctx)
-			if version == 0 {
-				waitFor(t, func() bool { return pub.count() == 1 }, time.Second, "legacy v1 payload published")
-			} else {
-				time.Sleep(100 * time.Millisecond)
-				if pub.count() != 0 {
-					t.Fatal("unsupported payload schema published")
-				}
+
+			time.Sleep(100 * time.Millisecond)
+			if pub.count() != 0 {
+				t.Fatal("unsupported payload schema published")
 			}
 		})
 	}

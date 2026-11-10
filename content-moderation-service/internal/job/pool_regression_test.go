@@ -80,39 +80,7 @@ func approvedAssessment() moderation.ReviewAssessment {
 	return moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"}
 }
 
-func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
-	if !limiter.TryAcquire() {
-		t.Fatal("occupy gate")
-	}
-	var claims atomic.Int32
-	store := &repositoryFake{
-		claim: func(context.Context) (ClaimOutcome, *ClaimedJob, error) { claims.Add(1); return ClaimNone, nil, nil },
-	}
-	pool := NewPool(
-		store,
-		evaluatorFunc(func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
-			panic("unexpected inference")
-		}),
-		limiter,
-		regressionConfig(),
-		nil,
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	pool.Start(ctx)
-	time.Sleep(30 * time.Millisecond)
-	cancel()
-	pool.Wait()
-	if claims.Load() != 0 {
-		t.Fatal("worker leased work while waiting for capacity")
-	}
-	limiter.Release()
-}
-
 func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
-	limiter.TryAcquire()
 	var evaluated, released bool
 	store := &repositoryFake{
 		heartbeat: func(context.Context) (bool, error) { return false, nil },
@@ -124,19 +92,17 @@ func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
 			evaluated = true
 			return approvedAssessment(), nil
 		}),
-		limiter,
+
 		regressionConfig(),
 		nil,
 	)
 	pool.processClaimed(context.Background(), regressionClaim())
-	if evaluated || !released || limiter.InFlight() != 0 {
-		t.Fatalf("stale inference=%v release=%v slots=%d", evaluated, released, limiter.InFlight())
+	if evaluated || !released {
+		t.Fatalf("stale inference=%v release=%v", evaluated, released)
 	}
 }
 
 func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
-	limiter.TryAcquire()
 	entered := make(chan struct{})
 	var heartbeats atomic.Int32
 	completed := false
@@ -162,19 +128,17 @@ func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
 				return moderation.ReviewAssessment{}, ctx.Err()
 			}
 		}),
-		limiter,
+
 		regressionConfig(),
 		nil,
 	)
 	pool.processClaimed(context.Background(), regressionClaim())
-	if !completed || limiter.InFlight() != 0 {
-		t.Fatal("intentional heartbeat cancellation discarded result or leaked slot")
+	if !completed {
+		t.Fatal("intentional heartbeat cancellation discarded result")
 	}
 }
 
 func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
-	limiter.TryAcquire()
 	released := false
 	store := &repositoryFake{
 		heartbeat: func(context.Context) (bool, error) { return true, nil },
@@ -195,14 +159,14 @@ func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
 				return approvedAssessment(), nil
 			},
 		),
-		limiter,
+
 		regressionConfig(),
 		nil,
 	)
 	start := time.Now()
 	pool.processClaimed(context.Background(), regressionClaim())
-	if !released || time.Since(start) > time.Second || limiter.InFlight() != 0 {
-		t.Fatal("cleanup was unbounded or leaked capacity")
+	if !released || time.Since(start) > time.Second {
+		t.Fatal("cleanup was unbounded")
 	}
 }
 
@@ -214,7 +178,7 @@ func TestConfigurationFailureReleasesClaimAndStopsPool(t *testing.T) {
 			t.Fatal("cleanup context cancelled")
 		}
 		return true, nil
-	}}, nil, NewInferenceLimiter(1), regressionConfig(), nil)
+	}}, nil, regressionConfig(), nil)
 	p.stop = func() { stopped = true }
 	p.finalizeFailed(
 		context.Background(),

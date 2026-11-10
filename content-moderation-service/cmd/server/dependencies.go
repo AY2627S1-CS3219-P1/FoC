@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"log/slog"
@@ -24,7 +23,6 @@ type serverComponents struct {
 }
 
 func newServerComponents(
-	ctx context.Context,
 	pool *pgxpool.Pool,
 	cfg appConfig,
 	logger *slog.Logger,
@@ -33,7 +31,6 @@ func newServerComponents(
 	jobStore := moderationjob.NewService(pool, policy, nil, cfg.LLMModelID)
 
 	var client moderation.CompletionClient
-	var limiter *moderationjob.InferenceLimiter
 
 	if cfg.LLMAPIKey != "" && cfg.LLMBaseURL != "" {
 		adapter, err := openaiadapter.New(openaiadapter.Config{
@@ -45,7 +42,6 @@ func newServerComponents(
 			return serverComponents{}, fmt.Errorf("create moderation provider: %w", err)
 		} else {
 			client = adapter
-			limiter = moderationjob.NewInferenceLimiter(cfg.WorkerConcurrency)
 		}
 	}
 
@@ -56,7 +52,7 @@ func newServerComponents(
 		jobPool = moderationjob.NewPool(
 			jobStore,
 			service,
-			limiter,
+
 			moderationjob.PoolConfig{
 				Concurrency:       cfg.WorkerConcurrency,
 				Lease:             cfg.JobLease,

@@ -50,64 +50,11 @@ func runServer(t *testing.T, status int, retryAfter string, body string) (*httpt
 	return srv, rec
 }
 
-func testRequest(outputMode string) *moderation.CompletionRequest {
+func testRequest() *moderation.CompletionRequest {
 	return &moderation.CompletionRequest{
-		Model:      "ornith-1.5",
-		System:     "moderation system prompt",
-		User:       "user review content",
-		OutputMode: outputMode,
-		SchemaJSON: moderation.SchemaJSON,
-		Timeout:    5 * time.Second,
-	}
-}
-
-func TestCompleteValidApproveJSONSchema(t *testing.T) {
-	srv, rec := runServer(t, http.StatusOK, "", sampleBody)
-	defer srv.Close()
-
-	adapter, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "sk-super-secret", Timeout: 5 * time.Second})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	resp, err := adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp == nil || resp.Content != `{"decision":"approve","reason_codes":[]}` {
-		t.Errorf("resp = %+v", resp)
-	}
-	if resp.FinishReason != "stop" {
-		t.Errorf("finish reason = %q", resp.FinishReason)
-	}
-	if resp.Model == "chatcmpl-x" {
-		t.Errorf("copied an LLM-generated identity into the response model")
-	}
-
-	if rec.path != "/v1/chat/completions" {
-		t.Errorf("path = %q, want /v1/chat/completions", rec.path)
-	}
-	if rec.auth != "Bearer sk-super-secret" {
-		t.Errorf("authorization = %q, want bearer token", rec.auth)
-	}
-
-	var req map[string]any
-	if err := json.Unmarshal([]byte(rec.body), &req); err != nil {
-		t.Fatalf("body not JSON: %v", err)
-	}
-	if req["model"] != "ornith-1.5" {
-		t.Errorf("model = %v, want ornith-1.5", req["model"])
-	}
-	format := req["response_format"].(map[string]any)
-	if format["type"] != "json_schema" {
-		t.Errorf("response_format type = %v, want json_schema", format["type"])
-	}
-	js := format["json_schema"].(map[string]any)
-	if js["strict"] != true {
-		t.Errorf("strict = %v, want true", js["strict"])
-	}
-	messages := req["messages"].([]any)
-	if len(messages) != 2 {
-		t.Fatalf("messages = %d, want 2 (fresh single-turn)", len(messages))
+		Model:  "ornith-1.5",
+		System: "moderation system prompt",
+		User:   "user review content",
 	}
 }
 
@@ -119,15 +66,21 @@ func TestCompleteJSONObjectMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONObject)))
+	_, err = adapter.Complete(context.Background(), testRequest())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.path != "/chat/completions" || rec.auth != "Bearer sk-x" {
+		t.Fatalf("provider request path=%q auth header present=%v", rec.path, rec.auth != "")
 	}
 	var req map[string]any
 	if err := json.Unmarshal([]byte(rec.body), &req); err != nil {
 		t.Fatalf("body not JSON: %v", err)
 	}
 	format := req["response_format"].(map[string]any)
+	if req["model"] != "ornith-1.5" || len(req["messages"].([]any)) != 2 {
+		t.Fatalf("unexpected model or conversation: %s", rec.body)
+	}
 	if format["type"] != "json_object" {
 		t.Errorf("response_format type = %v, want json_object", format["type"])
 	}
@@ -141,7 +94,7 @@ func TestCompleteOmittedOptionalParamsNotSent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+	_, err = adapter.Complete(context.Background(), testRequest())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,35 +106,6 @@ func TestCompleteOmittedOptionalParamsNotSent(t *testing.T) {
 		if _, ok := req[key]; ok {
 			t.Errorf("optional parameter %q must not be sent when unset", key)
 		}
-	}
-}
-
-func TestCompleteSetsOptionalParamsWhenPresent(t *testing.T) {
-	srv, rec := runServer(t, http.StatusOK, "", sampleBody)
-	defer srv.Close()
-
-	adapter, err := New(Config{BaseURL: srv.URL, APIKey: "sk-x", Timeout: 5 * time.Second})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	temperature := 0.2
-	_, err = adapter.Complete(context.Background(), func() *moderation.CompletionRequest {
-		req := testRequest(string(moderation.OutputModeJSONSchema))
-		req.Parameters = moderation.CompletionParameters{Temperature: &temperature, Stop: []string{"END"}}
-		return req
-	}())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var req map[string]any
-	if err := json.Unmarshal([]byte(rec.body), &req); err != nil {
-		t.Fatalf("body not JSON: %v", err)
-	}
-	if req["temperature"] != 0.2 {
-		t.Errorf("temperature = %v, want 0.2", req["temperature"])
-	}
-	if _, ok := req["stop"]; !ok {
-		t.Error("stop must be sent when set")
 	}
 }
 
@@ -198,7 +122,7 @@ func TestCompleteMaps429WithRetryAfter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+	_, err = adapter.Complete(context.Background(), testRequest())
 	var rateLimited *moderation.ErrRateLimited
 	if !errors.As(err, &rateLimited) {
 		t.Fatalf("error = %v, want *ErrRateLimited", err)
@@ -221,7 +145,7 @@ func TestCompleteMaps4xxConfiguration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+		_, err = adapter.Complete(context.Background(), testRequest())
 		var configErr *moderation.ErrConfiguration
 		if !errors.As(err, &configErr) {
 			t.Errorf("status %d: error = %v, want *ErrConfiguration", status, err)
@@ -239,7 +163,7 @@ func TestCompleteMaps5xxRetryable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		_, err = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+		_, err = adapter.Complete(context.Background(), testRequest())
 		var connErr *moderation.ErrConnection
 		if !errors.As(err, &connErr) {
 			t.Errorf("status %d: error = %v, want *ErrConnection", status, err)
@@ -263,7 +187,7 @@ func TestCompleteDoesNotRetryOn429(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, _ = adapter.Complete(context.Background(), testRequest(string(moderation.OutputModeJSONSchema)))
+	_, _ = adapter.Complete(context.Background(), testRequest())
 	if rec.count != 1 {
 		t.Errorf("requests = %d, want 1 (SDK retries disabled)", rec.count)
 	}
@@ -273,8 +197,10 @@ func TestNewRejectsMissingKeyAndBadURL(t *testing.T) {
 	if _, err := New(Config{BaseURL: "http://x/v1"}); err == nil {
 		t.Error("expected error for missing API key")
 	}
-	if _, err := New(Config{BaseURL: "://bad", APIKey: "k"}); err == nil {
-		t.Error("expected error for invalid base URL")
+	for _, baseURL := range []string{"://bad", "provider.example/v1", "/v1", "ftp://provider.example/v1", "https:///v1"} {
+		if _, err := New(Config{BaseURL: baseURL, APIKey: "k"}); err == nil {
+			t.Errorf("invalid base URL accepted: %q", baseURL)
+		}
 	}
 }
 
@@ -287,7 +213,7 @@ func TestProviderEchoCannotLeakCredentialsOrReview(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = adapter.Complete(context.Background(), testRequest("json_object"))
+		_, err = adapter.Complete(context.Background(), testRequest())
 		srv.Close()
 		if err == nil {
 			t.Fatal("expected provider error")
@@ -346,8 +272,7 @@ func TestConfiguredTimeoutAndShorterCallerDeadlineReachTransport(t *testing.T) {
 				ctx, cancel = context.WithTimeout(ctx, callerLimit)
 				defer cancel()
 			}
-			req := testRequest("json_object")
-			req.Timeout = 0
+			req := testRequest()
 			if _, err := adapter.Complete(ctx, req); err != nil {
 				t.Fatal(err)
 			}

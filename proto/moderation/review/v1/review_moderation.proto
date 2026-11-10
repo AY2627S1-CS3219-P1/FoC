@@ -72,7 +72,6 @@ message ModerationAttempt {
   string model_id = 4;
   google.protobuf.Timestamp started_at = 5;
   google.protobuf.Timestamp finished_at = 6;
-  // "completed", "released", "abandoned", or the stable error class for a failed attempt.
   string outcome = 7;
   string error_class = 8;
 }

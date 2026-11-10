@@ -4,7 +4,6 @@ package openaiadapter
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,7 +20,6 @@ const (
 
 type OpenAICompletionClient struct {
 	chatCompletions openai.ChatCompletionService
-	baseURL         string
 	timeout         time.Duration
 }
 
@@ -39,8 +37,9 @@ func New(cfg Config) (*OpenAICompletionClient, error) {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
-	if _, err := url.Parse(baseURL); err != nil {
-		return nil, fmt.Errorf("openaiadapter: invalid base URL: %w", err)
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, errors.New("openaiadapter: base URL must be an absolute HTTP(S) URL")
 	}
 	if cfg.APIKey == "" {
 		return nil, errors.New("openaiadapter: missing provider API key")
@@ -67,7 +66,6 @@ func New(cfg Config) (*OpenAICompletionClient, error) {
 
 	return &OpenAICompletionClient{
 		chatCompletions: client.Chat.Completions,
-		baseURL:         baseURL,
 		timeout:         timeout,
 	}, nil
 }
@@ -79,19 +77,7 @@ func (c *OpenAICompletionClient) Complete(
 ) (*moderation.CompletionResponse, error) {
 	params := buildParams(req)
 
-	timeout := req.Timeout
-	if timeout <= 0 {
-		timeout = c.timeout
-	}
-
-	opts := []option.RequestOption{option.WithRequestTimeout(timeout)}
-	if advanced, err := advancedOptions(req.Parameters); err != nil {
-		return nil, err
-	} else {
-		opts = append(opts, advanced...)
-	}
-
-	resp, err := c.chatCompletions.New(ctx, params, opts...)
+	resp, err := c.chatCompletions.New(ctx, params, option.WithRequestTimeout(c.timeout))
 	if err != nil {
 		return nil, mapError(err)
 	}

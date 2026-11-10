@@ -149,7 +149,7 @@ func TestShutdownReleaseIsBoundedWhileDatabaseRowIsLocked(t *testing.T) {
 	p := moderationjob.NewPool(
 		store,
 		eval,
-		moderationjob.NewInferenceLimiter(1),
+
 		moderationjob.PoolConfig{
 			Concurrency:       1,
 			CleanupTimeout:    30 * time.Millisecond,
@@ -280,62 +280,6 @@ func TestFailureFinalizationLocksJobBeforeAttemptHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestOccupiedInferenceGateLeavesJobAvailableToAnotherReplica(t *testing.T) {
-	pool := newTestPool(t)
-
-	ctx := context.Background()
-	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
-	in := ingestInput("shared inference capacity")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatal(err)
-	}
-	gate := moderationjob.NewInferenceLimiter(1)
-	if err := gate.Acquire(ctx); err != nil {
-		t.Fatal(err)
-	}
-	evaluated := make(chan struct{}, 1)
-	evaluator := shutdownEvaluator(func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
-		evaluated <- struct{}{}
-		return moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"}, nil
-	})
-	worker := moderationjob.NewPool(
-		store,
-		evaluator,
-		gate,
-		moderationjob.PoolConfig{
-			Concurrency:       1,
-			Lease:             time.Minute,
-			HeartbeatInterval: time.Second,
-			PollInterval:      time.Millisecond,
-			LLMRequestTimeout: time.Second,
-		},
-		nil,
-	)
-	workerCtx, cancel := context.WithCancel(ctx)
-	worker.Start(workerCtx)
-	defer func() { cancel(); gate.Release(); worker.Wait() }()
-	time.Sleep(30 * time.Millisecond)
-	if job := jobByRequest(t, pool, in.ModerationRequestID); job.Status != "queued" || job.AttemptCount != 0 {
-		t.Fatalf("gate waiter consumed durable claim: %+v", job)
-	}
-	other := mustClaim(t, store, "other-replica")
-	gate.Release()
-	select {
-	case <-evaluated:
-		t.Fatal("gate waiter inferred with work owned by another replica")
-	case <-time.After(50 * time.Millisecond):
-	}
-	cancel()
-	worker.Wait()
-	if err := store.Complete(
-		ctx,
-		*other,
-		moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"},
-	); err != nil {
 		t.Fatal(err)
 	}
 }

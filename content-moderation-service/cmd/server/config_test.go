@@ -34,7 +34,7 @@ func TestLoadConfigWorkerConcurrency(t *testing.T) {
 					return "8081"
 				case "DATABASE_URL":
 					return "postgresql://localhost/test"
-				case "USER_SERVICE_URL":
+				case "USER_SERVICE_BASE_URL":
 					return "http://localhost"
 				default:
 					return ""

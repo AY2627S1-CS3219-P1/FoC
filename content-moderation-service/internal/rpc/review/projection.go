@@ -2,7 +2,6 @@ package review
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
-	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -46,8 +45,7 @@ func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 	}
 }
 
-func summarize(view moderationjob.JobView) *reviewv1.ReviewModerationJobSummary {
-	job := view.ModerationJob
+func summarize(job moderationdb.ModerationJob) *reviewv1.ReviewModerationJobSummary {
 	summary := &reviewv1.ReviewModerationJobSummary{
 		JobId:               job.ID.String(),
 		ModerationRequestId: job.ModerationRequestID.String(),

@@ -11,8 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const usersReviewSubmittedTopic = UsersReviewSubmittedTopic
-
 const maxQuarantineSummary = 500
 
 type IngestionInput struct {
@@ -25,7 +23,6 @@ type IngestionInput struct {
 }
 
 type MalformedInput struct {
-	Topic      string
 	MessageKey string
 	EventID    string
 	Reason     string
@@ -126,7 +123,7 @@ func (s *Service) quarantine(
 	messageKey, eventID, reason, comment string,
 ) error {
 	return q.Quarantine(ctx, moderationdb.QuarantineParams{
-		Topic:          usersReviewSubmittedTopic,
+		Topic:          UsersReviewSubmittedTopic,
 		MessageKey:     truncate(messageKey, maxQuarantineSummary),
 		EventID:        strPtr(truncate(eventID, maxQuarantineSummary)),
 		Reason:         reason,

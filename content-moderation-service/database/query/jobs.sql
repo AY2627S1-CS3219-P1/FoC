@@ -126,12 +126,12 @@ WHERE reviewer_id = sqlc.arg(reviewer_id)
   AND moderation_request_id = ANY(sqlc.slice(moderation_request_ids))
 ORDER BY created_at DESC;
 
--- name: RetryErroredJob :execrows
+-- name: RetryErroredJob :one
 UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,
     status = 'queued',
-    policy_version = sqlc.arg(policy_version),
+    policy_version = NULL,
     next_attempt_at = NULL,
     outcome = NULL,
     error_class = NULL,
@@ -143,7 +143,8 @@ SET run_generation = run_generation + 1,
     updated_at = now()
 WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
-  AND status = 'errored';
+  AND status = 'errored'
+RETURNING *;
 
 -- name: ExhaustJob :execrows
 -- The caller holds the row lock obtained by ClaimEligibleJob.
@@ -165,12 +166,3 @@ WHERE id = sqlc.arg(id) AND run_generation = sqlc.arg(run_generation)
   AND claim_token = sqlc.arg(claim_token) AND status = 'processing'
   AND lease_until > clock_timestamp()
 FOR UPDATE;
-
--- name: GetJobViewByID :one
-SELECT sqlc.embed(j) FROM moderation_jobs j WHERE j.id = sqlc.arg(id);
-
--- name: GetJobViewsForReviewer :many
-SELECT sqlc.embed(j) FROM moderation_jobs j
-WHERE reviewer_id = sqlc.arg(reviewer_id)
-AND moderation_request_id = ANY(sqlc.slice(moderation_request_ids))
-ORDER BY created_at DESC;
