@@ -102,3 +102,37 @@ func TestKafkaIntegration(t *testing.T) {
 		t.Fatal("replay did not complete")
 	}
 }
+
+// This separate, pre-created topic keeps the replay test's empty-topic contract.
+func TestSerialPublicationFlushIntegration(t *testing.T) {
+	brokers, topic := os.Getenv("TEST_KAFKA_BROKERS"), os.Getenv("TEST_KAFKA_SERIAL_TOPIC")
+	if brokers == "" || topic == "" {
+		t.Skip("set TEST_KAFKA_BROKERS and TEST_KAFKA_SERIAL_TOPIC for an isolated broker")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	p, err := NewPublisher(PublisherConfig{Brokers: strings.Split(brokers, ",")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := p.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	// Establish metadata and connections before measuring serial flush latency.
+	key := []byte(fmt.Sprintf("serial-%d", time.Now().UnixNano()))
+	if err := p.Publish(ctx, topic, key, wrapperspb.String("warmup")); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	for i := range 12 {
+		if err := p.Publish(ctx, topic, key, wrapperspb.String(fmt.Sprint(i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A generous real-broker budget still catches the former 1s wait per call.
+	if elapsed := time.Since(started); elapsed >= 3*time.Second {
+		t.Fatalf("12 acknowledged serial publications took %s, want less than 3s", elapsed)
+	}
+}

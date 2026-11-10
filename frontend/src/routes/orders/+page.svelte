@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { Code, ConnectError } from '@connectrpc/connect';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
@@ -10,7 +11,7 @@
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import type { Building } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { authService, locationApi, orderApi, orderOffersApi } from '$lib/services';
+	import { authService, locationApi, orderApi, orderOffersApi, realtimeService } from '$lib/services';
 	import type { OrderPage, OrderQuery } from '$lib/services/order';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { statusLabel } from '$lib/services/order/presentation';
@@ -64,21 +65,29 @@
 		if (!identity || suspended) return;
 		let active = true;
 		loading = true;
-		orderApi
+		const stop = realtimeService.subscribe(['openOrders'], () => orderApi
 			.listOpenOrders(current)
-			.then((value) => active && (result = value))
+			.then((value) => {
+                if (!active) return;
+                if (current.page! > Math.max(1, value.totalPages)) {
+                    void goto(hrefWith({ page: String(Math.max(1, value.totalPages)) }), { noScroll: true, keepFocus: true }); return;
+                }
+                error = ""; result = value;
+            })
 			.catch((cause) => active && (error = describeOrderError(cause, 'load open requests')))
-			.finally(() => active && (loading = false));
-		return () => (active = false);
+			.finally(() => active && (loading = false)));
+		return () => { active = false; stop(); };
 	});
 
 	// A selected request may have left the open list (accepted, expired), so read it directly.
 	// Only the id drives this effect; reading `selected` here would re-run it on every fetch.
 	let selected = $state<Order | null>(null);
 	let selectedError = $state('');
+ let selectedCaller: string | undefined;
 	$effect(() => {
 		const id = selectedId;
 		const user = authService.user?.id;
+        if (selectedCaller !== user) { selected = null; selectedCaller = user; }
 		void revision; // Refresh reloads the selected request with the list.
 		selectedError = '';
 		if (!id || !user) {
@@ -88,21 +97,17 @@
 		const listed = untrack(() => result?.orders.find((order) => order.id === id));
 		if (untrack(() => selected?.id) !== id) selected = listed ?? null;
 		let stale = false;
-		orderApi
+		const stop = realtimeService.subscribe(['orders', 'openOrders'], () => orderApi
 			.getOrder(id)
-			.then((order) => !stale && (selected = order))
-			.catch((cause) => !stale && !untrack(() => selected) && (selectedError = describeOrderError(cause, 'load this request')));
-		return () => (stale = true);
+			.then((order) => { if (!stale) { selected = order; selectedError = ""; } })
+			 .catch((cause) => {
+                if (stale) return;
+                if ([Code.NotFound, Code.PermissionDenied].includes(ConnectError.from(cause).code)) selected = null;
+                selectedError = describeOrderError(cause, 'load this request');
+            }));
+		return () => { stale = true; stop(); };
 	});
 
-	// If the direct read failed but the list now has the request, show the listed copy.
-	$effect(() => {
-		const listed = result?.orders.find((order) => order.id === selectedId);
-		if (listed && untrack(() => !selected && selectedError)) {
-			selected = listed;
-			selectedError = '';
-		}
-	});
 
 	async function refreshSelected() {
 		if (!selectedId) return;

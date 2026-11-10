@@ -322,12 +322,15 @@ func (o *operator) deployAll() error {
 			return err
 		}
 	} else {
-		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "smtp", "kafka-ui-auth", "telegram"} {
+		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "jwt-signing", "kafka-ui-auth", "telegram"} {
 			if _, err := o.query("-n", "foc", "get", "secret", name); err != nil {
 				return err
 			}
 		}
-		if _, err := o.query("-n", "istio-ingress", "get", "secret", "foc-public-tls"); err != nil {
+		if err := o.checkSMTPSecret(); err != nil {
+			return err
+		}
+		if err := o.checkGatewayTLSSecrets(); err != nil {
 			return err
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.")

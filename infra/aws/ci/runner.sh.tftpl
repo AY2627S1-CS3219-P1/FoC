@@ -1,0 +1,77 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+export AWS_DEFAULT_REGION='${region}' AWS_PAGER='' AWS_CLI_AUTO_PROMPT=off
+# Never trace shell commands or registration values into the serial console.
+bootstrap_stage=initializing
+stage() {
+  bootstrap_stage="$1"
+  printf 'BOOTSTRAP: stage=%s\n' "$bootstrap_stage" | tee /dev/console || true
+}
+finish() {
+  status=$?
+  trap - EXIT
+  printf 'BOOTSTRAP: stage=%s status=%s\n' "$bootstrap_stage" "$status" | tee /dev/console || true
+  rm -rf /run/foc-runner || true
+  shutdown -h now || true
+  exit "$status"
+}
+trap finish EXIT
+stage deadline
+systemd-run --unit=foc-runner-deadline --on-active=120m /sbin/shutdown -h now
+stage packages
+dnf install -y docker git make python3 awscli-2 libicu openssl-libs krb5-libs zlib tar gzip jq iptables > /var/log/foc-runner-packages.log 2>&1 || {
+  status=$?
+  # Package resolution precedes registration and contains no application credentials.
+  tail -n 30 /var/log/foc-runner-packages.log | tee /dev/console || true
+  exit "$status"
+}
+stage docker
+systemctl enable --now docker
+useradd --create-home runner
+usermod -aG docker runner
+install -d -m 0755 /usr/local/lib/docker /usr/local/lib/docker/cli-plugins
+stage buildx
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  https://github.com/docker/buildx/releases/download/v0.38.2/buildx-v0.38.2.linux-amd64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+printf '%s  %s\n' '7992ec09413b80ff57ba4e081f56fc833d7bac1d5e71143c6c809e7e6065f6d6' /usr/local/lib/docker/cli-plugins/docker-buildx | sha256sum --check
+chmod 755 /usr/local/lib/docker/cli-plugins/docker-buildx
+stage runner_download
+mkdir /home/runner/actions-runner
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  https://github.com/actions/runner/releases/download/v2.338.2/actions-runner-linux-x64-2.338.2.tar.gz \
+  -o /home/runner/runner.tar.gz
+printf '%s  %s\n' 'baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40' /home/runner/runner.tar.gz | sha256sum --check
+tar xzf /home/runner/runner.tar.gz -C /home/runner/actions-runner
+rm /home/runner/runner.tar.gz
+chown -R runner:runner /home/runner/actions-runner
+stage private_eks_tls
+python3 - <<'PY'
+import base64, ssl, urllib.request, urllib.error
+context = ssl.create_default_context(cadata=base64.b64decode('${ca}').decode())
+try:
+    response = urllib.request.urlopen('${endpoint}', context=context, timeout=15)
+    status = response.status
+except urllib.error.HTTPError as error:
+    status = error.code
+if status not in (401, 403):
+    raise SystemExit('Private EKS TLS probe returned unexpected HTTP status')
+print('OUTPUT: verified private EKS TLS connectivity; unauthenticated HTTP ' + str(status), flush=True)
+PY
+stage registration
+mkdir -m 700 /run/foc-runner
+aws ssm get-parameter --name '${parameter}' --with-decryption --output json > /run/foc-runner/registration.json
+jit=$(jq -er .Parameter.Value /run/foc-runner/registration.json)
+aws ssm delete-parameter --name '${parameter}' >/dev/null
+rm /run/foc-runner/registration.json
+# Workflow authentication must use OIDC, not the bootstrap instance identity.
+stage metadata_block
+iptables -A OUTPUT -d 169.254.169.254/32 -m owner ! --uid-owner 0 -j REJECT
+printf 'OUTPUT: prerequisites ready; registration consumed; starting one-job runner\n'
+stage runner
+cd /home/runner/actions-runner
+runuser -u runner -- ./run.sh --jitconfig "$jit"
+unset jit
+stage complete
+printf 'OUTPUT: runner exited; terminating disposable instance\n'

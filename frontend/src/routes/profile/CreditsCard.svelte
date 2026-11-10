@@ -1,35 +1,37 @@
 <script lang="ts">
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { LedgerEntryKind, type Account, type LedgerEntry } from '$lib/gen/credit/v1/shared_types_pb';
-	import { authService, creditAccountApi } from '$lib/services';
+	import { LedgerEntryKind, type LedgerEntry } from '$lib/gen/credit/v1/shared_types_pb';
+	import { authService, creditAccountApi, creditService, realtimeService } from '$lib/services';
 
-	let account = $state<Account | null>(null);
+	const account = $derived(creditService.account);
 	let entries = $state<LedgerEntry[]>([]);
 	let page = $state(1);
 	let totalPages = $state(0);
 	let error = $state('');
 	let loading = $state(true);
 	let revision = $state(0);
+ let loadedCaller: string | undefined;
 
 	$effect(() => {
 		const caller = authService.user?.id;
+        if (loadedCaller !== caller) { entries = []; totalPages = 0; page = 1; loadedCaller = caller; }
 		const current = page;
 		void revision;
 		if (!caller) return;
 		let active = true;
 		loading = true;
 		error = '';
-		Promise.all([creditAccountApi.getAccount(), creditAccountApi.listLedgerEntries(current)])
-			.then(([value, ledger]) => {
+		const stop = realtimeService.subscribe(['credits'], () => creditAccountApi.listLedgerEntries(current)
+			.then((ledger) => {
 				if (!active) return;
-				account = value;
-				entries = ledger.entries;
+				if (current > Math.max(1, ledger.totalPages)) { page = Math.max(1, ledger.totalPages); return; }
+				entries = ledger.entries; error = "";
 				totalPages = ledger.totalPages;
 			})
 			.catch(() => active && (error = "Couldn't load your credits. Try again shortly."))
-			.finally(() => active && (loading = false));
-		return () => (active = false);
+			.finally(() => active && (loading = false)));
+		return () => { active = false; stop(); };
 	});
 
 	// What each entry meant for the user, in their terms rather than Credit's.
@@ -60,10 +62,12 @@
 <Card variant="outlined">
 	<section class="panel-body" aria-labelledby="credits-title">
 		<h2 id="credits-title">Credits</h2>
+		{#if creditService.failed}<p class="notice error" role="alert">Couldn't refresh your balance.{creditService.account ? ' Showing the last available amount.' : ' Try again shortly.'}</p>{/if}
 		{#if error}
 			<p class="notice error" role="alert">{error}</p>
 			<div><Button variant="outlined" onclick={() => revision++}>Try again</Button></div>
-		{:else if !account && loading}
+		{/if}
+		{#if !account && loading}
 			<div class="loading-state"><LoadingIndicator aria-label="Loading credits" /></div>
 		{:else if account}
 			<div class="totals">

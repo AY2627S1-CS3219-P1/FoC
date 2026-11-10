@@ -20,6 +20,11 @@ is five seconds; the caller's context can impose a shorter deadline. A delivery
 error does not prove Kafka rejected the message. Retry with the same event ID.
 Topic auto-creation is disabled; provision topics separately.
 
+Incomplete batches flush after 10 milliseconds. This bounds batching delay for
+serial outbox publishers while retaining the default batch size for concurrent
+callers. Publication still waits for acknowledgement; the shorter timeout does
+not make publishing asynchronous.
+
 ```go
 subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{
     Brokers: []string{"kafka:9092"},
@@ -91,3 +96,9 @@ replay and acknowledgement using the same unique consumer group.
 TEST_KAFKA_BROKERS=localhost:9092 TEST_KAFKA_TOPIC=wrapper-test \
     go test ./kafka -run TestKafkaIntegration -count=1
 ```
+
+For the serial publication regression, provision a separate topic and set
+`TEST_KAFKA_SERIAL_TOPIC=wrapper-serial`. Run
+`go test ./kafka -run TestSerialPublicationFlushIntegration -count=1` with the
+same isolated `TEST_KAFKA_BROKERS`. The test warms the publisher, then requires
+twelve acknowledged serial calls to complete within three seconds.

@@ -27,6 +27,10 @@ func (r *Postgres) Claim(ctx context.Context, now, until time.Time) (*Fact, erro
 	if err != nil {
 		return nil, err
 	}
+	if row.Kind == "order.changed" {
+		return &Fact{ID: row.EventID.String(), OrderID: row.OrderID.String(), Kind: row.Kind,
+			LeaseToken: token.String(), Revision: row.Revision, Version: row.PayloadVersion, Payload: row.Payload}, nil
+	}
 	actor, err := q.FactActor(ctx, db.FactActorParams{OrderID: row.OrderID, Revision: row.Revision})
 	if err != nil {
 		return nil, err

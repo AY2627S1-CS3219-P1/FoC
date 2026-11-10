@@ -9,7 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/rs/cors"
 	"gorm.io/gorm"
@@ -18,6 +20,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
@@ -32,6 +35,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
+
+// Communication sends magic links synchronously; its SMTP exchange is
+// bounded at 5s by default.
+const magicLinkTimeout = 15 * time.Second
 
 // newReviewService builds the review domain; photo storage is optional.
 func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
@@ -140,7 +147,8 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec,
+		MagicLinks: communication.NewMagicLinks(&http.Client{Timeout: magicLinkTimeout}, cfg.communicationURL),
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

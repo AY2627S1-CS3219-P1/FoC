@@ -66,6 +66,18 @@ func (s *PostgresStore) Revision(ctx context.Context, id uuid.UUID) (int64, bool
 	return o.Revision, true, nil
 }
 
+// IsCourier reports whether a user is currently assigned, including a returning courier.
+func (s *PostgresStore) IsCourier(ctx context.Context, orderID, userID uuid.UUID) (bool, error) {
+	o, err := s.GetOrder(ctx, orderID)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return o.CourierID == userID, nil
+}
+
 // UserOrders implements Store. It filters chat eligibility before applying
 // the /chat keyboard limit, using since for the terminal-order grace period.
 func (s *PostgresStore) UserOrders(ctx context.Context, userID uuid.UUID, since time.Time) ([]Order, error) {
