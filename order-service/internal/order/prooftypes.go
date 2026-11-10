@@ -133,6 +133,19 @@ type ProofImageValidator interface {
 	Validate(context.Context, string, []byte) error
 }
 
+// ErrProofImageTooLarge declares, from an image's own header, that its pixel
+// area exceeds the native decoder budget. It unwraps to ErrPrecondition so an
+// oversized photo remains a rejected attempt, never a retryable outage.
+var ErrProofImageTooLarge = tooLargeProofImage{}
+
+type tooLargeProofImage struct{}
+
+func (tooLargeProofImage) Error() string {
+	return "photo resolution exceeds the delivery proof limit; retake or resize it below 24 megapixels"
+}
+
+func (tooLargeProofImage) Unwrap() error { return ErrPrecondition }
+
 type ProofOutage struct {
 	Reason, EvidenceID, UploadScope string
 	Generation                      int64
