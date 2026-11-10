@@ -324,3 +324,226 @@ func (o *operator) deployAll() error {
 		}
 	} else {
 		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "moderation-db", "moderation-llm", "jwt-signing", "kafka-ui-auth", "telegram"} {
+			if _, err := o.query("-n", "foc", "get", "secret", name); err != nil {
+				return err
+			}
+		}
+		if err := o.checkSMTPSecret(); err != nil {
+			return err
+		}
+		if err := o.checkGatewayTLSSecrets(); err != nil {
+			return err
+		}
+		note("Using operator-provided configuration and Secrets; see the production overlay runbook.")
+	}
+	for _, stage := range []string{"gateway", "dependencies"} {
+		if err := o.applyStage(stage); err != nil {
+			return err
+		}
+	}
+	if err := o.patchLocalConfig(); err != nil {
+		return err
+	}
+	if email := os.Getenv("K8S_BOOTSTRAP_SUPERADMIN_EMAIL"); email != "" {
+		if err := o.patchConfig(
+			map[string]string{
+				"BOOTSTRAP_SUPERADMIN_EMAIL":        email,
+				"BOOTSTRAP_SUPERADMIN_DISPLAY_NAME": envDefault("K8S_BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", "Admin"),
+			},
+		); err != nil {
+			return err
+		}
+	}
+	if o.isLocal() {
+		if err := o.rollout("statefulset/postgres"); err != nil {
+			return err
+		}
+	}
+	for _, resource := range []string{"statefulset/kafka", "deployment/kafka-ui"} {
+		if err := o.rollout(resource); err != nil {
+			return err
+		}
+	}
+	if o.isLocal() {
+		for _, resource := range []string{"deployment/mailpit", "deployment/floci"} {
+			if err := o.rollout(resource); err != nil {
+				return err
+			}
+		}
+		if err := o.prepareJob("db-provision"); err != nil {
+			return err
+		}
+		if err := o.applyStage("provisioning"); err != nil {
+			return err
+		}
+		if err := o.waitJob("db-provision"); err != nil {
+			return err
+		}
+		if err := o.prepareJob("order-storage-init"); err != nil {
+			return err
+		}
+		if err := o.prepareJob("user-storage-init"); err != nil {
+			return err
+		}
+	}
+	if err := o.deployObservability(); err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		if err := o.prepareJob(job); err != nil {
+			return err
+		}
+	}
+	if err := o.applyStage("initialization"); err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		if err := o.waitJob(job); err != nil {
+			return err
+		}
+	}
+	if o.isLocal() {
+		if err := o.waitJob("order-storage-init"); err != nil {
+			return err
+		}
+		if err := o.waitJob("user-storage-init"); err != nil {
+			return err
+		}
+	}
+	if err := o.applyStage("applications"); err != nil {
+		return err
+	}
+	if err := o.waitForGateway(); err != nil {
+		return err
+	}
+	for _, app := range apps {
+		if err := o.k("-n", "foc", "rollout", "restart", "deployment/"+app); err != nil {
+			return err
+		}
+		if err := o.rollout("deployment/" + app); err != nil {
+			return err
+		}
+	}
+	note(
+		"Bootstrap deployed User, Supplier, Order, Credit, Communication and frontend; the complete D3 business workflow remains unverified.",
+	)
+	return nil
+}
+
+func (o *operator) rollout(resource string) error {
+	return o.k("-n", "foc", "rollout", "status", resource, "--timeout="+o.timeout)
+}
+
+func (o *operator) deployOne(service string) error {
+	if !contains(apps, service) {
+		return fmt.Errorf("unknown service %q; use %s", service, strings.Join(apps, ", "))
+	}
+	if err := o.checkOverlay(); err != nil {
+		return err
+	}
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := o.buildImages([]string{service}); err != nil {
+		return err
+	}
+	if err := o.k("-n", "foc", "set", "image", "deployment/"+service, service+"="+o.imageFor(service)); err != nil {
+		return err
+	}
+	if err := o.k("-n", "foc", "rollout", "restart", "deployment/"+service); err != nil {
+		return err
+	}
+	if err := o.rollout("deployment/" + service); err != nil {
+		return err
+	}
+	note("Application updated. Schema changes require a full make k8s-deploy first.")
+	return nil
+}
+
+func (o *operator) up() error {
+	if err := o.checkOverlay(); err != nil {
+		return err
+	}
+	if _, err := o.lokiValuesArgs(); err != nil {
+		return err
+	}
+	var forwards []forwardSpec
+	if o.isLocal() {
+		var err error
+		forwards, err = configuredForwards(os.Getenv)
+		if err != nil {
+			return err
+		}
+	}
+	if err := preflightForwards(forwards); err != nil {
+		return err
+	}
+	if !o.existing {
+		if err := o.createLocalCluster(); err != nil {
+			return err
+		}
+	}
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := o.checkGrafanaSecret(); err != nil {
+		return err
+	}
+	if err := o.installMesh(); err != nil {
+		return err
+	}
+	if err := o.deployAll(); err != nil {
+		return err
+	}
+	if !o.isLocal() {
+		note("Production overlay selected; automatic local port-forwards are disabled.")
+		return nil
+	}
+	return o.superviseForwards(forwards, false)
+}
+
+func (o *operator) deleteCluster() error {
+	if o.existing {
+		return errors.New("cluster deletion is local-only; unset K8S_CONTEXT and select K8S_CLUSTER explicitly")
+	}
+	if os.Getenv("K8S_CONFIRM_DELETE") != o.cluster {
+		return fmt.Errorf(
+			"this deletes cluster %s and its PVC data; rerun with K8S_CONFIRM_DELETE=%s; local credentials are retained",
+			o.cluster,
+			o.cluster,
+		)
+	}
+	if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`).MatchString(o.cluster) {
+		return errors.New("invalid kind cluster name")
+	}
+	if err := requireCommands("kind"); err != nil {
+		return err
+	}
+	if err := o.execute("kind", "delete", "cluster", "--name", o.cluster); err != nil {
+		return err
+	}
+	note("Deleted local cluster %s and cluster data. Credentials remain in %s.", o.cluster, o.state)
+	return nil
+}
+
+func (o *operator) showStatus() error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	for _, args := range [][]string{
+		{"-n", "foc", "get", "pods,jobs,pvc,services", "-o", "wide"},
+		{"-n", "foc-observability", "get", "pods,pvc,services", "-o", "wide"},
+		{"-n", "istio-system", "get", "pods"}, {"-n", "istio-ingress", "get", "pods,services"},
+		{"get", "gatewayclass/istio"}, {"get", "-A", "gateways,httproutes"},
+		{"-n", "foc-observability", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"},
+		{"-n", "foc", "get", "events", "--field-selector", "type=Warning", "--sort-by=.metadata.creationTimestamp"},
+	} {
+		if err := o.k(args...); err != nil {
+			return err
+		}
+	}
+	if _, err := exec.LookPath("istioctl"); err == nil {
+		return o.execute("istioctl", append(o.kubePrefix(), "proxy-status")...)
+	}
+	return nil
+}
