@@ -77,3 +77,19 @@ func TestOrderViewsKeepsPageWhenSelectedOrderExpires(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderViewPreservesCompletionProvenance(t *testing.T) {
+	for _, automatic := range []bool{false, true} {
+		now := time.Now().UTC()
+		original := app.Order{
+			RequesterID:            "requester",
+			Status:                 app.Completed,
+			CompletedAt:            &now,
+			AutomaticallyCompleted: automatic,
+		}
+		got, err := OrderView(context.Background(), app.Caller{ID: "requester"}, original, nil)
+		if err != nil || got.AutomaticallyCompleted != automatic || !got.CompletedAt.AsTime().Equal(now) {
+			t.Fatalf("automatic=%v response=%+v err=%v", automatic, got, err)
+		}
+	}
+}
