@@ -438,6 +438,110 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("user_appeals: idempotency, decision targets, outcomes and links", func(t *testing.T) {
+		requestID := uuid.New()
+		warningID := uuid.New()
+		if err := db.Exec(
+			`INSERT INTO account_warnings (id, user_id, request_id, reason) VALUES (?, ?, ?, 'late')`,
+			warningID, alice.ID, requestID,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		insertAppeal := func(key uuid.UUID) (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO user_appeals (id, appellant_id, reason, idempotency_key, request_hash)
+				 VALUES (?, ?, 'unfair', ?, repeat('a', 64))`,
+				id, alice.ID, key,
+			).Error
+			return id, err
+		}
+		key := uuid.New()
+		appealID, err := insertAppeal(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertAppeal(key); err == nil {
+			t.Fatal("expected a reused idempotency key to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeals SET awaited_user_id = ? WHERE id = ?", admin.ID, appealID,
+		).Error; err == nil {
+			t.Fatal("expected an awaited participant outside awaiting_response to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeals SET status = 'closed' WHERE id = ?", appealID,
+		).Error; err == nil {
+			t.Fatal("expected a close without closed_at to fail")
+		}
+
+		insertDecision := func(appeal uuid.UUID, kind string, warning, review *uuid.UUID) (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO user_appeal_decisions (id, appeal_id, kind, warning_id, review_id)
+				 VALUES (?, ?, ?, ?, ?)`,
+				id, appeal, kind, warning, review,
+			).Error
+			return id, err
+		}
+		if _, err := insertDecision(appealID, "review_removal", &warningID, nil); err == nil {
+			t.Fatal("expected a target that does not match the kind to fail")
+		}
+		if _, err := insertDecision(appealID, "credit_adjustment", nil, nil); err == nil {
+			t.Fatal("expected a credit adjustment decision to fail until Credit supports it")
+		}
+		decisionID, err := insertDecision(appealID, "warning", &warningID, nil)
+		if err != nil {
+			t.Fatalf("warning decision: %v", err)
+		}
+		otherAppeal, err := insertAppeal(uuid.New())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertDecision(otherAppeal, "warning", &warningID, nil); err == nil {
+			t.Fatal("expected a decision in two unclosed appeals to fail")
+		}
+
+		if err := db.Exec(
+			"UPDATE user_appeal_decisions SET outcome = 'upheld' WHERE id = ?", decisionID,
+		).Error; err == nil {
+			t.Fatal("expected an outcome without a reason to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeal_decisions SET outcome = 'upheld', outcome_reason = 'fair' WHERE id = ?", decisionID,
+		).Error; err == nil {
+			t.Fatal("expected an outcome on an active decision to fail")
+		}
+		if err := db.Exec(
+			`UPDATE user_appeal_decisions SET outcome = 'upheld', outcome_reason = 'fair', active = false
+			 WHERE id = ?`,
+			decisionID,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertDecision(otherAppeal, "warning", &warningID, nil); err != nil {
+			t.Fatalf("decision appealed again after the first appeal closed: %v", err)
+		}
+
+		if err := db.Exec(
+			"UPDATE account_warnings SET appeal_id = ? WHERE id = ?", uuid.New(), warningID,
+		).Error; err == nil {
+			t.Fatal("expected a warning linked to a missing appeal to fail")
+		}
+		if err := db.Exec(
+			"UPDATE account_warnings SET appeal_id = ? WHERE id = ?", appealID, warningID,
+		).Error; err != nil {
+			t.Fatalf("warning linked to an appeal: %v", err)
+		}
+		if err := db.Exec(
+			"INSERT INTO user_appeal_responses (appeal_id, responder_id, body) VALUES (?, ?, 'my side')",
+			appealID, admin.ID,
+		).Error; err != nil {
+			t.Fatalf("response: %v", err)
+		}
+	})
+
+
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)
