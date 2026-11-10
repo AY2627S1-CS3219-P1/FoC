@@ -9,12 +9,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/rs/cors"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
@@ -27,6 +30,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -34,6 +38,17 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
+
+// newOrderGateway reads order participants from Order's internal listener, and
+// fails closed while ORDER_SERVICE_BASE_URL is unset.
+func newOrderGateway(cfg config) orders.Gateway {
+	if cfg.orderServiceURL == "" {
+		slog.Warn("ORDER_SERVICE_BASE_URL is not set; order participant checks fail closed")
+		return orders.UnavailableGateway{}
+	}
+	return orders.NewConnectGateway(orderv1connect.NewOrderInternalServiceClient(
+		&http.Client{Timeout: 5 * time.Second}, cfg.orderServiceURL))
+}
 
 // newReviewService builds the review domain; photo storage is optional.
 func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
