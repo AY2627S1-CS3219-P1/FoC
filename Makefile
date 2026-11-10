@@ -140,3 +140,19 @@ k8s-logging-smoke: k8s-tools $(K8S_CLI)
 .PHONY: k8s-logging-validate
 k8s-logging-validate: k8s-tools $(K8S_CLI)
 	AQUA_ROOT_DIR="$(AQUA_ROOT_DIR)" AQUA="$(AQUA)" "$(K8S_CLI)" logging-validate
+
+# AWS operations use the same Go tooling module as the Kubernetes operator.
+AWS_CLI := $(CURDIR)/.tools/bin/aws
+
+$(AWS_CLI): $(wildcard scripts/aws/*.go) scripts/go.mod scripts/go.sum
+	@mkdir -p "$(@D)"
+	GOWORK=off go -C scripts build -mod=readonly -o "$@" ./aws
+
+.PHONY: aws-tools aws-render-overlay aws-prepare-database
+aws-tools: $(AWS_CLI)
+
+aws-render-overlay: $(AWS_CLI)
+	"$(AWS_CLI)" render-overlay $(args)
+
+aws-prepare-database: $(AWS_CLI)
+	"$(AWS_CLI)" prepare-database $(args)

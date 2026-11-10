@@ -70,7 +70,11 @@ type config struct {
 	telegramToken string
 	telegramAPI   string
 	kafkaBrokers  []string
-	// smtp.Addr is empty when email is disabled.
+	emailProvider string
+	emailFrom     string
+	awsRegion     string
+	sesTimeout    time.Duration
+	// smtp.Addr is empty when SMTP email is disabled.
 	smtp email.SMTPSender
 }
 
@@ -82,6 +86,9 @@ func loadConfig() (config, error) {
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		telegramAPI:   os.Getenv("TELEGRAM_API_URL"),
+		emailProvider: strings.TrimSpace(os.Getenv("EMAIL_PROVIDER")),
+		emailFrom:     strings.TrimSpace(os.Getenv("EMAIL_FROM")),
+		awsRegion:     strings.TrimSpace(os.Getenv("AWS_REGION")),
 		smtp: email.SMTPSender{
 			Addr:     strings.TrimSpace(os.Getenv("SMTP_ADDR")),
 			From:     strings.TrimSpace(os.Getenv("SMTP_FROM")),
@@ -89,17 +96,46 @@ func loadConfig() (config, error) {
 			Password: os.Getenv("SMTP_PASSWORD"),
 		},
 	}
-	if timeout := os.Getenv("SMTP_TIMEOUT"); timeout != "" {
-		d, err := time.ParseDuration(timeout)
-		if err != nil || d <= 0 {
-			return cfg, fmt.Errorf("SMTP_TIMEOUT must be a positive duration, got %q", timeout)
-		}
-		cfg.smtp.Timeout = d
+	if cfg.emailProvider == "" {
+		cfg.emailProvider = "smtp"
 	}
-	if cfg.smtp.Addr != "" {
-		if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
-			return cfg, fmt.Errorf("SMTP_FROM must be an email address when SMTP_ADDR is set, got %q", cfg.smtp.From)
+	switch cfg.emailProvider {
+	case "smtp":
+		if timeout := os.Getenv("SMTP_TIMEOUT"); timeout != "" {
+			d, err := time.ParseDuration(timeout)
+			if err != nil || d <= 0 {
+				return cfg, fmt.Errorf("SMTP_TIMEOUT must be a positive duration, got %q", timeout)
+			}
+			cfg.smtp.Timeout = d
 		}
+		if cfg.smtp.Addr != "" {
+			if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
+				return cfg, fmt.Errorf(
+					"SMTP_FROM must be an email address when SMTP_ADDR is set, got %q",
+					cfg.smtp.From,
+				)
+			}
+		}
+	case "ses":
+		cfg.sesTimeout = 5 * time.Second
+		if timeout := os.Getenv("SES_TIMEOUT"); timeout != "" {
+			d, err := time.ParseDuration(timeout)
+			if err != nil || d <= 0 {
+				return cfg, fmt.Errorf("SES_TIMEOUT must be a positive duration, got %q", timeout)
+			}
+			cfg.sesTimeout = d
+		}
+		if cfg.awsRegion == "" {
+			return cfg, errors.New("AWS_REGION is required for SES")
+		}
+		if strings.ContainsAny(cfg.emailFrom, "\r\n") {
+			return cfg, errors.New("EMAIL_FROM must not contain line breaks")
+		}
+		if _, err := mail.ParseAddress(cfg.emailFrom); err != nil {
+			return cfg, errors.New("EMAIL_FROM must be an email address for SES")
+		}
+	default:
+		return cfg, errors.New("EMAIL_PROVIDER must be smtp or ses")
 	}
 	for _, broker := range strings.Split(os.Getenv("KAFKA_BROKERS"), ",") {
 		if broker = strings.TrimSpace(broker); broker != "" {
@@ -156,10 +192,14 @@ func main() {
 	}
 
 	links := &linking.Service{Store: &linking.PostgresStore{Pool: pool}, Now: time.Now}
-	// Email is optional: without SMTP, magic links report unavailable and
-	// notifications go only to Telegram.
+	// Account email and queued notifications share the selected delivery adapter.
 	var mailer emailSender
-	if cfg.smtp.Addr != "" {
+	if cfg.emailProvider == "ses" {
+		mailer, err = email.NewSESSender(ctx, cfg.awsRegion, cfg.emailFrom, cfg.sesTimeout)
+		if err != nil {
+			fatal("configure SES email", err)
+		}
+	} else if cfg.smtp.Addr != "" {
 		mailer = cfg.smtp
 	} else {
 		log.Warn("SMTP_ADDR is not set; email is disabled")

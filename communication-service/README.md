@@ -2,9 +2,18 @@
 
 Sends FoC's messages to users. It runs the FoC Telegram bot, which links FoC accounts to Telegram chats, sends order updates and relays chat between an order's requester and courier. It also sends all FoC email: magic links for User Service, and order outcomes to users Telegram can't reach.
 
-Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: without `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
+Telegram is optional. Without `TELEGRAM_BOT_TOKEN`, or if Telegram rejects the token, the service keeps running with the bot disabled: its health check reports `telegram_enabled: false`, and `CreateTelegramLink` returns `unavailable`. Email is optional too: with the default SMTP provider and no `SMTP_ADDR`, `SendMagicLink` returns `unavailable` and notifications go only to Telegram.
 
 ## Email
+
+SMTP remains the default (`EMAIL_PROVIDER=smtp`), including local Mailpit. For
+AWS SES API delivery, select `EMAIL_PROVIDER=ses`, set `EMAIL_FROM` to a verified
+regional sender and `AWS_REGION` to that region. The SDK uses its default
+credential chain, including IRSA temporary credentials. `SES_TIMEOUT` defaults
+to `5s` when the caller has no deadline. SMTP settings are ignored in this mode.
+The selected adapter sends both magic links and queued order notifications;
+SES failures never switch delivery to SMTP. The AWS overlay grants the email
+role only to Communication Service.
 
 - **Magic links.** User Service calls `EmailService.SendMagicLink` with the address, the complete link and whether it signs in or finishes sign-up. Communication writes the email. The RPC is served only on the internal listener (`INTERNAL_PORT`), never the public one, and requires no access token: the caller hasn't signed in yet. In Kubernetes, an Istio policy lets only User Service reach that port. Any send failure returns `unavailable`, which User Service reports to the user.
 - **User emails.** The notification consumer also reads `users.create` and keeps each user's email in `user_emails`. Users created before the consumer first read the topic, and outside Kafka's retention, have no stored email.
@@ -21,7 +30,7 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 
 The service consumes `order.status_changed` (consumer group `communication-service`) and messages the participants who didn't cause the change. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
 
-- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary SMTP failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) remain recorded as `rejected` with their error and attempt time.
+- **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets *always-deliver* notifications by email instead. Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary delivery failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) and SES message rejections remain recorded as `rejected` with their error and attempt time.
 
 - **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
 
@@ -90,7 +99,11 @@ The bot uses long polling, so it needs no public URL. Migrations in `migrations/
 | `TELEGRAM_BOT_TOKEN` | empty | Bot token from BotFather. Empty disables Telegram. |
 | `TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL, for pointing tests at a fake server. |
 | `KAFKA_BROKERS` | empty | Comma-separated brokers. Compose sets `kafka:9092`. Empty disables order notifications. |
-| `SMTP_ADDR` | empty | SMTP relay `host:port`. Compose uses Mailpit at `mailpit:1025`. Empty disables email. |
+| `EMAIL_PROVIDER` | `smtp` | Email transport: `smtp` or `ses`. |
+| `EMAIL_FROM` | required for SES | Verified SES sender address. |
+| `AWS_REGION` | required for SES | Region containing the verified sender. |
+| `SES_TIMEOUT` | `5s` | Bounds SES delivery when the caller has no deadline. |
+| `SMTP_ADDR` | empty | SMTP relay `host:port`. Compose uses Mailpit at `mailpit:1025`. Empty disables email with the SMTP provider. |
 | `SMTP_FROM` | required with `SMTP_ADDR` | Sender address, such as `FoC <no-reply@foc.local>`. |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | empty | Relay credentials, sent only when `SMTP_USERNAME` is set. STARTTLS is used when the server offers it. |
 | `SMTP_TIMEOUT` | `5s` | Bounds each SMTP exchange. |

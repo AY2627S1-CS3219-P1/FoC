@@ -6,6 +6,8 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
 func TestMagicLinkEscapesTheLinkInHTML(t *testing.T) {
@@ -21,6 +23,9 @@ func TestRejected(t *testing.T) {
 		fmt.Errorf("email: RCPT TO: %w", &textproto.Error{Code: 550, Msg: "no such user"}): true,
 		&textproto.Error{Code: 451, Msg: "try again later"}:                                false,
 		errors.New("email: dial: connection refused"):                                      false,
+		fmt.Errorf("email: SES send: %w", &types.MessageRejected{}):                        true,
+		&types.TooManyRequestsException{}:                                                  false,
+		&types.SendingPausedException{}:                                                    false,
 	} {
 		if got := Rejected(err); got != want {
 			t.Errorf("Rejected(%v) = %v, want %v", err, got, want)
