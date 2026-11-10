@@ -40,6 +40,7 @@ data:
 
   # Content moderation service LLM endpoint. The key arrives through the
   # moderation-llm Secret (CMS_LLM_API_KEY), never through this ConfigMap.
+  CMS_LLM_MODEL_ID: gemma4:26b
   CMS_LLM_BASE_URL: https://soclaas-api.comp.nus.edu.sg/v1
 
   # Secret locations and one-time bootstrap inputs. An empty
