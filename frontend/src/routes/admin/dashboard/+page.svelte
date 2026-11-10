@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from 'm3-svelte';
 	import CreditTotalsCard from './CreditTotalsCard.svelte';
+	import DailyActivityCard from './DailyActivityCard.svelte';
 	import OrderStatusCard from './OrderStatusCard.svelte';
 	import RecordLookupCard from './RecordLookupCard.svelte';
 	import UserCountsCard from './UserCountsCard.svelte';
@@ -16,13 +17,14 @@
 		<div>
 			<p class="eyebrow">Administration</p>
 			<h1 id="dashboard-title">Dashboard</h1>
-			<p>Current counts across orders, users and credits.</p>
+			<p>Current counts and recent daily activity across orders, users and credits.</p>
 		</div>
 		<Button variant="outlined" onclick={() => refresh++}>Refresh</Button>
 	</header>
 
 	<div class="dashboard-grid">
 		<div class="orders"><OrderStatusCard {refresh} /></div>
+		<div class="daily"><DailyActivityCard {refresh} /></div>
 		<UserCountsCard {refresh} />
 		<CreditTotalsCard {refresh} />
 		<div class="lookup"><RecordLookupCard /></div>
@@ -38,6 +40,7 @@
 	}
 
 	.orders,
+	.daily,
 	.lookup {
 		grid-column: 1 / -1;
 	}

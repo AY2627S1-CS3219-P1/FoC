@@ -6,6 +6,11 @@ export interface DailyPoint {
 	value: bigint;
 }
 
+/** A chart point, with an optional secondary fact shown in the tooltip and table. */
+export interface ChartPoint extends DailyPoint {
+	detail?: string;
+}
+
 export interface DailySummary {
 	total: bigint;
 	/** The mean per day over the whole range, including empty days. */
