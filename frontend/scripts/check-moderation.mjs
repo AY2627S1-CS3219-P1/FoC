@@ -30,7 +30,7 @@ try {
 	await page.getByText('Being assessed again', { exact: true }).waitFor();
 	assert.equal(await page.getByRole('combobox').count(), 0, 'no unpublished status filter');
 	await page.getByText('Retry progress regression', { exact: true }).waitFor();
-	assert.match(await page.locator('.review-detail').innerText(), /unpublished/);
+	assert.match(await page.locator('.review-detail').innerText(), /new assessment/);
 	assert.deepEqual(errors, [], 'no browser runtime errors');
 	assert.deepEqual(configurationCalls, [], 'no configuration RPCs');
 	console.log('PASS configuration removal and newer-generation retry rendering');

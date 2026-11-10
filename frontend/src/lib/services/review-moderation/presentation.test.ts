@@ -7,17 +7,17 @@ import { presentReviewModeration } from './presentation';
 
 describe('newer retry progress over the last applied error', () => {
 	it.each([
-		[ModerationJobStatus.QUEUED, 'Assessment retry queued'],
-		[ModerationJobStatus.PROCESSING, 'Being assessed again'],
-		[ModerationJobStatus.RETRY_WAIT, 'Assessment retry scheduled'],
-		[ModerationJobStatus.COMPLETED, 'Assessment completed · awaiting publication decision']
-	])('shows newer generation status %s without publishing', (status, label) => {
+		[ModerationJobStatus.QUEUED, 'Assessment retry queued', 'An administrator restarted the assessment.'],
+		[ModerationJobStatus.PROCESSING, 'Being assessed again', 'The new assessment is running.'],
+		[ModerationJobStatus.RETRY_WAIT, 'Assessment retry scheduled', 'The new assessment will start shortly.'],
+		[ModerationJobStatus.COMPLETED, 'Assessment completed · awaiting publication decision', 'The new result hasn\u2019t been applied yet.']
+	])('shows newer generation status %s without publishing', (status, label, detail) => {
 		const review = create(UnpublishedReviewSchema, { moderationStatus: ModerationStatus.MODERATION_ERROR, appliedRunGeneration: 1 });
 		const job = create(ReviewModerationJobSummarySchema, { status, runGeneration: 2, outcome: ModerationOutcomeType.APPROVED });
 		const record = mergeReviewModeration(review, job);
 		expect(presentReviewModeration(record).label).toBe(label);
+		expect(presentReviewModeration(record).detail).toBe(detail);
 		expect(record.review.moderationStatus).toBe(ModerationStatus.MODERATION_ERROR);
-		expect(presentReviewModeration(record).detail).toContain('unpublished');
 	});
 	it('retains the error for stale progress', () => {
 		const review = create(UnpublishedReviewSchema, { moderationStatus: ModerationStatus.MODERATION_ERROR, appliedRunGeneration: 2 });

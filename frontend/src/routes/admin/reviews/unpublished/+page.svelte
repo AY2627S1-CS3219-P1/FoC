@@ -57,10 +57,10 @@
 			} catch (cause) {
 				if (!current()) return;
 				inputError = cause instanceof ConnectError && cause.code === Code.NotFound
-					? 'No account was found with that email address.'
+					? 'No account uses that email.'
 					: cause instanceof ConnectError && cause.code === Code.PermissionDenied
-						? 'You are not allowed to inspect this reviewer.'
-						: 'We could not find this reviewer. Check your connection and try again.';
+						? 'You don\u2019t have access to this reviewer.'
+						: 'We couldn\u2019t find this reviewer. Check your connection and try again.';
 			}
 		}
 	});
@@ -83,7 +83,7 @@
 			if (applied) page = targetPage;
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
-				inputError = 'You are not allowed to inspect this reviewer.';
+				inputError = 'You don\u2019t have access to this reviewer.';
 			}
 		}
 	}
@@ -95,7 +95,7 @@
 	function errorText(): string {
 		const cause = loadError;
 		if (cause instanceof ConnectError && cause.rawMessage.trim()) return cause.rawMessage;
-		return 'We could not load the unpublished reviews. Check your connection and try again.';
+		return 'We couldn\u2019t load unpublished reviews. Check your connection and try again.';
 	}
 </script>
 
@@ -106,7 +106,7 @@
 		<div>
 			<p class="eyebrow">Administration</p>
 			<h1 id="admin-unpublished-title">Reviewer unpublished reviews</h1>
-			<p>Inspect a reviewer's pending, rejected and moderation-error reviews.</p>
+			<p>Search by email to see a reviewer&rsquo;s unpublished reviews.</p>
 		</div>
 	</header>
 
@@ -146,8 +146,8 @@
 		{:else}
 			{#if !cmsAvailable}
 				<p class="notice" role="status">
-					{cmsError ?? 'Moderation progress is temporarily unavailable.'}
-					The reviews below are still listed; grading progress will reappear when the service returns.
+					{cmsError ?? 'Moderation progress is unavailable right now.'}
+					The reviews below are unaffected.
 				</p>
 			{/if}
 			{#if records.length === 0}

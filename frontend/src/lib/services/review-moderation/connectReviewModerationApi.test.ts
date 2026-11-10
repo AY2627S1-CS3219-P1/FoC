@@ -159,7 +159,7 @@ describe('review moderation batch merge API', () => {
 		expect(rejected.job?.status).toBe(ModerationJobStatus.COMPLETED);
 		expect(rejected.job?.outcome).toBe(ModerationOutcomeType.REJECTED);
 		expect(rejected.reasonMessages[0]).toBe(
-			'This review was removed because it contained harassing content.'
+			'It contains harassing content.'
 		);
 	});
 

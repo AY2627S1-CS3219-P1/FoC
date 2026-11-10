@@ -20,47 +20,46 @@ export function presentReviewModeration(record: ReviewModerationRecord): Present
 		job.runGeneration > review.appliedRunGeneration) {
 		switch (job.status) {
 			case ModerationJobStatus.QUEUED:
-				return { label: 'Assessment retry queued', tone: 'pending', detail: 'An administrator restarted assessment. Your review remains unpublished.' };
+				return { label: 'Assessment retry queued', tone: 'pending', detail: 'An administrator restarted the assessment.' };
 			case ModerationJobStatus.PROCESSING:
-				return { label: 'Being assessed again', tone: 'pending', detail: 'The new assessment is in progress. Your review remains unpublished.' };
+				return { label: 'Being assessed again', tone: 'pending', detail: 'The new assessment is running.' };
 			case ModerationJobStatus.RETRY_WAIT:
-				return { label: 'Assessment retry scheduled', tone: 'pending', detail: 'The new assessment is waiting to retry. Your review remains unpublished.' };
+				return { label: 'Assessment retry scheduled', tone: 'pending', detail: 'The new assessment will start shortly.' };
 			case ModerationJobStatus.COMPLETED:
-				return { label: 'Assessment completed · awaiting publication decision', tone: 'pending', detail: 'User Service has not yet applied the new result. Your review remains unpublished.' };
+				return { label: 'Assessment completed · awaiting publication decision', tone: 'pending', detail: 'The new result hasn\u2019t been applied yet.' };
 		}
 	}
 	if (review.moderationStatus === ModerationStatus.MODERATION_ERROR) {
 		return {
 			label: 'Assessment error',
 			tone: 'error',
-			detail:
-				'We could not complete an assessment for this review. An administrator can retry it; the review is not published.'
+			detail: 'The assessment didn\u2019t finish. An administrator can retry it.'
 		};
 	}
 	if (!job) {
 		return {
 			label: 'Awaiting assessment',
 			tone: 'pending',
-			detail: 'Your review was submitted and is waiting to be assessed.'
+			detail: 'It\u2019s published automatically once approved.'
 		};
 	}
 	switch (job.status) {
 		case ModerationJobStatus.QUEUED:
-			return { label: 'Assessment queued', tone: 'pending', detail: 'Your review is in the assessment queue.' };
+			return { label: 'Assessment queued', tone: 'pending', detail: 'It\u2019s published automatically once approved.' };
 		case ModerationJobStatus.PROCESSING:
-			return { label: 'Being assessed', tone: 'pending', detail: 'Your review is being assessed right now.' };
+			return { label: 'Being assessed', tone: 'pending', detail: 'It\u2019s published automatically once approved.' };
 		case ModerationJobStatus.RETRY_WAIT:
 			return {
 				label: 'Assessment retry scheduled',
 				tone: 'pending',
-				detail: 'An assessment attempt did not finish; the next one is scheduled.'
+				detail: 'The next attempt is scheduled.'
 			};
 		case ModerationJobStatus.COMPLETED:
 			if (job.outcome === ModerationOutcomeType.APPROVED) {
 				return {
 					label: 'Approved · publishing shortly',
 					tone: 'approved',
-					detail: 'The assessment approved your review; publication follows automatically.'
+					detail: 'No action needed.'
 				};
 			}
 			if (job.outcome === ModerationOutcomeType.REJECTED) {
@@ -69,15 +68,15 @@ export function presentReviewModeration(record: ReviewModerationRecord): Present
 			return {
 				label: 'Assessment error',
 				tone: 'error',
-				detail: 'The assessment ended without a verdict. An administrator can retry it.'
+				detail: 'The assessment didn\u2019t finish. An administrator can retry it.'
 			};
 		case ModerationJobStatus.ERRORED:
 			return {
 				label: 'Assessment error',
 				tone: 'error',
-				detail: 'The assessment ended without a verdict. An administrator can retry it.'
+				detail: 'The assessment didn\u2019t finish. An administrator can retry it.'
 			};
 		default:
-			return { label: 'Awaiting assessment', tone: 'pending', detail: 'Your review is waiting to be assessed.' };
+			return { label: 'Awaiting assessment', tone: 'pending', detail: 'It\u2019s published automatically once approved.' };
 	}
 }

@@ -11,14 +11,14 @@ export type ModerationReasonCode = (typeof MODERATION_REASON_CODES)[number];
 
 
 const REASON_MESSAGES: Record<ModerationReasonCode, string> = {
-	HARASSMENT: 'This review was removed because it contained harassing content.',
-	HATE: 'This review was removed because it contained hateful content.',
-	THREAT: 'This review was removed because it contained threats.',
-	SEXUAL_CONTENT: 'This review was removed because it contained sexually explicit content.',
-	SPAM: 'This review was removed because it looked like spam or advertising.'
+	HARASSMENT: 'It contains harassing content.',
+	HATE: 'It contains hateful content.',
+	THREAT: 'It contains threats.',
+	SEXUAL_CONTENT: 'It contains sexual content.',
+	SPAM: 'It looks like spam or advertising.'
 };
 
-export const UNRECOGNIZED_REASON_MESSAGE = 'This review could not be published.';
+export const UNRECOGNIZED_REASON_MESSAGE = 'This review can\u2019t be published.';
 
 export function isModerationReasonCode(code: string): code is ModerationReasonCode {
 	return (MODERATION_REASON_CODES as readonly string[]).includes(code);

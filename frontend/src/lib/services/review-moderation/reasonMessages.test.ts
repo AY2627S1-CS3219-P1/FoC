@@ -8,21 +8,11 @@ import {
 
 describe('review moderation reason message mirror', () => {
 	it('mirrors each code to its application-owned message', () => {
-		expect(moderationReasonMessage('HARASSMENT')).toBe(
-			'This review was removed because it contained harassing content.'
-		);
-		expect(moderationReasonMessage('HATE')).toBe(
-			'This review was removed because it contained hateful content.'
-		);
-		expect(moderationReasonMessage('THREAT')).toBe(
-			'This review was removed because it contained threats.'
-		);
-		expect(moderationReasonMessage('SEXUAL_CONTENT')).toBe(
-			'This review was removed because it contained sexually explicit content.'
-		);
-		expect(moderationReasonMessage('SPAM')).toBe(
-			'This review was removed because it looked like spam or advertising.'
-		);
+		expect(moderationReasonMessage('HARASSMENT')).toBe('It contains harassing content.');
+		expect(moderationReasonMessage('HATE')).toBe('It contains hateful content.');
+		expect(moderationReasonMessage('THREAT')).toBe('It contains threats.');
+		expect(moderationReasonMessage('SEXUAL_CONTENT')).toBe('It contains sexual content.');
+		expect(moderationReasonMessage('SPAM')).toBe('It looks like spam or advertising.');
 	});
 
 	it('treats the five codes as the complete recognized set', () => {

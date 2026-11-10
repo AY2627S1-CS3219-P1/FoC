@@ -85,7 +85,7 @@
 	function errorText(): string {
 		const cause = loadError;
 		if (cause instanceof ConnectError && cause.rawMessage.trim()) return cause.rawMessage;
-		return 'We could not load your unpublished reviews. Check your connection and try again.';
+		return 'We couldn\u2019t load your unpublished reviews. Check your connection and try again.';
 	}
 
 	async function initialize(): Promise<void> {
@@ -127,8 +127,7 @@
 			<p class="eyebrow">Your account</p>
 			<h1 id="unpublished-title">Unpublished reviews</h1>
 			<p>
-				Reviews waiting for assessment, rejected, or whose assessment failed. Published reviews live
-				in your normal reviews list.
+				Reviews are published to the order once they&rsquo;re approved. Everything else stays here.
 			</p>
 		</div>
 	</header>
@@ -150,8 +149,8 @@
 	{:else}
 		{#if !cmsAvailable}
 			<p class="notice" role="status">
-				{cmsError ?? 'Moderation progress is temporarily unavailable.'}
-				Your reviews below are still safe; progress will reappear when the service returns.
+				{cmsError ?? 'Moderation progress is unavailable right now.'}
+				The reviews below are unaffected.
 			</p>
 		{/if}
 		<div class="list-controls">
@@ -161,10 +160,7 @@
 		{#if records.length === 0}
 			<Card variant="outlined">
 				<div class="panel-body">
-					<p class="notice" role="status">
-						You have no unpublished reviews. Reviews appear here while they await assessment, or if
-						they cannot be published.
-					</p>
+					<p class="notice" role="status">You have no unpublished reviews.</p>
 				</div>
 			</Card>
 		{:else}
