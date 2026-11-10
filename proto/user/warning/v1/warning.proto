@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package user.warning.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pagination/v1/pagination.proto";
+
+// WarningService is the user-facing warning sub-service. Administrative warning
+// operations live in admin.proto's WarningAdminService.
+service WarningService {
+  rpc ListMyWarnings(ListMyWarningsRequest) returns (ListMyWarningsResponse) {}
+}
+
+enum WarningStatus {
+  WARNING_STATUS_UNSPECIFIED = 0;
+  WARNING_STATUS_ACTIVE = 1;
+  WARNING_STATUS_REMOVED = 2;
+}
+
+message AccountWarning {
+  string id = 1;
+  string request_id = 2;
+  string reason = 3;
+  WarningStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp removed_at = 6;
+  optional string removed_reason = 7;
+}
+
+message ListMyWarningsRequest {
+  pagination.v1.Pagination pagination = 1;
+}
+
+message ListMyWarningsResponse {
+  repeated AccountWarning warnings = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
