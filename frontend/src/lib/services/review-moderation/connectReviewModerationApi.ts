@@ -62,7 +62,7 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 		} catch (error) {
 			if (error instanceof ConnectError && DEGRADABLE_CMS_CODES.includes(error.code)) {
 				cmsAvailable = false;
-				cmsError = error.rawMessage || 'Moderation progress is temporarily unavailable.';
+				cmsError = error.rawMessage || 'Moderation progress is unavailable right now.';
 			} else {
 				throw error;
 			}

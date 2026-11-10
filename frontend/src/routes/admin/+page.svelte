@@ -27,12 +27,12 @@
 	>
 	<Card variant="outlined"><div class="panel-body">
 		<h2>Unpublished reviews</h2>
-		<p>Inspect a reviewer's pending, rejected and failed moderation submissions.</p>
-		<Button href="/admin/reviews/unpublished">Inspect reviews</Button>
+		<p>Search by email to see a reviewer&rsquo;s unpublished reviews.</p>
+		<Button href="/admin/reviews/unpublished">View unpublished reviews</Button>
 	</div></Card>
 	<Card variant="outlined"><div class="panel-body">
 		<h2>Configuration</h2>
-		<p>Manage allowed email domains and review moderation settings.</p>
+		<p>Manage the email domains allowed to register.</p>
 		<Button href="/admin/config">Manage configuration</Button>
 	</div></Card>
 </section>
