@@ -147,7 +147,6 @@ func run(ctx context.Context) error {
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
 
-	// Private participant reads never share the public router.
 	public := newServer(":"+config.Port, handler)
 	public.BaseContext = func(net.Listener) context.Context { return ctx }
 	internal := newServer(":"+config.InternalPort, router.Internal(services))
