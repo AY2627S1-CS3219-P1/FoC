@@ -12,9 +12,11 @@
 		title,
 		emptyMessage,
 		load,
+		headerActions,
 		row
 	}: {
 		title: string;
+		headerActions?: Snippet;
 		emptyMessage: string;
 		load: (
 			pagination: { page: number; pageSize: number },
@@ -93,6 +95,9 @@
 		<div class="panel-body">
 			<header class="head">
 				<h1 id="reviews-title">{title}</h1>
+				{#if headerActions}
+					<div class="header-actions">{@render headerActions()}</div>
+				{/if}
 			</header>
 
 			{#if error}
@@ -122,7 +127,8 @@
 <style>
 	.reviews-page { display: grid; gap: 1rem; max-width: 48rem; margin: 0 auto; scroll-margin-top: 1rem; }
 	.top { display: flex; justify-content: space-between; gap: 0.5rem; }
-	.head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+	.head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+	.header-actions { margin-inline-start: auto; }
 	h1 { margin: 0; font-size: 1.35rem; }
 	.muted { margin: 0; color: var(--m3c-on-surface-variant); }
 	.notice { margin: 0 0 0.75rem; }

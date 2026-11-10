@@ -37,8 +37,8 @@ run "isolated_release_identity_and_private_disposable_runner" {
     error_message = "Only the repository's protected environment may assume the release identity."
   }
   assert {
-    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 8 && !strcontains(aws_iam_role_policy.release.policy, "tfstate") && !strcontains(aws_iam_role_policy.release.policy, "iam:")
-    error_message = "Deployment permissions must cover eight repositories and exclude infrastructure/state administration."
+    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 9 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/content-moderation-service") && !strcontains(aws_iam_role_policy.release.policy, "tfstate") && !strcontains(aws_iam_role_policy.release.policy, "iam:")
+    error_message = "Deployment permissions must cover nine repositories including CMS and exclude infrastructure/state administration."
   }
   assert {
     condition     = tostring(aws_launch_template.runner.network_interfaces[0].associate_public_ip_address) == "false" && aws_launch_template.runner.metadata_options[0].http_tokens == "required" && aws_launch_template.runner.instance_initiated_shutdown_behavior == "terminate"
@@ -64,7 +64,7 @@ run "moderation_release_access_is_repository_scoped" {
     enable_moderation_service = true
   }
   assert {
-    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 9 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/moderation-service") && alltrue([for repository in jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource : startswith(repository, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/") && !strcontains(repository, "*")]) && !strcontains(aws_iam_role_policy.release.policy, "iam:") && !strcontains(aws_iam_role_policy.release.policy, "tfstate")
+    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 10 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/moderation-service") && alltrue([for repository in jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource : startswith(repository, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/") && !strcontains(repository, "*")]) && !strcontains(aws_iam_role_policy.release.policy, "iam:") && !strcontains(aws_iam_role_policy.release.policy, "tfstate")
     error_message = "Enabling moderation must add only its exact image repository, not IAM, Terraform state, or wildcard registry access."
   }
 }

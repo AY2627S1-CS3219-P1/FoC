@@ -4,6 +4,7 @@ package order
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,66 @@ func (f *fixture) seed(t *testing.T, o Order) {
 		t.Fatal(err)
 	}
 }
+func TestPostgresCountByStatus(t *testing.T) {
+	f := setup(t)
+	f.reset(t)
+
+	for _, status := range []Status{AwaitingCourier, AwaitingCourier, Delivering, Cancelled} {
+		o := sampleOrder()
+		o.Status = status
+		if status == Delivering {
+			courier := uuid.NewString()
+			o.CourierID = &courier
+		}
+		f.seed(t, o)
+	}
+
+	got, err := NewService(f.repo).CountOrdersByStatus(f.ctx, Caller{ID: uuid.NewString(), Admin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[Status]int64{AwaitingCourier: 2, Delivering: 1, Cancelled: 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("counts = %v, want %v", got, want)
+	}
+}
+
+func TestPostgresCountByDay(t *testing.T) {
+	f := setup(t)
+	f.reset(t)
+
+	// 23:59 and 00:01 Singapore time fall on different days.
+	for _, at := range []time.Time{
+		time.Date(2026, time.November, 9, 15, 59, 0, 0, time.UTC),
+		time.Date(2026, time.November, 9, 16, 1, 0, 0, time.UTC),
+		time.Date(2026, time.November, 9, 16, 2, 0, 0, time.UTC),
+		time.Date(2026, time.November, 12, 0, 0, 0, 0, time.UTC),
+	} {
+		o := sampleOrder()
+		o.CreatedAt = at
+		o.UpdatedAt = at
+		f.seed(t, o)
+	}
+
+	got, err := NewService(f.repo).CountOrdersByDay(
+		f.ctx,
+		Caller{ID: uuid.NewString(), Admin: true},
+		Date{2026, time.November, 9},
+		Date{2026, time.November, 11},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []DailyCount{
+		{Date{2026, time.November, 9}, 1},
+		{Date{2026, time.November, 10}, 2},
+		{Date{2026, time.November, 11}, 0},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("days = %v, want %v", got, want)
+	}
+}
+
 func TestPostgresReads(t *testing.T) {
 	f := setup(t)
 	service := NewService(f.repo)

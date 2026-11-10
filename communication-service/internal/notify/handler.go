@@ -24,7 +24,7 @@ const OfferTopic = "order.offer_made"
 
 // LateWindow is how long after a change a drop-if-late notification can still
 // be sent, including retries.
-const LateWindow = 15 * time.Minute
+const LateWindow = 30 * time.Minute
 
 // Sender is the part of the Bot API the handler needs.
 type Sender interface {
@@ -197,7 +197,8 @@ func (h *Handler) HandleOffer(ctx context.Context, _ kafka.Metadata, e *eventsv1
 }
 
 // isCurrent reports whether no later status change has been applied to the
-// order. An order with no stored change has ended and been deleted.
+// order. The notification consumer applies this event first, so an order with
+// no stored change has ended and been deleted.
 func (h *Handler) isCurrent(ctx context.Context, e *eventsv1.OrderStatusChanged) (bool, error) {
 	orderID, err := uuid.Parse(e.GetOrderId())
 	if err != nil {

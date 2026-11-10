@@ -14,9 +14,10 @@ COPY supplier-service/go.mod supplier-service/go.sum ./supplier-service/
 COPY order-service/go.mod order-service/go.sum ./order-service/
 COPY communication-service/go.mod communication-service/go.sum ./communication-service/
 COPY credit-service/go.mod credit-service/go.sum ./credit-service/
+COPY content-moderation-service/go.mod content-moderation-service/go.sum ./content-moderation-service/
 RUN --mount=type=cache,target=/go/pkg/mod \
     case "$SERVICE" in \
-        user-service|supplier-service|order-service|credit-service|communication-service) ;; \
+        user-service|supplier-service|order-service|credit-service|communication-service|content-moderation-service) ;; \
         *) echo "Unsupported Go SERVICE" >&2; exit 1 ;; \
     esac \
     && cd "$SERVICE" && go mod download
@@ -27,6 +28,7 @@ COPY supplier-service/ ./supplier-service/
 COPY order-service/ ./order-service/
 COPY communication-service/ ./communication-service/
 COPY credit-service/ ./credit-service/
+COPY content-moderation-service/ ./content-moderation-service/
 COPY docker/k8s/healthcheck/ ./docker/k8s/healthcheck/
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GO111MODULE=off go test ./docker/k8s/healthcheck
@@ -89,6 +91,7 @@ FROM runtime AS user-service-runtime
 FROM runtime AS supplier-service-runtime
 FROM runtime AS credit-service-runtime
 FROM runtime AS communication-service-runtime
+FROM runtime AS content-moderation-service-runtime
 
 # Select by SERVICE for every caller, including direct docker builds.
 FROM ${SERVICE}-runtime AS final

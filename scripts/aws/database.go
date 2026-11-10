@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var services = []string{"user", "supplier", "order", "credit", "communication"}
+var services = []string{"user", "supplier", "order", "credit", "communication", "moderation"}
 
 func (a *application) prepareDatabase(config, admin map[string]any, directory string) error {
 	directory, err := privatePath(a.root, directory)

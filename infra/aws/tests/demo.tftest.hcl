@@ -91,8 +91,8 @@ run "private_demo_data_and_images" {
   command = plan
 
   assert {
-    condition     = length(aws_ecr_repository.images) == 8 && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
-    error_message = "The demo needs eight immutable image repositories with explicit data deletion."
+    condition     = length(aws_ecr_repository.images) == 9 && contains(keys(aws_ecr_repository.images), "content-moderation-service") && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
+    error_message = "The demo needs nine immutable image repositories including CMS with explicit data deletion."
   }
   assert {
     condition     = !aws_db_instance.database.publicly_accessible && !aws_db_instance.database.multi_az && aws_db_instance.database.storage_encrypted && aws_db_instance.database.manage_master_user_password
@@ -180,27 +180,39 @@ run "reject_open_operator_api" {
 run "smtp_creates_no_email_role" {
   command = plan
   assert {
-    condition     = length(aws_iam_role.email) == 0 && length(aws_iam_role_policy.email) == 0 && !contains(keys(local.workload_identities), "email")
+    condition     = length(aws_iam_role.email) == 0 && length(aws_iam_role_policy.email) == 0 && length(aws_iam_role.communication_email) == 0 && length(aws_iam_role_policy.communication_email) == 0 && !contains(keys(local.workload_identities), "email") && !contains(keys(local.workload_identities), "communication_email")
     error_message = "SMTP must remain the default without granting SES permissions."
   }
 }
 
-run "ses_is_sender_and_communication_scoped" {
+# Preserve User's existing SES identity while adding Communication independently.
+run "ses_is_sender_and_service_scoped" {
   command = plan
   variables {
     ses_sender_email = "sender@example.test"
   }
   assert {
-    condition     = length(aws_iam_role.email) == 1 && local.workload_identities["email"] == "system:serviceaccount:foc:communication-service"
-    error_message = "Only Communication Service may assume the email role."
+    condition     = length(aws_iam_role.email) == 1 && aws_iam_role.email[0].name == "foc-demo-user-email" && local.workload_identities["email"] == "system:serviceaccount:foc:user-service"
+    error_message = "User's original role and Kubernetes identity must remain available."
   }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
-    error_message = "SES sending must be restricted to the verified regional sender, without broad permissions."
+    condition     = length(aws_iam_role.communication_email) == 1 && aws_iam_role.communication_email[0].name == "foc-demo-communication-email" && local.workload_identities["communication_email"] == "system:serviceaccount:foc:communication-service"
+    error_message = "Communication requires a separate role bound to its own Kubernetes identity."
   }
   assert {
-    condition     = toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:communication-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
-    error_message = "Trust must bind both the exact Communication Service subject and STS audience."
+    condition = alltrue([for policy in [aws_iam_role_policy.email[0].policy, aws_iam_role_policy.communication_email[0].policy] :
+      jsondecode(policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
+    ])
+    error_message = "Both SES policies must remain restricted to the verified regional sender."
+  }
+  assert {
+    condition = alltrue([for key, subject in {
+      email               = "system:serviceaccount:foc:user-service"
+      communication_email = "system:serviceaccount:foc:communication-service"
+      } :
+      toset(one([for condition in one(data.aws_iam_policy_document.workload_trust[key].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset([subject]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust[key].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    ])
+    error_message = "Each role must trust only its own exact service account and STS audience."
   }
 }
 

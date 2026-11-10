@@ -88,7 +88,8 @@ locals {
     ingress = "system:serviceaccount:kube-system:aws-load-balancer-controller"
     loki    = "system:serviceaccount:foc-observability:loki"
     }, var.ses_sender_email == null ? {} : {
-    email = "system:serviceaccount:foc:communication-service"
+    email               = "system:serviceaccount:foc:user-service"
+    communication_email = "system:serviceaccount:foc:communication-service"
     }, var.enable_moderation_service ? {
     moderation = "system:serviceaccount:foc:moderation-service"
   } : {})

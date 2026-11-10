@@ -1,7 +1,7 @@
 locals {
   images = setunion(toset([
     "user-service", "supplier-service", "order-service", "credit-service",
-    "communication-service", "frontend", "migrations", "kafka-init",
+    "communication-service", "content-moderation-service", "frontend", "migrations", "kafka-init",
   ]), var.enable_moderation_service ? toset(["moderation-service"]) : toset([]))
 }
 

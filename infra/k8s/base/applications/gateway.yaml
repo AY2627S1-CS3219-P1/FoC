@@ -95,10 +95,39 @@ spec:
       sectionName: https
   rules:
     - matches:
+        - path: {type: PathPrefix, value: /credit.v1.CreditAdminService}
         - path: {type: PathPrefix, value: /credit.v1.CreditAccountService}
         - path: {type: PathPrefix, value: /grpc.health.v1.Health}
       backendRefs:
         - name: credit-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: content-moderation-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /moderation/grpc.health.v1.Health}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /grpc.health.v1.Health
+      backendRefs:
+        - name: content-moderation-service-external
+          port: 8080
+    - matches:
+        - path: {type: PathPrefix, value: /moderation.review.v1.ReviewModerationService}
+        - path: {type: PathPrefix, value: /moderation.review.v1.ReviewModerationAdminService}
+      backendRefs:
+        - name: content-moderation-service-external
           port: 8080
 ---
 apiVersion: gateway.networking.k8s.io/v1

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countOrders = `-- name: CountOrders :one
@@ -51,6 +52,74 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countOrdersByDay = `-- name: CountOrdersByDay :many
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
+GROUP BY day
+ORDER BY day
+`
+
+type CountOrdersByDayParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type CountOrdersByDayRow struct {
+	Day   pgtype.Date
+	Total int64
+}
+
+// Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+func (q *Queries) CountOrdersByDay(ctx context.Context, arg CountOrdersByDayParams) ([]CountOrdersByDayRow, error) {
+	rows, err := q.db.Query(ctx, countOrdersByDay, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOrdersByDayRow
+	for rows.Next() {
+		var i CountOrdersByDayRow
+		if err := rows.Scan(&i.Day, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countOrdersByStatus = `-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status
+`
+
+type CountOrdersByStatusRow struct {
+	Status string
+	Total  int64
+}
+
+func (q *Queries) CountOrdersByStatus(ctx context.Context) ([]CountOrdersByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countOrdersByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOrdersByStatusRow
+	for rows.Next() {
+		var i CountOrdersByStatusRow
+		if err := rows.Scan(&i.Status, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getOrder = `-- name: GetOrder :one

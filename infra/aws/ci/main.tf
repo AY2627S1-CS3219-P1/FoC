@@ -34,7 +34,7 @@ locals {
   bucket       = "${var.cluster_name}-${var.account_id}-${var.region}-releases"
   prefix       = "foc-releases"
   parameter    = "/${var.cluster_name}/ci/runner-jit"
-  images       = concat(["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend", "kafka-init", "migrations"], var.enable_moderation_service ? ["moderation-service"] : [])
+  images       = concat(["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "content-moderation-service", "frontend", "kafka-init", "migrations"], var.enable_moderation_service ? ["moderation-service"] : [])
   repositories = [for image in local.images : "arn:aws:ecr:${var.region}:${var.account_id}:repository/${var.cluster_name}/${image}"]
 }
 
