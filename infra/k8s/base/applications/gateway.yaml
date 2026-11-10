@@ -70,6 +70,14 @@ spec:
       sectionName: https
   rules:
     - matches:
+        - path: {type: PathPrefix, value: /communication.v1.RealtimeService}
+      timeouts:
+        request: 0s
+        backendRequest: 0s
+      backendRefs:
+        - name: communication-service-external
+          port: 8080
+    - matches:
         - path: {type: PathPrefix, value: /communication.v1.HealthService}
         - path: {type: PathPrefix, value: /communication.v1.TelegramLinkService}
       backendRefs:

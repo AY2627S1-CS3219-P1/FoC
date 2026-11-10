@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
+ import { Code, ConnectError } from '@connectrpc/connect';
 	import { env } from '$env/dynamic/public';
 	import { Button, Card, Dialog, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi, telegramLinkApi } from '$lib/services';
+	import { authService, orderApi, orderOffersApi, participantActionsApi, deliveryProofApi, telegramLinkApi, realtimeService } from '$lib/services';
 	import type { TelegramLinkStatus } from '$lib/services/telegram';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
@@ -34,7 +35,10 @@
 				error = '';
 			}
 		} catch (cause) {
-			if (request === generation) error = describeOrderError(cause, 'refresh this order');
+			if (request === generation) {
+ if ([Code.NotFound, Code.PermissionDenied].includes(ConnectError.from(cause).code)) order = null;
+ error = describeOrderError(cause, 'refresh this order');
+ }
 		} finally {
 			if (request === generation) loading = false;
 		}
@@ -46,13 +50,12 @@
 		generation++;
 		order = null;
 		error = '';
-		if (id && user) void refresh();
-		return () => { generation++; };
+		const stop = id && user ? realtimeService.subscribe(['orders', 'openOrders'], refresh) : undefined;
+		return () => { generation++; stop?.(); };
 	});
 
 	$effect(() => {
 		if (!authService.user) return;
-		let lastPoll = Date.now();
 		let checkedDeadline: number | undefined;
 		const timer = setInterval(() => {
 			now = Date.now();
@@ -60,19 +63,10 @@
 			const deadline = orderDeadline(order);
 			if (deadline && now >= deadline && checkedDeadline !== deadline) {
 				checkedDeadline = deadline;
-				lastPoll = now;
-				void refresh();
-			} else if (!loading && now - lastPoll >= 15000) {
-				lastPoll = now;
-				void refresh();
+				realtimeService.invalidate(['orders']);
 			}
 		}, 1000);
-		const visible = () => {
-			if (!document.hidden) { lastPoll = Date.now(); void refresh(); }
-		};
-		document.addEventListener('visibilitychange', visible);
-		window.addEventListener('online', visible);
-		return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('online', visible); };
+		return () => clearInterval(timer);
 	});
 
 	const deadline = $derived(order ? orderDeadline(order) : undefined);

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/mail"
 	"os"
@@ -30,11 +31,13 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/notify"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/realtime"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/users"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	crediteventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/credit/events/v1"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
 	usereventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -216,6 +219,13 @@ func main() {
 		emailQueue = queue
 		startEmailWorker(ctx, log, queue, mailer, &workers)
 	}
+	liveHub := realtime.NewHub()
+	if len(cfg.kafkaBrokers) > 0 {
+		fanout := &realtime.Fanout{Pool: pool, Hub: liveHub}
+		consumer := &realtime.Consumer{Fanout: fanout}
+		workers.Go(func() { fanout.Run(ctx) })
+		workers.Go(func() { runRealtime(ctx, cfg.kafkaBrokers, "communication-realtime", consumer) })
+	}
 	workers.Go(func() {
 		chat.RunCleanup(ctx, chats, log, time.Now)
 	})
@@ -240,9 +250,13 @@ func main() {
 		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
 		Email:        &accountemail.Handler{Sender: mailer, Log: log},
+		Realtime:     &realtime.Handler{Hub: liveHub},
 	}
 	public := newServer(":"+cfg.port, corsConfig().Handler(router.New(services, authenticator.Authenticate)))
 	internal := newServer(":"+cfg.internalPort, router.Internal(services))
+	for _, srv := range []*http.Server{public, internal} {
+		srv.BaseContext = func(net.Listener) context.Context { return ctx }
+	}
 	for _, srv := range []*http.Server{public, internal} {
 		go func() {
 			log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
@@ -449,6 +463,48 @@ func runNotifications(ctx context.Context, brokers []string, group string, log *
 		case <-time.After(retryDelay):
 		}
 		delay = min(delay*2, consumerMaxDelay)
+	}
+}
+
+// runRealtime owns subscriber construction and restarts independently of the
+// optional Telegram notification consumer.
+func runRealtime(ctx context.Context, brokers []string, group string, consumer *realtime.Consumer) {
+	delay := time.Second
+	for ctx.Err() == nil {
+		subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: group})
+		if err == nil {
+			err = kafka.Register(
+				subscriber,
+				"credit.account_changed",
+				func() *crediteventsv1.AccountChanged { return new(crediteventsv1.AccountChanged) },
+				consumer.Account,
+			)
+		}
+		if err == nil {
+			err = kafka.Register(
+				subscriber,
+				"order.changed",
+				func() *eventsv1.OrderChanged { return new(eventsv1.OrderChanged) },
+				consumer.Order,
+			)
+		}
+		started := time.Now()
+		if err == nil {
+			err = subscriber.Run(ctx)
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		slog.WarnContext(ctx, "Live update consumer restarting", "error", err, "delay", delay)
+		if time.Since(started) > time.Minute {
+			delay = time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, 30*time.Second)
 	}
 }
 

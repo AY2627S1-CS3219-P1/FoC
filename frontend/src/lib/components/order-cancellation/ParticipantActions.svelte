@@ -7,6 +7,7 @@
 	import { CancellationStatus, OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { cancellationSchema, dispositionSchema } from '$lib/services/order-cancellation/forms';
 	import { cancellationStorageKey, loadCancellation, type CancellationSubmission, type ParticipantActionsApi } from '$lib/services/order-cancellation';
+	import { realtimeService } from '$lib/services';
 
 	let { order, callerId, api, refresh }: {
 		order: Order; callerId: string; api: ParticipantActionsApi; refresh: () => Promise<void>;
@@ -60,6 +61,20 @@
 		} catch { error = 'Could not restore your cancellation. Check My Orders before trying again.'; }
 	});
 	onDestroy(() => { epoch++; });
+	$effect(() => {
+		const id = order.id, caller = callerId;
+		if (!id || !caller) return;
+		return realtimeService.subscribe(['orders'], async () => {
+			const pending = saved, current = epoch;
+			if (busy || !pending?.operationId) return;
+			try {
+				const result = await api.getCancellation(pending.operationId);
+				if (current !== epoch || saved !== pending || busy || result.status === CancellationStatus.PENDING) return;
+				message = result.status === CancellationStatus.SUPERSEDED ? 'The order changed before your withdrawal finished. Check its current status.' : 'Cancellation confirmed. Your credit balance may take a moment to update.';
+				sessionStorage.removeItem(cancellationStorageKey(caller, id)); saved = null;
+			} catch { /* Preserve uncertain intent until an authoritative result arrives. */ }
+		});
+	});
 
 	async function confirmCancellation() {
 		const selected = confirmation;
@@ -78,6 +93,8 @@
 			const result = await api.cancel(input);
 			if (current !== epoch) return;
 			if (result.status === CancellationStatus.PENDING) {
+				saved = { ...input, operationId: result.operationId };
+				sessionStorage.setItem(cancellationStorageKey(caller, id), JSON.stringify(saved));
 				message = 'Still confirming your withdrawal. Pickup is paused. Try again to check the result.';
 			} else {
 				message = result.status === CancellationStatus.SUPERSEDED
@@ -104,7 +121,7 @@
 		} finally {
 			if (current === epoch) {
 				try { await refresh(); } catch { if (current === epoch) error += ' Could not update the order. Refresh to try again.'; }
-				if (current === epoch) busy = false;
+				if (current === epoch) { busy = false; realtimeService.invalidate(['orders']); }
 			}
 		}
 	}
@@ -125,7 +142,7 @@
 		} finally {
 			if (current === epoch) {
 				try { await refresh(); } catch { if (current === epoch) error += ' Refresh failed.'; }
-				if (current === epoch) busy = false;
+				if (current === epoch) { busy = false; realtimeService.invalidate(['orders']); }
 			}
 		}
 	}

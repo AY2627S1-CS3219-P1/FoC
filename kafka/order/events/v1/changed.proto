@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package order.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Committed read-model change, keyed by order_id. A workflow can change
+// without advancing the aggregate revision; deduplication must use event_id.
+message OrderChanged {
+  string event_id = 1;
+  string order_id = 2;
+  int64 revision = 3;
+  repeated string recipient_user_ids = 4;
+  bool open_orders_changed = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
