@@ -458,7 +458,7 @@ run "moderation_has_isolated_private_evidence_resources" {
     }
   }
   assert {
-    condition     = length(aws_ecr_repository.images) == 9 && aws_ecr_repository.images["moderation-service"].name == "foc-demo/moderation-service" && aws_ecr_repository.images["moderation-service"].image_tag_mutability == "IMMUTABLE" && !aws_ecr_repository.images["moderation-service"].force_delete
+    condition     = length(aws_ecr_repository.images) == 10 && aws_ecr_repository.images["moderation-service"].name == "foc-demo/moderation-service" && aws_ecr_repository.images["moderation-service"].image_tag_mutability == "IMMUTABLE" && !aws_ecr_repository.images["moderation-service"].force_delete
     error_message = "Moderation requires one additional immutable, retained image repository."
   }
   assert {

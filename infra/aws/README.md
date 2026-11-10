@@ -563,8 +563,8 @@ created by Kubernetes and is not directly tracked by this Terraform stack.
    claims: all use Retain, including Helm's Loki claim. Preserve or explicitly
    delete those disks and Loki's S3 log objects after the data decision. Stop the
    compactor before final object deletion; a stopped compactor performs no retention.
-4. Empty only the intended ECR repositories and S3 Order/Loki buckets if their data
-   deletion was approved. Do not enable force deletion as a timeout workaround.
+4. Empty only the intended ECR repositories and S3 Order/Loki buckets, plus the
+   moderation evidence bucket when enabled, if their data deletion was approved. Do not enable force deletion as a timeout workaround.
 5. Disable RDS deletion protection through a reviewed Terraform change/apply.
    Keep final snapshots by default. Ensure the chosen final snapshot name does
    not collide with a snapshot from a previous deployment.
@@ -600,13 +600,13 @@ exposes non-secret storage, image, identity, and database names. The existing
 `deployment` output carries a boolean `moderation_enabled` for database
 preparation. Refresh that output before running the existing `prepare-database`
 command; retain the existing private database directory so enabling moderation
-cannot rotate the other five credentials. Preparing files does not apply them;
+cannot rotate the other six credentials. Preparing files does not apply them;
 review and explicitly run the provisioning Job separately.
 
 ### Assumptions and deployment boundaries
 
 - The initial evidence-storage choice is a dedicated bucket rather than a prefix
-  in User's bucket. The runtime must use these bucket settings before receiving
+  in User's bucket (`docs/adr/moderation-evidence-storage.md`). The runtime must use these bucket settings before receiving
   this role. This does not migrate existing evidence or grant access to User's
   bucket. If the extraction uses shared storage, reconcile that contract before
   enabling it, rather than broadening this role to all application buckets.

@@ -18,7 +18,7 @@ func TestModerationDatabaseOptInPreservesExistingCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := map[string][]byte{}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation"} {
 		data, err := os.ReadFile(filepath.Join(directory, service+".json"))
 		if err != nil {
 			t.Fatal(err)
@@ -62,8 +62,8 @@ func TestModerationDatabaseOptInPreservesExistingCredentials(t *testing.T) {
 			count++
 		}
 	}
-	if count != 6 {
-		t.Fatalf("got %d service Secrets, want six", count)
+	if count != 7 {
+		t.Fatalf("got %d service Secrets, want seven", count)
 	}
 }
 
