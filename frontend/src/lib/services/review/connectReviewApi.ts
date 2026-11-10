@@ -13,6 +13,7 @@ import {
 	type ReviewApi,
 	type ReviewPage,
 	type ReviewPhotoGrant,
+	type ReviewPhotoRecord,
 	type ReviewRecord,
 	type SubmitReviewInput
 } from './reviewApi.ts';
@@ -86,6 +87,20 @@ export class ConnectReviewApi implements ReviewApi {
 
 	constructor(client: ReviewClient) {
 		this.#client = client;
+	}
+
+	async getPhotoDownload(photoId: string, signal: AbortSignal): Promise<ReviewPhotoRecord> {
+		const response = await this.#client.getReviewPhotoDownload({ photoId }, { signal, timeoutMs: 15000 });
+		const photo = response.photo;
+		if (!photo || photo.id !== photoId || !photo.url || !photo.expiresAt) {
+			throw new Error('Photo download grant result is unknown');
+		}
+		return {
+			id: photo.id,
+			url: photo.url,
+			contentType: photo.contentType,
+			expiresAt: timestampDate(photo.expiresAt).getTime()
+		};
 	}
 
 	async createPhotoUpload(input: { contentType: string; sizeBytes: number }, signal: AbortSignal): Promise<ReviewPhotoGrant> {

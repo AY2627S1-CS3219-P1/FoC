@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
@@ -601,6 +601,58 @@ func TestCleanupOnceWithoutStorage(t *testing.T) {
 
 // Compile-time guard: the fake implements the storage port.
 var _ PhotoStorage = (*fakeStorage)(nil)
+
+func (f *fakeRepository) GetAttachedReviewPhoto(_ context.Context, _ uuid.UUID) (AttachedReviewPhoto, error) {
+	return f.attachedPhoto, f.attachedPhotoErr
+}
+
+func TestDownloadPhotoVisibility(t *testing.T) {
+	reviewer, reviewee, stranger, photoID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	for _, tc := range []struct {
+		name       string
+		caller     uuid.UUID
+		suspended  bool
+		missing    bool
+		disabled   bool
+		storageErr error
+		want       connect.Code
+	}{
+		{name: "active stranger", caller: stranger},
+		{name: "suspended author", caller: reviewer, suspended: true},
+		{name: "suspended recipient", caller: reviewee, suspended: true},
+		{name: "suspended stranger", caller: stranger, suspended: true, storageErr: errBoomTest, want: connect.CodePermissionDenied},
+		{name: "removed or unattached", caller: reviewer, missing: true, want: connect.CodeNotFound},
+		{name: "disabled storage", caller: reviewer, disabled: true, want: connect.CodeUnavailable},
+		{name: "failed signer", caller: reviewer, storageErr: errBoomTest, want: connect.CodeUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepository{
+				attachedPhoto: AttachedReviewPhoto{
+					ID:          photoID,
+					ObjectKey:   "key",
+					ContentType: "image/png",
+					ReviewerID:  reviewer,
+					RevieweeID:  reviewee,
+				},
+			}
+			if tc.missing {
+				repo.attachedPhotoErr = errs.NewNotFoundError("review photo not found")
+			}
+			svc := newTestService(repo)
+			if !tc.disabled {
+				svc.photos = &fakeStorage{downloadErr: tc.storageErr}
+			}
+			photo, err := svc.GetReviewPhotoDownload(context.Background(), tc.caller, photoID, tc.suspended)
+			if err != nil {
+				if connect.CodeOf(toConnectError(context.Background(), err)) != tc.want {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			} else if tc.want != 0 || photo.ID != photoID || photo.URL == "" || photo.ContentType != "image/png" || photo.ExpiresAt.IsZero() {
+				t.Fatalf("unexpected grant: %+v, want error %v", photo, tc.want)
+			}
+		})
+	}
+}
 
 func TestCreateReviewPhotoUploadClassifiesSigningFailures(t *testing.T) {
 	for _, tc := range []struct {

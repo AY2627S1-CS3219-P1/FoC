@@ -43,3 +43,10 @@ RETURNING target.id, target.object_key;
 
 -- name: DeleteOrphanReviewPhoto :execrows
 DELETE FROM review_photos WHERE id = @id::UUID AND state = 'deleting';
+
+-- name: GetAttachedReviewPhoto :one
+SELECT p.id, p.object_key, p.content_type, r.reviewer_id, r.reviewee_id
+FROM review_photos p
+JOIN reviews r ON r.id = p.review_id
+WHERE p.id = @id::UUID AND p.state = 'attached' AND r.deleted_at IS NULL
+  AND r.moderation_status = 'approved';

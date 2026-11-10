@@ -56,6 +56,15 @@ type RemovalPage struct {
 	pagination.PageInfo
 }
 
+// AttachedReviewPhoto includes the parent participants for read authorization.
+type AttachedReviewPhoto struct {
+	ID          uuid.UUID
+	ObjectKey   string
+	ContentType string
+	ReviewerID  uuid.UUID
+	RevieweeID  uuid.UUID
+}
+
 // ReviewOrderStatuses distinguishes fetchable reviews from orders blocked by moderation.
 type ReviewOrderStatuses struct {
 	ReviewedOrderIDs []uuid.UUID

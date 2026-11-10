@@ -77,3 +77,20 @@ port the creation-key machinery, not before.
 - Without `USER_S3_BUCKET` configured, photo RPCs report unavailability and
   reviews submit without photos; the review feature itself does not depend on
   storage.
+
+## Expired download grants
+
+Review pages continue to include initial GET grants. A reusable `SignedImage`
+component reacts to a failed image load by requesting one replacement grant
+through the existing authenticated client and retrying the image once. Grant
+failure or replacement-image failure ends at a fallback. Retry state and
+cancellation belong to the component instance; there are no timers, shared
+caches or background renewals. Profile-picture adoption is deferred.
+
+`GetReviewPhotoDownload` signs only attached photos whose parent review is live.
+Active callers have the same visibility as review lists; suspended callers can
+read photos on reviews they authored or received, matching `ListMyReviews` and
+self-only `ListReviewsForUser`. Responses are `no-store`. Browser image bytes
+still come directly from object storage. Stable `/reviews/photos/[photoId]`
+viewer links obtain a fresh grant on each visit, so opening or reloading a tab
+does not depend on the lifetime of a URL embedded in an earlier review page.

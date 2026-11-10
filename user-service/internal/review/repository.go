@@ -48,6 +48,7 @@ type Repository interface {
 
 	// Review photos; only AttachReviewPhoto takes transaction-bound queries.
 	InsertReviewPhoto(ctx context.Context, input ReviewPhotoInput) error
+	GetAttachedReviewPhoto(ctx context.Context, id uuid.UUID) (AttachedReviewPhoto, error)
 	GetReviewPhoto(ctx context.Context, ownerID, id uuid.UUID) (ReviewPhoto, error)
 	AttachReviewPhoto(
 		ctx context.Context,

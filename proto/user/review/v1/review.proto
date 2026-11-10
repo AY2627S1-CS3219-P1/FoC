@@ -9,6 +9,7 @@ import "pagination/v1/pagination.proto";
 service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
   rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
+  rpc GetReviewPhotoDownload(GetReviewPhotoDownloadRequest) returns (GetReviewPhotoDownloadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
   rpc ListUnpublishedReviewsForUser(ListUnpublishedReviewsForUserRequest) returns (ListUnpublishedReviewsForUserResponse) {}
@@ -181,6 +182,16 @@ message ListReviewRemovalsRequest {
 message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
   pagination.v1.PageInfo pagination = 2;
+}
+
+// Only attached photos on approved, live reviews are downloadable. Suspended callers
+// may access photos on reviews they authored or received.
+message GetReviewPhotoDownloadRequest {
+  string photo_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetReviewPhotoDownloadResponse {
+  ReviewPhoto photo = 1;
 }
 
 // Public reads and ratings include only APPROVED reviews.

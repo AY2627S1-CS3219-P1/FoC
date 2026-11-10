@@ -230,3 +230,30 @@ func validPhotoContentType(value string) bool {
 	}
 	return false
 }
+
+// GetReviewPhotoDownload authorizes the approved, live parent before signing; bytes stay in storage.
+func (s *Service) GetReviewPhotoDownload(
+	ctx context.Context, callerID, photoID uuid.UUID, suspended bool,
+) (ReviewPhotoView, error) {
+	photo, err := s.repo.GetAttachedReviewPhoto(ctx, photoID)
+	if err != nil {
+		return ReviewPhotoView{}, err
+	}
+	// Matches the union of ListMyReviews and ListReviewsForUser visibility.
+	if suspended && callerID != photo.ReviewerID && callerID != photo.RevieweeID {
+		return ReviewPhotoView{}, errs.NewForbiddenError("suspended users may only view their own review photos")
+	}
+	if s.photos == nil {
+		return ReviewPhotoView{}, errs.NewUnavailableError("Review photos are temporarily unavailable")
+	}
+	grant, err := s.photos.CreateDownload(ctx, photo.ObjectKey)
+	if err != nil {
+		return ReviewPhotoView{}, errs.WrapUnavailableError(err, "Review photos are temporarily unavailable")
+	}
+	return ReviewPhotoView{
+		ID:          photo.ID,
+		URL:         grant.URL,
+		ContentType: photo.ContentType,
+		ExpiresAt:   grant.ExpiresAt,
+	}, nil
+}

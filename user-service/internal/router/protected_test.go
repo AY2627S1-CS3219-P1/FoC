@@ -515,6 +515,10 @@ func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uuid.UUID, ro
 	return token
 }
 
+func (reviewStub) GetReviewPhotoDownload(context.Context, uuid.UUID, uuid.UUID, bool) (review.ReviewPhotoView, error) {
+	return review.ReviewPhotoView{}, nil
+}
+
 func TestAdminUserStatsAndLookupAuthorization(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

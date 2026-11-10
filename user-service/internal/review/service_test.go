@@ -17,7 +17,9 @@ import (
 )
 
 type fakeRepository struct {
-	exists map[uuid.UUID]bool
+	attachedPhoto    AttachedReviewPhoto
+	attachedPhotoErr error
+	exists           map[uuid.UUID]bool
 
 	listForUser     []Review
 	listFromUser    []Review

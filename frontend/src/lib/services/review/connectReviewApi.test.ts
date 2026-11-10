@@ -19,6 +19,10 @@ function errorWithDetail(reason: string, message: string, photoIds: string[] = [
 
 function scenario() {
 	const client = {
+		getReviewPhotoDownload: vi.fn(async () => ({ photo: {
+			id: 'photo-1', url: 'https://storage.invalid/fresh', contentType: 'image/png',
+			expiresAt: { seconds: 1700003600n, nanos: 0 }
+		} })),
 		createReviewPhotoUpload: vi.fn(async () => ({
 			photoId: 'photo-1', uploadUrl: 'https://storage.invalid/upload', uploadHeaders: { 'x-test': '1' }, expiresAt: undefined
 		})),
@@ -228,4 +232,14 @@ describe('ConnectReviewApi', () => {
 		await expect(api.createPhotoUpload({ contentType: 'image/png', sizeBytes: 1 }, new AbortController().signal))
 			.rejects.not.toBeInstanceOf(ReviewRejectedError);
 	});
+});
+
+it('refreshes a photo grant with the supplied cancellation signal and maps expiry', async () => {
+	const { client, api } = scenario();
+	const signal = new AbortController().signal;
+	expect(await api.getPhotoDownload('photo-1', signal)).toEqual({
+		id: 'photo-1', url: 'https://storage.invalid/fresh', contentType: 'image/png', expiresAt: 1700003600000
+	});
+	expect(client.getReviewPhotoDownload).toHaveBeenCalledWith({ photoId: 'photo-1' }, { signal, timeoutMs: 15000 });
+	await expect(api.getPhotoDownload('different-id', signal)).rejects.toThrow('unknown');
 });

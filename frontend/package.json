@@ -15,6 +15,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"test:signed-images": "node tests/signed-image-e2e.mjs",
 		"test:wireframe": "node scripts/check-wireframe.mjs",
 		"test:realtime": "node scripts/check-realtime.mjs",
 		"test:profile-pictures": "node scripts/check-profile-pictures.mjs",
