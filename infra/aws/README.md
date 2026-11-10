@@ -21,8 +21,8 @@ prove that the school permits deployment.
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
 - D4: IRSA supplies short-lived AWS credentials to Order, Loki, the EBS CSI driver,
-  the load-balancer controller, and optionally Communication for SES. Each has a separate
-  workload role. Application AWS access keys are not needed.
+  the load-balancer controller, and optionally User and Communication for SES. Each
+  has a separate workload role. Application AWS access keys are not needed.
   RDS manages the administrator password in Secrets Manager. Terraform does not
   read that password or generate SMTP/JWT/application database credentials.
 - D5: State uses a separate versioned, encrypted S3 bucket with native S3 locking.
@@ -394,11 +394,12 @@ local admin JSON. Keep the five private service credential files for retries.
 Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
-in the Terraform inputs. Review the plan before applying: this adds a dedicated
-Communication Service IAM role and inline policy permitting only `ses:SendEmail` and
-`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Trust
-is restricted to the `foc:communication-service` ServiceAccount and STS audience. It does
-not grant email permissions to User or change Order's S3 permissions.
+in the Terraform inputs. Review the plan before applying: User and Communication
+have separate IAM roles and inline policies permitting only `ses:SendEmail` and
+`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Each role
+trusts only its corresponding `foc:user-service` or `foc:communication-service`
+ServiceAccount and the STS audience. User's original role remains available while
+existing deployments still send email directly. Order's S3 permissions are unchanged.
 The adapter sends raw MIME through SESv2's `SendEmail` operation. AWS also
 requires `ses:SendRawEmail` for that content: a live workload request with only
 `ses:SendEmail` was rejected with `AccessDeniedException` for `ses:SendRawEmail`.
@@ -410,9 +411,12 @@ Service IRSA annotation, and removes Communication's SMTP Secret reference. No s
 AWS keys or SMTP login are needed. The operator checks the rendered reference
 before requiring `smtp`. Existing SMTP overlays and local Mailpit are unchanged.
 A null/default `ses_sender_email` retains SMTP and creates no email role.
-The deployment output exposes `communication_email_role_arn`; regenerate the
-output JSON before rendering. The role is named `<name>-communication-email`,
-so an existing `<name>-user-email` role is replaced when this plan is applied.
+The deployment output exposes `user_email_role_arn` and
+`communication_email_role_arn`; regenerate the output JSON before rendering.
+The roles are named `<name>-user-email` and `<name>-communication-email`.
+Communication is added independently without replacing User's existing role.
+The renderer uses Communication's ARN; the User ARN output does not itself change
+User's ServiceAccount annotation.
 
 SES sender verification, production access, workload authorization, and actual
 mailbox delivery are separate checks. A policy simulation is not proof of live
