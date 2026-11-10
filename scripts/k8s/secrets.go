@@ -266,8 +266,6 @@ func (o *operator) generateLocalSecrets() error {
 	if err := o.applySecret("foc", "telegram", fromFile("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN")); err != nil {
 		return err
 	}
-	// The model API key stays server-side. An empty key deploys CMS degraded:
-	// submissions queue and admin APIs work, no inference attempts are burned.
 	if err := o.applySecret("foc", "moderation-llm", fromFile("CMS_LLM_API_KEY", "CMS_LLM_API_KEY")); err != nil {
 		return err
 	}
