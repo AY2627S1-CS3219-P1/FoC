@@ -65,8 +65,41 @@ jobs:
             K8S_LOKI_BUCKET=foc-ci-logs K8S_LOKI_REGION=ap-southeast-1 \
             K8S_LOKI_IRSA_ROLE=arn:aws:iam::123456789012:role/foc-loki \
             K8S_LOKI_STORAGE_CLASS=gp3 make k8s-logging-validate
+      - name: Seed Grafana credentials from repository configuration
+        run: |
+          mkdir -p .local/k8s/secrets
+          printf '%s' "${GRAFANA_ADMIN_USERNAME:-operator}" > .local/k8s/secrets/grafana-user
+          if [ -n "$GRAFANA_ADMIN_PASSWORD" ]; then
+            printf '%s' "$GRAFANA_ADMIN_PASSWORD" > .local/k8s/secrets/grafana-password
+          else
+            # Keep the deploy green when the repository secret is not configured;
+            # the operator preserves non-empty files and fails on empty ones.
+            openssl rand -hex 32 > .local/k8s/secrets/grafana-password
+          fi
+          chmod 600 .local/k8s/secrets/grafana-user .local/k8s/secrets/grafana-password
+        env:
+          GRAFANA_ADMIN_USERNAME: ${{ secrets.GRAFANA_ADMIN_USERNAME }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
       - name: Build and deploy into isolated kind cluster
         run: make k8s-up
+      - name: Verify Grafana accepts the configured credentials
+        run: |
+          .tools/aqua/bin/kubectl --kubeconfig .local/k8s/clusters/foc.config -n foc-observability \
+            port-forward --address 127.0.0.1 svc/grafana 3300:3000 >/tmp/foc-grafana-forward.log 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3300/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          credentials="$(cat .local/k8s/secrets/grafana-user):$(cat .local/k8s/secrets/grafana-password)"
+          curl -fsS -u "$credentials" http://127.0.0.1:3300/api/user | grep -q '"isGrafanaAdmin":true'
+          if curl -fsS -o /dev/null -u "$(cat .local/k8s/secrets/grafana-user):definitely-wrong" \
+            http://127.0.0.1:3300/api/user; then
+            echo "Grafana accepted an incorrect password" >&2
+            exit 1
+          fi
+          curl -fsS -u "$credentials" http://127.0.0.1:3300/api/search | grep -q foc-service-logs
       - name: Verify gateway, mTLS and private routing
         run: make k8s-smoke
       - name: Verify Connect HTTP/1.1 and native gRPC through the gateway

@@ -447,6 +447,12 @@ Grafana also persists its users in SQLite: changing an environment Secret does
 not reset an existing database password; rotate through Grafana's admin tools
 and update the preserved credential together. Never commit these files.
 
+CI configures the deployed cluster's Grafana credentials from the optional
+repository secrets `GRAFANA_ADMIN_USERNAME` (default `operator`) and
+`GRAFANA_ADMIN_PASSWORD`; when the password secret is unset, each run generates
+a random one. The deploy fails rather than rotating a non-empty preserved
+credential, so never configure an empty value.
+
 Loki is provisioned as the default data source. In Grafana Explore, try:
 
 ```logql
