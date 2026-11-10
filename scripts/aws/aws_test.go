@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -479,4 +480,67 @@ func assertHelmLokiStorageContract(t *testing.T, objects []map[string]any) {
 		}
 	}
 	t.Fatal("actual Helm render omitted Loki StatefulSet")
+}
+
+func TestLegacyContentModerationCredentialsFollowRenamedDatabase(t *testing.T) {
+	a, directory, _ := testApplication(t)
+	directory = filepath.Join(directory, "db")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := json.Marshal(map[string]any{
+		"DB_HOST":      "offline.database.invalid",
+		"DB_USER":      "foc_moderation",
+		"DB_PASSWORD":  "legacy-test-only",
+		"DB_NAME":      "moderation_db",
+		"DATABASE_URL": "postgresql://foc_moderation:legacy-test-only@offline.database.invalid:5432/moderation_db",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "moderation.json"), legacy, 0600); err != nil {
+		t.Fatal(err)
+	}
+	admin := map[string]any{"username": "foc_admin", "password": "offline-test-only"}
+	for _, attempt := range []string{"upgrade", "retry"} {
+		if err := a.prepareDatabase(testConfiguration(), admin, directory); err != nil {
+			t.Fatalf("%s: %v", attempt, err)
+		}
+		if _, err := os.Stat(filepath.Join(directory, "moderation.json")); !os.IsNotExist(err) {
+			t.Fatalf("%s: legacy credentials remain available under the bare moderation name", attempt)
+		}
+		current := readTestObject(t, filepath.Join(directory, "content-moderation.json"))
+		if stringValue(current, "DB_USER") != "foc_content_moderation" ||
+			stringValue(current, "DB_NAME") != "content_moderation_db" ||
+			stringValue(current, "DB_PASSWORD") != "legacy-test-only" ||
+			!strings.Contains(stringValue(current, "DATABASE_URL"), "/content_moderation_db?") {
+			t.Fatalf("%s: content moderation credentials do not follow the renamed database", attempt)
+		}
+	}
+	secrets := readTestObject(t, filepath.Join(directory, "secrets.json"))
+	setup := ""
+	for _, item := range array(secrets["items"]) {
+		value := object(item)
+		if stringValue(object(value["metadata"]), "name") == "rds-provision-admin" {
+			setup = stringValue(object(value["stringData"]), "setup.sql")
+		}
+	}
+	if !strings.Contains(setup, "ALTER DATABASE moderation_db RENAME TO") ||
+		!strings.Contains(setup, "ALTER ROLE foc_moderation RENAME TO") {
+		t.Fatal("provisioning does not rename the original content moderation database and login")
+	}
+
+	mismatched := strings.ReplaceAll(string(legacy), "foc_moderation", "foc_other")
+	b, root, _ := testApplication(t)
+	other := filepath.Join(root, "other")
+	if err := os.MkdirAll(other, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other, "moderation.json"), []byte(mismatched), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.prepareDatabase(testConfiguration(), admin, other); err == nil ||
+		!strings.Contains(err.Error(), "not content moderation's original credentials") {
+		t.Fatalf("unexpected legacy credentials were adopted: %v", err)
+	}
 }

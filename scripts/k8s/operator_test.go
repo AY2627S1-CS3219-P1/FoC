@@ -493,3 +493,43 @@ func TestCLISignalExitStatusAndForwardCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestLegacyContentModerationPasswordFollowsRenamedLogin(t *testing.T) {
+	op := testOperator(t)
+	fakeCommand(
+		t,
+		"kubectl",
+		`case "$*" in *' create secret '*) printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: test\n';; esac`,
+	)
+	directory := filepath.Join(op.state, "secrets")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range map[string]string{
+		"moderation-password":     "legacy-test-only",
+		"moderation-db-user":      "moderation_app",
+		"moderation-db-name":      "moderation_db",
+		"moderation-database-url": "postgres://moderation_app:legacy-test-only@postgres:5432/moderation_db",
+	} {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := op.generateLocalSecrets(); err != nil {
+		t.Fatal(err)
+	}
+	password, err := os.ReadFile(filepath.Join(directory, "content-moderation-password"))
+	if err != nil || string(password) != "legacy-test-only" {
+		t.Fatal("content moderation did not keep its original local password")
+	}
+	url, err := os.ReadFile(filepath.Join(directory, "content-moderation-database-url"))
+	if err != nil ||
+		!strings.Contains(string(url), "content_moderation_app:legacy-test-only@postgres:5432/content_moderation_db") {
+		t.Fatal("content moderation URL does not target the renamed login and database")
+	}
+	for _, name := range []string{"moderation-password", "moderation-db-user", "moderation-db-name", "moderation-database-url"} {
+		if _, err := os.Stat(filepath.Join(directory, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("legacy %s remains available under the bare moderation name", name)
+		}
+	}
+}
