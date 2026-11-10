@@ -233,6 +233,9 @@ docker compose down -v --rmi all
 
 ## Kubernetes Deployment (Optional)
 
+For the configurable AWS load and fault-test tools, see the
+[performance and resilience runbook](docs/testing/aws-performance.md).
+
 Besides Docker Compose, the full stack can run on a local Kubernetes cluster
 (kind) with an Istio service mesh. Compose remains the default for
 development; the two stacks share default host ports, so run only one at a
