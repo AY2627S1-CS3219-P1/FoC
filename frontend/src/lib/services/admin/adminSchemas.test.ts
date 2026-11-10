@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { UserRole } from '$lib/gen/user/v1/auth_pb';
-import { roleChangeSchema, userSearchSchema } from './adminSchemas.ts';
+import { recordIdSchema, roleChangeSchema, userSearchSchema } from './adminSchemas.ts';
 
 describe('admin form schemas', () => {
 	it('requires a valid email for exact user lookup', () => {
@@ -19,5 +19,18 @@ describe('admin form schemas', () => {
 		expect(roleChangeSchema.safeParse({
 			userId: '00000000-0000-4000-8000-000000000001', fromRole: UserRole.SUSPENDED_USER, toRole: 'user', reason: ''
 		}).success).toBe(false);
+	});
+
+	it('trims surrounding whitespace before validating a record ID', () => {
+		const id = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+		expect(recordIdSchema.parse({ id: ` \t${id}\n ` })).toEqual({ id });
+		expect(recordIdSchema.safeParse({ id: ' \t\n ' }).success).toBe(false);
+		expect(recordIdSchema.safeParse({ id: ' order-123 ' }).success).toBe(false);
+	});
+
+	it('requires a UUID for record lookup', () => {
+		expect(recordIdSchema.safeParse({ id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }).success).toBe(true);
+		expect(recordIdSchema.safeParse({ id: 'order-123' }).success).toBe(false);
+		expect(recordIdSchema.safeParse({ id: '' }).success).toBe(false);
 	});
 });
