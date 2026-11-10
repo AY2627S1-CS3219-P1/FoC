@@ -11,6 +11,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -28,10 +29,11 @@ type WithTransaction func(ctx context.Context, operation func(Tx) error) error
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
+	evidence        Evidence
 }
 
-func NewService(repo Repository, withTransaction WithTransaction) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction}
+func NewService(repo Repository, withTransaction WithTransaction, evidence Evidence) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, evidence: evidence}
 }
 
 // Submission
@@ -52,6 +54,29 @@ func (s *Service) SubmitAppeal(ctx context.Context, appellantID uuid.UUID, submi
 	}
 	submission.Reason = reason
 	hash := requestHash(submission)
+
+	// A retry returns the appeal its key created before images are checked,
+	// because the first submission already attached them.
+	var existing ExistingAppeal
+	err = s.withTransaction(ctx, func(tx Tx) error {
+		var err error
+		existing, err = s.repo.AppealByKey(ctx, tx.Queries, appellantID, submission.IdempotencyKey)
+		return err
+	})
+	if err == nil {
+		id, err := replay(existing, hash)
+		if err != nil {
+			return Appeal{}, err
+		}
+		return s.getAppeal(ctx, id)
+	}
+	if !errors.Is(err, errAppealNotFound) {
+		return Appeal{}, err
+	}
+	prepared, err := s.evidence.Prepare(ctx, appellantID, submission.EvidenceIDs)
+	if err != nil {
+		return Appeal{}, err
+	}
 
 	appealID, err := newID()
 	if err != nil {
@@ -100,7 +125,7 @@ func (s *Service) SubmitAppeal(ctx context.Context, appellantID uuid.UUID, submi
 				return mapWriteError(err)
 			}
 		}
-		return nil
+		return tx.Evidence.Attach(ctx, appellantID, evidence.AppealParent(appealID), prepared)
 	})
 	if err != nil {
 		return Appeal{}, err
@@ -153,7 +178,13 @@ func requestHash(submission Submission) string {
 	slices.Sort(targets)
 
 	sum := sha256.New()
-	for _, part := range append([]string{submission.RequestID.String(), submission.Reason}, targets...) {
+	images := make([]string, len(submission.EvidenceIDs))
+	for i, id := range submission.EvidenceIDs {
+		images[i] = "evidence:" + id.String()
+	}
+
+	parts := append([]string{submission.RequestID.String(), submission.Reason}, targets...)
+	for _, part := range append(parts, images...) {
 		sum.Write([]byte(part))
 		sum.Write([]byte{0})
 	}
@@ -337,6 +368,9 @@ func (s *Service) ListMyAppeals(ctx context.Context, userID uuid.UUID, page pagi
 	if err != nil {
 		return Page{}, err
 	}
+	if err := s.withEvidence(ctx, appeals, nil); err != nil {
+		return Page{}, err
+	}
 	total, err := s.repo.CountAppealsInvolving(ctx, userID)
 	if err != nil {
 		return Page{}, err
@@ -359,19 +393,28 @@ func (s *Service) GetAppeal(ctx context.Context, callerID uuid.UUID, isAdmin boo
 	if err != nil {
 		return Detail{}, err
 	}
+	if err := s.withEvidence(ctx, nil, responses); err != nil {
+		return Detail{}, err
+	}
 	return Detail{Appeal: appeal, Responses: responses}, nil
 }
 
 // Responses
 
 // SubmitResponse records the reply of the participant an administrator asked
-// to respond (RP9.3) and moves the appeal back under review.
+// to respond, with any images (RP9.3, RP9.4), and moves the appeal back under
+// review.
 func (s *Service) SubmitResponse(
 	ctx context.Context,
 	callerID, appealID uuid.UUID,
 	body string,
+	evidenceIDs []uuid.UUID,
 ) (Appeal, Response, error) {
 	body, err := boundedText(body, maxResponseLength, "response")
+	if err != nil {
+		return Appeal{}, Response{}, err
+	}
+	prepared, err := s.evidence.Prepare(ctx, callerID, evidenceIDs)
 	if err != nil {
 		return Appeal{}, Response{}, err
 	}
@@ -399,6 +442,9 @@ func (s *Service) SubmitResponse(
 		if err := s.repo.InsertResponse(ctx, tx.Queries, input); err != nil {
 			return err
 		}
+		if err := tx.Evidence.Attach(ctx, callerID, evidence.AppealResponseParent(responseID), prepared); err != nil {
+			return err
+		}
 		return s.repo.TransitionAppeal(
 			ctx, tx.Queries, appealID, StatusAwaitingResponse, StatusUnderReview, uuid.Nil)
 	})
@@ -423,6 +469,9 @@ func (s *Service) SubmitResponse(
 func (s *Service) ListAppeals(ctx context.Context, filter Filter, page pagination.Pagination) (Page, error) {
 	appeals, err := s.repo.ListAppeals(ctx, filter, page.Offset(), page.PageSize())
 	if err != nil {
+		return Page{}, err
+	}
+	if err := s.withEvidence(ctx, appeals, nil); err != nil {
 		return Page{}, err
 	}
 	total, err := s.repo.CountAppeals(ctx, filter)
@@ -646,7 +695,15 @@ func (s *Service) getAppeal(ctx context.Context, id uuid.UUID) (Appeal, error) {
 	if errors.Is(err, errAppealNotFound) {
 		return Appeal{}, errs.WrapNotFoundError(err, "appeal not found")
 	}
-	return appeal, err
+	if err != nil {
+		return Appeal{}, err
+	}
+
+	appeals := []Appeal{appeal}
+	if err := s.withEvidence(ctx, appeals, nil); err != nil {
+		return Appeal{}, err
+	}
+	return appeals[0], nil
 }
 
 // boundedText trims value and requires between 1 and limit characters.

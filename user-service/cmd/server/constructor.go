@@ -93,9 +93,9 @@ func newReportService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *rep
 
 // newAppealService closes appeals in a GORM transaction, so overturned
 // outcomes reuse the same domains as report outcomes.
-func newAppealService(db *gorm.DB, sqlDB *sql.DB) *appeal.Service {
+func newAppealService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *appeal.Service {
 	repo := appeal.NewPostgresRepository(appealdb.New(sqlDB))
-	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db))
+	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db), images)
 }
 
 func newWarningService(db warningdb.DBTX) *warningdomain.Service {

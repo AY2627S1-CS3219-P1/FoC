@@ -64,6 +64,7 @@ func WithAppealTransaction(db *gorm.DB) appeal.WithTransaction {
 			return operation(appeal.Tx{
 				Queries:      appealdb.New(tx.Statement.ConnPool),
 				Consequences: New(tx),
+				Evidence:     evidence.NewAttacher(tx.Statement.ConnPool),
 			})
 		})
 	}

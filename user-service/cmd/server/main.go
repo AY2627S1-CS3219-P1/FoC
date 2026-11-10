@@ -121,7 +121,7 @@ func main() {
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	evidenceLogic := newEvidenceService(sqlDB, reviewPhotos)
 	reportLogic := newReportService(db, sqlDB, evidenceLogic)
-	appealLogic := newAppealService(db, sqlDB)
+	appealLogic := newAppealService(db, sqlDB, evidenceLogic)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},

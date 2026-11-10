@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -264,10 +268,81 @@ func (f *fakeConsequences) Reinstate(_ context.Context, reinstatement Reinstatem
 	return f.err
 }
 
+// fakeEvidence prepares the images it staged and records what was attached.
+type fakeEvidence struct {
+	staged   map[uuid.UUID]bool
+	attached map[evidence.Parent][]uuid.UUID
+}
+
+func newFakeEvidence() *fakeEvidence {
+	return &fakeEvidence{staged: map[uuid.UUID]bool{}, attached: map[evidence.Parent][]uuid.UUID{}}
+}
+
+func (f *fakeEvidence) CreateUpload(context.Context, uuid.UUID, string, int64) (uuid.UUID, images.UploadGrant, error) {
+	id := uuid.New()
+	f.staged[id] = true
+	return id, images.UploadGrant{}, nil
+}
+
+func (f *fakeEvidence) Prepare(_ context.Context, _ uuid.UUID, ids []uuid.UUID) ([]evidence.Prepared, error) {
+	prepared := make([]evidence.Prepared, 0, len(ids))
+	for _, id := range ids {
+		if !f.staged[id] {
+			return nil, errs.NewFailedPreconditionError("image is not pending upload")
+		}
+		prepared = append(prepared, evidence.Prepared{ID: id})
+	}
+	return prepared, nil
+}
+
+func (f *fakeEvidence) Views(
+	_ context.Context,
+	parents []evidence.Parent,
+) (map[evidence.Parent][]evidence.View, error) {
+	views := map[evidence.Parent][]evidence.View{}
+	for _, parent := range parents {
+		for _, id := range f.attached[parent] {
+			views[parent] = append(views[parent], evidence.View{ID: id})
+		}
+	}
+	return views, nil
+}
+
+func (f *fakeEvidence) Locate(_ context.Context, id uuid.UUID) (evidence.Owner, error) {
+	for parent, ids := range f.attached {
+		if parent.Kind == evidence.ParentAppeal && slices.Contains(ids, id) {
+			return evidence.Owner{AppealID: parent.ID}, nil
+		}
+	}
+	return evidence.Owner{}, errs.NewNotFoundError("evidence not found")
+}
+
+func (f *fakeEvidence) Download(_ context.Context, id uuid.UUID) (evidence.View, error) {
+	return evidence.View{ID: id}, nil
+}
+
+// Attach marks images attached, so they can no longer be prepared.
+func (f *fakeEvidence) Attach(
+	_ context.Context,
+	_ uuid.UUID,
+	parent evidence.Parent,
+	prepared []evidence.Prepared,
+) error {
+	for _, image := range prepared {
+		f.attached[parent] = append(f.attached[parent], image.ID)
+		delete(f.staged, image.ID)
+	}
+	return nil
+}
+
 func newTestService(repo *fakeRepository, consequences *fakeConsequences) *Service {
+	return newTestServiceWithEvidence(repo, consequences, newFakeEvidence())
+}
+
+func newTestServiceWithEvidence(repo *fakeRepository, consequences *fakeConsequences, images *fakeEvidence) *Service {
 	return NewService(repo, func(_ context.Context, operation func(Tx) error) error {
-		return operation(Tx{Consequences: consequences})
-	})
+		return operation(Tx{Consequences: consequences, Evidence: images})
+	}, images)
 }
 
 func wantStatus(t *testing.T, err error, status int) {
@@ -499,19 +574,19 @@ func TestAppealLifecycle(t *testing.T) {
 	}
 	_, err = f.service.RequestResponse(ctx, f.admin, appeal.ID, uuid.New())
 	wantStatus(t, err, http.StatusBadRequest)
-	_, _, err = f.service.SubmitResponse(ctx, f.reporter, appeal.ID, "too early")
+	_, _, err = f.service.SubmitResponse(ctx, f.reporter, appeal.ID, "too early", nil)
 	wantStatus(t, err, http.StatusForbidden)
 
 	got, err := f.service.RequestResponse(ctx, f.admin, appeal.ID, f.reporter)
 	if err != nil || got.Status != StatusAwaitingResponse || got.AwaitedUserID != f.reporter {
 		t.Fatalf("request response: %+v, %v", got, err)
 	}
-	_, _, err = f.service.SubmitResponse(ctx, f.subject, appeal.ID, "not asked")
+	_, _, err = f.service.SubmitResponse(ctx, f.subject, appeal.ID, "not asked", nil)
 	wantStatus(t, err, http.StatusForbidden)
-	_, _, err = f.service.SubmitResponse(ctx, uuid.New(), appeal.ID, "stranger")
+	_, _, err = f.service.SubmitResponse(ctx, uuid.New(), appeal.ID, "stranger", nil)
 	wantStatus(t, err, http.StatusNotFound)
 
-	got, response, err := f.service.SubmitResponse(ctx, f.reporter, appeal.ID, " my side ")
+	got, response, err := f.service.SubmitResponse(ctx, f.reporter, appeal.ID, " my side ", nil)
 	if err != nil || got.Status != StatusUnderReview || got.AwaitedUserID != uuid.Nil || response.Body != "my side" {
 		t.Fatalf("respond: %+v %+v %v", got, response, err)
 	}
@@ -678,5 +753,54 @@ func TestAppealVisibility(t *testing.T) {
 		t.Fatalf("admin: %v", err)
 	}
 	_, err = f.service.GetAppeal(ctx, uuid.New(), false, appeal.ID)
+	wantStatus(t, err, http.StatusNotFound)
+}
+
+func TestAppealEvidence(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(ReportOutcomeWarning)
+	images := newFakeEvidence()
+	f.service = newTestServiceWithEvidence(f.repo, f.consequences, images)
+
+	// The appellant's images are attached to the appeal (RP8.2).
+	image, _, _ := f.service.CreateEvidenceUpload(ctx, f.subject, "image/png", 10)
+	submission := Submission{
+		IdempotencyKey: uuid.New(),
+		Reason:         "see the photo",
+		Targets:        []Target{{Kind: KindReportOutcome, TargetID: f.reportID}},
+		EvidenceIDs:    []uuid.UUID{image},
+	}
+	submitted, err := f.service.SubmitAppeal(ctx, f.subject, submission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(submitted.Evidence) != 1 || submitted.Evidence[0].ID != image {
+		t.Fatalf("appeal evidence = %+v", submitted.Evidence)
+	}
+
+	// A retry replays even though its images are no longer pending (RP7.7).
+	again, err := f.service.SubmitAppeal(ctx, f.subject, submission)
+	if err != nil || again.ID != submitted.ID {
+		t.Fatalf("retry = %v, %v; want %v", again.ID, err, submitted.ID)
+	}
+
+	// The counterpart replies with images when asked (RP9.4).
+	if _, err := f.service.BeginReview(ctx, f.admin, submitted.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.RequestResponse(ctx, f.admin, submitted.ID, f.reporter); err != nil {
+		t.Fatal(err)
+	}
+	reply, _, _ := f.service.CreateEvidenceUpload(ctx, f.reporter, "image/png", 10)
+	_, response, err := f.service.SubmitResponse(ctx, f.reporter, submitted.ID, "my photo", []uuid.UUID{reply})
+	if err != nil || len(response.Evidence) != 1 || response.Evidence[0].ID != reply {
+		t.Fatalf("response = %+v, %v", response, err)
+	}
+
+	// Downloads follow the appeal's visibility.
+	if _, err := f.service.GetEvidenceDownload(ctx, f.reporter, false, image); err != nil {
+		t.Fatalf("counterpart download: %v", err)
+	}
+	_, err = f.service.GetEvidenceDownload(ctx, uuid.New(), false, image)
 	wantStatus(t, err, http.StatusNotFound)
 }

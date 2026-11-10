@@ -90,4 +90,5 @@ type Reinstatement struct {
 type Tx struct {
 	Queries      *appealdb.Queries
 	Consequences Consequences
+	Evidence     EvidenceAttacher
 }

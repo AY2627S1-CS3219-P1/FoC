@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -80,6 +81,8 @@ type Submission struct {
 	RequestID uuid.UUID
 	Reason    string
 	Targets   []Target
+	// EvidenceIDs are staged images to attach, in order (RP8.2).
+	EvidenceIDs []uuid.UUID
 }
 
 // Decision is a challenged decision as stored. Outcome is empty until the
@@ -109,6 +112,7 @@ type Appeal struct {
 	CloserName    string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	Evidence      []evidence.View
 }
 
 // Involves reports whether userID filed the appeal or is a counterpart of one
@@ -133,6 +137,7 @@ type Response struct {
 	ResponderName string
 	Body          string
 	CreatedAt     time.Time
+	Evidence      []evidence.View
 }
 
 // Detail is an appeal with its responses, oldest first.

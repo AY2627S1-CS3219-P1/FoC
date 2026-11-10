@@ -60,7 +60,10 @@ func setupIntegration(t *testing.T) integration {
 		ctx:   context.Background(),
 		sqlDB: sqlDB,
 		appeals: appeal.NewService(
-			appeal.NewPostgresRepository(appealdb.New(sqlDB)), reportoutcome.WithAppealTransaction(db)),
+			appeal.NewPostgresRepository(appealdb.New(sqlDB)),
+			reportoutcome.WithAppealTransaction(db),
+			evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), nil),
+		),
 		reports: report.NewService(
 			report.NewPostgresRepository(reportdb.New(sqlDB)),
 			reportoutcome.WithTransaction(db),
@@ -224,7 +227,7 @@ func TestAppealLifecycleIntegration(t *testing.T) {
 	if _, err := it.appeals.RequestResponse(it.ctx, it.admin, submitted.ID, requester); err != nil {
 		t.Fatal(err)
 	}
-	responded, response, err := it.appeals.SubmitResponse(it.ctx, requester, submitted.ID, "they were late")
+	responded, response, err := it.appeals.SubmitResponse(it.ctx, requester, submitted.ID, "they were late", nil)
 	if err != nil || responded.Status != appeal.StatusUnderReview || response.ResponderName != "Requester" {
 		t.Fatalf("respond: %+v %+v %v", responded, response, err)
 	}
