@@ -1,0 +1,47 @@
+discovery.kubernetes "pods" {
+  role = "pod"
+  namespaces {
+    names = ["foc", "istio-ingress"]
+  }
+}
+
+discovery.relabel "logs" {
+  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label = "service"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_gateway_networking_k8s_io_gateway_name"]
+    regex = "(.+)"
+    target_label = "service"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label = "pod"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label = "node"
+  }
+}
+
+// The API includes native sidecar logs; no host mounts or node privileges.
+loki.source.kubernetes "pods" {
+  targets = discovery.relabel.logs.output
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki.foc-observability.svc.cluster.local:3100/loki/api/v1/push"
+  }
+}

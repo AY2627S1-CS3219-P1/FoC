@@ -36,7 +36,7 @@ func TestTransportConfigurationRejectsInvalidPorts(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for key, value := range map[string]string{
 		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
-		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "", "SMTP_ADDR": "", "SMTP_FROM": "",
+		"FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "", "COMMUNICATION_SERVICE_BASE_URL": "",
 	} {
 		t.Setenv(key, value)
 	}

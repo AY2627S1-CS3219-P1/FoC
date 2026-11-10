@@ -12,6 +12,7 @@
 	import ParticipantActions from '$lib/components/order-cancellation/ParticipantActions.svelte';
 	import OrderOfferControls from '$lib/components/order-offers/OrderOfferControls.svelte';
 	import DeliveryProofPanel from '$lib/components/order/DeliveryProofPanel.svelte';
+	import ReviewSection from './ReviewSection.svelte';
 
 	let order = $state<Order | null>(null);
 	let error = $state('');
@@ -216,6 +217,8 @@
 				</aside>
 			</div>
 
+			<ReviewSection {order} {callerId} />
+
 			<Dialog bind:open={proofOpen} headline="Leave a photo as proof of delivery" buttons={proofButtons}>
 				{#key `${callerId}:${order.id}:${proofOpen}`}
 					<DeliveryProofPanel {order} {refresh} api={deliveryProofApi} {callerId} />
@@ -232,7 +235,7 @@
 	.main, .side { display: grid; gap: 1rem; min-width: 0; }
 	.side { position: sticky; top: 1rem; }
 
-	.title { display: grid; gap: 0.3rem; }
+	.title { display: grid; gap: 0.15rem; }
 	.status { margin: 0; font-weight: 650; color: var(--m3c-primary); }
 	h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
 	h2 { margin: 0; font-size: 1.1rem; }

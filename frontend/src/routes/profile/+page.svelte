@@ -12,6 +12,7 @@
 	import { defaults, setMessage, superForm } from 'sveltekit-superforms';
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
+	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { authService, profileService } from '$lib/services';
 	import type { UserProfile } from '$lib/services/profile/profileApi';
 	import { profileSchema, type ProfileFormData } from '$lib/services/profile/profileSchema';
@@ -20,6 +21,7 @@
 	import TelegramLinkCard from '$lib/components/telegram/TelegramLinkCard.svelte';
 	import CreditsCard from './CreditsCard.svelte';
 	import RecentRequestsCard from './RecentRequestsCard.svelte';
+	import ReviewsCard from './ReviewsCard.svelte';
 
 	let profile = $state<UserProfile | null>(null);
 	let loading = $state(true);
@@ -125,6 +127,7 @@
 			<CreditsCard />
 			<RecentRequestsCard />
 		</div>
+		<ReviewsCard />
 		<Card variant="outlined">
 			<div class="panel-body">
 				<h2 class="card-title">Account details</h2>
@@ -198,6 +201,9 @@
 						</div>
 					</form>
 				{/if}
+				<div class="form-actions warnings-actions">
+					<Button variant="outlined" href="/profile/warnings">View My Warnings</Button>
+				</div>
 			</div>
 		</Card>
 		<Card variant="outlined">
@@ -208,6 +214,7 @@
 		</Card>
 	{/if}
 </section>
+
 
 <style>
 	/* Wireframe: current credits and request history sit beside each other. */
@@ -221,5 +228,17 @@
 	.card-title {
 		margin: 0.1rem 0 0;
 		font-size: 1.25rem;
+	}
+
+	.panel-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.warnings-actions {
+		/* .form-actions defaults to flex-end; keep the warnings link pinned to the bottom-left. */
+		justify-content: flex-start;
+		margin-top: auto;
 	}
 </style>
