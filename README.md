@@ -16,6 +16,65 @@ SQL schema and build/deploy glue for all services.
 
 ---
 
+## System Architecture
+
+The SvelteKit frontend calls each Go service's public Connect RPC listener
+straight from the browser through `PUBLIC_*_SERVICE_URL` endpoints. Services
+authenticate each other against User's public keys and coordinate through
+Kafka events published from transactional outboxes; one Postgres database per
+service, S3-compatible object storage, and email and Telegram transports
+complete the picture.
+
+```mermaid
+flowchart LR
+    B(["Student browser"]):::user
+    FE["SvelteKit frontend"]:::svc
+
+    US["User Service"]:::svc
+    SUP["Supplier Service"]:::svc
+    ORD["Order Service"]:::svc
+    CRED["Credit Service"]:::svc
+    COMM["Communication Service"]:::svc
+
+    B -->|"loads app"| FE
+    B -->|"Connect RPC, PUBLIC_*_SERVICE_URL"| US & SUP & ORD & CRED & COMM
+
+    SUP & ORD & CRED & COMM -->|"auth public keys"| US
+    ORD -->|"order discovery"| SUP
+    ORD -->|"credit reservation"| CRED
+    US -->|"magic links"| COMM
+
+    PG[("PostgreSQL, one DB per service")]:::pg
+    US & SUP & ORD & CRED & COMM --> PG
+
+    K[("Kafka topics")]:::kafka
+    US -->|"users.create outbox"| K
+    ORD -->|"order.status_changed / order.outcome outbox"| K
+    ORD -->|"order.courier_warning_requested outbox"| K
+    K -->|"users.create opens account"| CRED
+    K -->|"users.create and order events"| COMM
+    K -->|"order.courier_warning_requested"| US
+
+    NC[("Object storage, floci local and S3 on AWS")]:::store
+    ORD -.->|"storage-init bucket"| NC
+    US -.->|"storage-init bucket"| NC
+    B -->|"direct uploads with CORS"| NC
+
+    MAIL["Mailpit local, SES on AWS"]:::ext
+    COMM -->|"SMTP email"| MAIL
+    TG["Telegram bot"]:::ext
+    COMM -.->|"TELEGRAM_BOT_TOKEN"| TG
+
+    classDef svc fill:#dbeafe,stroke:#1d4ed8,color:#111
+    classDef user fill:#ede9fe,stroke:#7c3aed,color:#111
+    classDef kafka fill:#fee2e2,stroke:#b91c1c,color:#111
+    classDef pg fill:#dcfce7,stroke:#15803d,color:#111
+    classDef store fill:#fef9c3,stroke:#a16207,color:#111
+    classDef ext fill:#f3f4f6,stroke:#6b7280,color:#111
+```
+
+---
+
 ## Team Members
 
 | Name | Role |
@@ -194,6 +253,98 @@ Operations, security boundaries, and production guidance live in
 decision is recorded in
 [`docs/adr/kubernetes-istio.md`](docs/adr/kubernetes-istio.md).
 
+The local cluster packs one Deployment per application and every platform
+dependency into a single `kind` cluster. Each Go service keeps its
+deployment-agnostic listener split (`PORT` public, `INTERNAL_PORT`
+internal): the Istio Gateway routes only the public Services, while User's
+public-key listener and Credit's reservation listener stay internal-only.
+Initialization Jobs run in a separate stage before the applications start,
+and the developer reaches the stack through port-forwards only.
+
+```mermaid
+flowchart TB
+    B(["Developer host and kubectl"]):::ext
+
+    subgraph CL["kind cluster"]
+        ISTIO{{"Istio CNI and native sidecars"}}:::gw
+        G{{"Istio Gateway, GatewayClass istio, HTTPS"}}:::gw
+
+        subgraph APPS["applications: one Deployment per service"]
+            FE["Frontend Deployment"]:::svc
+            US["User Deployment"]:::svc
+            SUP["Supplier Deployment"]:::svc
+            ORD["Order Deployment"]:::svc
+            COMM["Communication Deployment"]:::svc
+            CRED["Credit Deployment"]:::svc
+        end
+
+        subgraph INTERNAL["internal-only Services"]
+            USI["User public-key listener"]:::int
+            CRDINT["Credit reservation listener"]:::int
+        end
+
+        subgraph DEPS["dependencies"]
+            PG[("PostGIS Postgres, one DB per service")]:::pg
+            K[("Kafka broker, KRaft single")]:::kafka
+            KUI["Kafka UI"]:::dep
+            FLOCI[("floci, S3-compatible image store")]:::store
+            MP["Mailpit"]:::dep
+        end
+
+        subgraph OBS["observability"]
+            GRAF["Grafana"]:::obs
+            LOKI["Loki"]:::obs
+            ALLOY["Alloy"]:::obs
+        end
+
+        subgraph JOBS["initialization Jobs"]
+            MIG["per-service migrate Jobs<br/>user, supplier, order, credit, communication"]:::job
+            DBPROV["db-provision Job"]:::job
+            KINIT["kafka-init Job, topics.conf"]:::job
+            SINIT["storage-init Jobs"]:::job
+        end
+    end
+
+    B -->|"K8S_HTTPS_PORT forward, localhost 5173"| G
+    B -->|"K8S_GRAFANA_PORT forward, 3000"| GRAF
+    B -->|"K8S_KAFKA_UI_PORT forward, 8080"| KUI
+    B -->|"K8S_MAILPIT_PORT forward, 8025"| MP
+
+    G -->|"HTTPRoute root path"| FE
+    G -->|"public RPC routes"| US & SUP & ORD & CRED & COMM
+    G -.->|"signed image paths"| FLOCI
+
+    ISTIO -.->|"native sidecar injection"| APPS
+
+    SUP & ORD & CRED & COMM -.->|"public-key RPCs"| USI
+    ORD -.->|"reservation RPCs"| CRDINT
+
+    US & SUP & ORD & CRED & COMM -->|"per-service database"| PG
+    US & ORD -->|"outbox events"| K
+    K -->|"users.create"| CRED
+    K -->|"users.create and order events"| COMM
+    K -->|"courier warning"| US
+
+    MIG -.->|"goose migrations"| PG
+    DBPROV -.->|"database roles and secrets"| PG
+    KINIT -.->|"create topics"| K
+    SINIT -.->|"bucket policies"| FLOCI
+
+    ALLOY -->|"collects pod logs"| LOKI
+    GRAF -->|"queries"| LOKI
+
+    classDef svc fill:#dbeafe,stroke:#1d4ed8,color:#111
+    classDef gw fill:#e0f2fe,stroke:#0369a1,color:#111
+    classDef int fill:#ffedd5,stroke:#ea580c,color:#111
+    classDef pg fill:#dcfce7,stroke:#15803d,color:#111
+    classDef kafka fill:#fee2e2,stroke:#b91c1c,color:#111
+    classDef store fill:#fef9c3,stroke:#a16207,color:#111
+    classDef obs fill:#ede9fe,stroke:#7c3aed,color:#111
+    classDef job fill:#fce7f3,stroke:#be185d,color:#111
+    classDef dep fill:#f3f4f6,stroke:#6b7280,color:#111
+    classDef ext fill:#f3f4f6,stroke:#6b7280,color:#111
+```
+
 ---
 
 ## AWS Production Deployment (Optional)
@@ -203,6 +354,97 @@ README covers prerequisites, state and planning. The release pipeline and
 day-to-day rollout/verification steps are documented in
 [`docs/runbooks/aws-releases.md`](docs/runbooks/aws-releases.md) and
 [`docs/adr/aws-release-configuration.md`](docs/adr/aws-release-configuration.md).
+
+Terraform under `infra/aws` provisions the demo topology below: API Gateway
+and a VPC Link in front of an internal NLB and Istio gateway pods, an EKS
+cluster with two On-Demand `t3.xlarge` workers in private subnets across two
+AZs behind a single NAT gateway, single-AZ data stores, and IRSA workload
+roles instead of static AWS access keys.
+
+```mermaid
+flowchart TB
+    P(["Practitioner"]):::ext
+
+    subgraph NET["network and ingress"]
+        AGW{{"API Gateway HTTPS hostname"}}:::gw
+        VL["VPC Link"]:::net
+        NLB["internal NLB"]:::net
+        NAT["single NAT gateway"]:::net
+    end
+
+    subgraph EKS["EKS cluster, private subnets, 2 AZs"]
+        CP{{"EKS control plane"}}:::gw
+        W["two On-Demand t3.xlarge workers"]:::node
+        IGW{{"Istio gateway pods"}}:::gw
+
+        subgraph APPS["application pods from ECR"]
+            FEP["Frontend"]:::svc
+            USP["User"]:::svc
+            SUPP["Supplier"]:::svc
+            ORDP["Order"]:::svc
+            COMMP["Communication"]:::svc
+            CREP["Credit"]:::svc
+        end
+
+        LPOD["Loki pod, IRSA"]:::obs
+    end
+
+    subgraph DATA["data"]
+        IRDS[("RDS PostgreSQL, db.t4g.small, single AZ")]:::pg
+        IK[("Kafka single broker, 5 GiB encrypted EBS")]:::kafka
+        OB[("app orders bucket")]:::store
+        SB[("Terraform state bucket")]:::store
+        LB[("Loki log bucket")]:::store
+    end
+
+    subgraph AUTHA["auth and secrets"]
+        SM["Secrets Manager"]:::awsbox
+        IAM["IRSA workload roles"]:::awsbox
+    end
+
+    subgraph CI["CI"]
+        REL["Release pipeline, verified releases"]:::job
+    end
+
+    ECR["ECR"]:::awsbox
+    SES["SES, verified sender"]:::ext
+
+    P -->|"HTTPS"| AGW
+    AGW --> VL
+    VL --> NLB
+    NLB -->|"TargetGroupBinding"| IGW
+    IGW -->|"public RPC routes"| USP & SUPP & ORDP & CREP & COMMP
+    IGW -->|"frontend route"| FEP
+
+    W -.->|"private subnet egress"| NAT
+    APPS --> IRDS
+    USP & ORDP -->|"outbox events"| IK
+    IK -->|"users.create"| CREP
+    IK -->|"users.create and order events"| COMMP
+    ORDP -->|"image uploads"| OB
+
+    ORDP -.->|"IRSA"| IAM
+    IAM -.->|"bucket access"| OB
+    LPOD -.->|"IRSA"| LB
+
+    IRDS -->|"admin password"| SM
+    COMMP -.->|"optional IRSA"| SES
+
+    REL -->|"publishes images"| ECR
+    ECR -->|"pod images"| APPS
+
+    classDef svc fill:#dbeafe,stroke:#1d4ed8,color:#111
+    classDef gw fill:#e0f2fe,stroke:#0369a1,color:#111
+    classDef net fill:#ecfeff,stroke:#0891b2,color:#111
+    classDef node fill:#f1f5f9,stroke:#475569,color:#111
+    classDef pg fill:#dcfce7,stroke:#15803d,color:#111
+    classDef kafka fill:#fee2e2,stroke:#b91c1c,color:#111
+    classDef store fill:#fef9c3,stroke:#a16207,color:#111
+    classDef awsbox fill:#fff7ed,stroke:#c2410c,color:#111
+    classDef obs fill:#ede9fe,stroke:#7c3aed,color:#111
+    classDef job fill:#fce7f3,stroke:#be185d,color:#111
+    classDef ext fill:#f3f4f6,stroke:#6b7280,color:#111
+```
 
 ---
 
