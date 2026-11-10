@@ -145,9 +145,7 @@ export const SubmitReviewRequestSchema: GenMessage<SubmitReviewRequest> = /*@__P
   messageDesc(file_user_review_v1_review, 2);
 
 /**
- * SubmitReview acknowledges a persisted pending review. Publication follows
- * only after asynchronous content moderation approves it; a successful
- * response never means the review is public.
+ * Submission commits a pending review; success does not imply publication.
  *
  * @generated from message user.review.v1.SubmitReviewResponse
  */
@@ -388,19 +386,14 @@ export const ListReviewRemovalsResponseSchema: GenMessage<ListReviewRemovalsResp
   messageDesc(file_user_review_v1_review, 12);
 
 /**
- * Lists the caller's (or an admin-selected reviewer's) reviews that are not
- * published: pending, rejected and moderation-error. Queried by author, not
- * reviewee — ListReviewsForUser's target semantics concern reviews received.
- * This endpoint never calls the content moderation service, so it works even
- * while moderation is unavailable.
+ * Lists reviews by author, unlike ListReviewsForUser which lists reviews received.
+ * Does not call CMS; remains available during moderation outages.
  *
  * @generated from message user.review.v1.ListUnpublishedReviewsForUserRequest
  */
 export type ListUnpublishedReviewsForUserRequest = Message<"user.review.v1.ListUnpublishedReviewsForUserRequest"> & {
   /**
-   * The review author. Ordinary callers may request only their own id;
-   * admin/super-admin may select another reviewer. A suspended caller may
-   * inspect only their own. Enforced before any database lookup.
+   * Owner or admin only, checked before lookup. Suspended callers may inspect their own.
    *
    * @generated from field: string reviewer_id = 1;
    */
@@ -412,16 +405,14 @@ export type ListUnpublishedReviewsForUserRequest = Message<"user.review.v1.ListU
   pagination?: Pagination | undefined;
 
   /**
-   * Optional filter. Only pending, rejected and moderation-error are valid
-   * here; approved reviews are never in this collection.
+   * Only pending, rejected and moderation-error filters are accepted.
    *
    * @generated from field: optional user.review.v1.ModerationStatus moderation_status_filter = 3;
    */
   moderationStatusFilter?: ModerationStatus | undefined;
 
   /**
-   * Optional: recover a submission after an ambiguous response by the order
-   * the review was submitted for.
+   * Recover a submission after an ambiguous response.
    *
    * @generated from field: optional string order_id = 4;
    */
@@ -458,8 +449,6 @@ export const ListUnpublishedReviewsForUserResponseSchema: GenMessage<ListUnpubli
   messageDesc(file_user_review_v1_review, 14);
 
 /**
- * A not-yet-published review with its moderation metadata.
- *
  * @generated from message user.review.v1.UnpublishedReview
  */
 export type UnpublishedReview = Message<"user.review.v1.UnpublishedReview"> & {
@@ -533,8 +522,6 @@ export type UnpublishedReview = Message<"user.review.v1.UnpublishedReview"> & {
   moderationReasonCodes: string[];
 
   /**
-   * When the latest moderation result was applied, when present.
-   *
    * @generated from field: optional google.protobuf.Timestamp moderated_at = 14;
    */
   moderatedAt?: Timestamp | undefined;
@@ -555,9 +542,7 @@ export const UnpublishedReviewSchema: GenMessage<UnpublishedReview> = /*@__PURE_
   messageDesc(file_user_review_v1_review, 15);
 
 /**
- * Moderation lifecycle of a review. Ordinary published reads and rating
- * aggregates include only APPROVED reviews; rejected and errored reviews stay
- * stored and visible to their author and authorised admins here.
+ * Public reads and ratings include only APPROVED reviews.
  *
  * @generated from enum user.review.v1.ModerationStatus
  */
@@ -568,30 +553,22 @@ export enum ModerationStatus {
   UNSPECIFIED = 0,
 
   /**
-   * Committed but not yet assessed. Contributes nothing to published
-   * statistics.
-   *
    * @generated from enum value: MODERATION_STATUS_PENDING_MODERATION = 1;
    */
   PENDING_MODERATION = 1,
 
   /**
-   * Assessed and published.
-   *
    * @generated from enum value: MODERATION_STATUS_APPROVED = 2;
    */
   APPROVED = 2,
 
   /**
-   * Assessed and rejected by the content policy; retained for its author.
-   *
    * @generated from enum value: MODERATION_STATUS_REJECTED = 3;
    */
   REJECTED = 3,
 
   /**
-   * No valid content verdict was obtained; a technical outcome, never a
-   * content judgement.
+   * Technical failure to assess, not a content verdict.
    *
    * @generated from enum value: MODERATION_STATUS_MODERATION_ERROR = 4;
    */

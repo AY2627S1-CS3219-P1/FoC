@@ -22,34 +22,23 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ReviewSubmitted announces a committed pending review on
-// users.review_submitted. User Service publishes it from its transactional
-// outbox after the pending review row commits, keyed by review_id as UTF-8
-// text so one review's events stay in order. Delivery is at least once: the
-// content moderation service deduplicates on event_id and creates at most one
-// assessment job per moderation_request_id. The comment is the complete
-// immutable snapshot; it is assessed in one request without truncation.
+// users.review_submitted; keyed by review_id. Publish after committing the review.
+// At-least-once delivery; CMS creates one job per moderation_request_id.
 type ReviewSubmitted struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Stable across outbox publication retries; consumers use this to
-	// deduplicate.
+	// Stable across delivery retries.
 	EventId string `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	// Stable identity of this content-assessment request. Exactly one durable
-	// moderation job exists per value; retries of the same submission reuse it.
+	// Reused on redelivery; identifies one durable assessment job.
 	ModerationRequestId string `protobuf:"bytes,2,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	ReviewId            string `protobuf:"bytes,3,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
-	// The authenticated author, taken from User's saved review row, never from
-	// an arbitrary client-supplied field.
+	// Taken from the authenticated author, not client input.
 	ReviewerId string `protobuf:"bytes,4,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	// Positive; initially 1. A future edit/resubmission feature would increment
-	// it. Consumers treat 0 as invalid.
-	ContentRevision int32 `protobuf:"varint,5,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
-	// The complete immutable review comment.
-	Comment string `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
-	// When the review was submitted and committed.
-	OccurredAt    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Positive; initially 1.
+	ContentRevision int32                  `protobuf:"varint,5,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
+	Comment         string                 `protobuf:"bytes,6,opt,name=comment,proto3" json:"comment,omitempty"`
+	OccurredAt      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ReviewSubmitted) Reset() {

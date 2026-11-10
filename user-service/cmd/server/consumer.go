@@ -16,9 +16,7 @@ const (
 	maxConsumeBackoff             = 30 * time.Second
 )
 
-// consumeReviewModeration runs User's review moderation subscription until ctx
-// ends. A failed subscriber cannot restart, so each failure builds a new one
-// after a growing delay; the uncommitted delivery is then redelivered.
+// A failed subscriber cannot restart; recreate it to redeliver the uncommitted event.
 func consumeReviewModeration(ctx context.Context, brokers []string, completions *review.CompletionHandler) {
 	backoff := minConsumeBackoff
 	for ctx.Err() == nil {
@@ -28,7 +26,6 @@ func consumeReviewModeration(ctx context.Context, brokers []string, completions 
 			return
 		}
 
-		// A subscription that ran for a while was healthy; restart promptly.
 		if time.Since(started) > maxConsumeBackoff {
 			backoff = minConsumeBackoff
 		}

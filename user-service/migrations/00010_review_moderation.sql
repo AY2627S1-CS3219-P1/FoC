@@ -1,8 +1,4 @@
--- Review content moderation. New reviews start as pending_moderation and are
--- published only when the content moderation service reports an approved
--- outcome; rejected and moderation-error reviews stay unpublished. Historical
--- rows keep the 'approved' default so existing reviews remain visible without
--- moderation jobs, and their moderation_request_id stays NULL.
+-- Existing rows default to approved; new submissions explicitly insert pending_moderation.
 -- +goose Up
 ALTER TABLE reviews
     ADD COLUMN moderation_status TEXT NOT NULL DEFAULT 'approved'
@@ -11,17 +7,12 @@ ALTER TABLE reviews
     ADD COLUMN moderation_request_id UUID,
     ADD COLUMN applied_run_generation INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN policy_version TEXT,
-    ADD COLUMN reason_codes JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN reason_codes TEXT[] NOT NULL DEFAULT '{}'::text[],
     ADD COLUMN moderated_at TIMESTAMPTZ;
 
--- The unpublished list reads a reviewer's rows by status; approved-only lists
--- and the reviewee aggregate keep using idx_reviews_reviewee_id.
 CREATE INDEX idx_reviews_reviewer_moderation
     ON reviews (reviewer_id, moderation_status, created_at DESC, id);
 
--- Transactional outbox for users.review_submitted. The payload column holds
--- the complete ReviewSubmitted event as JSON; the relay publishes it after the
--- review row commits. Mirrors user_created_outbox (see 00007).
 CREATE TABLE review_submitted_outbox (
     event_id        UUID        PRIMARY KEY,
     review_id       UUID        NOT NULL,
@@ -40,8 +31,6 @@ CREATE INDEX idx_review_submitted_outbox_pending
     ON review_submitted_outbox (available_at, created_at, event_id)
     WHERE published_at IS NULL;
 
--- Dedup record for moderation.review_moderation_finished. One row per applied
--- or decided completion event, so at-least-once delivery cannot double-apply.
 CREATE TABLE review_moderation_processed_events (
     event_id     UUID        PRIMARY KEY,
     processed_at TIMESTAMPTZ NOT NULL DEFAULT now()

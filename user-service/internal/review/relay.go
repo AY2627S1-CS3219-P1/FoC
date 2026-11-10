@@ -1,5 +1,3 @@
-// The relay delivers committed review submissions to Kafka. It mirrors
-// internal/outbox's lease-claim loop; the review repository owns the SQL.
 package review
 
 import (
@@ -27,14 +25,11 @@ type OutboxRepository interface {
 	ScheduleSubmittedOutboxRetry(ctx context.Context, fact SubmittedFact, availableAt time.Time) error
 }
 
-// OutboxPublisher publishes a Protobuf message; *kafka.Publisher satisfies it.
 type OutboxPublisher interface {
 	Publish(ctx context.Context, topic string, key []byte, message proto.Message) error
 }
 
-// OutboxRelay publishes committed review submissions. A publish failure can
-// have an uncertain outcome, so the event ID stays stable and the row is
-// retried; consumers deduplicate on the event ID.
+// Ambiguous publication can redeliver; preserve the event ID for consumer deduplication.
 type OutboxRelay struct {
 	repository OutboxRepository
 	publisher  OutboxPublisher

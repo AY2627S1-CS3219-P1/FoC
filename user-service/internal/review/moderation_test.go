@@ -13,8 +13,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// fakeModerationStore records the consumer's persistence calls and lets a test
-// pin what the database returns at each step of the completion transaction.
 type fakeModerationStore struct {
 	duplicate    bool
 	processedErr error
@@ -259,7 +257,6 @@ func TestCompletionHandlerNoOps(t *testing.T) {
 		t.Run("identity mismatch from "+tc.name+" never applies", func(t *testing.T) {
 			event := finishedEvent(nil)
 			target := pendingTarget(event)
-			// The saved review keeps the original identity; the event diverges.
 			tc.mutate(event)
 			store := &fakeModerationStore{target: target}
 			handler := newTestCompletionHandler(store)

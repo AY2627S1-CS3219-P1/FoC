@@ -54,9 +54,7 @@ message SubmitReviewRequest {
   ReviewSubmission submission = 4 [(buf.validate.field).required = true];
 }
 
-// SubmitReview acknowledges a persisted pending review. Publication follows
-// only after asynchronous content moderation approves it; a successful
-// response never means the review is public.
+// Submission commits a pending review; success does not imply publication.
 message SubmitReviewResponse {
   string review_id = 1;
   reserved 2;
@@ -117,39 +115,25 @@ message ListReviewRemovalsResponse {
   pagination.v1.PageInfo pagination = 2;
 }
 
-// Moderation lifecycle of a review. Ordinary published reads and rating
-// aggregates include only APPROVED reviews; rejected and errored reviews stay
-// stored and visible to their author and authorised admins here.
+// Public reads and ratings include only APPROVED reviews.
 enum ModerationStatus {
   MODERATION_STATUS_UNSPECIFIED = 0;
-  // Committed but not yet assessed. Contributes nothing to published
-  // statistics.
   MODERATION_STATUS_PENDING_MODERATION = 1;
-  // Assessed and published.
   MODERATION_STATUS_APPROVED = 2;
-  // Assessed and rejected by the content policy; retained for its author.
   MODERATION_STATUS_REJECTED = 3;
-  // No valid content verdict was obtained; a technical outcome, never a
-  // content judgement.
+// Technical failure to assess, not a content verdict.
   MODERATION_STATUS_MODERATION_ERROR = 4;
 }
 
-// Lists the caller's (or an admin-selected reviewer's) reviews that are not
-// published: pending, rejected and moderation-error. Queried by author, not
-// reviewee — ListReviewsForUser's target semantics concern reviews received.
-// This endpoint never calls the content moderation service, so it works even
-// while moderation is unavailable.
+// Lists reviews by author, unlike ListReviewsForUser which lists reviews received.
+// Does not call CMS; remains available during moderation outages.
 message ListUnpublishedReviewsForUserRequest {
-  // The review author. Ordinary callers may request only their own id;
-  // admin/super-admin may select another reviewer. A suspended caller may
-  // inspect only their own. Enforced before any database lookup.
+  // Owner or admin only, checked before lookup. Suspended callers may inspect their own.
   string reviewer_id = 1 [(buf.validate.field).string.uuid = true];
   pagination.v1.Pagination pagination = 2;
-  // Optional filter. Only pending, rejected and moderation-error are valid
-  // here; approved reviews are never in this collection.
+  // Only pending, rejected and moderation-error filters are accepted.
   optional ModerationStatus moderation_status_filter = 3;
-  // Optional: recover a submission after an ambiguous response by the order
-  // the review was submitted for.
+  // Recover a submission after an ambiguous response.
   optional string order_id = 4 [(buf.validate.field).string.uuid = true];
 }
 
@@ -158,7 +142,6 @@ message ListUnpublishedReviewsForUserResponse {
   pagination.v1.PageInfo pagination = 2;
 }
 
-// A not-yet-published review with its moderation metadata.
 message UnpublishedReview {
   string id = 1;
   string reviewer_id = 2;
@@ -175,7 +158,6 @@ message UnpublishedReview {
   int32 content_revision = 12;
   // Known rejection reason codes when rejected; empty otherwise.
   repeated string moderation_reason_codes = 13;
-  // When the latest moderation result was applied, when present.
   optional google.protobuf.Timestamp moderated_at = 14;
   // Generation of the last result applied by User, for distinguishing newer CMS retries.
   int32 applied_run_generation = 15;

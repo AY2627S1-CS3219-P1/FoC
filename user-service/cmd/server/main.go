@@ -255,9 +255,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// reviewTransactions wires the review service's and moderation consumer's
-// transactional operations to the shared database/sql pool; every statement in
-// one operation commits or rolls back together.
 func reviewTransactions(sqlDB *sql.DB) review.WithTransaction {
 	return func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)

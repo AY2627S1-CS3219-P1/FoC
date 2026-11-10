@@ -22,18 +22,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Terminal result of a moderation job. UNSPECIFIED must never be applied: a
-// protobuf default or unknown outcome can never approve content.
+// UNSPECIFIED and unknown values must never be applied.
 type ModerationOutcomeType int32
 
 const (
 	ModerationOutcomeType_MODERATION_OUTCOME_TYPE_UNSPECIFIED ModerationOutcomeType = 0
-	// Content passed the policy. Requires empty reason_codes.
+	// Requires empty reason_codes.
 	ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED ModerationOutcomeType = 1
-	// Content violated the policy. Requires at least one reason code.
+	// Requires at least one reason code.
 	ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED ModerationOutcomeType = 2
-	// No valid content verdict was obtained after terminal failure; a technical
-	// outcome, never a content judgement.
+	// Technical failure to assess, not a content verdict.
 	ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR ModerationOutcomeType = 3
 )
 
@@ -80,38 +78,26 @@ func (ModerationOutcomeType) EnumDescriptor() ([]byte, []int) {
 	return file_moderation_events_v1_review_moderation_finished_proto_rawDescGZIP(), []int{0}
 }
 
-// Published by the content moderation service from its transactional outbox on
-// moderation.review_moderation_finished, keyed by review_id as UTF-8 text so
-// one review's completions stay in order. Delivery is at least once: User
-// Service deduplicates on event_id and ignores superseded run generations.
+// moderation.review_moderation_finished; keyed by review_id. At-least-once delivery.
 type ReviewModerationFinished struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Stable across outbox publication retries; consumers use this to
-	// deduplicate.
-	EventId string `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	// The moderation job that produced this event.
-	JobId string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Matches the submission's moderation_request_id.
+	// Stable across delivery retries; deduplicate by this ID.
+	EventId             string `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	JobId               string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	ModerationRequestId string `protobuf:"bytes,3,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	// event_id of the ReviewSubmitted event this job was created from.
 	SourceEventId string `protobuf:"bytes,4,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
 	ReviewId      string `protobuf:"bytes,5,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
 	// Copied from the submission; User re-checks it against the saved review.
-	ReviewerId string `protobuf:"bytes,6,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
-	// Copied from the submission.
-	ContentRevision int32 `protobuf:"varint,7,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
-	// Starts at 1 and increases only for an explicit retry of a terminal
-	// errored job. A completion with a lower generation than one already applied
-	// must be ignored, so an older ERROR cannot overwrite a later success.
+	ReviewerId      string `protobuf:"bytes,6,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	ContentRevision int32  `protobuf:"varint,7,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
+	// Starts at 1; increments on explicit retry of a terminal error. Ignore older generations.
 	RunGeneration int32 `protobuf:"varint,8,opt,name=run_generation,json=runGeneration,proto3" json:"run_generation,omitempty"`
-	// Code-owned policy/schema version that produced the verdict, e.g.
-	// "review-text-v1".
+	// Historical rubric/schema version; does not select runtime settings.
 	PolicyVersion string                `protobuf:"bytes,9,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
 	Outcome       ModerationOutcomeType `protobuf:"varint,11,opt,name=outcome,proto3,enum=moderation.events.v1.ModerationOutcomeType" json:"outcome,omitempty"`
-	// Known rejection reason codes; non-empty only when outcome is REJECTED.
-	// ERROR never carries content-violation reasons.
-	ReasonCodes []string `protobuf:"bytes,12,rep,name=reason_codes,json=reasonCodes,proto3" json:"reason_codes,omitempty"`
-	// When the terminal transition committed.
+	// Required for REJECTED; empty for APPROVED and ERROR.
+	ReasonCodes   []string               `protobuf:"bytes,12,rep,name=reason_codes,json=reasonCodes,proto3" json:"reason_codes,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

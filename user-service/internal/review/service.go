@@ -27,11 +27,8 @@ func NewService(repo Repository, withTransaction WithTransaction) *Service {
 	return &Service{repo: repo, withTransaction: withTransaction}
 }
 
-// SubmitReview inserts the pending review, queues its ReviewSubmitted event in
-// the outbox and recomputes the reviewee's stats in the same transaction, so
-// the review, its moderation request and the stats are current when it returns.
-// The reviewee's stats only count approved reviews, so a pending submission
-// contributes nothing until moderation approves it.
+// SubmitReview commits the pending review and submission outbox atomically.
+// Pending reviews contribute nothing to ratings.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
@@ -164,8 +161,6 @@ func (s *Service) ListReviewsFromUser(
 	return ReviewPage{Reviews: reviews, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
-// ListUnpublishedReviewsForUser lists the reviewer's pending, rejected and
-// moderation-error reviews with aligned page totals.
 func (s *Service) ListUnpublishedReviewsForUser(
 	ctx context.Context,
 	reviewerID uuid.UUID,

@@ -1,8 +1,4 @@
-// Applies review moderation completions from the content moderation service.
-// Consumption is at least once, so every decision is made in one transaction:
-// record the event, lock and read the review, verify the submission identity
-// and apply the verdict. Anything that does not apply returns success so the
-// offset is committed; only transient database failures return an error.
+// Invalid or stale completions are acknowledged; database failures return errors for redelivery.
 package review
 
 import (
@@ -18,11 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// ModerationFinishedTopic carries moderation jobs' terminal results, keyed by
-// the review UUID as UTF-8 text.
+// Keyed by review UUID as UTF-8 text.
 const ModerationFinishedTopic = "moderation.review_moderation_finished"
 
-// CompletionHandler applies moderation outcomes to the saved reviews.
 type CompletionHandler struct {
 	store           ModerationStore
 	withTransaction WithTransaction
@@ -33,10 +27,7 @@ func NewCompletionHandler(store ModerationStore, withTransaction WithTransaction
 	return &CompletionHandler{store: store, withTransaction: withTransaction, now: time.Now}
 }
 
-// Handle applies one ReviewModerationFinished event. An invalid outcome or an
-// outcome that no longer matches the saved review is acknowledged without
-// applying anything; a database failure returns an error so the offset stays
-// uncommitted and the delivery is retried.
+// Handle acknowledges invalid or stale events and retries database failures.
 func (h *CompletionHandler) Handle(
 	ctx context.Context,
 	meta kafka.Metadata,
@@ -85,7 +76,6 @@ func (h *CompletionHandler) Handle(
 	return nil
 }
 
-// apply runs the transaction body and reports whether the verdict was applied.
 func (h *CompletionHandler) apply(
 	ctx context.Context,
 	log *slog.Logger,
@@ -105,9 +95,7 @@ func (h *CompletionHandler) apply(
 	if err := h.store.LockReviewForModeration(ctx, q, reviewID); err != nil {
 		return false, fmt.Errorf("lock review for moderation: %w", err)
 	}
-	// Read the review in a separate statement after the lock: a locking query
-	// must not also read the row's state (LANDMINES), and a concurrent
-	// soft-delete that commits while the lock is waited on must be visible.
+	// Read after locking so a soft-delete committed during the wait is visible.
 	target, err := h.store.GetReviewForModeration(ctx, q, reviewID)
 	if err != nil {
 		if errors.Is(err, errReviewNotFound) {
@@ -140,7 +128,6 @@ func (h *CompletionHandler) apply(
 		)
 		return false, nil
 	}
-	// Replays and superseded generations never replace a newer applied result.
 	// A technical error can advance only through a later explicit retry.
 	if completion.RunGeneration <= target.AppliedRunGeneration {
 		log.InfoContext(ctx, "moderation completion is superseded; acknowledged without applying",
@@ -151,20 +138,14 @@ func (h *CompletionHandler) apply(
 	if err := h.store.ApplyModerationOutcome(ctx, q, reviewID, completion); err != nil {
 		return false, fmt.Errorf("apply moderation outcome: %w", err)
 	}
-	// Eligibility changed: the review now counts towards the reviewee's
-	// published statistics (approval), or keeps not counting (rejection,
-	// error); the recalculation converges both cases.
+	// Recompute for every outcome so approval and removal races converge.
 	if err := h.store.RecalculateStats(ctx, q, target.RevieweeID); err != nil {
 		return false, fmt.Errorf("recalculate reviewee statistics: %w", err)
 	}
 	return true, nil
 }
 
-// moderationCompletionFromEvent validates the event's outcome and reason-code
-// pairing: approval and errors carry no reason codes, rejections carry at
-// least one. It returns false for anything that must never be applied,
-// including the UNSPECIFIED protobuf default — a default can never approve
-// content.
+// Reject unknown outcomes and invalid outcome/reason-code pairings before deduplication.
 func moderationCompletionFromEvent(
 	event *moderationeventsv1.ReviewModerationFinished,
 	now time.Time,

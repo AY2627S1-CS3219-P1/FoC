@@ -4,29 +4,18 @@ package users.events.v1;
 
 import "google/protobuf/timestamp.proto";
 
-// ReviewSubmitted announces a committed pending review on
-// users.review_submitted. User Service publishes it from its transactional
-// outbox after the pending review row commits, keyed by review_id as UTF-8
-// text so one review's events stay in order. Delivery is at least once: the
-// content moderation service deduplicates on event_id and creates at most one
-// assessment job per moderation_request_id. The comment is the complete
-// immutable snapshot; it is assessed in one request without truncation.
+// users.review_submitted; keyed by review_id. Publish after committing the review.
+// At-least-once delivery; CMS creates one job per moderation_request_id.
 message ReviewSubmitted {
-  // Stable across outbox publication retries; consumers use this to
-  // deduplicate.
+// Stable across delivery retries.
   string event_id = 1;
-  // Stable identity of this content-assessment request. Exactly one durable
-  // moderation job exists per value; retries of the same submission reuse it.
+// Reused on redelivery; identifies one durable assessment job.
   string moderation_request_id = 2;
   string review_id = 3;
-  // The authenticated author, taken from User's saved review row, never from
-  // an arbitrary client-supplied field.
+// Taken from the authenticated author, not client input.
   string reviewer_id = 4;
-  // Positive; initially 1. A future edit/resubmission feature would increment
-  // it. Consumers treat 0 as invalid.
+// Positive; initially 1.
   int32 content_revision = 5;
-  // The complete immutable review comment.
   string comment = 6;
-  // When the review was submitted and committed.
   google.protobuf.Timestamp occurred_at = 7;
 }

@@ -7,22 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// Repository is the review persistence surface. Transactional write operations
-// take the review queries bound to the active transaction so every statement
-// they run commits or rolls back with the caller's transaction. Reads and the
-// outbox relay use the repository's own connection.
+// Transactional methods use q; list reads and the relay use the repository connection.
 type Repository interface {
-	// CheckReviewParticipants verifies both users exist within the caller's
-	// transaction, so the checks and the insert see one consistent snapshot.
 	CheckReviewParticipants(
 		ctx context.Context,
 		q *reviewdb.Queries,
 		reviewerID, revieweeID uuid.UUID,
 	) (ReviewParticipantExistence, error)
-	// InsertReview stores the pending review and returns its persisted state.
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) (InsertedReview, error)
-	// AppendSubmittedOutbox queues the ReviewSubmitted event in the same
-	// transaction as the review row.
 	AppendSubmittedOutbox(ctx context.Context, q *reviewdb.Queries, row SubmittedOutboxRow) error
 	// SoftDeleteReview removes a live review and returns its data for the removal
 	// audit. The row remains so the audit can reference it.
@@ -44,12 +36,8 @@ type Repository interface {
 	CountReviewRemovals(ctx context.Context) (int64, error)
 }
 
-// ModerationStore is the completion consumer's persistence surface. Every
-// method runs within the consumer's transaction (q), so the dedup record, the
-// outcome and the stats recalculation commit or roll back together.
+// Deduplication, verdict and statistics share the consumer transaction.
 type ModerationStore interface {
-	// RecordModerationProcessedEvent inserts the dedup record; zero rows means
-	// the event was already processed.
 	RecordModerationProcessedEvent(ctx context.Context, q *reviewdb.Queries, eventID uuid.UUID) (int64, error)
 	// LockReviewForModeration locks the review row; GetReviewForModeration must
 	// be called afterwards in a separate statement (see LANDMINES).

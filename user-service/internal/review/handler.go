@@ -36,8 +36,6 @@ type Handler struct {
 	Logic Logic
 }
 
-// SubmitReview records the caller's pending review of the other participant;
-// `from` must be the caller so impersonation is rejected.
 func (h *Handler) SubmitReview(
 	ctx context.Context,
 	req *connect.Request[reviewv1.SubmitReviewRequest],
@@ -124,9 +122,6 @@ func (h *Handler) ListMyReviews(
 	return connect.NewResponse(toListMyReviewsResponse(pageResult)), nil
 }
 
-// ListUnpublishedReviewsForUser lists the reviewer's pending, rejected and
-// moderation-error reviews. Authorization runs before any lookup: ordinary and
-// suspended callers may only inspect their own reviews, admins any reviewer.
 func (h *Handler) ListUnpublishedReviewsForUser(
 	ctx context.Context,
 	req *connect.Request[reviewv1.ListUnpublishedReviewsForUserRequest],
@@ -202,9 +197,7 @@ func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	return requireOwnIdentity(c, userID, "suspended users may only list their own reviews")
 }
 
-// authorizeUnpublishedReviews is the ABAC rule for the unpublished list:
-// administrators may select any reviewer; everyone else, including suspended
-// callers, may only inspect their own.
+// Suspended callers may inspect their own unpublished reviews; admins may inspect any reviewer.
 func authorizeUnpublishedReviews(c userdto.Caller, reviewerID uuid.UUID) error {
 	if c.Admin && !c.IsSuspended() {
 		return nil

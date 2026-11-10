@@ -1,15 +1,10 @@
--- Transactional outbox for users.review_submitted and the review moderation
--- completion path. Submission inserts an outbox row in the review's own
--- transaction; the relay claims one row at a time with a lease. Completion
--- events are deduplicated and applied in one transaction.
+-- Submission outbox writes share the review transaction; completion dedup and verdicts commit together.
 
 -- name: InsertReviewSubmittedOutbox :exec
 INSERT INTO review_submitted_outbox (event_id, review_id, payload_version, payload)
 VALUES (@event_id::UUID, @review_id::UUID, @payload_version, @payload::jsonb);
 
--- Claim the oldest publishable row and take a lease on it. SKIP LOCKED keeps
--- concurrent relays from racing on the same row; the claimed row's lease
--- expires when the relay dies before acknowledging publication.
+-- The lease permits recovery if a relay dies before acknowledging publication.
 -- name: ClaimReviewSubmittedOutbox :one
 WITH candidate AS (
     SELECT event_id
@@ -59,13 +54,11 @@ SELECT id, deleted_at, reviewer_id, reviewee_id, moderation_status, content_revi
 FROM reviews
 WHERE id = @review_id::UUID;
 
--- Applies a completion's verdict. Never touches deleted_at; removal stays with
--- SoftDeleteReview. Rows superseded by a newer generation are filtered in the
--- handler before this statement runs.
+-- Never clears deleted_at; approval cannot undo administrative removal.
 -- name: ApplyReviewModerationOutcome :exec
 UPDATE reviews
 SET moderation_status = @moderation_status,
-    reason_codes = @reason_codes::jsonb,
+    reason_codes = @reason_codes::text[],
     applied_run_generation = @applied_run_generation,
     policy_version = @policy_version,
     moderated_at = @moderated_at

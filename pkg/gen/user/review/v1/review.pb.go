@@ -28,22 +28,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Moderation lifecycle of a review. Ordinary published reads and rating
-// aggregates include only APPROVED reviews; rejected and errored reviews stay
-// stored and visible to their author and authorised admins here.
+// Public reads and ratings include only APPROVED reviews.
 type ModerationStatus int32
 
 const (
-	ModerationStatus_MODERATION_STATUS_UNSPECIFIED ModerationStatus = 0
-	// Committed but not yet assessed. Contributes nothing to published
-	// statistics.
+	ModerationStatus_MODERATION_STATUS_UNSPECIFIED        ModerationStatus = 0
 	ModerationStatus_MODERATION_STATUS_PENDING_MODERATION ModerationStatus = 1
-	// Assessed and published.
-	ModerationStatus_MODERATION_STATUS_APPROVED ModerationStatus = 2
-	// Assessed and rejected by the content policy; retained for its author.
-	ModerationStatus_MODERATION_STATUS_REJECTED ModerationStatus = 3
-	// No valid content verdict was obtained; a technical outcome, never a
-	// content judgement.
+	ModerationStatus_MODERATION_STATUS_APPROVED           ModerationStatus = 2
+	ModerationStatus_MODERATION_STATUS_REJECTED           ModerationStatus = 3
+	// Technical failure to assess, not a content verdict.
 	ModerationStatus_MODERATION_STATUS_MODERATION_ERROR ModerationStatus = 4
 )
 
@@ -326,9 +319,7 @@ func (x *SubmitReviewRequest) GetSubmission() *ReviewSubmission {
 	return nil
 }
 
-// SubmitReview acknowledges a persisted pending review. Publication follows
-// only after asynchronous content moderation approves it; a successful
-// response never means the review is public.
+// Submission commits a pending review; success does not imply publication.
 type SubmitReviewResponse struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ReviewId string                 `protobuf:"bytes,1,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
@@ -869,23 +860,16 @@ func (x *ListReviewRemovalsResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
-// Lists the caller's (or an admin-selected reviewer's) reviews that are not
-// published: pending, rejected and moderation-error. Queried by author, not
-// reviewee — ListReviewsForUser's target semantics concern reviews received.
-// This endpoint never calls the content moderation service, so it works even
-// while moderation is unavailable.
+// Lists reviews by author, unlike ListReviewsForUser which lists reviews received.
+// Does not call CMS; remains available during moderation outages.
 type ListUnpublishedReviewsForUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The review author. Ordinary callers may request only their own id;
-	// admin/super-admin may select another reviewer. A suspended caller may
-	// inspect only their own. Enforced before any database lookup.
+	// Owner or admin only, checked before lookup. Suspended callers may inspect their own.
 	ReviewerId string         `protobuf:"bytes,1,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
 	Pagination *v1.Pagination `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
-	// Optional filter. Only pending, rejected and moderation-error are valid
-	// here; approved reviews are never in this collection.
+	// Only pending, rejected and moderation-error filters are accepted.
 	ModerationStatusFilter *ModerationStatus `protobuf:"varint,3,opt,name=moderation_status_filter,json=moderationStatusFilter,proto3,enum=user.review.v1.ModerationStatus,oneof" json:"moderation_status_filter,omitempty"`
-	// Optional: recover a submission after an ambiguous response by the order
-	// the review was submitted for.
+	// Recover a submission after an ambiguous response.
 	OrderId       *string `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3,oneof" json:"order_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1001,7 +985,6 @@ func (x *ListUnpublishedReviewsForUserResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
-// A not-yet-published review with its moderation metadata.
 type UnpublishedReview struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1018,9 +1001,8 @@ type UnpublishedReview struct {
 	ModerationRequestId string `protobuf:"bytes,11,opt,name=moderation_request_id,json=moderationRequestId,proto3" json:"moderation_request_id,omitempty"`
 	ContentRevision     int32  `protobuf:"varint,12,opt,name=content_revision,json=contentRevision,proto3" json:"content_revision,omitempty"`
 	// Known rejection reason codes when rejected; empty otherwise.
-	ModerationReasonCodes []string `protobuf:"bytes,13,rep,name=moderation_reason_codes,json=moderationReasonCodes,proto3" json:"moderation_reason_codes,omitempty"`
-	// When the latest moderation result was applied, when present.
-	ModeratedAt *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=moderated_at,json=moderatedAt,proto3,oneof" json:"moderated_at,omitempty"`
+	ModerationReasonCodes []string               `protobuf:"bytes,13,rep,name=moderation_reason_codes,json=moderationReasonCodes,proto3" json:"moderation_reason_codes,omitempty"`
+	ModeratedAt           *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=moderated_at,json=moderatedAt,proto3,oneof" json:"moderated_at,omitempty"`
 	// Generation of the last result applied by User, for distinguishing newer CMS retries.
 	AppliedRunGeneration int32 `protobuf:"varint,15,opt,name=applied_run_generation,json=appliedRunGeneration,proto3" json:"applied_run_generation,omitempty"`
 	unknownFields        protoimpl.UnknownFields

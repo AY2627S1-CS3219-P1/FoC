@@ -6,8 +6,6 @@ SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewee_id::UUID
        ) AS reviewee_exists;
 
--- New submissions always enter moderation as pending with content revision 1;
--- the generated moderation_request_id identifies the assessment request.
 -- name: InsertReview :one
 INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at,
                      moderation_status, content_revision, moderation_request_id)
@@ -28,8 +26,6 @@ RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, c
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
 
--- Only approved reviews are published. Pending, rejected and moderation-error
--- reviews stay invisible to the reviewee until an approved completion lands.
 -- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,
@@ -62,9 +58,6 @@ SELECT COUNT(*)
 FROM reviews
 WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
 
--- The author's own view of their not-yet-published reviews: pending, rejected
--- and moderation-error. Optional single-status and order filters; approved
--- reviews are never in this collection.
 -- name: ListUnpublishedReviewsForUser :many
 SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,

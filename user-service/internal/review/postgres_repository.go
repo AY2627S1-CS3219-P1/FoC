@@ -311,11 +311,11 @@ func (r *PostgresRepository) ApplyModerationOutcome(
 	reviewID uuid.UUID,
 	completion ModerationCompletion,
 ) error {
-	codes, err := submittedReasonCodesJSON(completion.ReasonCodes)
-	if err != nil {
-		return err
+	codes := completion.ReasonCodes
+	if codes == nil {
+		codes = []string{}
 	}
-	err = q.ApplyReviewModerationOutcome(ctx, reviewdb.ApplyReviewModerationOutcomeParams{
+	err := q.ApplyReviewModerationOutcome(ctx, reviewdb.ApplyReviewModerationOutcomeParams{
 		ModerationStatus:     string(completion.Status),
 		ReasonCodes:          codes,
 		AppliedRunGeneration: completion.RunGeneration,
@@ -457,10 +457,6 @@ func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (Unpubli
 	if err != nil {
 		return UnpublishedReview{}, err
 	}
-	codes, err := submittedReasonCodes(row.ReasonCodes)
-	if err != nil {
-		return UnpublishedReview{}, err
-	}
 	return UnpublishedReview{
 		ID:                    row.ID,
 		ReviewerID:            row.ReviewerID,
@@ -474,7 +470,7 @@ func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (Unpubli
 		ModerationStatus:      status,
 		ModerationRequestID:   row.ModerationRequestID.UUID,
 		ContentRevision:       int(row.ContentRevision),
-		ModerationReasonCodes: codes,
+		ModerationReasonCodes: row.ReasonCodes,
 		AppliedRunGeneration:  row.AppliedRunGeneration,
 		ModeratedAt:           row.ModeratedAt.Time,
 	}, nil

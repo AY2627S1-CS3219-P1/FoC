@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const applyReviewModerationOutcome = `-- name: ApplyReviewModerationOutcome :exec
 UPDATE reviews
 SET moderation_status = $1,
-    reason_codes = $2::jsonb,
+    reason_codes = $2::text[],
     applied_run_generation = $3,
     policy_version = $4,
     moderated_at = $5
@@ -26,20 +27,18 @@ WHERE id = $6::UUID
 
 type ApplyReviewModerationOutcomeParams struct {
 	ModerationStatus     string
-	ReasonCodes          json.RawMessage
+	ReasonCodes          []string
 	AppliedRunGeneration int32
 	PolicyVersion        sql.NullString
 	ModeratedAt          sql.NullTime
 	ReviewID             uuid.UUID
 }
 
-// Applies a completion's verdict. Never touches deleted_at; removal stays with
-// SoftDeleteReview. Rows superseded by a newer generation are filtered in the
-// handler before this statement runs.
+// Never clears deleted_at; approval cannot undo administrative removal.
 func (q *Queries) ApplyReviewModerationOutcome(ctx context.Context, arg ApplyReviewModerationOutcomeParams) error {
 	_, err := q.db.ExecContext(ctx, applyReviewModerationOutcome,
 		arg.ModerationStatus,
-		arg.ReasonCodes,
+		pq.Array(arg.ReasonCodes),
 		arg.AppliedRunGeneration,
 		arg.PolicyVersion,
 		arg.ModeratedAt,
@@ -80,9 +79,7 @@ type ClaimReviewSubmittedOutboxRow struct {
 	LeaseToken     uuid.NullUUID
 }
 
-// Claim the oldest publishable row and take a lease on it. SKIP LOCKED keeps
-// concurrent relays from racing on the same row; the claimed row's lease
-// expires when the relay dies before acknowledging publication.
+// The lease permits recovery if a relay dies before acknowledging publication.
 func (q *Queries) ClaimReviewSubmittedOutbox(ctx context.Context, arg ClaimReviewSubmittedOutboxParams) (ClaimReviewSubmittedOutboxRow, error) {
 	row := q.db.QueryRowContext(ctx, claimReviewSubmittedOutbox, arg.LeaseToken, arg.LeaseUntil, arg.EligibleAt)
 	var i ClaimReviewSubmittedOutboxRow
@@ -143,10 +140,7 @@ type InsertReviewSubmittedOutboxParams struct {
 	Payload        json.RawMessage
 }
 
-// Transactional outbox for users.review_submitted and the review moderation
-// completion path. Submission inserts an outbox row in the review's own
-// transaction; the relay claims one row at a time with a lease. Completion
-// events are deduplicated and applied in one transaction.
+// Submission outbox writes share the review transaction; completion dedup and verdicts commit together.
 func (q *Queries) InsertReviewSubmittedOutbox(ctx context.Context, arg InsertReviewSubmittedOutboxParams) error {
 	_, err := q.db.ExecContext(ctx, insertReviewSubmittedOutbox,
 		arg.EventID,

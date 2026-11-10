@@ -11,11 +11,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// moderationIntegrationStack bundles what completion tests need: the service,
-// the completion handler and raw database access.
 type moderationIntegrationStack struct {
 	service     *Service
 	completions *CompletionHandler
@@ -44,7 +43,6 @@ func openModerationStack(t *testing.T) moderationIntegrationStack {
 	return moderationIntegrationStack{service: service, completions: completions, sqlDB: sqlDB}
 }
 
-// submitReview submits a review and returns the review and order ids.
 func submitReview(
 	t *testing.T,
 	ctx context.Context,
@@ -61,8 +59,6 @@ func submitReview(
 	return reviewRowID(t, ctx, stack.sqlDB, orderID), orderID
 }
 
-// reviewModerationState reads a review's status, reason codes and applied
-// generation directly from the database.
 func reviewModerationState(
 	t *testing.T,
 	ctx context.Context,
@@ -71,18 +67,14 @@ func reviewModerationState(
 ) (string, []string, int32) {
 	t.Helper()
 	var status string
-	var codes []byte
+	var codes []string
 	var generation int32
 	if err := stack.sqlDB.QueryRowContext(ctx,
 		"SELECT moderation_status, reason_codes, applied_run_generation FROM reviews WHERE id = $1", reviewID,
-	).Scan(&status, &codes, &generation); err != nil {
+	).Scan(&status, pq.Array(&codes), &generation); err != nil {
 		t.Fatalf("read review %v: %v", reviewID, err)
 	}
-	parsed, err := submittedReasonCodes(codes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return status, parsed, generation
+	return status, codes, generation
 }
 
 func processedEventCount(t *testing.T, ctx context.Context, stack moderationIntegrationStack) int64 {
@@ -117,7 +109,6 @@ func completionEvent(
 	}
 }
 
-// applyCompletion sends one completion event through the handler.
 func applyCompletion(
 	t *testing.T,
 	ctx context.Context,
@@ -145,7 +136,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 	stack := openModerationStack(t)
 	ctx := context.Background()
 
-	// reviewCompletionRequest bundles the identifiers a completion event needs.
 	type reviewCompletionRequest struct {
 		reviewID   uuid.UUID
 		reviewerID uuid.UUID
@@ -198,7 +188,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 			t.Fatalf("pending review visible in the author's given list: %+v", given.Reviews)
 		}
 
-		// The recalculation only counts the historical review.
 		recalcNow(t, ctx, stack.sqlDB, reviewee)
 		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || avg != 5 {
 			t.Fatalf("stats = (%d, %v), want (1, 5)", count, avg)
@@ -234,7 +223,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 		}
 		before := processedEventCount(t, ctx, stack)
 
-		// Redelivery of the same event is deduplicated.
 		if err := applyCompletion(t, ctx, stack, event); err != nil {
 			t.Fatalf("replayed event must be acknowledged: %v", err)
 		}
@@ -274,7 +262,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 			t.Fatalf("error state = (%q, %v)", status, codes)
 		}
 
-		// Neither review is published to the reviewee or counted in stats.
 		received, err := stack.service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatal(err)
@@ -286,7 +273,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 			t.Fatalf("stats = (%d, %v), want (0, 0)", count, avg)
 		}
 
-		// The author still sees both with their statuses and reason codes.
 		list, err := stack.service.ListUnpublishedReviewsForUser(
 			ctx, reviewer1, UnpublishedFilter{}, mustPage(t, 1, 20))
 		if err != nil {
@@ -352,8 +338,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 		if status != string(ModerationPending) {
 			t.Fatalf("mismatched completion applied: %q", status)
 		}
-		// The event was processed and decided: it is recorded so a redelivery
-		// short-circuits.
 		if after := processedEventCount(t, ctx, stack); after != before+1 {
 			t.Fatalf("mismatched completion not recorded: %d -> %d", before, after)
 		}
@@ -390,7 +374,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 			}
 		}
 
-		// An explicit retry moves the verdict forward.
 		retried := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
 			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, 2)
 		if err := applyCompletion(t, ctx, stack, retried); err != nil {
@@ -486,7 +469,6 @@ func TestReviewModerationIntegration(t *testing.T) {
 		if unpublished.TotalItems() != 3 {
 			t.Fatalf("total = %d, want the three unpublished reviews", unpublished.TotalItems())
 		}
-		// Newest first; the approved review is never in the collection.
 		if len(unpublished.Reviews) != 3 || unpublished.Reviews[0].ID != erroredReview {
 			t.Fatalf("unexpected order: %+v", unpublished.Reviews)
 		}
@@ -518,15 +500,12 @@ func TestReviewModerationIntegration(t *testing.T) {
 		if paged.TotalItems() != 3 || len(paged.Reviews) != 1 || paged.Reviews[0].ID != pendingReview {
 			t.Fatalf("second page = total %d reviews %+v", paged.TotalItems(), paged.Reviews)
 		}
-		// The list joins both participants' display names.
 		if paged.Reviews[0].ReviewerName == "" || paged.Reviews[0].RevieweeName == "" {
 			t.Fatalf("display names not joined: %+v", paged.Reviews[0])
 		}
 	})
 }
 
-// recalcNow runs the approved-only statistics recalculation in its own
-// transaction, as the service would.
 func recalcNow(t *testing.T, ctx context.Context, sqlDB *sql.DB, revieweeID uuid.UUID) {
 	t.Helper()
 	repo := NewPostgresRepository(reviewdb.New(sqlDB))

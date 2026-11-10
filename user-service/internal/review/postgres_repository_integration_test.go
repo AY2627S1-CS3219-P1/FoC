@@ -22,12 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// buildReviewService wires the review repository against a real database. Reads
-// run against the shared pool; the transactional writes run on a database/sql
-// transaction with the sqlc queries bound to it, so every insert, audit row and
-// recalculation commits or rolls back together. The completion handler shares
-// the transaction factory, so tests publish reviews through the same code path
-// production uses.
+// Use the production completion path to publish fixtures and update ratings.
 func buildReviewService(t *testing.T, sqlDB *sql.DB) (*Service, *CompletionHandler) {
 	t.Helper()
 	repo := NewPostgresRepository(reviewdb.New(sqlDB))
@@ -76,7 +71,6 @@ func mustPage(t *testing.T, page, size int64) pagination.Pagination {
 	return p
 }
 
-// reviewRowID returns the id of the (single) review submitted for an order.
 func reviewRowID(t *testing.T, ctx context.Context, sqlDB *sql.DB, orderID uuid.UUID) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
@@ -86,8 +80,6 @@ func reviewRowID(t *testing.T, ctx context.Context, sqlDB *sql.DB, orderID uuid.
 	return id
 }
 
-// approveReview publishes a review through the moderation completion path, as
-// the content moderation service would.
 func approveReview(
 	t *testing.T,
 	ctx context.Context,
@@ -177,7 +169,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("submit first review: %v", err)
 		}
-		// A pending review contributes nothing to the published statistics.
 		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 0 || avg != 0 {
 			t.Fatalf("pending review changed stats: count=%d avg=%v, want 0 and 0", c, avg)
 		}
@@ -209,7 +200,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("submit second review: %v", err)
 		}
-		// The pending second review is invisible to the reviewee and to stats.
 		received, err := service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
 		if err != nil {
 			t.Fatalf("list received: %v", err)
@@ -390,7 +380,6 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		// The test publishes the row directly so the aggregate counts it.
 		if err := repo.ApplyModerationOutcome(ctx, qA, reviewA, ModerationCompletion{
 			Status:        ModerationApproved,
 			RunGeneration: 1,

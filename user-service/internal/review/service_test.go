@@ -16,9 +16,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// fakeRepository is a record-keeping Repository that lets a test pin the
-// outcomes each persistence call returns. Transactional methods accept the
-// bound queries but never touch them.
 type fakeRepository struct {
 	exists map[uuid.UUID]bool
 

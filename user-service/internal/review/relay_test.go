@@ -12,9 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// fakeOutboxRepository is a single-row outbox whose claim/lease lifecycle
-// mirrors the SQL: a claimed row holds its lease until it is published,
-// rescheduled, or the lease expires.
+// Emulates claim expiry so retry tests exercise the relay lease lifecycle.
 type fakeOutboxRepository struct {
 	fact        SubmittedFact
 	availableAt time.Time

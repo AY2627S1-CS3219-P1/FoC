@@ -29,8 +29,7 @@ type Review struct {
 	DeletedAt    time.Time
 }
 
-// ModerationStatus is a review's publication status. Only approved reviews are
-// published to the reviewee; historical rows were grandfathered as approved.
+// Public reads and ratings include only approved reviews.
 type ModerationStatus string
 
 const (
@@ -40,8 +39,6 @@ const (
 	ModerationError    ModerationStatus = "moderation_error"
 )
 
-// parseModerationStatus converts a stored status string, rejecting values the
-// column constraint should never have allowed.
 func parseModerationStatus(value string) (ModerationStatus, error) {
 	switch status := ModerationStatus(value); status {
 	case ModerationPending, ModerationApproved, ModerationRejected, ModerationError:
@@ -51,8 +48,6 @@ func parseModerationStatus(value string) (ModerationStatus, error) {
 	}
 }
 
-// UnpublishedReview is the author's view of a review that has not been
-// published yet: pending moderation, rejected, or a moderation error.
 type UnpublishedReview struct {
 	ID                    uuid.UUID
 	ReviewerID            uuid.UUID
@@ -87,14 +82,11 @@ type InsertedReview struct {
 	ContentRevision  int
 }
 
-// UnpublishedFilter narrows the unpublished list. Nil fields mean no filter.
 type UnpublishedFilter struct {
 	Status  *ModerationStatus
 	OrderID *uuid.UUID
 }
 
-// ModerationTarget is the review state the completion handler reads after
-// locking the row.
 type ModerationTarget struct {
 	ID                   uuid.UUID
 	ReviewerID           uuid.UUID
@@ -106,16 +98,11 @@ type ModerationTarget struct {
 	Deleted              bool
 }
 
-// ModerationCompletion is a validated completion event: the submission identity
-// copied from the event, and the verdict to apply to the matching review.
 type ModerationCompletion struct {
-	// Identity from the submission; the handler checks it against the saved
-	// review before applying anything.
 	ReviewerID          uuid.UUID
 	ModerationRequestID uuid.UUID
 	ContentRevision     int
 
-	// The verdict. Status is one of approved, rejected, moderation_error.
 	Status        ModerationStatus
 	RunGeneration int32
 	PolicyVersion string
@@ -167,8 +154,6 @@ type ReviewInput struct {
 	ModerationRequestID uuid.UUID
 }
 
-// SubmittedOutboxRow is the outbox row appended with the review: the complete
-// ReviewSubmitted payload, published by the relay after the commit.
 type SubmittedOutboxRow struct {
 	EventID        uuid.UUID
 	ReviewID       uuid.UUID
@@ -176,8 +161,6 @@ type SubmittedOutboxRow struct {
 	Payload        []byte
 }
 
-// SubmittedFact is a claimed outbox row: the payload plus the review id used as
-// the Kafka key and the lease token guarding publication.
 type SubmittedFact struct {
 	EventID        uuid.UUID
 	ReviewID       uuid.UUID

@@ -4,51 +4,37 @@ package moderation.events.v1;
 
 import "google/protobuf/timestamp.proto";
 
-// Published by the content moderation service from its transactional outbox on
-// moderation.review_moderation_finished, keyed by review_id as UTF-8 text so
-// one review's completions stay in order. Delivery is at least once: User
-// Service deduplicates on event_id and ignores superseded run generations.
+// moderation.review_moderation_finished; keyed by review_id. At-least-once delivery.
 message ReviewModerationFinished {
-  // Stable across outbox publication retries; consumers use this to
-  // deduplicate.
+// Stable across delivery retries; deduplicate by this ID.
   string event_id = 1;
-  // The moderation job that produced this event.
   string job_id = 2;
-  // Matches the submission's moderation_request_id.
   string moderation_request_id = 3;
   // event_id of the ReviewSubmitted event this job was created from.
   string source_event_id = 4;
   string review_id = 5;
   // Copied from the submission; User re-checks it against the saved review.
   string reviewer_id = 6;
-  // Copied from the submission.
   int32 content_revision = 7;
-  // Starts at 1 and increases only for an explicit retry of a terminal
-  // errored job. A completion with a lower generation than one already applied
-  // must be ignored, so an older ERROR cannot overwrite a later success.
+// Starts at 1; increments on explicit retry of a terminal error. Ignore older generations.
   int32 run_generation = 8;
-  // Code-owned policy/schema version that produced the verdict, e.g.
-  // "review-text-v1".
+// Historical rubric/schema version; does not select runtime settings.
   string policy_version = 9;
   reserved 10;
   reserved "config_version_id";
   ModerationOutcomeType outcome = 11;
-  // Known rejection reason codes; non-empty only when outcome is REJECTED.
-  // ERROR never carries content-violation reasons.
+// Required for REJECTED; empty for APPROVED and ERROR.
   repeated string reason_codes = 12;
-  // When the terminal transition committed.
   google.protobuf.Timestamp finished_at = 13;
 }
 
-// Terminal result of a moderation job. UNSPECIFIED must never be applied: a
-// protobuf default or unknown outcome can never approve content.
+// UNSPECIFIED and unknown values must never be applied.
 enum ModerationOutcomeType {
   MODERATION_OUTCOME_TYPE_UNSPECIFIED = 0;
-  // Content passed the policy. Requires empty reason_codes.
+// Requires empty reason_codes.
   MODERATION_OUTCOME_TYPE_APPROVED = 1;
-  // Content violated the policy. Requires at least one reason code.
+// Requires at least one reason code.
   MODERATION_OUTCOME_TYPE_REJECTED = 2;
-  // No valid content verdict was obtained after terminal failure; a technical
-  // outcome, never a content judgement.
+// Technical failure to assess, not a content verdict.
   MODERATION_OUTCOME_TYPE_ERROR = 3;
 }

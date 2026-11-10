@@ -8,10 +8,10 @@ package reviewdb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const countReviewRemovals = `-- name: CountReviewRemovals :one
@@ -102,8 +102,6 @@ type InsertReviewRow struct {
 	ModerationRequestID uuid.NullUUID
 }
 
-// New submissions always enter moderation as pending with content revision 1;
-// the generated moderation_request_id identifies the assessment request.
 func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) (InsertReviewRow, error) {
 	row := q.db.QueryRowContext(ctx, insertReview,
 		arg.ID,
@@ -215,8 +213,6 @@ type ListReviewsForUserRow struct {
 	RevieweeName string
 }
 
-// Only approved reviews are published. Pending, rejected and moderation-error
-// reviews stay invisible to the reviewee until an approved completion lands.
 func (q *Queries) ListReviewsForUser(ctx context.Context, arg ListReviewsForUserParams) ([]ListReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listReviewsForUser, arg.UserID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -353,16 +349,13 @@ type ListUnpublishedReviewsForUserRow struct {
 	ModerationStatus     string
 	ModerationRequestID  uuid.NullUUID
 	ContentRevision      int32
-	ReasonCodes          json.RawMessage
+	ReasonCodes          []string
 	ModeratedAt          sql.NullTime
 	AppliedRunGeneration int32
 	ReviewerName         string
 	RevieweeName         string
 }
 
-// The author's own view of their not-yet-published reviews: pending, rejected
-// and moderation-error. Optional single-status and order filters; approved
-// reviews are never in this collection.
 func (q *Queries) ListUnpublishedReviewsForUser(ctx context.Context, arg ListUnpublishedReviewsForUserParams) ([]ListUnpublishedReviewsForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUnpublishedReviewsForUser,
 		arg.ReviewerID,
@@ -389,7 +382,7 @@ func (q *Queries) ListUnpublishedReviewsForUser(ctx context.Context, arg ListUnp
 			&i.ModerationStatus,
 			&i.ModerationRequestID,
 			&i.ContentRevision,
-			&i.ReasonCodes,
+			pq.Array(&i.ReasonCodes),
 			&i.ModeratedAt,
 			&i.AppliedRunGeneration,
 			&i.ReviewerName,
