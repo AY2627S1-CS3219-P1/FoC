@@ -3,10 +3,13 @@
 	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
 	import { create } from '@bufbuild/protobuf';
+	import { defaults, superForm } from 'sveltekit-superforms';
+	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { userSearchSchema } from '$lib/services/admin/adminSchemas';
 	import { PaginationSchema } from '$lib/gen/pagination/v1/pagination_pb';
 	import Pagination from '$lib/components/admin/Pagination.svelte';
 	import UnpublishedReviewList from '$lib/components/review-moderation/UnpublishedReviewList.svelte';
-	import { reviewModerationService, ReviewPageState, authService } from '$lib/services';
+	import { reviewModerationService, ReviewPageState, authService, adminService } from '$lib/services';
 
 	const reviewPage = new ReviewPageState(reviewModerationService, () => authService.user?.id);
 	const PAGE_SIZE = 10n;
@@ -14,28 +17,61 @@
 	$effect(() => {
 		const next = authService.user?.id;
 		if (next !== account) {
-			reviewPage.clear();
-			submittedId = '';
-			inputError = '';
+			clearReviewer();
 		}
 		account = next;
 	});
-	onDestroy(() => reviewPage.clear());
+	onDestroy(clearReviewer);
 
-	let reviewerId = $state('');
 	let page = $state(1n);
 	let submittedId = $state('');
 	let inputError = $state('');
+	let lookupRequest = 0;
+
+	function clearReviewer(): void {
+		lookupRequest++;
+		reviewPage.clear();
+		submittedId = '';
+		inputError = '';
+	}
+
+	const { form: searchForm, errors: searchErrors, enhance, submitting } = superForm(defaults(zod4(userSearchSchema)), {
+		SPA: true,
+		validators: zod4Client(userSearchSchema),
+		resetForm: false,
+		multipleSubmits: 'prevent',
+		onChange({ paths }) {
+			if (paths.includes('email')) clearReviewer();
+		},
+		async onUpdate({ form }) {
+			if (!form.valid) return;
+			clearReviewer();
+			const request = lookupRequest;
+			const actor = authService.user?.id;
+			const current = () => request === lookupRequest && actor === authService.user?.id;
+			try {
+				const reviewer = await adminService.getUserByEmail(form.data.email);
+				if (!current()) return;
+				submittedId = reviewer.id;
+				await load(1n);
+			} catch (cause) {
+				if (!current()) return;
+				inputError = cause instanceof ConnectError && cause.code === Code.NotFound
+					? 'No account was found with that email address.'
+					: cause instanceof ConnectError && cause.code === Code.PermissionDenied
+						? 'You are not allowed to inspect this reviewer.'
+						: 'We could not find this reviewer. Check your connection and try again.';
+			}
+		}
+	});
 
 	const records = $derived(reviewPage.records);
 	const pageInfo = $derived(reviewPage.pageInfo);
-	const isLoading = $derived(reviewPage.isLoading);
+	const isLoading = $derived(reviewPage.isLoading || $submitting);
 	const hasLoaded = $derived(reviewPage.hasLoaded);
 	const loadError = $derived(reviewPage.loadError);
 	const cmsAvailable = $derived(reviewPage.cmsAvailable);
 	const cmsError = $derived(reviewPage.cmsError);
-
-	const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 	async function load(targetPage: bigint): Promise<void> {
 		inputError = '';
@@ -50,18 +86,6 @@
 				inputError = 'You are not allowed to inspect this reviewer.';
 			}
 		}
-	}
-
-	function submit(event: SubmitEvent): void {
-		event.preventDefault();
-		const candidate = reviewerId.trim();
-		if (!UUID_PATTERN.test(candidate)) {
-			inputError = 'Enter a valid reviewer UUID.';
-			return;
-		}
-		submittedId = candidate;
-		reviewPage.clear();
-		void load(1n);
 	}
 
 	function changePage(target: number): void {
@@ -88,17 +112,18 @@
 
 	<Card variant="outlined">
 		<div class="panel-body">
-			<form class="reviewer-form" onsubmit={submit}>
+			<form class="reviewer-form" method="POST" use:enhance>
 				<TextFieldOutlined
-					label="Reviewer UUID"
-					name="reviewerId"
+					label="Reviewer email"
+					name="email"
+					type="email"
 					required
-					placeholder="00000000-0000-0000-0000-000000000000"
-					bind:value={reviewerId}
-					error={!!inputError}
+					bind:value={$searchForm.email}
+					error={!!inputError || !!$searchErrors.email}
 				/>
-				<Button type="submit" disabled={isLoading}>Load reviews</Button>
+				<Button type="submit" disabled={isLoading}>{$submitting ? 'Loading…' : 'Load reviews'}</Button>
 			</form>
+			{#if $searchErrors.email}<p class="notice error" role="alert">{$searchErrors.email}</p>{/if}
 			{#if inputError}<p class="notice error" role="alert">{inputError}</p>{/if}
 		</div>
 	</Card>
