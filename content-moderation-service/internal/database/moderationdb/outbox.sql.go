@@ -29,10 +29,7 @@ WHERE event_id = (
 RETURNING event_id, job_id, run_generation, payload_version, payload, available_at, published_at, lease_token, lease_until, created_at
 `
 
-// Atomically leases the oldest unpublished, available outbox row so a single
-// relay owns it until it publishes or releases. The subquery's FOR UPDATE SKIP
-// LOCKED guarantees mutual exclusion between relays; the lease_token set here
-// fences MarkOutboxPublished so only the owning relay may publish.
+// Lease tokens fence delivery acknowledgements; expiry permits recovery after a relay crash.
 func (q *Queries) ClaimOutboxLease(ctx context.Context, leaseSeconds float64) (ModerationOutbox, error) {
 	row := q.db.QueryRow(ctx, claimOutboxLease, leaseSeconds)
 	var i ModerationOutbox

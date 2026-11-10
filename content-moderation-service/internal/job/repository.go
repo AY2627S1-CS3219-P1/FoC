@@ -8,12 +8,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// jobOperations is the durable transition port consumed by the worker application.
-// Implementations own transactions, budgets and fencing; network evaluation is external.
+// Transactions and fencing belong to implementations; inference runs outside them.
 type jobOperations interface {
 	Claim(context.Context, string, time.Duration) (ClaimOutcome, *ClaimedJob, error)
 	Heartbeat(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (bool, error)
 	Release(context.Context, uuid.UUID, uuid.UUID) (bool, error)
+	ReleaseConfigurationFailure(context.Context, uuid.UUID, uuid.UUID) (bool, error)
 	Complete(context.Context, ClaimedJob, moderation.ReviewAssessment) error
 	FinalizeFailed(context.Context, ClaimedJob, error) error
 }
@@ -26,7 +26,6 @@ const (
 	ClaimExhausted
 )
 
-// ClaimedJob is the immutable snapshot bound to a fenced attempt.
 type ClaimedJob struct {
 	Job           JobSnapshot
 	ClaimToken    uuid.UUID

@@ -1,5 +1,4 @@
-// Package review exposes moderation jobs for review content through the
-// moderation.review.v1 contract. Review records belong to User Service.
+// Package review exposes CMS jobs; User Service owns review records.
 package review
 
 import (
@@ -23,8 +22,6 @@ func NewOwnerHandler(service *moderationjob.Service) *OwnerHandler {
 	return &OwnerHandler{service: service}
 }
 
-// GetReviewModerationJobsForReviewer returns the caller's jobs for the requested
-// moderation request IDs. Non-admin callers may only supply their own reviewer_id.
 func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 	ctx context.Context,
 	req *connect.Request[reviewv1.GetReviewModerationJobsForReviewerRequest],
@@ -78,7 +75,6 @@ func NewAdminHandler(service *moderationjob.Service) *AdminHandler {
 	return &AdminHandler{service: service}
 }
 
-// GetReviewModerationJob returns bounded operational detail for one job.
 func (h *AdminHandler) GetReviewModerationJob(
 	ctx context.Context,
 	req *connect.Request[reviewv1.GetReviewModerationJobRequest],
@@ -107,8 +103,6 @@ func (h *AdminHandler) GetReviewModerationJob(
 	}), nil
 }
 
-// RetryErroredJob requeues a terminal errored job once for the expected
-// generation.
 func (h *AdminHandler) RetryErroredJob(
 	ctx context.Context,
 	req *connect.Request[reviewv1.RetryErroredJobRequest],

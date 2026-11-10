@@ -7,9 +7,7 @@ INSERT INTO moderation_attempts (
 );
 
 -- name: FinishAttempt :exec
--- Success: outcome='completed', no error class. Failure: empty outcome, error
--- class plus a bounded, sanitized diagnostic. Unconditional so one shape serves
--- both; only started-but-unfinished attempts are finished.
+-- Failed attempts use an empty outcome plus error_class; only unfinished attempts are updated.
 UPDATE moderation_attempts
 SET finished_at = now(),
     outcome = sqlc.arg(outcome),

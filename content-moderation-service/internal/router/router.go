@@ -11,15 +11,12 @@ import (
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1/reviewv1connect"
 )
 
-// RPCServices contains RPC servers constructed at the composition root.
 type RPCServices struct {
 	Health                grpchealth.Checker
 	ReviewModeration      reviewv1connect.ReviewModerationServiceHandler
 	ReviewModerationAdmin reviewv1connect.ReviewModerationAdminServiceHandler
 }
 
-// Public mounts the health checks and the review moderation RPCs.
-// Admin services are protected by RequireAdmin.
 func Public(services RPCServices, authenticate func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(grpchealth.NewHandler(services.Health))

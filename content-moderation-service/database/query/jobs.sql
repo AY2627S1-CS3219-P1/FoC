@@ -19,7 +19,6 @@ ON CONFLICT DO NOTHING
 RETURNING *;
 
 -- name: ClaimEligibleJob :one
--- Oldest-first among due queued/retry-wait jobs, plus expired-lease recovery.
 SELECT j.* FROM moderation_jobs j
 WHERE ((
         status IN ('queued','retry_wait')
@@ -54,9 +53,7 @@ WHERE id = sqlc.arg(id)
   AND lease_until > clock_timestamp();
 
 -- name: ReleaseJob :one
--- Returns owned work on shutdown: requeue it so a later cycle retries promptly
--- instead of waiting out the lease. Clearing the claim while the row stays
--- 'processing' would violate processing_is_claimed, so the status moves too.
+-- Requeue while clearing ownership to preserve processing_is_claimed.
 UPDATE moderation_jobs
 SET status = 'queued',
     claim_token = NULL,
@@ -71,10 +68,7 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: CompleteJob :execrows
--- Fenced: only a live claim of the expected generation may terminal-complete.
--- Clears error_class and next_attempt_at: a retried job carries both from
--- ScheduleJobRetry, and completed_decision_is_present requires a completed row
--- to have no error class.
+-- Fence on a live claim; clear retry state to satisfy completed_decision_is_present.
 UPDATE moderation_jobs
 SET status = 'completed',
     outcome = sqlc.arg(outcome),
@@ -133,8 +127,6 @@ WHERE reviewer_id = sqlc.arg(reviewer_id)
 ORDER BY created_at DESC;
 
 -- name: RetryErroredJob :execrows
--- Retries a terminal errored job exactly once for the expected generation.
--- The next attempt uses the running assessor and starts without a result policy.
 UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,

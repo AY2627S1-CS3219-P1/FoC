@@ -1,8 +1,4 @@
-// Package outbox implements the CMS completion relay: claiming rows from the
-// transactional outbox and publishing to the moderation.review_moderation_finished
-// topic. Events are keyed by review UUID encoded as UTF-8 text so all events for one review
-// stay in order; delivery is at least once and republishes use the same
-// event_id so downstream consumers can deduplicate.
+// Package outbox publishes committed results at least once, preserving event IDs on retries.
 package outbox
 
 import (
@@ -26,26 +22,19 @@ import (
 // ErrFenced reports an expired or superseded publication lease.
 var ErrFenced = errors.New("outbox lease is no longer owned")
 
-// FinishedTopic is the topic the relay publishes completion events to.
 const FinishedTopic = "moderation.review_moderation_finished"
 
-// publisher is the delivery boundary the relay depends on. It mirrors
-// *kafka.Publisher so the relay stays testable and decoupled from the concrete
-// client.
 type publisher interface {
 	Publish(ctx context.Context, topic string, key []byte, message proto.Message) error
 	Close() error
 }
 
-// RelayConfig holds the tunable behaviour of the outbox relay.
 type RelayConfig struct {
 	PollInterval time.Duration
 	Lease        time.Duration
 }
 
-// Relay claims unpublished outbox rows and publishes them to Kafka. It leases a
-// row atomically so only one instance owns it until it publishes or releases,
-// and marks the row published only after successful delivery.
+// Mark delivery only after broker acknowledgement; ambiguous publication can redeliver.
 type Relay struct {
 	pool      *pgxpool.Pool
 	publisher publisher
@@ -69,9 +58,6 @@ func NewRelay(pool *pgxpool.Pool, publisher publisher, cfg RelayConfig, logger *
 	}
 }
 
-// Start launches the relay goroutine. It claims rows from the outbox, publishes
-// them, and marks them as published. On failure the lease is released and the
-// row will be retried later. The relay runs until ctx is cancelled.
 func (r *Relay) Start(ctx context.Context) {
 	r.logger.Info("start outbox relay",
 		"poll_interval", r.cfg.PollInterval,
@@ -111,9 +97,7 @@ func (r *Relay) Wait() {
 	}
 }
 
-// relayOnce claims and publishes one outbox row if available. The lease is held
-// for the whole operation and released on failure, so a crashed relay can be recovered after expiry. A timed-out broker write may
-// still arrive, so redeliveries retain the same event identity.
+// Hold the lease through publication; preserve event identity after ambiguous writes.
 func (r *Relay) relayOnce(ctx context.Context) error {
 	var outboxRow moderationdb.ModerationOutbox
 	err := database.Within(ctx, r.pool, func(q *moderationdb.Queries) error {
@@ -135,22 +119,18 @@ func (r *Relay) relayOnce(ctx context.Context) error {
 	if outboxRow.PayloadVersion != 0 && outboxRow.PayloadVersion != 1 {
 		return fmt.Errorf("unsupported completion payload version %d", outboxRow.PayloadVersion)
 	}
-	// The payload is the byte-identical protojson rendered when the row was
-	// enqueued, so re-reading it never recomputes a verdict or changes event_id.
 	var event moderationevents.ReviewModerationFinished
 	if err := protojson.Unmarshal(outboxRow.Payload, &event); err != nil {
 		return fmt.Errorf("decode outbox payload: %w", err)
 	}
 
-	// Key by the review UUID encoded as UTF-8 text so all events for one review land in order.
 	reviewID, err := uuid.Parse(event.ReviewId)
 	if err != nil {
 		return fmt.Errorf("review_id in outbox payload: %w", err)
 	}
 	key := []byte(reviewID.String())
 
-	// Publish, then fence the published mark on the real lease token so only the
-	// owning relay (or one that stole the lease after a crash) can publish.
+	// Publication can succeed even if the fenced acknowledgement fails; consumers deduplicate.
 	publishCtx, cancelPublish := context.WithDeadline(ctx, *outboxRow.LeaseUntil)
 	defer cancelPublish()
 	if err := r.publisher.Publish(publishCtx, FinishedTopic, key, &event); err != nil {
@@ -162,9 +142,7 @@ func (r *Relay) relayOnce(ctx context.Context) error {
 	return nil
 }
 
-// markPublished marks the outbox row as published, clearing the lease. It is
-// fenced on the lease token, so a lost relay cannot mark a row another instance
-// is about to republish.
+// A stale relay cannot acknowledge another owner's row.
 func (r *Relay) markPublished(ctx context.Context, eventID uuid.UUID, leaseToken *uuid.UUID) error {
 	return database.Within(ctx, r.pool, func(q *moderationdb.Queries) error {
 		if _, err := q.LockOutbox(ctx, eventID); errors.Is(err, pgx.ErrNoRows) {
@@ -186,8 +164,6 @@ func (r *Relay) markPublished(ctx context.Context, eventID uuid.UUID, leaseToken
 	})
 }
 
-// releaseLease clears the lease token so a subsequent relay can claim the row
-// again and retry delivery.
 func (r *Relay) releaseLease(ctx context.Context, eventID uuid.UUID, leaseToken *uuid.UUID) error {
 	return database.Within(ctx, r.pool, func(q *moderationdb.Queries) error {
 		if _, err := q.LockOutbox(ctx, eventID); errors.Is(err, pgx.ErrNoRows) {

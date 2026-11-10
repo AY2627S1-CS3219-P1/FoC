@@ -15,9 +15,7 @@ var (
 	ErrNotRetriable = errors.New("job is not errored at the expected generation")
 )
 
-// Transitions centralizes administrative job writes inside the caller's local
-// transaction. Config activation and recovery therefore commit or roll back together.
-// This is a PostgreSQL adapter; worker application code only consumes jobOperations.
+// Transitions applies administrative retries inside the caller transaction.
 type Transitions struct{ queries *moderationdb.Queries }
 
 func NewTransitions(queries *moderationdb.Queries) *Transitions {

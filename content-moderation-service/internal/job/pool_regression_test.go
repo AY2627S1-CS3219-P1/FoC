@@ -12,10 +12,11 @@ import (
 )
 
 type repositoryFake struct {
-	claim     func(context.Context) (ClaimOutcome, *ClaimedJob, error)
-	heartbeat func(context.Context) (bool, error)
-	release   func(context.Context) (bool, error)
-	complete  func() error
+	claim                       func(context.Context) (ClaimOutcome, *ClaimedJob, error)
+	heartbeat                   func(context.Context) (bool, error)
+	release                     func(context.Context) (bool, error)
+	releaseConfigurationFailure func(context.Context) (bool, error)
+	complete                    func() error
 }
 
 func (f *repositoryFake) Claim(ctx context.Context, _ string, _ time.Duration) (ClaimOutcome, *ClaimedJob, error) {
@@ -34,6 +35,10 @@ func (f *repositoryFake) Heartbeat(
 
 func (f *repositoryFake) Release(ctx context.Context, _ uuid.UUID, _ uuid.UUID) (bool, error) {
 	return f.release(ctx)
+}
+
+func (f *repositoryFake) ReleaseConfigurationFailure(ctx context.Context, _ uuid.UUID, _ uuid.UUID) (bool, error) {
+	return f.releaseConfigurationFailure(ctx)
 }
 
 func (f *repositoryFake) Complete(context.Context, ClaimedJob, moderation.ReviewAssessment) error {
@@ -203,7 +208,7 @@ func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
 
 func TestConfigurationFailureReleasesClaimAndStopsPool(t *testing.T) {
 	released, stopped := false, false
-	p := NewPool(&repositoryFake{release: func(ctx context.Context) (bool, error) {
+	p := NewPool(&repositoryFake{releaseConfigurationFailure: func(ctx context.Context) (bool, error) {
 		released = true
 		if ctx.Err() != nil {
 			t.Fatal("cleanup context cancelled")
@@ -216,7 +221,7 @@ func TestConfigurationFailureReleasesClaimAndStopsPool(t *testing.T) {
 		regressionClaim(),
 		moderation.WrapConfigurationError(errors.New("invalid provider settings")),
 	)
-	if !released || !stopped {
+	if !released || !stopped || p.stats.failed.Load() != 1 {
 		t.Fatalf("released=%v stopped=%v", released, stopped)
 	}
 }

@@ -22,7 +22,6 @@ type PoolConfig struct {
 	PersistenceTimeout time.Duration
 }
 
-// Pool drives the moderation service with bounded workers, heartbeats, and shared inference capacity.
 type Pool struct {
 	store   jobOperations
 	service Assessor
@@ -53,10 +52,7 @@ func NewPool(
 	}
 }
 
-// Start launches the worker goroutines. Workers run until ctx is cancelled;
-// callers signal shutdown by cancelling ctx and then wait on Wait. When no
-// provider is configured (for example, no provider key yet) the pool stays
-// idle so queued jobs are never attempted or burned against.
+// Start runs workers until cancellation. Missing credentials leave the queue idle.
 func (p *Pool) Start(ctx context.Context) {
 	ctx, p.stop = context.WithCancel(ctx)
 	if p.service == nil {
@@ -80,10 +76,7 @@ func (p *Pool) Start(ctx context.Context) {
 
 func (p *Pool) Wait() { p.workers.Wait() }
 
-// release returns an owned job to the queue after a shutdown or a terminal-
-// write failure. The shutdown path calls it with an already-cancelled context,
-// so the store write must run on a detached context; a failed release is
-// logged (the lease machinery remains the safety net).
+// Cleanup must survive caller cancellation; lease expiry covers failed release.
 func (p *Pool) release(ctx context.Context, claimed *ClaimedJob) {
 	timeout := p.cfg.CleanupTimeout
 	if timeout <= 0 {
@@ -96,7 +89,6 @@ func (p *Pool) release(ctx context.Context, claimed *ClaimedJob) {
 	}
 }
 
-// persistenceContext bounds each database phase independently of inference.
 func (p *Pool) persistenceContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	timeout := p.cfg.PersistenceTimeout
 	if timeout <= 0 {
@@ -143,8 +135,6 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 	}
 }
 
-// processClaimed runs the bounded assessment and finalizes it. The limiter slot
-// bounds concurrent provider requests.
 func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	defer p.limiter.Release()
 	p.stats.inFlight.Add(1)
@@ -152,7 +142,6 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 
 	evalCtx, cancelEval := context.WithTimeout(ctx, p.cfg.LLMRequestTimeout)
 	defer cancelEval()
-	// Validate ownership immediately before inference, including delayed callers.
 	heartbeatCtx, cancelHeartbeat := p.persistenceContext(evalCtx)
 	ok, err := p.store.Heartbeat(
 		heartbeatCtx,
@@ -171,8 +160,7 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 
 	assessment, evalErr := p.service.AssessReview(evalCtx, input)
 
-	// Stop inference and the heartbeat, then let the heartbeat goroutine exit
-	// so a pending claim-loss signal is already visible.
+	// Join the heartbeat so claim loss is visible before finalization.
 	heartbeatStop()
 	cancelEval()
 	<-claimDone
@@ -194,8 +182,6 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	p.finalizeFailed(ctx, claimed, evalErr)
 }
 
-// complete validates and persists a valid assessment, or reclassifies an invalid
-// one as invalid output.
 func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment moderation.ReviewAssessment) {
 	if err := validateAssessment(assessment); err != nil {
 		p.finalizeFailed(ctx, claimed, err)
@@ -226,7 +212,16 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		if p.stop != nil {
 			p.stop()
 		}
-		p.release(ctx, claimed)
+		timeout := p.cfg.CleanupTimeout
+		if timeout <= 0 {
+			timeout = 2 * time.Second
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
+		if _, err := p.store.ReleaseConfigurationFailure(cleanupCtx, claimed.Job.ID, claimed.ClaimToken); err != nil {
+			p.logger.Error("record configuration failure and release job", "error", err, "job", claimed.Job.ID.String())
+		}
+		p.stats.failed.Add(1)
 		p.logger.Error("assessment workers stopped; correct runtime settings and restart", "error_class", class)
 		return
 	}
@@ -251,10 +246,7 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 	p.logger.Warn("assessment attempt failed", "job", claimed.Job.ID.String(), "error_class", errorClass)
 }
 
-// heartbeat extends the claim lease while an assessment runs. When the claim is
-// lost (its fenced UPDATE affected no rows) it cancels the assessment and signals
-// through claimLost. stop releases the ticker; done closes when the goroutine
-// exits.
+// Cancel inference on ownership loss; done joins heartbeat I/O before finalization.
 func (p *Pool) heartbeat(
 	parentCtx, evalCtx context.Context,
 	cancelEval context.CancelFunc,
@@ -328,7 +320,6 @@ func (p *Pool) LogStatistics(ctx context.Context) {
 		"failed_attempts", p.stats.failed.Load())
 }
 
-// Assessor is the assessment port consumed by the worker.
 type Assessor interface {
 	AssessReview(ctx context.Context, input moderation.ReviewInput) (moderation.ReviewAssessment, error)
 }

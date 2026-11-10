@@ -16,23 +16,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ErrFenced is returned when a terminal write finds a stale claim: another
-// worker already completed or scheduled the job. The job is left for the lease
-// machinery or the winning worker; this worker simply returns to its pool.
+// ErrFenced discards a stale worker write without changing the winning claim.
 var ErrFenced = errors.New("moderation job claim is stale")
 
-// UsersReviewSubmittedTopic is the topic this service consumes for review
-// submissions. It is exported so the composition root can register it with the
-// Kafka subscriber.
 const UsersReviewSubmittedTopic = "users.review_submitted"
 
-// Service implements job queries, durable ingestion, claims, and fenced transitions.
 type Service struct {
 	pool    *pgxpool.Pool
 	retry   RetrySettings
 	modelID string
-	// rngMu guards rng: one Service is shared by every pool worker, and
-	// math/rand.Rand is not safe for concurrent use.
+	// Shared by concurrent workers; rand.Rand requires synchronization.
 	rngMu sync.Mutex
 	rng   *rand.Rand
 }
@@ -45,8 +38,7 @@ func NewService(pool *pgxpool.Pool, retry RetrySettings, rng *rand.Rand, modelID
 	return store
 }
 
-// Heartbeat extends the claim's lease while an assessment runs. The boolean is
-// false when the claim vanished (lost lease), so the worker can cancel.
+// False means the claim was lost; cancel the in-flight assessment.
 func (s *Service) Heartbeat(
 	ctx context.Context,
 	jobID uuid.UUID,
@@ -69,9 +61,27 @@ func (s *Service) Heartbeat(
 	return rows > 0, err
 }
 
-// Release returns owned work on shutdown, requeueing it so a later cycle
-// retries promptly. The boolean is false when the claim was already gone.
+// Release requeues owned work; false means the claim is stale.
 func (s *Service) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) (bool, error) {
+	return s.release(ctx, jobID, claimToken, nil)
+}
+
+// Record a sanitized configuration failure and release ownership atomically, without a terminal event.
+func (s *Service) ReleaseConfigurationFailure(
+	ctx context.Context,
+	jobID uuid.UUID,
+	claimToken uuid.UUID,
+) (bool, error) {
+	class := moderation.ErrorClassConfiguration
+	return s.release(ctx, jobID, claimToken, &class)
+}
+
+func (s *Service) release(
+	ctx context.Context,
+	jobID uuid.UUID,
+	claimToken uuid.UUID,
+	errorClass *string,
+) (bool, error) {
 	var released bool
 	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		if _, err := q.LockJob(ctx, jobID); errors.Is(err, pgx.ErrNoRows) {
@@ -86,18 +96,20 @@ func (s *Service) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.
 		if err != nil {
 			return err
 		}
+		outcome := "released"
+		if errorClass != nil {
+			outcome = ""
+		}
 		released = true
 		return q.FinishAttempt(ctx, moderationdb.FinishAttemptParams{
 			JobID: job.ID, RunGeneration: job.RunGeneration, AttemptNumber: job.AttemptCount,
-			Outcome: "released",
+			Outcome: outcome, ErrorClass: errorClass, Detail: errorClass,
 		})
 	})
 	return released, err
 }
 
-// Claim locks the oldest eligible job, marks it processing, and records the
-// started attempt. The claim lock is released by the transaction, so
-// no lock is held during inference.
+// Claim commits ownership and attempt history before inference starts.
 func (s *Service) Claim(
 	ctx context.Context,
 	workerID string,
@@ -168,8 +180,7 @@ func (s *Service) Claim(
 	return outcome, claimed, nil
 }
 
-// Complete runs a valid assessment to a terminal completed outcome, finishing
-// the attempt and enqueuing the outbox event atomically, fenced by claim token.
+// Atomically commit verdict, attempt and outbox, fenced by generation and claim.
 func (s *Service) Complete(ctx context.Context, c ClaimedJob, assessment moderation.ReviewAssessment) error {
 	if err := validateAssessment(assessment); err != nil {
 		return err
@@ -220,9 +231,7 @@ func (s *Service) Complete(ctx context.Context, c ClaimedJob, assessment moderat
 	})
 }
 
-// FinalizeFailed records a failed attempt and either schedules a bounded retry
-// or errors the job terminally, enqueuing the outbox event only on terminal
-// failure.
+// Record the attempt and schedule retry, or commit terminal ERROR and outbox.
 func (s *Service) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr error) error {
 	errorClass, kind, retryAfter := moderation.Classify(evalErr)
 	finishedAt := time.Now()
@@ -253,8 +262,6 @@ func (s *Service) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr erro
 			return err
 		}
 
-		// The shared generator must be mutex-guarded: workers finalize failures
-		// concurrently and math/rand.Rand is not goroutine-safe.
 		s.rngMu.Lock()
 		decision := s.retry.decide(kind, int(c.AttemptNumber), int(invalidCount)+1, int(filterCount)+1, s.rng)
 		s.rngMu.Unlock()
@@ -301,9 +308,7 @@ func (s *Service) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr erro
 			return err
 		}
 		if rows == 0 {
-			// Fenced out: never enqueue the terminal event for a generation a
-			// stale claim no longer owns — the outbox row would block the
-			// rightful owner's terminal write on the unique constraint.
+			// Roll back: a stale outbox row would block the valid owner on the generation key.
 			return ErrFenced
 		}
 		return q.InsertOutbox(ctx, moderationdb.InsertOutboxParams{

@@ -36,8 +36,6 @@ type appConfig struct {
 	LLMAPIKey  string
 }
 
-// ErrHeartbeatTooLarge is returned when the heartbeat interval is not less than
-// the lease duration.
 var ErrHeartbeatTooLarge = errors.New("CMS_JOB_HEARTBEAT_INTERVAL must be less than CMS_JOB_LEASE")
 
 func loadConfig(getenv func(string) string) (appConfig, error) {
@@ -60,9 +58,7 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		LLMAPIKey:            strings.TrimSpace(getenv("CMS_LLM_API_KEY")),
 	}
 
-	// USER_SERVICE_BASE_URL is the repo-wide convention (compose and the k8s
-	// foc-config ConfigMap set it); USER_SERVICE_URL is accepted as a legacy
-	// override.
+	// Accept USER_SERVICE_URL as a legacy alias.
 	c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_BASE_URL"))
 	if c.UserServiceURL == "" {
 		c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_URL"))

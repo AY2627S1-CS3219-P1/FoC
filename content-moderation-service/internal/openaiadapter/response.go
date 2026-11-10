@@ -5,8 +5,7 @@ import (
 	openai "github.com/openai/openai-go/v3"
 )
 
-// extractResponse copies only the service-neutral fields. Provider-supplied
-// identities (completion IDs, request IDs) are never copied.
+// Omit provider request/completion IDs from the service response.
 func extractResponse(resp *openai.ChatCompletion) *moderation.CompletionResponse {
 	if resp == nil || len(resp.Choices) == 0 {
 		return &moderation.CompletionResponse{}

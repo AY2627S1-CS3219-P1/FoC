@@ -24,7 +24,6 @@ FOR UPDATE SKIP LOCKED
 LIMIT 1
 `
 
-// Oldest-first among due queued/retry-wait jobs, plus expired-lease recovery.
 func (q *Queries) ClaimEligibleJob(ctx context.Context) (ModerationJob, error) {
 	row := q.db.QueryRow(ctx, claimEligibleJob)
 	var i ModerationJob
@@ -117,10 +116,7 @@ type CompleteJobParams struct {
 	ClaimToken    *uuid.UUID
 }
 
-// Fenced: only a live claim of the expected generation may terminal-complete.
-// Clears error_class and next_attempt_at: a retried job carries both from
-// ScheduleJobRetry, and completed_decision_is_present requires a completed row
-// to have no error class.
+// Fence on a live claim; clear retry state to satisfy completed_decision_is_present.
 func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (int64, error) {
 	result, err := q.db.Exec(ctx, completeJob,
 		arg.Outcome,
@@ -607,9 +603,7 @@ type ReleaseJobParams struct {
 	ClaimToken *uuid.UUID
 }
 
-// Returns owned work on shutdown: requeue it so a later cycle retries promptly
-// instead of waiting out the lease. Clearing the claim while the row stays
-// 'processing' would violate processing_is_claimed, so the status moves too.
+// Requeue while clearing ownership to preserve processing_is_claimed.
 func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (ModerationJob, error) {
 	row := q.db.QueryRow(ctx, releaseJob, arg.ID, arg.ClaimToken)
 	var i ModerationJob
@@ -666,8 +660,6 @@ type RetryErroredJobParams struct {
 	RunGeneration int32
 }
 
-// Retries a terminal errored job exactly once for the expected generation.
-// The next attempt uses the running assessor and starts without a result policy.
 func (q *Queries) RetryErroredJob(ctx context.Context, arg RetryErroredJobParams) (int64, error) {
 	result, err := q.db.Exec(ctx, retryErroredJob, arg.PolicyVersion, arg.ID, arg.RunGeneration)
 	if err != nil {

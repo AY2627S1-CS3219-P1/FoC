@@ -13,8 +13,7 @@ import (
 	openai "github.com/openai/openai-go/v3"
 )
 
-// mapError converts an SDK or transport error into the appropriate llmpolicy
-// error class, redacting credentials and bounding diagnostics.
+// Map provider failures to sanitized moderation error classes.
 func mapError(err error) error {
 	var apiErr *openai.Error
 	if !errors.As(err, &apiErr) {
@@ -24,18 +23,15 @@ func mapError(err error) error {
 	case apiErr.StatusCode == http.StatusTooManyRequests:
 		return rateLimitedError(apiErr)
 	case apiErr.StatusCode >= 500:
-		// Server-side errors are transient and retryable.
 		return &moderation.ErrConnection{Detail: classifyMessage(apiErr)}
 	case apiErr.StatusCode >= 400:
-		// 4xx indicate a configuration or invalid request; not retried.
 		return &moderation.ErrConfiguration{Detail: classifyMessage(apiErr)}
 	default:
 		return &moderation.ErrConnection{Detail: fmt.Sprintf("unexpected provider status %d", apiErr.StatusCode)}
 	}
 }
 
-// mapTransportError handles non-API errors (connection, DNS, TLS, timeout) that
-// the SDK does not wrap in *openai.Error.
+// Handle transport errors that the SDK does not wrap as API errors.
 func mapTransportError(err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
@@ -53,8 +49,6 @@ func mapTransportError(err error) error {
 	return &moderation.ErrConnection{Detail: "provider transport failed"}
 }
 
-// rateLimitedError builds an ErrRateLimited, honouring a Retry-After header when
-// the provider advertises one.
 func rateLimitedError(apiErr *openai.Error) *moderation.ErrRateLimited {
 	rlErr := &moderation.ErrRateLimited{Detail: classifyMessage(apiErr)}
 	if apiErr.Response != nil {
@@ -66,8 +60,7 @@ func rateLimitedError(apiErr *openai.Error) *moderation.ErrRateLimited {
 	return rlErr
 }
 
-// parseRetryAfter parses a Retry-After value as either a delay in seconds or an
-// HTTP date. It returns ok=false when the header is absent or unparsable.
+// Retry-After accepts integer seconds or an HTTP date.
 func parseRetryAfter(value string) (time.Duration, bool) {
 	if value == "" {
 		return 0, false
@@ -87,7 +80,6 @@ func parseRetryAfter(value string) (time.Duration, bool) {
 	return 0, false
 }
 
-// parseIntSeconds parses a non-negative integer number of seconds.
 func parseIntSeconds(s string) (int, error) {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 0 {
@@ -96,8 +88,7 @@ func parseIntSeconds(s string) (int, error) {
 	return n, nil
 }
 
-// classifyMessage renders a short, sanitized provider error summary. It never
-// leaks the API key or request headers.
+// Exclude keys, headers and raw provider bodies from persisted diagnostics.
 func classifyMessage(apiErr *openai.Error) string {
 	switch apiErr.StatusCode {
 	case 401, 403:

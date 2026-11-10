@@ -1,8 +1,5 @@
 //go:build integration
 
-// Integration test for the per-process worker pool: the configured concurrency
-// must bound concurrent Evaluate calls exactly, and every ingested job must be
-// processed to a terminal state through the durable store.
 package job_test
 
 import (
@@ -18,11 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// poolT aliases pgxpool.Pool so the helper signatures above stay readable.
 type poolT = pgxpool.Pool
 
-// blockingEvaluator records peak concurrency and blocks each Evaluate call on
-// enter until released, making the concurrency cap observable deterministically.
 type blockingEvaluator struct {
 	mu      sync.Mutex
 	current int
@@ -139,8 +133,6 @@ func TestPoolRespectsConcurrencyCap(t *testing.T) {
 		t.Fatalf("peak concurrency = %d, want exactly 2", peak)
 	}
 	eval.release(2)
-	// The remaining two jobs proceed without blocking assertions; just let the
-	// evaluator return immediately now.
 	go func() {
 		for range 2 {
 			<-eval.entered
@@ -184,7 +176,6 @@ func TestPoolConcurrencyOneSerializes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.Start(ctx)
 
-	// With one worker, evaluations must never overlap.
 	for range 3 {
 		eval.waitEntered(t, 1)
 		if peak := eval.peakConcurrency(); peak != 1 {

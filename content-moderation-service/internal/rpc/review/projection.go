@@ -8,8 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// statusFor maps a stored job status to the owner-visible enum. Unknown statuses
-// map to the unspecified state rather than erroring.
 func statusFor(status string) reviewv1.ModerationJobStatus {
 	switch status {
 	case "queued":
@@ -27,9 +25,6 @@ func statusFor(status string) reviewv1.ModerationJobStatus {
 	}
 }
 
-// outcomeFor maps a stored verdict to the owner-visible outcome. The outcome is
-// only set once the job is terminal; a completed job carries APPROVED or
-// REJECTED, an errored job carries ERROR, everything else is unspecified.
 func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 	switch job.Status {
 	case "completed":
@@ -51,8 +46,6 @@ func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 	}
 }
 
-// summarize renders the owner-visible summary of one job. Reason codes appear
-// only for a rejected verdict, never for approval or error.
 func summarize(view moderationjob.JobView) *reviewv1.ReviewModerationJobSummary {
 	job := view.ModerationJob
 	summary := &reviewv1.ReviewModerationJobSummary{
@@ -78,8 +71,7 @@ func summarize(view moderationjob.JobView) *reviewv1.ReviewModerationJobSummary 
 	return summary
 }
 
-// attempt renders one recorded attempt. Only classified, bounded fields are
-// exposed; the raw diagnostic (Detail) is deliberately dropped.
+// Omit internal diagnostics from admin responses.
 func attemptOf(m moderationdb.ModerationAttempt) *reviewv1.ModerationAttempt {
 	a := &reviewv1.ModerationAttempt{
 		RunGeneration: m.RunGeneration,

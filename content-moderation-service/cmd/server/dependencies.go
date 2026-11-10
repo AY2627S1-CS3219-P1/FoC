@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// serverComponents bundles the handlers and background workers assembled at startup.
 type serverComponents struct {
 	rpc     router.RPCServices
 	pool    *moderationjob.Pool

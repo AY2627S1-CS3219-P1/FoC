@@ -6,20 +6,14 @@ import (
 	"time"
 )
 
-// Default retry policy parameters. Every value is an environment override; the
-// constants record the defaults so the policy is explicit in one place.
 const (
-	defaultInitialDelay = 10 * time.Second
-	defaultMaxDelay     = 5 * time.Minute
-	defaultMaxAttempts  = 5
-	// invalidBudget and filterBudget bound the small, non-exponential retry
-	// budgets for invalid structured output and provider refusals.
+	defaultInitialDelay  = 10 * time.Second
+	defaultMaxDelay      = 5 * time.Minute
+	defaultMaxAttempts   = 5
 	defaultInvalidBudget = 2
 	defaultFilterBudget  = 2
 )
 
-// RetrySettings configures how a failed attempt is rescheduled. It is a value type so
-// it can be unit tested with a single generator and shared by the pool.
 type RetrySettings struct {
 	InitialDelay  time.Duration
 	MaxDelay      time.Duration
@@ -38,8 +32,6 @@ func DefaultRetrySettings() RetrySettings {
 	}
 }
 
-// RetrySettingsFromConfig applies validated operational settings while retaining the
-// bounded output-validation and refusal budgets.
 func RetrySettingsFromConfig(maxAttempts int, initialDelay, maxDelay time.Duration) RetrySettings {
 	policy := DefaultRetrySettings()
 	policy.MaxAttempts = maxAttempts
@@ -49,16 +41,12 @@ func RetrySettingsFromConfig(maxAttempts int, initialDelay, maxDelay time.Durati
 }
 
 type decision struct {
-	// retry is true when the job returns to the queue instead of erroring.
 	retry bool
-	// wait is the delay until the next attempt when retry is true; zero when
-	// terminal. It never exceeds MaxDelay.
+	// Zero for terminal failure; bounded by MaxDelay otherwise.
 	wait time.Duration
 }
 
-// decide applies the retry policy to a failed attempt. attemptCount is the
-// generation's attempt counter after this attempt; invalidCount and filterCount
-// are the per-generation tallies for the two bounded budgets.
+// Counters include the current failed attempt.
 func (p RetrySettings) decide(
 	kind moderation.ErrorKind,
 	attemptCount, invalidCount, filterCount int,

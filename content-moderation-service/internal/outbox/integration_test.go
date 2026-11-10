@@ -1,8 +1,5 @@
 //go:build integration
 
-// Integration tests for the outbox relay: lease-claim publication, exactly-once
-// marking, retry after publisher failure, and the one-terminal-event-per-job
-// generation constraint. Runs against the throwaway database.
 package outbox_test
 
 import (
@@ -24,7 +21,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// fakePublisher captures publishes and can fail the first n calls.
 type fakePublisher struct {
 	mu           sync.Mutex
 	failFirst    int
@@ -52,7 +48,6 @@ func (f *fakePublisher) count() int {
 	return len(f.published)
 }
 
-// setup migrates and returns a truncated pool.
 func setup(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := testDatabaseURL(t)
@@ -79,8 +74,6 @@ func testDatabaseURL(t *testing.T) string {
 	return url
 }
 
-// completedJob drives one job through the full durable path so the outbox holds
-// exactly one real terminal event, and returns (job id, review id).
 func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
@@ -159,7 +152,6 @@ func TestRelayPublishesExactlyOnce(t *testing.T) {
 		t.Fatalf("message = %q, want ReviewModerationFinished", messages)
 	}
 
-	// A second relay pass must not republish the marked row.
 	relayOnceIdle := outbox.NewRelay(pool, pub, outbox.RelayConfig{
 		PollInterval: 10 * time.Millisecond, Lease: 5 * time.Second,
 	}, nil)
@@ -192,8 +184,6 @@ func TestRelayRetriesAfterPublisherFailureWithSameEvent(t *testing.T) {
 	waitFor(t, func() bool { return pub.count() >= 1 }, 3*time.Second, "eventual publication")
 	cancel()
 
-	// After one failure and one success, exactly one successful publication
-	// carrying the original event id (via the review key) must exist.
 	pub.mu.Lock()
 	got := pub.published
 	pub.mu.Unlock()
@@ -209,8 +199,6 @@ func TestOneTerminalEventPerJobGeneration(t *testing.T) {
 	pool := setup(t)
 	jobID, _ := completedJob(t, pool)
 
-	// The unique (job_id, run_generation) constraint must reject a second
-	// terminal event for the same generation.
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO moderation_outbox (event_id, job_id, run_generation, payload_version, payload, available_at)
 		VALUES (gen_random_uuid(), $1, 1, 1, '{}'::jsonb, now())`, jobID)

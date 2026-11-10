@@ -5,31 +5,21 @@ import (
 	"time"
 )
 
-// CompletionRequest is the service-neutral chat completion input. Ports use
-// service-owned types, never generated SDK types. The evaluator builds the
-// prompt; the adapter translates the transport.
+// SDK types stay in the adapter; moderation owns this completion contract.
 type CompletionRequest struct {
-	// Model is the configured chat-capable model identifier.
 	Model string
-	// System is the trusted instruction message: moderation role, versioned
-	// rubric, data-not-instructions framing and exact output requirements.
+	// Trusted instructions; never include review content.
 	System string
-	// User is the data message carrying the complete review comment, clearly
-	// delimited. Never truncated or transformed.
-	User string
-	// OutputMode selects strict json_schema or json_object.
+	// Complete review data, delimited and never truncated.
+	User       string
 	OutputMode string
-	// SchemaJSON is the code-owned JSON Schema for the assessment object.
 	SchemaJSON string
-	// Parameters carries the optional supported inference parameters.
 	Parameters CompletionParameters
 	// Timeout bounds the request; adapters enforce it on response reads too.
 	Timeout time.Duration
 }
 
-// CompletionParameters carries optional inference parameters. Zero-valued
-// pointer fields are omitted from the provider request, never sent as zero
-// values.
+// Nil fields are omitted; non-nil pointers preserve explicit zero values.
 type CompletionParameters struct {
 	Temperature      *float64
 	TopP             *float64
@@ -44,21 +34,14 @@ type CompletionParameters struct {
 	Advanced            map[string]string
 }
 
-// CompletionResponse is the service-neutral completion output.
 type CompletionResponse struct {
-	// Content is the first choice message content.
-	Content string
-	// FinishReason is the provider finish reason, e.g. "stop", "length".
+	Content      string
 	FinishReason string
-	// Refusal is the provider refusal message, when present.
-	Refusal string
-	// Model echoes the model that served the request, when present.
-	Model string
+	Refusal      string
+	Model        string
 }
 
-// CompletionClient is the transport port the evaluator consumes. The
-// OpenAI-compatible adapter implements it. Implementations must not retry
-// automatically; the persistent runner owns retry scheduling.
+// Implementations must not retry; durable job execution owns retry scheduling.
 type CompletionClient interface {
 	Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error)
 }

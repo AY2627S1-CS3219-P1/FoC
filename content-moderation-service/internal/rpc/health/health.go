@@ -11,11 +11,9 @@ import (
 	"connectrpc.com/grpchealth"
 )
 
-// Database lists only the dependency health consumes.
 type Database interface{ Ping(context.Context) error }
 
-// Checker reports the process, and each service it names, as serving while
-// the database answers.
+// Health reflects database availability, not inference readiness.
 type Checker struct {
 	DB       Database
 	Services []string

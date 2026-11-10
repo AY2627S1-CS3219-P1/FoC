@@ -1,9 +1,6 @@
 //go:build integration
 
-// Integration tests for the RPC surface's authorization: the owner service
-// gates on caller identity (owner-or-admin), the admin services gate on the
-// admin flag at the router, and proto validation bounds request shapes. The
-// mux is exercised through a recorder RoundTripper, so no listener is needed.
+// Exercise authorization through an in-process Connect client.
 package router_test
 
 import (
@@ -28,7 +25,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// muxTransport serves client requests through the mux in-process.
 type muxTransport struct{ handler http.Handler }
 
 func (m muxTransport) Do(r *http.Request) (*http.Response, error) {
@@ -66,7 +62,6 @@ func newMux(
 		reviewv1connect.NewReviewModerationAdminServiceClient(muxTransport{handler: mux}, base)
 }
 
-// completedJobFor creates one completed job for the given reviewer.
 func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
@@ -116,8 +111,6 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 }
 
 func TestInternalListenerServesOnlyHealth(t *testing.T) {
-	// The internal listener mounts the standard health protocol only — no
-	// business or admin RPCs.
 	pool := setupDB(t)
 	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
 	services := router.RPCServices{
@@ -266,7 +259,6 @@ func TestRetryErroredJobGenerationFencing(t *testing.T) {
 	jobID, _ := completedJobFor(t, pool, owner)
 	ctx := context.Background()
 
-	// Force the completed job into the terminal errored state at generation 1.
 	if _, err := pool.Exec(ctx, `
 		UPDATE moderation_jobs
 		SET status = 'errored', error_class = 'connection', outcome = NULL,

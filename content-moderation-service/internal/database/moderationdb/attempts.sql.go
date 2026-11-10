@@ -53,9 +53,7 @@ type FinishAttemptParams struct {
 	AttemptNumber int32
 }
 
-// Success: outcome='completed', no error class. Failure: empty outcome, error
-// class plus a bounded, sanitized diagnostic. Unconditional so one shape serves
-// both; only started-but-unfinished attempts are finished.
+// Failed attempts use an empty outcome plus error_class; only unfinished attempts are updated.
 func (q *Queries) FinishAttempt(ctx context.Context, arg FinishAttemptParams) error {
 	_, err := q.db.Exec(ctx, finishAttempt,
 		arg.Outcome,

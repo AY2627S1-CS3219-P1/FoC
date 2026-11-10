@@ -15,10 +15,7 @@ FOR UPDATE SKIP LOCKED
 LIMIT 1;
 
 -- name: ClaimOutboxLease :one
--- Atomically leases the oldest unpublished, available outbox row so a single
--- relay owns it until it publishes or releases. The subquery's FOR UPDATE SKIP
--- LOCKED guarantees mutual exclusion between relays; the lease_token set here
--- fences MarkOutboxPublished so only the owning relay may publish.
+-- Lease tokens fence delivery acknowledgements; expiry permits recovery after a relay crash.
 UPDATE moderation_outbox
 SET lease_token = gen_random_uuid(),
     lease_until = clock_timestamp() + sqlc.arg(lease_seconds)::double precision * interval '1 second'

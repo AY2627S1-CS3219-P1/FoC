@@ -47,4 +47,72 @@ rewrites the prefix. Other moderation RPC routes require authentication.
 Use separate throwaway User and CMS databases. Run unit tests in each module,
 and CMS integration tests with `TEST_DATABASE_URL` and `-tags=integration -p 1`.
 Provider adapter tests use local fake HTTP servers and require no paid key.
-Frontend workflow checks exercise unpublished reviews, job inspection and retry.
+The frontend browser check intercepts all RPCs and exercises configuration
+removal and newer-generation retry rendering. It does not verify real login,
+provider credentials, Kafka or end-to-end publication.
+
+### Repeatable commands
+
+From each service directory, run unit tests and then integration tests against
+that service's own throwaway database. Integration suites migrate and may clear
+schemas; use a separate database for User and CMS.
+
+```sh
+GOWORK=off go test -mod=readonly ./...
+GOWORK=off TEST_DATABASE_URL="$TEST_DATABASE_URL" go test -mod=readonly -p 1 \
+  -tags=integration ./... -count=1 -timeout=10m
+```
+
+With the frontend development server running, the browser regression command is:
+
+```sh
+MODERATION_TEST_BASE_URL=http://localhost:5173 npm --prefix frontend run test:moderation
+```
+
+### Verification history and limits
+
+The 8 November fake-provider end-to-end smoke and 9 November live SoCLaaS
+checks recorded in the earlier runbook tested the former configuration
+save/test/activation workflow. They established approval/rejection delivery,
+publication filtering and provider compatibility for that earlier code and
+model profile. They do not establish live compatibility of the simplified
+runtime-settings implementation. The old opt-in configuration suite was removed
+with that workflow; its historical command is no longer a current test command.
+
+For the simplified implementation, unit and PostgreSQL integration suites and
+the mocked browser checks passed. A fresh live smoke with local SoCLaaS
+credentials has not been recorded. Such a check must use the configured model
+and JSON object request, real User/CMS binaries and Kafka, and verify pending
+submission, terminal outbox delivery, approval/rejection application and rating
+counts. A successful health probe alone does not establish those outcomes.
+
+## Recovery details
+
+| Symptom | Action and expected behavior |
+| --- | --- |
+| Worker crash or shutdown | Owned releases return work to the queue; otherwise lease expiry allows recovery. Old tokens cannot finalize. Repeated releases still consume attempts. |
+| Provider configuration rejection | Inspect the sanitized attempt class and worker-stop log, correct process settings and restart every affected replica. Release does not publish a terminal event. |
+| Terminal `errored` job | Use admin inspection and retry with the expected generation. Retry increments the generation once; a stale retry fails its guard. |
+| Kafka outage | Restore connectivity and inspect consumer/relay logs. Durable User submissions and committed CMS results remain in their respective outboxes. |
+| Undecodable Kafka bytes | Subscriber stops and restarts; inspect the bad record and repair the offset deliberately. The typed ingestion handler cannot acknowledge undecodable bytes. |
+| Existing local Postgres volume lacks CMS database | Run the idempotent init script below and restart CMS. |
+
+```sh
+docker compose exec -T postgres /bin/bash /docker-entrypoint-initdb.d/init-dbs.sh
+docker compose restart content-moderation-service
+```
+
+Worker database phases have a five-second deadline capped at half the lease.
+Detached release cleanup is bounded to two seconds. If cleanup cannot finish,
+lease expiry remains the recovery mechanism. A stale completion rolls back its
+attempt and outbox changes. The relay publishes outside the claim transaction;
+ambiguous delivery can repeat an event with the same ID.
+
+## Local Kubernetes provider key
+
+Supplying `K8S_LLM_API_KEY` on redeployment fills an existing empty
+`.local/k8s/secrets/CMS_LLM_API_KEY` file. Existing nonempty keys are preserved.
+To rotate a nonempty key, remove only that provider-key file, supply the new
+value through `K8S_LLM_API_KEY`, and redeploy. The deployment restarts CMS to
+read its new environment. Database passwords and signing keys retain their
+existing preservation rules. Do not print keys in logs or command output.

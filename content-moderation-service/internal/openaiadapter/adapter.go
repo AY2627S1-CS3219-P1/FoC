@@ -1,10 +1,4 @@
-// Package openaiadapter implements moderation.CompletionClient over an
-// OpenAI-compatible Chat Completions endpoint (for example the NUS soclaas
-// proxy). It owns transport concerns only: URL and auth construction, disabling
-// the SDK's automatic retries, enforcing the request deadline on the whole
-// exchange including response reads, and mapping SDK/transport failures into
-// the moderation error classes. It never inspects or validates the assessment
-// content; that is the evaluator's job.
+// Package openaiadapter translates provider transport and errors; moderation validates content.
 package openaiadapter
 
 import (
@@ -21,16 +15,10 @@ import (
 )
 
 const (
-	// defaultBaseURL is the soclaas API entry point. It already carries the
-	// single "/v1" segment the SDK appends "/chat/completions" to.
 	defaultBaseURL = "https://soclaas-api.comp.nus.edu.sg/v1"
-	// defaultTimeout bounds a request when neither the caller nor the evaluator
-	// supplies a timeout.
 	defaultTimeout = 90 * time.Second
 )
 
-// OpenAICompletionClient is an moderation.CompletionClient backed by an
-// OpenAI-compatible endpoint.
 type OpenAICompletionClient struct {
 	chatCompletions openai.ChatCompletionService
 	baseURL         string
@@ -39,20 +27,13 @@ type OpenAICompletionClient struct {
 
 var _ moderation.CompletionClient = (*OpenAICompletionClient)(nil)
 
-// Config holds explicit adapter configuration. There are no package globals;
-// every field is supplied by the composition root.
 type Config struct {
-	// BaseURL is the provider entry point (CMS_LLM_BASE_URL). Empty selects the
-	// default soclaas URL.
 	BaseURL string
-	// APIKey is the provider bearer key (CMS_LLM_API_KEY).
-	APIKey string
-	// Timeout bounds each request; zero selects the default.
+	APIKey  string
 	Timeout time.Duration
 }
 
-// New constructs the adapter. It validates the base URL and disables the SDK's
-// automatic retries so the persistent runner owns retry scheduling.
+// Disable SDK retries so durable job execution owns attempt accounting.
 func New(cfg Config) (*OpenAICompletionClient, error) {
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
@@ -91,9 +72,7 @@ func New(cfg Config) (*OpenAICompletionClient, error) {
 	}, nil
 }
 
-// Complete issues one evaluation and maps the provider response. The request
-// deadline (min of the caller's context deadline and the per-request timeout)
-// is enforced on the whole exchange, including response reads.
+// Enforce the earliest caller/request deadline through response reads.
 func (c *OpenAICompletionClient) Complete(
 	ctx context.Context,
 	req *moderation.CompletionRequest,

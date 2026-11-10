@@ -1,9 +1,6 @@
 //go:build integration
 
-// Network tests exercise the adapter against a fake OpenAI-compatible server.
-// They are gated behind the "integration" tag because they open a local socket
-// via httptest; run them with `-tags integration`. In a sandbox that denies
-// local sockets, skip this tag.
+// Uses fake HTTP servers; requires local socket access.
 package openaiadapter
 
 import (
@@ -25,7 +22,6 @@ import (
 
 const sampleBody = `{"id":"chatcmpl-x","object":"chat.completion","created":0,"model":"m","choices":[{"index":0,"finish_reason":"stop","logprobs":null,"message":{"role":"assistant","content":"{\"decision\":\"approve\",\"reason_codes\":[]}"}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
 
-// captured records the request a test server received.
 type captured struct {
 	path  string
 	auth  string
@@ -33,8 +29,6 @@ type captured struct {
 	count int
 }
 
-// runServer starts a handler that records the request and writes the given
-// status, optional Retry-After, and body.
 func runServer(t *testing.T, status int, retryAfter string, body string) (*httptest.Server, *captured) {
 	t.Helper()
 	rec := &captured{}
@@ -56,7 +50,6 @@ func runServer(t *testing.T, status int, retryAfter string, body string) (*httpt
 	return srv, rec
 }
 
-// testRequest is the baseline completion request.
 func testRequest(outputMode string) *moderation.CompletionRequest {
 	return &moderation.CompletionRequest{
 		Model:      "ornith-1.5",
@@ -86,7 +79,6 @@ func TestCompleteValidApproveJSONSchema(t *testing.T) {
 	if resp.FinishReason != "stop" {
 		t.Errorf("finish reason = %q", resp.FinishReason)
 	}
-	// The provider completion ID must never be copied into the response.
 	if resp.Model == "chatcmpl-x" {
 		t.Errorf("copied an LLM-generated identity into the response model")
 	}

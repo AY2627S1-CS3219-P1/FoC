@@ -1,9 +1,6 @@
 -- +goose Up
 
--- Persists size-limited diagnostics for submissions that cannot safely map to
--- jobs, such as malformed metadata or conflicting duplicate identities. The
--- consumer commits the record before acknowledging so poison deliveries do not
--- block progress and conflicting duplicates remain inspectable.
+-- Commit invalid decoded submissions before acknowledging them; retain bounded diagnostics.
 CREATE TABLE moderation_quarantine (
     id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     topic         text        NOT NULL,

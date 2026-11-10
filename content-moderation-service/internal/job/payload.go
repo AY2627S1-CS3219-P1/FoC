@@ -10,10 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// outcomeTypeFor maps a terminal assessment outcome to the published enum.
-// Rejections must publish REJECTED (with their reason codes): user-service
-// drops an ERROR event that carries content reasons, so mapping a rejection to
-// ERROR would silently discard every rejection.
+// Rejections must retain their outcome: User drops ERROR events carrying content reasons.
 func outcomeTypeFor(outcome moderation.ModerationOutcome) moderationevents.ModerationOutcomeType {
 	switch outcome {
 	case moderation.OutcomeApproved:
@@ -29,10 +26,7 @@ func moderationoutcomeTypeError() moderationevents.ModerationOutcomeType {
 	return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
 }
 
-// buildOutboxPayload renders the terminal event from the persisted job. The
-// payload is built from saved state, never from evaluator output, so a
-// redelivery after failure re-emits byte-identical content with the same
-// event_id.
+// Build from saved state so outbox retries preserve event identity and content.
 func buildOutboxPayload(
 	eventID uuid.UUID,
 	job JobSnapshot,
@@ -62,8 +56,6 @@ func buildOutboxPayload(
 	return protojson.Marshal(finished)
 }
 
-// reasonCodesOrDefault returns reason codes for a rejected assessment, empty
-// otherwise, so approved and error events never carry content reasons.
 func reasonCodesFor(outcome moderation.ModerationOutcome, reasonCodes []string) []string {
 	if outcome == moderation.OutcomeRejected {
 		return reasonCodes

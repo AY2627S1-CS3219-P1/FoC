@@ -13,10 +13,8 @@ import (
 
 const usersReviewSubmittedTopic = UsersReviewSubmittedTopic
 
-// maxQuarantineSummary bounds the stored preview of a quarantined payload.
 const maxQuarantineSummary = 500
 
-// IngestionInput is a validated review submission ready for durable ingestion.
 type IngestionInput struct {
 	SourceEventID       uuid.UUID
 	ModerationRequestID uuid.UUID
@@ -26,7 +24,6 @@ type IngestionInput struct {
 	Comment             string
 }
 
-// MalformedInput is a decoded event that cannot become a job (bad identifiers).
 type MalformedInput struct {
 	Topic      string
 	MessageKey string
@@ -59,9 +56,7 @@ func (r ingestionResult) String() string {
 	}
 }
 
-// Ingest deduplicates on moderation_request_id and, on first sight, inserts the
-// durable job. Conflicting or malformed events are quarantined and acknowledged
-// (not retried); the event is never reprocessed.
+// Ingest deduplicates by moderation_request_id; conflicting snapshots are quarantined.
 func (s *Service) Ingest(ctx context.Context, in IngestionInput) (ingestionResult, error) {
 	var result ingestionResult
 	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
@@ -119,8 +114,6 @@ func (s *Service) Ingest(ctx context.Context, in IngestionInput) (ingestionResul
 	return result, nil
 }
 
-// QuarantineMalformed records a decoded-but-unprocessable event and acknowledges
-// it so the partition can advance.
 func (s *Service) QuarantineMalformed(ctx context.Context, in MalformedInput) error {
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		return s.quarantine(ctx, q, in.MessageKey, in.EventID, in.Reason, in.Comment)
@@ -149,9 +142,7 @@ func jobIdentifiesSame(row moderationdb.ModerationJob, in IngestionInput) bool {
 		row.SourceEventID == in.SourceEventID
 }
 
-// truncate bounds s to n bytes without splitting a UTF-8 rune: a split rune
-// makes the stored text invalid UTF-8, which PostgreSQL rejects, failing the
-// whole write (an attempt or quarantine row) permanently.
+// Avoid splitting UTF-8 runes: PostgreSQL rejects invalid text.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

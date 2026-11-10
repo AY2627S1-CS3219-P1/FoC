@@ -68,7 +68,6 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	// Kafka consumers. Without them ingestion and outbox relay don't run.
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	defer func() {
@@ -92,8 +91,7 @@ func run(ctx context.Context) error {
 		components.relay.Start(workerCtx)
 	}
 
-	// Moderation workers. When no evaluator is configured the pool is nil, so no
-	// worker burns LLM attempts; jobs simply stay queued in the database.
+	// Missing credentials leave jobs queued without consuming attempts.
 	if components.pool != nil {
 		components.pool.Start(workerCtx)
 	}
@@ -170,8 +168,6 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// serve runs every server until ctx ends or one of them stops, then shuts
-// them all down.
 func serve(ctx context.Context, servers ...*http.Server) error {
 	stopped := make(chan error, len(servers))
 	for _, server := range servers {
@@ -210,8 +206,7 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 	return errors.Join(failures...)
 }
 
-// newAuthenticator bounds both network attempts and waits by the caller's
-// startup context; callbacks are construction attempts, never transactions.
+// Bound key-fetch attempts and backoff by the startup context.
 func newAuthenticator(
 	ctx context.Context,
 	interval time.Duration,

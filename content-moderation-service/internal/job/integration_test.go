@@ -1,8 +1,5 @@
 //go:build integration
 
-// Integration tests for the durable moderation engine against a real
-// PostgreSQL. Set TEST_DATABASE_URL to a throwaway database; the tests apply
-// the module migrations and truncate all tables between subtests.
 package job_test
 
 import (
@@ -23,7 +20,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// newTestPool migrates the throwaway database and returns a connected pool.
 func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := envOrSkip(t)
@@ -143,8 +139,6 @@ func mustClaim(t *testing.T, store *moderationjob.Service, workerID string) *mod
 	return claimed
 }
 
-// forceDue makes every non-terminal job immediately claimable, removing jitter
-// from the retry-policy assertions.
 func forceDue(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(),
@@ -155,14 +149,12 @@ func forceDue(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// claimDue force-due and claims one job.
 func claimDue(t *testing.T, store *moderationjob.Service, pool *pgxpool.Pool) *moderationjob.ClaimedJob {
 	t.Helper()
 	forceDue(t, pool)
 	return mustClaim(t, store, "retry-worker")
 }
 
-// waitFor polls cond until it holds or the deadline passes.
 func waitFor(t *testing.T, cond func() bool, within time.Duration, what string) {
 	t.Helper()
 	deadline := time.Now().Add(within)
@@ -270,7 +262,6 @@ func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 		requests = append(requests, in.ModerationRequestID)
 	}
 
-	// Two claim loops race over the same queue with SKIP LOCKED semantics.
 	var mu sync.Mutex
 	seen := make(map[uuid.UUID]bool)
 	var wg sync.WaitGroup
@@ -324,7 +315,6 @@ func TestStaleClaimCannotFinalize(t *testing.T) {
 	}
 	claimed := mustClaim(t, store, "worker-a")
 
-	// A stale worker (wrong claim token) must not complete the job.
 	stale := *claimed
 	stale.ClaimToken = uuid.New()
 	err := store.Complete(ctx, stale, moderation.ReviewAssessment{
@@ -338,7 +328,6 @@ func TestStaleClaimCannotFinalize(t *testing.T) {
 		t.Fatalf("stale completion mutated the job: %+v", job)
 	}
 
-	// The rightful owner completes afterwards.
 	if err := store.Complete(ctx, *claimed, moderation.ReviewAssessment{
 		Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1",
 	}); err != nil {
@@ -377,7 +366,6 @@ func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 		t.Fatalf("attempt rows after first claim = %d, want 1", n)
 	}
 
-	// Simulate a crashed worker: let the lease expire.
 	if _, err := pool.Exec(ctx,
 		`UPDATE moderation_jobs SET lease_until = now() - interval '1s' WHERE id = $1`, jobID); err != nil {
 		t.Fatalf("expire lease: %v", err)
@@ -393,9 +381,7 @@ func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 	if recovered.Job.RunGeneration != 1 {
 		t.Fatalf("automatic recovery must not change the generation: %d", recovered.Job.RunGeneration)
 	}
-	// The abandoned attempt stays recorded: two attempt rows for generation 1.
-	// Recovery finishes the abandoned attempt with an explicit crash outcome;
-	// the new attempt remains open until its owner finishes.
+	// Recovery closes the abandoned attempt; its replacement remains unfinished.
 	if n := countAttempts(t, pool, jobID, 1); n != 2 {
 		t.Fatalf("attempt rows = %d, want 2 (abandoned + recovery)", n)
 	}
@@ -424,9 +410,7 @@ func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 	}
 	claimed := mustClaim(t, store, "worker-a")
 
-	// A durable failure inside the budget schedules a delayed retry. The wait
-	// is fully jittered in [0, initial] for the first attempt, so only the
-	// bounds are asserted.
+	// Full jitter is nondeterministic; assert bounds rather than an exact delay.
 	if err := store.FinalizeFailed(ctx, *claimed, moderation.WrapConnectionError(errors.New("boom"))); err != nil {
 		t.Fatalf("finalize failed: %v", err)
 	}
@@ -450,7 +434,6 @@ func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 		t.Fatalf("non-terminal failure must not enqueue an outbox event")
 	}
 
-	// Exhaust the budget: attempts 1..4 retry, attempt 5 (MaxAttempts) errors.
 	for attempt := 1; ; attempt++ {
 		if attempt > policy.MaxAttempts {
 			t.Fatalf("job never became errored after %d attempts", policy.MaxAttempts)
@@ -483,7 +466,6 @@ func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 		t.Fatalf("terminal transition must commit exactly one outbox row")
 	}
 
-	// A terminal job is not claimable again even when due.
 	forceDue(t, pool)
 	outcome, claimed2, err := store.Claim(ctx, "worker-b", 30*time.Second)
 	if err != nil {
@@ -506,8 +488,7 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 
-	// The budget includes the current failed attempt: two invalid responses
-	// must terminate without making a third provider request.
+	// The current failed attempt counts toward the class budget.
 	for i := 0; i < policy.InvalidBudget; i++ {
 		claimed := claimDue(t, store, pool)
 		if err := store.FinalizeFailed(
@@ -531,9 +512,7 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 }
 
 func TestRetryThenSucceedCompletesCleanly(t *testing.T) {
-	// Regression for the completed_decision_is_present violation: a job that
-	// failed once (error_class set by ScheduleJobRetry) must complete after a
-	// successful retry — CompleteJob clears error_class and next_attempt_at.
+	// Completion must clear retry state to satisfy completed_decision_is_present.
 	pool := newTestPool(t)
 
 	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
@@ -574,10 +553,7 @@ func TestRetryThenSucceedCompletesCleanly(t *testing.T) {
 }
 
 func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
-	// Regression for the rejected-outcome mapping: a rejected assessment must
-	// publish MODERATION_OUTCOME_TYPE_REJECTED with its reason codes — user-
-	// service drops an ERROR event carrying content reasons, so mapping a
-	// rejection to ERROR silently discarded every rejection.
+	// User rejects ERROR events with content reasons; publish REJECTED for policy violations.
 	pool := newTestPool(t)
 
 	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
@@ -604,7 +580,6 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 		t.Fatalf("reason codes = %v, want [%s]", job.ReasonCodes, policySpecificReason)
 	}
 
-	// The published event payload must carry REJECTED + the codes.
 	var payload string
 	if err := pool.QueryRow(ctx,
 		`SELECT payload FROM moderation_outbox WHERE job_id = $1`, job.ID).Scan(&payload); err != nil {
@@ -619,10 +594,7 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 }
 
 func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
-	// Regression for the unfenced terminal finalize: a stale worker whose
-	// claim was reclaimed must not schedule a retry or enqueue the terminal
-	// outbox row — the phantom row would block the rightful owner's terminal
-	// write on UNIQUE(job_id, run_generation) forever.
+	// A stale terminal outbox row would block the valid owner on the generation uniqueness constraint.
 	pool := newTestPool(t)
 
 	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
@@ -634,8 +606,7 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 	}
 	stale := mustClaim(t, store, "stale-worker")
 
-	// The winner reclaims (simulating lease-expiry recovery): steal the claim
-	// the way a new claim would.
+	// Replace the token to simulate a winning recovery claim.
 	jobID := jobIDByRequest(t, pool, in.ModerationRequestID)
 	winnerToken := uuid.New()
 	if _, err := pool.Exec(ctx, `
@@ -645,8 +616,6 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 		t.Fatalf("steal claim: %v", err)
 	}
 
-	// Stale worker reaches the terminal branch: must be fenced, and the outbox
-	// must stay empty.
 	err := store.FinalizeFailed(ctx, *stale, moderation.WrapConnectionError(errors.New("late failure")))
 	if !errors.Is(err, moderationjob.ErrFenced) {
 		t.Fatalf("stale terminal finalize error = %v, want ErrFenced", err)
@@ -655,7 +624,6 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 		t.Fatalf("stale worker enqueued %d phantom outbox rows", n)
 	}
 
-	// Stale worker reaching the retry branch: fenced too, job untouched.
 	staleRetry := *stale
 	if err := store.FinalizeFailed(
 		ctx,
@@ -677,9 +645,7 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 }
 
 func TestReleaseRequeuesForPromptRetry(t *testing.T) {
-	// Regression for the broken Release: releasing a claimed job must requeue
-	// it (queued, claim cleared) instead of failing the processing_is_claimed
-	// CHECK and silently waiting out the lease.
+	// Clearing ownership must also leave processing state to satisfy its CHECK constraint.
 	pool := newTestPool(t)
 
 	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
@@ -703,7 +669,6 @@ func TestReleaseRequeuesForPromptRetry(t *testing.T) {
 	if job.ClaimToken != nil || job.LeaseUntil != nil {
 		t.Fatalf("released job must carry no claim: %+v", job)
 	}
-	// And it must be immediately claimable again.
 	outcome, again, err := store.Claim(ctx, "next-worker", 30*time.Second)
 	if err != nil || outcome != moderationjob.ClaimReady || again == nil || again.Job.ID != jobID {
 		t.Fatalf("released job not reclaimable: %v %v %v", outcome, again, err)
@@ -711,9 +676,7 @@ func TestReleaseRequeuesForPromptRetry(t *testing.T) {
 }
 
 func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
-	// The shutdown path releases with an already-cancelled context; the pool
-	// must detach the context so the write still lands and the job is
-	// promptly requeued instead of waiting out the lease.
+	// Shutdown has cancelled the caller context; cleanup must detach it.
 	pool := newTestPool(t)
 
 	in := ingestInput("cancel then release")
@@ -740,7 +703,6 @@ func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.Start(ctx)
 
-	// Worker is inside the (blocking) evaluation; cancel to trigger shutdown.
 	eval.waitEntered(t, 1)
 	cancel()
 	eval.release(1)
@@ -869,5 +831,62 @@ func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 	); err != nil ||
 		ok {
 		t.Fatalf("expired owner renewed: %v, %v", ok, err)
+	}
+}
+
+func TestConfigurationFailureReleasePreservesHistoryAndFencesStaleClaims(t *testing.T) {
+	pool := newTestPool(t)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil, "test-model")
+	ctx := context.Background()
+	in := ingestInput("configuration failure history")
+	if _, err := store.Ingest(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	claimed := mustClaim(t, store, "broken-provider")
+	if ok, err := store.ReleaseConfigurationFailure(ctx, claimed.Job.ID, uuid.New()); err != nil || ok {
+		t.Fatalf("wrong token released claim: ok=%v err=%v", ok, err)
+	}
+	if ok, err := store.ReleaseConfigurationFailure(ctx, claimed.Job.ID, claimed.ClaimToken); err != nil || !ok {
+		t.Fatalf("configuration release: ok=%v err=%v", ok, err)
+	}
+	job := jobByRequest(t, pool, in.ModerationRequestID)
+	if job.Status != "queued" || job.ClaimToken != nil || job.LeaseUntil != nil || job.AttemptCount != 1 {
+		t.Fatalf("configuration release changed budget or left ownership: %+v", job)
+	}
+	attempts, err := store.GetAttempts(ctx, job.ID, job.RunGeneration)
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("attempt history: %v %v", attempts, err)
+	}
+	attempt := attempts[0]
+	if attempt.ErrorClass == nil || *attempt.ErrorClass != "configuration" || attempt.Detail == nil ||
+		*attempt.Detail != "configuration" || attempt.FinishedAt == nil || attempt.Outcome == "released" {
+		t.Fatalf("missing sanitized configuration failure: %+v", attempt)
+	}
+	var events int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM moderation_outbox WHERE job_id = $1", job.ID).
+		Scan(&events); err != nil ||
+		events != 0 {
+		t.Fatalf("release emitted terminal event: events=%d err=%v", events, err)
+	}
+	next := mustClaim(t, store, "restarted-provider")
+	if ok, err := store.ReleaseConfigurationFailure(ctx, job.ID, claimed.ClaimToken); err != nil || ok {
+		t.Fatalf("stale token released new claim: ok=%v err=%v", ok, err)
+	}
+	if next.AttemptNumber != 2 {
+		t.Fatalf("restart reset budget: attempt=%d", next.AttemptNumber)
+	}
+	if _, err := pool.Exec(
+		ctx,
+		"UPDATE moderation_jobs SET lease_until = clock_timestamp() - interval '1 second' WHERE id = $1",
+		job.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := store.ReleaseConfigurationFailure(ctx, job.ID, next.ClaimToken); err != nil || ok {
+		t.Fatalf("expired token released claim: ok=%v err=%v", ok, err)
+	}
+	attempts, err = store.GetAttempts(ctx, job.ID, job.RunGeneration)
+	if err != nil || len(attempts) != 2 || attempts[1].ErrorClass != nil || attempts[1].FinishedAt != nil {
+		t.Fatalf("fenced release mutated current attempt: %v %v", attempts, err)
 	}
 }

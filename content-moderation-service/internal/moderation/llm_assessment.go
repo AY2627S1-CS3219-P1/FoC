@@ -8,11 +8,7 @@ import (
 	"strings"
 )
 
-// Evaluate assesses one review comment against the versioned policy. It builds
-// a fresh single-turn request from process settings, calls the injected
-// completion client, validates the response locally, and maps the outcome. An
-// error return is always a technical failure (one of the moderation error
-// classes); no verdict is inferred from it.
+// Assessment errors are technical failures; never infer a verdict from them.
 func (e *Service) AssessReview(ctx context.Context, input ReviewInput) (ReviewAssessment, error) {
 	if e.client == nil {
 		return ReviewAssessment{}, &ErrConfiguration{Detail: "moderation provider is not configured"}
@@ -25,9 +21,6 @@ func (e *Service) AssessReview(ctx context.Context, input ReviewInput) (ReviewAs
 	return evaluateResponse(resp)
 }
 
-// buildRequest constructs a completion request using the fixed policy and model, with
-// a fresh single-turn conversation: the trusted system prompt plus the
-// complete, delimited review as the user message.
 func buildRequest(input ReviewInput, modelID string) *CompletionRequest {
 	return &CompletionRequest{
 		Model:      modelID,
@@ -39,9 +32,7 @@ func buildRequest(input ReviewInput, modelID string) *CompletionRequest {
 
 }
 
-// evaluateResponse turns a provider response into an assessment, enforcing the
-// output contract locally. A refusal, empty response, or truncated generation
-// yields a technical error, never a verdict.
+// Refusal, empty content and truncation are technical failures, even if JSON looks valid.
 func evaluateResponse(resp *CompletionResponse) (ReviewAssessment, error) {
 	if resp == nil {
 		return ReviewAssessment{}, ErrEmptyResponse
@@ -68,8 +59,6 @@ func evaluateResponse(resp *CompletionResponse) (ReviewAssessment, error) {
 	return parseAssessment(content)
 }
 
-// parseAssessment decodes exactly one JSON object and validates it against the
-// policy schema, rejecting trailing data and unknown fields.
 func parseAssessment(content string) (ReviewAssessment, error) {
 	payload, err := decodeAssessment(content)
 	if err != nil {
@@ -99,8 +88,7 @@ func parseAssessment(content string) (ReviewAssessment, error) {
 	}
 }
 
-// decodeAssessment enforces presence, exact field names, types and uniqueness.
-// encoding/json alone accepts missing/null fields and duplicate object keys.
+// encoding/json alone accepts missing/null fields and duplicate keys.
 func decodeAssessment(content string) (assessmentPayload, error) {
 	var payload assessmentPayload
 	invalid := func() (assessmentPayload, error) {
@@ -159,9 +147,6 @@ func decodeAssessment(content string) (assessmentPayload, error) {
 	return payload, nil
 }
 
-// validateReasonCodes checks the reject codes against the known set: bounded
-// size, all known, no duplicates. The order of the input is preserved. A reject
-// verdict requires at least one code, so an empty set is invalid.
 func validateReasonCodes(codes []string) ([]string, error) {
 	if len(codes) == 0 {
 		return nil, &ErrInvalidOutput{Detail: "reject decision requires at least one reason code"}
@@ -184,14 +169,11 @@ func validateReasonCodes(codes []string) ([]string, error) {
 	return codes, nil
 }
 
-// assessmentPayload is the subset of the schema the evaluator decodes. An
-// field set and JSON types are checked explicitly by decodeAssessment.
 type assessmentPayload struct {
 	Decision    string   `json:"decision"`
 	ReasonCodes []string `json:"reason_codes"`
 }
 
-// knownReasonCode indexes the policy's rejection codes.
 var knownReasonCode = map[string]struct{}{
 	ReasonHarassment:    {},
 	ReasonHate:          {},

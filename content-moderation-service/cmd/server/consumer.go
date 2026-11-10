@@ -18,9 +18,7 @@ const (
 	maxConsumeBackoff = 30 * time.Second
 )
 
-// consume runs the ingestion subscription until ctx ends. A failed subscriber
-// cannot restart, so each failure builds a new one after a growing delay;
-// the uncommitted delivery is then redelivered.
+// Recreate failed subscribers so the uncommitted event can be redelivered.
 func consume(ctx context.Context, brokers []string, store *moderationjob.Service, logger *slog.Logger) {
 	consumeWithRetry(ctx, logger, func() error {
 		return subscribe(ctx, brokers, store, logger)
@@ -36,7 +34,6 @@ func consumeWithRetry(ctx context.Context, logger *slog.Logger, runSubscription 
 			return
 		}
 
-		// A subscription that ran for a while was healthy; restart promptly.
 		if time.Since(started) > maxConsumeBackoff {
 			backoff = minConsumeBackoff
 		}
@@ -59,7 +56,6 @@ func subscribe(ctx context.Context, brokers []string, store *moderationjob.Servi
 		return err
 	}
 
-	// Create the ingestion handler
 	handler := &ingestionHandler{store: store}
 
 	err = kafka.Register(subscriber, moderationjob.UsersReviewSubmittedTopic,
@@ -73,14 +69,11 @@ func subscribe(ctx context.Context, brokers []string, store *moderationjob.Servi
 	return subscriber.Run(ctx)
 }
 
-// ingestionHandler adapts the Kafka subscriber interface to the job store.
 type ingestionHandler struct {
 	store *moderationjob.Service
 }
 
-// Handle processes a review submitted event. A required identifier that is
-// empty or unparseable is malformed: quarantine the decoded event so the
-// partition advances and it is never turned into a zero-UUID job and retried.
+// Quarantine malformed decoded events so poison deliveries do not block the partition.
 func (h *ingestionHandler) Handle(
 	ctx context.Context,
 	meta kafka.Metadata,
@@ -121,8 +114,7 @@ func (h *ingestionHandler) Handle(
 	return nil
 }
 
-// parseRequiredUUID rejects empty, malformed and zero UUIDs so malformed
-// events are quarantined instead of being stored with a zero UUID.
+// Reject zero UUIDs as well as malformed IDs.
 func parseRequiredUUID(s string) (uuid.UUID, error) {
 	if s == "" {
 		return uuid.Nil, fmt.Errorf("empty identifier")

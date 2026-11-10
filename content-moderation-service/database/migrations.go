@@ -1,5 +1,4 @@
-// Package database connects the content moderation service to PostgreSQL,
-// embeds its owned schema migrations, and runs application transactions.
+// Package database owns CMS migrations and transaction boundaries.
 package database
 
 import (
@@ -33,7 +32,6 @@ func Connect(connStr string) *pgxpool.Pool {
 	return pool
 }
 
-// Migrate applies pending owned migrations embedded at build time.
 func Migrate(ctx context.Context, databaseURL string) (err error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -55,9 +53,6 @@ func Migrate(ctx context.Context, databaseURL string) (err error) {
 	return nil
 }
 
-// MigrateDownAll reverts every owned migration, leaving the schema empty. It
-// exists for test suites that verify up/down/up cycles against a throwaway
-// database.
 func MigrateDownAll(ctx context.Context, databaseURL string) (err error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {

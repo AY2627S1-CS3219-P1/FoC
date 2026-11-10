@@ -9,9 +9,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 )
 
-// reservedRequestFields are provider fields the Advanced parameter allowlist
-// must never override. The adapter rejects any advanced entry keyed here so the
-// model, prompts, output format, or request identity cannot be hijacked.
+// Advanced parameters must not override model, prompt or output fields.
 var reservedRequestFields = map[string]struct{}{
 	"model":           {},
 	"messages":        {},
@@ -20,9 +18,6 @@ var reservedRequestFields = map[string]struct{}{
 	"response_format": {},
 }
 
-// buildParams assembles the completion request: a fresh single-turn
-// conversation (system instruction + delimited review data), the configured
-// model, and the strict structured-output format selected by the output mode.
 func buildParams(req *moderation.CompletionRequest) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
@@ -54,8 +49,6 @@ func buildParams(req *moderation.CompletionRequest) openai.ChatCompletionNewPara
 	return params
 }
 
-// applyTypedParams sets optional inference parameters, omitting any that are
-// unset so zero values are never sent.
 func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn moderation.CompletionParameters) {
 	if paramsIn.Temperature != nil {
 		params.Temperature = openai.Opt[float64](*paramsIn.Temperature)
@@ -86,9 +79,7 @@ func applyTypedParams(params *openai.ChatCompletionNewParams, paramsIn moderatio
 	}
 }
 
-// advancedOptions applies validated extra provider parameters via JSON merging.
-// The service-owned allowlist excludes reserved fields; this guard is a
-// defense in depth against a config that tries to override them.
+// Guard the allowlist again at the adapter boundary.
 func advancedOptions(paramsIn moderation.CompletionParameters) ([]option.RequestOption, error) {
 	if len(paramsIn.Advanced) == 0 {
 		return nil, nil
