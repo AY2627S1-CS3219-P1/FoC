@@ -78,8 +78,8 @@ const (
 	chooseReply       = "Which order is this about? Reply to one of its messages, or choose one below, then send your message again."
 	textOnlyReply     = "Only text messages can be sent to the other person."
 	tooLongReply      = "That message is too long. Please send a shorter one."
-	notConnectedReply = "The other person hasn't connected Telegram, so they won't see messages here. Please contact them through the FoC app."
-	unreachableReply  = "The other person can't receive Telegram messages right now. Please contact them through the FoC app."
+	notConnectedReply = "The other person hasn't connected Telegram, so your message wasn't delivered. Order updates still reach them in the FoC app."
+	unreachableReply  = "Your message couldn't be delivered because the other person can't receive Telegram messages right now. Please try again later."
 	retryReply        = "That message couldn't be delivered just now. Please send it again."
 	closedReply       = "Chat for that order has closed."
 )
