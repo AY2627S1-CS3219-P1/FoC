@@ -91,8 +91,8 @@ run "private_demo_data_and_images" {
   command = plan
 
   assert {
-    condition     = length(aws_ecr_repository.images) == 8 && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
-    error_message = "The demo needs eight immutable image repositories with explicit data deletion."
+    condition     = length(aws_ecr_repository.images) == 9 && contains(keys(aws_ecr_repository.images), "content-moderation-service") && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
+    error_message = "The demo needs nine immutable image repositories including CMS with explicit data deletion."
   }
   assert {
     condition     = !aws_db_instance.database.publicly_accessible && !aws_db_instance.database.multi_az && aws_db_instance.database.storage_encrypted && aws_db_instance.database.manage_master_user_password
@@ -180,27 +180,39 @@ run "reject_open_operator_api" {
 run "smtp_creates_no_email_role" {
   command = plan
   assert {
-    condition     = length(aws_iam_role.email) == 0 && length(aws_iam_role_policy.email) == 0 && !contains(keys(local.workload_identities), "email")
+    condition     = length(aws_iam_role.email) == 0 && length(aws_iam_role_policy.email) == 0 && length(aws_iam_role.communication_email) == 0 && length(aws_iam_role_policy.communication_email) == 0 && !contains(keys(local.workload_identities), "email") && !contains(keys(local.workload_identities), "communication_email")
     error_message = "SMTP must remain the default without granting SES permissions."
   }
 }
 
-run "ses_is_sender_and_communication_scoped" {
+# Preserve User's existing SES identity while adding Communication independently.
+run "ses_is_sender_and_service_scoped" {
   command = plan
   variables {
     ses_sender_email = "sender@example.test"
   }
   assert {
-    condition     = length(aws_iam_role.email) == 1 && local.workload_identities["email"] == "system:serviceaccount:foc:communication-service"
-    error_message = "Only Communication Service may assume the email role."
+    condition     = length(aws_iam_role.email) == 1 && aws_iam_role.email[0].name == "foc-demo-user-email" && local.workload_identities["email"] == "system:serviceaccount:foc:user-service"
+    error_message = "User's original role and Kubernetes identity must remain available."
   }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
-    error_message = "SES sending must be restricted to the verified regional sender, without broad permissions."
+    condition     = length(aws_iam_role.communication_email) == 1 && aws_iam_role.communication_email[0].name == "foc-demo-communication-email" && local.workload_identities["communication_email"] == "system:serviceaccount:foc:communication-service"
+    error_message = "Communication requires a separate role bound to its own Kubernetes identity."
   }
   assert {
-    condition     = toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:communication-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
-    error_message = "Trust must bind both the exact Communication Service subject and STS audience."
+    condition = alltrue([for policy in [aws_iam_role_policy.email[0].policy, aws_iam_role_policy.communication_email[0].policy] :
+      jsondecode(policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
+    ])
+    error_message = "Both SES policies must remain restricted to the verified regional sender."
+  }
+  assert {
+    condition = alltrue([for key, subject in {
+      email               = "system:serviceaccount:foc:user-service"
+      communication_email = "system:serviceaccount:foc:communication-service"
+      } :
+      toset(one([for condition in one(data.aws_iam_policy_document.workload_trust[key].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset([subject]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust[key].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    ])
+    error_message = "Each role must trust only its own exact service account and STS audience."
   }
 }
 
@@ -419,5 +431,58 @@ run "logging_has_dedicated_private_storage_and_identity" {
   assert {
     condition     = jsondecode(aws_iam_role_policy.loki.policy).Statement[0].Resource == "arn:aws:s3:::demo-loki" && jsondecode(aws_iam_role_policy.loki.policy).Statement[0].Action == ["s3:ListBucket"] && jsondecode(aws_iam_role_policy.loki.policy).Statement[1].Resource == "arn:aws:s3:::demo-loki/*" && toset(jsondecode(aws_iam_role_policy.loki.policy).Statement[1].Action) == toset(["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
     error_message = "Loki may list and manage objects only in its own bucket, including compactor deletion."
+  }
+}
+
+# The extraction requires an isolated service identity/database. The AWS demo
+# preparation contract keeps evidence private and leaves runtime deployment off.
+run "moderation_is_disabled_by_default" {
+  command = plan
+  assert {
+    condition     = !contains(keys(aws_ecr_repository.images), "moderation-service") && length(aws_s3_bucket.moderation_evidence) == 0 && length(aws_iam_role.moderation) == 0 && length(aws_iam_role_policy.moderation) == 0 && !contains(keys(local.workload_identities), "moderation") && output.moderation == null && !output.deployment.moderation_enabled
+    error_message = "Default plans must not provision moderation resources or database credentials."
+  }
+}
+
+run "moderation_has_isolated_private_evidence_resources" {
+  command = plan
+  variables {
+    enable_moderation_service = true
+  }
+  override_resource {
+    target          = aws_s3_bucket.moderation_evidence[0]
+    override_during = plan
+    values = {
+      id  = "demo-moderation-evidence"
+      arn = "arn:aws:s3:::demo-moderation-evidence"
+    }
+  }
+  assert {
+    condition     = length(aws_ecr_repository.images) == 10 && aws_ecr_repository.images["moderation-service"].name == "foc-demo/moderation-service" && aws_ecr_repository.images["moderation-service"].image_tag_mutability == "IMMUTABLE" && !aws_ecr_repository.images["moderation-service"].force_delete
+    error_message = "Moderation requires one additional immutable, retained image repository."
+  }
+  assert {
+    condition     = aws_s3_bucket.moderation_evidence[0].id != aws_s3_bucket.orders.id && aws_s3_bucket.moderation_evidence[0].id != aws_s3_bucket.loki.id && !aws_s3_bucket.moderation_evidence[0].force_destroy && aws_s3_bucket_public_access_block.moderation_evidence[0].block_public_acls && aws_s3_bucket_public_access_block.moderation_evidence[0].block_public_policy && aws_s3_bucket_public_access_block.moderation_evidence[0].ignore_public_acls && aws_s3_bucket_public_access_block.moderation_evidence[0].restrict_public_buckets && one(one(aws_s3_bucket_server_side_encryption_configuration.moderation_evidence[0].rule).apply_server_side_encryption_by_default).sse_algorithm == "AES256"
+    error_message = "Evidence must stay encrypted, private, separate from Order/Loki, and retained during teardown."
+  }
+  assert {
+    condition     = one(aws_s3_bucket_cors_configuration.moderation_evidence[0].cors_rule).allowed_origins == toset(["https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com"]) && one(aws_s3_bucket_cors_configuration.moderation_evidence[0].cors_rule).allowed_methods == toset(["GET", "HEAD", "PUT"])
+    error_message = "Direct evidence transfers require exact-origin browser CORS, not public access."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.moderation[0].policy).Statement[0].Action == ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"] && jsondecode(aws_iam_role_policy.moderation[0].policy).Statement[0].Resource == "arn:aws:s3:::demo-moderation-evidence/evidence/*" && length(jsondecode(aws_iam_role_policy.moderation[0].policy).Statement) == 1
+    error_message = "Moderation may read/write/delete only its own evidence prefix, not list buckets, send mail, or administer infrastructure."
+  }
+  assert {
+    condition     = aws_iam_role.moderation[0].name == "foc-demo-moderation-evidence" && local.workload_identities["moderation"] == "system:serviceaccount:foc:moderation-service" && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["moderation"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:moderation-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["moderation"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    error_message = "Only the exact moderation Kubernetes identity may assume its evidence role using STS."
+  }
+  assert {
+    condition     = jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Effect == "Deny" && jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Action == "s3:*" && jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Condition.Bool["aws:SecureTransport"] == "false" && toset(jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Resource) == toset(["arn:aws:s3:::demo-moderation-evidence", "arn:aws:s3:::demo-moderation-evidence/*"])
+    error_message = "Evidence storage must reject insecure transport for the bucket and every object."
+  }
+  assert {
+    condition     = output.deployment.moderation_enabled && output.moderation.database_name == "moderation_db" && output.moderation.database_role == "foc_moderation" && output.moderation.database_secret == "moderation-db" && output.moderation.service_account == "moderation-service" && output.moderation.namespace == "foc"
+    error_message = "Operator outputs must describe the isolated moderation identity and database contract."
   }
 }

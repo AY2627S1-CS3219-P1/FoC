@@ -49,7 +49,11 @@ func TestPostgresProgress(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stored, _ = f.repo.Get(f.ctx, o.ID); !reflect.DeepEqual(completed, stored) || stored.Status != Completed {
+		stored, err = f.repo.Get(f.ctx, o.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(completed, stored) || stored.Status != Completed || stored.AutomaticallyCompleted {
 			t.Fatalf("receipt response and store differ\n%+v\n%+v", completed, stored)
 		}
 		audit, outbox, _ := f.counts(t, o.ID)

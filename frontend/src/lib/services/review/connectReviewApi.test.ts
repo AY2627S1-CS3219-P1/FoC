@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
-import { ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
+import { ModerationStatus, ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
 import { ReviewAlreadyExistsError, ReviewRemovedError, ReviewLimitedError, ReviewNotReadyError, ReviewRejectedError } from './reviewApi.ts';
 import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
 import { ConnectReviewApi } from './connectReviewApi.ts';
@@ -147,6 +147,7 @@ describe('ConnectReviewApi', () => {
 	it('fetches the caller review for one order; absent stays null', async () => {
 		const { client, api } = scenario();
 		vi.mocked(client.getMyReviewForOrder).mockResolvedValueOnce({
+			moderationStatus: ModerationStatus.PENDING_MODERATION,
 			review: {
 				id: 'r1', reviewerId: 'r', revieweeId: 'e', reviewerName: 'R', revieweeName: 'E',
 				orderId: 'o1', rating: 5, comment: 'great',
@@ -156,6 +157,7 @@ describe('ConnectReviewApi', () => {
 		const review = await api.getMyReviewForOrder('o1', new AbortController().signal);
 		expect(review?.rating).toBe(5);
 		expect(review?.comment).toBe('great');
+		expect(review?.moderationStatus).toBe(ModerationStatus.PENDING_MODERATION);
 		vi.mocked(client.getMyReviewForOrder).mockResolvedValueOnce({ review: undefined } as never);
 		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).resolves.toBeNull();
 	});

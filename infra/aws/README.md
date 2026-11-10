@@ -21,8 +21,8 @@ prove that the school permits deployment.
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
 - D4: IRSA supplies short-lived AWS credentials to Order, Loki, the EBS CSI driver,
-  the load-balancer controller, and optionally Communication for SES. Each has a separate
-  workload role. Application AWS access keys are not needed.
+  the load-balancer controller, and optionally User and Communication for SES. Each
+  has a separate workload role. Application AWS access keys are not needed.
   RDS manages the administrator password in Secrets Manager. Terraform does not
   read that password or generate SMTP/JWT/application database credentials.
 - D5: State uses a separate versioned, encrypted S3 bucket with native S3 locking.
@@ -190,7 +190,7 @@ PATH="$PWD/.tools/bin:$PWD/.tools/aqua/bin:$PATH" \
 
 Go CLI fixtures mock all AWS calls; Terraform tests mock the upstream VPC/EKS modules. They exercise root
 resource safeguards, render the actual Kubernetes bases with a non-default
-hostname, preserve the private RPC boundary, mount RDS certificates in all five
+hostname, preserve the private RPC boundary, mount RDS certificates in all six
 services and migration Jobs, and preserve private database passwords on retry.
 They also invoke the actual Go operator against the generated AWS overlay.
 For the full pinned Helm/IRSA/claim rendering check, install the pinned Helm tool
@@ -361,7 +361,7 @@ to S3. Long RPCs, large responses, cookies, RPC errors, and page/asset responses
 still need live verification. Local TLS port-forward smoke commands assume the
 original in-cluster HTTPS profile and are not acceptance tests for this profile.
 
-## 4. Provision the five databases and remaining Secrets
+## 4. Provision the six databases and remaining Secrets
 
 Read the RDS-managed admin secret directly into a private file, never chat or
 terminal output. Set `DATABASE_SECRET_ARN` from deployment outputs:
@@ -390,15 +390,16 @@ administrator cleanup. It does not drop data or rotate existing roles. It is NOT
 part of the automatic deployment stages. On retry, first inspect the previous
 Job's status. Never delete a running Job. After success, remove the completed
 Job, its `rds-provision-admin` Secret and unused ServiceAccount, and remove the
-local admin JSON. Keep the five private service credential files for retries.
+local admin JSON. Keep the six private service credential files for retries.
 Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
-in the Terraform inputs. Review the plan before applying: this adds a dedicated
-Communication Service IAM role and inline policy permitting only `ses:SendEmail` and
-`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Trust
-is restricted to the `foc:communication-service` ServiceAccount and STS audience. It does
-not grant email permissions to User or change Order's S3 permissions.
+in the Terraform inputs. Review the plan before applying: User and Communication
+have separate IAM roles and inline policies permitting only `ses:SendEmail` and
+`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Each role
+trusts only its corresponding `foc:user-service` or `foc:communication-service`
+ServiceAccount and the STS audience. User's original role remains available while
+existing deployments still send email directly. Order's S3 permissions are unchanged.
 The adapter sends raw MIME through SESv2's `SendEmail` operation. AWS also
 requires `ses:SendRawEmail` for that content: a live workload request with only
 `ses:SendEmail` was rejected with `AccessDeniedException` for `ses:SendRawEmail`.
@@ -410,9 +411,23 @@ Service IRSA annotation, and removes Communication's SMTP Secret reference. No s
 AWS keys or SMTP login are needed. The operator checks the rendered reference
 before requiring `smtp`. Existing SMTP overlays and local Mailpit are unchanged.
 A null/default `ses_sender_email` retains SMTP and creates no email role.
-The deployment output exposes `communication_email_role_arn`; regenerate the
-output JSON before rendering. The role is named `<name>-communication-email`,
-so an existing `<name>-user-email` role is replaced when this plan is applied.
+The deployment output exposes `user_email_role_arn` and
+`communication_email_role_arn`; regenerate the output JSON before rendering.
+The roles are named `<name>-user-email` and `<name>-communication-email`.
+Communication is added independently without replacing User's existing role.
+The renderer uses Communication's ARN; the User ARN output does not itself change
+User's ServiceAccount annotation.
+
+Before applying in an existing environment, inspect the email role and policy
+state bindings. `aws_iam_role.email[0]` and `aws_iam_role_policy.email[0]` must
+refer to `<name>-user-email`; the corresponding `communication_email[0]`
+resources must refer to `<name>-communication-email`. An environment that applied
+the earlier Communication-only configuration may instead bind `email[0]` to
+Communication's role. Source changes do not migrate those bindings: have the
+infrastructure operator reconcile them under the backend lock, then review a
+fresh plan. Do not apply a plan that replaces an existing email role as part of
+this migration. A correctly bound environment with both roles already managed
+should show no changes to either role or its policy.
 
 SES sender verification, production access, workload authorization, and actual
 mailbox delivery are separate checks. A policy simulation is not proof of live
@@ -444,6 +459,9 @@ manager, following docs/runbooks/kubernetes.md:
   sandbox mode requires verified recipients. Check actual delivery, including
   spam/DMARC behavior when using an address on a domain you do not control.
   Do not silently fall back to Mailpit.
+- `moderation-llm`: `CMS_LLM_API_KEY`, supplied privately by the operator.
+  The [moderation runbook](../../docs/runbooks/content-moderation.md) covers its
+  database, model settings, release and workflow verification.
 - `jwt-signing`: `jwt-signing-private.pem`, generated privately and retained.
 - `telegram`: TELEGRAM_BOT_TOKEN, empty to disable. Never run two pollers with
   the same bot token.
@@ -480,7 +498,7 @@ information URL is not evidence that the application has been deployed.
 ## 5. Publish images and deploy
 
 ECR repositories have immutable tags. Use a unique commit/build tag every time;
-rebuilding an existing tag will fail. All eight images must target linux/amd64
+rebuilding an existing tag will fail. All nine images must target linux/amd64
 because the worker nodes are x86_64, even when building on Apple Silicon.
 Set `K8S_IMAGE_PREFIX` from deployment outputs. Export the four `K8S_LOKI_*`
 settings printed by the renderer: bucket and role come from
@@ -545,8 +563,8 @@ created by Kubernetes and is not directly tracked by this Terraform stack.
    claims: all use Retain, including Helm's Loki claim. Preserve or explicitly
    delete those disks and Loki's S3 log objects after the data decision. Stop the
    compactor before final object deletion; a stopped compactor performs no retention.
-4. Empty only the intended ECR repositories and S3 Order/Loki buckets if their data
-   deletion was approved. Do not enable force deletion as a timeout workaround.
+4. Empty only the intended ECR repositories and S3 Order/Loki buckets, plus the
+   moderation evidence bucket when enabled, if their data deletion was approved. Do not enable force deletion as a timeout workaround.
 5. Disable RDS deletion protection through a reviewed Terraform change/apply.
    Keep final snapshots by default. Ensure the chosen final snapshot name does
    not collide with a snapshot from a previous deployment.
@@ -559,3 +577,68 @@ created by Kubernetes and is not directly tracked by this Terraform stack.
 The state bootstrap bucket is deliberately separate and protected. Retain it for
 recovery/audit until its removal is separately approved. Do not erase local
 credentials or state before confirming the intended teardown succeeded.
+
+## Reports and appeals resource preparation
+
+`enable_moderation_service = true` prepares resources for `moderation-service`
+(reports and appeals), not `content-moderation-service` (LLM review assessment).
+It defaults to false and does not deploy a workload or change existing image
+builds, Gateway routes, Kafka topics, or application migrations.
+
+| Resource | Scope |
+| --- | --- |
+| ECR | One additional immutable `<name>/moderation-service` repository and untagged-image lifecycle policy. No automatic image deletion on destroy. |
+| PostgreSQL | `prepare-database` includes `moderation_db`, owned by login `foc_moderation`, and Secret `foc/moderation-db`. It reuses the private RDS instance with verified TLS, denies PUBLIC connections, and retains existing service credentials. Terraform itself does not create the logical database or password. |
+| Evidence S3 | One separate bucket, AES256 encryption, all public access blocked, HTTPS-only access, and GET/HEAD/PUT CORS restricted to the application origin. Objects are retained by default. |
+| Workload IAM | `<name>-moderation-evidence`, assumed only by `system:serviceaccount:foc:moderation-service` with the STS audience. Allows only GetObject, PutObject, and DeleteObject under `evidence/*` in the evidence bucket. HeadObject uses GetObject permission; DeleteObject supports the runtime's 24-hour orphan-upload cleanup. No listing, other prefixes/buckets, mail, database administration, ECR push, or infrastructure permissions. |
+| Release IAM | The CI root has a separate opt-in with the same name. It adds only this exact ECR repository to the existing release image permissions. It does not extend the workload's permissions or enable release builds. |
+| Compute and networking | Reuse EKS, RDS, Kafka, API Gateway, and the existing mesh. No new node group, database instance, broker, NAT, public load balancer, or public database port. |
+
+The main Terraform root adds nine resources when enabled: two ECR resources,
+five S3 resources, and two IAM resources. `terraform output -json moderation`
+exposes non-secret storage, image, identity, and database names. The existing
+`deployment` output carries a boolean `moderation_enabled` for database
+preparation. Refresh that output before running the existing `prepare-database`
+command; retain the existing private database directory so enabling moderation
+cannot rotate the other six credentials. Preparing files does not apply them;
+review and explicitly run the provisioning Job separately.
+
+### Assumptions and deployment boundaries
+
+- The initial evidence-storage choice is a dedicated bucket rather than a prefix
+  in User's bucket (`docs/adr/moderation-evidence-storage.md`). The runtime must use these bucket settings before receiving
+  this role. This does not migrate existing evidence or grant access to User's
+  bucket. If the extraction uses shared storage, reconcile that contract before
+  enabling it, rather than broadening this role to all application buckets.
+- The runtime already cleans unattached uploads after 24 hours, so its role needs
+  object deletion. IAM cannot distinguish an orphan from attached evidence: the
+  role can delete any object under its evidence prefix. Retention of attached
+  evidence remains undecided. There is no bucket-wide lifecycle expiry, public
+  read, or additional KMS key. Review audit/privacy retention before real use.
+- Existing demo capacity is a starting assumption, not a measured guarantee.
+  The extraction's shared workload component gives its one application replica
+  requests of 50m CPU and 64Mi memory, a 256Mi memory limit, and no CPU limit.
+  Istio's sidecar has separate overhead. These are configured defaults, not
+  measured requirements. Replica sizing, RDS load, Kafka partitioning, and
+  service latency still need evaluation. This change does not resize them.
+- PostgreSQL credentials and Kubernetes/Istio caller authorization are separate
+  from AWS IAM. Internal User/Order RPC access must be restricted to the required
+  methods. Kafka outbox/consumer wiring uses the existing broker, not MSK/IAM
+  broker administration. No new SES, LLM, or model-provider credentials are
+  assumed for reports and appeals.
+- Runtime/release integration is not included. The extraction branch already
+  supplies its Docker target, migrations, Deployment/Service/ServiceAccount,
+  public RPC routes, Kafka outcome contract/topic, and health checks. These must
+  be present in the release source; AWS role annotation, S3 settings, RDS CA
+  mounts, release inventories, and internal caller authorization still need
+  integration and verification. Current release configuration does not
+  publish these optional resource outputs. Do not interpret enabled Terraform
+  resources as a deployable or verified service.
+
+After an approved apply, prepare and provision the isolated database, integrate
+those runtime contracts, review the rendered manifests, then verify evidence
+upload/read authorization, database isolation, RPC caller restrictions, Kafka
+retry/idempotency, and user-visible report/appeal flows before enabling traffic.
+Do not use a full-environment apply just to add the service without reviewing
+all unrelated plan changes. Retained evidence needs an explicit deletion
+choice during teardown, just like the other application buckets.

@@ -14,6 +14,13 @@ func persistValue(directory, name, value string, allowEmpty bool) error {
 	path := filepath.Join(directory, name)
 	info, err := os.Stat(path)
 	if err == nil {
+		// An empty optional provider key is an unconfigured value, not a credential to preserve.
+		if name == "CMS_LLM_API_KEY" && allowEmpty && info.Size() == 0 && strings.TrimSpace(value) != "" {
+			if err := os.Chmod(path, 0600); err != nil {
+				return err
+			}
+			return writePrivate(path, value)
+		}
 		if info.Size() == 0 && !allowEmpty {
 			return fmt.Errorf("empty credential %s; restore it rather than rotating a database password", path)
 		}
@@ -68,8 +75,11 @@ func (o *operator) generateLocalSecrets() error {
 		return fmt.Errorf("cannot acquire %s; inspect for another generator or a stale lock: %w", lock, err)
 	}
 	defer removeTemporary(lock)
+	if err := migrateLegacyContentModerationSecrets(directory); err != nil {
+		return err
+	}
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password", "grafana-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "content-moderation-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -87,6 +97,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	for _, entry := range []struct{ name, value string }{
 		{"SMTP_USERNAME", ""}, {"SMTP_PASSWORD", ""}, {"TELEGRAM_BOT_TOKEN", os.Getenv("K8S_TELEGRAM_BOT_TOKEN")},
+		{"CMS_LLM_API_KEY", os.Getenv("K8S_LLM_API_KEY")},
 	} {
 		if err := persistValue(directory, entry.name, entry.value, true); err != nil {
 			return err
@@ -197,11 +208,12 @@ func (o *operator) generateLocalSecrets() error {
 		return errors.New("local TLS certificate and key do not match")
 	}
 
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
-		if err := persistValue(directory, service+"-db-user", service+"_app", false); err != nil {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation"} {
+		identifier := strings.ReplaceAll(service, "-", "_")
+		if err := persistValue(directory, service+"-db-user", identifier+"_app", false); err != nil {
 			return err
 		}
-		if err := persistValue(directory, service+"-db-name", service+"_db", false); err != nil {
+		if err := persistValue(directory, service+"-db-name", identifier+"_db", false); err != nil {
 			return err
 		}
 		var fields []string
@@ -226,7 +238,7 @@ func (o *operator) generateLocalSecrets() error {
 	); err != nil {
 		return err
 	}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "content-moderation"} {
 		if err := o.applySecret(
 			"foc",
 			service+"-db",
@@ -256,6 +268,9 @@ func (o *operator) generateLocalSecrets() error {
 		return err
 	}
 	if err := o.applySecret("foc", "telegram", fromFile("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN")); err != nil {
+		return err
+	}
+	if err := o.applySecret("foc", "moderation-llm", fromFile("CMS_LLM_API_KEY", "CMS_LLM_API_KEY")); err != nil {
 		return err
 	}
 	if err := o.applySecret(
@@ -297,4 +312,28 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	note("Local secrets preserved in %s. Trust tls.crt for %s.", directory, origin)
 	return nil
+}
+
+// Content moderation used the bare moderation names before reports/appeals needed them.
+// Its password follows the renamed login; the other bare-name files move aside so they are not reused.
+func migrateLegacyContentModerationSecrets(directory string) error {
+	current := filepath.Join(directory, "content-moderation-password")
+	if _, err := os.Stat(current); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	legacy := filepath.Join(directory, "moderation-password")
+	if _, err := os.Stat(legacy); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	for _, name := range []string{"moderation-db-user", "moderation-db-name", "moderation-database-url"} {
+		err := os.Rename(filepath.Join(directory, name), filepath.Join(directory, name+".legacy"))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return os.Rename(legacy, current)
 }

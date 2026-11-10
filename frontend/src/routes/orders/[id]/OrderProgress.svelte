@@ -13,7 +13,7 @@
 		{ label: 'Courier accepted', at: order.assignedAt, done: Boolean(order.assignedAt) },
 		{ label: 'Picked up', at: order.pickedUpAt, done: Boolean(order.pickedUpAt) },
 		{ label: 'Delivered', at: order.deliveredAt, done: Boolean(order.deliveredAt) },
-		{ label: 'Receipt confirmed', at: order.completedAt, done: Boolean(order.completedAt) }
+		{ label: order.automaticallyCompleted ? 'Completed automatically' : 'Receipt confirmed', at: order.completedAt, done: Boolean(order.completedAt) }
 	]);
 	const current = $derived(steps.findIndex((step) => !step.done));
 	const stopped = $derived(

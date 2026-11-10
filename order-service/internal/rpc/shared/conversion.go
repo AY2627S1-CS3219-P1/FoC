@@ -8,6 +8,7 @@ import (
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	pb "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -30,6 +31,35 @@ var statuses = map[pb.OrderStatus]app.Status{
 	pb.OrderStatus_ORDER_STATUS_EXPIRED:             app.Expired,
 	pb.OrderStatus_ORDER_STATUS_FAILED:              app.Failed,
 	pb.OrderStatus_ORDER_STATUS_REJECTED:            app.Rejected,
+}
+
+// OrderStatusCounts lists every defined status in enum order, including
+// statuses absent from counts.
+func OrderStatusCounts(counts map[app.Status]int64) []*pb.OrderStatusCount {
+	out := make([]*pb.OrderStatusCount, 0, len(statuses)-1)
+	for value := pb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION; ; value++ {
+		status, ok := statuses[value]
+		if !ok {
+			return out
+		}
+		out = append(out, &pb.OrderStatusCount{Status: value, Count: counts[status]})
+	}
+}
+
+// OrderDate converts a protobuf calendar date. Validity is checked by the domain.
+func OrderDate(d *date.Date) app.Date {
+	return app.Date{Year: int(d.GetYear()), Month: time.Month(d.GetMonth()), Day: int(d.GetDay())}
+}
+
+func DailyOrderCounts(days []app.DailyCount) []*pb.DailyOrderCount {
+	out := make([]*pb.DailyOrderCount, len(days))
+	for i, d := range days {
+		out[i] = &pb.DailyOrderCount{
+			Date:  &date.Date{Year: int32(d.Date.Year), Month: int32(d.Date.Month), Day: int32(d.Date.Day)},
+			Count: d.Count,
+		}
+	}
+	return out
 }
 
 var roles = map[pb.ParticipantRole]app.Role{
@@ -87,22 +117,23 @@ func Order(o app.Order) *pb.Order {
 			Location:     location(o.Delivery),
 			Instructions: o.DeliveryInstructions,
 		},
-		ItemDescription:      o.ItemDescription,
-		RewardCredits:        o.RewardCredits,
-		DeliveryDuration:     durationpb.New(o.DeliveryDuration),
-		ExpiresAt:            timestamppb.New(o.ExpiresAt),
-		AssignedAt:           timestamp(o.AssignedAt),
-		PickedUpAt:           timestamp(o.PickedUpAt),
-		DeliveredAt:          timestamp(o.DeliveredAt),
-		CompletedAt:          timestamp(o.CompletedAt),
-		ClosedAt:             timestamp(o.ClosedAt),
-		CloseReason:          o.CloseReason,
-		UnattendedDelivery:   o.UnattendedDelivery,
-		ItemLocation:         o.ItemLocation,
-		Revision:             o.Revision,
-		CreatedAt:            timestamppb.New(o.CreatedAt),
-		UpdatedAt:            timestamppb.New(o.UpdatedAt),
-		DeliveryBuildingName: o.Delivery.BuildingName,
+		ItemDescription:        o.ItemDescription,
+		RewardCredits:          o.RewardCredits,
+		DeliveryDuration:       durationpb.New(o.DeliveryDuration),
+		ExpiresAt:              timestamppb.New(o.ExpiresAt),
+		AssignedAt:             timestamp(o.AssignedAt),
+		PickedUpAt:             timestamp(o.PickedUpAt),
+		DeliveredAt:            timestamp(o.DeliveredAt),
+		CompletedAt:            timestamp(o.CompletedAt),
+		AutomaticallyCompleted: o.AutomaticallyCompleted,
+		ClosedAt:               timestamp(o.ClosedAt),
+		CloseReason:            o.CloseReason,
+		UnattendedDelivery:     o.UnattendedDelivery,
+		ItemLocation:           o.ItemLocation,
+		Revision:               o.Revision,
+		CreatedAt:              timestamppb.New(o.CreatedAt),
+		UpdatedAt:              timestamppb.New(o.UpdatedAt),
+		DeliveryBuildingName:   o.Delivery.BuildingName,
 	}
 }
 
@@ -141,7 +172,17 @@ func PageInfo(p app.PageInfo) *pb.PageInfo {
 
 // Value helpers preserve optional location fields and timestamps.
 func location(l app.LocationSnapshot) *pb.LocationSnapshot {
-	return &pb.LocationSnapshot{LocationId: l.LocationID, Name: l.Name, BuildingName: l.BuildingName, Floor: l.Floor}
+	var coordinates *pb.Coordinates
+	if l.Coordinates != nil {
+		coordinates = &pb.Coordinates{Latitude: l.Coordinates.Latitude, Longitude: l.Coordinates.Longitude}
+	}
+	return &pb.LocationSnapshot{
+		LocationId:   l.LocationID,
+		Name:         l.Name,
+		BuildingName: l.BuildingName,
+		Floor:        l.Floor,
+		Coordinates:  coordinates,
+	}
 }
 
 func timestamp(t *time.Time) *timestamppb.Timestamp {

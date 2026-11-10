@@ -19,12 +19,13 @@ type ReviewSubmission struct {
 
 // ReviewInput carries the fields of a new review row.
 type ReviewInput struct {
-	ID         uuid.UUID
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int
-	Comment    string
+	ModerationRequestID uuid.UUID
+	ID                  uuid.UUID
+	ReviewerID          uuid.UUID
+	RevieweeID          uuid.UUID
+	OrderID             uuid.UUID
+	Rating              int
+	Comment             string
 }
 
 // ReviewPhotoInput carries the fields of a new staging row.
@@ -68,4 +69,9 @@ type AttachedReviewPhoto struct {
 type ReviewOrderStatuses struct {
 	ReviewedOrderIDs []uuid.UUID
 	RemovedOrderIDs  []uuid.UUID
+}
+
+type UnpublishedReviewPage struct {
+	Reviews []UnpublishedReview
+	pagination.PageInfo
 }

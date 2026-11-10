@@ -13,6 +13,13 @@
 	</header>
 	<Card variant="outlined"
 		><div class="panel-body">
+			<h2>Dashboard</h2>
+			<p>See order, user and credit counts, and open a single order or user by ID.</p>
+			<Button href="/admin/dashboard">Open dashboard</Button>
+		</div></Card
+	>
+	<Card variant="outlined"
+		><div class="panel-body">
 			<h2>Locations and suppliers</h2>
 			<p>Create, edit, archive or restore locations and manage temporary closures.</p>
 			<Button href="/admin/suppliers">Manage locations</Button>
@@ -25,6 +32,16 @@
 			<Button href="/admin/supplier-requests">Review requests</Button>
 		</div></Card
 	>
+	<Card variant="outlined"><div class="panel-body">
+		<h2>Unpublished reviews</h2>
+		<p>Search by email to see a reviewer&rsquo;s unpublished reviews.</p>
+		<Button href="/admin/reviews/unpublished">View unpublished reviews</Button>
+	</div></Card>
+	<Card variant="outlined"><div class="panel-body">
+		<h2>Configuration</h2>
+		<p>Manage the email domains allowed to register.</p>
+		<Button href="/admin/config">Manage configuration</Button>
+	</div></Card>
 </section>
 
 <style>

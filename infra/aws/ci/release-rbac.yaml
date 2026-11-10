@@ -85,7 +85,7 @@ rules:
     verbs: [get, list, watch, create, update, patch]
   - apiGroups: ['']
     resources: [secrets]
-    resourceNames: [user-db, supplier-db, order-db, credit-db, communication-db, jwt-signing, kafka-ui-auth, telegram, smtp]
+    resourceNames: [user-db, supplier-db, order-db, credit-db, communication-db, content-moderation-db, moderation-llm, jwt-signing, kafka-ui-auth, telegram, smtp]
     verbs: [get]
   - apiGroups: ['']
     resources: [pods, events]

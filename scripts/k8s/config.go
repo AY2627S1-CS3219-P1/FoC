@@ -18,6 +18,7 @@ var apps = []string{
 	"order-service",
 	"credit-service",
 	"communication-service",
+	"content-moderation-service",
 	"frontend",
 }
 
@@ -27,6 +28,7 @@ var jobs = []string{
 	"order-migrate",
 	"credit-migrate",
 	"communication-migrate",
+	"content-moderation-migrate",
 	"kafka-init",
 }
 var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}
@@ -121,7 +123,8 @@ func (o *operator) checkContext() error {
 	if strings.TrimSpace(contexts) != o.kubeContext {
 		return fmt.Errorf("context %s does not exist; run make k8s-up for the local cluster", o.kubeContext)
 	}
-	_, err = o.query("cluster-info")
+	// cluster-info lists kube-system Services, which namespace-scoped release identities cannot read.
+	_, err = o.query("version", "-o", "json")
 	return err
 }
 

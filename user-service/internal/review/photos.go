@@ -231,7 +231,7 @@ func validPhotoContentType(value string) bool {
 	return false
 }
 
-// GetReviewPhotoDownload authorizes the live parent before signing; bytes stay in storage.
+// GetReviewPhotoDownload authorizes the approved, live parent before signing; bytes stay in storage.
 func (s *Service) GetReviewPhotoDownload(
 	ctx context.Context, callerID, photoID uuid.UUID, suspended bool,
 ) (ReviewPhotoView, error) {

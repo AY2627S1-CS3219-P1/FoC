@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -23,16 +24,32 @@ func NewPostgresRepository(queries *reviewdb.Queries) *PostgresRepository {
 
 var _ Repository = (*PostgresRepository)(nil)
 
-func (r *PostgresRepository) InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) error {
-	err := q.InsertReview(ctx, reviewdb.InsertReviewParams{
-		ID:         input.ID,
-		ReviewerID: input.ReviewerID,
-		RevieweeID: input.RevieweeID,
-		OrderID:    input.OrderID,
-		Rating:     int32(input.Rating),
-		Comment:    input.Comment,
+func (r *PostgresRepository) InsertReview(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	input ReviewInput,
+) (InsertedReview, error) {
+	row, err := q.InsertReview(ctx, reviewdb.InsertReviewParams{
+		ID:                  input.ID,
+		ReviewerID:          input.ReviewerID,
+		RevieweeID:          input.RevieweeID,
+		OrderID:             input.OrderID,
+		Rating:              int32(input.Rating),
+		Comment:             input.Comment,
+		ModerationRequestID: input.ModerationRequestID,
 	})
-	return mapReviewError("insert review", err)
+	if err != nil {
+		return InsertedReview{}, mapReviewError("insert review", err)
+	}
+	status, err := parseModerationStatus(row.ModerationStatus)
+	if err != nil {
+		return InsertedReview{}, err
+	}
+	return InsertedReview{
+		CreatedAt:        row.CreatedAt,
+		ModerationStatus: status,
+		ContentRevision:  int(row.ContentRevision),
+	}, nil
 }
 
 func (r *PostgresRepository) SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error) {
@@ -208,9 +225,10 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 
 func (r *PostgresRepository) CheckReviewParticipants(
 	ctx context.Context,
+	q *reviewdb.Queries,
 	reviewerID, revieweeID uuid.UUID,
 ) (ReviewParticipantExistence, error) {
-	exists, err := r.queries.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+	exists, err := q.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
 		ReviewerID: reviewerID,
 		RevieweeID: revieweeID,
 	})
@@ -320,16 +338,17 @@ func (r *PostgresRepository) DeleteOrphanReviewPhoto(ctx context.Context, id uui
 	return n, nil
 }
 
-func toReview(row reviewdb.Review) Review {
+func toReview(row reviewdb.SoftDeleteReviewRow) Review {
 	return Review{
-		ID:         row.ID,
-		ReviewerID: row.ReviewerID,
-		RevieweeID: row.RevieweeID,
-		OrderID:    row.OrderID,
-		Rating:     int(row.Rating),
-		Comment:    row.Comment,
-		CreatedAt:  row.CreatedAt,
-		DeletedAt:  row.DeletedAt.Time,
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		RevieweeID:       row.RevieweeID,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
 	}
 }
 
@@ -350,16 +369,17 @@ func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
 
 func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		ReviewerName:     row.ReviewerName,
+		RevieweeID:       row.RevieweeID,
+		RevieweeName:     row.RevieweeName,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
 	}
 }
 
@@ -463,5 +483,216 @@ func (r *PostgresRepository) GetAttachedReviewPhoto(ctx context.Context, id uuid
 		ContentType: row.ContentType,
 		ReviewerID:  row.ReviewerID,
 		RevieweeID:  row.RevieweeID,
+	}, nil
+}
+
+func (r *PostgresRepository) AppendSubmittedOutbox(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	row SubmittedOutboxRow,
+) error {
+	return mapReviewError("append review-submitted outbox row", q.InsertReviewSubmittedOutbox(ctx,
+		reviewdb.InsertReviewSubmittedOutboxParams{
+			EventID:        row.EventID,
+			ReviewID:       row.ReviewID,
+			PayloadVersion: row.PayloadVersion,
+			Payload:        json.RawMessage(row.Payload),
+		}))
+}
+
+func (r *PostgresRepository) ListUnpublishedReviewsForUser(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	offset, limit int64,
+) ([]UnpublishedReview, error) {
+	rows, err := r.queries.ListUnpublishedReviewsForUser(ctx, reviewdb.ListUnpublishedReviewsForUserParams{
+		ReviewerID: reviewerID,
+		PageOffset: offset,
+		PageLimit:  limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list unpublished reviews: %w", err)
+	}
+	out := make([]UnpublishedReview, len(rows))
+	for i, row := range rows {
+		review, err := toUnpublishedReview(row)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = review
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) CountUnpublishedReviewsForUser(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+) (int64, error) {
+	count, err := r.queries.CountUnpublishedReviewsForUser(ctx, reviewerID)
+	if err != nil {
+		return 0, fmt.Errorf("count unpublished reviews: %w", err)
+	}
+	return count, nil
+}
+
+func (r *PostgresRepository) RecordModerationProcessedEvent(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	eventID uuid.UUID,
+) (int64, error) {
+	rows, err := q.RecordReviewModerationProcessedEvent(ctx, eventID)
+	if err != nil {
+		return 0, fmt.Errorf("record moderation processed event: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *PostgresRepository) LockReviewForModeration(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	reviewID uuid.UUID,
+) error {
+	if err := q.LockReviewForModeration(ctx, reviewID); err != nil {
+		return fmt.Errorf("lock review: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) GetReviewForModeration(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	reviewID uuid.UUID,
+) (ModerationTarget, error) {
+	row, err := q.GetReviewForModeration(ctx, reviewID)
+	if err != nil {
+		return ModerationTarget{}, mapReviewError("get review for moderation", err)
+	}
+	status, err := parseModerationStatus(row.ModerationStatus)
+	if err != nil {
+		return ModerationTarget{}, err
+	}
+	return ModerationTarget{
+		ID:                   row.ID,
+		ReviewerID:           row.ReviewerID,
+		RevieweeID:           row.RevieweeID,
+		ModerationStatus:     status,
+		ModerationRequestID:  row.ModerationRequestID.UUID,
+		ContentRevision:      int(row.ContentRevision),
+		AppliedRunGeneration: row.AppliedRunGeneration,
+		Deleted:              row.DeletedAt.Valid,
+	}, nil
+}
+
+func (r *PostgresRepository) ApplyModerationOutcome(
+	ctx context.Context,
+	q *reviewdb.Queries,
+	reviewID uuid.UUID,
+	completion ModerationCompletion,
+) error {
+	codes := completion.ReasonCodes
+	if codes == nil {
+		codes = []string{}
+	}
+	err := q.ApplyReviewModerationOutcome(ctx, reviewdb.ApplyReviewModerationOutcomeParams{
+		ModerationStatus:     string(completion.Status),
+		ReasonCodes:          codes,
+		AppliedRunGeneration: completion.RunGeneration,
+		PolicyVersion:        sql.NullString{String: completion.PolicyVersion, Valid: completion.PolicyVersion != ""},
+		ModeratedAt:          sql.NullTime{Time: completion.ModeratedAt, Valid: true},
+		ReviewID:             reviewID,
+	})
+	return mapReviewError("apply review moderation outcome", err)
+}
+
+func (r *PostgresRepository) ClaimSubmittedOutbox(
+	ctx context.Context,
+	eligibleAt, leaseUntil time.Time,
+) (*SubmittedFact, error) {
+	leaseToken, err := newID()
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.ClaimReviewSubmittedOutbox(ctx, reviewdb.ClaimReviewSubmittedOutboxParams{
+		LeaseToken: leaseToken,
+		LeaseUntil: leaseUntil,
+		EligibleAt: eligibleAt,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("claim review-submitted outbox row: %w", err)
+	}
+	if !row.LeaseToken.Valid {
+		return nil, errors.New("claimed review-submitted outbox row has no lease token")
+	}
+	return &SubmittedFact{
+		EventID:        row.EventID,
+		ReviewID:       row.ReviewID,
+		PayloadVersion: row.PayloadVersion,
+		Payload:        row.Payload,
+		LeaseToken:     row.LeaseToken.UUID,
+	}, nil
+}
+
+func (r *PostgresRepository) MarkSubmittedOutboxPublished(
+	ctx context.Context,
+	fact SubmittedFact,
+	now time.Time,
+) error {
+	rows, err := r.queries.MarkReviewSubmittedOutboxPublished(ctx, reviewdb.MarkReviewSubmittedOutboxPublishedParams{
+		PublishedAt: now,
+		EventID:     fact.EventID,
+		LeaseToken:  fact.LeaseToken,
+	})
+	if err != nil {
+		return fmt.Errorf("mark review-submitted outbox published: %w", err)
+	}
+	if rows != 1 {
+		return errors.New("review-submitted outbox lease lost before publication acknowledgement")
+	}
+	return nil
+}
+
+func (r *PostgresRepository) ScheduleSubmittedOutboxRetry(
+	ctx context.Context,
+	fact SubmittedFact,
+	availableAt time.Time,
+) error {
+	rows, err := r.queries.RescheduleReviewSubmittedOutbox(ctx, reviewdb.RescheduleReviewSubmittedOutboxParams{
+		AvailableAt: availableAt,
+		EventID:     fact.EventID,
+		LeaseToken:  fact.LeaseToken,
+	})
+	if err != nil {
+		return fmt.Errorf("schedule review-submitted outbox retry: %w", err)
+	}
+	if rows != 1 {
+		return errors.New("review-submitted outbox lease lost before retry was scheduled")
+	}
+	return nil
+}
+
+func toUnpublishedReview(row reviewdb.ListUnpublishedReviewsForUserRow) (UnpublishedReview, error) {
+	status, err := parseModerationStatus(row.ModerationStatus)
+	if err != nil {
+		return UnpublishedReview{}, err
+	}
+	return UnpublishedReview{
+		ID:                    row.ID,
+		ReviewerID:            row.ReviewerID,
+		ReviewerName:          row.ReviewerName,
+		RevieweeID:            row.RevieweeID,
+		RevieweeName:          row.RevieweeName,
+		OrderID:               row.OrderID,
+		Rating:                int(row.Rating),
+		Comment:               row.Comment,
+		CreatedAt:             row.CreatedAt,
+		ModerationStatus:      status,
+		ModerationRequestID:   row.ModerationRequestID.UUID,
+		ContentRevision:       int(row.ContentRevision),
+		ModerationReasonCodes: row.ReasonCodes,
+		AppliedRunGeneration:  row.AppliedRunGeneration,
+		ModeratedAt:           row.ModeratedAt.Time,
 	}, nil
 }

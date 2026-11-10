@@ -122,7 +122,7 @@
 	ul { display: grid; margin: 0; padding: 0; list-style: none; }
 	li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; border-bottom: 1px solid var(--m3c-outline-variant); }
 	li:last-child { border-bottom: 0; }
-	a { display: grid; gap: 0.1rem; padding: 0.6rem 0; color: inherit; text-decoration: none; min-width: 0; }
+	li > a { display: grid; gap: 0.1rem; padding: 0.6rem 0; color: inherit; text-decoration: none; min-width: 0; }
 	a:hover .title { text-decoration: underline; }
 	a:focus-visible { outline: 2px solid var(--m3c-primary); outline-offset: 2px; }
 	.title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }

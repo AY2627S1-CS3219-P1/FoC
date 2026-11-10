@@ -4,6 +4,8 @@ This directory records non-obvious failures that can affect future work. Each en
 
 | Entry | Applies when |
 | -- | -- |
+| [Synchronous Kafka batching delays outbox publication](kafka-synchronous-batching.md) | A deployment uses the default synchronous Kafka batching settings, or event health relies only on consumer lag. |
+| [Map tile failures have no explicit unavailable state](map-tile-unavailable-state.md) | Testing optional map outages or interpreting map controls as dependency health. |
 | [EKS worker credits can differ from Terraform state](eks-worker-credit-mode.md) | Creating or replacing the AWS demo's burstable EKS workers from `infra/aws`. |
 | [Go line formatting can need multiple passes](golines-multiple-passes.md) | `golangci-lint` v2.14.0 runs `golines` at 120 characters on long boolean expressions. |
 | [PostGIS does not start on Apple Silicon](postgis-apple-silicon.md) | `uname -m` prints `arm64` and Compose uses `postgis/postgis:18-3.6`. |
@@ -22,3 +24,5 @@ This directory records non-obvious failures that can affect future work. Each en
 | [Credit's reservation listener accepts unauthenticated calls](credit-internal-listener-unauthenticated.md) | Credit's `INTERNAL_PORT` is published, exposed through a Service or ingress, or merged into the public listener. |
 | [Stack rebases replay integrated merge history](gh-stack-merge-history.md) | `gh stack` v0.1.1 rebases imported branches with merge commits and squash-merged dependencies. |
 | [Sandbox blocks local HTTP test servers](sandbox-test-sockets.md) | Go tests use `httptest.NewServer` and the agent sandbox denies local socket creation. |
+| [Service lint configurations are not symlinks on Windows](golangci-symlinks-windows.md) | `git config core.symlinks` is `false` and golangci-lint runs inside a Go module. |
+| [Supplier review fixtures omit required revisions](supplier-review-fixture-revisions.md) | Running Supplier operational RPC/PostGIS integration tests under `tests/location/rpc`. |

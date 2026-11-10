@@ -14,12 +14,14 @@
 		buildings,
 		categories,
 		isAdmin,
+		allowProximity = false,
 		onchange
 	}: {
 		query: LocationQuery;
 		buildings: Building[];
 		categories: Category[];
 		isAdmin: boolean;
+		allowProximity?: boolean;
 		onchange: (changes: Partial<LocationQuery>) => void;
 	} = $props();
 
@@ -68,12 +70,13 @@
 		{ value: '', text: 'All categories' },
 		...categories.map((c) => ({ value: c.id, text: c.name }))
 	]);
-	const sortOptions = [
+	const sortOptions = $derived([
+		...(allowProximity ? [{ value: 'proximity-asc', text: 'Nearest first' }] : []),
 		{ value: 'name-asc', text: 'Name (A–Z)' },
 		{ value: 'name-desc', text: 'Name (Z–A)' },
 		{ value: 'building-asc', text: 'Building (A–Z)' },
 		{ value: 'building-desc', text: 'Building (Z–A)' }
-	];
+	]);
 	const archiveOptions = [
 		{ value: 'active', text: 'Unarchived' },
 		{ value: 'archived', text: 'Archived' },

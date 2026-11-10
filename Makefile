@@ -3,7 +3,7 @@ BUF := .tools/buf/$(BUF_VERSION)/buf
 
 GOLANGCI_VERSION := $(patsubst v%,%,$(shell cat .golangci-lint-version))
 GOLANGCI := .tools/golangci-lint/$(GOLANGCI_VERSION)/golangci-lint
-GO_MODULES := scripts pkg user-service supplier-service order-service communication-service credit-service
+GO_MODULES := scripts pkg user-service supplier-service order-service communication-service credit-service content-moderation-service
 
 .PHONY: buf-lint buf-generate buf-generate-rpc buf-generate-kafka fmt fmt-check lint
 
@@ -120,6 +120,17 @@ seed-demo:
 seed-demo-reset:
 	@docker compose exec -T user-service go run ./cmd/seed --fixtures - --reset < data/seeds/users.json
 	@go run ./scripts/seed --manifest data/seeds/manifest.json --reset
+
+.PHONY: perf-build perf-test
+# Private operator tools; see docs/testing/aws-performance.md.
+perf-build:
+	@mkdir -p .tools/bin
+	GOWORK=off go -C scripts build -mod=readonly -o $(CURDIR)/.tools/bin/perf ./perf
+
+perf-test:
+	GOWORK=off go -C scripts test -mod=readonly ./perf
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/perf -p 'test_*.py'
+	node --test scripts/perf/workload.test.mjs
 
 .PHONY: k8s-test k8s-persistence-smoke k8s-proxy-startup-smoke k8s-storage-smoke
 k8s-test: k8s-tools $(K8S_CLI)

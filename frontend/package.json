@@ -20,7 +20,9 @@
 		"test:realtime": "node scripts/check-realtime.mjs",
 		"test:profile-pictures": "node scripts/check-profile-pictures.mjs",
 		"buf:lint": "cd .. && buf lint",
-		"buf:generate": "cd .. && buf generate"
+		"buf:generate": "cd .. && buf generate",
+		"test:proximity": "node scripts/check-proximity.mjs",
+		"test:moderation": "node scripts/check-moderation.mjs"
 	},
 	"devDependencies": {
 		"@bufbuild/protoc-gen-es": "2.15.0",
@@ -42,6 +44,7 @@
 		"@connectrpc/connect": "^2.2.0",
 		"@connectrpc/connect-web": "^2.2.0",
 		"@ktibow/iconset-material-symbols": "~0.0.1764827375",
+		"heic-to": "^1.6.7",
 		"leaflet": "^1.9.4",
 		"libphonenumber-js": "^1.13.15",
 		"m3-svelte": "^7.2.1",

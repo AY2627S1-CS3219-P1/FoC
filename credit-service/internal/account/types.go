@@ -32,6 +32,14 @@ type Account struct {
 // Available never becomes negative (C1.1.2).
 func (a Account) Available() int64 { return a.Balance - a.Reserved }
 
+// Totals sums credits across all accounts. Reserved is held now; Returned and
+// Transferred cover every released or settled reservation.
+type Totals struct {
+	Reserved    int64
+	Returned    int64
+	Transferred int64
+}
+
 type Kind string
 
 const (

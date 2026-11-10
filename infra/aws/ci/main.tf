@@ -12,6 +12,11 @@ variable "expires_on" { type = string }
 variable "cluster_name" { type = string }
 variable "private_subnet_id" { type = string }
 variable "runner_ami" { type = string }
+variable "enable_moderation_service" {
+  description = "Allow release image operations on the separately prepared moderation repository."
+  type        = bool
+  default     = false
+}
 
 provider "aws" {
   region              = var.region
@@ -29,7 +34,7 @@ locals {
   bucket       = "${var.cluster_name}-${var.account_id}-${var.region}-releases"
   prefix       = "foc-releases"
   parameter    = "/${var.cluster_name}/ci/runner-jit"
-  images       = ["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend", "kafka-init", "migrations"]
+  images       = concat(["user-service", "supplier-service", "order-service", "credit-service", "communication-service", "content-moderation-service", "frontend", "kafka-init", "migrations"], var.enable_moderation_service ? ["moderation-service"] : [])
   repositories = [for image in local.images : "arn:aws:ecr:${var.region}:${var.account_id}:repository/${var.cluster_name}/${image}"]
 }
 
@@ -81,7 +86,7 @@ resource "aws_iam_role" "release" {
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
       Condition = { StringEquals = {
         "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        "token.actions.githubusercontent.com:sub" = "repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo"
+        "token.actions.githubusercontent.com:sub" = "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo"
       } }
     }]
   })

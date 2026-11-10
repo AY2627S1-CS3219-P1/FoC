@@ -33,12 +33,12 @@ variables {
 run "isolated_release_identity_and_private_disposable_runner" {
   command = plan
   assert {
-    condition     = jsondecode(aws_iam_role.release.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo"
+    condition     = jsondecode(aws_iam_role.release.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo"
     error_message = "Only the repository's protected environment may assume the release identity."
   }
   assert {
-    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 8 && !strcontains(aws_iam_role_policy.release.policy, "tfstate") && !strcontains(aws_iam_role_policy.release.policy, "iam:")
-    error_message = "Deployment permissions must cover eight repositories and exclude infrastructure/state administration."
+    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 9 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/content-moderation-service") && !strcontains(aws_iam_role_policy.release.policy, "tfstate") && !strcontains(aws_iam_role_policy.release.policy, "iam:")
+    error_message = "Deployment permissions must cover nine repositories including CMS and exclude infrastructure/state administration."
   }
   assert {
     condition     = tostring(aws_launch_template.runner.network_interfaces[0].associate_public_ip_address) == "false" && aws_launch_template.runner.metadata_options[0].http_tokens == "required" && aws_launch_template.runner.instance_initiated_shutdown_behavior == "terminate"
@@ -55,5 +55,16 @@ run "isolated_release_identity_and_private_disposable_runner" {
   assert {
     condition     = strcontains(aws_iam_role_policy.bootstrap.policy, "parameter/foc-demo/ci/runner-jit") && !strcontains(aws_iam_role_policy.bootstrap.policy, "s3:") && !strcontains(aws_iam_role_policy.bootstrap.policy, "eks:")
     error_message = "Bootstrap identity must not inherit deployment or state permissions."
+  }
+}
+
+run "moderation_release_access_is_repository_scoped" {
+  command = plan
+  variables {
+    enable_moderation_service = true
+  }
+  assert {
+    condition     = length(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource) == 10 && contains(jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/moderation-service") && alltrue([for repository in jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource : startswith(repository, "arn:aws:ecr:ap-southeast-1:123456789012:repository/foc-demo/") && !strcontains(repository, "*")]) && !strcontains(aws_iam_role_policy.release.policy, "iam:") && !strcontains(aws_iam_role_policy.release.policy, "tfstate")
+    error_message = "Enabling moderation must add only its exact image repository, not IAM, Terraform state, or wildcard registry access."
   }
 }

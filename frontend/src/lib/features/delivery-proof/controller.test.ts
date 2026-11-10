@@ -135,6 +135,56 @@ describe('delivery proof upload and confirmation', () => {
 	});
 });
 
+// The server admits pixel areas below 24 MP; oversized photos are resampled in
+// the browser before their upload grant is requested (issue #239).
+describe('photo pixel-budget preparation', () => {
+	const preparedScenario = (prepared: File) => {
+		const api: DeliveryProofAPI = {
+			createUpload: vi.fn(async ({ uploadId }) => ({
+				proofId: uploadId, uploadUrl: 'https://storage.invalid/upload', uploadHeaders: {}
+			})),
+			abandonUpload: vi.fn(async () => {}),
+			verifyUpload: vi.fn(async () => {}),
+			confirmDelivery: vi.fn(async () => {})
+		};
+		const put = vi.fn(async (_grant: ProofGrant, _file: File, _signal: AbortSignal) => {});
+		const prepare = vi.fn(async () => prepared);
+		const controller = new DeliveryProofController('order', api, () => {}, put, prepare);
+		return { api, put, prepare, controller };
+	};
+
+	it('uploads a downscaled photo and reuses its identical bytes on retry', async () => {
+		const original = photo('big.png');
+		const shrunk = new File(['resampled'], 'big.png', { type: 'image/jpeg' });
+		const { api, put, prepare, controller } = preparedScenario(shrunk);
+		controller.addFiles([original]);
+		vi.mocked(api.verifyUpload).mockRejectedValueOnce(new Error('unknown check result'));
+		await controller.upload();
+		expect(api.createUpload).toHaveBeenCalledWith(
+			{ orderId: 'order', uploadId: expect.any(String), contentType: 'image/jpeg', sizeBytes: shrunk.size },
+			expect.any(AbortSignal)
+		);
+		expect(put).toHaveBeenCalledWith(expect.anything(), shrunk, expect.anything());
+		expect(controller.snapshot().files[0].file).toBe(original);
+		await controller.upload();
+		expect(prepare).toHaveBeenCalledOnce();
+		expect(vi.mocked(api.createUpload).mock.calls[1][0].uploadId).toBe(vi.mocked(api.createUpload).mock.calls[0][0].uploadId);
+		expect(vi.mocked(api.createUpload).mock.calls[1][0].sizeBytes).toBe(shrunk.size);
+		expect(put).toHaveBeenLastCalledWith(expect.anything(), shrunk, expect.anything());
+	});
+
+	it('uploads the original bytes when the browser cannot prepare a photo', async () => {
+		const original = photo();
+		const { api, put, prepare, controller } = preparedScenario(original);
+		controller.addFiles([original]);
+		await controller.upload();
+		expect(prepare).toHaveBeenCalledOnce();
+		expect(vi.mocked(api.createUpload).mock.calls[0][0].contentType).toBe('image/png');
+		expect(put).toHaveBeenCalledWith(expect.anything(), original, expect.anything());
+		expect(controller.snapshot().files[0].outcome).toBe('Succeeded');
+	});
+});
+
 // NFR-13 retry and retained-input behavior also applies to a stalled transport.
 describe('bounded delivery proof work', () => {
 	it('cancels a stalled upload on unmount and does not start the next selected file', async () => {
@@ -274,7 +324,7 @@ describe('durable pending confirmation recovery', () => {
  it('retries the server-owned submission after reload without reuploading', async () => {
   const { api, put } = scenario();
   const pending = { orderId: 'order', proofIds: ['already-uploaded'], unattended: true, withoutProof: false };
-  const controller = new DeliveryProofController('order', api, () => {}, put, pending);
+  const controller = new DeliveryProofController('order', api, () => {}, put, undefined, pending);
   expect(controller.snapshot()).toMatchObject({ outcome: 'Pending', locked: true, busy: false, unattended: true, files: [] });
   controller.addFiles([photo('replacement.png')]);
   controller.setUnattended(false);
@@ -288,7 +338,7 @@ describe('durable pending confirmation recovery', () => {
  it('keeps recovered input frozen through unknown results and releases only known rejection', async () => {
   const { api, put } = scenario();
   const pending = { orderId: 'order', proofIds: ['already-uploaded'], unattended: false, withoutProof: false };
-  const controller = new DeliveryProofController('order', api, () => {}, put, pending);
+  const controller = new DeliveryProofController('order', api, () => {}, put, undefined, pending);
   vi.mocked(api.confirmDelivery).mockRejectedValueOnce(new Error('unknown')).mockRejectedValueOnce(new ProofRejectedError('Invalid proof. Submit a new photo before the deadline.'));
   await controller.confirm();
   expect(controller.snapshot().locked).toBe(true);

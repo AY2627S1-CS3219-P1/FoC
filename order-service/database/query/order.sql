@@ -5,10 +5,10 @@ SELECT * FROM orders WHERE id = $1;
 SELECT * FROM orders WHERE id = $1 FOR UPDATE;
 
 -- name: InsertOrder :exec
-INSERT INTO orders (id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id) VALUES (sqlc.arg(id), sqlc.arg(requester_id), sqlc.narg(courier_id), sqlc.arg(status), sqlc.arg(pickup), sqlc.arg(delivery), sqlc.narg(delivery_instructions), sqlc.arg(item_description), sqlc.arg(reward_credits), sqlc.arg(reserved_credits), sqlc.arg(delivery_duration_ns), sqlc.arg(expires_at), sqlc.narg(assigned_at), sqlc.narg(picked_up_at), sqlc.narg(delivered_at), sqlc.narg(completed_at), sqlc.narg(closed_at), sqlc.narg(close_reason), sqlc.narg(item_location), sqlc.arg(unattended_delivery), sqlc.arg(revision), sqlc.arg(created_at), sqlc.arg(updated_at), sqlc.narg(pending_cancellation_id));
+INSERT INTO orders (id, requester_id, courier_id, status, pickup, delivery, delivery_instructions, item_description, reward_credits, reserved_credits, delivery_duration_ns, expires_at, assigned_at, picked_up_at, delivered_at, completed_at, closed_at, close_reason, item_location, unattended_delivery, revision, created_at, updated_at, pending_cancellation_id, automatically_completed) VALUES (sqlc.arg(id), sqlc.arg(requester_id), sqlc.narg(courier_id), sqlc.arg(status), sqlc.arg(pickup), sqlc.arg(delivery), sqlc.narg(delivery_instructions), sqlc.arg(item_description), sqlc.arg(reward_credits), sqlc.arg(reserved_credits), sqlc.arg(delivery_duration_ns), sqlc.arg(expires_at), sqlc.narg(assigned_at), sqlc.narg(picked_up_at), sqlc.narg(delivered_at), sqlc.narg(completed_at), sqlc.narg(closed_at), sqlc.narg(close_reason), sqlc.narg(item_location), sqlc.arg(unattended_delivery), sqlc.arg(revision), sqlc.arg(created_at), sqlc.arg(updated_at), sqlc.narg(pending_cancellation_id), sqlc.arg(automatically_completed));
 
 -- name: UpdateOrder :execrows
-UPDATE orders SET pending_cancellation_id = sqlc.narg(pending_cancellation_id), courier_id = sqlc.narg(courier_id), status = sqlc.arg(status), pickup = sqlc.arg(pickup), delivery = sqlc.arg(delivery), delivery_instructions = sqlc.narg(delivery_instructions), item_description = sqlc.arg(item_description), reward_credits = sqlc.arg(reward_credits), reserved_credits = sqlc.arg(reserved_credits), delivery_duration_ns = sqlc.arg(delivery_duration_ns), expires_at = sqlc.arg(expires_at), assigned_at = sqlc.narg(assigned_at), picked_up_at = sqlc.narg(picked_up_at), delivered_at = sqlc.narg(delivered_at), completed_at = sqlc.narg(completed_at), closed_at = sqlc.narg(closed_at), close_reason = sqlc.narg(close_reason), item_location = sqlc.narg(item_location), unattended_delivery = sqlc.arg(unattended_delivery), revision = sqlc.arg(revision), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision);
+UPDATE orders SET pending_cancellation_id = sqlc.narg(pending_cancellation_id), courier_id = sqlc.narg(courier_id), status = sqlc.arg(status), pickup = sqlc.arg(pickup), delivery = sqlc.arg(delivery), delivery_instructions = sqlc.narg(delivery_instructions), item_description = sqlc.arg(item_description), reward_credits = sqlc.arg(reward_credits), reserved_credits = sqlc.arg(reserved_credits), delivery_duration_ns = sqlc.arg(delivery_duration_ns), expires_at = sqlc.arg(expires_at), assigned_at = sqlc.narg(assigned_at), picked_up_at = sqlc.narg(picked_up_at), delivered_at = sqlc.narg(delivered_at), completed_at = sqlc.narg(completed_at), automatically_completed = sqlc.arg(automatically_completed), closed_at = sqlc.narg(closed_at), close_reason = sqlc.narg(close_reason), item_location = sqlc.narg(item_location), unattended_delivery = sqlc.arg(unattended_delivery), revision = sqlc.arg(revision), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision);
 
 -- name: ListOrders :many
 SELECT * FROM orders WHERE
@@ -19,7 +19,14 @@ SELECT * FROM orders WHERE
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
  AND (NOT sqlc.arg(active_only)::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
- AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
+ AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY
+ CASE WHEN sqlc.arg(proximity)::boolean AND pickup->'coordinates'->>'latitude' IS NOT NULL AND pickup->'coordinates'->>'longitude' IS NOT NULL THEN
+  2 * 6371000 * asin(sqrt(least(1.0, greatest(0.0,
+   power(sin(radians((pickup->'coordinates'->>'latitude')::double precision - sqlc.arg(origin_latitude)::double precision)/2), 2) +
+   cos(radians(sqlc.arg(origin_latitude)::double precision)) * cos(radians((pickup->'coordinates'->>'latitude')::double precision)) *
+   power(sin(radians((pickup->'coordinates'->>'longitude')::double precision - sqlc.arg(origin_longitude)::double precision)/2), 2)
+  )))) END ASC NULLS LAST,
+ created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
 
 -- name: CountOrders :one
 SELECT count(*) FROM orders WHERE
@@ -31,6 +38,17 @@ SELECT count(*) FROM orders WHERE
  AND (NOT sqlc.arg(active_only)::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
  AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text);
+
+-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status;
+
+-- name: CountOrdersByDay :many
+-- Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= sqlc.arg(from_at)::timestamptz AND created_at < sqlc.arg(to_at)::timestamptz
+GROUP BY day
+ORDER BY day;
 
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;

@@ -41,7 +41,7 @@ function rethrow(cause: unknown): never {
 
 type ProfileClient = Client<typeof ProfileServiceDefinition>;
 
-function toProfile(profile: ProtoProfile | undefined): UserProfile {
+export function toProfile(profile: ProtoProfile | undefined): UserProfile {
 	if (!profile) throw new Error('Profile response did not include a profile');
 	const profilePictureUrl = profile.profilePictureUrl || undefined;
 	return {

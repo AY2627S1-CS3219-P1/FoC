@@ -164,3 +164,12 @@ func pickup(p *Progress) func(context.Context, Caller, string) (Order, error) { 
 func receipt(p *Progress) func(context.Context, Caller, string) (Order, error) {
 	return p.ConfirmReceipt
 }
+
+func TestConfirmReceiptAfterAutomaticCompletionFailsWithoutWriting(t *testing.T) {
+	p, tx, current := progressFixture(Completed)
+	tx.order.AutomaticallyCompleted = true
+	_, err := p.ConfirmReceipt(context.Background(), Caller{ID: "requester"}, current.ID)
+	if !errors.Is(err, ErrPrecondition) || tx.applied != 0 {
+		t.Fatalf("err=%v applied=%d", err, tx.applied)
+	}
+}

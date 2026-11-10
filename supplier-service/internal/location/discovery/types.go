@@ -35,12 +35,14 @@ const (
 type SortField string
 
 const (
-	SortByName     SortField = "name"
-	SortByBuilding SortField = "building"
+	SortByProximity SortField = "proximity"
+	SortByName      SortField = "name"
+	SortByBuilding  SortField = "building"
 )
 
 // ListRequest is a caller's list request. Zero values select defaults.
 type ListRequest struct {
+	Origin        *Coordinates
 	Search        string
 	BuildingID    *string
 	CategoryID    *string
@@ -54,6 +56,7 @@ type ListRequest struct {
 
 // Query is a normalized ListRequest for a Reader.
 type Query struct {
+	Origin        *Coordinates
 	Search        string
 	BuildingID    *string
 	CategoryID    *string

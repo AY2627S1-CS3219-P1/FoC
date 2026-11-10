@@ -4,7 +4,7 @@ This Terraform root owns only the private release-configuration bucket, GitHub O
 
 Initialize the existing protected state bucket with native S3 locking, using a dedicated key such as `foc/ci/terraform.tfstate`. Supply `account_id`, `region`, `expires_on`, `cluster_name`, `private_subnet_id`, and a reviewed Amazon Linux 2023 x86_64 `runner_ami` through a private variable file. Review and fingerprint the saved plan before applying it. Retain the configuration bucket and its versions by default; its destroy protection is intentional. CI resources have the same expiry tag convention as the demo, not automatic teardown.
 
-The deployment role trusts only GitHub's `sts.amazonaws.com` audience and `repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo` subject. It can describe this cluster, push/read the eight existing ECR repositories, retrieve versioned configuration, and create/delete its own environment-lock versions. It cannot read infrastructure state, administer IAM, provision infrastructure, or fetch database credentials from Secrets Manager. Kubernetes access is separately bound by `release-rbac.yaml`; apply it with an existing administrator, not the deployment role. Namespace-local deployment is privileged access to the application, including its workload Secrets and ServiceAccounts.
+The deployment role trusts only GitHub's `sts.amazonaws.com` audience and `repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo` subject. GitHub issues immutable subjects for this repository, so the subject contains the owner and repository IDs. It can describe this cluster, push/read the nine ECR repositories, including CMS, retrieve versioned configuration, and create/delete its own environment-lock versions. It cannot read infrastructure state, administer IAM, provision infrastructure, or fetch database credentials from Secrets Manager. Kubernetes access is separately bound by `release-rbac.yaml`; apply it with an existing administrator, not the deployment role. Namespace-local deployment is privileged access to the application, including its workload Secrets and ServiceAccounts.
 
 Logging additionally requires the namespace-local `foc-release` Role/Binding in
 `foc-observability`. It manages Grafana/Alloy and Helm-owned Loki resources and
@@ -60,4 +60,15 @@ terraform -chdir=infra/aws/ci test
 PYTHONDONTWRITEBYTECODE=1 .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
 ```
 
-Mock-provider assertions cover the environment-only OIDC trust, eight-repository/state-excluded deployment policy, encrypted disposable private runner, IMDSv2, Standard CPU credits, private/versioned bucket, and non-deploying bootstrap role. Offline CLI fixtures cover probe cleanup, expiring encrypted registration, refusal of unexpected workflow access or an existing instance, closed-group release rejection, and bootstrap failure. Live registration must be followed by read-back of runner-group/environment restrictions, IAM/EKS bindings, bucket settings, instance/profile/credit/network state, parameter deletion, and actual instance termination.
+Mock-provider assertions cover the environment-only OIDC trust, nine-repository/state-excluded deployment policy, encrypted disposable private runner, IMDSv2, Standard CPU credits, private/versioned bucket, and non-deploying bootstrap role. Offline CLI fixtures cover probe cleanup, expiring encrypted registration, refusal of unexpected workflow access or an existing instance, closed-group release rejection, and bootstrap failure. Live registration must be followed by read-back of runner-group/environment restrictions, IAM/EKS bindings, bucket settings, instance/profile/credit/network state, parameter deletion, and actual instance termination.
+
+## Optional moderation image access
+
+Set `enable_moderation_service = true` in this CI root only when preparing the
+reports/appeals service. It adds the exact
+`<cluster-name>/moderation-service` ECR ARN to the release role's existing image
+permissions; the default remains the original nine repositories. The main AWS
+root has a separate switch that creates the repository and isolated evidence
+resources. Neither switch adds the service to release build/deploy inventories.
+No additional Terraform-state, IAM-admin, evidence-bucket, or database-admin
+access is granted to the release role.

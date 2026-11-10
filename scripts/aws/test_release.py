@@ -159,7 +159,8 @@ class ReleaseCLITest(unittest.TestCase):
         release = self.private / "aws/releases/demo/attempt1/release-receipt.json"
         record = json.loads(release.read_text())
         self.assertEqual(record["configuration"]["version_id"], receipt["version_id"])
-        self.assertEqual(len(record["images"]), 8)
+        self.assertEqual(len(record["images"]), 9)
+        self.assertTrue(any("/content-moderation-service:" in image["reference"] for image in record["images"]))
         self.assertEqual(record["public_smoke"], "passed")
         self.assertTrue(all(not versions for key, versions in state["objects"].items() if "/locks/" in key))
         kubectl = shutil.which("kubectl")
@@ -179,9 +180,11 @@ class ReleaseCLITest(unittest.TestCase):
         calls = state["calls"]
         self.assertEqual(sum(call[0] == "terraform" and "apply" in call for call in calls), 1)
         self.assertIn(["make", "k8s-deploy", "service="], calls)
+        secret_check = next(call for call in calls if "content-moderation-db" in call and "secret" in call)
+        self.assertIn("moderation-llm", secret_check)
         self.assertIn(["kubectl", "--context", "foc-release", "--request-timeout=15s", "-n",
                        "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], calls)
-        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> eight digest receipts -> smoke gate")
+        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> nine digest receipts -> smoke gate")
 
     def test_logging_configuration_rejects_legacy_missing_shared_or_foreign_inputs(self):
         document = configuration(self.outputs, "demo", SOURCE, "a" * 64, checksum(CA), ACCOUNT, REGION)
@@ -374,6 +377,14 @@ class ReleaseCLITest(unittest.TestCase):
 
 
 class ReleaseRBACContractTest(unittest.TestCase):
+    def test_moderation_secrets_are_read_only_for_releases(self):
+        objects = list(yaml.safe_load_all((ROOT / "infra/aws/ci/release-rbac.yaml").read_text()))
+        role = next(obj for obj in objects if obj["kind"] == "Role" and obj["metadata"]["namespace"] == "foc")
+        secrets = next(rule for rule in role["rules"] if "secrets" in rule["resources"])
+        self.assertEqual(secrets["verbs"], ["get"])
+        self.assertTrue({"content-moderation-db", "moderation-llm"}.issubset(secrets["resourceNames"]))
+        self.assertNotIn("rds-provision-admin", secrets["resourceNames"])
+
     def test_logging_access_is_namespace_scoped_and_preserves_admin_rbac(self):
         objects = list(yaml.safe_load_all((ROOT / "infra/aws/ci/release-rbac.yaml").read_text()))
         role = next(obj for obj in objects if obj["kind"] == "Role" and

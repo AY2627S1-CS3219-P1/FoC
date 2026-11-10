@@ -169,7 +169,9 @@ export class ConnectReviewApi implements ReviewApi {
 	async getMyReviewForOrder(orderId: string, signal: AbortSignal): Promise<ReviewRecord | null> {
 		try {
 			const response = await this.#client.getMyReviewForOrder({ orderId }, { signal, timeoutMs: 15000 });
-			return response.review ? toReview(response.review) : null;
+			return response.review
+				? { ...toReview(response.review), moderationStatus: response.moderationStatus }
+				: null;
 		} catch (cause) {
 			// An unreviewed order is a normal state, not a failure: the backend
 			// reports it as NotFound/REVIEW_NOT_FOUND.

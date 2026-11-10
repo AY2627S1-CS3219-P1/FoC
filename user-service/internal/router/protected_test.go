@@ -92,12 +92,20 @@ func (a adminStub) ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.
 	return a.user, nil
 }
 
+func (a adminStub) GetUser(context.Context, uuid.UUID, uuid.UUID) (models.User, error) {
+	return a.user, nil
+}
+
+func (a adminStub) GetUserStats(context.Context, uuid.UUID) (service.UserStats, error) {
+	return service.UserStats{Active: 2, Suspended: 1}, nil
+}
+
 type reviewStub struct{}
 
 func (reviewStub) SubmitReview(
 	context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission, []uuid.UUID,
-) error {
-	return nil
+) (review.SubmissionResult, error) {
+	return review.SubmissionResult{}, nil
 }
 
 func (reviewStub) CreateReviewPhotoUpload(
@@ -118,12 +126,10 @@ func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pag
 	return review.ReviewPage{}, nil
 }
 
-func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
-	return review.ReviewOrderStatuses{}, nil
-}
-
-func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
-	return review.Review{}, errors.New("review not found")
+func (reviewStub) ListUnpublishedReviewsForUser(
+	context.Context, uuid.UUID, pagination.Pagination,
+) (review.UnpublishedReviewPage, error) {
+	return review.UnpublishedReviewPage{}, nil
 }
 
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
@@ -511,4 +517,70 @@ func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uuid.UUID, ro
 
 func (reviewStub) GetReviewPhotoDownload(context.Context, uuid.UUID, uuid.UUID, bool) (review.ReviewPhotoView, error) {
 	return review.ReviewPhotoView{}, nil
+}
+
+func TestAdminUserStatsAndLookupAuthorization(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec, err := jwt.NewES256Codec(key, "test-key", httpauth.TokenIssuer, httpauth.TokenAudience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorID, targetID := uuid.New(), uuid.New()
+	target := models.User{ID: targetID, Email: "target@example.com", DisplayName: "Target", Role: models.RoleUser}
+	users := &protectedUsers{users: map[uuid.UUID]models.User{targetID: target}}
+	handler := router.Setup(testHealth(), &authhandler.Handler{Logic: &stubLogic{}, AllowedOrigin: frontendOrigin},
+		router.ProtectedRoutes{
+			Profile:        &profilehandler.Handler{Logic: profileStub{}},
+			Admin:          &adminhandler.Handler{Logic: adminStub{target}},
+			AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: &allowedDomainStub{}},
+			Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess), Users: users,
+		})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
+	ctx := context.Background()
+
+	// The persisted role decides access; every token claims admin.
+	token := "Bearer " + signedTestAccess(t, codec, actorID, jwt.RoleAdmin)
+	getUser := func() (*connect.Response[userv1.GetUserResponse], error) {
+		req := connect.NewRequest(&userv1.GetUserRequest{UserId: targetID.String()})
+		req.Header().Set("Authorization", token)
+		return client.GetUser(ctx, req)
+	}
+	getStats := func() (*connect.Response[userv1.GetUserStatsResponse], error) {
+		req := connect.NewRequest(&userv1.GetUserStatsRequest{})
+		req.Header().Set("Authorization", token)
+		return client.GetUserStats(ctx, req)
+	}
+
+	for _, role := range []models.RoleName{models.RoleUser, models.RoleSuspended} {
+		users.users[actorID] = models.User{ID: actorID, Role: role}
+		if _, err := getUser(); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s GetUser: %v", role, err)
+		}
+		if _, err := getStats(); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s GetUserStats: %v", role, err)
+		}
+	}
+
+	users.users[actorID] = models.User{ID: actorID, Role: models.RoleAdmin}
+	profile, err := getUser()
+	if err != nil || profile.Msg.GetProfile().GetId() != targetID.String() {
+		t.Fatalf("admin GetUser: %+v, %v", profile, err)
+	}
+	stats, err := getStats()
+	if err != nil || stats.Msg.GetActiveCount() != 2 || stats.Msg.GetSuspendedCount() != 1 {
+		t.Fatalf("admin GetUserStats: %+v, %v", stats, err)
+	}
+}
+
+func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
+	return review.Review{}, errors.New("review not found")
+}
+
+func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
+	return review.ReviewOrderStatuses{}, nil
 }

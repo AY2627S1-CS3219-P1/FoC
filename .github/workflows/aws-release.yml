@@ -44,6 +44,11 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # The runner bootstrap uses umask 077, so the checkout is owner-only. Images
+      # copy these files for non-root users, who must be able to read them.
+      - name: Make checked-out files readable inside images
+        shell: bash
+        run: chmod -R go+rX "$GITHUB_WORKSPACE"
       - name: Check release prerequisites
         shell: bash
         run: |
