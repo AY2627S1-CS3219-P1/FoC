@@ -96,8 +96,8 @@ type reviewStub struct{}
 
 func (reviewStub) SubmitReview(
 	context.Context, uuid.UUID, uuid.UUID, uuid.UUID, review.ReviewSubmission, []uuid.UUID,
-) error {
-	return nil
+) (review.SubmissionResult, error) {
+	return review.SubmissionResult{}, nil
 }
 
 func (reviewStub) CreateReviewPhotoUpload(
@@ -118,12 +118,10 @@ func (reviewStub) ListReviewsFromUser(context.Context, uuid.UUID, pagination.Pag
 	return review.ReviewPage{}, nil
 }
 
-func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
-	return review.ReviewOrderStatuses{}, nil
-}
-
-func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
-	return review.Review{}, errors.New("review not found")
+func (reviewStub) ListUnpublishedReviewsForUser(
+	context.Context, uuid.UUID, pagination.Pagination,
+) (review.UnpublishedReviewPage, error) {
+	return review.UnpublishedReviewPage{}, nil
 }
 
 func (reviewStub) RemoveReview(context.Context, uuid.UUID, string, uuid.UUID) error { return nil }
@@ -507,4 +505,12 @@ func signedTestAccess(t *testing.T, codec *jwt.ES256Codec, subject uuid.UUID, ro
 		t.Fatal(err)
 	}
 	return token
+}
+
+func (reviewStub) GetMyReviewForOrder(context.Context, uuid.UUID, uuid.UUID) (review.Review, error) {
+	return review.Review{}, errors.New("review not found")
+}
+
+func (reviewStub) ListMyReviewsForOrders(context.Context, uuid.UUID, []uuid.UUID) (review.ReviewOrderStatuses, error) {
+	return review.ReviewOrderStatuses{}, nil
 }
