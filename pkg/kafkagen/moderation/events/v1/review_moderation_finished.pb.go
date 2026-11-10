@@ -106,10 +106,8 @@ type ReviewModerationFinished struct {
 	RunGeneration int32 `protobuf:"varint,8,opt,name=run_generation,json=runGeneration,proto3" json:"run_generation,omitempty"`
 	// Code-owned policy/schema version that produced the verdict, e.g.
 	// "review-text-v1".
-	PolicyVersion string `protobuf:"bytes,9,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
-	// Identifier of the immutable effective configuration version used.
-	ConfigVersionId string                `protobuf:"bytes,10,opt,name=config_version_id,json=configVersionId,proto3" json:"config_version_id,omitempty"`
-	Outcome         ModerationOutcomeType `protobuf:"varint,11,opt,name=outcome,proto3,enum=moderation.events.v1.ModerationOutcomeType" json:"outcome,omitempty"`
+	PolicyVersion string                `protobuf:"bytes,9,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	Outcome       ModerationOutcomeType `protobuf:"varint,11,opt,name=outcome,proto3,enum=moderation.events.v1.ModerationOutcomeType" json:"outcome,omitempty"`
 	// Known rejection reason codes; non-empty only when outcome is REJECTED.
 	// ERROR never carries content-violation reasons.
 	ReasonCodes []string `protobuf:"bytes,12,rep,name=reason_codes,json=reasonCodes,proto3" json:"reason_codes,omitempty"`
@@ -212,13 +210,6 @@ func (x *ReviewModerationFinished) GetPolicyVersion() string {
 	return ""
 }
 
-func (x *ReviewModerationFinished) GetConfigVersionId() string {
-	if x != nil {
-		return x.ConfigVersionId
-	}
-	return ""
-}
-
 func (x *ReviewModerationFinished) GetOutcome() ModerationOutcomeType {
 	if x != nil {
 		return x.Outcome
@@ -244,7 +235,7 @@ var File_moderation_events_v1_review_moderation_finished_proto protoreflect.File
 
 const file_moderation_events_v1_review_moderation_finished_proto_rawDesc = "" +
 	"\n" +
-	"5moderation/events/v1/review_moderation_finished.proto\x12\x14moderation.events.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb2\x04\n" +
+	"5moderation/events/v1/review_moderation_finished.proto\x12\x14moderation.events.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9f\x04\n" +
 	"\x18ReviewModerationFinished\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x15\n" +
 	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x122\n" +
@@ -255,13 +246,12 @@ const file_moderation_events_v1_review_moderation_finished_proto_rawDesc = "" +
 	"reviewerId\x12)\n" +
 	"\x10content_revision\x18\a \x01(\x05R\x0fcontentRevision\x12%\n" +
 	"\x0erun_generation\x18\b \x01(\x05R\rrunGeneration\x12%\n" +
-	"\x0epolicy_version\x18\t \x01(\tR\rpolicyVersion\x12*\n" +
-	"\x11config_version_id\x18\n" +
-	" \x01(\tR\x0fconfigVersionId\x12E\n" +
+	"\x0epolicy_version\x18\t \x01(\tR\rpolicyVersion\x12E\n" +
 	"\aoutcome\x18\v \x01(\x0e2+.moderation.events.v1.ModerationOutcomeTypeR\aoutcome\x12!\n" +
 	"\freason_codes\x18\f \x03(\tR\vreasonCodes\x12;\n" +
 	"\vfinished_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt*\xaf\x01\n" +
+	"finishedAtJ\x04\b\n" +
+	"\x10\vR\x11config_version_id*\xaf\x01\n" +
 	"\x15ModerationOutcomeType\x12'\n" +
 	"#MODERATION_OUTCOME_TYPE_UNSPECIFIED\x10\x00\x12$\n" +
 	" MODERATION_OUTCOME_TYPE_APPROVED\x10\x01\x12$\n" +

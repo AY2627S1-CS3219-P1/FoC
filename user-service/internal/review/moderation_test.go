@@ -118,7 +118,6 @@ func finishedEvent(
 		ContentRevision:     1,
 		RunGeneration:       1,
 		PolicyVersion:       "review-text-v1",
-		ConfigVersionId:     "cfg-2026-11-01",
 		Outcome:             moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED,
 		FinishedAt:          timestamppb.New(time.Date(2026, 11, 2, 8, 0, 0, 0, time.UTC)),
 	}
@@ -162,8 +161,7 @@ func TestCompletionHandlerAppliesApprovedOutcome(t *testing.T) {
 	if len(outcome.ReasonCodes) != 0 {
 		t.Fatalf("approved review must carry no reason codes: %v", outcome.ReasonCodes)
 	}
-	if outcome.RunGeneration != 1 || outcome.PolicyVersion != "review-text-v1" ||
-		outcome.ConfigVersionID != "cfg-2026-11-01" {
+	if outcome.RunGeneration != 1 || outcome.PolicyVersion != "review-text-v1" {
 		t.Fatalf("unexpected outcome metadata: %+v", outcome)
 	}
 	if !outcome.ModeratedAt.Equal(time.Date(2026, 11, 2, 8, 0, 0, 0, time.UTC)) {
@@ -198,7 +196,6 @@ func TestCompletionHandlerAppliesErrorOutcome(t *testing.T) {
 	event := finishedEvent(func(e *moderationeventsv1.ReviewModerationFinished) {
 		e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
 		e.PolicyVersion = ""
-		e.ConfigVersionId = ""
 	})
 	store := &fakeModerationStore{target: pendingTarget(event)}
 	handler := newTestCompletionHandler(store)

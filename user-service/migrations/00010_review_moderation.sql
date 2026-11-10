@@ -11,7 +11,6 @@ ALTER TABLE reviews
     ADD COLUMN moderation_request_id UUID,
     ADD COLUMN applied_run_generation INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN policy_version TEXT,
-    ADD COLUMN config_version_id TEXT,
     ADD COLUMN reason_codes JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN moderated_at TIMESTAMPTZ;
 
@@ -55,7 +54,6 @@ DROP INDEX idx_reviews_reviewer_moderation;
 ALTER TABLE reviews
     DROP COLUMN moderated_at,
     DROP COLUMN reason_codes,
-    DROP COLUMN config_version_id,
     DROP COLUMN policy_version,
     DROP COLUMN applied_run_generation,
     DROP COLUMN moderation_request_id,

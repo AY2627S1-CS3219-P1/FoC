@@ -68,6 +68,5 @@ SET moderation_status = @moderation_status,
     reason_codes = @reason_codes::jsonb,
     applied_run_generation = @applied_run_generation,
     policy_version = @policy_version,
-    config_version_id = @config_version_id,
     moderated_at = @moderated_at
 WHERE id = @review_id::UUID;

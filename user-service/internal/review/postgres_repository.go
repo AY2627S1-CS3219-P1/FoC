@@ -320,12 +320,8 @@ func (r *PostgresRepository) ApplyModerationOutcome(
 		ReasonCodes:          codes,
 		AppliedRunGeneration: completion.RunGeneration,
 		PolicyVersion:        sql.NullString{String: completion.PolicyVersion, Valid: completion.PolicyVersion != ""},
-		ConfigVersionID: sql.NullString{
-			String: completion.ConfigVersionID,
-			Valid:  completion.ConfigVersionID != "",
-		},
-		ModeratedAt: sql.NullTime{Time: completion.ModeratedAt, Valid: true},
-		ReviewID:    reviewID,
+		ModeratedAt:          sql.NullTime{Time: completion.ModeratedAt, Valid: true},
+		ReviewID:             reviewID,
 	})
 	return mapReviewError("apply review moderation outcome", err)
 }

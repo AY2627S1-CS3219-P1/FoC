@@ -116,12 +116,11 @@ type ModerationCompletion struct {
 	ContentRevision     int
 
 	// The verdict. Status is one of approved, rejected, moderation_error.
-	Status          ModerationStatus
-	RunGeneration   int32
-	PolicyVersion   string
-	ConfigVersionID string
-	ReasonCodes     []string
-	ModeratedAt     time.Time
+	Status        ModerationStatus
+	RunGeneration int32
+	PolicyVersion string
+	ReasonCodes   []string
+	ModeratedAt   time.Time
 }
 
 type ReviewSubmission struct {

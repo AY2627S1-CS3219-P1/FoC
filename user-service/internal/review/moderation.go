@@ -188,7 +188,6 @@ func moderationCompletionFromEvent(
 		ContentRevision:     int(revision),
 		RunGeneration:       event.GetRunGeneration(),
 		PolicyVersion:       event.GetPolicyVersion(),
-		ConfigVersionID:     event.GetConfigVersionId(),
 		ReasonCodes:         event.GetReasonCodes(),
 	}
 	if finished := event.GetFinishedAt(); finished.IsValid() {

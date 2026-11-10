@@ -20,9 +20,8 @@ SET moderation_status = $1,
     reason_codes = $2::jsonb,
     applied_run_generation = $3,
     policy_version = $4,
-    config_version_id = $5,
-    moderated_at = $6
-WHERE id = $7::UUID
+    moderated_at = $5
+WHERE id = $6::UUID
 `
 
 type ApplyReviewModerationOutcomeParams struct {
@@ -30,7 +29,6 @@ type ApplyReviewModerationOutcomeParams struct {
 	ReasonCodes          json.RawMessage
 	AppliedRunGeneration int32
 	PolicyVersion        sql.NullString
-	ConfigVersionID      sql.NullString
 	ModeratedAt          sql.NullTime
 	ReviewID             uuid.UUID
 }
@@ -44,7 +42,6 @@ func (q *Queries) ApplyReviewModerationOutcome(ctx context.Context, arg ApplyRev
 		arg.ReasonCodes,
 		arg.AppliedRunGeneration,
 		arg.PolicyVersion,
-		arg.ConfigVersionID,
 		arg.ModeratedAt,
 		arg.ReviewID,
 	)

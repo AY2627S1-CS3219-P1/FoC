@@ -111,7 +111,6 @@ func completionEvent(
 		ContentRevision:     1,
 		RunGeneration:       generation,
 		PolicyVersion:       "review-text-v1",
-		ConfigVersionId:     "cfg-test",
 		Outcome:             outcome,
 		ReasonCodes:         codes,
 		FinishedAt:          timestamppb.New(time.Now().UTC()),

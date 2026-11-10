@@ -30,8 +30,8 @@ message ReviewModerationFinished {
   // Code-owned policy/schema version that produced the verdict, e.g.
   // "review-text-v1".
   string policy_version = 9;
-  // Identifier of the immutable effective configuration version used.
-  string config_version_id = 10;
+  reserved 10;
+  reserved "config_version_id";
   ModerationOutcomeType outcome = 11;
   // Known rejection reason codes; non-empty only when outcome is REJECTED.
   // ERROR never carries content-violation reasons.

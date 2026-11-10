@@ -922,7 +922,6 @@ func approvedCompletionEvent(
 		ContentRevision:     revision,
 		RunGeneration:       generation,
 		PolicyVersion:       "review-text-v1",
-		ConfigVersionId:     "cfg-test",
 		Outcome:             moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED,
 		ReasonCodes:         nil,
 		FinishedAt:          timestamppb.New(time.Now().UTC()),
