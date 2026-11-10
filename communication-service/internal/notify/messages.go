@@ -133,8 +133,20 @@ func message(e *eventsv1.OrderStatusChanged, r role) string {
 		}
 		return capitalize(order) + " has been delivered. Please confirm receipt in the FoC app."
 	case eventsv1.OrderStatus_ORDER_STATUS_COMPLETED:
-		if r == courier {
+		// Order completes a delivered order itself when the requester never
+		// confirms receipt.
+		automatic := e.GetActor().GetType() == eventsv1.ActorType_ACTOR_TYPE_SYSTEM
+		switch {
+		case r == courier && automatic:
+			return capitalize(
+				order,
+			) + " was completed automatically because the requester didn't confirm receipt in time. Thanks for delivering!"
+		case r == courier:
 			return "The requester confirmed receipt of " + order + ". Thanks for delivering!"
+		case automatic:
+			return capitalize(
+				order,
+			) + " was completed automatically because receipt wasn't confirmed in time. If something went wrong, you can report it in the FoC app."
 		}
 		return capitalize(order) + " is complete."
 	case eventsv1.OrderStatus_ORDER_STATUS_CANCELLED:

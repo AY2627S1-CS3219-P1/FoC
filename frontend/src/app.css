@@ -292,6 +292,33 @@ a { color: var(--m3c-primary); }
 .secondary-text {
 	color: var(--m3c-on-surface-variant);
 }
+.card-intro p {
+	margin: 0.35rem 0 0;
+	line-height: 1.5;
+}
+.stat-tiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+	gap: 0.75rem;
+	margin: 0;
+}
+.stat-tiles > div {
+	display: grid;
+	gap: 0.25rem;
+	padding: 0.85rem 1rem;
+	border-radius: var(--m3-shape-medium);
+	background: var(--m3c-surface-container-low);
+}
+.stat-tiles dt {
+	color: var(--m3c-on-surface-variant);
+	font-size: 0.85rem;
+}
+.stat-tiles dd {
+	margin: 0;
+	font-size: 1.75rem;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
 @media (max-width: 36rem) {
 	.form-grid {
 		grid-template-columns: 1fr;

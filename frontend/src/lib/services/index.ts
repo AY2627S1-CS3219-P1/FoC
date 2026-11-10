@@ -21,6 +21,8 @@ import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
 import { CreditService } from './credit/service.svelte';
 import { createRealtimeService } from './realtime';
+import { createOrderAdminApi } from './order-admin/index.ts';
+import { createCreditAdminApi } from './credit-admin/index.ts';
 import { createTelegramLinkApi } from './telegram/index.ts';
 import { createReviewModerationService } from './review-moderation';
 import { SnackbarService } from './snackbar/service.ts';
@@ -67,12 +69,14 @@ const orderTransport = createCustomTransport({
 });
 export const orderApi = createOrderApi(orderTransport);
 export const orderOffersApi = createOrderOffersApi(orderTransport);
+export const orderAdminApi = createOrderAdminApi(orderTransport);
 
 const creditTransport = createCustomTransport({
 	baseUrl: env.PUBLIC_CREDIT_SERVICE_URL ?? 'http://localhost:8085',
 	interceptors: [authService.interceptor]
 });
 export const creditAccountApi = createCreditAccountApi(creditTransport);
+export const creditAdminApi = createCreditAdminApi(creditTransport);
 
 export const participantActionsApi = createParticipantActionsApi(orderTransport);
 

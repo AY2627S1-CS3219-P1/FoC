@@ -66,6 +66,7 @@ type Order struct {
 	ExpiresAt                                                  time.Time
 	AssignedAt, PickedUpAt, DeliveredAt, CompletedAt, ClosedAt *time.Time
 	CloseReason, ItemLocation                                  *string
+	AutomaticallyCompleted                                     bool
 	UnattendedDelivery                                         bool
 	Revision                                                   int64
 	CreatedAt, UpdatedAt                                       time.Time
@@ -138,6 +139,8 @@ const (
 	Deliver            Action = "deliver"
 	Timeout            Action = "timeout"
 	ConfirmReceipt     Action = "confirm_receipt"
+	// AutoComplete completes a delivered order whose requester never confirmed.
+	AutoComplete       Action = "auto_complete"
 	RecordItemLocation Action = "record_item_location"
 )
 
