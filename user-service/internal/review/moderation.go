@@ -138,9 +138,10 @@ func (h *CompletionHandler) apply(
 	if err := h.store.ApplyModerationOutcome(ctx, q, reviewID, completion); err != nil {
 		return false, fmt.Errorf("apply moderation outcome: %w", err)
 	}
-	// Recompute for every outcome so approval and removal races converge.
-	if err := h.store.RecalculateStats(ctx, q, target.RevieweeID); err != nil {
-		return false, fmt.Errorf("recalculate reviewee statistics: %w", err)
+	if completion.Status == ModerationApproved {
+		if err := h.store.RecalculateStats(ctx, q, target.RevieweeID); err != nil {
+			return false, fmt.Errorf("recalculate reviewee statistics: %w", err)
+		}
 	}
 	return true, nil
 }

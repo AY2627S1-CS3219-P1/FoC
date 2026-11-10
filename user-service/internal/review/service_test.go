@@ -210,7 +210,7 @@ func TestSubmitReview(t *testing.T) {
 			t.Fatalf("want reviewer-not-found error first, got: %v", err)
 		}
 	})
-	t.Run("inserts the pending review, queues one event and recomputes stats", func(t *testing.T) {
+	t.Run("inserts the pending review and queues one event without touching ratings", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
 		svc := newTestService(fake)
@@ -241,8 +241,8 @@ func TestSubmitReview(t *testing.T) {
 		if result.Status != ModerationPending {
 			t.Fatalf("new submissions must be pending, got %q", result.Status)
 		}
-		if fake.recalcCount != 1 || fake.recalculated != reviewee {
-			t.Fatalf("recalculation not run for reviewee: calls=%d reviewee=%v", fake.recalcCount, fake.recalculated)
+		if fake.recalcCount != 0 {
+			t.Fatal("pending submission touched ratings")
 		}
 
 		if len(fake.appended) != 1 {
@@ -339,7 +339,7 @@ func TestSubmitReview(t *testing.T) {
 			t.Fatal("stats must not be recomputed when the outbox append fails")
 		}
 	})
-	t.Run("recalculation failure aborts the transaction", func(t *testing.T) {
+	t.Run("submission is independent of statistics writes", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, recalcErr: errBoomTest}
 		svc := newTestService(fake)
@@ -350,8 +350,8 @@ func TestSubmitReview(t *testing.T) {
 			uuid.New(),
 			ReviewSubmission{Rating: 5, Comment: "x"},
 		)
-		if !errors.Is(err, errBoomTest) {
-			t.Fatalf("recalculation error should propagate: %v", err)
+		if err != nil || fake.recalcCount != 0 {
+			t.Fatalf("pending submission touched ratings: err=%v calls=%d", err, fake.recalcCount)
 		}
 	})
 }
@@ -481,7 +481,13 @@ func TestRemoveReview(t *testing.T) {
 		reviewer, reviewee, order, id := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		createdBy := uuid.New()
 		fake := &fakeRepository{
-			reviewToDelete: Review{ID: id, ReviewerID: reviewer, RevieweeID: reviewee, OrderID: order},
+			reviewToDelete: Review{
+				ID:               id,
+				ReviewerID:       reviewer,
+				RevieweeID:       reviewee,
+				OrderID:          order,
+				ModerationStatus: ModerationApproved,
+			},
 		}
 		svc := newTestService(fake)
 		if err := svc.RemoveReview(context.Background(), id, " \tabuse\n ", createdBy); err != nil {
@@ -535,3 +541,18 @@ func TestListReviewRemovals(t *testing.T) {
 }
 
 var _ proto.Message = (*events.ReviewSubmitted)(nil)
+
+func TestRemoveUnpublishedReviewDoesNotTouchRatings(t *testing.T) {
+	for _, status := range []ModerationStatus{ModerationPending, ModerationRejected, ModerationError} {
+		t.Run(string(status), func(t *testing.T) {
+			id := uuid.New()
+			fake := &fakeRepository{reviewToDelete: Review{ID: id, ModerationStatus: status}, recalcErr: errBoomTest}
+			if err := newTestService(fake).RemoveReview(context.Background(), id, "abuse", uuid.New()); err != nil {
+				t.Fatal(err)
+			}
+			if fake.softDeleted != id || fake.audited.ReviewID != id || fake.recalcCount != 0 {
+				t.Fatalf("unpublished removal must audit without touching ratings: %+v", fake)
+			}
+		})
+	}
+}

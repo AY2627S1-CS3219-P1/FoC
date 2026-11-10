@@ -175,13 +175,13 @@ func TestCompletionHandlerAppliesRejectedOutcome(t *testing.T) {
 		e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
 		e.ReasonCodes = []string{"HATE", "HARASSMENT"}
 	})
-	store := &fakeModerationStore{target: pendingTarget(event)}
+	store := &fakeModerationStore{target: pendingTarget(event), recalcErr: errors.New("must not write ratings")}
 	handler := newTestCompletionHandler(store)
 
 	if err := handler.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	store.assertOrder(t, "record", "lock", "read", "apply", "recalc")
+	store.assertOrder(t, "record", "lock", "read", "apply")
 	if store.appliedOutcome.Status != ModerationRejected {
 		t.Fatalf("status = %q, want rejected", store.appliedOutcome.Status)
 	}
@@ -195,13 +195,13 @@ func TestCompletionHandlerAppliesErrorOutcome(t *testing.T) {
 		e.Outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
 		e.PolicyVersion = ""
 	})
-	store := &fakeModerationStore{target: pendingTarget(event)}
+	store := &fakeModerationStore{target: pendingTarget(event), recalcErr: errors.New("must not write ratings")}
 	handler := newTestCompletionHandler(store)
 
 	if err := handler.Handle(context.Background(), kafka.Metadata{}, event); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	store.assertOrder(t, "record", "lock", "read", "apply", "recalc")
+	store.assertOrder(t, "record", "lock", "read", "apply")
 	if store.appliedOutcome.Status != ModerationError {
 		t.Fatalf("status = %q, want moderation_error", store.appliedOutcome.Status)
 	}

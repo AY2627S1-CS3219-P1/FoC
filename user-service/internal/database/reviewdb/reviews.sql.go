@@ -472,18 +472,19 @@ const softDeleteReview = `-- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = $1::UUID AND deleted_at IS NULL
-RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status
 `
 
 type SoftDeleteReviewRow struct {
-	ID         uuid.UUID
-	DeletedAt  sql.NullTime
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int32
-	Comment    string
-	CreatedAt  time.Time
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
 }
 
 // The update locks the row and returns the data needed for the removal audit.
@@ -501,6 +502,7 @@ func (q *Queries) SoftDeleteReview(ctx context.Context, id uuid.UUID) (SoftDelet
 		&i.Rating,
 		&i.Comment,
 		&i.CreatedAt,
+		&i.ModerationStatus,
 	)
 	return i, err
 }

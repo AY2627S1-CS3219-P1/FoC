@@ -99,10 +99,6 @@ func (s *Service) SubmitReview(
 			return err
 		}
 
-		if err := s.repo.RecalculateStats(ctx, q, revieweeID); err != nil {
-			return err
-		}
-
 		result = SubmissionResult{
 			ReviewID:            id,
 			ModerationRequestID: requestID,
@@ -207,7 +203,10 @@ func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string,
 		if err := s.repo.RecordReviewRemoval(ctx, q, removal); err != nil {
 			return err
 		}
-		return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
+		if review.ModerationStatus == ModerationApproved {
+			return s.repo.RecalculateStats(ctx, q, review.RevieweeID)
+		}
+		return nil
 	})
 }
 

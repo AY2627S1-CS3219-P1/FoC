@@ -507,3 +507,66 @@ func recalcNow(t *testing.T, ctx context.Context, sqlDB *sql.DB, revieweeID uuid
 		t.Fatal(err)
 	}
 }
+
+func TestUnpublishedTransitionsDoNotLockRevieweeStatistics(t *testing.T) {
+	stack := openModerationStack(t)
+	ctx := context.Background()
+	reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+		insertUser(t, ctx, stack.sqlDB, id)
+	}
+	lock, err := stack.sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Rollback() }()
+	if _, err := lock.ExecContext(ctx, "SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE", reviewee); err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []ModerationStatus{ModerationPending, ModerationRejected, ModerationError} {
+		t.Run(string(status), func(t *testing.T) {
+			bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			reviewID, _ := submitReview(t, bounded, stack, reviewer, reviewee, "unpublished statistics regression")
+			if status != ModerationPending {
+				outcome := moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
+				var codes []string
+				if status == ModerationRejected {
+					outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
+					codes = []string{"SPAM"}
+				}
+				if err := applyCompletion(t, bounded, stack, completionEvent(
+					reviewID, reviewer, requestIDOf(t, bounded, stack, reviewID), outcome, codes, 1,
+				)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := stack.service.RemoveReview(bounded, reviewID, "abuse", admin); err != nil {
+				t.Fatal(err)
+			}
+			var audits int
+			if err := stack.sqlDB.QueryRowContext(bounded, "SELECT count(*) FROM review_removals WHERE review_id = $1", reviewID).
+				Scan(&audits); err != nil ||
+				audits != 1 {
+				t.Fatalf("removal audit count=%d err=%v", audits, err)
+			}
+		})
+	}
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || average != 0 {
+		t.Fatalf("unpublished transitions changed ratings: count=%d average=%v", count, average)
+	}
+	if err := lock.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	approved, _ := submitReview(t, ctx, stack, reviewer, reviewee, "approved statistics regression")
+	approveReview(t, ctx, stack.completions, stack.sqlDB, approved)
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || average != 3 {
+		t.Fatalf("approval did not update ratings: count=%d average=%v", count, average)
+	}
+	if err := stack.service.RemoveReview(ctx, approved, "abuse", admin); err != nil {
+		t.Fatal(err)
+	}
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || average != 0 {
+		t.Fatalf("approved removal did not update ratings: count=%d average=%v", count, average)
+	}
+}

@@ -20,7 +20,7 @@ RETURNING id, created_at, moderation_status, content_revision, moderation_reques
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = @id::UUID AND deleted_at IS NULL
-RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at;
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status;
 
 -- name: RecordReviewRemoval :exec
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)

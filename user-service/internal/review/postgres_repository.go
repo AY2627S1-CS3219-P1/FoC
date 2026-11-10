@@ -389,44 +389,47 @@ func (r *PostgresRepository) ScheduleSubmittedOutboxRetry(
 
 func toReview(row reviewdb.SoftDeleteReviewRow) Review {
 	return Review{
-		ID:         row.ID,
-		ReviewerID: row.ReviewerID,
-		RevieweeID: row.RevieweeID,
-		OrderID:    row.OrderID,
-		Rating:     int(row.Rating),
-		Comment:    row.Comment,
-		CreatedAt:  row.CreatedAt,
-		DeletedAt:  row.DeletedAt.Time,
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		RevieweeID:       row.RevieweeID,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationStatus(row.ModerationStatus),
 	}
 }
 
 func toReviewForUser(row reviewdb.ListReviewsForUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		ReviewerName:     row.ReviewerName,
+		RevieweeID:       row.RevieweeID,
+		RevieweeName:     row.RevieweeName,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationApproved,
 	}
 }
 
 func toReviewFromUser(row reviewdb.ListReviewsFromUserRow) Review {
 	return Review{
-		ID:           row.ID,
-		ReviewerID:   row.ReviewerID,
-		ReviewerName: row.ReviewerName,
-		RevieweeID:   row.RevieweeID,
-		RevieweeName: row.RevieweeName,
-		OrderID:      row.OrderID,
-		Rating:       int(row.Rating),
-		Comment:      row.Comment,
-		CreatedAt:    row.CreatedAt,
-		DeletedAt:    row.DeletedAt.Time,
+		ID:               row.ID,
+		ReviewerID:       row.ReviewerID,
+		ReviewerName:     row.ReviewerName,
+		RevieweeID:       row.RevieweeID,
+		RevieweeName:     row.RevieweeName,
+		OrderID:          row.OrderID,
+		Rating:           int(row.Rating),
+		Comment:          row.Comment,
+		CreatedAt:        row.CreatedAt,
+		DeletedAt:        row.DeletedAt.Time,
+		ModerationStatus: ModerationApproved,
 	}
 }
 
