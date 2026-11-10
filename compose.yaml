@@ -32,7 +32,7 @@ services:
       ORDER_DB: ${ORDER_DB:-order_dev}
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
-      MODERATION_DB: ${MODERATION_DB:-moderation_dev}
+      CONTENT_MODERATION_DB: ${CONTENT_MODERATION_DB:-content_moderation_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -367,7 +367,7 @@ services:
       INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
-      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      DATABASE_URL: ${CONTENT_MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CONTENT_MODERATION_DB:-content_moderation_dev}?sslmode=disable}
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092

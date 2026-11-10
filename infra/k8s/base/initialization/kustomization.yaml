@@ -8,4 +8,4 @@ resources:
   - credit-migrate.yaml
   - kafka-init.yaml
   - communication-migrate.yaml
-  - moderation-migrate.yaml
+  - content-moderation-migrate.yaml

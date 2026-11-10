@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var services = []string{"user", "supplier", "order", "credit", "communication", "moderation"}
+var services = []string{"user", "supplier", "order", "credit", "communication", "content-moderation"}
 
 func (a *application) prepareDatabase(config, admin map[string]any, directory string) error {
 	directory, err := privatePath(a.root, directory)
@@ -54,8 +54,9 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 				return errors.New("cannot generate database credentials")
 			}
 			password := base64.RawURLEncoding.EncodeToString(raw)
-			username := "foc_" + service
-			database := service + "_db"
+			identifier := strings.ReplaceAll(service, "-", "_")
+			username := "foc_" + identifier
+			database := identifier + "_db"
 			query := url.Values{"sslmode": {"verify-full"}, "sslrootcert": {"/var/run/foc/rds/global-bundle.pem"}}
 			connection := url.URL{
 				Scheme:   "postgresql",
