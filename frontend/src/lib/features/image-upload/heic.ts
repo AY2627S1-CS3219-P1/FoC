@@ -83,12 +83,13 @@ const BUDGET_RESAMPLE_SCALE = 0.7;
 const BUDGET_QUALITIES = [0.7, 0.55, 0.5, 0.5];
 
 /**
- * Raised when every conversion pass still exceeds the upload cap, so no
- * amount of resampling turns the pick into an uploadable photo.
+ * Raised when every conversion pass still exceeds the upload cap, or the
+ * resample step cannot produce smaller bytes at all: either way the decoder
+ * only produced picture bytes nothing can upload usefully.
  */
 export class OversizedConversionError extends Error {
-	constructor() {
-		super(`converted JPEG still exceeds ${MAX_IMAGE_BYTES} bytes`);
+	constructor(options?: ErrorOptions) {
+		super(`converted JPEG still exceeds ${MAX_IMAGE_BYTES} bytes`, options);
 		this.name = 'OversizedConversionError';
 	}
 }
@@ -136,7 +137,15 @@ export async function transcodeHeicFile(file: File): Promise<File> {
 		const { heicTo } = await import('heic-to');
 		const jpeg = await heicTo({ blob: file, type: 'image/jpeg', quality: JPEG_QUALITY });
 		if (jpeg.size > MAX_IMAGE_BYTES) {
-			const converted = await convertWithinBudget(jpeg);
+			// Only resample-capable browsers can shrink these bytes under the
+			// cap. When the resample cannot run or cannot fit, the oversized
+			// JPEG stays the only decoded output; uploading the HEIC instead
+			// leaves reviewers a broken image, so the failure is surfaced.
+			const converted = await convertWithinBudget(jpeg).catch((cause) => {
+				throw cause instanceof OversizedConversionError
+					? cause
+					: new OversizedConversionError({ cause });
+			});
 			return new File([converted], jpegFilename(file.name), { type: 'image/jpeg' });
 		}
 		return new File([jpeg], jpegFilename(file.name), { type: 'image/jpeg' });

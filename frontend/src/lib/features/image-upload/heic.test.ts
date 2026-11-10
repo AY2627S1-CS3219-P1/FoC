@@ -198,4 +198,14 @@ describe('heic conversion upload budget', () => {
 		await expect(transcode(oversizedJpeg())).rejects.toThrow(OversizedConversionError);
 		expect(encodedQualities).toEqual([0.7, 0.55, 0.5, 0.5]);
 	});
+
+	it('surfaces a resample failure as the actionable failure, not an HEIC fallback', async () => {
+		// No canvas globals stubbed: mid-resample breakage (for example a
+		// browser without OffscreenCanvas) must not fall back to uploading
+		// the original HEIC, which reviewers without HEIC support cannot see.
+		const { heicTo } = await import('heic-to');
+		vi.mocked(heicTo).mockImplementationOnce(async () => oversizedJpeg());
+		const heic = new File([ftypHeader('heic')], 'IMG_0001.heic', { type: 'image/heic' });
+		await expect(transcodeHeicFile(heic)).rejects.toThrow(OversizedConversionError);
+	});
 });
