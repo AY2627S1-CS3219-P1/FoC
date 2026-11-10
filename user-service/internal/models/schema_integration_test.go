@@ -541,6 +541,51 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("review_restorations: one per removal, removal repeatable", func(t *testing.T) {
+		reviewID := uuid.New()
+		if err := db.Exec(
+			`INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, deleted_at)
+			 VALUES (?, ?, ?, ?, 2, 'bad', now())`,
+			reviewID, alice.ID, admin.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		removal := func() (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_by)
+				 SELECT ?, id, reviewer_id, reviewee_id, order_id, 'abuse', ? FROM reviews WHERE id = ?`,
+				id, admin.ID, reviewID,
+			).Error
+			return id, err
+		}
+		first, err := removal()
+		if err != nil {
+			t.Fatal(err)
+		}
+		restore := func(removalID uuid.UUID) error {
+			return db.Exec(
+				`INSERT INTO review_restorations (id, removal_id, review_id, reason, created_by)
+				 VALUES (?, ?, ?, 'overturned', ?)`,
+				uuid.New(), removalID, reviewID, admin.ID,
+			).Error
+		}
+		if err := restore(first); err != nil {
+			t.Fatal(err)
+		}
+		if err := restore(first); err == nil {
+			t.Fatal("expected a second restoration of one removal to fail")
+		}
+		if _, err := removal(); err != nil {
+			t.Fatalf("removing a restored review again: %v", err)
+		}
+
+		// review_removals restricts deleting the review, so later user
+		// cascades would fail on this fixture.
+		if err := db.Exec("DELETE FROM review_removals WHERE review_id = ?", reviewID).Error; err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
