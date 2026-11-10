@@ -8,6 +8,23 @@ mock_provider "aws" {
       api_endpoint = "https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com"
     }
   }
+  mock_resource "aws_acm_certificate" {
+    defaults = {
+      arn = "arn:aws:acm:ap-southeast-1:123456789012:certificate/00000000-0000-0000-0000-000000000002"
+      domain_validation_options = [{
+        domain_name           = "foc.example.com"
+        resource_record_name  = "_x1.foc.example.com."
+        resource_record_type  = "CNAME"
+        resource_record_value = "_x2.acm-validations.aws."
+      }]
+    }
+  }
+  mock_resource "aws_acm_certificate_validation" {
+    defaults = { certificate_arn = "arn:aws:acm:ap-southeast-1:123456789012:certificate/00000000-0000-0000-0000-000000000002" }
+  }
+  mock_resource "aws_apigatewayv2_domain_name" {
+    defaults = { id = "foc.example.com" }
+  }
   mock_resource "aws_lb" {
     defaults = { arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:loadbalancer/net/foc-demo-nlb/0123456789abcdef" }
   }
@@ -485,4 +502,43 @@ run "moderation_has_isolated_private_evidence_resources" {
     condition     = output.deployment.moderation_enabled && output.moderation.database_name == "moderation_db" && output.moderation.database_role == "foc_moderation" && output.moderation.database_secret == "moderation-db" && output.moderation.service_account == "moderation-service" && output.moderation.namespace == "foc"
     error_message = "Operator outputs must describe the isolated moderation identity and database contract."
   }
+}
+
+run "default_hostname_needs_no_certificate" {
+  command = plan
+  assert {
+    condition     = length(aws_acm_certificate.public) == 0 && length(aws_apigatewayv2_domain_name.public) == 0 && output.public_domain_dns == null
+    error_message = "Without public_domain, the default API Gateway hostname needs no certificate or DNS."
+  }
+}
+
+run "custom_domain_becomes_the_public_origin" {
+  command = plan
+  variables {
+    public_domain = "foc.example.com"
+  }
+  assert {
+    condition     = output.deployment.public_origin == "https://foc.example.com" && output.deployment.public_hostname == "foc.example.com"
+    error_message = "The custom domain must become the single public origin used by the application."
+  }
+  assert {
+    condition     = one(aws_s3_bucket_cors_configuration.orders.cors_rule).allowed_origins == toset(["https://foc.example.com"])
+    error_message = "Browser uploads must allow only the custom domain origin."
+  }
+  assert {
+    condition     = aws_acm_certificate.public[0].validation_method == "DNS" && one(aws_apigatewayv2_domain_name.public[0].domain_name_configuration).endpoint_type == "REGIONAL" && one(aws_apigatewayv2_domain_name.public[0].domain_name_configuration).security_policy == "TLS_1_2"
+    error_message = "The domain needs a DNS-validated certificate on a regional TLS 1.2 API Gateway domain."
+  }
+  assert {
+    condition     = output.public_domain_dns.certificate_validation[0].type == "CNAME" && output.public_domain_dns.hostname.name == "foc.example.com"
+    error_message = "Outputs must list the validation and hostname DNS records to publish."
+  }
+}
+
+run "reject_domain_with_scheme" {
+  command = plan
+  variables {
+    public_domain = "https://foc.example.com"
+  }
+  expect_failures = [var.public_domain]
 }

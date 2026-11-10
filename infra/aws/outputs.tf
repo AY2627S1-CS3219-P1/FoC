@@ -23,3 +23,13 @@ output "deployment" {
     database_secret_arn          = aws_db_instance.database.master_user_secret[0].secret_arn
   }
 }
+
+output "public_domain_dns" {
+  description = "DNS records to publish for public_domain: certificate validation first, then the hostname CNAME."
+  value = var.public_domain == null ? null : {
+    certificate_validation = [for option in aws_acm_certificate.public[0].domain_validation_options : {
+      name = option.resource_record_name, type = option.resource_record_type, value = option.resource_record_value
+    }]
+    hostname = { name = var.public_domain, type = "CNAME", value = try(aws_apigatewayv2_domain_name.public[0].domain_name_configuration[0].target_domain_name, null) }
+  }
+}

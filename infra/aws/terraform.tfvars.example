@@ -4,7 +4,9 @@ name            = "foc-demo"
 region          = "ap-southeast-1"
 operator_cidr   = "203.0.113.10/32" # Intentionally invalid TEST-NET placeholder. Replace with your observed public IPv4 /32.
 expires_on      = "2026-11-19"      # Replace with ten days after actual deployment.
-# API Gateway supplies the public HTTPS hostname. No domain or certificate input.
+# API Gateway supplies the public HTTPS hostname. Optionally serve a domain you
+# control instead; see the README for the two-step DNS validation.
+# public_domain = "foc.example.com"
 
 # Confirm regional availability, sandbox permissions, and pricing before apply.
 kubernetes_version      = "1.35"

@@ -85,6 +85,16 @@ variable "postgres_instance_class" {
   default     = "db.t4g.small"
 }
 
+variable "public_domain" {
+  description = "Optional public hostname, such as foc.example.com, served through API Gateway. Null keeps the default execute-api hostname."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.public_domain == null || can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", var.public_domain))
+    error_message = "Supply a lowercase hostname without scheme, path, or port, or null for the default API Gateway hostname."
+  }
+}
+
 variable "ses_sender_email" {
   description = "Verified regional SES sender. Null keeps SMTP and creates no email role."
   type        = string

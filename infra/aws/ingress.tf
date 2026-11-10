@@ -153,7 +153,39 @@ resource "aws_apigatewayv2_stage" "public" {
   depends_on = [aws_apigatewayv2_route.public]
 }
 
+# Optional custom domain. Create the certificate first, publish its DNS
+# validation record, then apply the rest; validation waits for that record.
+resource "aws_acm_certificate" "public" {
+  count             = var.public_domain == null ? 0 : 1
+  domain_name       = var.public_domain
+  validation_method = "DNS"
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_acm_certificate_validation" "public" {
+  count                   = length(aws_acm_certificate.public)
+  certificate_arn         = aws_acm_certificate.public[0].arn
+  validation_record_fqdns = [for option in aws_acm_certificate.public[0].domain_validation_options : option.resource_record_name]
+}
+
+resource "aws_apigatewayv2_domain_name" "public" {
+  count       = length(aws_acm_certificate.public)
+  domain_name = var.public_domain
+  domain_name_configuration {
+    certificate_arn = aws_acm_certificate_validation.public[0].certificate_arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+}
+
+resource "aws_apigatewayv2_api_mapping" "public" {
+  count       = length(aws_acm_certificate.public)
+  api_id      = aws_apigatewayv2_api.public.id
+  domain_name = aws_apigatewayv2_domain_name.public[0].id
+  stage       = aws_apigatewayv2_stage.public.id
+}
+
 locals {
-  public_origin   = aws_apigatewayv2_api.public.api_endpoint
+  public_origin   = var.public_domain == null ? aws_apigatewayv2_api.public.api_endpoint : "https://${var.public_domain}"
   public_hostname = trimprefix(local.public_origin, "https://")
 }
