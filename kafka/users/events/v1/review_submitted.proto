@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package users.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// users.review_submitted; keyed by review_id. Publish after committing the review.
+// At-least-once delivery; CMS creates one job per moderation_request_id.
+message ReviewSubmitted {
+  // Stable across delivery retries.
+  string event_id = 1;
+  // Reused on redelivery; identifies one durable assessment job.
+  string moderation_request_id = 2;
+  string review_id = 3;
+  // Taken from the authenticated author, not client input.
+  string reviewer_id = 4;
+  // Positive; initially 1.
+  int32 content_revision = 5;
+  string comment = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+}

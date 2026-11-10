@@ -1,0 +1,16 @@
+{
+  "baseUrl": "",
+  "out": ".local/perf/results/map-connection_failure/browser",
+  "sessions": ".local/perf/browser-sessions.json",
+  "accountIndex": 0,
+  "feature": "map",
+  "mode": "connection_failure",
+  "phase": "outage",
+  "path": "/orders/new",
+  "routes": [{ "url": "https://tile.openstreetmap.org/**" }],
+  "setup": [],
+  "unavailable": { "text": "Configure the application's explicit unavailable message" },
+  "core": [],
+  "completed": { "text": "Configure the actual workflow completion state" },
+  "recovered": { "role": "region", "name": "Configure the restored dependency control" }
+}

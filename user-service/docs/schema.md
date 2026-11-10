@@ -34,6 +34,8 @@ erDiagram
     user_report_responses ||--o{ evidence_attachments : "images"
     user_appeals ||--o{ evidence_attachments : "images"
     user_appeal_responses ||--o{ evidence_attachments : "images"
+    users ||--o{ profile_pictures : owns
+    users ||--o| profile_pictures : "current picture"
 
     users {
         uuid id PK
@@ -41,8 +43,17 @@ erDiagram
         text display_name "1-100 chars"
         text description "max 500"
         text phone_number "max 20"
-        text profile_picture_key
+        uuid profile_picture_id FK "active picture"
         text role FK "roles.name"
+    }
+    profile_pictures {
+        uuid id PK "application reference"
+        uuid user_id FK
+        text object_key UK "storage key"
+        text content_type "jpeg|png|webp|heic|heif"
+        bigint size_bytes "1-10000000"
+        text state "pending|active|deleting"
+        timestamptz created_at
     }
     roles {
         text name PK "super_admin|admin|user|suspended"
@@ -175,10 +186,10 @@ erDiagram
 | 00006 | drops `users.telegram_handle` | U1.4 | Telegram is linked in the Communication Service (#126) |
 | 00007 | `user_created_outbox` | Credit | durable, lease-based queue of user-created events; published to Kafka and consumed by the Credit service |
 | 00008 | `allowed_email_domains` | U1.1.2 | domain is case-insensitive unique across all rows |
-| 00012 | `user_reports`, `user_report_responses` | RP1–RP5 | exactly one of `review_id` / `order_id`; one unclosed report per reporter and target; closed ⇔ outcome, reason and `closed_at`; review removal only for review targets; adds `report_id` FKs on `role_changes` and `account_warnings`. Numbered after #287's 00010/00011 |
-| 00013 | `user_appeals`, `user_appeal_decisions`, `user_appeal_responses` | RP7–RP12 | `(appellant_id, idempotency_key)` unique; one target column per decision, matching `kind`; a decision is in at most one unclosed appeal (`active` partial unique index); outcome and reason set exactly when the decision is no longer active; `credit_adjustment` rejected until #302; adds the `appeal_id` FK on `account_warnings` |
-| 00014 | `review_restorations` | RP12.3 | one restoration per removal; drops the unique `review_removals.review_id`, so a restored review can be removed again |
-| 00015 | `evidence_attachments` | RP1.6, RP2.2, RP8.2, RP9.4 | staged while uploading, then attached to exactly one report, appeal or response; at most five per parent; same content types and size cap as review photos; unattached rows are reaped |
+| 00014 | `user_reports`, `user_report_responses` | RP1–RP5 | exactly one of `review_id` / `order_id`; one unclosed report per reporter and target; closed ⇔ outcome, reason and `closed_at`; review removal only for review targets; adds `report_id` FKs on `role_changes` and `account_warnings`. Numbered after profile pictures (00012) and review moderation (00013) |
+| 00015 | `user_appeals`, `user_appeal_decisions`, `user_appeal_responses` | RP7–RP12 | `(appellant_id, idempotency_key)` unique; one target column per decision, matching `kind`; a decision is in at most one unclosed appeal (`active` partial unique index); outcome and reason set exactly when the decision is no longer active; `credit_adjustment` rejected until #302; adds the `appeal_id` FK on `account_warnings` |
+| 00016 | `review_restorations` | RP12.3 | one restoration per removal; drops the unique `review_removals.review_id`, so a restored review can be removed again |
+| 00017 | `evidence_attachments` | RP1.6, RP2.2, RP8.2, RP9.4 | staged while uploading, then attached to exactly one report, appeal or response; at most five per parent; same content types and size cap as review photos; unattached rows are reaped |
 
 ## Soft delete
 
