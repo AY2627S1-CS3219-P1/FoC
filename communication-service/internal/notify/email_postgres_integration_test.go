@@ -331,3 +331,33 @@ func TestNotificationEmailMigrationDownAndUp(t *testing.T) {
 	}
 	enqueueEmail(t, &PostgresEmailQueue{Pool: pool}, uuid.New(), "after migration", now)
 }
+
+func TestConcurrentEmailMigrations(t *testing.T) {
+	pool := openEmailPostgres(t)
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if _, err := provider.DownTo(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 3)
+	for range 3 {
+		go func() {
+			<-start
+			results <- database.Migrate(ctx, pool)
+		}()
+	}
+	close(start)
+	for range 3 {
+		if err := <-results; err != nil {
+			t.Fatalf("concurrent upgrade failed: %v", err)
+		}
+	}
+	enqueueEmail(t, &PostgresEmailQueue{Pool: pool}, uuid.New(), "after concurrent upgrades", now)
+}
