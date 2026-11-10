@@ -4,8 +4,8 @@ WHERE event_id = (
  SELECT candidate.event_id FROM order_outbox candidate
  WHERE candidate.published_at IS NULL
  AND (candidate.lease_until IS NULL OR candidate.lease_until <= sqlc.arg(now_at))
- AND NOT EXISTS (SELECT 1 FROM order_outbox earlier WHERE earlier.order_id=candidate.order_id AND earlier.published_at IS NULL AND (earlier.revision,earlier.ordinal) < (candidate.revision,candidate.ordinal))
- ORDER BY candidate.created_at,candidate.order_id,candidate.revision,candidate.ordinal
+ AND (candidate.kind='order.changed' OR NOT EXISTS (SELECT 1 FROM order_outbox earlier WHERE earlier.order_id=candidate.order_id AND earlier.kind<>'order.changed' AND earlier.published_at IS NULL AND (earlier.revision,earlier.ordinal) < (candidate.revision,candidate.ordinal)))
+ ORDER BY (candidate.kind='order.changed'),candidate.created_at,candidate.order_id,candidate.revision,candidate.ordinal
  LIMIT 1 FOR UPDATE OF candidate SKIP LOCKED
 )
 RETURNING *;

@@ -1,14 +1,18 @@
 // Command server runs the Communication Service: apply migrations, serve the
-// Telegram linking API and, when a bot token is configured, run the Telegram
-// bot, send order notifications from Kafka and relay order chat until
-// SIGINT/SIGTERM.
+// Telegram linking API and, on the internal listener, account email. When a
+// bot token is configured it runs the Telegram bot and relays order chat. It
+// sends order notifications from Kafka by Telegram, or by email to users
+// Telegram can't reach, until SIGINT/SIGTERM.
 package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/mail"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,15 +25,21 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/chat"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database"
 	db "github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/database/communicationdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/accountemail"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/health"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/handlers/telegramlink"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/notify"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/realtime"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/users"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	crediteventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/credit/events/v1"
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
+	usereventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/cors"
 )
@@ -63,6 +73,12 @@ type config struct {
 	telegramToken string
 	telegramAPI   string
 	kafkaBrokers  []string
+	emailProvider string
+	emailFrom     string
+	awsRegion     string
+	sesTimeout    time.Duration
+	// smtp.Addr is empty when SMTP email is disabled.
+	smtp email.SMTPSender
 }
 
 func loadConfig() (config, error) {
@@ -73,6 +89,56 @@ func loadConfig() (config, error) {
 		runMigrations: os.Getenv("RUN_MIGRATIONS") != "false",
 		telegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		telegramAPI:   os.Getenv("TELEGRAM_API_URL"),
+		emailProvider: strings.TrimSpace(os.Getenv("EMAIL_PROVIDER")),
+		emailFrom:     strings.TrimSpace(os.Getenv("EMAIL_FROM")),
+		awsRegion:     strings.TrimSpace(os.Getenv("AWS_REGION")),
+		smtp: email.SMTPSender{
+			Addr:     strings.TrimSpace(os.Getenv("SMTP_ADDR")),
+			From:     strings.TrimSpace(os.Getenv("SMTP_FROM")),
+			Username: os.Getenv("SMTP_USERNAME"),
+			Password: os.Getenv("SMTP_PASSWORD"),
+		},
+	}
+	if cfg.emailProvider == "" {
+		cfg.emailProvider = "smtp"
+	}
+	switch cfg.emailProvider {
+	case "smtp":
+		if timeout := os.Getenv("SMTP_TIMEOUT"); timeout != "" {
+			d, err := time.ParseDuration(timeout)
+			if err != nil || d <= 0 {
+				return cfg, fmt.Errorf("SMTP_TIMEOUT must be a positive duration, got %q", timeout)
+			}
+			cfg.smtp.Timeout = d
+		}
+		if cfg.smtp.Addr != "" {
+			if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
+				return cfg, fmt.Errorf(
+					"SMTP_FROM must be an email address when SMTP_ADDR is set, got %q",
+					cfg.smtp.From,
+				)
+			}
+		}
+	case "ses":
+		cfg.sesTimeout = 5 * time.Second
+		if timeout := os.Getenv("SES_TIMEOUT"); timeout != "" {
+			d, err := time.ParseDuration(timeout)
+			if err != nil || d <= 0 {
+				return cfg, fmt.Errorf("SES_TIMEOUT must be a positive duration, got %q", timeout)
+			}
+			cfg.sesTimeout = d
+		}
+		if cfg.awsRegion == "" {
+			return cfg, errors.New("AWS_REGION is required for SES")
+		}
+		if strings.ContainsAny(cfg.emailFrom, "\r\n") {
+			return cfg, errors.New("EMAIL_FROM must not contain line breaks")
+		}
+		if _, err := mail.ParseAddress(cfg.emailFrom); err != nil {
+			return cfg, errors.New("EMAIL_FROM must be an email address for SES")
+		}
+	default:
+		return cfg, errors.New("EMAIL_PROVIDER must be smtp or ses")
 	}
 	for _, broker := range strings.Split(os.Getenv("KAFKA_BROKERS"), ",") {
 		if broker = strings.TrimSpace(broker); broker != "" {
@@ -129,18 +195,50 @@ func main() {
 	}
 
 	links := &linking.Service{Store: &linking.PostgresStore{Pool: pool}, Now: time.Now}
+	// Account email and queued notifications share the selected delivery adapter.
+	var mailer emailSender
+	if cfg.emailProvider == "ses" {
+		mailer, err = email.NewSESSender(ctx, cfg.awsRegion, cfg.emailFrom, cfg.sesTimeout)
+		if err != nil {
+			fatal("configure SES email", err)
+		}
+	} else if cfg.smtp.Addr != "" {
+		mailer = cfg.smtp
+	} else {
+		log.Warn("SMTP_ADDR is not set; email is disabled")
+	}
 
 	// Telegram is optional: without a working token the service still serves,
 	// and linking reports unavailable.
 	var botUsername atomic.Pointer[string]
 	chats := &chat.PostgresStore{Pool: pool}
 	var workers sync.WaitGroup
+	var emailQueue notify.EmailQueue
+	if mailer != nil {
+		queue := &notify.PostgresEmailQueue{Pool: pool}
+		emailQueue = queue
+		startEmailWorker(ctx, log, queue, mailer, &workers)
+	}
+	liveHub := realtime.NewHub()
+	if len(cfg.kafkaBrokers) > 0 {
+		fanout := &realtime.Fanout{Pool: pool, Hub: liveHub}
+		consumer := &realtime.Consumer{Fanout: fanout}
+		workers.Go(func() { fanout.Run(ctx) })
+		workers.Go(func() { runRealtime(ctx, cfg.kafkaBrokers, "communication-realtime", consumer) })
+	}
 	workers.Go(func() {
 		chat.RunCleanup(ctx, chats, log, time.Now)
 	})
+	// Notifications use Telegram once the bot is ready. Without Telegram they
+	// still run when email is configured.
+	emailOnly := func() {
+		if mailer != nil {
+			startNotifications(ctx, cfg, log, links, chats, pool, emailQueue, false, &workers)
+		}
+	}
 	startBot(ctx, cfg, log, links, chats, &botUsername, func() {
-		startNotifications(ctx, cfg, log, links, chats, pool, &workers)
-	}, &workers)
+		startNotifications(ctx, cfg, log, links, chats, pool, emailQueue, true, &workers)
+	}, emailOnly, &workers)
 	currentBot := func() string {
 		if name := botUsername.Load(); name != nil {
 			return *name
@@ -148,14 +246,17 @@ func main() {
 		return ""
 	}
 
-	// The internal listener serves the public handler until private routes are
-	// split out; binding it keeps every service on the same listener shape.
-	handler := corsConfig().Handler(router.New(router.Services{
+	services := router.Services{
 		Health:       &health.Handler{TelegramEnabled: func() bool { return currentBot() != "" }},
 		TelegramLink: &telegramlink.Handler{Logic: links, BotUsername: currentBot},
-	}, authenticator.Authenticate))
-	public := newServer(":"+cfg.port, handler)
-	internal := newServer(":"+cfg.internalPort, handler)
+		Email:        &accountemail.Handler{Sender: mailer, Log: log},
+		Realtime:     &realtime.Handler{Hub: liveHub},
+	}
+	public := newServer(":"+cfg.port, corsConfig().Handler(router.New(services, authenticator.Authenticate)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(services))
+	for _, srv := range []*http.Server{public, internal} {
+		srv.BaseContext = func(net.Listener) context.Context { return ctx }
+	}
 	for _, srv := range []*http.Server{public, internal} {
 		go func() {
 			log.Info("listening", "addr", srv.Addr, "telegram_enabled", currentBot() != "")
@@ -195,12 +296,14 @@ func newServer(addr string, handler http.Handler) *http.Server {
 // startBot checks the token and starts polling in the background. A rejected
 // token disables Telegram; other failures are retried, so a network problem at
 // startup doesn't disable Telegram until a restart. ready runs once the bot is
-// confirmed. botUsername holds the bot's username while it is polling.
+// confirmed, and disabled runs instead when Telegram won't start. botUsername
+// holds the bot's username while it is polling.
 func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.Service, chats *chat.PostgresStore,
-	botUsername *atomic.Pointer[string], ready func(), workers *sync.WaitGroup,
+	botUsername *atomic.Pointer[string], ready, disabled func(), workers *sync.WaitGroup,
 ) {
 	if cfg.telegramToken == "" {
 		log.Warn("TELEGRAM_BOT_TOKEN is not set; Telegram is disabled")
+		disabled()
 		return
 	}
 	client := telegram.NewClient(
@@ -213,6 +316,7 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 		if err != nil {
 			if ctx.Err() == nil {
 				log.Error("Telegram is disabled: bot check failed", "err", err)
+				disabled()
 			}
 			return
 		}
@@ -235,10 +339,28 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 	})
 }
 
+type emailSender interface {
+	Send(context.Context, email.Email) error
+}
+
+// startEmailWorker recovers accepted deliveries even while Telegram's startup
+// check is retrying or the Kafka consumer cannot connect.
+func startEmailWorker(
+	ctx context.Context,
+	log *slog.Logger,
+	queue notify.PendingEmails,
+	mailer emailSender,
+	workers *sync.WaitGroup,
+) {
+	worker := &notify.EmailWorker{Queue: queue, Sender: mailer, Log: log, Now: time.Now}
+	workers.Go(func() { worker.Run(ctx) })
+}
+
 // startNotifications consumes order status changes in the background when
 // Kafka is configured: it updates the chat participants, then sends
-// notifications. It runs only with a working bot, so offsets aren't committed
-// for messages that were never sent.
+// notifications. It also stores users' emails from users.create. It runs only
+// with a working bot or email, so offsets aren't committed for messages that
+// were never sent.
 func startNotifications(
 	ctx context.Context,
 	cfg config,
@@ -246,6 +368,8 @@ func startNotifications(
 	links *linking.Service,
 	chats *chat.PostgresStore,
 	pool *pgxpool.Pool,
+	emailQueue notify.EmailQueue,
+	withTelegram bool,
 	workers *sync.WaitGroup,
 ) {
 	if len(cfg.kafkaBrokers) == 0 {
@@ -253,15 +377,20 @@ func startNotifications(
 		return
 	}
 	deliveries := &notify.PostgresDeliveries{Queries: db.New(pool)}
+	emails := &users.PostgresStore{Queries: db.New(pool)}
 	handler := &notify.Handler{
-		Sender:       telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout}),
 		Links:        links,
 		Deliveries:   deliveries,
 		Orders:       chats,
+		EmailQueue:   emailQueue,
 		ReplyTargets: chats,
 		Log:          log,
 		Now:          time.Now,
 	}
+	if withTelegram {
+		handler.Sender = telegram.NewClient(cfg.telegramToken, cfg.telegramAPI, &http.Client{Timeout: sendTimeout})
+	}
+	userEmails := (&users.Projection{Store: emails, Log: log}).Handle
 	projection := &chat.Projection{Store: chats, Log: log, Now: time.Now}
 	handle := func(ctx context.Context, meta kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
 		if err := projection.Apply(ctx, e); err != nil {
@@ -283,15 +412,19 @@ func startNotifications(
 			case <-time.After(consumerRestartDelay):
 			}
 		}
-		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle)
+		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle, userEmails, handler.HandleOffer)
 	})
 }
 
 // runNotifications restarts the consumer until ctx is cancelled. pkg/kafka
 // stops a subscriber on any handler error, so a Telegram outage pauses
 // notifications and the restart replays the uncommitted event.
+// userEmails and offers, when not nil, also consume users.create and
+// order.offer_made.
 func runNotifications(ctx context.Context, brokers []string, group string, log *slog.Logger,
 	handle func(context.Context, kafka.Metadata, *eventsv1.OrderStatusChanged) error,
+	userEmails func(context.Context, kafka.Metadata, *usereventsv1.UserCreated) error,
+	offers func(context.Context, kafka.Metadata, *eventsv1.OrderOfferMade) error,
 ) {
 	delay := consumerRestartDelay
 	for {
@@ -299,6 +432,14 @@ func runNotifications(ctx context.Context, brokers []string, group string, log *
 		if err == nil {
 			err = kafka.Register(subscriber, notify.Topic,
 				func() *eventsv1.OrderStatusChanged { return new(eventsv1.OrderStatusChanged) }, handle)
+		}
+		if err == nil && offers != nil {
+			err = kafka.Register(subscriber, notify.OfferTopic,
+				func() *eventsv1.OrderOfferMade { return new(eventsv1.OrderOfferMade) }, offers)
+		}
+		if err == nil && userEmails != nil {
+			err = kafka.Register(subscriber, users.Topic,
+				func() *usereventsv1.UserCreated { return new(usereventsv1.UserCreated) }, userEmails)
 		}
 		if err != nil {
 			log.Error("order notifications are disabled", "err", err)
@@ -322,6 +463,48 @@ func runNotifications(ctx context.Context, brokers []string, group string, log *
 		case <-time.After(retryDelay):
 		}
 		delay = min(delay*2, consumerMaxDelay)
+	}
+}
+
+// runRealtime owns subscriber construction and restarts independently of the
+// optional Telegram notification consumer.
+func runRealtime(ctx context.Context, brokers []string, group string, consumer *realtime.Consumer) {
+	delay := time.Second
+	for ctx.Err() == nil {
+		subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: group})
+		if err == nil {
+			err = kafka.Register(
+				subscriber,
+				"credit.account_changed",
+				func() *crediteventsv1.AccountChanged { return new(crediteventsv1.AccountChanged) },
+				consumer.Account,
+			)
+		}
+		if err == nil {
+			err = kafka.Register(
+				subscriber,
+				"order.changed",
+				func() *eventsv1.OrderChanged { return new(eventsv1.OrderChanged) },
+				consumer.Order,
+			)
+		}
+		started := time.Now()
+		if err == nil {
+			err = subscriber.Run(ctx)
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		slog.WarnContext(ctx, "Live update consumer restarting", "error", err, "delay", delay)
+		if time.Since(started) > time.Minute {
+			delay = time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, 30*time.Second)
 	}
 }
 

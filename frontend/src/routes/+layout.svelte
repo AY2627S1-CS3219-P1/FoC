@@ -7,12 +7,18 @@
 	import { page } from '$app/state';
 	import { Button, Card, Icon, LoadingIndicator } from 'm3-svelte';
 	import iconMenu from '@ktibow/iconset-material-symbols/menu';
-	import { authService } from '$lib/services';
+	import { authService, creditService, realtimeService } from '$lib/services';
 	import CreditBalance from '$lib/components/credit/CreditBalance.svelte';
 	import AppSidebar from '$lib/components/shell/AppSidebar.svelte';
 	import { clearSubmittedOrders } from '$lib/services/order/creation';
 	import SnackbarHost from '$lib/components/SnackbarHost.svelte';
 	let previousUser: string | undefined;
+	$effect(() => {
+		if (authService.user?.id && authService.accessToken) return realtimeService.start();
+	});
+	$effect(() => {
+		if (authService.user?.id) return creditService.start();
+	});
 	$effect(() => {
 		const currentUser = authService.user?.id;
 		if (previousUser && previousUser !== currentUser) {

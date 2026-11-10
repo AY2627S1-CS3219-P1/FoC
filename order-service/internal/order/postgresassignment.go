@@ -221,6 +221,7 @@ func (t *assignmentPostgresTx) InsertAssignment(ctx context.Context, w Assignmen
 	})); err != nil {
 		return err
 	}
+	t.markChanged(w.OrderID, false)
 	t.baselines[w.ID], t.written[w.ID] = w, w
 	return nil
 }
@@ -246,6 +247,9 @@ func (t *assignmentPostgresTx) SaveAssignment(ctx context.Context, w AssignmentA
 	}
 	if err := t.writeResult(err); err != nil {
 		return err
+	}
+	if before.Phase != w.Phase || before.Rejection != w.Rejection {
+		t.markChanged(w.OrderID, false)
 	}
 	t.baselines[w.ID], t.written[w.ID] = w, w
 	return nil

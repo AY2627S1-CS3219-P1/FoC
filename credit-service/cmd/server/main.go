@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/events"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -65,6 +67,14 @@ func run(ctx context.Context) error {
 	}
 
 	services := newServices(pool)
+	var publisher *kafka.Publisher
+	if len(config.KafkaBrokers) > 0 {
+		publisher, err = kafka.NewPublisher(kafka.PublisherConfig{Brokers: config.KafkaBrokers})
+		if err != nil {
+			return err
+		}
+		defer publisher.Close() //nolint:errcheck
+	}
 
 	// Kafka consumers. Without them Order's outcomes wait in Kafka, and
 	// reservations stay held until Credit consumes them.
@@ -74,6 +84,7 @@ func run(ctx context.Context) error {
 
 	if len(config.KafkaBrokers) > 0 {
 		workers.Go(func() { consume(workerCtx, config.KafkaBrokers, services.outcomes, services.users) })
+		workers.Go(func() { events.NewAccountPublisher(pool, publisher).Run(workerCtx) })
 	} else {
 		slog.WarnContext(ctx, "KAFKA_BROKERS is not set; order outcomes and new users are not consumed")
 	}

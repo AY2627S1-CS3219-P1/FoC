@@ -1,0 +1,92 @@
+name: AWS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_version:
+        description: Exact S3 configuration VersionId from the publication receipt
+        required: true
+        type: string
+      config_sha256:
+        description: Configuration SHA-256 from the publication receipt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: foc-aws-demo-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Never execute deployment credentials on a PR or an arbitrary dispatch ref.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    environment: aws-demo
+    runs-on:
+      group: foc-release
+      labels: [linux, x64, foc-deploy]
+    timeout-minutes: 55
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_RELEASE_ROLE_ARN: ${{ vars.AWS_RELEASE_ROLE_ARN }}
+      AWS_CONFIG_BUCKET: ${{ vars.AWS_CONFIG_BUCKET }}
+      AWS_CONFIG_PREFIX: ${{ vars.AWS_CONFIG_PREFIX }}
+      CONFIG_VERSION: ${{ inputs.config_version }}
+      CONFIG_SHA256: ${{ inputs.config_sha256 }}
+      RELEASE_ID: run${{ github.run_id }}-attempt${{ github.run_attempt }}
+      AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check release prerequisites
+        shell: bash
+        run: |
+          set -eu
+          test -n "$AWS_ACCOUNT_ID"
+          test -n "$AWS_REGION"
+          test -n "$AWS_RELEASE_ROLE_ARN"
+          test -n "$AWS_CONFIG_BUCKET"
+          test -n "$AWS_CONFIG_PREFIX"
+          test -n "$CONFIG_VERSION"
+          [[ "$CONFIG_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          command -v aws
+          command -v docker
+          command -v python3
+          command -v make
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache: false
+      - uses: aquaproj/aqua-installer@611554c6f0137ba41c8dd15aca8bee82504ea461 # v4.1.1
+        with:
+          aqua_version: v2.66.0
+          policy_allow: aqua-policy.yaml
+      - name: Assume the scoped deployment role
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_RELEASE_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: foc-release-${{ github.run_id }}
+          role-duration-seconds: 3600
+          unset-current-credentials: true
+      - name: Regenerate and deploy the release
+        shell: bash
+        run: |
+          python3 scripts/aws/deploy_release.py \
+            --account-id "$AWS_ACCOUNT_ID" \
+            --region "$AWS_REGION" \
+            --role-arn "$AWS_RELEASE_ROLE_ARN" \
+            --environment aws-demo \
+            --bucket "$AWS_CONFIG_BUCKET" \
+            --prefix "$AWS_CONFIG_PREFIX" \
+            --config-version "$CONFIG_VERSION" \
+            --config-sha256 "$CONFIG_SHA256" \
+            --release-id "$RELEASE_ID"
+      # No .local, credentials, state/plans, kubeconfig, or generated Secrets are
+      # uploaded or cached. Use an ephemeral, trusted runner for every attempt.

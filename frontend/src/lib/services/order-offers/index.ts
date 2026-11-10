@@ -11,6 +11,7 @@ export interface OrderOffersApi {
  makeOffer(orderId: string, credits: bigint, key: string): Promise<Offer>;
  acceptOrder(orderId: string, attemptId: string): Promise<AcceptanceResult>;
  acceptOffer(offerId: string): Promise<AcceptanceResult>;
+ getAttempt(attemptId: string): Promise<AssignmentAttemptResult>;
 }
 
 /** An acknowledged input/admission rejection does not leave a retry locked forever. */
@@ -53,6 +54,7 @@ function throwAcceptanceError(cause: unknown): never {
 export function createOrderOffersApi(transport: Transport): OrderOffersApi {
  const client = createClient(OrderService, transport);
  return {
+  async getAttempt(attemptId) { return requiredAttempt((await client.getAssignmentAttempt({ attemptId })).attempt); },
   async listOffers(orderId) { return (await client.listOffers({ orderId })).offers; },
   async makeOffer(orderId, credits, idempotencyKey) {
    try {

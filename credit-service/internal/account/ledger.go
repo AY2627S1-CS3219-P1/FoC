@@ -30,11 +30,12 @@ func Post(ctx context.Context, q *creditdb.Queries, now time.Time, postings ...P
 			continue
 		}
 
-		if _, err := q.ApplyAccountDelta(ctx, creditdb.ApplyAccountDeltaParams{
+		updated, err := q.ApplyAccountDelta(ctx, creditdb.ApplyAccountDeltaParams{
 			UserID:        p.UserID,
 			BalanceDelta:  p.BalanceDelta,
 			ReservedDelta: p.ReservedDelta,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("apply %s to account %s: %w", p.Kind, p.UserID, err)
 		}
 
@@ -53,6 +54,11 @@ func Post(ctx context.Context, q *creditdb.Queries, now time.Time, postings ...P
 			NowAt:         now,
 		}); err != nil {
 			return fmt.Errorf("append %s ledger entry for %s: %w", p.Kind, p.UserID, err)
+		}
+		if err := q.InsertAccountEvent(ctx, creditdb.InsertAccountEventParams{
+			EventID: id, UserID: p.UserID, Revision: updated.Revision, OccurredAt: now,
+		}); err != nil {
+			return fmt.Errorf("record account change for %s: %w", p.UserID, err)
 		}
 	}
 
