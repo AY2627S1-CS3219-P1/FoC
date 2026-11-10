@@ -30,4 +30,3 @@ SELECT * FROM moderation_attempts
 WHERE job_id = sqlc.arg(job_id)
   AND run_generation = sqlc.arg(run_generation)
 ORDER BY attempt_number ASC;
-
