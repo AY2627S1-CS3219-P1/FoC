@@ -32,6 +32,18 @@ type ChatSelection struct {
 	SelectedAt time.Time
 }
 
+type NotificationEmail struct {
+	EventID     uuid.UUID
+	UserID      uuid.UUID
+	Body        string
+	CreatedAt   time.Time
+	AvailableAt time.Time
+	Status      string
+	Attempts    int32
+	AttemptedAt *time.Time
+	LastError   string
+}
+
 type NotificationsStart struct {
 	Singleton bool
 	StartedAt time.Time
@@ -66,5 +78,11 @@ type TelegramLinkCode struct {
 	UserID    uuid.UUID
 	ExpiresAt time.Time
 	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
+type UserEmail struct {
+	UserID    uuid.UUID
+	Email     string
 	CreatedAt time.Time
 }

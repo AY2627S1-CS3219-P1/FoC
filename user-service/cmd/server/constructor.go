@@ -21,6 +21,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
@@ -49,6 +50,10 @@ func newOrderGateway(cfg config) orders.Gateway {
 	return orders.NewConnectGateway(orderv1connect.NewOrderInternalServiceClient(
 		&http.Client{Timeout: 5 * time.Second}, cfg.orderServiceURL))
 }
+
+// Communication sends magic links synchronously; its SMTP exchange is
+// bounded at 5s by default.
+const magicLinkTimeout = 15 * time.Second
 
 // newReviewService builds the review domain; photo storage is optional.
 func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*review.Service, *images.S3) {
@@ -173,7 +178,8 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec,
+		MagicLinks: communication.NewMagicLinks(&http.Client{Timeout: magicLinkTimeout}, cfg.communicationURL),
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,

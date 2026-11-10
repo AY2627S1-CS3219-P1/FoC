@@ -16,7 +16,8 @@ declare messages and enums without RPC services.
 ID, user ID, email, display name, and creation timestamp. The event ID is stable
 across retries; consumers should deduplicate it. User Service publishes this
 event from its transactional outbox after registration commits. Credit consumes
-it to open the user's account with the starting credits.
+it to open the user's account with the starting credits, and Communication
+keeps each user's email for email notifications.
 
 Order publishes its three topics from its outbox. Topic names match the outbox
 fact kinds. `order.status_changed` drives Communication's notifications,

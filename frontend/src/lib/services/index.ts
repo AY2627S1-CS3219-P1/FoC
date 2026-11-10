@@ -13,6 +13,7 @@ import { createDisablementApi } from './disablement';
 import { SupplierAdminAccess } from './location-admin/service.svelte';
 import { createOrderApi } from './order/index.ts';
 import { createDeliveryProofService } from './delivery-proof/index.ts';
+import { createReviewApi } from './review/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
@@ -70,6 +71,11 @@ export const creditAccountApi = createCreditAccountApi(creditTransport);
 export const participantActionsApi = createParticipantActionsApi(orderTransport);
 
 export const deliveryProofApi = createDeliveryProofService(orderTransport);
+
+// ReviewService lives in User Service; the transport already refreshes and
+// redirects on unauthenticated calls.
+export const reviewApi = createReviewApi(protectedUserTransport);
+
 const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
 const communicationTransport = createCustomTransport({
 	baseUrl: communicationServiceBaseUrl,

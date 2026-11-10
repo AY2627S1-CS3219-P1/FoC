@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/linking"
 	"github.com/AY2627S1-CS3219-P1/FoC/communication-service/internal/telegram"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
@@ -86,7 +87,7 @@ func (f *fakeOrders) Revision(_ context.Context, id uuid.UUID) (int64, bool, err
 
 type fakeDeliveries map[[2]uuid.UUID]bool
 
-func (f fakeDeliveries) HasBeenSent(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
+func (f fakeDeliveries) HasBeenAccepted(_ context.Context, eventID, userID uuid.UUID) (bool, error) {
 	return f[[2]uuid.UUID{eventID, userID}], nil
 }
 
@@ -329,5 +330,126 @@ func TestHandleReplaysWhenRevisionUnreadable(t *testing.T) {
 	}
 	if len(sender.sent) != 0 {
 		t.Fatalf("sent = %+v", sender.sent)
+	}
+}
+
+type fakeMailer struct {
+	sent []email.Email
+	err  error
+}
+
+func (f *fakeMailer) Send(_ context.Context, e email.Email) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.sent = append(f.sent, e)
+	return nil
+}
+
+type queuedEmail struct {
+	eventID uuid.UUID
+	userID  uuid.UUID
+	text    string
+}
+
+type fakeEmailQueue struct {
+	queued []queuedEmail
+	err    error
+}
+
+func (f *fakeEmailQueue) Enqueue(_ context.Context, eventID, userID uuid.UUID, text string, _ time.Time) error {
+	if f.err != nil {
+		return f.err
+	}
+	for _, queued := range f.queued {
+		if queued.eventID == eventID && queued.userID == userID {
+			return nil
+		}
+	}
+	f.queued = append(f.queued, queuedEmail{eventID, userID, text})
+	return nil
+}
+
+// withEmail enables durable fallback with the requester unlinked from Telegram.
+func withEmail(h *Handler, links *fakeLinks) *fakeEmailQueue {
+	queue := &fakeEmailQueue{}
+	h.EmailQueue = queue
+	delete(links.chats, requesterID)
+	return queue
+}
+
+func outcome() *eventsv1.OrderStatusChanged {
+	return event(eventsv1.OrderStatus_ORDER_STATUS_DELIVERED, eventsv1.OrderStatus_ORDER_STATUS_COMPLETED, system)
+}
+
+func TestHandleQueuesOutcomesWithoutNeedingTheUserEmail(t *testing.T) {
+	h, sender, links, deliveries := newHandler()
+	queue := withEmail(h, links)
+	for range 2 {
+		if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(queue.queued) != 1 || queue.queued[0].eventID != eventID || queue.queued[0].userID != requesterID ||
+		queue.queued[0].text != "Your order from Fine Food is complete." {
+		t.Fatalf("queued = %+v", queue.queued)
+	}
+	if len(sender.sent) != 1 || sender.sent[0].chatID != 2 {
+		t.Fatalf("telegram = %+v", sender.sent)
+	}
+	if deliveries[[2]uuid.UUID{eventID, requesterID}] {
+		t.Fatal("an unsent email was recorded as sent")
+	}
+}
+
+func TestHandleDoesNotEmailProgressUpdates(t *testing.T) {
+	h, _, links, _ := newHandler()
+	queue := withEmail(h, links)
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+		eventsv1.OrderStatus_ORDER_STATUS_DELIVERING,
+		user(courierID),
+	)
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil || len(queue.queued) != 0 {
+		t.Fatalf("err=%v queued=%+v", err, queue.queued)
+	}
+}
+
+func TestHandleQueuesEveryoneWhileTelegramIsDisabled(t *testing.T) {
+	h, _, links, _ := newHandler()
+	queue := withEmail(h, links)
+	h.Sender = nil
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.queued) != 2 {
+		t.Fatalf("queued = %+v", queue.queued)
+	}
+}
+
+func TestHandleQueuesEmailWhenTheTelegramChatIsGone(t *testing.T) {
+	h, sender, links, _ := newHandler()
+	queue := withEmail(h, links)
+	sender.errs[2] = &telegram.APIError{
+		Code:        http.StatusForbidden,
+		Description: "Forbidden: bot was blocked by the user",
+	}
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err != nil {
+		t.Fatal(err)
+	}
+	if len(links.unlinked) != 1 || len(queue.queued) != 2 || queue.queued[1].userID != courierID {
+		t.Fatalf("unlinked=%v queued=%+v", links.unlinked, queue.queued)
+	}
+}
+
+func TestHandleReplaysWhenEmailCannotBePersisted(t *testing.T) {
+	h, sender, links, deliveries := newHandler()
+	queue := withEmail(h, links)
+	queue.err = errors.New("database unavailable")
+	if err := h.Handle(context.Background(), kafka.Metadata{}, outcome()); err == nil {
+		t.Fatal("email was acknowledged without being persisted")
+	}
+	if len(queue.queued) != 0 || len(sender.sent) != 0 || len(deliveries) != 0 {
+		t.Fatalf("queued=%+v sent=%+v deliveries=%+v", queue.queued, sender.sent, deliveries)
 	}
 }
