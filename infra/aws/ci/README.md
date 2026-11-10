@@ -59,7 +59,7 @@ The workflow also launches this runner itself for continuous deployment (below).
 2. `release` runs on that private runner in environment `aws-demo`, using the existing deployment role and the configuration pinned by `AWS_CONFIG_VERSION` and `AWS_CONFIG_SHA256`.
 3. `cleanup-runner` always runs after a successful launch. It terminates the runner instance and removes its GitHub registration if the runner did not already do so.
 
-Workflow concurrency allows one release at a time. A newer pending run replaces an older pending run, and a running release is never cancelled. A failed CI run, a pull request, a fork, or a branch other than `main` never starts a release. Missing configuration variables fail the release before any build. Terraform applies and `prepare-database` remain manual.
+Workflow concurrency allows one release at a time. A newer pending run replaces an older pending run, and a running release is never cancelled. CI runs can finish out of push order, so an automatic run deploys only if its commit is still the head of `main`. It checks before launching the runner and again before deploying. A skipped older commit needs no action, because the newer commit releases after its own CI passes. A failed CI run, a pull request, a fork, or a branch other than `main` never starts a release. Missing configuration variables fail the release before any build. Terraform applies and `prepare-database` remain manual.
 
 One-time administrator setup:
 
@@ -67,7 +67,7 @@ One-time administrator setup:
 2. Create an organization GitHub App with **Organization → Self-hosted runners: Read and write** and no other permissions. Install it on the organization, selecting only FoC. Webhooks are not needed.
 3. Create environment `aws-demo-runner` with `main` as its only deployment branch and no required reviewers. Add secret `RUNNER_APP_PRIVATE_KEY` (the App's private key). Add variables `RUNNER_APP_ID`, `AWS_LAUNCHER_ROLE_ARN`, `RUNNER_GROUP_ID`, `RUNNER_LAUNCH_TEMPLATE_ID`, `RUNNER_LAUNCH_TEMPLATE_VERSION`, `RUNNER_REGISTRATION_PARAMETER`, and `RUNNER_NAME` from the `ci` output and the runner group. Also add `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_CONFIG_BUCKET`, and `AWS_CONFIG_PREFIX`.
 4. In environment `aws-demo`, add variables `AWS_CONFIG_VERSION` and `AWS_CONFIG_SHA256` from the latest publication receipt. Update both after every infrastructure publication. The release never selects an unpinned latest object.
-5. Remove the required reviewer from `aws-demo` after one automatic release has succeeded with the reviewer still in place. Keep `main` as its only deployment branch.
+5. Remove the required reviewer from `aws-demo` after one automatic release has succeeded with the reviewer still in place. Keep `main` as its only deployment branch. While the reviewer remains, the runner is already running and its two-hour shutdown timer has started before approval. Approve within that window. Otherwise, reject the deployment: `cleanup-runner` then terminates the runner, and the next CI run releases again.
 
 Update `RUNNER_LAUNCH_TEMPLATE_VERSION` whenever this root changes the launch template.
 

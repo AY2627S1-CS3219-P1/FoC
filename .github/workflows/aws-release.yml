@@ -32,7 +32,7 @@ env:
   SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  launch-runner:
+  check-latest:
     # Never run deployment credentials for a PR, a fork, a failed CI run, or an
     # arbitrary dispatch ref.
     if: >-
@@ -42,6 +42,32 @@ jobs:
         github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.head_branch == github.event.repository.default_branch &&
         github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.latest.outputs.deploy }}
+    steps:
+      # CI runs can finish out of push order. Only the newest main commit may
+      # deploy, so an older run never replaces a newer release.
+      - name: Confirm this is still the newest main commit
+        id: latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)
+          if [ "$head" = "$SOURCE_SHA" ]; then
+            echo deploy=true >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping $SOURCE_SHA because $DEFAULT_BRANCH is now $head; that commit releases after its own CI passes."
+            echo deploy=false >> "$GITHUB_OUTPUT"
+          fi
+
+  launch-runner:
+    needs: check-latest
+    if: needs.check-latest.outputs.deploy == 'true'
     environment: aws-demo-runner
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -104,6 +130,7 @@ jobs:
       CONFIG_SHA256: ${{ inputs.config_sha256 || vars.AWS_CONFIG_SHA256 }}
       RELEASE_ID: run${{ github.run_id }}-attempt${{ github.run_attempt }}
       AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -121,6 +148,13 @@ jobs:
           test -n "$CONFIG_VERSION"
           [[ "$CONFIG_SHA256" =~ ^[a-f0-9]{64}$ ]]
           [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ]
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            head=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY" "refs/heads/$DEFAULT_BRANCH" | cut -f1)
+            if [ "$head" != "$SOURCE_SHA" ]; then
+              echo "::error::$DEFAULT_BRANCH moved to $head while this release waited; refusing to deploy older $SOURCE_SHA."
+              exit 1
+            fi
+          fi
           command -v aws
           command -v docker
           command -v python3
