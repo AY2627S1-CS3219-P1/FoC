@@ -20,9 +20,11 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
@@ -71,11 +73,22 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	return service, photos
 }
 
+// newEvidenceService stores report and appeal images in the review photo
+// bucket under evidence/. storage is nil without a bucket.
+func newEvidenceService(sqlDB *sql.DB, storage *images.S3) *evidence.Service {
+	// A typed-nil *images.S3 would bypass the domain's availability checks.
+	var evidenceStorage evidence.Storage
+	if storage != nil {
+		evidenceStorage = storage
+	}
+	return evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), evidenceStorage)
+}
+
 // newReportService reads through the shared pool and closes reports in a GORM
 // transaction, so outcomes reuse the role, warning and review domains.
-func newReportService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
+func newReportService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *report.Service {
 	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
-	return report.NewService(repo, reportoutcome.WithTransaction(db))
+	return report.NewService(repo, reportoutcome.WithTransaction(db), images)
 }
 
 // newAppealService closes appeals in a GORM transaction, so overturned

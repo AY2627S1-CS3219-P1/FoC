@@ -9,7 +9,9 @@ import (
 	paginationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	reportv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/report/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/report/v1/reportv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,7 +21,16 @@ type Logic interface {
 	SubmitReport(ctx context.Context, reporterID uuid.UUID, submission Submission) (Report, error)
 	ListMyReports(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (Page, error)
 	GetReport(ctx context.Context, callerID uuid.UUID, isAdmin bool, id uuid.UUID) (Detail, error)
-	SubmitResponse(ctx context.Context, callerID, reportID uuid.UUID, body string) (Report, Response, error)
+	SubmitResponse(
+		ctx context.Context,
+		callerID, reportID uuid.UUID,
+		body string,
+		evidenceIDs []uuid.UUID,
+	) (Report, Response, error)
+	CreateEvidenceUpload(ctx context.Context, ownerID uuid.UUID, contentType string, sizeBytes int64) (
+		uuid.UUID, images.UploadGrant, error)
+	GetEvidenceDownload(ctx context.Context, callerID uuid.UUID, isAdmin bool, evidenceID uuid.UUID) (
+		evidence.View, error)
 	ListReports(ctx context.Context, filter Filter, page pagination.Pagination) (Page, error)
 	BeginReview(ctx context.Context, actorID, id uuid.UUID) (Report, error)
 	RequestResponse(ctx context.Context, actorID, id uuid.UUID) (Report, error)
@@ -52,13 +63,19 @@ func (h *Handler) SubmitReport(
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid report category"))
 	}
 
+	evidenceIDs, err := evidence.ParseIDs(req.Msg.GetEvidenceIds())
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+
 	report, err := h.Logic.SubmitReport(ctx, actorID, Submission{
 		Target:      target,
 		Category:    category,
 		Description: req.Msg.GetDescription(),
+		EvidenceIDs: evidenceIDs,
 	})
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, evidence.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reportv1.SubmitReportResponse{Report: toReportProto(report)}), nil
 }
@@ -131,14 +148,63 @@ func (h *Handler) SubmitResponse(
 		return nil, api.ToConnectError(ctx, err)
 	}
 
-	report, response, err := h.Logic.SubmitResponse(ctx, actorID, reportID, req.Msg.GetBody())
+	evidenceIDs, err := evidence.ParseIDs(req.Msg.GetEvidenceIds())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
+	}
+
+	report, response, err := h.Logic.SubmitResponse(ctx, actorID, reportID, req.Msg.GetBody(), evidenceIDs)
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&reportv1.SubmitResponseResponse{
 		Report:   toReportProto(report),
 		Response: toResponseProto(response),
 	}), nil
+}
+
+func (h *Handler) CreateEvidenceUpload(
+	ctx context.Context,
+	req *connect.Request[reportv1.CreateEvidenceUploadRequest],
+) (*connect.Response[reportv1.CreateEvidenceUploadResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+
+	upload := req.Msg.GetUpload()
+	id, grant, err := h.Logic.CreateEvidenceUpload(ctx, actorID, upload.GetContentType(), upload.GetSizeBytes())
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
+	}
+	return connect.NewResponse(&reportv1.CreateEvidenceUploadResponse{Grant: evidence.ToGrantProto(id, grant)}), nil
+}
+
+func (h *Handler) GetEvidenceDownload(
+	ctx context.Context,
+	req *connect.Request[reportv1.GetEvidenceDownloadRequest],
+) (*connect.Response[reportv1.GetEvidenceDownloadResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	evidenceID, err := parseID(req.Msg.GetEvidenceId(), "invalid evidence ID")
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+
+	view, err := h.Logic.GetEvidenceDownload(ctx, callerID, caller.Admin, evidenceID)
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&reportv1.GetEvidenceDownloadResponse{Evidence: evidence.ToProto(view)})
+	// The signed URL expires within minutes; caches must not keep it.
+	resp.Header().Set("Cache-Control", "no-store")
+	return resp, nil
 }
 
 // Administrators
@@ -375,6 +441,7 @@ func toReportProto(report Report) *reportv1.Report {
 		CloserName:    report.CloserName,
 		CreatedAt:     timestamppb.New(report.CreatedAt),
 		UpdatedAt:     timestamppb.New(report.UpdatedAt),
+		Evidence:      evidence.ToProtos(report.Evidence),
 	}
 	if report.ReviewID != uuid.Nil {
 		out.Target = &reportv1.Report_ReviewId{ReviewId: report.ReviewID.String()}
@@ -398,6 +465,7 @@ func toResponseProto(response Response) *reportv1.ReportResponse {
 		ResponderName: response.ResponderName,
 		Body:          response.Body,
 		CreatedAt:     timestamppb.New(response.CreatedAt),
+		Evidence:      evidence.ToProtos(response.Evidence),
 	}
 }
 

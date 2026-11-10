@@ -119,7 +119,8 @@ func main() {
 		},
 	}
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
-	reportLogic := newReportService(db, sqlDB)
+	evidenceLogic := newEvidenceService(sqlDB, reviewPhotos)
+	reportLogic := newReportService(db, sqlDB, evidenceLogic)
 	appealLogic := newAppealService(db, sqlDB)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
@@ -142,14 +143,17 @@ func main() {
 	servers := []*http.Server{public, internal}
 
 	if reviewPhotos != nil {
-		// Orphan staging rows are reaped on a minute ticker; the domain's
-		// claim/delete steps are retryable and idempotent.
+		// Orphan review photos and evidence images are reaped on a minute
+		// ticker; each domain's claim/delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := evidenceLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "evidence cleanup deferred", "err", err)
 				}
 				select {
 				case <-ctx.Done():

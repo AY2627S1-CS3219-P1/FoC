@@ -8,6 +8,7 @@ import (
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -24,10 +25,11 @@ type WithTransaction func(ctx context.Context, operation func(Tx) error) error
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
+	evidence        Evidence
 }
 
-func NewService(repo Repository, withTransaction WithTransaction) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction}
+func NewService(repo Repository, withTransaction WithTransaction, evidence Evidence) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, evidence: evidence}
 }
 
 // Submission
@@ -50,6 +52,10 @@ func (s *Service) SubmitReport(ctx context.Context, reporterID uuid.UUID, submis
 	if err != nil {
 		return Report{}, err
 	}
+	prepared, err := s.evidence.Prepare(ctx, reporterID, submission.EvidenceIDs)
+	if err != nil {
+		return Report{}, err
+	}
 
 	id, err := newID()
 	if err != nil {
@@ -64,15 +70,21 @@ func (s *Service) SubmitReport(ctx context.Context, reporterID uuid.UUID, submis
 		Category:    submission.Category,
 		Description: description,
 	}
-	if err := s.repo.InsertReport(ctx, input); err != nil {
-		switch {
-		case errors.Is(err, errReportAlreadyOpen):
-			return Report{}, errs.WrapAlreadyExistsError(err, "you already have an unclosed report for this target")
-		case errors.Is(err, errReportInvalid):
-			return Report{}, errs.WrapBadRequestError(err, "invalid report data")
-		default:
-			return Report{}, err
+	err = s.withTransaction(ctx, func(tx Tx) error {
+		if err := s.repo.InsertReport(ctx, tx.Queries, input); err != nil {
+			switch {
+			case errors.Is(err, errReportAlreadyOpen):
+				return errs.WrapAlreadyExistsError(err, "you already have an unclosed report for this target")
+			case errors.Is(err, errReportInvalid):
+				return errs.WrapBadRequestError(err, "invalid report data")
+			default:
+				return err
+			}
 		}
+		return tx.Evidence.Attach(ctx, reporterID, evidence.ReportParent(id), prepared)
+	})
+	if err != nil {
+		return Report{}, err
 	}
 
 	return s.getReport(ctx, id)
@@ -115,6 +127,9 @@ func (s *Service) ListMyReports(ctx context.Context, userID uuid.UUID, page pagi
 	if err != nil {
 		return Page{}, err
 	}
+	if err := s.withEvidence(ctx, reports, nil); err != nil {
+		return Page{}, err
+	}
 	total, err := s.repo.CountReportsInvolving(ctx, userID)
 	if err != nil {
 		return Page{}, err
@@ -138,19 +153,28 @@ func (s *Service) GetReport(ctx context.Context, callerID uuid.UUID, isAdmin boo
 	if err != nil {
 		return Detail{}, err
 	}
+	if err := s.withEvidence(ctx, nil, responses); err != nil {
+		return Detail{}, err
+	}
 	return Detail{Report: report, Responses: responses}, nil
 }
 
 // Responses
 
-// SubmitResponse records the reported participant's reply (RP2). A reply to a
-// requested response moves the report back under review (RP3.4).
+// SubmitResponse records the reported participant's reply with any images
+// (RP2). A reply to a requested response moves the report back under review
+// (RP3.4).
 func (s *Service) SubmitResponse(
 	ctx context.Context,
 	callerID, reportID uuid.UUID,
 	body string,
+	evidenceIDs []uuid.UUID,
 ) (Report, Response, error) {
 	body, err := boundedText(body, maxResponseLength, "response")
+	if err != nil {
+		return Report{}, Response{}, err
+	}
+	prepared, err := s.evidence.Prepare(ctx, callerID, evidenceIDs)
 	if err != nil {
 		return Report{}, Response{}, err
 	}
@@ -179,6 +203,9 @@ func (s *Service) SubmitResponse(
 		if err := s.repo.InsertResponse(ctx, tx.Queries, input); err != nil {
 			return err
 		}
+		if err := tx.Evidence.Attach(ctx, callerID, evidence.ReportResponseParent(responseID), prepared); err != nil {
+			return err
+		}
 		if locked.Status == StatusAwaitingResponse {
 			return s.repo.TransitionReport(ctx, tx.Queries, reportID, StatusAwaitingResponse, StatusUnderReview)
 		}
@@ -205,6 +232,9 @@ func (s *Service) SubmitResponse(
 func (s *Service) ListReports(ctx context.Context, filter Filter, page pagination.Pagination) (Page, error) {
 	reports, err := s.repo.ListReports(ctx, filter, page.Offset(), page.PageSize())
 	if err != nil {
+		return Page{}, err
+	}
+	if err := s.withEvidence(ctx, reports, nil); err != nil {
 		return Page{}, err
 	}
 	total, err := s.repo.CountReports(ctx, filter)
@@ -346,7 +376,15 @@ func (s *Service) getReport(ctx context.Context, id uuid.UUID) (Report, error) {
 	if errors.Is(err, errReportNotFound) {
 		return Report{}, errs.WrapNotFoundError(err, "report not found")
 	}
-	return report, err
+	if err != nil {
+		return Report{}, err
+	}
+
+	reports := []Report{report}
+	if err := s.withEvidence(ctx, reports, nil); err != nil {
+		return Report{}, err
+	}
+	return reports[0], nil
 }
 
 // boundedText trims value and requires between 1 and limit characters.

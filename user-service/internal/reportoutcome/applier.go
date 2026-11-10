@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -49,6 +50,7 @@ func WithTransaction(db *gorm.DB) report.WithTransaction {
 			return operation(report.Tx{
 				Queries:      reportdb.New(tx.Statement.ConnPool),
 				Consequences: New(tx),
+				Evidence:     evidence.NewAttacher(tx.Statement.ConnPool),
 			})
 		})
 	}

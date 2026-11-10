@@ -13,8 +13,10 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -60,7 +62,10 @@ func setupIntegration(t *testing.T) integration {
 		appeals: appeal.NewService(
 			appeal.NewPostgresRepository(appealdb.New(sqlDB)), reportoutcome.WithAppealTransaction(db)),
 		reports: report.NewService(
-			report.NewPostgresRepository(reportdb.New(sqlDB)), reportoutcome.WithTransaction(db)),
+			report.NewPostgresRepository(reportdb.New(sqlDB)),
+			reportoutcome.WithTransaction(db),
+			evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), nil),
+		),
 		reviews: review.NewService(
 			review.NewPostgresRepository(reviewQueries),
 			func(_ context.Context, operation func(*reviewdb.Queries) error) error {

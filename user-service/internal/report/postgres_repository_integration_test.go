@@ -11,7 +11,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	"github.com/google/uuid"
@@ -58,7 +60,11 @@ func setupIntegration(t *testing.T) integration {
 
 // newService wires the report service exactly as the composition root does.
 func newService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
-	return report.NewService(report.NewPostgresRepository(reportdb.New(sqlDB)), reportoutcome.WithTransaction(db))
+	return report.NewService(
+		report.NewPostgresRepository(reportdb.New(sqlDB)),
+		reportoutcome.WithTransaction(db),
+		evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), nil),
+	)
 }
 
 func (it integration) user(name, role string) uuid.UUID {
@@ -158,7 +164,7 @@ func TestReportLifecycleIntegration(t *testing.T) {
 	if _, err := it.service.RequestResponse(it.ctx, it.admin, submitted.ID); err != nil {
 		t.Fatal(err)
 	}
-	afterResponse, response, err := it.service.SubmitResponse(it.ctx, courier, submitted.ID, "traffic delay")
+	afterResponse, response, err := it.service.SubmitResponse(it.ctx, courier, submitted.ID, "traffic delay", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +201,7 @@ func TestReportLifecycleIntegration(t *testing.T) {
 		t.Fatalf("warnings = %d, want 1", n)
 	}
 
-	_, _, err = it.service.SubmitResponse(it.ctx, courier, submitted.ID, "too late")
+	_, _, err = it.service.SubmitResponse(it.ctx, courier, submitted.ID, "too late", nil)
 	wantStatus(t, err, http.StatusPreconditionFailed)
 
 	// A closed report frees the target for a new one.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -92,6 +93,8 @@ type Submission struct {
 	Target      Target
 	Category    Category
 	Description string
+	// EvidenceIDs are staged images to attach, in order (RP1.6).
+	EvidenceIDs []uuid.UUID
 }
 
 // Report is a stored report with display names joined at read time. ReviewID
@@ -115,6 +118,7 @@ type Report struct {
 	CloserName    string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	Evidence      []evidence.View
 }
 
 // Involves reports whether userID is the reporter or the reported participant,
@@ -131,6 +135,7 @@ type Response struct {
 	ResponderName string
 	Body          string
 	CreatedAt     time.Time
+	Evidence      []evidence.View
 }
 
 // Detail is a report with its responses, oldest first.

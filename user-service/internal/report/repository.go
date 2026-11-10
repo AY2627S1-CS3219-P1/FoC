@@ -15,7 +15,7 @@ type Repository interface {
 	// LiveReviewAuthor returns the author of a review that has not been removed,
 	// or errReviewNotFound.
 	LiveReviewAuthor(ctx context.Context, reviewID uuid.UUID) (uuid.UUID, error)
-	InsertReport(ctx context.Context, input ReportInput) error
+	InsertReport(ctx context.Context, q *reportdb.Queries, input ReportInput) error
 	GetReport(ctx context.Context, id uuid.UUID) (Report, error)
 	ListResponses(ctx context.Context, reportID uuid.UUID) ([]Response, error)
 	ListReportsInvolving(ctx context.Context, userID uuid.UUID, offset, limit int64) ([]Report, error)
@@ -46,4 +46,5 @@ type Consequences interface {
 type Tx struct {
 	Queries      *reportdb.Queries
 	Consequences Consequences
+	Evidence     EvidenceAttacher
 }
