@@ -5,6 +5,7 @@
 	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
 	import { reviewApi, snackbarService } from '$lib/services';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
+	import { ModerationStatus } from '$lib/gen/user/review/v1/review_pb';
 	import {
 		ReviewPhotosController,
 		type ReviewPhotosSnapshot
@@ -151,6 +152,7 @@
 						myReview = null;
 					}
 					myReview ??= {
+						moderationStatus: ModerationStatus.PENDING_MODERATION,
 						id: '',
 						reviewerId: callerId,
 						revieweeId,
@@ -246,7 +248,12 @@
 				<Button variant="outlined" onclick={() => reviewRevision++}>Try again</Button>
 			{:else if myReview}
 				<header class="title">
-					<h2 id="review-heading" tabindex="-1">Your review</h2>
+					<h2 id="review-heading" tabindex="-1">
+						Your review
+						{#if myReview.moderationStatus !== ModerationStatus.APPROVED}
+							<span>{myReview.moderationStatus === ModerationStatus.REJECTED ? '[rejected]' : '[pending]'}</span>
+						{/if}
+					</h2>
 					<p class="sub">
 						{myReview.createdAt
 							? `${reviewDate.format(new Date(myReview.createdAt))} · `
