@@ -6,6 +6,14 @@ Initialize the existing protected state bucket with native S3 locking, using a d
 
 The deployment role trusts only GitHub's `sts.amazonaws.com` audience and `repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo` subject. It can describe this cluster, push/read the eight existing ECR repositories, retrieve versioned configuration, and create/delete its own environment-lock versions. It cannot read infrastructure state, administer IAM, provision infrastructure, or fetch database credentials from Secrets Manager. Kubernetes access is separately bound by `release-rbac.yaml`; apply it with an existing administrator, not the deployment role. Namespace-local deployment is privileged access to the application, including its workload Secrets and ServiceAccounts.
 
+Logging additionally requires the namespace-local `foc-release` Role/Binding in
+`foc-observability`. It manages Grafana/Alloy and Helm-owned Loki resources and
+Helm's dynamic release-history Secrets. Those Secret permissions also cover the
+existing Grafana credential Secret; use this role only for trusted release code.
+It cannot administer RBAC, namespaces, CRDs or other namespaces' Secrets, and it
+cannot delete logging PVCs. An administrator must first install Alloy's
+`infra/k8s/base/observability-rbac` and provide `grafana-admin` privately.
+
 ## GitHub administrator setup
 
 Create a protected `aws-demo` environment with `main` as its only deployment branch and a required reviewer. Set `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_RELEASE_ROLE_ARN`, `AWS_CONFIG_BUCKET`, and `AWS_CONFIG_PREFIX` from `terraform output -json ci` as environment variables, not secrets. Do not add static AWS keys.

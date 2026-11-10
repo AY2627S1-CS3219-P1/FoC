@@ -128,8 +128,13 @@ jobs:
     env:
       AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
       PYTHONDONTWRITEBYTECODE: '1'
+      K8S_RENDER_TESTS: '1'
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache-dependency-path: scripts/go.sum
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'

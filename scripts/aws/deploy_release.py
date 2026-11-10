@@ -30,6 +30,8 @@ def release_environment(directory, config, tag):
         "K8S_IMAGE_PREFIX": config["image_prefix"], "K8S_IMAGE_TAG": tag,
         "K8S_PUSH_IMAGES": "1", "K8S_SKIP_BUILD": "0", "K8S_TIMEOUT": "900s",
         "K8S_JOB_TIMEOUT_SECONDS": "900", "K8S_PUBLIC_ORIGIN": config["public_origin"],
+        "K8S_LOKI_BUCKET": config["loki_bucket"], "K8S_LOKI_REGION": config["region"],
+        "K8S_LOKI_IRSA_ROLE": config["loki_role_arn"], "K8S_LOKI_STORAGE_CLASS": "foc-gp3",
         "K8S_HTTPS_PORT": "", "K8S_KAFKA_UI_PORT": "", "K8S_MAILPIT_PORT": "",
         "DOCKER_DEFAULT_PLATFORM": "linux/amd64", "AQUA_ROOT_DIR": str(ROOT / ".tools/aqua"),
     })
@@ -97,6 +99,7 @@ def main():
         if not config["ses_sender_email"]:
             secrets.append("smtp")
         commands.run(kubectl + ["-n", "foc", "get", "secret", *secrets, "-o", "name"], env=env)
+        commands.run(kubectl + ["-n", "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], env=env)
         commands.run(kubectl + ["get", "crd", "gateways.gateway.networking.k8s.io",
                                 "targetgroupbindings.elbv2.k8s.aws", "-o", "name"], env=env)
         namespace = config["image_prefix"].split("/", 1)[1]

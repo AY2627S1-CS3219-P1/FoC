@@ -20,7 +20,7 @@ import unittest
 
 import yaml
 
-from release_config import ROOT, checksum
+from release_config import ROOT, ReleaseError, checksum, configuration, validate
 
 ACCOUNT = "123456789012"
 REGION = "ap-southeast-1"
@@ -51,6 +51,7 @@ class ReleaseCLITest(unittest.TestCase):
             "public_origin": "https://fixture.execute-api.ap-southeast-1.amazonaws.com",
             "image_prefix": ACCOUNT + ".dkr.ecr." + REGION + ".amazonaws.com/foc-demo",
             "order_bucket": "fixture-order-images", "order_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/order",
+            "loki_bucket": "fixture-loki-logs", "loki_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/loki",
             "ingress_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/ingress",
             "gateway_target_arn": "arn:aws:elasticloadbalancing:" + REGION + ":" + ACCOUNT + ":targetgroup/fixture/0123456789abcdef",
             "ses_sender_email": "sender@example.test", "user_email_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/email",
@@ -127,16 +128,21 @@ class ReleaseCLITest(unittest.TestCase):
         state["objects"][receipt["key"]].append({"id": "unselected-latest", "data": base64.b64encode(b"not the selected configuration").decode()})
         self.write_state(state)
         # A developer's inherited overrides must not skip full migration/deploy.
-        self.env.update(K8S_SKIP_BUILD="1", K8S_CONTEXT="kind-wrong", K8S_OVERLAY="wrong", service="frontend")
+        self.env.update(K8S_SKIP_BUILD="1", K8S_CONTEXT="kind-wrong", K8S_OVERLAY="wrong", service="frontend",
+                        K8S_LOKI_BUCKET="wrong-bucket", K8S_LOKI_IRSA_ROLE="wrong-role")
         self.deploy()
         state = self.read_state()
         self.assertEqual(state["applies"], 1)
-        self.assertEqual(state["stages"], ["dependencies", "migrations", "applications"])
+        self.assertEqual(state["stages"], ["dependencies", "observability", "migrations", "applications"])
         self.assertTrue(state["smoke_called"] and state["password_stdin_ok"] and state["logged_out"])
         env = state["deploy_environment"]
         self.assertEqual((env["K8S_SKIP_BUILD"], env["K8S_PUSH_IMAGES"], env["DOCKER_DEFAULT_PLATFORM"]), ("0", "1", "linux/amd64"))
         self.assertEqual(env["K8S_IMAGE_TAG"], SOURCE + "-attempt1")
         self.assertEqual(env["K8S_CONTEXT"], "foc-release")
+        self.assertEqual(env["K8S_LOKI_BUCKET"], self.outputs["loki_bucket"])
+        self.assertEqual(env["K8S_LOKI_IRSA_ROLE"], self.outputs["loki_role_arn"])
+        self.assertEqual(env["K8S_LOKI_REGION"], REGION)
+        self.assertEqual(env["K8S_LOKI_STORAGE_CLASS"], "foc-gp3")
         self.assertFalse(Path(env["DOCKER_CONFIG"]).exists())
         self.assertTrue(Path(env["KUBECONFIG"]).is_relative_to(self.private))
         self.assertEqual(Path(env["KUBECONFIG"]).stat().st_mode & 0o777, 0o600)
@@ -157,7 +163,29 @@ class ReleaseCLITest(unittest.TestCase):
         calls = state["calls"]
         self.assertEqual(sum(call[0] == "terraform" and "apply" in call for call in calls), 1)
         self.assertIn(["make", "k8s-deploy", "service="], calls)
+        self.assertIn(["kubectl", "--context", "foc-release", "--request-timeout=15s", "-n",
+                       "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], calls)
         print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> eight digest receipts -> smoke gate")
+
+    def test_logging_configuration_rejects_legacy_missing_shared_or_foreign_inputs(self):
+        document = configuration(self.outputs, "demo", SOURCE, "a" * 64, checksum(CA), ACCOUNT, REGION)
+        self.assertEqual(document["schema_version"], 2)
+        for changes in ({"loki_bucket": None}, {"loki_role_arn": None},
+                        {"loki_bucket": self.outputs["order_bucket"]},
+                        {"loki_role_arn": self.outputs["order_role_arn"]},
+                        {"loki_role_arn": "arn:aws:iam::999999999999:role/loki"}):
+            with self.subTest(changes=changes), self.assertRaises(ReleaseError):
+                validate(dict(document, deployment=dict(document["deployment"], **changes)), "demo", ACCOUNT, REGION)
+        with self.assertRaises(ReleaseError):
+            validate(dict(document, schema_version=1), "demo", ACCOUNT, REGION)
+
+    def test_missing_grafana_secret_fails_before_image_build(self):
+        self.publish()
+        self.change(missing_grafana=True)
+        self.deploy(success=False)
+        state = self.read_state()
+        self.assertNotIn("deploy_environment", state)
+        self.assertFalse(state.get("password_stdin_ok"))
 
     def test_preflight_rejects_unreviewed_plan_or_public_unversioned_storage(self):
         for index, flags in enumerate(({"versioning": "Suspended"}, {"public_bucket": True}, {})):
@@ -327,6 +355,38 @@ class ReleaseCLITest(unittest.TestCase):
         self.write_state(state)
         self.deploy("wrongenvironment", success=False, extra=["--config-sha256", sha])
         self.assertNotIn("stages", self.read_state())
+
+
+class ReleaseRBACContractTest(unittest.TestCase):
+    def test_logging_access_is_namespace_scoped_and_preserves_admin_rbac(self):
+        objects = list(yaml.safe_load_all((ROOT / "infra/aws/ci/release-rbac.yaml").read_text()))
+        role = next(obj for obj in objects if obj["kind"] == "Role" and
+                    obj["metadata"]["namespace"] == "foc-observability")
+        for rule in role["rules"]:
+            self.assertNotIn("*", rule["resources"])
+            self.assertNotIn("*", rule["verbs"])
+            self.assertNotIn("rbac.authorization.k8s.io", rule["apiGroups"])
+            self.assertNotIn("namespaces", rule["resources"])
+            if "persistentvolumeclaims" in rule["resources"]:
+                self.assertNotIn("delete", rule["verbs"])
+        secrets = next(rule for rule in role["rules"] if "secrets" in rule["resources"])
+        self.assertTrue({"get", "list", "create", "update", "delete"}.issubset(secrets["verbs"]))
+        binding = next(obj for obj in objects if obj["kind"] == "RoleBinding" and
+                       obj["metadata"]["namespace"] == "foc-observability")
+        self.assertEqual(binding["roleRef"]["name"], role["metadata"]["name"])
+        self.assertEqual(binding["subjects"], [{"kind": "Group", "apiGroup": "rbac.authorization.k8s.io", "name": "foc-release"}])
+        # The actual logging manifests must fit this role, without adding RBAC
+        # administration or wildcard cluster access to make reconciliation pass.
+        rendered = subprocess.check_output(["kubectl", "kustomize", str(ROOT / "infra/k8s/base/observability")], text=True)
+        resources = {"Deployment": ("apps", "deployments"), "Service": ("", "services"),
+                     "ServiceAccount": ("", "serviceaccounts"), "PersistentVolumeClaim": ("", "persistentvolumeclaims"),
+                     "ConfigMap": ("", "configmaps"), "PeerAuthentication": ("security.istio.io", "peerauthentications"),
+                     "AuthorizationPolicy": ("security.istio.io", "authorizationpolicies")}
+        for obj in yaml.safe_load_all(rendered):
+            group, resource = resources[obj["kind"]]
+            self.assertEqual(obj["metadata"]["namespace"], "foc-observability")
+            self.assertTrue(any(group in rule["apiGroups"] and resource in rule["resources"] and
+                                {"get", "create", "patch"}.issubset(rule["verbs"]) for rule in role["rules"]), obj["kind"])
 
 
 if __name__ == "__main__":

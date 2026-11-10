@@ -143,6 +143,8 @@ if command == "aws":
             finish({"imageDetails": [{"imageDigest": state["images"][key]}]})
     finish(error="unexpected AWS command")
 if command == "kubectl":
+    if state.get("missing_grafana") and "grafana-admin" in args:
+        finish(error="missing existing Grafana Secret")
     if state.get("missing_secret") and "secret" in args:
         finish(error="missing existing Secret")
     finish("existing prerequisites available")
@@ -167,7 +169,8 @@ if command == "make":
     if target == "k8s-deploy":
         state["deploy_environment"] = {key: os.environ.get(key) for key in
             ("K8S_SKIP_BUILD", "K8S_PUSH_IMAGES", "K8S_IMAGE_PREFIX", "K8S_IMAGE_TAG", "K8S_CONTEXT",
-             "K8S_OVERLAY", "KUBECONFIG", "DOCKER_CONFIG", "DOCKER_DEFAULT_PLATFORM")}
+             "K8S_OVERLAY", "KUBECONFIG", "DOCKER_CONFIG", "DOCKER_DEFAULT_PLATFORM",
+             "K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS")}
         if state.get("interruptible_deploy"):
             ready = state_file.with_suffix(".descendant-ready")
             child = subprocess.Popen([
@@ -190,7 +193,7 @@ if command == "make":
         tag = os.environ["K8S_IMAGE_TAG"]
         for name in ("user-service", "supplier-service", "order-service", "credit-service", "communication-service", "frontend", "kafka-init", "migrations"):
             state.setdefault("images", {})[namespace + "/" + name + ":" + tag] = "sha256:" + hashlib.sha256(name.encode()).hexdigest()
-        state.setdefault("stages", []).extend(["dependencies", "migrations"])
+        state.setdefault("stages", []).extend(["dependencies", "observability", "migrations"])
         if state.get("fail_migration"):
             finish(error="migration failure fixture-private-deployment-output-NOT-FOR-LOGS")
         state["stages"].append("applications")
