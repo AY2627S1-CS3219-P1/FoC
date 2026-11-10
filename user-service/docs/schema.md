@@ -30,6 +30,10 @@ erDiagram
     user_appeals ||--o{ user_appeal_responses : "counterpart replies"
     user_appeals |o--o{ account_warnings : "removes"
     review_removals ||--o| review_restorations : "undone by"
+    user_reports ||--o{ evidence_attachments : "images"
+    user_report_responses ||--o{ evidence_attachments : "images"
+    user_appeals ||--o{ evidence_attachments : "images"
+    user_appeal_responses ||--o{ evidence_attachments : "images"
 
     users {
         uuid id PK
@@ -135,6 +139,17 @@ erDiagram
         uuid responder_id FK
         text body "1-4000 chars"
     }
+    evidence_attachments {
+        uuid id PK
+        uuid owner_id FK
+        text object_key UK "evidence/<id>"
+        text state "uploading|attached|deleting"
+        uuid report_id FK "exactly one parent once attached"
+        uuid report_response_id FK
+        uuid appeal_id FK
+        uuid appeal_response_id FK
+        int ordinal "0-4 per parent"
+    }
     review_restorations {
         uuid id PK
         uuid removal_id FK,UK
@@ -163,6 +178,7 @@ erDiagram
 | 00012 | `user_reports`, `user_report_responses` | RP1–RP5 | exactly one of `review_id` / `order_id`; one unclosed report per reporter and target; closed ⇔ outcome, reason and `closed_at`; review removal only for review targets; adds `report_id` FKs on `role_changes` and `account_warnings`. Numbered after #287's 00010/00011 |
 | 00013 | `user_appeals`, `user_appeal_decisions`, `user_appeal_responses` | RP7–RP12 | `(appellant_id, idempotency_key)` unique; one target column per decision, matching `kind`; a decision is in at most one unclosed appeal (`active` partial unique index); outcome and reason set exactly when the decision is no longer active; `credit_adjustment` rejected until #302; adds the `appeal_id` FK on `account_warnings` |
 | 00014 | `review_restorations` | RP12.3 | one restoration per removal; drops the unique `review_removals.review_id`, so a restored review can be removed again |
+| 00015 | `evidence_attachments` | RP1.6, RP2.2, RP8.2, RP9.4 | staged while uploading, then attached to exactly one report, appeal or response; at most five per parent; same content types and size cap as review photos; unattached rows are reaped |
 
 ## Soft delete
 
