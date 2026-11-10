@@ -4,6 +4,8 @@ import (
 	"errors"
 	"html"
 	"net/textproto"
+
+	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
 // MagicLinkPurpose says whether a magic link signs in or finishes sign-up.
@@ -46,5 +48,6 @@ func OrderUpdate(to, text string) Email {
 // such as an unknown recipient, so sending it again would fail the same way.
 func Rejected(err error) bool {
 	var reply *textproto.Error
-	return errors.As(err, &reply) && reply.Code >= 500
+	var rejected *types.MessageRejected
+	return (errors.As(err, &reply) && reply.Code >= 500) || errors.As(err, &rejected)
 }

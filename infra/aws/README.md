@@ -21,7 +21,7 @@ prove that the school permits deployment.
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
 - D4: IRSA supplies short-lived AWS credentials to Order, Loki, the EBS CSI driver,
-  the load-balancer controller, and optionally User for SES. Each has a separate
+  the load-balancer controller, and optionally Communication for SES. Each has a separate
   workload role. Application AWS access keys are not needed.
   RDS manages the administrator password in Secrets Manager. Terraform does not
   read that password or generate SMTP/JWT/application database credentials.
@@ -387,21 +387,24 @@ Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
 in the Terraform inputs. Review the plan before applying: this adds a dedicated
-User Service IAM role and inline policy permitting only `ses:SendEmail` and
+Communication Service IAM role and inline policy permitting only `ses:SendEmail` and
 `ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Trust
-is restricted to the `foc:user-service` ServiceAccount and STS audience. It does
-not grant email permissions to Communication or change Order's S3 permissions.
+is restricted to the `foc:communication-service` ServiceAccount and STS audience. It does
+not grant email permissions to User or change Order's S3 permissions.
 The adapter sends raw MIME through SESv2's `SendEmail` operation. AWS also
 requires `ses:SendRawEmail` for that content: a live workload request with only
 `ses:SendEmail` was rejected with `AccessDeniedException` for `ses:SendRawEmail`.
 The API operation name alone does not establish the required IAM permissions.
 
 After the approved apply, refresh `.local/aws/deployment.json` and rerender the
-overlay. The renderer sets `EMAIL_PROVIDER=ses`, `EMAIL_FROM`, and the User
-Service IRSA annotation, and removes User's SMTP Secret reference. No static
+overlay. The renderer sets `EMAIL_PROVIDER=ses`, `EMAIL_FROM`, and the Communication
+Service IRSA annotation, and removes Communication's SMTP Secret reference. No static
 AWS keys or SMTP login are needed. The operator checks the rendered reference
 before requiring `smtp`. Existing SMTP overlays and local Mailpit are unchanged.
 A null/default `ses_sender_email` retains SMTP and creates no email role.
+The deployment output exposes `communication_email_role_arn`; regenerate the
+output JSON before rendering. The role is named `<name>-communication-email`,
+so an existing `<name>-user-email` role is replaced when this plan is applied.
 
 SES sender verification, production access, workload authorization, and actual
 mailbox delivery are separate checks. A policy simulation is not proof of live

@@ -33,7 +33,8 @@ func certificatePatch(kind, name, container string, ses bool) map[string]any {
 	if ses {
 		podContainer["envFrom"] = []any{
 			map[string]any{"configMapRef": map[string]any{"name": "foc-config"}},
-			map[string]any{"secretRef": map[string]any{"name": "user-db"}},
+			map[string]any{"secretRef": map[string]any{"name": "communication-db"}},
+			map[string]any{"secretRef": map[string]any{"name": "telegram"}},
 		}
 	}
 	apiVersion := "apps/v1"
@@ -69,16 +70,16 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 	if config["loki_bucket"] == config["order_bucket"] || config["loki_role_arn"] == config["order_role_arn"] {
 		return errors.New("Loki requires its own bucket and workload role")
 	}
-	for _, key := range []string{"ses_sender_email", "user_email_role_arn"} {
+	for _, key := range []string{"ses_sender_email", "communication_email_role_arn"} {
 		if value := config[key]; value != nil {
 			if _, ok := value.(string); !ok {
 				return errors.New("SES configuration must use strings or null")
 			}
 		}
 	}
-	sender, role := stringValue(config, "ses_sender_email"), stringValue(config, "user_email_role_arn")
+	sender, role := stringValue(config, "ses_sender_email"), stringValue(config, "communication_email_role_arn")
 	if (sender != "") != (role != "") {
-		return errors.New("SES requires both ses_sender_email and user_email_role_arn")
+		return errors.New("SES requires both ses_sender_email and communication_email_role_arn")
 	}
 	if sender != "" && !regexp.MustCompile(`^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$`).MatchString(sender) {
 		return errors.New("ses_sender_email must be a bare verified email address")
@@ -164,7 +165,7 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 					patches,
 					manifestPatch(
 						"ServiceAccount",
-						"user-service",
+						"communication-service",
 						[]any{
 							map[string]any{
 								"op":    "add",
@@ -250,7 +251,7 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 								kind,
 								name,
 								name,
-								kind == "Deployment" && service == "user" && sender != "",
+								kind == "Deployment" && service == "communication" && sender != "",
 							),
 						),
 					},

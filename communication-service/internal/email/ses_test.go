@@ -32,7 +32,7 @@ func TestSESSenderWebIdentityEndToEnd(t *testing.T) {
 			t.Error(err)
 		}
 		if r.Form.Get("Action") != "AssumeRoleWithWebIdentity" || r.Form.Get("WebIdentityToken") != "synthetic-token" ||
-			r.Form.Get("RoleArn") != "arn:aws:iam::123456789012:role/user-email" {
+			r.Form.Get("RoleArn") != "arn:aws:iam::123456789012:role/communication-email" {
 			t.Error("SDK did not use the configured web-identity role")
 			http.Error(w, "invalid synthetic role request", http.StatusBadRequest)
 			return
@@ -123,7 +123,7 @@ func TestSESSenderWebIdentityEndToEnd(t *testing.T) {
 	}
 	for key, value := range map[string]string{
 		"AWS_CONFIG_FILE": empty, "AWS_SHARED_CREDENTIALS_FILE": empty,
-		"AWS_EC2_METADATA_DISABLED": "true", "AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/user-email",
+		"AWS_EC2_METADATA_DISABLED": "true", "AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/communication-email",
 		"AWS_ROLE_SESSION_NAME": "email-test", "AWS_WEB_IDENTITY_TOKEN_FILE": token,
 		"AWS_ENDPOINT_URL_STS": sts.URL, "AWS_ENDPOINT_URL_SESV2": ses.URL,
 	} {

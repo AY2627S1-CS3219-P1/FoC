@@ -39,3 +39,8 @@ remain visibly pending until then. This change does not implement that backfill.
 The email worker starts as soon as mail delivery is configured, independently
 of bot readiness and Kafka connectivity, so accepted backlog can recover even
 while Telegram's startup check is retrying.
+
+When SES API delivery is selected, the same worker and queue use Communication's
+SES adapter. A typed SES `MessageRejected` error retains a rejected row; transport,
+throttling and account-availability errors retry. SES acceptance has the same
+send-before-database-commit window as SMTP, and failures never switch providers.

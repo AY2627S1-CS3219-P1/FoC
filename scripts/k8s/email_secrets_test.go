@@ -11,13 +11,13 @@ func TestApplicationSMTPSecretFollowsRenderedReference(t *testing.T) {
 		required, invalid    bool
 	}{
 		{"SMTP", "foc", `[{"secretRef":{"name":"smtp"}}]`, true, false},
-		{"SES", "foc", `[{"configMapRef":{"name":"foc-config"}},{"secretRef":{"name":"user-db"}}]`, false, false},
+		{"SES", "foc", `[{"configMapRef":{"name":"foc-config"}},{"secretRef":{"name":"communication-db"}}]`, false, false},
 		{"optional", "foc", `[{"secretRef":{"name":"smtp","optional":true}}]`, false, false},
 		{"wrong namespace", "other", `[]`, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rendered := fmt.Sprintf(
-				`{"kind":"List","items":[{"kind":"Deployment","metadata":{"name":"user-service","namespace":%q},"spec":{"template":{"spec":{"containers":[{"envFrom":%s}]}}}}]}`,
+				`{"kind":"List","items":[{"kind":"Deployment","metadata":{"name":"communication-service","namespace":%q},"spec":{"template":{"spec":{"containers":[{"envFrom":%s}]}}}}]}`,
 				tc.namespace,
 				tc.env,
 			)
@@ -41,11 +41,11 @@ func TestApplicationSMTPSecretAcceptsKubectlJSONStream(t *testing.T) {
 		required  bool
 	}{
 		{"SMTP", `[{"secretRef":{"name":"smtp"}}]`, true},
-		{"SES", `[{"configMapRef":{"name":"foc-config"}},{"secretRef":{"name":"user-db"}}]`, false},
+		{"SES", `[{"configMapRef":{"name":"foc-config"}},{"secretRef":{"name":"communication-db"}}]`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			user := fmt.Sprintf(
-				`{"kind":"Deployment","metadata":{"name":"user-service","namespace":"foc"},"spec":{"template":{"spec":{"containers":[{"envFrom":%s}]}}}}`,
+				`{"kind":"Deployment","metadata":{"name":"communication-service","namespace":"foc"},"spec":{"template":{"spec":{"containers":[{"envFrom":%s}]}}}}`,
 				tc.env,
 			)
 			for _, input := range []string{user, `{"kind":"Service","metadata":{"name":"frontend"}}` + "\n" + user + "\n" + `{"kind":"Deployment","metadata":{"name":"frontend"}}`} {

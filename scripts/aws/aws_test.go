@@ -52,21 +52,21 @@ func buildTool(t *testing.T) string {
 
 func testConfiguration() map[string]any {
 	return map[string]any{
-		"region":              "ap-southeast-1",
-		"cluster_name":        "foc-demo",
-		"vpc_id":              "vpc-0123456789abcdef0",
-		"public_hostname":     "fixture.execute-api.ap-southeast-1.amazonaws.com",
-		"public_origin":       "https://fixture.execute-api.ap-southeast-1.amazonaws.com",
-		"image_prefix":        "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/foc-demo",
-		"order_bucket":        "fixture-order-images",
-		"order_role_arn":      "arn:aws:iam::123456789012:role/order",
-		"loki_bucket":         "fixture-loki-logs",
-		"loki_role_arn":       "arn:aws:iam::123456789012:role/loki",
-		"ingress_role_arn":    "arn:aws:iam::123456789012:role/ingress",
-		"gateway_target_arn":  "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/fixture/0123456789abcdef",
-		"database_host":       "offline.database.invalid",
-		"ses_sender_email":    nil,
-		"user_email_role_arn": nil,
+		"region":                       "ap-southeast-1",
+		"cluster_name":                 "foc-demo",
+		"vpc_id":                       "vpc-0123456789abcdef0",
+		"public_hostname":              "fixture.execute-api.ap-southeast-1.amazonaws.com",
+		"public_origin":                "https://fixture.execute-api.ap-southeast-1.amazonaws.com",
+		"image_prefix":                 "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/foc-demo",
+		"order_bucket":                 "fixture-order-images",
+		"order_role_arn":               "arn:aws:iam::123456789012:role/order",
+		"loki_bucket":                  "fixture-loki-logs",
+		"loki_role_arn":                "arn:aws:iam::123456789012:role/loki",
+		"ingress_role_arn":             "arn:aws:iam::123456789012:role/ingress",
+		"gateway_target_arn":           "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/fixture/0123456789abcdef",
+		"database_host":                "offline.database.invalid",
+		"ses_sender_email":             nil,
+		"communication_email_role_arn": nil,
 	}
 }
 
@@ -149,7 +149,7 @@ func TestOverlayPrivateInputsAndStageContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, changes := range []map[string]any{{"loki_bucket": nil}, {"loki_role_arn": nil}, {"loki_bucket": config["order_bucket"]}, {"loki_role_arn": config["order_role_arn"]}, {"ses_sender_email": "sender@example.test"}, {"user_email_role_arn": "role"}, {"ses_sender_email": "FoC <sender@example.test>", "user_email_role_arn": "role"}} {
+	for _, changes := range []map[string]any{{"loki_bucket": nil}, {"loki_role_arn": nil}, {"loki_bucket": config["order_bucket"]}, {"loki_role_arn": config["order_role_arn"]}, {"ses_sender_email": "sender@example.test"}, {"communication_email_role_arn": "role"}, {"ses_sender_email": "FoC <sender@example.test>", "communication_email_role_arn": "role"}} {
 		candidate := testConfiguration()
 		for key, value := range changes {
 			candidate[key] = value
@@ -237,7 +237,7 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 	for _, ses := range []bool{false, true} {
 		if ses {
 			config["ses_sender_email"] = "sender@example.test"
-			config["user_email_role_arn"] = "arn:aws:iam::123456789012:role/email"
+			config["communication_email_role_arn"] = "arn:aws:iam::123456789012:role/email"
 		}
 		if err := a.renderOverlay(config, overlay, "-----BEGIN CERTIFICATE-----\nOFFLINE\n"); err != nil {
 			t.Fatal(err)
@@ -292,8 +292,8 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 				}
 			}
 		}
-		user := namedManifest(t, objects, "Deployment", "user-service")
-		hasSMTP := strings.Contains(compactJSON(podSpec(user)), `"name":"smtp"`)
+		communication := namedManifest(t, objects, "Deployment", "communication-service")
+		hasSMTP := strings.Contains(compactJSON(podSpec(communication)), `"name":"smtp"`)
 		if hasSMTP == ses {
 			t.Fatal("SES/SMTP dependency selection changed")
 		}
@@ -422,26 +422,29 @@ func assertRenderedAWSContracts(t *testing.T, objects []map[string]any, config m
 	if !strings.Contains(compactJSON(user["volumeMounts"]), `"name":"jwt-signing"`) {
 		t.Fatal("JWT signing mount lost")
 	}
+	assertJSONContract(t, user["envFrom"], []any{
+		map[string]any{"configMapRef": map[string]any{"name": "foc-config"}},
+		map[string]any{"secretRef": map[string]any{"name": "user-db"}},
+	}, "User delegates email to Communication")
+	userMetadata := object(namedManifest(t, objects, "ServiceAccount", "user-service")["metadata"])
+	if _, exists := object(userMetadata["annotations"])["eks.amazonaws.com/role-arn"]; exists {
+		t.Fatal("SES role must not be assigned to User")
+	}
 	if ses {
 		if values["EMAIL_PROVIDER"] != "ses" || values["EMAIL_FROM"] != config["ses_sender_email"] {
 			t.Fatal("SES sender/provider mismatch")
 		}
-		assertJSONContract(
-			t,
-			user["envFrom"],
-			[]any{
-				map[string]any{"configMapRef": map[string]any{"name": "foc-config"}},
-				map[string]any{"secretRef": map[string]any{"name": "user-db"}},
-			},
-			"SES User dependencies",
+		communication := object(
+			array(podSpec(namedManifest(t, objects, "Deployment", "communication-service"))["containers"])[0],
 		)
-		userMetadata := object(namedManifest(t, objects, "ServiceAccount", "user-service")["metadata"])
-		if object(userMetadata["annotations"])["eks.amazonaws.com/role-arn"] != config["user_email_role_arn"] {
-			t.Fatal("SES User identity lost")
-		}
-		communication := object(namedManifest(t, objects, "ServiceAccount", "communication-service")["metadata"])
-		if _, exists := object(communication["annotations"])["eks.amazonaws.com/role-arn"]; exists {
-			t.Fatal("SES role must not be assigned to Communication")
+		assertJSONContract(t, communication["envFrom"], []any{
+			map[string]any{"configMapRef": map[string]any{"name": "foc-config"}},
+			map[string]any{"secretRef": map[string]any{"name": "communication-db"}},
+			map[string]any{"secretRef": map[string]any{"name": "telegram"}},
+		}, "SES Communication dependencies")
+		metadata := object(namedManifest(t, objects, "ServiceAccount", "communication-service")["metadata"])
+		if object(metadata["annotations"])["eks.amazonaws.com/role-arn"] != config["communication_email_role_arn"] {
+			t.Fatal("SES Communication identity lost")
 		}
 	}
 	grafana := object(array(podSpec(namedManifest(t, objects, "Deployment", "grafana"))["containers"])[0])

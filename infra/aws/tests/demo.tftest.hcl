@@ -185,22 +185,22 @@ run "smtp_creates_no_email_role" {
   }
 }
 
-run "ses_is_sender_and_user_scoped" {
+run "ses_is_sender_and_communication_scoped" {
   command = plan
   variables {
     ses_sender_email = "sender@example.test"
   }
   assert {
-    condition     = length(aws_iam_role.email) == 1 && local.workload_identities["email"] == "system:serviceaccount:foc:user-service"
-    error_message = "Only User Service may assume the email role."
+    condition     = length(aws_iam_role.email) == 1 && local.workload_identities["email"] == "system:serviceaccount:foc:communication-service"
+    error_message = "Only Communication Service may assume the email role."
   }
   assert {
     condition     = jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Action == ["ses:SendEmail", "ses:SendRawEmail"] && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Resource == "arn:aws:ses:ap-southeast-1:123456789012:identity/sender@example.test" && jsondecode(aws_iam_role_policy.email[0].policy).Statement[0].Condition.StringEquals["ses:FromAddress"] == "sender@example.test"
     error_message = "SES sending must be restricted to the verified regional sender, without broad permissions."
   }
   assert {
-    condition     = toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:user-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
-    error_message = "Trust must bind both the exact User Service subject and STS audience."
+    condition     = toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:communication-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["email"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    error_message = "Trust must bind both the exact Communication Service subject and STS audience."
   }
 }
 

@@ -1,6 +1,6 @@
 resource "aws_iam_role" "email" {
   count              = var.ses_sender_email == null ? 0 : 1
-  name               = "${var.name}-user-email"
+  name               = "${var.name}-communication-email"
   assume_role_policy = data.aws_iam_policy_document.workload_trust["email"].json
 }
 

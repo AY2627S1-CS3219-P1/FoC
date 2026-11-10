@@ -32,7 +32,7 @@ type applicationManifest struct {
 	} `json:"spec"`
 }
 
-// applicationRequiresSMTP follows the rendered User deployment. AWS SES removes
+// applicationRequiresSMTP follows the rendered Communication deployment. AWS SES removes
 // its SMTP reference; local and existing SMTP overlays keep requiring it.
 func applicationRequiresSMTP(rendered string) (bool, error) {
 	decoder := json.NewDecoder(strings.NewReader(rendered))
@@ -52,7 +52,7 @@ func applicationRequiresSMTP(rendered string) (bool, error) {
 			manifests = append(manifests, manifest.Items...)
 			continue
 		}
-		if manifest.Kind != "Deployment" || manifest.Metadata.Name != "user-service" ||
+		if manifest.Kind != "Deployment" || manifest.Metadata.Name != "communication-service" ||
 			manifest.Metadata.Namespace != "foc" {
 			continue
 		}
@@ -65,7 +65,7 @@ func applicationRequiresSMTP(rendered string) (bool, error) {
 		}
 		return false, nil
 	}
-	return false, errors.New("rendered applications have no user-service Deployment in foc")
+	return false, errors.New("rendered applications have no communication-service Deployment in foc")
 }
 
 func (o *operator) checkSMTPSecret() error {
