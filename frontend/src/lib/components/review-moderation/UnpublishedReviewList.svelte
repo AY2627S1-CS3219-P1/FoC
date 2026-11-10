@@ -26,12 +26,12 @@
 						<span class="review-meta">
 							{record.review.rating}/5 · {formatDate(record.review.createdAt)}
 						</span>
+						{#if record.review.orderId}
+							<a class="order-link" href={`/orders/${record.review.orderId}`}>Go to order</a>
+						{/if}
 					</header>
 					<p class="review-comment">{record.review.comment}</p>
 					{#if view.detail}<p class="review-detail" role="status">{view.detail}</p>{/if}
-					{#if record.review.orderId}
-						<p class="review-meta">Order {record.review.orderId}</p>
-					{/if}
 				</div>
 			</Card>
 		</li>
@@ -59,6 +59,10 @@
 	}
 	.review-meta {
 		color: var(--md-sys-color-on-surface-variant, #5f6368);
+		font-size: 0.875rem;
+	}
+	.order-link {
+		color: var(--m3c-primary);
 		font-size: 0.875rem;
 	}
 	.review-comment {

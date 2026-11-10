@@ -119,6 +119,9 @@
 <svelte:head><title>Unpublished reviews · Friend on Campus</title></svelte:head>
 
 <section class="page-content" aria-labelledby="unpublished-title">
+	<div class="back-link">
+		<Button variant="text" href="/profile/reviews/given">Back to my reviews</Button>
+	</div>
 	<header class="page-heading">
 		<div>
 			<p class="eyebrow">Your account</p>
