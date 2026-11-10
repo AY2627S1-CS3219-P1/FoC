@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -30,6 +31,7 @@ type integration struct {
 	appeals *appeal.Service
 	reports *report.Service
 	reviews *review.Service
+	orders  testOrders
 	admin   uuid.UUID
 }
 
@@ -55,10 +57,12 @@ func setupIntegration(t *testing.T) integration {
 
 	// The services are wired as the composition root wires them.
 	reviewQueries := reviewdb.New(sqlDB)
+	known := testOrders{}
 	it := integration{
-		t:     t,
-		ctx:   context.Background(),
-		sqlDB: sqlDB,
+		orders: known,
+		t:      t,
+		ctx:    context.Background(),
+		sqlDB:  sqlDB,
 		appeals: appeal.NewService(
 			appeal.NewPostgresRepository(appealdb.New(sqlDB)),
 			reportoutcome.WithAppealTransaction(db),
@@ -68,6 +72,7 @@ func setupIntegration(t *testing.T) integration {
 			report.NewPostgresRepository(reportdb.New(sqlDB)),
 			reportoutcome.WithTransaction(db),
 			evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), nil),
+			known,
 		),
 		reviews: review.NewService(
 			review.NewPostgresRepository(reviewQueries),
@@ -75,6 +80,7 @@ func setupIntegration(t *testing.T) integration {
 				return operation(reviewQueries)
 			},
 			nil,
+			orders.UnavailableGateway{},
 		),
 	}
 	it.admin = it.user("Admin", "admin")
@@ -171,7 +177,7 @@ func wantStatus(t *testing.T, err error, status int) {
 func TestAppealLifecycleIntegration(t *testing.T) {
 	it := setupIntegration(t)
 	requester, courier := it.user("Requester", "user"), it.user("Courier", "user")
-	orderID := uuid.New()
+	orderID := it.order(requester, courier)
 	reportID := it.closedReport(requester, report.OrderTarget(orderID, courier), report.OutcomeWarning)
 	warningID := it.scalar("SELECT id FROM account_warnings WHERE report_id = $1", reportID)
 
@@ -276,7 +282,11 @@ func TestAppealOutcomesIntegration(t *testing.T) {
 
 	t.Run("overturned suspension reinstates the user", func(t *testing.T) {
 		requester, courier := it.user("Requester", "user"), it.user("Courier", "user")
-		reportID := it.closedReport(requester, report.OrderTarget(uuid.New(), courier), report.OutcomeSuspension)
+		reportID := it.closedReport(
+			requester,
+			report.OrderTarget(it.order(requester, courier), courier),
+			report.OutcomeSuspension,
+		)
 		if role := it.scalar("SELECT role FROM users WHERE id = $1", courier); role != "suspended" {
 			t.Fatalf("role = %s, want suspended", role)
 		}
@@ -380,7 +390,11 @@ func TestAppealOutcomesIntegration(t *testing.T) {
 
 	t.Run("no-action report outcome records the disposition only", func(t *testing.T) {
 		requester, courier := it.user("Requester", "user"), it.user("Courier", "user")
-		reportID := it.closedReport(requester, report.OrderTarget(uuid.New(), courier), report.OutcomeNoAction)
+		reportID := it.closedReport(
+			requester,
+			report.OrderTarget(it.order(requester, courier), courier),
+			report.OutcomeNoAction,
+		)
 
 		got := it.submit(requester, appeal.Target{Kind: appeal.KindReportOutcome, TargetID: reportID})
 		closed, err := it.close(got, appeal.OutcomeOverturned)
@@ -388,4 +402,22 @@ func TestAppealOutcomesIntegration(t *testing.T) {
 			t.Fatalf("close: %+v, %v", closed, err)
 		}
 	})
+}
+
+// testOrders stands in for Order Service, answering for registered orders.
+type testOrders map[uuid.UUID]orders.Participants
+
+func (o testOrders) GetOrderParticipants(_ context.Context, id uuid.UUID) (orders.Participants, error) {
+	participants, ok := o[id]
+	if !ok {
+		return orders.Participants{}, orders.ErrNotFound
+	}
+	return participants, nil
+}
+
+// order registers an order between requester and courier.
+func (it integration) order(requester, courier uuid.UUID) uuid.UUID {
+	id := uuid.New()
+	it.orders[id] = orders.Participants{RequesterID: requester, CourierID: courier, Completed: true}
+	return id
 }

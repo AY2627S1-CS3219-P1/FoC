@@ -64,8 +64,9 @@ enum ReportOutcome {
   REPORT_OUTCOME_REVIEW_REMOVAL = 4;
 }
 
-// An order and the other participant the reporter is reporting. Order
-// participation is not verified across services yet.
+// An order and the other participant the reporter is reporting. Both must be
+// the order's requester and current courier; SubmitReport is UNAVAILABLE while
+// Order cannot confirm them.
 message OrderTarget {
   // Opaque order id owned by the order service; no foreign key here.
   string order_id = 1 [(buf.validate.field).string.uuid = true];

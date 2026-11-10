@@ -16,6 +16,15 @@ domain in User Service (`user-service/internal/report`), exposed as
   deliberately. For a review, the subject is the review's author, and the
   originating request is the review's `order_id`. For an order, the reporter
   names the other participant.
+- **Order participants (RP1.1, RP1.2).** An order report is accepted only
+  when the reporter and the subject are the order's requester and current
+  courier. User Service reads them from Order's
+  `OrderInternalService.GetOrderParticipants` on its internal listener
+  (`user-service/internal/orders`, configured by `ORDER_SERVICE_BASE_URL`).
+  Reviews use the same client. An unknown order is not found, and an Order
+  outage or unset URL fails closed as unavailable.
+  An appeal's `request_id` needs no lookup: it must be the request of one of
+  the appealed decisions, which already belong to the appellant.
 - **Lifecycle (RP3).** `open → under_review ⇄ awaiting_response → closed`.
   Administrators begin review and request a response. A response from the
   reported participant moves `awaiting_response` back to `under_review`
@@ -119,10 +128,6 @@ Reasons for keeping reports in User Service:
 
 ## Deferred
 
-- **Participant check (RP1.1, RP1.2)** — #301. Order reports are not yet checked
-  against the order's requester and courier. Order's `GetOrderParticipants` is
-  declared but not implemented. Draft #287 adds the internal listener and the
-  User → Order client configuration this needs.
 - **Credit adjustment (RP5.5)** — #302. Credit has no administrative adjustment
   entry type.
 - **Response-request notification (RP9.1)** — #303, for reports and appeals.

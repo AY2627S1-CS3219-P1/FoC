@@ -19,6 +19,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -192,5 +193,7 @@ func (a *Applier) reviews() *review.Service {
 		review.NewPostgresRepository(queries),
 		func(_ context.Context, operation func(*reviewdb.Queries) error) error { return operation(queries) },
 		nil,
+		// Outcomes only remove and restore reviews, which need no order lookup.
+		orders.UnavailableGateway{},
 	)
 }

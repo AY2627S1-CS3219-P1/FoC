@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
@@ -384,5 +385,44 @@ func TestEvidenceRPCs(t *testing.T) {
 	}))
 	if err != nil || len(stub.responseEvidence) != 1 || stub.responseEvidence[0] != evidenceID {
 		t.Fatalf("response evidence = %v, err = %v", stub.responseEvidence, err)
+	}
+}
+
+// The order participant check through Connect, with the real service (#301).
+func TestSubmitReportRPCChecksOrderParticipants(t *testing.T) {
+	requester, courier, stranger := uuid.New(), uuid.New(), uuid.New()
+	repo := newFakeRepository()
+	repo.users[requester], repo.users[courier], repo.users[stranger] = true, true, true
+	orderID := repo.order(requester, courier)
+
+	submit := func(service *Service, reporter, subject uuid.UUID) error {
+		client := reportClient(t, service, auth.Caller{ID: reporter.String(), Role: string(tokenclaims.RoleUser)})
+		_, err := client.SubmitReport(context.Background(), connect.NewRequest(&reportv1.SubmitReportRequest{
+			Target: &reportv1.SubmitReportRequest_Order{Order: &reportv1.OrderTarget{
+				OrderId:   orderID.String(),
+				SubjectId: subject.String(),
+			}},
+			Category:    reportv1.ReportCategory_REPORT_CATEGORY_NO_SHOW,
+			Description: "never arrived",
+		}))
+		return err
+	}
+
+	service := newTestService(repo, nil)
+	if err := submit(service, requester, courier); err != nil {
+		t.Fatalf("requester to courier: %v", err)
+	}
+	if err := submit(service, courier, requester); err != nil {
+		t.Fatalf("courier to requester: %v", err)
+	}
+	if err := submit(service, stranger, courier); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("non-participant: %v", err)
+	}
+
+	unavailable := NewService(repo, func(_ context.Context, operation func(Tx) error) error {
+		return operation(Tx{Evidence: newFakeEvidence()})
+	}, newFakeEvidence(), orders.UnavailableGateway{})
+	if err := submit(unavailable, requester, courier); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("Order unavailable: %v", err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,7 +40,8 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) (*Service, *CompletionHandl
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx, nil), NewCompletionHandler(repo, withTx)
+	eligible := &eligibleOrders{Repository: repo}
+	return NewService(eligible, withTx, nil, eligible), NewCompletionHandler(repo, withTx)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -1010,7 +1012,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			case <-txCtx.Done():
 				return txCtx.Err()
 			}
-		}, nil)
+		}, nil, orders.UnavailableGateway{})
 		go func() {
 			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
 		}()

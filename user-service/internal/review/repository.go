@@ -12,7 +12,6 @@ import (
 type Repository interface {
 	CheckReviewParticipants(
 		ctx context.Context,
-		q *reviewdb.Queries,
 		reviewerID, revieweeID uuid.UUID,
 	) (ReviewParticipantExistence, error)
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) (InsertedReview, error)

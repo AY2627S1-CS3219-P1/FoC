@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 )
 
@@ -25,6 +26,7 @@ type fakeRepository struct {
 	reports   map[uuid.UUID]Report
 	responses []Response
 	requestOf map[uuid.UUID]uuid.UUID // review report -> originating order
+	orders    map[uuid.UUID]orders.Participants
 }
 
 func newFakeRepository() *fakeRepository {
@@ -33,7 +35,24 @@ func newFakeRepository() *fakeRepository {
 		reviews:   map[uuid.UUID]uuid.UUID{},
 		reports:   map[uuid.UUID]Report{},
 		requestOf: map[uuid.UUID]uuid.UUID{},
+		orders:    map[uuid.UUID]orders.Participants{},
 	}
+}
+
+// GetOrderParticipants answers for the orders a test registered.
+func (f *fakeRepository) GetOrderParticipants(_ context.Context, id uuid.UUID) (orders.Participants, error) {
+	participants, ok := f.orders[id]
+	if !ok {
+		return orders.Participants{}, orders.ErrNotFound
+	}
+	return participants, nil
+}
+
+// order registers an order between requester and courier.
+func (f *fakeRepository) order(requester, courier uuid.UUID) uuid.UUID {
+	id := uuid.New()
+	f.orders[id] = orders.Participants{RequesterID: requester, CourierID: courier}
+	return id
 }
 
 func (f *fakeRepository) UserExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -276,7 +295,7 @@ func newTestService(repo *fakeRepository, consequences *fakeConsequences) *Servi
 func newTestServiceWithEvidence(repo *fakeRepository, consequences *fakeConsequences, images *fakeEvidence) *Service {
 	return NewService(repo, func(_ context.Context, operation func(Tx) error) error {
 		return operation(Tx{Consequences: consequences, Evidence: images})
-	}, images)
+	}, images, repo)
 }
 
 func wantStatus(t *testing.T, err error, status int) {
@@ -320,8 +339,9 @@ func TestSubmitReport(t *testing.T) {
 	})
 
 	t.Run("order target keeps the named subject", func(t *testing.T) {
-		order := uuid.New()
-		got, err := newTestService(newRepo(), nil).SubmitReport(context.Background(), reporter,
+		repo := newRepo()
+		order := repo.order(reporter, other)
+		got, err := newTestService(repo, nil).SubmitReport(context.Background(), reporter,
 			submission(OrderTarget(order, other)))
 		if err != nil {
 			t.Fatal(err)
@@ -665,7 +685,7 @@ func TestReportEvidence(t *testing.T) {
 	first, _, _ := service.CreateEvidenceUpload(ctx, reporter, "image/png", 10)
 	second, _, _ := service.CreateEvidenceUpload(ctx, reporter, "image/png", 10)
 	submitted, err := service.SubmitReport(ctx, reporter, Submission{
-		Target:      OrderTarget(uuid.New(), subject),
+		Target:      OrderTarget(repo.order(reporter, subject), subject),
 		Category:    CategoryNoShow,
 		Description: "never arrived",
 		EvidenceIDs: []uuid.UUID{second, first},
@@ -679,7 +699,7 @@ func TestReportEvidence(t *testing.T) {
 
 	// An image that was never staged fails the submission before any write.
 	_, err = service.SubmitReport(ctx, reporter, Submission{
-		Target:      OrderTarget(uuid.New(), subject),
+		Target:      OrderTarget(repo.order(reporter, subject), subject),
 		Category:    CategoryNoShow,
 		Description: "again",
 		EvidenceIDs: []uuid.UUID{uuid.New()},
@@ -705,4 +725,59 @@ func TestReportEvidence(t *testing.T) {
 	}
 	_, err = service.GetEvidenceDownload(ctx, uuid.New(), false, first)
 	wantStatus(t, err, http.StatusNotFound)
+}
+
+func TestSubmitReportChecksOrderParticipants(t *testing.T) {
+	requester, courier, stranger := uuid.New(), uuid.New(), uuid.New()
+	newRepo := func() *fakeRepository {
+		repo := newFakeRepository()
+		repo.users[requester], repo.users[courier], repo.users[stranger] = true, true, true
+		return repo
+	}
+	report := func(repo *fakeRepository, reporter uuid.UUID, target Target) error {
+		_, err := newTestService(repo, nil).SubmitReport(context.Background(), reporter, Submission{
+			Target: target, Category: CategoryNoShow, Description: "never arrived",
+		})
+		return err
+	}
+
+	t.Run("requester reports courier", func(t *testing.T) {
+		repo := newRepo()
+		if err := report(repo, requester, OrderTarget(repo.order(requester, courier), courier)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("courier reports requester", func(t *testing.T) {
+		repo := newRepo()
+		if err := report(repo, courier, OrderTarget(repo.order(requester, courier), requester)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("a non-participant cannot report", func(t *testing.T) {
+		repo := newRepo()
+		err := report(repo, stranger, OrderTarget(repo.order(requester, courier), courier))
+		wantStatus(t, err, http.StatusForbidden)
+	})
+	t.Run("a participant cannot report a non-participant", func(t *testing.T) {
+		repo := newRepo()
+		err := report(repo, requester, OrderTarget(repo.order(requester, courier), stranger))
+		wantStatus(t, err, http.StatusForbidden)
+	})
+	t.Run("an unknown order is not found", func(t *testing.T) {
+		err := report(newRepo(), requester, OrderTarget(uuid.New(), courier))
+		wantStatus(t, err, http.StatusNotFound)
+	})
+	t.Run("Order unavailable fails closed", func(t *testing.T) {
+		repo := newRepo()
+		service := NewService(repo, func(_ context.Context, operation func(Tx) error) error {
+			return operation(Tx{Evidence: newFakeEvidence()})
+		}, newFakeEvidence(), orders.UnavailableGateway{})
+		_, err := service.SubmitReport(context.Background(), requester, Submission{
+			Target: OrderTarget(uuid.New(), courier), Category: CategoryNoShow, Description: "x",
+		})
+		wantStatus(t, err, http.StatusServiceUnavailable)
+		if len(repo.reports) != 0 {
+			t.Fatal("a report was written while Order was unavailable")
+		}
+	})
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 )
 
@@ -26,10 +27,16 @@ type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
 	evidence        Evidence
+	orders          orders.Gateway
 }
 
-func NewService(repo Repository, withTransaction WithTransaction, evidence Evidence) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction, evidence: evidence}
+func NewService(
+	repo Repository,
+	withTransaction WithTransaction,
+	evidence Evidence,
+	orders orders.Gateway,
+) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, evidence: evidence, orders: orders}
 }
 
 // Submission
@@ -90,7 +97,8 @@ func (s *Service) SubmitReport(ctx context.Context, reporterID uuid.UUID, submis
 	return s.getReport(ctx, id)
 }
 
-// resolveSubject finds the reported user and rejects self-reports.
+// resolveSubject finds the reported user and rejects self-reports. An order
+// target must name the order's other participant.
 func (s *Service) resolveSubject(ctx context.Context, reporterID uuid.UUID, target Target) (uuid.UUID, error) {
 	if target.IsReview() {
 		author, err := s.repo.LiveReviewAuthor(ctx, target.ReviewID)
@@ -115,6 +123,16 @@ func (s *Service) resolveSubject(ctx context.Context, reporterID uuid.UUID, targ
 	}
 	if !exists {
 		return uuid.Nil, errs.NewNotFoundError("reported user not found")
+	}
+
+	// Only the order's requester and courier may report each other (RP1.1,
+	// RP1.2). The lookup fails closed when Order cannot answer.
+	order, err := s.orders.GetOrderParticipants(ctx, target.OrderID)
+	if err != nil {
+		return uuid.Nil, orders.ExternalError(err)
+	}
+	if !order.Contains(reporterID, target.SubjectID) {
+		return uuid.Nil, errs.NewForbiddenError("only the order's requester and courier can report each other")
 	}
 	return target.SubjectID, nil
 }
