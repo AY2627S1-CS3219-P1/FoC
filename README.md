@@ -461,12 +461,10 @@ flowchart TB
 ---
 
 ## AI Use Summary
+This project is done with AI assistance.
 
-In line with the CS3219 AI usage policy (Appendix 2 of the project
-document), this project used AI tools as follows.
-
-**Tools:** LLM-based AI coding assistants (chat-based and agentic coding
-tools).
+**Tools:** AI coding assistants (chat-based and agentic coding
+tools such as Opencode, Codex using models such as DeepSeek and GPT 6.1).
 
 **Prohibited phases avoided:** requirements elicitation and prioritization;
 architecture and design decisions (component boundaries, design patterns,
@@ -480,13 +478,12 @@ data schemas, interfaces); and drafting of decision rationales.
   `docs/adr/` were made, written, and validated by the team.
 - Generating scaffolding and boilerplate when creating a new service (folder
   structure, configuration, build and container definitions, generated-code
-  stubs). The team reviewed every scaffold before pushing it and opening a
-  pull request.
+  stubs).
 - Writing implementation code (functions, classes, unit tests) after the
   team finalized the relevant requirements and design.
 - Debugging assistance (error explanations, test suggestions) and
   refactoring and documentation improvements (docstrings, comments, README
   content).
 
-**Verification:** All AI outputs were reviewed, edited, tested, and verified
-by the team, which remains fully accountable for the entire codebase.
+**Verification:** All AI outputs were reviewed, tested, verified, and edited
+  as necessary by the team.
