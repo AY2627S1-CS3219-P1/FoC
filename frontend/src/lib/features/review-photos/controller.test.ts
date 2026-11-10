@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReviewPhotosController, putPhoto } from './controller';
+import { OversizedConversionError } from '$lib/features/image-upload/heic';
 import { ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 
 // The review flow has no verify or abandon RPC: a grant and a PUT decide a
@@ -267,6 +268,20 @@ describe('review photo heic transcode', () => {
 		expect(grant).toEqual({ contentType: 'image/heic', sizeBytes: 8 });
 		expect(put.mock.calls[0]![1].name).toBe('IMG_0001.heic');
 		expect(controller.snapshot().files[0]!.outcome).toBe('Succeeded');
+	});
+
+	it('rejects a converted photo that cannot fit the upload cap without a grant', async () => {
+		const { api, put, controller } = transcodeScenario(async () => {
+			throw new OversizedConversionError();
+		});
+		controller.addFiles([heic()]);
+		await controller.upload();
+		const row = controller.snapshot().files[0]!;
+		expect(row.outcome).toBe('Rejected');
+		expect(row.message).toContain('10MB');
+		// No grant or PUT may run for bytes that can never pass the cap.
+		expect(api.createPhotoUpload).not.toHaveBeenCalled();
+		expect(put).not.toHaveBeenCalled();
 	});
 
 	it('does not convert files browsers can already decode', async () => {

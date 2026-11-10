@@ -1,3 +1,5 @@
+import { MAX_IMAGE_BYTES } from './limits';
+
 // Client-side HEIC/HEIF handling for direct-to-storage uploads. iPhones
 // capture HEIC by default, which Chrome and Firefox cannot decode, so a picked
 // HEIC photo is converted to JPEG before its bytes reach storage. The backend
@@ -72,20 +74,76 @@ export function jpegFilename(name: string): string {
 	return `${base || 'photo'}.jpg`;
 }
 
+// Quality of the first conversion.
+const JPEG_QUALITY = 0.85;
+// Budget retries resample the previous output to 70% of its size and step
+// the encoder quality down to this floor: each pass roughly halves the byte
+// count while the photo stays a usable shape of the original shot.
+const BUDGET_RESAMPLE_SCALE = 0.7;
+const BUDGET_QUALITIES = [0.7, 0.55, 0.5, 0.5];
+
+/**
+ * Raised when every conversion pass still exceeds the upload cap, so no
+ * amount of resampling turns the pick into an uploadable photo.
+ */
+export class OversizedConversionError extends Error {
+	constructor() {
+		super(`converted JPEG still exceeds ${MAX_IMAGE_BYTES} bytes`);
+		this.name = 'OversizedConversionError';
+	}
+}
+
+/** Re-encodes a converted JPEG smaller: resampled to `scale` of its size at
+ * the given quality. Offscreen canvas keeps the retry off the page DOM. */
+async function resampledJpeg(jpeg: Blob, scale: number, quality: number): Promise<Blob> {
+	const source = await createImageBitmap(jpeg);
+	const width = Math.max(1, Math.round(source.width * scale));
+	const height = Math.max(1, Math.round(source.height * scale));
+	const canvas = new OffscreenCanvas(width, height);
+	canvas.getContext('2d')!.drawImage(source, 0, 0, width, height);
+	source.close();
+	return canvas.convertToBlob({ type: 'image/jpeg', quality });
+}
+
+/**
+ * Keeps a converted JPEG inside the pick's byte cap. A detailed HEIC under
+ * the cap can convert into a larger JPEG, so each retry resamples and drops
+ * the quality until the output fits; when no pass does fit any more, the
+ * failure is raised rather than returning oversized bytes.
+ */
+async function convertWithinBudget(jpeg: Blob): Promise<Blob> {
+	let oversized = jpeg;
+	for (const quality of BUDGET_QUALITIES) {
+		oversized = await resampledJpeg(oversized, BUDGET_RESAMPLE_SCALE, quality);
+		if (oversized.size <= MAX_IMAGE_BYTES) return oversized;
+	}
+	throw new OversizedConversionError();
+}
+
 /**
  * Converts one picked file to JPEG at quality 0.85 when it is a decodable
- * HEIC/HEIF photo, and hands back the original file otherwise. A file the
- * decoder cannot read keeps its original bytes so the existing row
+ * HEIC/HEIF photo, and hands back the original file otherwise. A converted
+ * JPEG larger than the pick's own cap is resampled and re-encoded (see
+ * convertWithinBudget); when that cannot fit either, the failure reaches the
+ * caller as an OversizedConversionError rather than oversized bytes. A file
+ * the decoder cannot read keeps its original bytes so the existing row
  * validation and the storage contract decide its fate; conversion never
  * blocks a pick with a new hard failure.
  */
 export async function transcodeHeicFile(file: File): Promise<File> {
+	if (!(await isHeicFile(file, file.type))) return file;
 	try {
-		if (!(await isHeicFile(file, file.type))) return file;
 		const { heicTo } = await import('heic-to');
-		const jpeg = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.85 });
+		const jpeg = await heicTo({ blob: file, type: 'image/jpeg', quality: JPEG_QUALITY });
+		if (jpeg.size > MAX_IMAGE_BYTES) {
+			const converted = await convertWithinBudget(jpeg);
+			return new File([converted], jpegFilename(file.name), { type: 'image/jpeg' });
+		}
 		return new File([jpeg], jpegFilename(file.name), { type: 'image/jpeg' });
-	} catch {
+	} catch (error) {
+		// A no-fit conversion is a real pick problem worth reporting: the
+		// budget passes already ran, so keep the error instead of the fallback.
+		if (error instanceof OversizedConversionError) throw error;
 		// Decoding failed or the decoder could not even load: keep the original
 		// HEIC file rather than rejecting it outright.
 		return file;

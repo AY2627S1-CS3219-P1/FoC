@@ -1,6 +1,6 @@
 import { ReviewLimitedError, ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 import { MAX_IMAGE_BYTES, isAcceptedImageType } from '$lib/features/image-upload/limits';
-import { couldBeHeic, transcodeHeicFile } from '$lib/features/image-upload/heic';
+import { couldBeHeic, OversizedConversionError, transcodeHeicFile } from '$lib/features/image-upload/heic';
 
 /** Converts a picked file into the bytes the review photos storage receives. */
 export type PhotoTranscoder = (file: File) => Promise<File>;
@@ -199,14 +199,21 @@ export class ReviewPhotosController {
 					row.outcome = 'Succeeded';
 					row.message = '';
 				} catch (cause) {
-					// A temporary limit leaves the row retryable ('Failed'); only an
-					// authoritative server rejection is permanent.
-					row.outcome = cause instanceof ReviewRejectedError ? 'Rejected' : 'Failed';
-					row.message = cause instanceof ReviewLimitedError
-						? cause.message
-						: cause instanceof ReviewRejectedError
+					// A photo whose conversion cannot fit the upload cap will never
+					// pass it either: reject it instead of retrying a hopeless pass.
+					if (cause instanceof OversizedConversionError) {
+						row.outcome = 'Rejected';
+						row.message = 'This photo is too large after conversion. Replace it with a photo up to 10MB.';
+					} else {
+						// A temporary limit leaves the row retryable ('Failed'); only an
+						// authoritative server rejection is permanent.
+						row.outcome = cause instanceof ReviewRejectedError ? 'Rejected' : 'Failed';
+						row.message = cause instanceof ReviewLimitedError
 							? cause.message
-							: 'Could not upload this photo. Try again or remove it.';
+							: cause instanceof ReviewRejectedError
+								? cause.message
+								: 'Could not upload this photo. Try again or remove it.';
+					}
 				}
 				this.publish();
 			}

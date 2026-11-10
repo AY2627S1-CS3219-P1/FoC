@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { couldBeHeic, isHeicFile, jpegFilename, sniffsHeic, transcodeHeicFile } from './heic';
+import { couldBeHeic, isHeicFile, jpegFilename, OversizedConversionError, sniffsHeic, transcodeHeicFile } from './heic';
 
 vi.mock('heic-to', () => ({
 	heicTo: vi.fn(async () => new Blob(['jpeg-bytes'], { type: 'image/jpeg' }))
@@ -101,5 +101,101 @@ describe('heic passthrough and conversion', () => {
 		// Valid HEIC header but unreadable content: a truncated or corrupt shot.
 		const heic = new File([ftypHeader('heic')], 'IMG_0001.heic', { type: 'image/heic' });
 		await expect(transcodeHeicFile(heic)).resolves.toBe(heic);
+	});
+});
+
+describe('heic conversion upload budget', () => {
+	const oversizedJpeg = (): Blob => new Blob([new Uint8Array(10_000_001)], { type: 'image/jpeg' });
+	const fittingJpeg = (): Blob => new Blob([new Uint8Array(1000)], { type: 'image/jpeg' });
+
+	// Stand-ins for the browser resample path so the budget passes run in
+	// tests: each decode sees one 0.7-shrunk tier of a 6000x5000 shot,
+	// mirroring a real resample chain feeding its output to the next pass.
+	const ORIGIN = { width: 6000, height: 5000 };
+	let encode: (quality: number) => Blob;
+	let decodes: Array<{ width: number; height: number }>;
+	let draws: Array<{ width: number; height: number }>;
+	let encodedQualities: number[];
+
+	class StubCanvas {
+		readonly width: number;
+		readonly height: number;
+		constructor(width: number, height: number) {
+			this.width = width;
+			this.height = height;
+		}
+		getContext(kind: string) {
+			expect(kind).toBe('2d');
+			const canvas = this;
+			return {
+				drawImage(_source: unknown, _x: number, _y: number, width: number, height: number) {
+					draws.push({ width, height });
+				}
+			};
+		}
+		async convertToBlob(options: { type: string; quality: number }): Promise<Blob> {
+			encodedQualities.push(options.quality);
+			return encode(options.quality);
+		}
+	}
+
+	class StubBitmap {
+		readonly width: number;
+		readonly height: number;
+		constructor(width: number, height: number) {
+			this.width = width;
+			this.height = height;
+		}
+		close(): void {}
+	}
+
+	async function transcode(firstPass: Blob, encodes: (quality: number) => Blob = () => oversizedJpeg()): Promise<File> {
+		const { heicTo } = await import('heic-to');
+		vi.mocked(heicTo).mockImplementationOnce(async () => firstPass);
+		decodes = [];
+		draws = [];
+		encodedQualities = [];
+		encode = encodes;
+		vi.stubGlobal('createImageBitmap', async (_blob: Blob) => {
+			const tier = decodes.length;
+			const bitmap = new StubBitmap(
+				Math.round(ORIGIN.width * Math.pow(0.7, tier)),
+				Math.round(ORIGIN.height * Math.pow(0.7, tier))
+			);
+			decodes.push({ width: bitmap.width, height: bitmap.height });
+			return bitmap as unknown as ImageBitmap;
+		});
+		vi.stubGlobal('OffscreenCanvas', StubCanvas as unknown as typeof OffscreenCanvas);
+		try {
+			const heic = new File([ftypHeader('heic')], 'IMG_0001.heic', { type: 'image/heic' });
+			return await transcodeHeicFile(heic);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	}
+
+	it('fits an oversized conversion by resampling at the first lower quality', async () => {
+		const converted = await transcode(oversizedJpeg(), () => fittingJpeg());
+		expect(converted.name).toBe('IMG_0001.jpg');
+		expect(converted.type).toBe('image/jpeg');
+		expect(converted.size).toBe(1000);
+		expect(decodes).toEqual([{ width: 6000, height: 5000 }]);
+		expect(draws).toEqual([{ width: 4200, height: 3500 }]);
+		expect(encodedQualities).toEqual([0.7]);
+	});
+
+	it('steps down through further passes when a pass still does not fit', async () => {
+		const converted = await transcode(oversizedJpeg(), (quality) =>
+			quality <= 0.5 ? fittingJpeg() : oversizedJpeg());
+		expect(converted.size).toBe(1000);
+		// Qualities descend to the floor and each pass resamples the previous
+		// output again.
+		expect(encodedQualities).toEqual([0.7, 0.55, 0.5]);
+		expect(draws.map((draw) => draw.width)).toEqual([4200, 2940, 2058]);
+	});
+
+	it('raises a useful failure when no pass can fit the upload cap', async () => {
+		await expect(transcode(oversizedJpeg())).rejects.toThrow(OversizedConversionError);
+		expect(encodedQualities).toEqual([0.7, 0.55, 0.5, 0.5]);
 	});
 });
