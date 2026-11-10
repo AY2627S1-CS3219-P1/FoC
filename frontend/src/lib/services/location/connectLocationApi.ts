@@ -39,7 +39,10 @@ export class ConnectLocationApi implements LocationApi {
 			categoryId: query.categoryId,
 			suppliersOnly: query.suppliersOnly ?? false,
 			statusView: query.archive ? archiveViews[query.archive] : LocationStatusView.UNSPECIFIED,
-			sortField: query.sort === 'building' ? LocationSortField.BUILDING : LocationSortField.NAME,
+			origin: query.origin,
+			sortField: query.sort === 'proximity'
+				? LocationSortField.PROXIMITY
+				: query.sort === 'building' ? LocationSortField.BUILDING : LocationSortField.NAME,
 			sortDirection:
 				query.direction === 'desc' ? ProtoSortDirection.DESCENDING : ProtoSortDirection.ASCENDING,
 			page: query.page ?? 0,

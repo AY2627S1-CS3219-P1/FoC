@@ -126,9 +126,17 @@ message GetOrderRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-// Awaiting Courier orders the caller could accept, newest first. Excludes the
-// caller's own orders.
+// Awaiting Courier orders the caller could accept. Defaults to newest first;
+// proximity requires an origin. Excludes the caller's own orders.
+enum OpenOrderSort {
+  OPEN_ORDER_SORT_UNSPECIFIED = 0;
+  OPEN_ORDER_SORT_NEWEST = 1;
+  OPEN_ORDER_SORT_PROXIMITY = 2;
+}
+
 message ListOpenOrdersRequest {
+  OpenOrderSort sort = 6 [(buf.validate.field).enum.defined_only = true];
+  Coordinates origin = 7;
   // Filters are optional.
   optional string pickup_location_id = 1 [(buf.validate.field).string.uuid = true];
   // Legacy exact filter is rejected: membership would disclose a hidden Location.

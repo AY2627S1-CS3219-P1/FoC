@@ -33,7 +33,7 @@
 	// Parent reads replace the Order object even when its ID is unchanged.
 	const controllerOrderId = $derived(orderId);
 	$effect(() => {
-		const instance = new DeliveryProofController(controllerOrderId, api, (snapshot) => { view = snapshot; }, undefined, untrack(() => pending));
+		const instance = new DeliveryProofController(controllerOrderId, api, (snapshot) => { view = snapshot; }, undefined, undefined, untrack(() => pending));
 		controller = instance;
 		view = instance.snapshot();
 		return () => instance.dispose();

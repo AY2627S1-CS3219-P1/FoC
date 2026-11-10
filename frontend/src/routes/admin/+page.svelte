@@ -13,6 +13,13 @@
 	</header>
 	<Card variant="outlined"
 		><div class="panel-body">
+			<h2>Dashboard</h2>
+			<p>See order, user and credit counts, and open a single order or user by ID.</p>
+			<Button href="/admin/dashboard">Open dashboard</Button>
+		</div></Card
+	>
+	<Card variant="outlined"
+		><div class="panel-body">
 			<h2>Locations and suppliers</h2>
 			<p>Create, edit, archive or restore locations and manage temporary closures.</p>
 			<Button href="/admin/suppliers">Manage locations</Button>

@@ -117,22 +117,23 @@ func Order(o app.Order) *pb.Order {
 			Location:     location(o.Delivery),
 			Instructions: o.DeliveryInstructions,
 		},
-		ItemDescription:      o.ItemDescription,
-		RewardCredits:        o.RewardCredits,
-		DeliveryDuration:     durationpb.New(o.DeliveryDuration),
-		ExpiresAt:            timestamppb.New(o.ExpiresAt),
-		AssignedAt:           timestamp(o.AssignedAt),
-		PickedUpAt:           timestamp(o.PickedUpAt),
-		DeliveredAt:          timestamp(o.DeliveredAt),
-		CompletedAt:          timestamp(o.CompletedAt),
-		ClosedAt:             timestamp(o.ClosedAt),
-		CloseReason:          o.CloseReason,
-		UnattendedDelivery:   o.UnattendedDelivery,
-		ItemLocation:         o.ItemLocation,
-		Revision:             o.Revision,
-		CreatedAt:            timestamppb.New(o.CreatedAt),
-		UpdatedAt:            timestamppb.New(o.UpdatedAt),
-		DeliveryBuildingName: o.Delivery.BuildingName,
+		ItemDescription:        o.ItemDescription,
+		RewardCredits:          o.RewardCredits,
+		DeliveryDuration:       durationpb.New(o.DeliveryDuration),
+		ExpiresAt:              timestamppb.New(o.ExpiresAt),
+		AssignedAt:             timestamp(o.AssignedAt),
+		PickedUpAt:             timestamp(o.PickedUpAt),
+		DeliveredAt:            timestamp(o.DeliveredAt),
+		CompletedAt:            timestamp(o.CompletedAt),
+		AutomaticallyCompleted: o.AutomaticallyCompleted,
+		ClosedAt:               timestamp(o.ClosedAt),
+		CloseReason:            o.CloseReason,
+		UnattendedDelivery:     o.UnattendedDelivery,
+		ItemLocation:           o.ItemLocation,
+		Revision:               o.Revision,
+		CreatedAt:              timestamppb.New(o.CreatedAt),
+		UpdatedAt:              timestamppb.New(o.UpdatedAt),
+		DeliveryBuildingName:   o.Delivery.BuildingName,
 	}
 }
 
@@ -171,7 +172,17 @@ func PageInfo(p app.PageInfo) *pb.PageInfo {
 
 // Value helpers preserve optional location fields and timestamps.
 func location(l app.LocationSnapshot) *pb.LocationSnapshot {
-	return &pb.LocationSnapshot{LocationId: l.LocationID, Name: l.Name, BuildingName: l.BuildingName, Floor: l.Floor}
+	var coordinates *pb.Coordinates
+	if l.Coordinates != nil {
+		coordinates = &pb.Coordinates{Latitude: l.Coordinates.Latitude, Longitude: l.Coordinates.Longitude}
+	}
+	return &pb.LocationSnapshot{
+		LocationId:   l.LocationID,
+		Name:         l.Name,
+		BuildingName: l.BuildingName,
+		Floor:        l.Floor,
+		Coordinates:  coordinates,
+	}
 }
 
 func timestamp(t *time.Time) *timestamppb.Timestamp {

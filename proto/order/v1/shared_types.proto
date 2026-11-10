@@ -67,15 +67,24 @@ message Order {
   string delivery_building_name = 23;
   // Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
   bool cancellation_pending = 24;
+  // The receipt timer completed this order without requester confirmation.
+  bool automatically_completed = 25;
 }
 
 // A Supplier Location copied when the order is created, so later Location
 // edits or archiving don't change existing orders.
+message Coordinates {
+  double latitude = 1 [(buf.validate.field).double = {gte: -90 lte: 90}];
+  double longitude = 2 [(buf.validate.field).double = {gte: -180 lte: 180}];
+}
+
 message LocationSnapshot {
   string location_id = 1;
   string name = 2;
   string building_name = 3;
   optional string floor = 4;
+  // Absent on legacy snapshots until backfilled.
+  Coordinates coordinates = 5;
 }
 
 message DeliveryDetails {

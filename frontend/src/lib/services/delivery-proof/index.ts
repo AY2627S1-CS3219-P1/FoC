@@ -1,4 +1,5 @@
 import { createClient, Code, ConnectError, type Transport } from '@connectrpc/connect';
+import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
 import { ProofRejectedError, type DeliveryProofAPI } from './api';
 
@@ -13,15 +14,27 @@ export interface DeliveryProofService extends DeliveryProofAPI {
 }
 
 // Authentication, cancellation, deadlines and transport failures can hide a
-// committed result. Only explicit application rejection releases saved input.
+// committed result. Only explicit application rejection releases saved input,
+// and server-curated reasons replace the generic guidance.
 function rethrow(cause: unknown): never {
 	if (cause instanceof ConnectError && [
 		Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound,
 		Code.AlreadyExists, Code.ResourceExhausted
 	].includes(cause.code)) {
-		throw new ProofRejectedError(cause.code === Code.ResourceExhausted
-			? 'Photo uploads are temporarily limited. Keep this photo and try again later.'
-			: 'This action could not be completed. Check the order, photos and delivery deadline, then try again.');
+		// Server-curated wording wins where the server supplies it: the
+		// proof-required detail from a photoless confirmation...
+		const detail = cause.findDetails(ErrorDetailSchema)[0];
+		throw new ProofRejectedError(
+			detail?.reason === 'PROOF_REQUIRED' && detail.message
+				? detail.message
+				: cause.code === Code.ResourceExhausted
+					// Rate limiting is response-advice from the server; keep it local.
+					? 'Photo uploads are temporarily limited. Keep this photo and try again later.'
+					// The server's own invalid-photo text (for example an oversized
+					// photo) is written for the courier; canned text remains the fallback.
+					: cause.code === Code.InvalidArgument && cause.rawMessage
+						? cause.rawMessage
+						: 'This action could not be completed. Check the order, photos and delivery deadline, then try again.');
 	}
 	throw cause;
 }

@@ -10,13 +10,16 @@ import (
 type timerRepository interface {
 	order.ExpiryTimerRepository
 	order.DeliveryTimerRepository
+	order.ReceiptTimerRepository
 }
 
-// Both timers share the service worker lifetime, not the availability of Credit,
+// The timers share the service worker lifetime, not the availability of Credit,
 // Kafka, proof object storage or an authenticated HTTP request.
 func startLifecycleTimers(ctx context.Context, workers *sync.WaitGroup, repository timerRepository) {
 	expiry := order.NewExpiryTimers(repository, order.ExpiryTimerOptions{})
 	delivery := order.NewDeliveryTimers(repository, order.DeliveryTimerOptions{})
+	receipt := order.NewReceiptTimers(repository, order.ReceiptTimerOptions{})
 	workers.Go(func() { expiry.Run(ctx) })
 	workers.Go(func() { delivery.Run(ctx) })
+	workers.Go(func() { receipt.Run(ctx) })
 }

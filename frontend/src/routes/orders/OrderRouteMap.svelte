@@ -1,24 +1,11 @@
 <script lang="ts">
 	import CampusMap, { type MapMarker } from '$lib/components/map/CampusMap.svelte';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
-	import type { Building, Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
-	import { locationApi } from '$lib/services';
+	import type { Building } from '$lib/gen/supplier/location/v1/shared_types_pb';
 
 	let { order, buildings }: { order: Order; buildings: Building[] } = $props();
 
-	// Orders don't carry coordinates yet (#235), so read the pickup's from Supplier.
-	let pickup = $state<Location | null>(null);
-	$effect(() => {
-		const id = order.pickup?.locationId;
-		let stale = false;
-		pickup = null;
-		if (!id) return;
-		locationApi.getLocation(id).then(
-			(found) => !stale && (pickup = found),
-			() => {}
-		);
-		return () => (stale = true);
-	});
+	const pickup = $derived(order.pickup);
 
 	const markers = $derived.by<MapMarker[]>(() => {
 		const out: MapMarker[] = [];
@@ -52,7 +39,9 @@
 
 <style>
 	.route-map {
+		/* Positioned so the child z-index below applies: contains the legend within this panel. */
 		position: relative;
+		z-index: 0;
 		height: 100%;
 		min-height: 12rem;
 	}
@@ -61,7 +50,7 @@
 		position: absolute;
 		left: 0.5rem;
 		bottom: 0.5rem;
-		z-index: 500;
+		z-index: 10; /* Above the map panel's internals, below the top bar (30) and drawer (50). */
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;

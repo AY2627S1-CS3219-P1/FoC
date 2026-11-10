@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
+import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
 import { OrderService } from '$lib/gen/order/v1/order_pb';
 import { OrderStatus } from '$lib/gen/order/v1/shared_types_pb';
 import { ProofRejectedError } from './api';
@@ -56,5 +57,35 @@ describe('delivery proof Connect adapter', () => {
 		await expect(rejected.confirmDelivery(submission, signal())).rejects.toBeInstanceOf(ProofRejectedError);
 		const unknown = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, { confirmDelivery() { return {}; } })));
 		await expect(unknown.confirmDelivery(submission, signal())).rejects.not.toBeInstanceOf(ProofRejectedError);
+	});
+
+	it('renders the server-curated proof-required wording on a photoless confirmation', async () => {
+		const reason = 'PROOF_REQUIRED';
+		const message = 'Add a delivery proof photo before confirming. If the upload failed, retry the upload or use the delivery-outage option.';
+		const proofRequired = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
+			confirmDelivery() {
+				throw new ConnectError(message, Code.FailedPrecondition, undefined, [
+					{ desc: ErrorDetailSchema, value: { reason, message, fieldViolations: [] } }
+				]);
+			}
+		})));
+		const withoutProof = { orderId, proofIds: [], unattended: false, withoutProof: true };
+		const rejection = await proofRequired.confirmDelivery(withoutProof, signal()).catch((cause) => cause);
+		expect(rejection).toBeInstanceOf(ProofRejectedError);
+		expect((rejection as ProofRejectedError).message).toBe(message);
+	});
+
+	// The server writes an oversized-photo message for the courier; without one
+	// the adapter uses its own canned text (issue #239).
+	it('surfaces the server oversized-photo message for invalid uploads', async () => {
+		const serverMessage = 'That photo is above the delivery proof limit. Retake it at 24 megapixels or lower.';
+		const rejected = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
+			verifyProofUpload() { throw new ConnectError(serverMessage, Code.InvalidArgument); }
+		})));
+		await expect(rejected.verifyUpload(orderId, proofId, signal())).rejects.toThrow(serverMessage);
+		const unexplained = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
+			verifyProofUpload() { throw new ConnectError('', Code.InvalidArgument); }
+		})));
+		await expect(unexplained.verifyUpload(orderId, proofId, signal())).rejects.toThrow('This action could not be completed');
 	});
 });

@@ -24,6 +24,57 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Awaiting Courier orders the caller could accept. Defaults to newest first;
+// proximity requires an origin. Excludes the caller's own orders.
+type OpenOrderSort int32
+
+const (
+	OpenOrderSort_OPEN_ORDER_SORT_UNSPECIFIED OpenOrderSort = 0
+	OpenOrderSort_OPEN_ORDER_SORT_NEWEST      OpenOrderSort = 1
+	OpenOrderSort_OPEN_ORDER_SORT_PROXIMITY   OpenOrderSort = 2
+)
+
+// Enum value maps for OpenOrderSort.
+var (
+	OpenOrderSort_name = map[int32]string{
+		0: "OPEN_ORDER_SORT_UNSPECIFIED",
+		1: "OPEN_ORDER_SORT_NEWEST",
+		2: "OPEN_ORDER_SORT_PROXIMITY",
+	}
+	OpenOrderSort_value = map[string]int32{
+		"OPEN_ORDER_SORT_UNSPECIFIED": 0,
+		"OPEN_ORDER_SORT_NEWEST":      1,
+		"OPEN_ORDER_SORT_PROXIMITY":   2,
+	}
+)
+
+func (x OpenOrderSort) Enum() *OpenOrderSort {
+	p := new(OpenOrderSort)
+	*p = x
+	return p
+}
+
+func (x OpenOrderSort) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OpenOrderSort) Descriptor() protoreflect.EnumDescriptor {
+	return file_order_v1_order_proto_enumTypes[0].Descriptor()
+}
+
+func (OpenOrderSort) Type() protoreflect.EnumType {
+	return &file_order_v1_order_proto_enumTypes[0]
+}
+
+func (x OpenOrderSort) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OpenOrderSort.Descriptor instead.
+func (OpenOrderSort) EnumDescriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{0}
+}
+
 type GetAssignmentAttemptRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AttemptId     string                 `protobuf:"bytes,1,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
@@ -463,10 +514,10 @@ func (x *GetOrderRequest) GetId() string {
 	return ""
 }
 
-// Awaiting Courier orders the caller could accept, newest first. Excludes the
-// caller's own orders.
 type ListOpenOrdersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Sort   OpenOrderSort          `protobuf:"varint,6,opt,name=sort,proto3,enum=order.v1.OpenOrderSort" json:"sort,omitempty"`
+	Origin *Coordinates           `protobuf:"bytes,7,opt,name=origin,proto3" json:"origin,omitempty"`
 	// Filters are optional.
 	PickupLocationId *string `protobuf:"bytes,1,opt,name=pickup_location_id,json=pickupLocationId,proto3,oneof" json:"pickup_location_id,omitempty"`
 	// Legacy exact filter is rejected: membership would disclose a hidden Location.
@@ -511,6 +562,20 @@ func (x *ListOpenOrdersRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListOpenOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListOpenOrdersRequest) Descriptor() ([]byte, []int) {
 	return file_order_v1_order_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListOpenOrdersRequest) GetSort() OpenOrderSort {
+	if x != nil {
+		return x.Sort
+	}
+	return OpenOrderSort_OPEN_ORDER_SORT_UNSPECIFIED
+}
+
+func (x *ListOpenOrdersRequest) GetOrigin() *Coordinates {
+	if x != nil {
+		return x.Origin
+	}
+	return nil
 }
 
 func (x *ListOpenOrdersRequest) GetPickupLocationId() string {
@@ -2437,8 +2502,10 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"image/heicR\n" +
 	"image/heifR\vcontentType\"+\n" +
 	"\x0fGetOrderRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xcc\x02\n" +
-	"\x15ListOpenOrdersRequest\x12;\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb2\x03\n" +
+	"\x15ListOpenOrdersRequest\x125\n" +
+	"\x04sort\x18\x06 \x01(\x0e2\x17.order.v1.OpenOrderSortB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04sort\x12-\n" +
+	"\x06origin\x18\a \x01(\v2\x15.order.v1.CoordinatesR\x06origin\x12;\n" +
 	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\x10pickupLocationId\x88\x01\x01\x12A\n" +
 	"\x14delivery_location_id\x18\x02 \x01(\tB\n" +
 	"\xbaH\x05r\x03\xb0\x01\x01\x18\x01H\x01R\x12deliveryLocationId\x88\x01\x01\x12>\n" +
@@ -2579,7 +2646,11 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x18GetDeliveryProofResponse\x124\n" +
 	"\x06proofs\x18\x01 \x03(\v2\x1c.order.v1.DeliveryProofPhotoR\x06proofs\x12#\n" +
 	"\routage_reason\x18\x02 \x01(\tR\foutageReason\x12?\n" +
-	"\apending\x18\x03 \x01(\v2%.order.v1.PendingDeliveryConfirmationR\apending2\x8a\x0e\n" +
+	"\apending\x18\x03 \x01(\v2%.order.v1.PendingDeliveryConfirmationR\apending*k\n" +
+	"\rOpenOrderSort\x12\x1f\n" +
+	"\x1bOPEN_ORDER_SORT_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16OPEN_ORDER_SORT_NEWEST\x10\x01\x12\x1d\n" +
+	"\x19OPEN_ORDER_SORT_PROXIMITY\x10\x022\x8a\x0e\n" +
 	"\fOrderService\x12j\n" +
 	"\x14GetAssignmentAttempt\x12%.order.v1.GetAssignmentAttemptRequest\x1a&.order.v1.GetAssignmentAttemptResponse\"\x03\x90\x02\x01\x12[\n" +
 	"\x0fGetCancellation\x12 .order.v1.GetCancellationRequest\x1a!.order.v1.GetCancellationResponse\"\x03\x90\x02\x01\x12L\n" +
@@ -2617,145 +2688,150 @@ func file_order_v1_order_proto_rawDescGZIP() []byte {
 	return file_order_v1_order_proto_rawDescData
 }
 
+var file_order_v1_order_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_order_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_order_v1_order_proto_goTypes = []any{
-	(*GetAssignmentAttemptRequest)(nil),   // 0: order.v1.GetAssignmentAttemptRequest
-	(*GetAssignmentAttemptResponse)(nil),  // 1: order.v1.GetAssignmentAttemptResponse
-	(*GetCancellationRequest)(nil),        // 2: order.v1.GetCancellationRequest
-	(*GetCancellationResponse)(nil),       // 3: order.v1.GetCancellationResponse
-	(*CreateOrderRequest)(nil),            // 4: order.v1.CreateOrderRequest
-	(*DeliveryInput)(nil),                 // 5: order.v1.DeliveryInput
-	(*CreateItemImageUploadRequest)(nil),  // 6: order.v1.CreateItemImageUploadRequest
-	(*GetOrderRequest)(nil),               // 7: order.v1.GetOrderRequest
-	(*ListOpenOrdersRequest)(nil),         // 8: order.v1.ListOpenOrdersRequest
-	(*ListMyOrdersRequest)(nil),           // 9: order.v1.ListMyOrdersRequest
-	(*AcceptOrderRequest)(nil),            // 10: order.v1.AcceptOrderRequest
-	(*MakeOfferRequest)(nil),              // 11: order.v1.MakeOfferRequest
-	(*ListOffersRequest)(nil),             // 12: order.v1.ListOffersRequest
-	(*AcceptOfferRequest)(nil),            // 13: order.v1.AcceptOfferRequest
-	(*ConfirmPickupRequest)(nil),          // 14: order.v1.ConfirmPickupRequest
-	(*CreateProofUploadRequest)(nil),      // 15: order.v1.CreateProofUploadRequest
-	(*ConfirmDeliveryRequest)(nil),        // 16: order.v1.ConfirmDeliveryRequest
-	(*ConfirmReceiptRequest)(nil),         // 17: order.v1.ConfirmReceiptRequest
-	(*CancelOrderRequest)(nil),            // 18: order.v1.CancelOrderRequest
-	(*RecordItemLocationRequest)(nil),     // 19: order.v1.RecordItemLocationRequest
-	(*CreateOrderResponse)(nil),           // 20: order.v1.CreateOrderResponse
-	(*CreateItemImageUploadResponse)(nil), // 21: order.v1.CreateItemImageUploadResponse
-	(*GetOrderResponse)(nil),              // 22: order.v1.GetOrderResponse
-	(*ListOpenOrdersResponse)(nil),        // 23: order.v1.ListOpenOrdersResponse
-	(*ListMyOrdersResponse)(nil),          // 24: order.v1.ListMyOrdersResponse
-	(*AcceptOrderResponse)(nil),           // 25: order.v1.AcceptOrderResponse
-	(*MakeOfferResponse)(nil),             // 26: order.v1.MakeOfferResponse
-	(*ListOffersResponse)(nil),            // 27: order.v1.ListOffersResponse
-	(*AcceptOfferResponse)(nil),           // 28: order.v1.AcceptOfferResponse
-	(*ConfirmPickupResponse)(nil),         // 29: order.v1.ConfirmPickupResponse
-	(*CreateProofUploadResponse)(nil),     // 30: order.v1.CreateProofUploadResponse
-	(*ConfirmDeliveryResponse)(nil),       // 31: order.v1.ConfirmDeliveryResponse
-	(*ConfirmReceiptResponse)(nil),        // 32: order.v1.ConfirmReceiptResponse
-	(*CancelOrderResponse)(nil),           // 33: order.v1.CancelOrderResponse
-	(*RecordItemLocationResponse)(nil),    // 34: order.v1.RecordItemLocationResponse
-	(*VerifyProofUploadRequest)(nil),      // 35: order.v1.VerifyProofUploadRequest
-	(*VerifyProofUploadResponse)(nil),     // 36: order.v1.VerifyProofUploadResponse
-	(*AbandonProofUploadRequest)(nil),     // 37: order.v1.AbandonProofUploadRequest
-	(*AbandonProofUploadResponse)(nil),    // 38: order.v1.AbandonProofUploadResponse
-	(*GetDeliveryProofRequest)(nil),       // 39: order.v1.GetDeliveryProofRequest
-	(*DeliveryProofPhoto)(nil),            // 40: order.v1.DeliveryProofPhoto
-	(*PendingDeliveryConfirmation)(nil),   // 41: order.v1.PendingDeliveryConfirmation
-	(*GetDeliveryProofResponse)(nil),      // 42: order.v1.GetDeliveryProofResponse
-	nil,                                   // 43: order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
-	nil,                                   // 44: order.v1.CreateProofUploadResponse.UploadHeadersEntry
-	(*AssignmentAttemptResult)(nil),       // 45: order.v1.AssignmentAttemptResult
-	(*CancellationResult)(nil),            // 46: order.v1.CancellationResult
-	(*durationpb.Duration)(nil),           // 47: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),         // 48: google.protobuf.Timestamp
-	(ParticipantRole)(0),                  // 49: order.v1.ParticipantRole
-	(OrderStatus)(0),                      // 50: order.v1.OrderStatus
-	(OfferStatus)(0),                      // 51: order.v1.OfferStatus
-	(*Order)(nil),                         // 52: order.v1.Order
-	(*PageInfo)(nil),                      // 53: order.v1.PageInfo
-	(*Offer)(nil),                         // 54: order.v1.Offer
+	(OpenOrderSort)(0),                    // 0: order.v1.OpenOrderSort
+	(*GetAssignmentAttemptRequest)(nil),   // 1: order.v1.GetAssignmentAttemptRequest
+	(*GetAssignmentAttemptResponse)(nil),  // 2: order.v1.GetAssignmentAttemptResponse
+	(*GetCancellationRequest)(nil),        // 3: order.v1.GetCancellationRequest
+	(*GetCancellationResponse)(nil),       // 4: order.v1.GetCancellationResponse
+	(*CreateOrderRequest)(nil),            // 5: order.v1.CreateOrderRequest
+	(*DeliveryInput)(nil),                 // 6: order.v1.DeliveryInput
+	(*CreateItemImageUploadRequest)(nil),  // 7: order.v1.CreateItemImageUploadRequest
+	(*GetOrderRequest)(nil),               // 8: order.v1.GetOrderRequest
+	(*ListOpenOrdersRequest)(nil),         // 9: order.v1.ListOpenOrdersRequest
+	(*ListMyOrdersRequest)(nil),           // 10: order.v1.ListMyOrdersRequest
+	(*AcceptOrderRequest)(nil),            // 11: order.v1.AcceptOrderRequest
+	(*MakeOfferRequest)(nil),              // 12: order.v1.MakeOfferRequest
+	(*ListOffersRequest)(nil),             // 13: order.v1.ListOffersRequest
+	(*AcceptOfferRequest)(nil),            // 14: order.v1.AcceptOfferRequest
+	(*ConfirmPickupRequest)(nil),          // 15: order.v1.ConfirmPickupRequest
+	(*CreateProofUploadRequest)(nil),      // 16: order.v1.CreateProofUploadRequest
+	(*ConfirmDeliveryRequest)(nil),        // 17: order.v1.ConfirmDeliveryRequest
+	(*ConfirmReceiptRequest)(nil),         // 18: order.v1.ConfirmReceiptRequest
+	(*CancelOrderRequest)(nil),            // 19: order.v1.CancelOrderRequest
+	(*RecordItemLocationRequest)(nil),     // 20: order.v1.RecordItemLocationRequest
+	(*CreateOrderResponse)(nil),           // 21: order.v1.CreateOrderResponse
+	(*CreateItemImageUploadResponse)(nil), // 22: order.v1.CreateItemImageUploadResponse
+	(*GetOrderResponse)(nil),              // 23: order.v1.GetOrderResponse
+	(*ListOpenOrdersResponse)(nil),        // 24: order.v1.ListOpenOrdersResponse
+	(*ListMyOrdersResponse)(nil),          // 25: order.v1.ListMyOrdersResponse
+	(*AcceptOrderResponse)(nil),           // 26: order.v1.AcceptOrderResponse
+	(*MakeOfferResponse)(nil),             // 27: order.v1.MakeOfferResponse
+	(*ListOffersResponse)(nil),            // 28: order.v1.ListOffersResponse
+	(*AcceptOfferResponse)(nil),           // 29: order.v1.AcceptOfferResponse
+	(*ConfirmPickupResponse)(nil),         // 30: order.v1.ConfirmPickupResponse
+	(*CreateProofUploadResponse)(nil),     // 31: order.v1.CreateProofUploadResponse
+	(*ConfirmDeliveryResponse)(nil),       // 32: order.v1.ConfirmDeliveryResponse
+	(*ConfirmReceiptResponse)(nil),        // 33: order.v1.ConfirmReceiptResponse
+	(*CancelOrderResponse)(nil),           // 34: order.v1.CancelOrderResponse
+	(*RecordItemLocationResponse)(nil),    // 35: order.v1.RecordItemLocationResponse
+	(*VerifyProofUploadRequest)(nil),      // 36: order.v1.VerifyProofUploadRequest
+	(*VerifyProofUploadResponse)(nil),     // 37: order.v1.VerifyProofUploadResponse
+	(*AbandonProofUploadRequest)(nil),     // 38: order.v1.AbandonProofUploadRequest
+	(*AbandonProofUploadResponse)(nil),    // 39: order.v1.AbandonProofUploadResponse
+	(*GetDeliveryProofRequest)(nil),       // 40: order.v1.GetDeliveryProofRequest
+	(*DeliveryProofPhoto)(nil),            // 41: order.v1.DeliveryProofPhoto
+	(*PendingDeliveryConfirmation)(nil),   // 42: order.v1.PendingDeliveryConfirmation
+	(*GetDeliveryProofResponse)(nil),      // 43: order.v1.GetDeliveryProofResponse
+	nil,                                   // 44: order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	nil,                                   // 45: order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	(*AssignmentAttemptResult)(nil),       // 46: order.v1.AssignmentAttemptResult
+	(*CancellationResult)(nil),            // 47: order.v1.CancellationResult
+	(*durationpb.Duration)(nil),           // 48: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),         // 49: google.protobuf.Timestamp
+	(*Coordinates)(nil),                   // 50: order.v1.Coordinates
+	(ParticipantRole)(0),                  // 51: order.v1.ParticipantRole
+	(OrderStatus)(0),                      // 52: order.v1.OrderStatus
+	(OfferStatus)(0),                      // 53: order.v1.OfferStatus
+	(*Order)(nil),                         // 54: order.v1.Order
+	(*PageInfo)(nil),                      // 55: order.v1.PageInfo
+	(*Offer)(nil),                         // 56: order.v1.Offer
 }
 var file_order_v1_order_proto_depIdxs = []int32{
-	45, // 0: order.v1.GetAssignmentAttemptResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
-	46, // 1: order.v1.GetCancellationResponse.cancellation:type_name -> order.v1.CancellationResult
-	5,  // 2: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
-	47, // 3: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
-	48, // 4: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
-	49, // 5: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
-	50, // 6: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
-	51, // 7: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
-	52, // 8: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
-	43, // 9: order.v1.CreateItemImageUploadResponse.upload_headers:type_name -> order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
-	48, // 10: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	52, // 11: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
-	52, // 12: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
-	53, // 13: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	52, // 14: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
-	53, // 15: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	52, // 16: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
-	45, // 17: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
-	54, // 18: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
-	54, // 19: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
-	52, // 20: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
-	54, // 21: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
-	45, // 22: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
-	52, // 23: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
-	44, // 24: order.v1.CreateProofUploadResponse.upload_headers:type_name -> order.v1.CreateProofUploadResponse.UploadHeadersEntry
-	48, // 25: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	52, // 26: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
-	52, // 27: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
-	52, // 28: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
-	46, // 29: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
-	52, // 30: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
-	48, // 31: order.v1.DeliveryProofPhoto.expires_at:type_name -> google.protobuf.Timestamp
-	48, // 32: order.v1.PendingDeliveryConfirmation.received_at:type_name -> google.protobuf.Timestamp
-	40, // 33: order.v1.GetDeliveryProofResponse.proofs:type_name -> order.v1.DeliveryProofPhoto
-	41, // 34: order.v1.GetDeliveryProofResponse.pending:type_name -> order.v1.PendingDeliveryConfirmation
-	0,  // 35: order.v1.OrderService.GetAssignmentAttempt:input_type -> order.v1.GetAssignmentAttemptRequest
-	2,  // 36: order.v1.OrderService.GetCancellation:input_type -> order.v1.GetCancellationRequest
-	4,  // 37: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
-	6,  // 38: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
-	7,  // 39: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
-	8,  // 40: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
-	9,  // 41: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
-	10, // 42: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
-	11, // 43: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
-	12, // 44: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
-	13, // 45: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
-	14, // 46: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
-	15, // 47: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
-	35, // 48: order.v1.OrderService.VerifyProofUpload:input_type -> order.v1.VerifyProofUploadRequest
-	37, // 49: order.v1.OrderService.AbandonProofUpload:input_type -> order.v1.AbandonProofUploadRequest
-	39, // 50: order.v1.OrderService.GetDeliveryProof:input_type -> order.v1.GetDeliveryProofRequest
-	16, // 51: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
-	17, // 52: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
-	18, // 53: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
-	19, // 54: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
-	1,  // 55: order.v1.OrderService.GetAssignmentAttempt:output_type -> order.v1.GetAssignmentAttemptResponse
-	3,  // 56: order.v1.OrderService.GetCancellation:output_type -> order.v1.GetCancellationResponse
-	20, // 57: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
-	21, // 58: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
-	22, // 59: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
-	23, // 60: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
-	24, // 61: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
-	25, // 62: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
-	26, // 63: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
-	27, // 64: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
-	28, // 65: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
-	29, // 66: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
-	30, // 67: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
-	36, // 68: order.v1.OrderService.VerifyProofUpload:output_type -> order.v1.VerifyProofUploadResponse
-	38, // 69: order.v1.OrderService.AbandonProofUpload:output_type -> order.v1.AbandonProofUploadResponse
-	42, // 70: order.v1.OrderService.GetDeliveryProof:output_type -> order.v1.GetDeliveryProofResponse
-	31, // 71: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
-	32, // 72: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
-	33, // 73: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
-	34, // 74: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
-	55, // [55:75] is the sub-list for method output_type
-	35, // [35:55] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	46, // 0: order.v1.GetAssignmentAttemptResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	47, // 1: order.v1.GetCancellationResponse.cancellation:type_name -> order.v1.CancellationResult
+	6,  // 2: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
+	48, // 3: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
+	49, // 4: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 5: order.v1.ListOpenOrdersRequest.sort:type_name -> order.v1.OpenOrderSort
+	50, // 6: order.v1.ListOpenOrdersRequest.origin:type_name -> order.v1.Coordinates
+	51, // 7: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
+	52, // 8: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
+	53, // 9: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
+	54, // 10: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
+	44, // 11: order.v1.CreateItemImageUploadResponse.upload_headers:type_name -> order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	49, // 12: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	54, // 13: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
+	54, // 14: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
+	55, // 15: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	54, // 16: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
+	55, // 17: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	54, // 18: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
+	46, // 19: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	56, // 20: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
+	56, // 21: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
+	54, // 22: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
+	56, // 23: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
+	46, // 24: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	54, // 25: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
+	45, // 26: order.v1.CreateProofUploadResponse.upload_headers:type_name -> order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	49, // 27: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	54, // 28: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
+	54, // 29: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
+	54, // 30: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
+	47, // 31: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
+	54, // 32: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
+	49, // 33: order.v1.DeliveryProofPhoto.expires_at:type_name -> google.protobuf.Timestamp
+	49, // 34: order.v1.PendingDeliveryConfirmation.received_at:type_name -> google.protobuf.Timestamp
+	41, // 35: order.v1.GetDeliveryProofResponse.proofs:type_name -> order.v1.DeliveryProofPhoto
+	42, // 36: order.v1.GetDeliveryProofResponse.pending:type_name -> order.v1.PendingDeliveryConfirmation
+	1,  // 37: order.v1.OrderService.GetAssignmentAttempt:input_type -> order.v1.GetAssignmentAttemptRequest
+	3,  // 38: order.v1.OrderService.GetCancellation:input_type -> order.v1.GetCancellationRequest
+	5,  // 39: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
+	7,  // 40: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
+	8,  // 41: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
+	9,  // 42: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
+	10, // 43: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
+	11, // 44: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
+	12, // 45: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
+	13, // 46: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
+	14, // 47: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
+	15, // 48: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
+	16, // 49: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
+	36, // 50: order.v1.OrderService.VerifyProofUpload:input_type -> order.v1.VerifyProofUploadRequest
+	38, // 51: order.v1.OrderService.AbandonProofUpload:input_type -> order.v1.AbandonProofUploadRequest
+	40, // 52: order.v1.OrderService.GetDeliveryProof:input_type -> order.v1.GetDeliveryProofRequest
+	17, // 53: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
+	18, // 54: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
+	19, // 55: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
+	20, // 56: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
+	2,  // 57: order.v1.OrderService.GetAssignmentAttempt:output_type -> order.v1.GetAssignmentAttemptResponse
+	4,  // 58: order.v1.OrderService.GetCancellation:output_type -> order.v1.GetCancellationResponse
+	21, // 59: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
+	22, // 60: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
+	23, // 61: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
+	24, // 62: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
+	25, // 63: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
+	26, // 64: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
+	27, // 65: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
+	28, // 66: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
+	29, // 67: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
+	30, // 68: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
+	31, // 69: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
+	37, // 70: order.v1.OrderService.VerifyProofUpload:output_type -> order.v1.VerifyProofUploadResponse
+	39, // 71: order.v1.OrderService.AbandonProofUpload:output_type -> order.v1.AbandonProofUploadResponse
+	43, // 72: order.v1.OrderService.GetDeliveryProof:output_type -> order.v1.GetDeliveryProofResponse
+	32, // 73: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
+	33, // 74: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
+	34, // 75: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
+	35, // 76: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
+	57, // [57:77] is the sub-list for method output_type
+	37, // [37:57] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_order_proto_init() }
@@ -2772,13 +2848,14 @@ func file_order_v1_order_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_order_proto_rawDesc), len(file_order_v1_order_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_order_v1_order_proto_goTypes,
 		DependencyIndexes: file_order_v1_order_proto_depIdxs,
+		EnumInfos:         file_order_v1_order_proto_enumTypes,
 		MessageInfos:      file_order_v1_order_proto_msgTypes,
 	}.Build()
 	File_order_v1_order_proto = out.File

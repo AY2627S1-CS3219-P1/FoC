@@ -276,7 +276,7 @@
 	.form-card { grid-column: 1; grid-row: 1; display: grid; min-width: 0; }
 	.map { grid-column: 2; grid-row: 1; position: sticky; top: 1rem; height: min(70vh, 34rem); }
 	.map-hint {
-		position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 500; margin: 0;
+		position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 10; /* Above the map panel's internals, below the top bar (30) and drawer (50). */ margin: 0;
 		padding: 0.5rem 0.75rem; border-radius: var(--m3-shape-medium);
 		background: var(--m3c-surface-container-lowest, #fff); font-size: 0.875rem;
 		box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
@@ -302,7 +302,7 @@
 
 	@media (max-width: 60rem) {
 		.layout { grid-template-columns: minmax(0, 1fr); }
-		.map { grid-column: 1; grid-row: 1; position: static; height: 14rem; }
+		.map { grid-column: 1; grid-row: 1; position: relative; height: 14rem; }
 		.form-card { grid-row: 2; }
 	}
 	@media (max-width: 36rem) {

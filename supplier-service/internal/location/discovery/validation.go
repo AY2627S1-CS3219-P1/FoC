@@ -48,12 +48,26 @@ func normalizeList(caller Caller, req ListRequest) (Query, int32, int32, error) 
 	switch sort {
 	case "":
 		sort = SortByName
-	case SortByName, SortByBuilding:
+	case SortByName, SortByBuilding, SortByProximity:
 	default:
 		return Query{}, 0, 0, errs.NewBadRequestError(
-			fmt.Sprintf("sort value %q is invalid; use name or building", sort))
+			fmt.Sprintf("sort value %q is invalid; use name, building, or proximity", sort))
 	}
 
+	if req.Origin != nil {
+		p := req.Origin
+		if math.IsNaN(p.Latitude) || math.IsNaN(p.Longitude) || math.IsInf(p.Latitude, 0) ||
+			math.IsInf(p.Longitude, 0) ||
+			p.Latitude < -90 ||
+			p.Latitude > 90 ||
+			p.Longitude < -180 ||
+			p.Longitude > 180 {
+			return Query{}, 0, 0, errs.NewBadRequestError("invalid origin")
+		}
+	}
+	if sort == SortByProximity && req.Origin == nil {
+		return Query{}, 0, 0, errs.NewBadRequestError("proximity requires origin")
+	}
 	page := max(req.Page, 1)
 	pageSize := req.PageSize
 	if pageSize == 0 {
@@ -65,6 +79,7 @@ func normalizeList(caller Caller, req ListRequest) (Query, int32, int32, error) 
 	}
 
 	return Query{
+		Origin:        req.Origin,
 		Search:        search,
 		BuildingID:    req.BuildingID,
 		CategoryID:    req.CategoryID,
