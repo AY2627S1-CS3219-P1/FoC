@@ -380,10 +380,22 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
+	// A protected RPC must reach Credit's public listener, not the frontend catchall.
+	if _, err := o.gatewaySmokeRequest(
+		gateway,
+		"/credit.v1.CreditAdminService/GetCreditTotals",
+		401,
+		true,
+	); err != nil {
+		return err
+	}
 	for _, privatePath := range []string{"/loki/api/v1/labels", "/foc-loki", "/foc-loki/secret"} {
 		if _, err := o.gatewaySmokeRequest(gateway, privatePath, 404, false); err != nil {
 			return err
 		}
+	}
+	if _, err := o.gatewaySmokeRequest(gateway, "/user.review.v1.ReviewService/ListMyReviews", 401, true); err != nil {
+		return err
 	}
 	// Unrouted RPCs reach the frontend catchall, whose 404 can contain HTML.
 	// The status proves the RPC is unavailable; its error page format does not.

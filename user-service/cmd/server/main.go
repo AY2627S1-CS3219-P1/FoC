@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
@@ -100,14 +102,16 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
-	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
-	relayDone := make(chan struct{})
-	go func() {
-		defer close(relayDone)
-		relay.Run(ctx)
-	}()
-
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+	workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
+	workers.Go(func() { consume(workerCtx, cfg.kafkaBrokers, warningLogic) })
 
 	profileLogic := &service.ProfileService{
 		Users:    persistence.Users,
@@ -115,7 +119,8 @@ func main() {
 		Storage:  profilePictureStorage(imageStorage),
 	}
 	roleLogic := &service.RoleService{
-		Users: persistence.Users,
+		Users:  persistence.Users,
+		Counts: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
 				return operation(service.RoleStore{Users: tx.Users, Admin: tx.Admin})
@@ -162,22 +167,13 @@ func main() {
 		}()
 	}
 
-	// The courier-warning consumer runs alongside the HTTP listeners and
-	// rebuilds its subscription after a transient failure, so one bad delivery
-	// cannot stall warnings. rootCancel() stops it during shutdown.
-	consumeDone := make(chan struct{})
-	go func() {
-		defer close(consumeDone)
-		consume(ctx, cfg.kafkaBrokers, warningLogic)
-	}()
-
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	rootCancel()
-	<-consumeDone
-	<-relayDone
+	stopWorkers()
+	workers.Wait()
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts

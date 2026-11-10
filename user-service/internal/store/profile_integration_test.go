@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -100,4 +101,31 @@ func TestUsersDelete(t *testing.T) {
 		t.Fatalf("repeated delete: %v", err)
 	}
 	createStoreUser(t, store, "user@example.com")
+}
+
+func TestUsersCountByRole(t *testing.T) {
+	ctx := context.Background()
+	s, db := setupAuthStore(t)
+	createStoreUser(t, s, "active@example.com")
+	suspended := createStoreUser(t, s, "suspended@example.com")
+	admin := createStoreUser(t, s, "admin@example.com")
+	deleted := createStoreUser(t, s, "deleted@example.com")
+	if err := db.Model(&suspended).Update("role", models.RoleSuspended).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&admin).Update("role", models.RoleAdmin).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Users.Delete(ctx, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Users.CountByRole(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[models.RoleName]int64{models.RoleUser: 1, models.RoleSuspended: 1, models.RoleAdmin: 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("counts = %v, want %v", got, want)
+	}
 }

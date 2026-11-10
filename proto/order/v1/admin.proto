@@ -3,6 +3,7 @@ syntax = "proto3";
 package order.v1;
 
 import "buf/validate/validate.proto";
+import "google/type/date.proto";
 import "order/v1/shared_types.proto";
 
 // Administrator-only Order operations. Admins read single orders through
@@ -13,6 +14,10 @@ service OrderAdminService {
   rpc AdminCancelOrder(AdminCancelOrderRequest) returns (AdminCancelOrderResponse) { option idempotency_level = IDEMPOTENT; }
 
   rpc UnassignCourier(UnassignCourierRequest) returns (UnassignCourierResponse) {}
+
+  rpc GetOrderStats(GetOrderStatsRequest) returns (GetOrderStatsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+
+  rpc GetDailyOrderCounts(GetDailyOrderCountsRequest) returns (GetDailyOrderCountsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
 // One user's orders as requester, courier or either, newest first.
@@ -49,6 +54,39 @@ message UnassignCourierRequest {
     message: "reason must be 1-500 characters excluding leading and trailing whitespace"
     expression: "size(this.trim()) >= 1 && size(this.trim()) <= 500"
   }];
+}
+
+message GetOrderStatsRequest {}
+
+// The number of orders currently in one status.
+message OrderStatusCount {
+  OrderStatus status = 1;
+  int64 count = 2;
+}
+
+// Counts across all orders, with one entry for every defined status in enum
+// order, including statuses with no orders.
+message GetOrderStatsResponse {
+  repeated OrderStatusCount status_counts = 1;
+}
+
+// An inclusive range of Asia/Singapore calendar days. The end must not precede
+// the start, and the range covers at most 366 days.
+message GetDailyOrderCountsRequest {
+  google.type.Date start_date = 1 [(buf.validate.field).required = true];
+  google.type.Date end_date = 2 [(buf.validate.field).required = true];
+}
+
+// Orders created on one Asia/Singapore calendar day.
+message DailyOrderCount {
+  google.type.Date date = 1;
+  int64 count = 2;
+}
+
+// One entry for every day in the requested range, oldest first, including days
+// with no orders.
+message GetDailyOrderCountsResponse {
+  repeated DailyOrderCount days = 1;
 }
 
 message ListUserOrdersResponse {

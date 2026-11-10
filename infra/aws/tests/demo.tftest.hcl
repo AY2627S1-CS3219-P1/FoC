@@ -91,8 +91,8 @@ run "private_demo_data_and_images" {
   command = plan
 
   assert {
-    condition     = length(aws_ecr_repository.images) == 8 && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
-    error_message = "The demo needs eight immutable image repositories with explicit data deletion."
+    condition     = length(aws_ecr_repository.images) == 9 && contains(keys(aws_ecr_repository.images), "content-moderation-service") && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
+    error_message = "The demo needs nine immutable image repositories including CMS with explicit data deletion."
   }
   assert {
     condition     = !aws_db_instance.database.publicly_accessible && !aws_db_instance.database.multi_az && aws_db_instance.database.storage_encrypted && aws_db_instance.database.manage_master_user_password

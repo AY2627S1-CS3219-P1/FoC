@@ -322,6 +322,36 @@ func TestHandleSendsAcceptanceOnlyWhileCurrent(t *testing.T) {
 	}
 }
 
+// An unknown order must not receive an acceptance notice, regardless of age.
+func TestHandleSkipsAcceptanceForUnknownOrder(t *testing.T) {
+	cases := []struct {
+		name     string
+		age      time.Duration
+		wantSent bool
+	}{
+		{"fresh", time.Minute, false},
+		{"old", LateWindow + time.Minute, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sender, _, _ := newHandler()
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				user(requesterID),
+			)
+			e.OccurredAt = timestamppb.New(now.Add(-tc.age))
+			h.Orders = &fakeOrders{}
+			if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+				t.Fatal(err)
+			}
+			if (len(sender.sent) == 1) != tc.wantSent {
+				t.Fatalf("sent = %+v", sender.sent)
+			}
+		})
+	}
+}
+
 func TestHandleReplaysWhenRevisionUnreadable(t *testing.T) {
 	h, sender, _, _ := newHandler()
 	h.Orders = &fakeOrders{err: errors.New("connection refused")}

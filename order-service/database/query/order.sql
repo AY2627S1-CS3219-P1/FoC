@@ -32,6 +32,17 @@ SELECT count(*) FROM orders WHERE
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
  AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text);
 
+-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status;
+
+-- name: CountOrdersByDay :many
+-- Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= sqlc.arg(from_at)::timestamptz AND created_at < sqlc.arg(to_at)::timestamptz
+GROUP BY day
+ORDER BY day;
+
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;
 
