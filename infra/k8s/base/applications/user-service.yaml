@@ -29,8 +29,6 @@ spec:
                 name: foc-config
             - secretRef:
                 name: user-db
-            - secretRef:
-                name: smtp
           ports:
             - {name: http2-public, containerPort: 8080}
             - {name: http2-internal, containerPort: 8081}

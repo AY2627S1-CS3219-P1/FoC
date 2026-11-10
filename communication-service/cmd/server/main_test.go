@@ -117,7 +117,7 @@ func TestBotShutdownJoinsStartedWorkers(t *testing.T) {
 			<-release
 		}()
 		close(ready)
-	}, &workers)
+	}, func() { t.Error("bot reported disabled") }, &workers)
 	select {
 	case <-ready:
 	case <-time.After(5 * time.Second):

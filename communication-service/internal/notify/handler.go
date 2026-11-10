@@ -1,5 +1,5 @@
-// Package notify sends Telegram messages to order participants when Order
-// publishes a status change.
+// Package notify messages order participants when Order publishes a status
+// change: by Telegram, or by email when Telegram can't reach them.
 package notify
 
 import (
@@ -47,10 +47,15 @@ type Orders interface {
 	Revision(ctx context.Context, orderID uuid.UUID) (revision int64, found bool, err error)
 }
 
-// Deliveries records which recipients already got an event's message, so a
-// redelivered event skips them.
+// EmailQueue durably accepts email fallback before Kafka commits the event.
+type EmailQueue interface {
+	Enqueue(ctx context.Context, eventID, userID uuid.UUID, text string, at time.Time) error
+}
+
+// Deliveries records which recipients already received or queued a message,
+// so a redelivered event cannot switch a queued email to Telegram.
 type Deliveries interface {
-	HasBeenSent(ctx context.Context, eventID, userID uuid.UUID) (bool, error)
+	HasBeenAccepted(ctx context.Context, eventID, userID uuid.UUID) (bool, error)
 	RecordSent(ctx context.Context, eventID, userID uuid.UUID, at time.Time) error
 }
 
@@ -58,6 +63,8 @@ type Deliveries interface {
 // didn't cause it. Delivery is at least once: a crash between sending and
 // recording can repeat one message.
 type Handler struct {
+	// Sender is nil while Telegram is disabled; every recipient then gets the
+	// email fallback.
 	Sender     Sender
 	Links      Links
 	Deliveries Deliveries
@@ -65,7 +72,8 @@ type Handler struct {
 	// Since is when notifications started. Earlier events are skipped, so a new
 	// environment's backlog isn't sent.
 	Since time.Time
-	// Optional.
+	// Optional. Without EmailQueue, users Telegram can't reach get no message.
+	EmailQueue   EmailQueue
 	ReplyTargets ReplyTargets
 	Log          *slog.Logger
 	Now          func() time.Time
@@ -73,6 +81,7 @@ type Handler struct {
 
 // Handle implements a pkg/kafka handler for Topic. It returns an error only for
 // failures worth replaying: storage errors and transient Telegram errors.
+// Email delivery retries run independently after durable acceptance.
 func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
 	log := h.Log.With("event_id", e.GetEventId(), "order_id", e.GetOrderId(), "status", e.GetStatus().String())
 	eventID, err := uuid.Parse(e.GetEventId())
@@ -91,7 +100,8 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 		if text == "" {
 			continue
 		}
-		switch deliveryFor(e, r.role) {
+		class := deliveryFor(e, r.role)
+		switch class {
 		case dropIfLate:
 			if age := h.Now().Sub(occurred); age > LateWindow {
 				log.Info("skipping late notification", "role", r.role, "age", age.Round(time.Second).String())
@@ -113,7 +123,7 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 			log.Error("skipping recipient with an invalid user ID", "role", r.role)
 			continue
 		}
-		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text); err != nil {
+		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text, class); err != nil {
 			return err
 		}
 	}
@@ -141,18 +151,22 @@ func (h *Handler) notify(
 	orderID string,
 	userID uuid.UUID,
 	text string,
+	class delivery,
 ) error {
-	sent, err := h.Deliveries.HasBeenSent(ctx, eventID, userID)
+	accepted, err := h.Deliveries.HasBeenAccepted(ctx, eventID, userID)
 	if err != nil {
-		return fmt.Errorf("check sent notification: %w", err)
+		return fmt.Errorf("check accepted notification: %w", err)
 	}
-	if sent {
+	if accepted {
 		return nil
 	}
 
+	if h.Sender == nil {
+		return h.notifyByEmail(ctx, eventID, userID, text, class)
+	}
 	link, err := h.Links.Get(ctx, userID)
 	if errors.Is(err, linking.ErrNotLinked) {
-		return nil
+		return h.notifyByEmail(ctx, eventID, userID, text, class)
 	}
 	if err != nil {
 		return fmt.Errorf("get Telegram link: %w", err)
@@ -167,7 +181,7 @@ func (h *Handler) notify(
 			return fmt.Errorf("unlink unreachable chat: %w", err)
 		}
 		log.Info("telegram unlinked: chat unreachable", "user_id", userID, "code", apiErr.Code)
-		return nil
+		return h.notifyByEmail(ctx, eventID, userID, text, class)
 	case errors.As(err, &apiErr) && apiErr.Rejected():
 		// Telegram will reject this message every time; replaying would stall
 		// every later notification.
@@ -186,6 +200,23 @@ func (h *Handler) notify(
 		if err := h.ReplyTargets.SaveReplyTarget(ctx, link.ChatID, sentMsg.MessageID, id, h.Now()); err != nil {
 			log.Error("notification can't be replied to", "user_id", userID, "err", err)
 		}
+	}
+	return nil
+}
+
+// notifyByEmail queues an always-deliver notification for a user Telegram can't
+// reach. Other notifications are skipped: the app shows the order's progress.
+func (h *Handler) notifyByEmail(
+	ctx context.Context,
+	eventID, userID uuid.UUID,
+	text string,
+	class delivery,
+) error {
+	if h.EmailQueue == nil || class != alwaysDeliver {
+		return nil
+	}
+	if err := h.EmailQueue.Enqueue(ctx, eventID, userID, text, h.Now()); err != nil {
+		return fmt.Errorf("queue notification email: %w", err)
 	}
 	return nil
 }
