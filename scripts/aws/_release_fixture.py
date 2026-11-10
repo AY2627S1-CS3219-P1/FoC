@@ -83,7 +83,7 @@ if command == "aws":
             state["profile_detached"] = True
             finish()
         if operation == "describe-instance-credit-specifications":
-            finish({"InstanceCreditSpecifications": [{"CpuCredits": "standard"}]})
+            finish({"InstanceCreditSpecifications": [{"CpuCredits": "unlimited"}]})
         if operation == "get-console-output":
             if state.get("console_failure"):
                 finish(error="fixture console unavailable")

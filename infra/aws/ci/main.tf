@@ -113,6 +113,53 @@ resource "aws_eks_access_entry" "release" {
   type              = "STANDARD"
 }
 
+# Launches one disposable runner from a GitHub-hosted job. It cannot deploy:
+# no EKS, ECR, configuration, or release-lock access.
+resource "aws_iam_role" "launcher" {
+  name                 = "${local.name}-launcher"
+  max_session_duration = 3600
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow", Action = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Condition = { StringEquals = {
+        "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        "token.actions.githubusercontent.com:sub" = "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo-runner"
+      } }
+    }]
+  })
+}
+resource "aws_iam_role_policy" "launcher" {
+  name = "launch-disposable-runner"
+  role = aws_iam_role.launcher.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["ec2:RunInstances"], Resource = "arn:aws:ec2:${var.region}:${var.account_id}:instance/*", Condition = { ArnEquals = { "ec2:LaunchTemplate" = aws_launch_template.runner.arn } } },
+      { Effect = "Allow", Action = ["ec2:RunInstances"], Resource = [
+        aws_launch_template.runner.arn,
+        "arn:aws:ec2:${var.region}:${var.account_id}:subnet/${var.private_subnet_id}",
+        aws_security_group.runner.arn,
+        "arn:aws:ec2:${var.region}:${var.account_id}:network-interface/*",
+        "arn:aws:ec2:${var.region}:${var.account_id}:volume/*",
+        "arn:aws:ec2:${var.region}::image/${var.runner_ami}",
+      ] },
+      { Effect = "Allow", Action = ["ec2:CreateTags"], Resource = "arn:aws:ec2:${var.region}:${var.account_id}:*/*", Condition = { StringEquals = { "ec2:CreateAction" = "RunInstances" } } },
+      { Effect = "Allow", Action = ["iam:PassRole"], Resource = aws_iam_role.bootstrap.arn, Condition = { StringEquals = { "iam:PassedToService" = "ec2.amazonaws.com" } } },
+      { Effect = "Allow", Action = ["ec2:DescribeInstances", "ec2:DescribeIamInstanceProfileAssociations", "ec2:DescribeInstanceCreditSpecifications"], Resource = "*" },
+      { Effect = "Allow", Action = ["ec2:TerminateInstances", "ec2:DisassociateIamInstanceProfile", "ec2:GetConsoleOutput"], Resource = "arn:aws:ec2:${var.region}:${var.account_id}:instance/*", Condition = { StringEquals = { "aws:ResourceTag/Name" = "${local.name}-runner" } } },
+      { Effect = "Allow", Action = ["ssm:PutParameter", "ssm:DeleteParameter"], Resource = "arn:aws:ssm:${var.region}:${var.account_id}:parameter${local.parameter}" },
+      { Effect = "Allow", Action = ["kms:Encrypt", "kms:GenerateDataKey"], Resource = "arn:aws:kms:${var.region}:${var.account_id}:key/*", Condition = { StringEquals = {
+        "kms:ViaService"                      = "ssm.${var.region}.amazonaws.com"
+        "kms:EncryptionContext:PARAMETER_ARN" = "arn:aws:ssm:${var.region}:${var.account_id}:parameter${local.parameter}"
+      } } },
+      { Effect = "Allow", Action = ["s3:GetBucketVersioning"], Resource = aws_s3_bucket.configuration.arn },
+      { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObjectVersion"], Resource = "${aws_s3_bucket.configuration.arn}/${local.prefix}/locks/runner-bootstrap.json" }
+    ]
+  })
+}
+
 resource "aws_security_group" "runner" {
   name        = "${local.name}-runner"
   description = "Disposable release runner; no inbound access"
@@ -179,7 +226,9 @@ resource "aws_launch_template" "runner" {
   instance_initiated_shutdown_behavior = "terminate"
   update_default_version               = true
   iam_instance_profile { arn = aws_iam_instance_profile.bootstrap.arn }
-  credit_specification { cpu_credits = "standard" }
+  # Image builds saturate both vCPUs. Standard mode starts a new T3 with no
+  # credits and throttles it to its 30% baseline.
+  credit_specification { cpu_credits = "unlimited" }
   metadata_options {
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
@@ -214,6 +263,6 @@ output "ci" {
     account_id              = var.account_id, region = var.region, bucket = aws_s3_bucket.configuration.id, prefix = local.prefix,
     role_arn                = aws_iam_role.release.arn, launch_template_id = aws_launch_template.runner.id,
     launch_template_version = aws_launch_template.runner.latest_version, registration_parameter = local.parameter,
-    runner_name             = "${local.name}-runner"
+    runner_name             = "${local.name}-runner", launcher_role_arn = aws_iam_role.launcher.arn
   }
 }
