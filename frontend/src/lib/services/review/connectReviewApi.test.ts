@@ -121,6 +121,32 @@ describe('ConnectReviewApi', () => {
 		);
 	});
 
+	it('lists removed reviews with their review ids', async () => {
+		const listMyReviewRemovals = vi.fn(async () => ({
+			removals: [{
+				id: 'removal-1', reviewId: 'review-9', reviewerId: 'me', revieweeId: 'them', orderId: 'order-9',
+				reason: 'Abusive', createdAt: { seconds: 1700000000n, nanos: 0 }, createdBy: 'admin', createdByName: 'Admin'
+			}],
+			pagination: { page: 1, pageSize: 20, totalItems: 1n, totalPages: 1n }
+		}));
+		const api = new ConnectReviewApi({ listMyReviewRemovals } as unknown as Client<typeof ReviewServiceDefinition>);
+
+		const page = await api.listMyRemovals({ page: 1, pageSize: 20 }, new AbortController().signal);
+
+		expect(listMyReviewRemovals).toHaveBeenCalledWith(
+			{ pagination: { page: 1n, pageSize: 20n } },
+			expect.objectContaining({ timeoutMs: 15000 })
+		);
+		expect(page).toEqual({
+			removals: [{
+				id: 'removal-1', reviewId: 'review-9', revieweeId: 'them', orderId: 'order-9', reason: 'Abusive',
+				createdAt: 1700000000000
+			}],
+			totalItems: 1,
+			totalPages: 1
+		});
+	});
+
 	it('lists written reviews through the self-scoped endpoint', async () => {
 		const { client, api } = scenario();
 		const page = await api.listMine({ page: 1, pageSize: 10 }, new AbortController().signal);

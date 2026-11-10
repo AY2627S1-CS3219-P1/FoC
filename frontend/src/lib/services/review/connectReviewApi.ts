@@ -14,6 +14,7 @@ import {
 	type ReviewPage,
 	type ReviewPhotoGrant,
 	type ReviewRecord,
+	type ReviewRemovalPage,
 	type SubmitReviewInput
 } from './reviewApi.ts';
 
@@ -112,6 +113,32 @@ export class ConnectReviewApi implements ReviewApi {
 			);
 			return {
 				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
+	async listMyRemovals(
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewRemovalPage> {
+		try {
+			const response = await this.#client.listMyReviewRemovals(
+				{ pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) } },
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				removals: response.removals.map((removal) => ({
+					id: removal.id,
+					reviewId: removal.reviewId,
+					revieweeId: removal.revieweeId,
+					orderId: removal.orderId,
+					reason: removal.reason,
+					createdAt: removal.createdAt ? timestampDate(removal.createdAt).getTime() : 0
+				})),
 				totalItems: Number(response.pagination?.totalItems ?? 0n),
 				totalPages: Number(response.pagination?.totalPages ?? 0n)
 			};
