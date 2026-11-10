@@ -101,6 +101,7 @@ resource "aws_iam_role_policy" "release" {
       { Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*" },
       { Effect = "Allow", Action = ["ecr:DescribeRepositories", "ecr:DescribeImages", "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage"], Resource = local.repositories },
       { Effect = "Allow", Action = ["s3:GetBucketVersioning"], Resource = aws_s3_bucket.configuration.arn },
+      { Effect = "Allow", Action = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage"], Resource = "arn:aws:ecr:${var.region}:${var.account_id}:repository/${var.cluster_name}/build-cache" },
       { Effect = "Allow", Action = ["s3:GetObjectVersion"], Resource = "${aws_s3_bucket.configuration.arn}/${local.prefix}/config/aws-demo/*" },
       { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObjectVersion"], Resource = "${aws_s3_bucket.configuration.arn}/${local.prefix}/locks/aws-demo.json" }
     ]
@@ -222,7 +223,7 @@ resource "aws_iam_instance_profile" "bootstrap" {
 resource "aws_launch_template" "runner" {
   name                                 = "${local.name}-runner"
   image_id                             = var.runner_ami
-  instance_type                        = "t3.large"
+  instance_type                        = "t3.xlarge"
   instance_initiated_shutdown_behavior = "terminate"
   update_default_version               = true
   iam_instance_profile { arn = aws_iam_instance_profile.bootstrap.arn }

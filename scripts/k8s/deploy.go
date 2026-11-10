@@ -8,7 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 const nodeImage = "kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f"
@@ -152,33 +154,102 @@ func (o *operator) buildImages(names []string) error {
 			"existing cluster image builds require K8S_PUSH_IMAGES=1 and a registry K8S_IMAGE_PREFIX; otherwise use K8S_SKIP_BUILD=1",
 		)
 	}
-	for _, name := range names {
-		dockerfile := "service"
-		if contains([]string{"frontend", "kafka-init", "migrations"}, name) {
-			dockerfile = name
+	parallelism := 1
+	if value := os.Getenv("K8S_BUILD_PARALLELISM"); value != "" {
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 || n > 8 {
+			return errors.New("K8S_BUILD_PARALLELISM must be an integer from 1 to 8")
 		}
-		if err := o.execute(
+		parallelism = n
+	}
+	cache := os.Getenv("K8S_BUILD_CACHE")
+	if cache != "" {
+		if !o.existing || !regexp.MustCompile(`^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+$`).MatchString(cache) {
+			return errors.New("K8S_BUILD_CACHE must be a registry repository and requires pushed images")
+		}
+		// The default docker driver cannot export a registry cache.
+		if result, err := o.run(
 			"docker",
-			"build",
-			"--file",
-			filepath.Join(o.root, "docker/k8s", dockerfile+".Dockerfile"),
-			"--build-arg",
-			"SERVICE="+name,
-			"--tag",
-			o.imageFor(name),
-			o.root,
+			[]string{"buildx", "inspect", buildCacheBuilder},
+			commandOptions{capture: true, allowFailure: true},
 		); err != nil {
 			return err
-		}
-		if o.existing {
-			if err := o.execute("docker", "push", o.imageFor(name)); err != nil {
+		} else if result.exitCode != 0 {
+			if err := o.execute(
+				"docker",
+				"buildx",
+				"create",
+				"--name",
+				buildCacheBuilder,
+				"--driver",
+				"docker-container",
+			); err != nil {
 				return err
 			}
-		} else if err := o.execute("kind", "load", "docker-image", "--name", o.cluster, o.imageFor(name)); err != nil {
-			return err
 		}
 	}
-	return nil
+	var (
+		wait     sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+		slots    = make(chan struct{}, parallelism)
+	)
+	for _, name := range names {
+		slots <- struct{}{}
+		// Stop starting builds after a failure so a failed attempt pushes as few images as possible.
+		mu.Lock()
+		failed := firstErr != nil
+		mu.Unlock()
+		if failed {
+			<-slots
+			break
+		}
+		wait.Add(1)
+		go func(name string) {
+			defer func() { <-slots; wait.Done() }()
+			if err := o.buildImage(name, cache); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s: %w", name, err)
+				}
+				mu.Unlock()
+			}
+		}(name)
+	}
+	wait.Wait()
+	return firstErr
+}
+
+const buildCacheBuilder = "foc-build-cache"
+
+func (o *operator) buildImage(name, cache string) error {
+	dockerfile := "service"
+	if contains([]string{"frontend", "kafka-init", "migrations"}, name) {
+		dockerfile = name
+	}
+	args := []string{"build"}
+	if cache != "" {
+		// One cache tag per image. ECR requires an image manifest and OCI media types.
+		ref := cache + ":" + name
+		args = []string{
+			"buildx", "build", "--builder", buildCacheBuilder, "--load", "--provenance=false",
+			"--cache-from", "type=registry,ref=" + ref,
+			"--cache-to", "type=registry,ref=" + ref + ",mode=max,image-manifest=true,oci-mediatypes=true",
+		}
+	}
+	args = append(args,
+		"--file", filepath.Join(o.root, "docker/k8s", dockerfile+".Dockerfile"),
+		"--build-arg", "SERVICE="+name,
+		"--tag", o.imageFor(name),
+		o.root,
+	)
+	if err := o.execute("docker", args...); err != nil {
+		return err
+	}
+	if o.existing {
+		return o.execute("docker", "push", o.imageFor(name))
+	}
+	return o.execute("kind", "load", "docker-image", "--name", o.cluster, o.imageFor(name))
 }
 
 func (o *operator) renderStage(stage string) (string, error) {

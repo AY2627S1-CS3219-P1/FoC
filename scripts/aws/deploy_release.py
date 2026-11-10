@@ -33,6 +33,8 @@ def release_environment(directory, config, tag):
         "K8S_LOKI_IRSA_ROLE": config["loki_role_arn"], "K8S_LOKI_STORAGE_CLASS": "foc-gp3",
         "K8S_HTTPS_PORT": "", "K8S_KAFKA_UI_PORT": "", "K8S_MAILPIT_PORT": "",
         "DOCKER_DEFAULT_PLATFORM": "linux/amd64", "AQUA_ROOT_DIR": str(ROOT / ".tools/aqua"),
+        # Reuse image layers across disposable runners and build several images at once.
+        "K8S_BUILD_CACHE": config["image_prefix"] + "/build-cache", "K8S_BUILD_PARALLELISM": "3",
     })
     env["PATH"] = str(ROOT / ".tools/aqua/bin") + os.pathsep + env.get("PATH", "")
     return env

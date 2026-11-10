@@ -170,6 +170,7 @@ if command == "make":
         state["deploy_environment"] = {key: os.environ.get(key) for key in
             ("K8S_SKIP_BUILD", "K8S_PUSH_IMAGES", "K8S_IMAGE_PREFIX", "K8S_IMAGE_TAG", "K8S_CONTEXT",
              "K8S_OVERLAY", "KUBECONFIG", "DOCKER_CONFIG", "DOCKER_DEFAULT_PLATFORM",
+             "K8S_BUILD_CACHE", "K8S_BUILD_PARALLELISM",
              "K8S_LOKI_BUCKET", "K8S_LOKI_REGION", "K8S_LOKI_IRSA_ROLE", "K8S_LOKI_STORAGE_CLASS")}
         if state.get("interruptible_deploy"):
             ready = state_file.with_suffix(".descendant-ready")

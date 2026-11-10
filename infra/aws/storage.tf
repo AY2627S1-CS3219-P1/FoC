@@ -33,6 +33,31 @@ resource "aws_ecr_lifecycle_policy" "images" {
   })
 }
 
+# Docker layer cache shared by disposable release runners. Tags are rewritten
+# on every release, so they are mutable; release images stay immutable.
+resource "aws_ecr_repository" "build_cache" {
+  name                 = "${var.name}/build-cache"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = false
+}
+
+resource "aws_ecr_lifecycle_policy" "build_cache" {
+  repository = aws_ecr_repository.build_cache.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Remove superseded cache manifests after one day"
+      selection = {
+        tagStatus   = "untagged"
+        countType   = "sinceImagePushed"
+        countUnit   = "days"
+        countNumber = 1
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
 resource "aws_s3_bucket" "orders" {
   bucket_prefix = "${var.name}-orders-"
   force_destroy = false

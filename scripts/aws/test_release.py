@@ -149,6 +149,8 @@ class ReleaseCLITest(unittest.TestCase):
         self.assertEqual((env["K8S_SKIP_BUILD"], env["K8S_PUSH_IMAGES"], env["DOCKER_DEFAULT_PLATFORM"]), ("0", "1", "linux/amd64"))
         self.assertEqual(env["K8S_IMAGE_TAG"], SOURCE + "-attempt1")
         self.assertEqual(env["K8S_CONTEXT"], "foc-release")
+        self.assertEqual(env["K8S_BUILD_CACHE"], self.outputs["image_prefix"] + "/build-cache")
+        self.assertEqual(env["K8S_BUILD_PARALLELISM"], "3")
         self.assertEqual(env["K8S_LOKI_BUCKET"], self.outputs["loki_bucket"])
         self.assertEqual(env["K8S_LOKI_IRSA_ROLE"], self.outputs["loki_role_arn"])
         self.assertEqual(env["K8S_LOKI_REGION"], REGION)
