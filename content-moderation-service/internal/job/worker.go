@@ -246,15 +246,9 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		return
 	}
 
-	errorClass, kind, _ := moderation.Classify(evalErr)
-	switch kind {
-	case moderation.KindConfiguration:
-		p.stats.configPaused.Add(1)
-		p.logger.Warn("job paused on configuration error", "job", claimed.Job.ID.String(), "error_class", errorClass)
-	case moderation.KindDurable:
-		p.stats.errored.Add(1)
-		p.logger.Error("job errored terminally", "job", claimed.Job.ID.String(), "error_class", errorClass)
-	}
+	errorClass, _, _ := moderation.Classify(evalErr)
+	p.stats.failed.Add(1)
+	p.logger.Warn("assessment attempt failed", "job", claimed.Job.ID.String(), "error_class", errorClass)
 }
 
 // heartbeat extends the claim lease while an assessment runs. When the claim is
@@ -323,16 +317,15 @@ func evaluationInput(claimed *ClaimedJob) moderation.ReviewInput {
 }
 
 type poolStats struct {
-	inFlight     atomic.Int64
-	completed    atomic.Int64
-	errored      atomic.Int64
-	configPaused atomic.Int64
+	inFlight  atomic.Int64
+	completed atomic.Int64
+	failed    atomic.Int64
 }
 
 func (p *Pool) LogStatistics(ctx context.Context) {
 	p.logger.InfoContext(ctx, "moderation worker statistics",
 		"in_flight", p.stats.inFlight.Load(), "completed", p.stats.completed.Load(),
-		"errored_attempts", p.stats.errored.Load(), "configuration_pauses", p.stats.configPaused.Load())
+		"failed_attempts", p.stats.failed.Load())
 }
 
 // Assessor is the assessment port consumed by the worker.

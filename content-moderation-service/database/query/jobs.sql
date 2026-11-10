@@ -133,9 +133,8 @@ WHERE reviewer_id = sqlc.arg(reviewer_id)
 ORDER BY created_at DESC;
 
 -- name: RetryErroredJob :execrows
--- Retries a terminal errored job exactly once for the expected generation. The
--- service supplies the config/policy to retain (original) or pin (active), so
--- "retain original" preserves the pinned configuration across retries.
+-- Retries a terminal errored job exactly once for the expected generation.
+-- The next attempt uses the running assessor and starts without a result policy.
 UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,

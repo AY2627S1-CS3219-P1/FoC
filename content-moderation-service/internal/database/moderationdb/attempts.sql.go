@@ -68,17 +68,6 @@ func (q *Queries) FinishAttempt(ctx context.Context, arg FinishAttemptParams) er
 	return err
 }
 
-const finishResumedAttempts = `-- name: FinishResumedAttempts :exec
-UPDATE moderation_attempts
-SET finished_at = now(), outcome = 'configuration_resumed'
-WHERE job_id = $1 AND finished_at IS NULL
-`
-
-func (q *Queries) FinishResumedAttempts(ctx context.Context, jobID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, finishResumedAttempts, jobID)
-	return err
-}
-
 const getAttempts = `-- name: GetAttempts :many
 SELECT job_id, run_generation, attempt_number, model_id, outcome, error_class, detail, started_at, finished_at FROM moderation_attempts
 WHERE job_id = $1

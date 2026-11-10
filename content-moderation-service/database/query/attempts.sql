@@ -33,7 +33,3 @@ WHERE job_id = sqlc.arg(job_id)
   AND run_generation = sqlc.arg(run_generation)
 ORDER BY attempt_number ASC;
 
--- name: FinishResumedAttempts :exec
-UPDATE moderation_attempts
-SET finished_at = now(), outcome = 'configuration_resumed'
-WHERE job_id = sqlc.arg(job_id) AND finished_at IS NULL;

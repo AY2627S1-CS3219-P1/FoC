@@ -85,8 +85,8 @@ func WrapContentFilterError(err error) *ClassifiedError {
 }
 
 // WrapConfigurationError marks bad credentials, an unsupported model or
-// parameter. It pauses the job without exhausting the retry budget, so fixing
-// the configuration (or an explicit admin retry) resumes processing.
+// parameter. Workers release their claim and stop the pool until operators
+// correct the runtime settings and restart the process.
 func WrapConfigurationError(err error) *ClassifiedError {
 	return wrap(KindConfiguration, ErrorClassConfiguration, 0, err)
 }

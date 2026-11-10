@@ -666,9 +666,8 @@ type RetryErroredJobParams struct {
 	RunGeneration int32
 }
 
-// Retries a terminal errored job exactly once for the expected generation. The
-// service supplies the config/policy to retain (original) or pin (active), so
-// "retain original" preserves the pinned configuration across retries.
+// Retries a terminal errored job exactly once for the expected generation.
+// The next attempt uses the running assessor and starts without a result policy.
 func (q *Queries) RetryErroredJob(ctx context.Context, arg RetryErroredJobParams) (int64, error) {
 	result, err := q.db.Exec(ctx, retryErroredJob, arg.PolicyVersion, arg.ID, arg.RunGeneration)
 	if err != nil {
