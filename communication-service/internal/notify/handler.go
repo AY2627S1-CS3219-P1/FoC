@@ -19,6 +19,9 @@ import (
 // Topic carries OrderStatusChanged events.
 const Topic = "order.status_changed"
 
+// OfferTopic carries OrderOfferMade events.
+const OfferTopic = "order.offer_made"
+
 // LateWindow is how long after a change a drop-if-late notification can still
 // be sent, including retries.
 const LateWindow = 15 * time.Minute
@@ -47,9 +50,17 @@ type Orders interface {
 	Revision(ctx context.Context, orderID uuid.UUID) (revision int64, found bool, err error)
 }
 
+// EmailValidity preserves the event's delivery class while email is pending.
+// Zero fields mean an always-deliver notification.
+type EmailValidity struct {
+	ExpiresAt time.Time
+	OrderID   uuid.UUID
+	Revision  int64
+}
+
 // EmailQueue durably accepts email fallback before Kafka commits the event.
 type EmailQueue interface {
-	Enqueue(ctx context.Context, eventID, userID uuid.UUID, text string, at time.Time) error
+	Enqueue(ctx context.Context, eventID, userID uuid.UUID, text string, at time.Time, validity EmailValidity) error
 }
 
 // Deliveries records which recipients already received or queued a message,
@@ -123,11 +134,47 @@ func (h *Handler) Handle(ctx context.Context, _ kafka.Metadata, e *eventsv1.Orde
 			log.Error("skipping recipient with an invalid user ID", "role", r.role)
 			continue
 		}
-		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text, class); err != nil {
+		var validity EmailValidity
+		if class == ifStillCurrent {
+			validity.OrderID, _ = uuid.Parse(e.GetOrderId())
+			validity.Revision = e.GetRevision()
+		}
+		if err := h.notify(ctx, log, eventID, e.GetOrderId(), userID, text, emailed(e, r.role), validity); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// HandleOffer implements a pkg/kafka handler for OfferTopic. It tells the
+// requester about a courier's offer, by Telegram or email, within LateWindow:
+// an offer can be replaced, withdrawn or overtaken soon after.
+func (h *Handler) HandleOffer(ctx context.Context, _ kafka.Metadata, e *eventsv1.OrderOfferMade) error {
+	log := h.Log.With("event_id", e.GetEventId(), "order_id", e.GetOrderId(), "offer_id", e.GetOfferId())
+	eventID, err1 := uuid.Parse(e.GetEventId())
+	requesterID, err2 := uuid.Parse(e.GetRequesterId())
+	if err1 != nil || err2 != nil {
+		log.Error("skipping offer event with invalid IDs")
+		return nil
+	}
+	occurred := e.GetOccurredAt().AsTime()
+	if occurred.Before(h.Since) {
+		return nil
+	}
+	if age := h.Now().Sub(occurred); age > LateWindow {
+		log.Info("skipping late offer notification", "age", age.Round(time.Second).String())
+		return nil
+	}
+	return h.notify(
+		ctx,
+		log,
+		eventID,
+		e.GetOrderId(),
+		requesterID,
+		offerMessage(e),
+		true,
+		EmailValidity{ExpiresAt: occurred.Add(LateWindow)},
+	)
 }
 
 // isCurrent reports whether no later status change has been applied to the
@@ -151,7 +198,8 @@ func (h *Handler) notify(
 	orderID string,
 	userID uuid.UUID,
 	text string,
-	class delivery,
+	byEmail bool,
+	validity EmailValidity,
 ) error {
 	accepted, err := h.Deliveries.HasBeenAccepted(ctx, eventID, userID)
 	if err != nil {
@@ -162,11 +210,11 @@ func (h *Handler) notify(
 	}
 
 	if h.Sender == nil {
-		return h.notifyByEmail(ctx, eventID, userID, text, class)
+		return h.notifyByEmail(ctx, eventID, userID, text, byEmail, validity)
 	}
 	link, err := h.Links.Get(ctx, userID)
 	if errors.Is(err, linking.ErrNotLinked) {
-		return h.notifyByEmail(ctx, eventID, userID, text, class)
+		return h.notifyByEmail(ctx, eventID, userID, text, byEmail, validity)
 	}
 	if err != nil {
 		return fmt.Errorf("get Telegram link: %w", err)
@@ -181,7 +229,7 @@ func (h *Handler) notify(
 			return fmt.Errorf("unlink unreachable chat: %w", err)
 		}
 		log.Info("telegram unlinked: chat unreachable", "user_id", userID, "code", apiErr.Code)
-		return h.notifyByEmail(ctx, eventID, userID, text, class)
+		return h.notifyByEmail(ctx, eventID, userID, text, byEmail, validity)
 	case errors.As(err, &apiErr) && apiErr.Rejected():
 		// Telegram will reject this message every time; replaying would stall
 		// every later notification.
@@ -204,18 +252,19 @@ func (h *Handler) notify(
 	return nil
 }
 
-// notifyByEmail queues an always-deliver notification for a user Telegram can't
-// reach. Other notifications are skipped: the app shows the order's progress.
+// notifyByEmail durably accepts eligible fallback with its delivery validity.
+// Progress updates that the app already shows remain Telegram-only.
 func (h *Handler) notifyByEmail(
 	ctx context.Context,
 	eventID, userID uuid.UUID,
 	text string,
-	class delivery,
+	byEmail bool,
+	validity EmailValidity,
 ) error {
-	if h.EmailQueue == nil || class != alwaysDeliver {
+	if h.EmailQueue == nil || !byEmail {
 		return nil
 	}
-	if err := h.EmailQueue.Enqueue(ctx, eventID, userID, text, h.Now()); err != nil {
+	if err := h.EmailQueue.Enqueue(ctx, eventID, userID, text, h.Now(), validity); err != nil {
 		return fmt.Errorf("queue notification email: %w", err)
 	}
 	return nil

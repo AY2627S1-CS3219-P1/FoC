@@ -32,7 +32,7 @@ Delivery remains at least once: SMTP cannot join the database transaction, so
 a crash after SMTP acceptance and before commit may repeat a message. A rollback
 or shutdown preserves work for the next worker. Magic links remain synchronous.
 
-Pending and rejected rows are not automatically expired. Users whose creation
+Always-deliver pending emails and rejected rows are not automatically expired. Users whose creation
 events have left Kafka retention still need an email backfill; their notifications
 remain visibly pending until then. This change does not implement that backfill.
 
@@ -44,3 +44,10 @@ When SES API delivery is selected, the same worker and queue use Communication's
 SES adapter. A typed SES `MessageRejected` error retains a rejected row; transport,
 throttling and account-availability errors retry. SES acceptance has the same
 send-before-database-commit window as SMTP, and failures never switch providers.
+
+Time-sensitive action emails added by the offer-notification feature also persist
+their delivery validity: offers expire after 15 minutes from the event, and an
+acceptance notice requires an order projection at or before its revision. The
+worker rechecks these conditions when claiming a row, even if its user's email is
+still missing. Obsolete notifications become `skipped` with a recorded reason and
+remain accepted for deduplication. Always-deliver outcomes retain no expiry.

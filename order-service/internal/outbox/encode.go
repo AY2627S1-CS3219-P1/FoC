@@ -81,6 +81,15 @@ func encode(f Fact) (proto.Message, error) {
 			EventId: f.ID, OrderId: f.OrderID, CourierId: *p.CourierID,
 			Reason: reason, OccurredAt: timestamppb.New(p.At),
 		}, nil
+	case app.OfferMade:
+		if p.Offer == nil || p.Offer.ID == "" || p.Offer.CourierID == "" || p.Offer.Credits <= 0 {
+			return nil, errors.New("invalid offer fact")
+		}
+		return &events.OrderOfferMade{
+			EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision,
+			OfferId: p.Offer.ID, CourierId: p.Offer.CourierID, RequesterId: p.RequesterID,
+			Credits: p.Offer.Credits, PickupLocationName: f.PickupName, OccurredAt: timestamppb.New(p.At),
+		}, nil
 	default:
 		return nil, errors.New("unsupported Order fact kind")
 	}

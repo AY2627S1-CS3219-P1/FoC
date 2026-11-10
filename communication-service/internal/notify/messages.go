@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"fmt"
 	"strings"
 
 	eventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/order/events/v1"
@@ -57,8 +58,12 @@ const (
 func deliveryFor(e *eventsv1.OrderStatusChanged, r role) delivery {
 	switch {
 	case r == previousCourier:
-		return ifStillCurrent
+		// Still true for them even if the order has since been reassigned.
+		return alwaysDeliver
 	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP && r == courier:
+		return ifStillCurrent
+	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER && r == requester &&
+		e.GetPreviousStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP:
 		return ifStillCurrent
 	case e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
 		e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
@@ -66,6 +71,27 @@ func deliveryFor(e *eventsv1.OrderStatusChanged, r role) delivery {
 		return dropIfLate
 	}
 	return alwaysDeliver
+}
+
+// emailed reports whether the notification also goes by email to a recipient
+// Telegram can't reach: outcomes and anything they must act on. Progress the
+// app already shows stays Telegram-only.
+func emailed(e *eventsv1.OrderStatusChanged, r role) bool {
+	return deliveryFor(e, r) == alwaysDeliver ||
+		(e.GetStatus() == eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP && r == courier)
+}
+
+// offerMessage tells the requester about a courier's offer.
+func offerMessage(e *eventsv1.OrderOfferMade) string {
+	order := "your order"
+	if name := e.GetPickupLocationName(); name != "" {
+		order += " from " + name
+	}
+	return fmt.Sprintf(
+		"A courier offered %d credits to deliver %s. If the offer is still open, you can accept it in the FoC app.",
+		e.GetCredits(),
+		order,
+	)
 }
 
 // message returns the text for one recipient, or "" when the change needs no

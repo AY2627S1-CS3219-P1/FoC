@@ -174,8 +174,8 @@ func TestDeliveryClasses(t *testing.T) {
 		{"opened", unspecified, awaitingCourier, requester, dropIfLate},
 		{"accepted, to requester", awaitingCourier, awaitingPickup, requester, dropIfLate},
 		{"accepted, to courier", awaitingCourier, awaitingPickup, courier, ifStillCurrent},
-		{"unassigned, to requester", awaitingPickup, awaitingCourier, requester, dropIfLate},
-		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, ifStillCurrent},
+		{"unassigned, to requester", awaitingPickup, awaitingCourier, requester, ifStillCurrent},
+		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, alwaysDeliver},
 		{"picked up", awaitingPickup, delivering, requester, dropIfLate},
 		{"delivered", delivering, delivered, requester, alwaysDeliver},
 		{"completed, to courier", delivered, completed, courier, alwaysDeliver},
@@ -196,5 +196,31 @@ func TestDeliveryClasses(t *testing.T) {
 				t.Fatalf("delivery = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestEmailedNotifications(t *testing.T) {
+	const (
+		awaitingCourier = eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER
+		awaitingPickup  = eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP
+		delivering      = eventsv1.OrderStatus_ORDER_STATUS_DELIVERING
+		completed       = eventsv1.OrderStatus_ORDER_STATUS_COMPLETED
+	)
+	for _, tc := range []struct {
+		name             string
+		previous, status eventsv1.OrderStatus
+		role             role
+		want             bool
+	}{
+		{"head to pickup", awaitingCourier, awaitingPickup, courier, true},
+		{"unassigned, to removed courier", awaitingPickup, awaitingCourier, previousCourier, true},
+		{"an outcome", delivering, completed, requester, true},
+		{"accepted, to requester", awaitingCourier, awaitingPickup, requester, false},
+		{"unassigned, to requester", awaitingPickup, awaitingCourier, requester, false},
+		{"picked up", awaitingPickup, delivering, requester, false},
+	} {
+		if got := emailed(event(tc.previous, tc.status, system), tc.role); got != tc.want {
+			t.Errorf("%s: emailed = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

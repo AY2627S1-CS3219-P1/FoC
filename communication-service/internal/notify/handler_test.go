@@ -347,9 +347,10 @@ func (f *fakeMailer) Send(_ context.Context, e email.Email) error {
 }
 
 type queuedEmail struct {
-	eventID uuid.UUID
-	userID  uuid.UUID
-	text    string
+	eventID  uuid.UUID
+	userID   uuid.UUID
+	text     string
+	validity EmailValidity
 }
 
 type fakeEmailQueue struct {
@@ -357,7 +358,13 @@ type fakeEmailQueue struct {
 	err    error
 }
 
-func (f *fakeEmailQueue) Enqueue(_ context.Context, eventID, userID uuid.UUID, text string, _ time.Time) error {
+func (f *fakeEmailQueue) Enqueue(
+	_ context.Context,
+	eventID, userID uuid.UUID,
+	text string,
+	_ time.Time,
+	validity EmailValidity,
+) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -366,7 +373,7 @@ func (f *fakeEmailQueue) Enqueue(_ context.Context, eventID, userID uuid.UUID, t
 			return nil
 		}
 	}
-	f.queued = append(f.queued, queuedEmail{eventID, userID, text})
+	f.queued = append(f.queued, queuedEmail{eventID, userID, text, validity})
 	return nil
 }
 
@@ -451,5 +458,78 @@ func TestHandleReplaysWhenEmailCannotBePersisted(t *testing.T) {
 	}
 	if len(queue.queued) != 0 || len(sender.sent) != 0 || len(deliveries) != 0 {
 		t.Fatalf("queued=%+v sent=%+v deliveries=%+v", queue.queued, sender.sent, deliveries)
+	}
+}
+
+func offerEvent(age time.Duration) *eventsv1.OrderOfferMade {
+	return &eventsv1.OrderOfferMade{
+		EventId: eventID.String(), OrderId: uuid.NewString(), Revision: 5, OfferId: uuid.NewString(),
+		CourierId: courierID.String(), RequesterId: requesterID.String(), Credits: 15,
+		PickupLocationName: "Fine Food", OccurredAt: timestamppb.New(now.Add(-age)),
+	}
+}
+
+func TestHandleOfferTellsTheRequester(t *testing.T) {
+	h, sender, _, deliveries := newHandler()
+	if err := h.HandleOffer(context.Background(), kafka.Metadata{}, offerEvent(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	want := sent{1, "A courier offered 15 credits to deliver your order from Fine Food. " +
+		"If the offer is still open, you can accept it in the FoC app."}
+	if len(sender.sent) != 1 || sender.sent[0] != want || !deliveries[[2]uuid.UUID{eventID, requesterID}] {
+		t.Fatalf("sent = %+v", sender.sent)
+	}
+	// A replay doesn't send it again.
+	if err := h.HandleOffer(context.Background(), kafka.Metadata{}, offerEvent(time.Minute)); err != nil ||
+		len(sender.sent) != 1 {
+		t.Fatalf("replay: err=%v sent=%+v", err, sender.sent)
+	}
+}
+
+func TestHandleOfferEmailsRequestersWithoutTelegram(t *testing.T) {
+	h, sender, links, _ := newHandler()
+	queue := withEmail(h, links)
+	if err := h.HandleOffer(context.Background(), kafka.Metadata{}, offerEvent(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.sent) != 0 || len(queue.queued) != 1 || queue.queued[0].userID != requesterID {
+		t.Fatalf("telegram=%+v email=%+v", sender.sent, queue.queued)
+	}
+}
+
+func TestHandleOfferSkips(t *testing.T) {
+	for name, tc := range map[string]struct {
+		event *eventsv1.OrderOfferMade
+		since time.Time
+	}{
+		"late":                     {offerEvent(LateWindow + time.Second), time.Time{}},
+		"before notifications ran": {offerEvent(time.Minute), now},
+		"malformed requester":      {func() *eventsv1.OrderOfferMade { e := offerEvent(time.Minute); e.RequesterId = "x"; return e }(), time.Time{}},
+	} {
+		h, sender, _, _ := newHandler()
+		if !tc.since.IsZero() {
+			h.Since = tc.since
+		}
+		if err := h.HandleOffer(context.Background(), kafka.Metadata{}, tc.event); err != nil || len(sender.sent) != 0 {
+			t.Fatalf("%s: err=%v sent=%+v", name, err, sender.sent)
+		}
+	}
+}
+
+func TestHandleEmailsTheRemovedCourierHoweverLate(t *testing.T) {
+	h, sender, links, _ := newHandler()
+	queue := withEmail(h, links)
+	delete(links.chats, courierID)
+	e := event(eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP, eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+		&eventsv1.Actor{Type: eventsv1.ActorType_ACTOR_TYPE_ADMIN, UserId: proto.String(uuid.NewString())})
+	e.CourierId, e.PreviousCourierId = nil, proto.String(courierID.String())
+	e.OccurredAt = timestamppb.New(now.Add(-3 * time.Hour))
+	// The order was reassigned since; the removed courier must still hear.
+	h.Orders = &fakeOrders{revisions: map[string]int64{e.GetOrderId(): 9}}
+	if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.sent) != 0 || len(queue.queued) != 1 || queue.queued[0].userID != courierID {
+		t.Fatalf("telegram=%+v email=%+v", sender.sent, queue.queued)
 	}
 }

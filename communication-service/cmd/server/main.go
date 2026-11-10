@@ -398,17 +398,19 @@ func startNotifications(
 			case <-time.After(consumerRestartDelay):
 			}
 		}
-		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle, userEmails)
+		runNotifications(ctx, cfg.kafkaBrokers, consumerGroup, log, handle, userEmails, handler.HandleOffer)
 	})
 }
 
 // runNotifications restarts the consumer until ctx is cancelled. pkg/kafka
 // stops a subscriber on any handler error, so a Telegram outage pauses
 // notifications and the restart replays the uncommitted event.
-// userEmails, when not nil, also consumes users.create.
+// userEmails and offers, when not nil, also consume users.create and
+// order.offer_made.
 func runNotifications(ctx context.Context, brokers []string, group string, log *slog.Logger,
 	handle func(context.Context, kafka.Metadata, *eventsv1.OrderStatusChanged) error,
 	userEmails func(context.Context, kafka.Metadata, *usereventsv1.UserCreated) error,
+	offers func(context.Context, kafka.Metadata, *eventsv1.OrderOfferMade) error,
 ) {
 	delay := consumerRestartDelay
 	for {
@@ -416,6 +418,10 @@ func runNotifications(ctx context.Context, brokers []string, group string, log *
 		if err == nil {
 			err = kafka.Register(subscriber, notify.Topic,
 				func() *eventsv1.OrderStatusChanged { return new(eventsv1.OrderStatusChanged) }, handle)
+		}
+		if err == nil && offers != nil {
+			err = kafka.Register(subscriber, notify.OfferTopic,
+				func() *eventsv1.OrderOfferMade { return new(eventsv1.OrderOfferMade) }, offers)
 		}
 		if err == nil && userEmails != nil {
 			err = kafka.Register(subscriber, users.Topic,

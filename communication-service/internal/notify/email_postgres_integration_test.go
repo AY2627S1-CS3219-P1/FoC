@@ -70,7 +70,7 @@ func (f mailerFunc) Send(ctx context.Context, message email.Email) error { retur
 func enqueueEmail(t *testing.T, queue *PostgresEmailQueue, userID uuid.UUID, body string, at time.Time) uuid.UUID {
 	t.Helper()
 	eventID := uuid.New()
-	if err := queue.Enqueue(context.Background(), eventID, userID, body, at); err != nil {
+	if err := queue.Enqueue(context.Background(), eventID, userID, body, at, EmailValidity{}); err != nil {
 		t.Fatal(err)
 	}
 	return eventID
@@ -138,7 +138,7 @@ func TestQueuedEmailSurvivesRestartAndLaterUserProjection(t *testing.T) {
 	if err := handler.Handle(ctx, kafka.Metadata{}, outcome()); err != nil {
 		t.Fatal(err)
 	}
-	if err := queue.Enqueue(ctx, eventID, requesterID, "replay", now); err != nil {
+	if err := queue.Enqueue(ctx, eventID, requesterID, "replay", now, EmailValidity{}); err != nil {
 		t.Fatal(err)
 	}
 	if processed, err := worker.DeliverNext(ctx); err != nil || processed || len(mailer.sent) != 1 {
@@ -193,7 +193,14 @@ func TestEmailWorkerSkipsUnknownUsersAndRetriesWithoutBlockingOthers(t *testing.
 		WHERE event_id = $1`, rejectedEvent).Scan(&status, &attempts, &lastError); err != nil || status != "rejected" || attempts != 1 || !strings.Contains(lastError, "550") {
 		t.Fatalf("rejection not recorded: status=%q attempts=%d error=%q err=%v", status, attempts, lastError, err)
 	}
-	if err := queue.Enqueue(ctx, rejectedEvent, rejected, "replay must not replace rejection", now); err != nil {
+	if err := queue.Enqueue(
+		ctx,
+		rejectedEvent,
+		rejected,
+		"replay must not replace rejection",
+		now,
+		EmailValidity{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if accepted, err := (&PostgresDeliveries{Queries: db.New(pool)}).HasBeenAccepted(
