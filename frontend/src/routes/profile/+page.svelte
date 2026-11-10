@@ -120,8 +120,6 @@
 		</div>
 	</header>
 
-	<Button variant="text" href="/profile/reviews/unpublished">Unpublished reviews</Button>
-
 	{#if loading}
 		<div class="loading-state" role="status" aria-live="polite">
 			<LoadingIndicator aria-label="Loading profile" />
