@@ -174,7 +174,7 @@ func getCorsConfig(allowedOrigin string) *cors.Cors {
 
 // profilePictureStorage keeps a true nil interface when storage is absent;
 // a typed nil *images.S3 would bypass the service's nil checks.
-func profilePictureStorage(storage *images.S3) images.ObjectStorage {
+func profilePictureStorage(storage *images.S3) service.ProfilePictureStorage {
 	if storage == nil {
 		return nil
 	}
