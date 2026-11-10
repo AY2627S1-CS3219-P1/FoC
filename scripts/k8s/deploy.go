@@ -289,35 +289,6 @@ func (o *operator) patchLocalConfig() error {
 	return o.patchConfig(data)
 }
 
-// pruneReportsModeration removes resources from releases that predate the
-// decision to keep the reports moderation service out of the AWS release.
-func (o *operator) pruneReportsModeration() error {
-	if o.isLocal() || contains(o.releaseApps(), "moderation-service") {
-		return nil
-	}
-	for _, resource := range []string{
-		"deployment/moderation-service",
-		"service/moderation-service-external",
-		"service/moderation-service-internal",
-		"httproute/moderation-service",
-		"job/moderation-migrate",
-	} {
-		// --ignore-not-found still needs delete permission, which the release
-		// identity lacks for these kinds, so delete only what actually exists.
-		found, err := o.query("-n", "foc", "get", resource, "--ignore-not-found", "-o", "name")
-		if err != nil {
-			return err
-		}
-		if strings.TrimSpace(found) == "" {
-			continue
-		}
-		if err := o.k("-n", "foc", "delete", resource); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (o *operator) deployAll() error {
 	if err := o.checkOverlay(); err != nil {
 		return err
@@ -365,9 +336,6 @@ func (o *operator) deployAll() error {
 			return err
 		}
 		note("Using operator-provided configuration and Secrets; see the production overlay runbook.")
-	}
-	if err := o.pruneReportsModeration(); err != nil {
-		return err
 	}
 	for _, stage := range []string{"gateway", "dependencies"} {
 		if err := o.applyStage(stage); err != nil {
