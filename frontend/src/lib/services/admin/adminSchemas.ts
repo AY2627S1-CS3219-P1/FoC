@@ -19,7 +19,7 @@ export const roleChangeSchema = z.object({
 
 /** Order and user lookups both take a record ID. */
 export const recordIdSchema = z.object({
-	id: z.uuid('Enter a valid ID, such as 3f2504e0-4f89-41d3-9a0c-0305e82c3301.').trim()
+	id: z.string().trim().pipe(z.uuid('Enter a valid ID, such as 3f2504e0-4f89-41d3-9a0c-0305e82c3301.'))
 });
 
 export type UserSearchForm = z.infer<typeof userSearchSchema>;

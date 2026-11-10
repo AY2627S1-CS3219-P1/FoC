@@ -21,6 +21,13 @@ describe('admin form schemas', () => {
 		}).success).toBe(false);
 	});
 
+	it('trims surrounding whitespace before validating a record ID', () => {
+		const id = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+		expect(recordIdSchema.parse({ id: ` \t${id}\n ` })).toEqual({ id });
+		expect(recordIdSchema.safeParse({ id: ' \t\n ' }).success).toBe(false);
+		expect(recordIdSchema.safeParse({ id: ' order-123 ' }).success).toBe(false);
+	});
+
 	it('requires a UUID for record lookup', () => {
 		expect(recordIdSchema.safeParse({ id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }).success).toBe(true);
 		expect(recordIdSchema.safeParse({ id: 'order-123' }).success).toBe(false);

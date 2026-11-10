@@ -12,6 +12,13 @@
 
 	let user = $state<UserProfile | null>(null);
 	let userError = $state('');
+	let lookupGeneration = 0;
+
+	function invalidateLookup() {
+		lookupGeneration++;
+		user = null;
+		userError = '';
+	}
 
 	// Single orders open on the order page, which reads them through GetOrder with admin redaction.
 	const order = superForm(defaults(zod4(recordIdSchema)), {
@@ -32,16 +39,16 @@
 		validationMethod: 'onblur',
 		multipleSubmits: 'prevent',
 		resetForm: false,
-		onChange() {
-			user = null;
-			userError = '';
-		},
 		async onUpdate({ form }) {
 			if (!form.valid) return;
+			const request = ++lookupGeneration;
+			user = null;
 			userError = '';
 			try {
-				user = await adminService.getUser(form.data.id);
+				const profile = await adminService.getUser(form.data.id);
+				if (request === lookupGeneration) user = profile;
 			} catch (cause) {
+				if (request !== lookupGeneration) return;
 				user = null;
 				userError =
 					cause instanceof ConnectError && cause.code === Code.NotFound
@@ -96,6 +103,7 @@
 					spellcheck={false}
 					required
 					bind:value={$userForm.id}
+					oninput={invalidateLookup}
 					error={!!$userErrors.id}
 					aria-invalid={$userErrors.id ? 'true' : undefined}
 					aria-describedby={$userErrors.id ? 'user-lookup-error' : undefined}

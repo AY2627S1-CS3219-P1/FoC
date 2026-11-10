@@ -22,6 +22,7 @@ export class Loadable<T> {
 
 	async load(): Promise<void> {
 		const request = ++this.#generation;
+		this.data = undefined;
 		this.loading = true;
 		this.error = '';
 		try {
