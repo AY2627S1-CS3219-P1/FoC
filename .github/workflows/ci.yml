@@ -8,10 +8,12 @@ on:
 permissions:
   contents: read
 
+# Same-repository contributors are trusted to execute code on the local machine.
+# Fork PRs and jobs needing isolated databases or privileged setup stay hosted.
 jobs:
   performance-harness:
     name: Performance harness checks
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "linux", "x64", "foc-local"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -25,6 +27,7 @@ jobs:
         with:
           node-version: '24'
       - uses: actions/setup-python@v6
+        if: runner.environment != 'self-hosted'
         with:
           python-version: '3.x'
       - name: Verify workload, reporting and fault recovery
@@ -32,7 +35,7 @@ jobs:
 
   go-tests:
     name: Go tests (${{ matrix.module }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "linux", "x64", "foc-local"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +54,7 @@ jobs:
 
   go-lint:
     name: Go formatting and lint (${{ matrix.module }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "linux", "x64", "foc-local"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -328,7 +331,7 @@ jobs:
 
   frontend:
     name: Frontend checks
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "linux", "x64", "foc-local"]') || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: frontend
