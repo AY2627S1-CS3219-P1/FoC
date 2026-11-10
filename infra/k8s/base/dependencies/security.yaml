@@ -90,3 +90,22 @@ spec:
       to:
         - operation:
             ports: ["3000"]
+
+---
+# Participant IDs are private: only their service consumers may query Order.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: order-internal-participants-only
+spec:
+  selector:
+    matchLabels:
+      app: order-service
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notPrincipals: [cluster.local/ns/foc/sa/user-service, cluster.local/ns/foc/sa/communication-service]
+      to:
+        - operation:
+            ports: ["8081"]
