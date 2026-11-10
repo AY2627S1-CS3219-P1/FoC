@@ -54,3 +54,9 @@ type RemovalPage struct {
 	Removals []ReviewRemoval
 	pagination.PageInfo
 }
+
+// ReviewOrderStatuses distinguishes fetchable reviews from orders blocked by moderation.
+type ReviewOrderStatuses struct {
+	ReviewedOrderIDs []uuid.UUID
+	RemovedOrderIDs  []uuid.UUID
+}

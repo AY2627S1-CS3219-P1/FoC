@@ -8,6 +8,8 @@ import {
 	ReviewNotReadyError,
 	ReviewRejectedError,
 	ReviewAlreadyExistsError,
+	ReviewRemovedError,
+	type ReviewOrderStatuses,
 	type ReviewApi,
 	type ReviewPage,
 	type ReviewPhotoGrant,
@@ -38,6 +40,9 @@ function rethrow(cause: unknown): never {
 				reason: parsed.reason,
 				photoIds: parsed.photoIds
 			});
+		}
+		if (parsed?.reason === 'REVIEW_REMOVED') {
+			throw new ReviewRemovedError(parsed.message);
 		}
 		if (parsed?.reason === 'REVIEW_ALREADY_EXISTS') {
 			throw new ReviewAlreadyExistsError(parsed.message);
@@ -134,10 +139,13 @@ export class ConnectReviewApi implements ReviewApi {
 		}
 	}
 
-	async listReviewedOrderIds(orderIds: string[], signal: AbortSignal): Promise<string[]> {
+	async listReviewOrderStatuses(orderIds: string[], signal: AbortSignal): Promise<ReviewOrderStatuses> {
 		try {
 			const response = await this.#client.listMyReviewsForOrders({ orderIds }, { signal, timeoutMs: 15000 });
-			return [...response.reviewedOrderIds];
+			return {
+				reviewedOrderIds: [...response.reviewedOrderIds],
+				removedOrderIds: [...response.removedOrderIds]
+			};
 		} catch (cause) {
 			rethrow(cause);
 		}

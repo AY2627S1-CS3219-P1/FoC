@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Client } from '@connectrpc/connect';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { ReviewService as ReviewServiceDefinition } from '$lib/gen/user/review/v1/review_pb';
-import { ReviewAlreadyExistsError, ReviewLimitedError, ReviewNotReadyError, ReviewRejectedError } from './reviewApi.ts';
+import { ReviewAlreadyExistsError, ReviewRemovedError, ReviewLimitedError, ReviewNotReadyError, ReviewRejectedError } from './reviewApi.ts';
 import { ErrorDetailSchema } from '$lib/gen/common/v1/error_pb';
 import { ConnectReviewApi } from './connectReviewApi.ts';
 
@@ -23,7 +23,7 @@ function scenario() {
 			photoId: 'photo-1', uploadUrl: 'https://storage.invalid/upload', uploadHeaders: { 'x-test': '1' }, expiresAt: undefined
 		})),
 		submitReview: vi.fn(async () => ({})),
-		listMyReviewsForOrders: vi.fn(async () => ({ reviewedOrderIds: [] })),
+		listMyReviewsForOrders: vi.fn(async () => ({ reviewedOrderIds: [], removedOrderIds: [] })),
 		getMyReviewForOrder: vi.fn(async () => ({ review: undefined })),
 		listMyReviews: vi.fn(async () => ({
 			reviews: [{
@@ -132,12 +132,12 @@ describe('ConnectReviewApi', () => {
 		);
 	});
 
-	it('returns the reviewed subset for the batched lookup', async () => {
+	it('keeps live and removed orders distinct in the batched lookup', async () => {
 		const { client, api } = scenario();
-		vi.mocked(client.listMyReviewsForOrders).mockResolvedValueOnce({ reviewedOrderIds: ['o1'] } as never);
-		const ids = await api.listReviewedOrderIds(['o1', 'o2'], new AbortController().signal);
-		expect(ids).toEqual(['o1']);
-		expect(client.listMyReviewsForOrders).toHaveBeenCalledWith({ orderIds: ['o1', 'o2'] }, expect.anything());
+		vi.mocked(client.listMyReviewsForOrders).mockResolvedValueOnce({ reviewedOrderIds: ['o1'], removedOrderIds: ['o2'] } as never);
+		const statuses = await api.listReviewOrderStatuses(['o1', 'o2', 'o3'], new AbortController().signal);
+		expect(statuses).toEqual({ reviewedOrderIds: ['o1'], removedOrderIds: ['o2'] });
+		expect(client.listMyReviewsForOrders).toHaveBeenCalledWith({ orderIds: ['o1', 'o2', 'o3'] }, expect.anything());
 	});
 
 	it('fetches the caller review for one order; absent stays null', async () => {
@@ -169,6 +169,28 @@ describe('ConnectReviewApi', () => {
 			])
 		);
 		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).resolves.toBeNull();
+	});
+
+	it('keeps a removed review distinct from an unreviewed order, including duplicate recovery', async () => {
+		const { client, api } = scenario();
+		const removed = new ConnectError('Your review was removed.', Code.FailedPrecondition, undefined, [
+			{ desc: ErrorDetailSchema, value: { reason: 'REVIEW_REMOVED', message: 'Your review was removed.', fieldViolations: [] } }
+		]);
+		vi.mocked(client.getMyReviewForOrder).mockRejectedValueOnce(removed);
+		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).rejects.toBeInstanceOf(ReviewRemovedError);
+
+		vi.mocked(client.submitReview).mockRejectedValueOnce(errorWithDetail('REVIEW_ALREADY_EXISTS', 'Already reviewed.'));
+		await expect(api.submit({ from: 'r', to: 'e', orderId: 'o1', rating: 5, comment: 'replacement', photoIds: [] }, new AbortController().signal))
+			.rejects.toBeInstanceOf(ReviewAlreadyExistsError);
+		vi.mocked(client.getMyReviewForOrder).mockRejectedValueOnce(removed);
+		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).rejects.toMatchObject({ reason: 'REVIEW_REMOVED' });
+	});
+
+	it('does not turn a lookup outage into an unreviewed order', async () => {
+		const { client, api } = scenario();
+		const outage = new ConnectError('Unavailable', Code.Unavailable);
+		vi.mocked(client.getMyReviewForOrder).mockRejectedValueOnce(outage);
+		await expect(api.getMyReviewForOrder('o1', new AbortController().signal)).rejects.toBe(outage);
 	});
 
 	it('maps backend reasons to retryable and permanent outcomes', async () => {

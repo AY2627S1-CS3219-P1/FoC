@@ -60,7 +60,6 @@ FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
 WHERE r.reviewer_id = $1::UUID AND r.order_id = $2::UUID
-  AND r.deleted_at IS NULL
 `
 
 type GetReviewByReviewerAndOrderParams struct {
@@ -125,6 +124,46 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) erro
 	return err
 }
 
+const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many
+SELECT order_id::TEXT, (deleted_at IS NOT NULL)::BOOLEAN AS removed
+FROM reviews
+WHERE reviewer_id = $1::UUID AND order_id = ANY($2::UUID[])
+`
+
+type ListReviewOrderStatusesParams struct {
+	ReviewerID uuid.UUID
+	OrderIds   []uuid.UUID
+}
+
+type ListReviewOrderStatusesRow struct {
+	OrderID string
+	Removed bool
+}
+
+// Include removed rows so callers can distinguish blocked orders from unreviewed ones.
+func (q *Queries) ListReviewOrderStatuses(ctx context.Context, arg ListReviewOrderStatusesParams) ([]ListReviewOrderStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewOrderStatuses, arg.ReviewerID, pq.Array(arg.OrderIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewOrderStatusesRow{}
+	for rows.Next() {
+		var i ListReviewOrderStatusesRow
+		if err := rows.Scan(&i.OrderID, &i.Removed); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReviewRemovals = `-- name: ListReviewRemovals :many
 SELECT rr.id, rr.review_id, rr.reviewer_id, rr.reviewee_id, rr.order_id, rr.reason, rr.created_at, rr.created_by,
        creator.display_name AS created_by_name
@@ -174,42 +213,6 @@ func (q *Queries) ListReviewRemovals(ctx context.Context, arg ListReviewRemovals
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listReviewedOrderIds = `-- name: ListReviewedOrderIds :many
-SELECT order_id::TEXT
-FROM reviews
-WHERE reviewer_id = $1::UUID AND order_id = ANY($2::UUID[])
-  AND deleted_at IS NULL
-`
-
-type ListReviewedOrderIdsParams struct {
-	ReviewerID uuid.UUID
-	OrderIds   []uuid.UUID
-}
-
-// Which of these requests the reviewer has already reviewed.
-func (q *Queries) ListReviewedOrderIds(ctx context.Context, arg ListReviewedOrderIdsParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listReviewedOrderIds, arg.ReviewerID, pq.Array(arg.OrderIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var order_id string
-		if err := rows.Scan(&order_id); err != nil {
-			return nil, err
-		}
-		items = append(items, order_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

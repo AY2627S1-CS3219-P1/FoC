@@ -15,6 +15,8 @@ spec:
         - path: {type: PathPrefix, value: /user.v1.UserAdminService}
         - path: {type: PathPrefix, value: /user.v1.AllowedDomainAdminService}
         - path: {type: PathPrefix, value: /user.review.v1.ReviewService}
+        - path: {type: PathPrefix, value: /user.warning.v1.WarningService}
+        - path: {type: PathPrefix, value: /user.warning.v1.WarningAdminService}
       backendRefs:
         - name: user-service-external
           port: 8080
