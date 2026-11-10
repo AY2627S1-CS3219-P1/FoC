@@ -75,6 +75,9 @@ func (o *operator) generateLocalSecrets() error {
 		return fmt.Errorf("cannot acquire %s; inspect for another generator or a stale lock: %w", lock, err)
 	}
 	defer removeTemporary(lock)
+	if err := migrateLegacyContentModerationSecrets(directory); err != nil {
+		return err
+	}
 
 	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "content-moderation-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
@@ -309,4 +312,28 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	note("Local secrets preserved in %s. Trust tls.crt for %s.", directory, origin)
 	return nil
+}
+
+// Content moderation used the bare moderation names before reports/appeals needed them.
+// Its password follows the renamed login; the other bare-name files move aside so they are not reused.
+func migrateLegacyContentModerationSecrets(directory string) error {
+	current := filepath.Join(directory, "content-moderation-password")
+	if _, err := os.Stat(current); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	legacy := filepath.Join(directory, "moderation-password")
+	if _, err := os.Stat(legacy); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	for _, name := range []string{"moderation-db-user", "moderation-db-name", "moderation-database-url"} {
+		err := os.Rename(filepath.Join(directory, name), filepath.Join(directory, name+".legacy"))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return os.Rename(legacy, current)
 }

@@ -32,6 +32,9 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 	if value, ok := admin["host"]; ok && value != host {
 		return errors.New("administrator secret belongs to a different database host")
 	}
+	if err := a.migrateLegacyContentModeration(directory, host); err != nil {
+		return err
+	}
 	objects := []any{}
 	statements := []string{`\set ON_ERROR_STOP on`}
 	cleanup := []string{}
@@ -53,25 +56,7 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 			if _, err := rand.Read(raw); err != nil {
 				return errors.New("cannot generate database credentials")
 			}
-			password := base64.RawURLEncoding.EncodeToString(raw)
-			identifier := strings.ReplaceAll(service, "-", "_")
-			username := "foc_" + identifier
-			database := identifier + "_db"
-			query := url.Values{"sslmode": {"verify-full"}, "sslrootcert": {"/var/run/foc/rds/global-bundle.pem"}}
-			connection := url.URL{
-				Scheme:   "postgresql",
-				User:     url.UserPassword(username, password),
-				Host:     host + ":5432",
-				Path:     "/" + database,
-				RawQuery: query.Encode(),
-			}
-			value = map[string]any{
-				"DB_HOST":      host,
-				"DB_USER":      username,
-				"DB_PASSWORD":  password,
-				"DB_NAME":      database,
-				"DATABASE_URL": connection.String(),
-			}
+			value = serviceCredentials(host, service, base64.RawURLEncoding.EncodeToString(raw))
 			if err := saveJSON(a.root, path, value); err != nil {
 				return err
 			}
@@ -96,6 +81,9 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 			}
 			escaped := strings.ReplaceAll(strings.ReplaceAll(text, "'", "''"), `\`, `\\`)
 			statements = append(statements, fmt.Sprintf(`\set %s '%s'`, strings.ToLower(key), escaped))
+		}
+		if service == "content-moderation" {
+			statements = append(statements, legacyContentModerationRename...)
 		}
 		statements = append(
 			statements,
@@ -177,4 +165,78 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 		"No resources applied. Do not print or commit secrets.json or the per-service credential files.",
 	)
 	return nil
+}
+
+func serviceCredentials(host, service, password string) map[string]any {
+	identifier := strings.ReplaceAll(service, "-", "_")
+	username := "foc_" + identifier
+	database := identifier + "_db"
+	query := url.Values{"sslmode": {"verify-full"}, "sslrootcert": {"/var/run/foc/rds/global-bundle.pem"}}
+	connection := url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(username, password),
+		Host:     host + ":5432",
+		Path:     "/" + database,
+		RawQuery: query.Encode(),
+	}
+	return map[string]any{
+		"DB_HOST":      host,
+		"DB_USER":      username,
+		"DB_PASSWORD":  password,
+		"DB_NAME":      database,
+		"DATABASE_URL": connection.String(),
+	}
+}
+
+// Content moderation used the bare moderation names before reports/appeals needed them.
+// Its retained credentials move aside so moderation.json cannot be reused by another service.
+func (a *application) migrateLegacyContentModeration(directory, host string) error {
+	current := filepath.Join(directory, "content-moderation.json")
+	if _, err := os.Stat(current); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return errors.New("cannot inspect retained database credentials")
+	}
+	original := filepath.Join(directory, "moderation.json")
+	legacy := filepath.Join(directory, "moderation.legacy.json")
+	if _, err := os.Stat(legacy); os.IsNotExist(err) {
+		if _, err := os.Stat(original); os.IsNotExist(err) {
+			return nil
+		} else if err != nil {
+			return errors.New("cannot inspect retained database credentials")
+		}
+		if err := os.Rename(original, legacy); err != nil {
+			return errors.New("cannot set aside legacy content moderation credentials")
+		}
+	} else if err != nil {
+		return errors.New("cannot inspect retained database credentials")
+	}
+	value, err := readObject(legacy)
+	if err != nil {
+		return err
+	}
+	if stringValue(value, "DB_HOST") != host {
+		return errors.New("retained legacy moderation credentials belong to a different RDS host")
+	}
+	if stringValue(value, "DB_USER") != "foc_moderation" || stringValue(value, "DB_NAME") != "moderation_db" ||
+		stringValue(value, "DB_PASSWORD") == "" {
+		return errors.New("retained legacy moderation credentials are not content moderation's original credentials")
+	}
+	return saveJSON(a.root, current, serviceCredentials(host, "content-moderation", stringValue(value, "DB_PASSWORD")))
+}
+
+// Renames content moderation's original database and login in place, keeping its data.
+// Catalog guards make retries and fresh installations no-ops.
+var legacyContentModerationRename = []string{
+	`SELECT EXISTS (SELECT FROM pg_database WHERE datname = 'moderation_db' AND pg_get_userbyid(datdba) = 'foc_moderation') AND NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db_name') AS rename_database \gset`,
+	`\if :rename_database`,
+	`GRANT foc_moderation TO CURRENT_USER WITH INHERIT TRUE, SET TRUE;`,
+	`SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) AS terminated_sessions FROM pg_stat_activity WHERE datname = 'moderation_db' AND pid <> pg_backend_pid() \gset`,
+	`SELECT format('ALTER DATABASE moderation_db RENAME TO %I', :'db_name') \gexec`,
+	`\endif`,
+	`SELECT EXISTS (SELECT FROM pg_database WHERE datname = :'db_name' AND pg_get_userbyid(datdba) = 'foc_moderation') AND NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user') AS rename_role \gset`,
+	`\if :rename_role`,
+	`SELECT format('ALTER ROLE foc_moderation RENAME TO %I', :'db_user') \gexec`,
+	`SELECT format('ALTER ROLE %I PASSWORD %L', :'db_user', :'db_password') \gexec`,
+	`\endif`,
 }

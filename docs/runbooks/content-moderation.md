@@ -64,6 +64,14 @@ k apply -f .local/aws/db/job.json
 k -n foc wait --for=condition=complete job/rds-provision --timeout=300s
 ```
 
+Upgrading from the original `moderation_db` / `foc_moderation` names keeps CMS's
+data. The preparer moves `moderation.json` to `moderation.legacy.json` and writes
+`content-moderation.json` with the same password. The Job ends sessions on
+`moderation_db`, then renames the database and login in place. CMS is unavailable
+from that point until the release rolls it out with the `content-moderation-db`
+Secret, so run this step just before the release. Keep `moderation.legacy.json`
+privately until the release succeeds, then delete it.
+
 The Job creates six databases/roles and Supplier's extensions. On retry, keep
 credential files; wait for running Jobs and delete only terminal Jobs before
 recreating them. After success, remove temporary administrator access:
@@ -146,8 +154,12 @@ make seed-demo
 ```
 
 Frontend: `http://localhost:5173`; login mail: `http://localhost:8025`. Repeat
-step 6. For existing volumes missing CMS's database, see the
-[database initialization workaround](../../LANDMINES/new-service-database.md).
+step 6. `postgres-init` reruns `docker/postgres/init-dbs.sh` before CMS starts.
+On an existing volume, it renames CMS's original `moderation_dev` to
+`content_moderation_dev`, keeping its data. Local Kubernetes provisioning renames
+`moderation_db` / `moderation_app` the same way. Remove `MODERATION_DB` and
+`MODERATION_DATABASE_URL` from an existing `.env`: CMS now reads
+`CONTENT_MODERATION_DB` and `CONTENT_MODERATION_DATABASE_URL`.
 
 ## Change settings or recover stalled reviews
 
