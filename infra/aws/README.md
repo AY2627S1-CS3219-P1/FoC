@@ -598,8 +598,11 @@ review and explicitly run the provisioning Job separately.
   evidence remains undecided. There is no bucket-wide lifecycle expiry, public
   read, or additional KMS key. Review audit/privacy retention before real use.
 - Existing demo capacity is a starting assumption, not a measured guarantee.
-  CPU, memory, replica count, RDS load, Kafka partitioning, and service latency
-  need evaluation with the completed runtime. This change does not resize them.
+  The extraction's shared workload component gives its one application replica
+  requests of 50m CPU and 64Mi memory, a 256Mi memory limit, and no CPU limit.
+  Istio's sidecar has separate overhead. These are configured defaults, not
+  measured requirements. Replica sizing, RDS load, Kafka partitioning, and
+  service latency still need evaluation. This change does not resize them.
 - PostgreSQL credentials and Kubernetes/Istio caller authorization are separate
   from AWS IAM. Internal User/Order RPC access must be restricted to the required
   methods. Kafka outbox/consumer wiring uses the existing broker, not MSK/IAM
