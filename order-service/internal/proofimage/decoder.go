@@ -6,8 +6,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	app "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
@@ -28,6 +32,26 @@ func NewDecoder(executable string) *Decoder {
 	return &Decoder{Executable: executable, slots: make(chan struct{}, 2)}
 }
 
+// maxPixelArea mirrors the native area limit. Admission is strict, so exactly
+// 24,000,000 pixels (the 24MP boundary) is still admitted.
+const maxPixelArea = 24_000_001
+
+// declaredPixelArea reads the pixel area from an image's own header with the
+// standard library, without decoding pixels. WebP and HEIC have no standard
+// header reader, so their area stays unknown here and the native decode decides.
+func declaredPixelArea(media string, body []byte) (int64, bool) {
+	if media != "image/jpeg" && media != "image/png" {
+		return 0, false
+	}
+
+	config, _, err := image.DecodeConfig(bytes.NewReader(body))
+	if err != nil || config.Width < 1 || config.Height < 1 {
+		return 0, false
+	}
+
+	return int64(config.Width) * int64(config.Height), true
+}
+
 func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error {
 	coder := map[string]string{
 		"image/jpeg": "jpeg",
@@ -38,6 +62,12 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 	}[media]
 	if coder == "" || len(body) < 1 || int64(len(body)) > app.MaxImageBytes {
 		return app.ErrPrecondition
+	}
+
+	// Above the native area limit no decode can succeed. Report the specific
+	// reason from the header instead of wasting a bounded subprocess slot.
+	if area, ok := declaredPixelArea(media, body); ok && area >= maxPixelArea {
+		return app.ErrProofImageTooLarge
 	}
 	if d == nil || d.slots == nil {
 		return app.ErrUnavailable
@@ -68,7 +98,7 @@ func (d *Decoder) Validate(ctx context.Context, media string, body []byte) error
 	cmd := exec.CommandContext(bounded, path,
 		"-regard-warnings", "-limit", "memory", "1GiB", "-limit", "map", "0",
 		"-limit", "disk", "0", "-limit", "width", "8192", "-limit", "height", "8192",
-		"-limit", "area", "24000001", "-limit", "thread", "1", "-limit", "time", "5",
+		"-limit", "area", strconv.FormatInt(maxPixelArea, 10), "-limit", "thread", "1", "-limit", "time", "5",
 		coder+":-", "-resize", "1x1!", "-depth", "8", "rgb:-")
 	// Some codecs spool bounded stdin for seeking. Keep that input in a private
 	// request directory, distinct from disabled pixel-cache spill, and remove it

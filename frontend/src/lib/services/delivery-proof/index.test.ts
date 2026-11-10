@@ -74,4 +74,18 @@ describe('delivery proof Connect adapter', () => {
 		expect(rejection).toBeInstanceOf(ProofRejectedError);
 		expect((rejection as ProofRejectedError).message).toBe(message);
 	});
+
+	// The server writes an oversized-photo message for the courier; without one
+	// the adapter uses its own canned text (issue #239).
+	it('surfaces the server oversized-photo message for invalid uploads', async () => {
+		const serverMessage = 'That photo is above the delivery proof limit. Retake it at 24 megapixels or lower.';
+		const rejected = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
+			verifyProofUpload() { throw new ConnectError(serverMessage, Code.InvalidArgument); }
+		})));
+		await expect(rejected.verifyUpload(orderId, proofId, signal())).rejects.toThrow(serverMessage);
+		const unexplained = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
+			verifyProofUpload() { throw new ConnectError('', Code.InvalidArgument); }
+		})));
+		await expect(unexplained.verifyUpload(orderId, proofId, signal())).rejects.toThrow('This action could not be completed');
+	});
 });

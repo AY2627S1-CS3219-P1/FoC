@@ -373,6 +373,7 @@ func TestDomainErrorsAndPrivateDiagnostics(t *testing.T) {
 		{app.ErrForbidden, connect.CodePermissionDenied, "permission denied"},
 		{app.ErrInvalid, connect.CodeInvalidArgument, "invalid argument"},
 		{app.ErrPrecondition, connect.CodeFailedPrecondition, "ineligible order action"},
+		{app.ErrProofImageTooLarge, connect.CodeInvalidArgument, "That photo is above the delivery proof limit. Retake it at 24 megapixels or lower."},
 		{app.ErrConflict, connect.CodeAborted, "revision conflict"},
 		{context.Canceled, connect.CodeCanceled, "context canceled"},
 		{context.DeadlineExceeded, connect.CodeDeadlineExceeded, "context deadline exceeded"},

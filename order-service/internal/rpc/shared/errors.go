@@ -39,6 +39,7 @@ func ConnectError(ctx context.Context, err error) error {
 		{app.ErrNotFound, connect.CodeNotFound},
 		{app.ErrForbidden, connect.CodePermissionDenied},
 		{app.ErrInvalid, connect.CodeInvalidArgument},
+		{app.ErrProofImageTooLarge, connect.CodeInvalidArgument},
 		{app.ErrPrecondition, connect.CodeFailedPrecondition},
 		{app.ErrConflict, connect.CodeAborted},
 		{app.ErrAlreadyExists, connect.CodeAlreadyExists},
