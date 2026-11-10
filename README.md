@@ -21,12 +21,10 @@ SQL schema and build/deploy glue for all services.
 | Name | Role |
 | ----- | ----- |
 | Andrew | Supplier & Order Services, AWS production tooling |
-| Hon Yi Hao | Order Service, shared packages and Kafka infrastructure |
+| Hon Yi Hao | Supplier & Order Services, shared packages, Kafka infrastructure, frontend, observability; cross-service code review |
 | Kevin | Communication Service, Order contracts, Frontend scaffold |
 | Florian Viorel Tanely | User Service, Frontend authentication, Kubernetes bootstrap |
 | XKMai | Credit Service, User Service persistence and magic-link auth |
-| Tanya Warrier | Project scaffolding, seed data and example configuration |
-| Akshay Narayan | Repository setup |
 
 ---
 
