@@ -18,7 +18,8 @@ type OrderStore interface {
 }
 
 // Projection keeps OrderStore in step with order.status_changed. It runs in
-// the notifications consumer, before notifications are sent.
+// its own consumer and before notifications are sent. Revision guards make
+// duplicate and out-of-order applications safe.
 type Projection struct {
 	Store OrderStore
 	Log   *slog.Logger
