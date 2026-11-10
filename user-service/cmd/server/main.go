@@ -3,62 +3,45 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/mail"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/rs/cors"
-
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
+	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
-	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
-	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
+	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
-	"gorm.io/gorm"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
 
 const (
 	READ_HEADER_TIMEOUT_SEC = 5 //nolint:gosec
 	SHUTDOWN_TIMEOUT_SEC    = 10
-)
 
-type config struct {
-	port            string
-	databaseURL     string
-	dbMaxOpen       int
-	dbMaxIdle       int
-	runMigrations   bool
-	appEnv          string
-	frontendURL     string
-	privateKey      string
-	accessTokenTTL  time.Duration
-	refreshTokenTTL time.Duration
-	smtp            email.SMTPSender
-	bootstrap       bootstrap.Config
-}
+	warningConsumerGroup     = "user-service"
+	minWarningConsumeBackoff = time.Second
+	maxWarningConsumeBackoff = 30 * time.Second
+)
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "user-service")
+	slog.SetDefault(log)
 	fatal := func(msg string, err error) {
 		log.Error(msg, "err", err)
 		os.Exit(1)
@@ -69,8 +52,10 @@ func main() {
 		fatal("invalid config", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	ctx, rootCancel := context.WithCancel(signalCtx)
+	defer rootCancel()
 
 	db, err := database.Open(cfg.databaseURL, cfg.dbMaxOpen, cfg.dbMaxIdle)
 	if err != nil {
@@ -101,13 +86,41 @@ func main() {
 		}
 	}
 
-	auth, codec, persistence, err := newAuthServices(db, cfg)
+	publisher, err := kafka.NewPublisher(kafka.PublisherConfig{Brokers: cfg.kafkaBrokers})
+	if err != nil {
+		fatal("initialize Kafka publisher", err)
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			log.Error("close Kafka publisher", "err", err)
+		}
+	}()
+
+	allowedDomainLogic := newAllowedDomainService(sqlDB)
+	auth, codec, persistence, err := newAuthServices(db, cfg, allowedDomainLogic)
 	if err != nil {
 		fatal("initialize authentication", err)
 	}
-	profileLogic := &service.ProfileService{Users: persistence.Users}
+	warningLogic := newWarningService(sqlDB)
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+	workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
+	workers.Go(func() { consume(workerCtx, cfg.kafkaBrokers, warningLogic) })
+
+	profileLogic := &service.ProfileService{
+		Users:    persistence.Users,
+		Pictures: persistence.ProfilePictures,
+		Storage:  profilePictureStorage(imageStorage),
+	}
 	roleLogic := &service.RoleService{
 		Users:      persistence.Users,
+		Counts:     persistence.Users,
 		Dispatches: persistence.Admin,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
 			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
@@ -115,9 +128,11 @@ func main() {
 			})
 		},
 	}
-	// #29 owns the authenticated User-to-Order transport. Effects deliberately
-	// remains nil until that approved dependency is supplied; never install a
-	// plaintext fallback or reuse a human/Credit credential for recovery.
+	// The private client relies on Istio mTLS and Order's User-only method
+	// policy. Recovery uses workload identity, never an admin bearer token.
+	if effects := newOrderRoleEffects(cfg.orderURL); effects != nil {
+		roleLogic.Effects = effects
+	}
 	pendingRoles, err := persistence.Admin.HasUnfinishedRoleDispatches(ctx)
 	if err != nil {
 		fatal("load role dispatches", err)
@@ -126,49 +141,138 @@ func main() {
 		fatal("role recovery unavailable", service.ErrRoleEffectsUnconfigured)
 	}
 	if roleLogic.Effects != nil {
-		workerCtx, stopRoleRecovery := context.WithCancel(ctx)
-		roleRecoveryDone := make(chan struct{})
-		go func() {
-			defer close(roleRecoveryDone)
-			roleLogic.RecoverRoleDispatches(workerCtx)
-		}()
-		defer func() {
-			stopRoleRecovery()
-			<-roleRecoveryDone
-		}()
+		workers.Go(func() { roleLogic.RecoverRoleDispatches(workerCtx) })
 	}
 	protected := router.ProtectedRoutes{
-		Profile:      &profilehandler.Handler{Logic: profileLogic},
-		Admin:        &adminhandler.Handler{Logic: roleLogic},
-		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess),
-		Users:        persistence.Users,
+		Profile:        &profilehandler.Handler{Logic: profileLogic},
+		Admin:          &adminhandler.Handler{Logic: roleLogic},
+		AllowedDomains: &allowedadmin.AllowedDomainHandler{Logic: allowedDomainLogic},
+		Review:         &review.Handler{Logic: reviewLogic},
+		Warnings:       &warningdomain.Handler{Logic: warningLogic},
+		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
+		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
+		Users:          persistence.Users,
 	}
-	handler := getCorsConfig(auth.AllowedOrigin).Handler(router.Setup(&health.Handler{DB: sqlDB}, auth, protected))
-	srv := newServer(":"+cfg.port, handler)
+	cors := getCorsConfig(auth.AllowedOrigin)
+	// Every service runs the listener split: public routes on PORT, private
+	// routes on INTERNAL_PORT. Services without private routes yet still bind
+	// the internal listener so local and deployed behaviour stay identical.
+	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth, protected))
+	servers := []*http.Server{public, internal}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
+	if imageStorage != nil {
+		// Orphan review photos and profile pictures are reaped on a minute
+		// ticker; both domains' claim/delete steps are retryable and idempotent.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := profileLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "profile picture cleanup deferred", "err", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 
+	if err := serve(ctx, servers...); err != nil {
+		fatal("serve", err)
+	}
+	stop()
+	rootCancel()
+	stopWorkers()
+	workers.Wait()
+}
+
+// serve runs every server until ctx ends or one of them stops, then shuts
+// them all down.
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.Info("listening", "addr", server.Addr)
+	}
+
+	running := len(servers)
+	var errs []error
 	select {
-	case err := <-errCh:
-		if err != nil {
-			fatal("serve", err)
-		}
+	case err := <-stopped:
+		running--
+		errs = append(errs, err)
 	case <-ctx.Done():
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), SHUTDOWN_TIMEOUT_SEC*time.Second)
 	defer cancel()
-	log.Info("shutting down")
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown", "err", err)
+
+	for _, server := range servers {
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			errs = append(errs, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+		}
 	}
+	for range running {
+		errs = append(errs, <-stopped)
+	}
+
+	var failures []error
+	for _, err := range errs {
+		if !errors.Is(err, http.ErrServerClosed) {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+// consume runs the courier-warning subscription until ctx ends. A failed
+// subscriber cannot restart, so each failure builds a new one after a growing
+// delay; the uncommitted delivery is then redelivered.
+func consume(ctx context.Context, brokers []string, logic *warningdomain.Service) {
+	backoff := minWarningConsumeBackoff
+	for ctx.Err() == nil {
+		started := time.Now()
+		err := subscribe(ctx, brokers, logic)
+		if ctx.Err() != nil {
+			return
+		}
+
+		// A subscription that ran for a while was healthy; restart promptly.
+		if time.Since(started) > maxWarningConsumeBackoff {
+			backoff = minWarningConsumeBackoff
+		}
+		slog.ErrorContext(ctx, "Kafka subscription stopped; restarting", "error", err, "backoff", backoff)
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		backoff = min(2*backoff, maxWarningConsumeBackoff)
+	}
+}
+
+func subscribe(ctx context.Context, brokers []string, logic *warningdomain.Service) error {
+	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: warningConsumerGroup})
+	if err != nil {
+		return err
+	}
+	if err := warningdomain.RegisterCourierWarningConsumer(
+		subscriber,
+		&warningdomain.CourierWarningConsumer{Logic: logic},
+	); err != nil {
+		return err
+	}
+	return subscriber.Run(ctx)
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -181,190 +285,4 @@ func newServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: READ_HEADER_TIMEOUT_SEC * time.Second,
 		Protocols:         protocols,
 	}
-}
-
-// loadConfig reads .env (if present) and the environment once, applying
-// defaults and rejecting a missing DATABASE_URL or malformed values.
-func loadConfig() (config, error) {
-	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return config{}, fmt.Errorf("load .env: %w", err)
-	}
-
-	var errs []error
-	cfg := config{
-		port:            envString("PORT", "8080"),
-		databaseURL:     envString("DATABASE_URL", ""),
-		dbMaxOpen:       envPositiveInt("DB_MAX_OPEN", 10, &errs),
-		dbMaxIdle:       envPositiveInt("DB_MAX_IDLE", 5, &errs),
-		runMigrations:   envBool("RUN_MIGRATIONS", true, &errs),
-		appEnv:          envString("APP_ENV", ""),
-		frontendURL:     envString("FRONTEND_BASE_URL", ""),
-		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
-		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
-		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
-		smtp: email.SMTPSender{
-			Addr:     envString("SMTP_ADDR", ""),
-			From:     envString("SMTP_FROM", ""),
-			Username: envString("SMTP_USERNAME", ""),
-			Password: os.Getenv("SMTP_PASSWORD"),
-			Timeout:  envDuration("SMTP_TIMEOUT", 5*time.Second, &errs),
-		},
-		bootstrap: bootstrap.Config{
-			Email:       envString("BOOTSTRAP_SUPERADMIN_EMAIL", ""),
-			DisplayName: envString("BOOTSTRAP_SUPERADMIN_DISPLAY_NAME", ""),
-		},
-	}
-	if cfg.frontendURL == "" && cfg.appEnv == "local" {
-		cfg.frontendURL = "http://localhost:5173"
-	}
-	if cfg.privateKey == "" && cfg.appEnv == "local" {
-		cfg.privateKey = "../.local/secrets/auth/jwt-signing-private.pem"
-	}
-	// Local mail goes to Mailpit; `docker compose` overrides the host to mailpit.
-	if cfg.smtp.Addr == "" && cfg.appEnv == "local" {
-		cfg.smtp.Addr = "localhost:1025"
-	}
-	if cfg.smtp.From == "" && cfg.appEnv == "local" {
-		cfg.smtp.From = "FoC <no-reply@foc.local>"
-	}
-	if cfg.databaseURL == "" {
-		errs = append(errs, errors.New("DATABASE_URL is not set"))
-	}
-	if cfg.frontendURL == "" {
-		errs = append(errs, errors.New("FRONTEND_BASE_URL is not set"))
-	}
-	if cfg.privateKey == "" {
-		errs = append(errs, errors.New("JWT_PRIVATE_KEY_FILE is not set"))
-	}
-	if cfg.smtp.Addr == "" {
-		errs = append(errs, errors.New("SMTP_ADDR is not set"))
-	}
-	if cfg.smtp.From == "" {
-		errs = append(errs, errors.New("SMTP_FROM is not set"))
-	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
-		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
-	}
-	return cfg, errors.Join(errs...)
-}
-
-func envString(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func envPositiveInt(key string, fallback int, errs *[]error) int {
-	v := envString(key, "")
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
-		*errs = append(*errs, fmt.Errorf("%s must be a positive integer, got %q", key, v))
-		return fallback
-	}
-	return n
-}
-
-func envBool(key string, fallback bool, errs *[]error) bool {
-	v := envString(key, "")
-	if v == "" {
-		return fallback
-	}
-	b, err := strconv.ParseBool(v)
-	if err != nil {
-		*errs = append(*errs, fmt.Errorf("%s must be a boolean, got %q", key, v))
-		return fallback
-	}
-	return b
-}
-
-func envDuration(key string, fallback time.Duration, errs *[]error) time.Duration {
-	v := envString(key, "")
-	if v == "" {
-		return fallback
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		*errs = append(*errs, fmt.Errorf("%s must be a valid duration, got %q", key, v))
-		return fallback
-	}
-	return d
-}
-
-func newAuthServices(db *gorm.DB, cfg config) (*authhandler.Handler, *userservicejwt.ES256Codec, *store.Store, error) {
-	frontendURL, err := url.Parse(cfg.frontendURL)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse FRONTEND_BASE_URL: %w", err)
-	}
-	key, err := userservicejwt.LoadPrivateKeyPEM(cfg.privateKey)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	kid, err := keyID(&key.PublicKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode JWT public key: %w", err)
-	}
-	codec, err := userservicejwt.NewES256Codec(key, kid,
-		httpauth.TokenIssuer, httpauth.TokenAudience)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure JWT signing: %w", err)
-	}
-	persistence := store.New(db)
-	serviceStore := service.Store{
-		Users: persistence.Users, AuthTokens: persistence.AuthTokens,
-		Sessions: persistence.Sessions, Domains: persistence.Admin,
-	}
-	withTransaction := func(ctx context.Context, operation func(service.Store) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return operation(service.Store{
-				Users: tx.Users, AuthTokens: tx.AuthTokens,
-				Sessions: tx.Sessions, Domains: tx.Admin,
-			})
-		})
-	}
-	logic, err := service.NewService(service.Dependencies{
-		Store: serviceStore, WithTransaction: withTransaction,
-		TokenCodec: codec, EmailSender: cfg.smtp,
-	}, service.Config{
-		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
-		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
-	})
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("configure auth service: %w", err)
-	}
-	allowedOrigin := frontendURL.Scheme + "://" + frontendURL.Host
-	return &authhandler.Handler{Logic: logic, AllowedOrigin: allowedOrigin}, codec, persistence, nil
-}
-
-func keyID(key *ecdsa.PublicKey) (string, error) {
-	point, err := key.Bytes()
-	if err != nil {
-		return "", err
-	}
-	fingerprint := sha256.Sum256(point)
-	return hex.EncodeToString(fingerprint[:]), nil
-}
-
-func getCorsConfig(allowedOrigin string) *cors.Cors {
-	return cors.New(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
-		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{
-			"Authorization",
-			"Content-Type",
-			"Connect-Protocol-Version",
-			"Connect-Timeout-Ms",
-			"Grpc-Timeout",
-			"X-Grpc-Web",
-			"X-User-Agent",
-		},
-		ExposedHeaders: []string{
-			"Grpc-Status",
-			"Grpc-Message",
-			"Grpc-Status-Details-Bin",
-		},
-	})
 }

@@ -23,6 +23,10 @@ type RoleChanges interface {
 	ChangeRole(context.Context, *models.RoleChange) error
 }
 
+type RoleCounts interface {
+	CountByRole(context.Context) (map[models.RoleName]int64, error)
+}
+
 type RoleStore struct {
 	Users      RoleUsers
 	Admin      RoleChanges
@@ -33,9 +37,17 @@ type RoleTransaction func(context.Context, func(RoleStore) error) error
 
 type RoleService struct {
 	Users           RoleUsers
+	Counts          RoleCounts
 	WithTransaction RoleTransaction
 	Effects         RoleEffects
 	Dispatches      RoleDispatchStore
+}
+
+// UserStats counts users that are not deleted. Active users are every user who
+// is not suspended, including administrators.
+type UserStats struct {
+	Active    int64
+	Suspended int64
 }
 
 func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, email string) (models.User, error) {
@@ -56,7 +68,48 @@ func (s *RoleService) GetUserByEmail(ctx context.Context, actorID uuid.UUID, ema
 	return *target, nil
 }
 
-func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid.UUID, to models.RoleName, reason string) (models.User, error) {
+func (s *RoleService) GetUser(ctx context.Context, actorID, targetID uuid.UUID) (models.User, error) {
+	if _, err := s.currentAdmin(ctx, actorID); err != nil {
+		return models.User{}, err
+	}
+
+	target, err := s.Users.GetByID(ctx, targetID)
+	if errors.Is(err, store.ErrNotFound) {
+		return models.User{}, ErrUserNotFound
+	}
+	if err != nil {
+		return models.User{}, fmt.Errorf("get user: %w", err)
+	}
+	return *target, nil
+}
+
+func (s *RoleService) GetUserStats(ctx context.Context, actorID uuid.UUID) (UserStats, error) {
+	if _, err := s.currentAdmin(ctx, actorID); err != nil {
+		return UserStats{}, err
+	}
+
+	counts, err := s.Counts.CountByRole(ctx)
+	if err != nil {
+		return UserStats{}, fmt.Errorf("count users by role: %w", err)
+	}
+
+	var stats UserStats
+	for role, count := range counts {
+		if role == models.RoleSuspended {
+			stats.Suspended += count
+		} else {
+			stats.Active += count
+		}
+	}
+	return stats, nil
+}
+
+func (s *RoleService) ChangeUserRole(
+	ctx context.Context,
+	actorID, targetID uuid.UUID,
+	to models.RoleName,
+	reason string,
+) (models.User, error) {
 	if actorID == uuid.Nil {
 		return models.User{}, ErrUnauthenticated
 	}
@@ -131,7 +184,12 @@ func (s *RoleService) ChangeUserRole(ctx context.Context, actorID, targetID uuid
 			}
 			return tx.Dispatches.PrepareRoleDispatch(ctx, dispatch)
 		}
-		change := &models.RoleChange{UserID: targetID, FromRole: target.Role, ToRole: to, Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID}}
+		change := &models.RoleChange{
+			UserID:     targetID,
+			FromRole:   target.Role,
+			ToRole:     to,
+			Userstamps: models.Userstamps{CreatedBy: &actorID, UpdatedBy: &actorID},
+		}
 		if reason != "" {
 			change.Reason = &reason
 		}

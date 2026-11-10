@@ -27,14 +27,25 @@ func TestPostgresCancellationDisposition(t *testing.T) {
 	}
 	f.mustTransition(t, o.ID, Pickup, courier)
 	s := NewDisposition(NewMutator(f.repo))
-	if _, err := NewCanceller(f.repo, nil, AssignmentOptions{}).CancelConfirmed(f.ctx, Caller{ID: o.RequesterID}, o.ID, "", uuid.NewString(), beforePickup.Revision); !errors.Is(err, ErrConflict) {
+	if _, err := NewCanceller(
+		f.repo,
+		nil,
+		AssignmentOptions{},
+	).CancelConfirmed(f.ctx, Caller{ID: o.RequesterID}, o.ID, "", uuid.NewString(), beforePickup.Revision); !errors.Is(
+		err,
+		ErrConflict,
+	) {
 		t.Fatalf("stale confirmation after pickup: %v", err)
 	}
 	picked, err := f.repo.Get(f.ctx, o.ID)
 	if err != nil || picked.Status != Delivering {
 		t.Fatalf("stale confirmation changed order: %+v %v", picked, err)
 	}
-	result, err := NewCanceller(f.repo, nil, AssignmentOptions{}).CancelConfirmed(f.ctx, Caller{ID: courier.ID, Suspended: true}, o.ID, "", uuid.NewString(), picked.Revision)
+	result, err := NewCanceller(
+		f.repo,
+		nil,
+		AssignmentOptions{},
+	).CancelConfirmed(f.ctx, Caller{ID: courier.ID, Suspended: true}, o.ID, "", uuid.NewString(), picked.Revision)
 	cancelled := result.Order
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +55,10 @@ func TestPostgresCancellationDisposition(t *testing.T) {
 		t.Fatalf("cancellation did not persist independently of disposition: %+v %v", stored, err)
 	}
 	var outcomes, warnings int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FILTER (WHERE kind='order.outcome'), count(*) FILTER (WHERE kind='order.courier_warning_requested') FROM order_outbox WHERE order_id=$1", o.ID).Scan(&outcomes, &warnings); err != nil || outcomes != 1 || warnings != 1 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FILTER (WHERE kind='order.outcome'), count(*) FILTER (WHERE kind='order.courier_warning_requested') FROM order_outbox WHERE order_id=$1", o.ID).
+		Scan(&outcomes, &warnings); err != nil ||
+		outcomes != 1 ||
+		warnings != 1 {
 		t.Fatalf("outcomes=%d warnings=%d error=%v", outcomes, warnings, err)
 	}
 	auditBefore, factsBefore, _ := f.counts(t, o.ID)
@@ -73,12 +87,18 @@ func TestPostgresCancellationDisposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	var originalEntries, correctedEntries int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FILTER (WHERE details->>'item_location'='Library desk'), count(*) FILTER (WHERE details->>'item_location'='Residence reception') FROM order_audit WHERE order_id=$1 AND action='record_item_location'`, o.ID).Scan(&originalEntries, &correctedEntries); err != nil || originalEntries != 1 || correctedEntries != 1 {
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FILTER (WHERE details->>'item_location'='Library desk'), count(*) FILTER (WHERE details->>'item_location'='Residence reception') FROM order_audit WHERE order_id=$1 AND action='record_item_location'`, o.ID).
+		Scan(&originalEntries, &correctedEntries); err != nil ||
+		originalEntries != 1 ||
+		correctedEntries != 1 {
 		t.Fatalf("correction audit lost: old=%d new=%d error=%v", originalEntries, correctedEntries, err)
 	}
 	// Reject the audit insert after the order UPDATE to prove both roll back.
-	_, err = f.pool.Exec(f.ctx, `CREATE FUNCTION reject_disposition_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='record_item_location' THEN RAISE EXCEPTION 'injected disposition audit failure'; END IF; RETURN NEW; END $$;
-CREATE TRIGGER reject_disposition_audit BEFORE INSERT ON order_audit FOR EACH ROW EXECUTE FUNCTION reject_disposition_audit();`)
+	_, err = f.pool.Exec(
+		f.ctx,
+		`CREATE FUNCTION reject_disposition_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='record_item_location' THEN RAISE EXCEPTION 'injected disposition audit failure'; END IF; RETURN NEW; END $$;
+CREATE TRIGGER reject_disposition_audit BEFORE INSERT ON order_audit FOR EACH ROW EXECUTE FUNCTION reject_disposition_audit();`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,5 +112,7 @@ CREATE TRIGGER reject_disposition_audit BEFORE INSERT ON order_audit FOR EACH RO
 	if _, n, _ := f.counts(t, o.ID); n != factsBefore {
 		t.Fatal("disposition emitted settlement or warning facts")
 	}
-	t.Log("PASS: stale pickup confirmation rejected; cancellation and warning committed before location; eight concurrent disposition retries wrote once; correction audited; audit failure rolled back")
+	t.Log(
+		"PASS: stale pickup confirmation rejected; cancellation and warning committed before location; eight concurrent disposition retries wrote once; correction audited; audit failure rolled back",
+	)
 }

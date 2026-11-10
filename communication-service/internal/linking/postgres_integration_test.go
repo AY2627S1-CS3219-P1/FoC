@@ -156,7 +156,8 @@ func TestConcurrentCodesLeaveOneUnused(t *testing.T) {
 	}
 	var unused int
 	pool := svc.Store.(*PostgresStore).Pool
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, alice).Scan(&unused); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM telegram_link_codes WHERE user_id = $1 AND used_at IS NULL`, alice).
+		Scan(&unused); err != nil {
 		t.Fatal(err)
 	}
 	if unused != 1 {

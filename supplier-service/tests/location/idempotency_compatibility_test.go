@@ -22,11 +22,23 @@ func TestHistoricalWorkflowHashesAndCanonicalScopes(t *testing.T) {
 	// including omitted start, normalized proposal strings and microsecond hours.
 	disablementScope := idempotency.Scope{Caller: admin.ID, Method: "CreateDisablement", Key: key}
 	requestScope := idempotency.Scope{Caller: owner.ID, Method: "SubmitLocationAdditionRequest", Key: key}
-	first, err := app.CreateDisablement(ctx, admin, disablement.CreateDisablement{LocationID: strings.ToUpper(locationID), Reason: " closure ", Key: "urn:uuid:" + key})
+	first, err := app.CreateDisablement(
+		ctx,
+		admin,
+		disablement.CreateDisablement{
+			LocationID: strings.ToUpper(locationID),
+			Reason:     " closure ",
+			Key:        "urn:uuid:" + key,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := app.SubmitRequest(ctx, owner, additionrequest.SubmitRequest{Proposal: validProposal(), Key: "{" + strings.ToUpper(key) + "}"})
+	request, err := app.SubmitRequest(
+		ctx,
+		owner,
+		additionrequest.SubmitRequest{Proposal: validProposal(), Key: "{" + strings.ToUpper(key) + "}"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,14 +52,22 @@ func TestHistoricalWorkflowHashesAndCanonicalScopes(t *testing.T) {
 		}
 	}
 	now = now.Add(time.Hour)
-	retried, err := app.CreateDisablement(ctx, admin, disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: strings.ReplaceAll(key, "-", "")})
+	retried, err := app.CreateDisablement(
+		ctx,
+		admin,
+		disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: strings.ReplaceAll(key, "-", "")},
+	)
 	if err != nil || retried.ID != first.ID || !retried.StartsAt.Equal(first.StartsAt) {
 		t.Fatalf("disablement retry: %+v %v", retried, err)
 	}
 	proposal := validProposal()
 	proposal.BuildingID = "urn:uuid:" + strings.ToUpper(buildingID)
 	proposal.CategoryIDs = []string{"{" + strings.ToUpper(categoryID) + "}"}
-	retriedRequest, err := app.SubmitRequest(ctx, owner, additionrequest.SubmitRequest{Proposal: proposal, Key: strings.ReplaceAll(key, "-", "")})
+	retriedRequest, err := app.SubmitRequest(
+		ctx,
+		owner,
+		additionrequest.SubmitRequest{Proposal: proposal, Key: strings.ReplaceAll(key, "-", "")},
+	)
 	if err != nil || retriedRequest.ID != request.ID || len(repo.keys) != 2 {
 		t.Fatalf("proposal retry: %+v %v, keys=%d", retriedRequest, err, len(repo.keys))
 	}
@@ -64,13 +84,27 @@ func TestWorkflowInvalidRetryKeyDoesNotWrite(t *testing.T) {
 			repo := newTestRepository()
 			repo.locations[locationID] = additionrequest.Location{ID: locationID}
 			app := newTestService(repo, time.Now)
-			_, disablementErr := app.CreateDisablement(context.Background(), admin, disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key})
-			_, requestErr := app.SubmitRequest(context.Background(), owner, additionrequest.SubmitRequest{Proposal: validProposal(), Key: key})
-			if !errors.Is(disablementErr, additionrequest.ErrInvalidArgument) || !errors.Is(requestErr, additionrequest.ErrInvalidArgument) {
+			_, disablementErr := app.CreateDisablement(
+				context.Background(),
+				admin,
+				disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: key},
+			)
+			_, requestErr := app.SubmitRequest(
+				context.Background(),
+				owner,
+				additionrequest.SubmitRequest{Proposal: validProposal(), Key: key},
+			)
+			if !errors.Is(disablementErr, additionrequest.ErrInvalidArgument) ||
+				!errors.Is(requestErr, additionrequest.ErrInvalidArgument) {
 				t.Fatalf("invalid-key translation: disablement=%v request=%v", disablementErr, requestErr)
 			}
 			if len(repo.disablements) != 0 || len(repo.requests) != 0 || len(repo.keys) != 0 {
-				t.Fatalf("invalid key wrote resources: disablements=%d requests=%d keys=%d", len(repo.disablements), len(repo.requests), len(repo.keys))
+				t.Fatalf(
+					"invalid key wrote resources: disablements=%d requests=%d keys=%d",
+					len(repo.disablements),
+					len(repo.requests),
+					len(repo.keys),
+				)
 			}
 		})
 	}

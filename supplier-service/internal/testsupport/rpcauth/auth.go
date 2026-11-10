@@ -95,7 +95,10 @@ type profileService struct {
 	auth *Auth
 }
 
-func (s *profileService) GetMyProfile(_ context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
+func (s *profileService) GetMyProfile(
+	_ context.Context,
+	req *connect.Request[userv1.GetMyProfileRequest],
+) (*connect.Response[userv1.GetMyProfileResponse], error) {
 	s.auth.mu.Lock()
 	profile := s.auth.profiles[req.Header().Get("Authorization")]
 	s.auth.mu.Unlock()

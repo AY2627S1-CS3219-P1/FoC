@@ -28,9 +28,20 @@ type assignmentCreditFixture struct {
 }
 
 func newAssignmentCredit(available int64, orders ...Order) *assignmentCreditFixture {
-	c := &assignmentCreditFixture{views: map[string]AssignmentReservation{}, refused: map[string]bool{}, reverted: map[string]bool{}, available: available}
+	c := &assignmentCreditFixture{
+		views:     map[string]AssignmentReservation{},
+		refused:   map[string]bool{},
+		reverted:  map[string]bool{},
+		available: available,
+	}
 	for _, o := range orders {
-		c.views[o.ID] = AssignmentReservation{OrderID: o.ID, RequesterID: o.RequesterID, OriginalAmount: o.ReservedCredits, ReservedAmount: o.ReservedCredits, State: "held"}
+		c.views[o.ID] = AssignmentReservation{
+			OrderID:        o.ID,
+			RequesterID:    o.RequesterID,
+			OriginalAmount: o.ReservedCredits,
+			ReservedAmount: o.ReservedCredits,
+			State:          "held",
+		}
 	}
 	return c
 }
@@ -85,7 +96,10 @@ func (c *assignmentCreditFixture) Revert(_ context.Context, orderID, attemptID s
 	return nil
 }
 
-func (c *assignmentCreditFixture) AssignmentReservation(_ context.Context, orderID string) (AssignmentReservation, error) {
+func (c *assignmentCreditFixture) AssignmentReservation(
+	_ context.Context,
+	orderID string,
+) (AssignmentReservation, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.denyReads {
@@ -124,7 +138,9 @@ func TestPostgresAssignmentContentionAndReplay(t *testing.T) {
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
 			var count int
-			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err == nil && count == 50 {
+			if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).
+				Scan(&count); err == nil &&
+				count == 50 {
 				return
 			}
 			time.Sleep(time.Millisecond * 10)
@@ -172,10 +188,12 @@ func TestPostgresAssignmentContentionAndReplay(t *testing.T) {
 		t.Fatalf("wins=%d rejects=%d", wins, rejects)
 	}
 	var attempts, assignments int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&attempts); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).
+		Scan(&attempts); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='assign'", o.ID).Scan(&assignments); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='assign'", o.ID).
+		Scan(&assignments); err != nil {
 		t.Fatal(err)
 	}
 	if attempts != 50 || assignments != 1 {
@@ -189,7 +207,8 @@ func TestPostgresAssignmentContentionAndReplay(t *testing.T) {
 	f.mustTransition(t, o.ID, Withdraw, Actor{Kind: User, ID: winner.caller.ID})
 	for _, a := range []answer{winner, loser} {
 		replay, err := s.AcceptOrder(f.ctx, a.caller, o.ID, a.key)
-		if err != nil || replay.Phase != a.result.Phase || replay.AttemptID != a.result.AttemptID || replay.Order.CourierID != nil {
+		if err != nil || replay.Phase != a.result.Phase || replay.AttemptID != a.result.AttemptID ||
+			replay.Order.CourierID != nil {
 			t.Fatalf("replay reassigned or lost outcome: %+v %v", replay, err)
 		}
 	}
@@ -203,7 +222,11 @@ func TestPostgresCounterofferBalanceAndRetry(t *testing.T) {
 	// Fixture's ordinary reward is15. Set the explicit user-provided20-credit
 	// example before proposals, using SQL only for arranging these seed Orders.
 	for _, o := range []*Order{&a, &b} {
-		if _, err := f.pool.Exec(f.ctx, "UPDATE orders SET reward_credits=20,reserved_credits=20 WHERE id=$1", o.ID); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE orders SET reward_credits=20,reserved_credits=20 WHERE id=$1",
+			o.ID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		o.RewardCredits, o.ReservedCredits = 20, 20
@@ -231,7 +254,8 @@ func TestPostgresCounterofferBalanceAndRetry(t *testing.T) {
 	}
 	credit.denyRevert = true
 	second, err := s.AcceptOffer(f.ctx, Caller{ID: b.RequesterID}, fb.ID)
-	if err != nil || second.Phase != RevertPending || second.Rejection != "insufficient_credits" || second.Offer.Status != OfferAccepting {
+	if err != nil || second.Phase != RevertPending || second.Rejection != "insufficient_credits" ||
+		second.Offer.Status != OfferAccepting {
 		t.Fatalf("unfenced refusal reopened offer: %+v %v", second, err)
 	}
 	credit.denyRevert = false
@@ -240,7 +264,8 @@ func TestPostgresCounterofferBalanceAndRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	var phase string
-	if err := f.pool.QueryRow(f.ctx, "SELECT phase FROM order_assignment_attempts WHERE id=$1", second.AttemptID).Scan(&phase); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT phase FROM order_assignment_attempts WHERE id=$1", second.AttemptID).
+		Scan(&phase); err != nil {
 		t.Fatal(err)
 	}
 	offers, err := f.repo.Offers(f.ctx, Caller{ID: b.RequesterID}, b.ID, "")
@@ -284,12 +309,14 @@ func TestPostgresAssignmentRecoveryAndExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := restarted.AcceptOrder(f.ctx, caller, o.ID, key)
-	if err != nil || result.Phase != AssignmentRejected || result.Order.CourierID != nil || result.Offer.Status != OfferVoid {
+	if err != nil || result.Phase != AssignmentRejected || result.Order.CourierID != nil ||
+		result.Offer.Status != OfferVoid {
 		t.Fatalf("late assignment: %+v %v", result, err)
 	}
 	credit.mu.Lock()
 	defer credit.mu.Unlock()
-	if credit.views[o.ID].State != "held" || credit.views[o.ID].ReservedAmount != o.ReservedCredits || credit.reverts != 1 {
+	if credit.views[o.ID].State != "held" || credit.views[o.ID].ReservedAmount != o.ReservedCredits ||
+		credit.reverts != 1 {
 		t.Fatalf("compensation: %+v reverts=%d", credit.views[o.ID], credit.reverts)
 	}
 }
@@ -355,7 +382,9 @@ func TestPostgresAcceptanceAdmissionPrivacyAndBound(t *testing.T) {
 		}
 	}
 	var count int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 2 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).
+		Scan(&count); err != nil ||
+		count != 2 {
 		t.Fatalf("retained contention rows=%d err=%v", count, err)
 	}
 	credit.denyReads = false
@@ -365,7 +394,15 @@ func TestPostgresAcceptanceAdmissionPrivacyAndBound(t *testing.T) {
 	}
 	for _, id := range []string{o.ID, uuid.NewString()} {
 		for range 5 {
-			if _, err := s.AcceptOrder(f.ctx, Caller{ID: uuid.NewString()}, id, uuid.NewString()); !errors.Is(err, ErrNotFound) {
+			if _, err := s.AcceptOrder(
+				f.ctx,
+				Caller{ID: uuid.NewString()},
+				id,
+				uuid.NewString(),
+			); !errors.Is(
+				err,
+				ErrNotFound,
+			) {
 				t.Fatalf("private/missing admission: %v", err)
 			}
 		}
@@ -374,7 +411,9 @@ func TestPostgresAcceptanceAdmissionPrivacyAndBound(t *testing.T) {
 	if err != nil || replay.AttemptID != rejected.AttemptID {
 		t.Fatalf("retained rejection on private order: %+v %v", replay, err)
 	}
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).Scan(&count); err != nil || count != 2 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_assignment_attempts WHERE order_id=$1", o.ID).
+		Scan(&count); err != nil ||
+		count != 2 {
 		t.Fatalf("private-ID rows=%d err=%v", count, err)
 	}
 }

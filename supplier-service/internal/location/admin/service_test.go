@@ -87,7 +87,14 @@ func (f *adminFake) Create(_ context.Context, in Input, now time.Time) (shared.L
 	f.location = fakeLocation(in, now)
 	return f.location, nil
 }
-func (f *adminFake) Update(_ context.Context, id string, in Input, expected int64, now time.Time) (shared.Location, error) {
+
+func (f *adminFake) Update(
+	_ context.Context,
+	id string,
+	in Input,
+	expected int64,
+	now time.Time,
+) (shared.Location, error) {
 	if f.location.ID != id {
 		return shared.Location{}, ErrNotFound
 	}
@@ -101,7 +108,14 @@ func (f *adminFake) Update(_ context.Context, id string, in Input, expected int6
 	f.location.ArchivedAt, f.location.CreatedAt = archived, created
 	return f.location, nil
 }
-func (f *adminFake) SetArchived(_ context.Context, id string, at *time.Time, expected int64, now time.Time) (shared.Location, error) {
+
+func (f *adminFake) SetArchived(
+	_ context.Context,
+	id string,
+	at *time.Time,
+	expected int64,
+	now time.Time,
+) (shared.Location, error) {
 	if f.location.ID != id {
 		return shared.Location{}, ErrNotFound
 	}
@@ -152,16 +166,31 @@ func TestAdminCreateIdempotencyAndRollback(t *testing.T) {
 	}
 	changed := in
 	changed.Name = "Other"
-	if _, err := s.Create(auth.WithCaller(ctx, adminCaller), CreateRequest{Key: requestKey, Input: changed}); !errors.Is(err, ErrAlreadyExists) {
+	if _, err := s.Create(
+		auth.WithCaller(ctx, adminCaller),
+		CreateRequest{Key: requestKey, Input: changed},
+	); !errors.Is(
+		err,
+		ErrAlreadyExists,
+	) {
 		t.Fatalf("conflict = %v", err)
 	}
 	badRef := goodInput()
 	badRef.BuildingID = "60000000-0000-4000-8000-000000000000"
-	if _, err := s.Create(auth.WithCaller(ctx, adminCaller), CreateRequest{Key: "70000000-0000-4000-8000-000000000000", Input: badRef}); !errors.Is(err, ErrFailedPrecondition) {
+	if _, err := s.Create(
+		auth.WithCaller(ctx, adminCaller),
+		CreateRequest{Key: "70000000-0000-4000-8000-000000000000", Input: badRef},
+	); !errors.Is(
+		err,
+		ErrFailedPrecondition,
+	) {
 		t.Fatalf("missing reference = %v", err)
 	}
 	f.failSave = true
-	if _, err := s.Create(auth.WithCaller(ctx, adminCaller), CreateRequest{Key: "80000000-0000-4000-8000-000000000000", Input: goodInput()}); err == nil {
+	if _, err := s.Create(
+		auth.WithCaller(ctx, adminCaller),
+		CreateRequest{Key: "80000000-0000-4000-8000-000000000000", Input: goodInput()},
+	); err == nil {
 		t.Fatal("expected record save failure")
 	}
 	if f.creates != 1 || len(f.records) != 1 {
@@ -174,12 +203,18 @@ func TestAdminCreateEmptyCategoriesHaveOneHash(t *testing.T) {
 	s := NewService(f, func() time.Time { return adminNow })
 	in := goodInput()
 	in.IsSupplier, in.CategoryIDs = false, nil
-	first, err := s.Create(auth.WithCaller(context.Background(), adminCaller), CreateRequest{Key: requestKey, Input: in})
+	first, err := s.Create(
+		auth.WithCaller(context.Background(), adminCaller),
+		CreateRequest{Key: requestKey, Input: in},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	in.CategoryIDs = []string{}
-	retry, err := s.Create(auth.WithCaller(context.Background(), adminCaller), CreateRequest{Key: requestKey, Input: in})
+	retry, err := s.Create(
+		auth.WithCaller(context.Background(), adminCaller),
+		CreateRequest{Key: requestKey, Input: in},
+	)
 	if err != nil || retry.ID != first.ID || f.creates != 1 {
 		t.Fatalf("empty category replay = %+v, %v; creates=%d", retry, err, f.creates)
 	}
@@ -192,7 +227,13 @@ func TestAdminAuthorizationAndInputValidation(t *testing.T) {
 		caller auth.Caller
 		want   error
 	}{{auth.Caller{}, ErrUnauthenticated}, {auth.Caller{Admin: true}, ErrUnauthenticated}, {auth.Caller{ID: "user"}, ErrPermissionDenied}} {
-		if _, err := s.Create(auth.WithCaller(context.Background(), tc.caller), CreateRequest{Key: requestKey, Input: goodInput()}); !errors.Is(err, tc.want) {
+		if _, err := s.Create(
+			auth.WithCaller(context.Background(), tc.caller),
+			CreateRequest{Key: requestKey, Input: goodInput()},
+		); !errors.Is(
+			err,
+			tc.want,
+		) {
 			t.Fatalf("caller %+v: %v", tc.caller, err)
 		}
 	}
@@ -207,12 +248,24 @@ func TestAdminAuthorizationAndInputValidation(t *testing.T) {
 		{"nonfinite coordinates", func(in *Input) { in.Coordinates.Latitude = math.NaN() }, ErrInvalidArgument},
 		{"out of range coordinates", func(in *Input) { in.Coordinates.Longitude = 181 }, ErrInvalidArgument},
 		{"bad building id", func(in *Input) { in.BuildingID = "bad" }, ErrInvalidArgument},
-		{"duplicate categories", func(in *Input) { in.CategoryIDs = append(in.CategoryIDs, categoryID) }, ErrInvalidArgument},
+		{
+			"duplicate categories",
+			func(in *Input) { in.CategoryIDs = append(in.CategoryIDs, categoryID) },
+			ErrInvalidArgument,
+		},
 		{"ordinary with categories", func(in *Input) { in.IsSupplier = false }, ErrFailedPrecondition},
 		{"supplier without categories", func(in *Input) { in.CategoryIDs = nil }, ErrFailedPrecondition},
 		{"unpaired hours", func(in *Input) { in.OpensAt = &shared.Clock{Hour: 9} }, ErrInvalidArgument},
-		{"equal hours", func(in *Input) { in.OpensAt = &shared.Clock{Hour: 9}; in.ClosesAt = &shared.Clock{Hour: 9} }, ErrInvalidArgument},
-		{"bad hours", func(in *Input) { in.OpensAt = &shared.Clock{Hour: 24}; in.ClosesAt = &shared.Clock{Hour: 1} }, ErrInvalidArgument},
+		{
+			"equal hours",
+			func(in *Input) { in.OpensAt = &shared.Clock{Hour: 9}; in.ClosesAt = &shared.Clock{Hour: 9} },
+			ErrInvalidArgument,
+		},
+		{
+			"bad hours",
+			func(in *Input) { in.OpensAt = &shared.Clock{Hour: 24}; in.ClosesAt = &shared.Clock{Hour: 1} },
+			ErrInvalidArgument,
+		},
 		{"long floor", func(in *Input) { in.Floor = strPtr(stringOf('f', 51)) }, ErrInvalidArgument},
 		{"long contact", func(in *Input) { in.Contact = strPtr(stringOf('c', 501)) }, ErrInvalidArgument},
 		{"long details", func(in *Input) { in.Details = stringOf('d', 2001) }, ErrInvalidArgument},
@@ -221,7 +274,10 @@ func TestAdminAuthorizationAndInputValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := goodInput()
 			tc.change(&in)
-			_, err := s.Create(auth.WithCaller(context.Background(), adminCaller), CreateRequest{Key: requestKey, Input: in})
+			_, err := s.Create(
+				auth.WithCaller(context.Background(), adminCaller),
+				CreateRequest{Key: requestKey, Input: in},
+			)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v want %v", err, tc.want)
 			}
@@ -234,7 +290,10 @@ func TestAdminAuthorizationAndInputValidation(t *testing.T) {
 	valid.OpensAt = &shared.Clock{Hour: 23, Minute: 59}
 	valid.ClosesAt = &shared.Clock{Hour: 0}
 	valid.Name = "  " + stringOf('n', 200) + "  "
-	if _, err := s.Create(auth.WithCaller(context.Background(), adminCaller), CreateRequest{Key: requestKey, Input: valid}); err != nil {
+	if _, err := s.Create(
+		auth.WithCaller(context.Background(), adminCaller),
+		CreateRequest{Key: requestKey, Input: valid},
+	); err != nil {
 		t.Fatalf("valid boundary input: %v", err)
 	}
 }
@@ -243,28 +302,72 @@ func TestAdminUpdateMasksAndRevision(t *testing.T) {
 	f := &adminFake{location: fakeLocation(goodInput(), adminNow), records: map[idempotency.Scope]idempotency.Record{}}
 	s := NewService(f, func() time.Time { return adminNow.Add(time.Hour) })
 	for _, paths := range [][]string{nil, {"name", "name"}, {"id"}, {"opens_at"}, {"closes_at"}} {
-		_, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: paths, Input: goodInput()})
+		_, err := s.Update(
+			auth.WithCaller(context.Background(), adminCaller),
+			UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: paths, Input: goodInput()},
+		)
 		if !errors.Is(err, ErrInvalidArgument) {
 			t.Fatalf("paths %v: %v", paths, err)
 		}
 	}
-	if _, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrAborted) {
+	if _, err := s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"name"}, Input: Input{Name: "X"}},
+	); !errors.Is(
+		err,
+		ErrAborted,
+	) {
 		t.Fatalf("stale revision: %v", err)
 	}
-	if _, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 0, Paths: []string{"name"}, Input: Input{Name: "X"}}); !errors.Is(err, ErrInvalidArgument) {
+	if _, err := s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{ID: locationID, ExpectedRevision: 0, Paths: []string{"name"}, Input: Input{Name: "X"}},
+	); !errors.Is(
+		err,
+		ErrInvalidArgument,
+	) {
 		t.Fatalf("invalid revision: %v", err)
 	}
-	got, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 1, Paths: []string{"name", "contact", "floor", "opens_at", "closes_at"}, Input: Input{Name: "  New ", Contact: strPtr(" "), Floor: nil}})
-	if err != nil || got.Name != "New" || got.Contact != nil || got.Floor != nil || got.Revision != 2 || got.IsSupplier != true || len(got.Categories) != 1 {
+	got, err := s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{
+			ID:               locationID,
+			ExpectedRevision: 1,
+			Paths:            []string{"name", "contact", "floor", "opens_at", "closes_at"},
+			Input:            Input{Name: "  New ", Contact: strPtr(" "), Floor: nil},
+		},
+	)
+	if err != nil || got.Name != "New" || got.Contact != nil || got.Floor != nil || got.Revision != 2 ||
+		got.IsSupplier != true ||
+		len(got.Categories) != 1 {
 		t.Fatalf("masked update: %+v, %v", got, err)
 	}
-	if _, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier"}, Input: Input{IsSupplier: false}}); !errors.Is(err, ErrFailedPrecondition) {
+	if _, err := s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{
+			ID:               locationID,
+			ExpectedRevision: 2,
+			Paths:            []string{"is_supplier"},
+			Input:            Input{IsSupplier: false},
+		},
+	); !errors.Is(
+		err,
+		ErrFailedPrecondition,
+	) {
 		t.Fatalf("classification invariant: %v", err)
 	}
 	if f.updates != 1 {
 		t.Fatalf("updates = %d", f.updates)
 	}
-	got, err = s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"is_supplier", "category_ids"}, Input: Input{IsSupplier: false}})
+	got, err = s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{
+			ID:               locationID,
+			ExpectedRevision: 2,
+			Paths:            []string{"is_supplier", "category_ids"},
+			Input:            Input{IsSupplier: false},
+		},
+	)
 	if err != nil || got.IsSupplier || len(got.Categories) != 0 {
 		t.Fatalf("atomic classification update: %+v %v", got, err)
 	}
@@ -281,7 +384,15 @@ func TestAdminArchiveIdempotentAndEditable(t *testing.T) {
 	if err != nil || again.Revision != 2 || f.archives != 1 || !again.UpdatedAt.Equal(first.UpdatedAt) {
 		t.Fatalf("repeat archive: %+v %v count=%d", again, err, f.archives)
 	}
-	updated, err := s.Update(auth.WithCaller(context.Background(), adminCaller), UpdateRequest{ID: locationID, ExpectedRevision: 2, Paths: []string{"details"}, Input: Input{Details: "  Archived details "}})
+	updated, err := s.Update(
+		auth.WithCaller(context.Background(), adminCaller),
+		UpdateRequest{
+			ID:               locationID,
+			ExpectedRevision: 2,
+			Paths:            []string{"details"},
+			Input:            Input{Details: "  Archived details "},
+		},
+	)
 	if err != nil || updated.ArchivedAt == nil || updated.Details != "Archived details" {
 		t.Fatalf("edit archived: %+v %v", updated, err)
 	}

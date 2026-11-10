@@ -15,7 +15,75 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file order/v1/order.proto.
  */
 export const file_order_v1_order: GenFile = /*@__PURE__*/
-  fileDesc("ChRvcmRlci92MS9vcmRlci5wcm90bxIIb3JkZXIudjEiwwUKEkNyZWF0ZU9yZGVyUmVxdWVzdBIkChJwaWNrdXBfbG9jYXRpb25faWQYASABKAlCCLpIBXIDsAEBEjEKCGRlbGl2ZXJ5GAIgASgLMhcub3JkZXIudjEuRGVsaXZlcnlJbnB1dEIGukgDyAEBEtQBChBpdGVtX2Rlc2NyaXB0aW9uGAMgASgJQrkBuki1AboBsQEKJGNyZWF0ZV9vcmRlci5pdGVtX2Rlc2NyaXB0aW9uX2xlbmd0aBJUaXRlbV9kZXNjcmlwdGlvbiBtdXN0IGJlIDEtMTAwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGjNzaXplKHRoaXMudHJpbSgpKSA+PSAxICYmIHNpemUodGhpcy50cmltKCkpIDw9IDEwMDASKQoOaXRlbV9pbWFnZV9pZHMYBCADKAlCEbpIDpIBCxAFGAEiBXIDsAEBEh8KDnJld2FyZF9jcmVkaXRzGAUgASgDQge6SAQiAiAAEkoKEWRlbGl2ZXJ5X2R1cmF0aW9uGAYgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQhS6SBHIAQGqAQsiBAiAowUyAwisAhI2CgpleHBpcmVzX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEiEKD2lkZW1wb3RlbmN5X2tleRgIIAEoCUIIukgFcgOwAQE6iQG6SIUBGoIBCh9jcmVhdGVfb3JkZXIuZGlzdGluY3RfbG9jYXRpb25zEilwaWNrdXAgYW5kIGRlbGl2ZXJ5IGxvY2F0aW9ucyBtdXN0IGRpZmZlcho0dGhpcy5waWNrdXBfbG9jYXRpb25faWQgIT0gdGhpcy5kZWxpdmVyeS5sb2NhdGlvbl9pZCL7AQoNRGVsaXZlcnlJbnB1dBIdCgtsb2NhdGlvbl9pZBgBIAEoCUIIukgFcgOwAQESuQEKDGluc3RydWN0aW9ucxgCIAEoCUKdAbpImQG6AZUBCiJkZWxpdmVyeV9pbnB1dC5pbnN0cnVjdGlvbnNfbGVuZ3RoElVpbnN0cnVjdGlvbnMgbXVzdCBiZSBhdCBtb3N0IDUwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGhhzaXplKHRoaXMudHJpbSgpKSA8PSA1MDBIAIgBAUIPCg1faW5zdHJ1Y3Rpb25zIpgBChxDcmVhdGVJdGVtSW1hZ2VVcGxvYWRSZXF1ZXN0EiAKCnNpemVfYnl0ZXMYAiABKANCDLpICSIHGICt4gQoARJWCgxjb250ZW50X3R5cGUYASABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYiJwoPR2V0T3JkZXJSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABASKAAgoVTGlzdE9wZW5PcmRlcnNSZXF1ZXN0EikKEnBpY2t1cF9sb2NhdGlvbl9pZBgBIAEoCUIIukgFcgOwAQFIAIgBARItChRkZWxpdmVyeV9sb2NhdGlvbl9pZBgCIAEoCUIKGAG6SAVyA7ABAUgBiAEBEigKFmRlbGl2ZXJ5X2J1aWxkaW5nX25hbWUYBSABKAlCCLpIBXIDGMgBEhUKBHBhZ2UYAyABKAVCB7pIBBoCKAASHAoJcGFnZV9zaXplGAQgASgFQgm6SAYaBBhkKABCFQoTX3BpY2t1cF9sb2NhdGlvbl9pZEIXChVfZGVsaXZlcnlfbG9jYXRpb25faWQirgEKE0xpc3RNeU9yZGVyc1JlcXVlc3QSMQoEcm9sZRgBIAEoDjIZLm9yZGVyLnYxLlBhcnRpY2lwYW50Um9sZUIIukgFggECEAESLwoGc3RhdHVzGAIgASgOMhUub3JkZXIudjEuT3JkZXJTdGF0dXNCCLpIBYIBAhABEhUKBHBhZ2UYAyABKAVCB7pIBBoCKAASHAoJcGFnZV9zaXplGAQgASgFQgm6SAYaBBhkKAAiSAoSQWNjZXB0T3JkZXJSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABARIcCgphdHRlbXB0X2lkGAIgASgJQgi6SAVyA7ABASJrChBNYWtlT2ZmZXJSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARIYCgdjcmVkaXRzGAIgASgDQge6SAQiAiAAEiEKD2lkZW1wb3RlbmN5X2tleRgDIAEoCUIIukgFcgOwAQEiYAoRTGlzdE9mZmVyc1JlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBEi8KBnN0YXR1cxgCIAEoDjIVLm9yZGVyLnYxLk9mZmVyU3RhdHVzQgi6SAWCAQIQASIqChJBY2NlcHRPZmZlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBIjIKFENvbmZpcm1QaWNrdXBSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKrAQoYQ3JlYXRlUHJvb2ZVcGxvYWRSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARIbCgl1cGxvYWRfaWQYAiABKAlCCLpIBXIDsAEBElYKDGNvbnRlbnRfdHlwZRgDIAEoCUJAukg9cjtSCmltYWdlL2pwZWdSCWltYWdlL3BuZ1IKaW1hZ2Uvd2VicFIKaW1hZ2UvaGVpY1IKaW1hZ2UvaGVpZiJwChZDb25maXJtRGVsaXZlcnlSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARImCglwcm9vZl9pZHMYAiADKAlCE7pIEJIBDQgBEAUYASIFcgOwAQESEgoKdW5hdHRlbmRlZBgDIAEoCCIzChVDb25maXJtUmVjZWlwdFJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBIr0CChJDYW5jZWxPcmRlclJlcXVlc3QSJgoPaWRlbXBvdGVuY3lfa2V5GAMgASgJQgi6SAVyA7ABAUgAiAEBEhQKAmlkGAEgASgJQgi6SAVyA7ABARKlAQoGcmVhc29uGAIgASgJQo8BukiLAboBhwEKGmNhbmNlbF9vcmRlci5yZWFzb25fbGVuZ3RoEk9yZWFzb24gbXVzdCBiZSBhdCBtb3N0IDUwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGhhzaXplKHRoaXMudHJpbSgpKSA8PSA1MDBIAYgBARIiChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoA0IHukgEIgIgAEISChBfaWRlbXBvdGVuY3lfa2V5QgkKB19yZWFzb24iiwIKGVJlY29yZEl0ZW1Mb2NhdGlvblJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBEtEBCg1pdGVtX2xvY2F0aW9uGAIgASgJQrkBuki1AboBsQEKKXJlY29yZF9pdGVtX2xvY2F0aW9uLml0ZW1fbG9jYXRpb25fbGVuZ3RoElBpdGVtX2xvY2F0aW9uIG11c3QgYmUgMS01MDAgY2hhcmFjdGVycyBleGNsdWRpbmcgbGVhZGluZyBhbmQgdHJhaWxpbmcgd2hpdGVzcGFjZRoyc2l6ZSh0aGlzLnRyaW0oKSkgPj0gMSAmJiBzaXplKHRoaXMudHJpbSgpKSA8PSA1MDAiNQoTQ3JlYXRlT3JkZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyIv8BCh1DcmVhdGVJdGVtSW1hZ2VVcGxvYWRSZXNwb25zZRJSCg51cGxvYWRfaGVhZGVycxgEIAMoCzI6Lm9yZGVyLnYxLkNyZWF0ZUl0ZW1JbWFnZVVwbG9hZFJlc3BvbnNlLlVwbG9hZEhlYWRlcnNFbnRyeRIQCghpbWFnZV9pZBgBIAEoCRISCgp1cGxvYWRfdXJsGAIgASgJEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGjQKElVwbG9hZEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIjIKEEdldE9yZGVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciJgChZMaXN0T3Blbk9yZGVyc1Jlc3BvbnNlEh8KBm9yZGVycxgBIAMoCzIPLm9yZGVyLnYxLk9yZGVyEiUKCXBhZ2VfaW5mbxgCIAEoCzISLm9yZGVyLnYxLlBhZ2VJbmZvIl4KFExpc3RNeU9yZGVyc1Jlc3BvbnNlEh8KBm9yZGVycxgBIAMoCzIPLm9yZGVyLnYxLk9yZGVyEiUKCXBhZ2VfaW5mbxgCIAEoCzISLm9yZGVyLnYxLlBhZ2VJbmZvImkKE0FjY2VwdE9yZGVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlchIyCgdhdHRlbXB0GAIgASgLMiEub3JkZXIudjEuQXNzaWdubWVudEF0dGVtcHRSZXN1bHQiMwoRTWFrZU9mZmVyUmVzcG9uc2USHgoFb2ZmZXIYASABKAsyDy5vcmRlci52MS5PZmZlciI1ChJMaXN0T2ZmZXJzUmVzcG9uc2USHwoGb2ZmZXJzGAEgAygLMg8ub3JkZXIudjEuT2ZmZXIiiQEKE0FjY2VwdE9mZmVyUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlchIeCgVvZmZlchgCIAEoCzIPLm9yZGVyLnYxLk9mZmVyEjIKB2F0dGVtcHQYAyABKAsyIS5vcmRlci52MS5Bc3NpZ25tZW50QXR0ZW1wdFJlc3VsdCI3ChVDb25maXJtUGlja3VwUmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciJxChlDcmVhdGVQcm9vZlVwbG9hZFJlc3BvbnNlEhAKCHByb29mX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiOQoXQ29uZmlybURlbGl2ZXJ5UmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciI4ChZDb25maXJtUmVjZWlwdFJlc3BvbnNlEh4KBW9yZGVyGAEgASgLMg8ub3JkZXIudjEuT3JkZXIiaQoTQ2FuY2VsT3JkZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyEjIKDGNhbmNlbGxhdGlvbhgCIAEoCzIcLm9yZGVyLnYxLkNhbmNlbGxhdGlvblJlc3VsdCI8ChpSZWNvcmRJdGVtTG9jYXRpb25SZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyMpgKCgxPcmRlclNlcnZpY2USTAoLQ3JlYXRlT3JkZXISHC5vcmRlci52MS5DcmVhdGVPcmRlclJlcXVlc3QaHS5vcmRlci52MS5DcmVhdGVPcmRlclJlc3BvbnNlIgASagoVQ3JlYXRlSXRlbUltYWdlVXBsb2FkEiYub3JkZXIudjEuQ3JlYXRlSXRlbUltYWdlVXBsb2FkUmVxdWVzdBonLm9yZGVyLnYxLkNyZWF0ZUl0ZW1JbWFnZVVwbG9hZFJlc3BvbnNlIgASRgoIR2V0T3JkZXISGS5vcmRlci52MS5HZXRPcmRlclJlcXVlc3QaGi5vcmRlci52MS5HZXRPcmRlclJlc3BvbnNlIgOQAgESWAoOTGlzdE9wZW5PcmRlcnMSHy5vcmRlci52MS5MaXN0T3Blbk9yZGVyc1JlcXVlc3QaIC5vcmRlci52MS5MaXN0T3Blbk9yZGVyc1Jlc3BvbnNlIgOQAgESUgoMTGlzdE15T3JkZXJzEh0ub3JkZXIudjEuTGlzdE15T3JkZXJzUmVxdWVzdBoeLm9yZGVyLnYxLkxpc3RNeU9yZGVyc1Jlc3BvbnNlIgOQAgESTwoLQWNjZXB0T3JkZXISHC5vcmRlci52MS5BY2NlcHRPcmRlclJlcXVlc3QaHS5vcmRlci52MS5BY2NlcHRPcmRlclJlc3BvbnNlIgOQAgISRgoJTWFrZU9mZmVyEhoub3JkZXIudjEuTWFrZU9mZmVyUmVxdWVzdBobLm9yZGVyLnYxLk1ha2VPZmZlclJlc3BvbnNlIgASTAoKTGlzdE9mZmVycxIbLm9yZGVyLnYxLkxpc3RPZmZlcnNSZXF1ZXN0Ghwub3JkZXIudjEuTGlzdE9mZmVyc1Jlc3BvbnNlIgOQAgESTwoLQWNjZXB0T2ZmZXISHC5vcmRlci52MS5BY2NlcHRPZmZlclJlcXVlc3QaHS5vcmRlci52MS5BY2NlcHRPZmZlclJlc3BvbnNlIgOQAgISVQoNQ29uZmlybVBpY2t1cBIeLm9yZGVyLnYxLkNvbmZpcm1QaWNrdXBSZXF1ZXN0Gh8ub3JkZXIudjEuQ29uZmlybVBpY2t1cFJlc3BvbnNlIgOQAgISYQoRQ3JlYXRlUHJvb2ZVcGxvYWQSIi5vcmRlci52MS5DcmVhdGVQcm9vZlVwbG9hZFJlcXVlc3QaIy5vcmRlci52MS5DcmVhdGVQcm9vZlVwbG9hZFJlc3BvbnNlIgOQAgISWwoPQ29uZmlybURlbGl2ZXJ5EiAub3JkZXIudjEuQ29uZmlybURlbGl2ZXJ5UmVxdWVzdBohLm9yZGVyLnYxLkNvbmZpcm1EZWxpdmVyeVJlc3BvbnNlIgOQAgISWAoOQ29uZmlybVJlY2VpcHQSHy5vcmRlci52MS5Db25maXJtUmVjZWlwdFJlcXVlc3QaIC5vcmRlci52MS5Db25maXJtUmVjZWlwdFJlc3BvbnNlIgOQAgISTAoLQ2FuY2VsT3JkZXISHC5vcmRlci52MS5DYW5jZWxPcmRlclJlcXVlc3QaHS5vcmRlci52MS5DYW5jZWxPcmRlclJlc3BvbnNlIgASYQoSUmVjb3JkSXRlbUxvY2F0aW9uEiMub3JkZXIudjEuUmVjb3JkSXRlbUxvY2F0aW9uUmVxdWVzdBokLm9yZGVyLnYxLlJlY29yZEl0ZW1Mb2NhdGlvblJlc3BvbnNlIgBClwEKDGNvbS5vcmRlci52MUIKT3JkZXJQcm90b1ABWjpnaXRodWIuY29tL0FZMjYyN1MxLUNTMzIxOS1QMS9Gb0MvcGtnL2dlbi9vcmRlci92MTtvcmRlcnYxogIDT1hYqgIIT3JkZXIuVjHKAghPcmRlclxWMeICFE9yZGVyXFYxXEdQQk1ldGFkYXRh6gIJT3JkZXI6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_google_protobuf_duration, file_google_protobuf_timestamp, file_order_v1_shared_types]);
+  fileDesc("ChRvcmRlci92MS9vcmRlci5wcm90bxIIb3JkZXIudjEiOwobR2V0QXNzaWdubWVudEF0dGVtcHRSZXF1ZXN0EhwKCmF0dGVtcHRfaWQYASABKAlCCLpIBXIDsAEBIlIKHEdldEFzc2lnbm1lbnRBdHRlbXB0UmVzcG9uc2USMgoHYXR0ZW1wdBgBIAEoCzIhLm9yZGVyLnYxLkFzc2lnbm1lbnRBdHRlbXB0UmVzdWx0IjgKFkdldENhbmNlbGxhdGlvblJlcXVlc3QSHgoMb3BlcmF0aW9uX2lkGAEgASgJQgi6SAVyA7ABASJNChdHZXRDYW5jZWxsYXRpb25SZXNwb25zZRIyCgxjYW5jZWxsYXRpb24YASABKAsyHC5vcmRlci52MS5DYW5jZWxsYXRpb25SZXN1bHQiwwUKEkNyZWF0ZU9yZGVyUmVxdWVzdBIkChJwaWNrdXBfbG9jYXRpb25faWQYASABKAlCCLpIBXIDsAEBEjEKCGRlbGl2ZXJ5GAIgASgLMhcub3JkZXIudjEuRGVsaXZlcnlJbnB1dEIGukgDyAEBEtQBChBpdGVtX2Rlc2NyaXB0aW9uGAMgASgJQrkBuki1AboBsQEKJGNyZWF0ZV9vcmRlci5pdGVtX2Rlc2NyaXB0aW9uX2xlbmd0aBJUaXRlbV9kZXNjcmlwdGlvbiBtdXN0IGJlIDEtMTAwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGjNzaXplKHRoaXMudHJpbSgpKSA+PSAxICYmIHNpemUodGhpcy50cmltKCkpIDw9IDEwMDASKQoOaXRlbV9pbWFnZV9pZHMYBCADKAlCEbpIDpIBCxAFGAEiBXIDsAEBEh8KDnJld2FyZF9jcmVkaXRzGAUgASgDQge6SAQiAiAAEkoKEWRlbGl2ZXJ5X2R1cmF0aW9uGAYgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uQhS6SBHIAQGqAQsiBAiAowUyAwisAhI2CgpleHBpcmVzX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEiEKD2lkZW1wb3RlbmN5X2tleRgIIAEoCUIIukgFcgOwAQE6iQG6SIUBGoIBCh9jcmVhdGVfb3JkZXIuZGlzdGluY3RfbG9jYXRpb25zEilwaWNrdXAgYW5kIGRlbGl2ZXJ5IGxvY2F0aW9ucyBtdXN0IGRpZmZlcho0dGhpcy5waWNrdXBfbG9jYXRpb25faWQgIT0gdGhpcy5kZWxpdmVyeS5sb2NhdGlvbl9pZCL7AQoNRGVsaXZlcnlJbnB1dBIdCgtsb2NhdGlvbl9pZBgBIAEoCUIIukgFcgOwAQESuQEKDGluc3RydWN0aW9ucxgCIAEoCUKdAbpImQG6AZUBCiJkZWxpdmVyeV9pbnB1dC5pbnN0cnVjdGlvbnNfbGVuZ3RoElVpbnN0cnVjdGlvbnMgbXVzdCBiZSBhdCBtb3N0IDUwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGhhzaXplKHRoaXMudHJpbSgpKSA8PSA1MDBIAIgBAUIPCg1faW5zdHJ1Y3Rpb25zIpgBChxDcmVhdGVJdGVtSW1hZ2VVcGxvYWRSZXF1ZXN0EiAKCnNpemVfYnl0ZXMYAiABKANCDLpICSIHGICt4gQoARJWCgxjb250ZW50X3R5cGUYASABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYiJwoPR2V0T3JkZXJSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABASKAAgoVTGlzdE9wZW5PcmRlcnNSZXF1ZXN0EikKEnBpY2t1cF9sb2NhdGlvbl9pZBgBIAEoCUIIukgFcgOwAQFIAIgBARItChRkZWxpdmVyeV9sb2NhdGlvbl9pZBgCIAEoCUIKGAG6SAVyA7ABAUgBiAEBEigKFmRlbGl2ZXJ5X2J1aWxkaW5nX25hbWUYBSABKAlCCLpIBXIDGMgBEhUKBHBhZ2UYAyABKAVCB7pIBBoCKAASHAoJcGFnZV9zaXplGAQgASgFQgm6SAYaBBhkKABCFQoTX3BpY2t1cF9sb2NhdGlvbl9pZEIXChVfZGVsaXZlcnlfbG9jYXRpb25faWQiwwEKE0xpc3RNeU9yZGVyc1JlcXVlc3QSMQoEcm9sZRgBIAEoDjIZLm9yZGVyLnYxLlBhcnRpY2lwYW50Um9sZUIIukgFggECEAESLwoGc3RhdHVzGAIgASgOMhUub3JkZXIudjEuT3JkZXJTdGF0dXNCCLpIBYIBAhABEhUKBHBhZ2UYAyABKAVCB7pIBBoCKAASHAoJcGFnZV9zaXplGAQgASgFQgm6SAYaBBhkKAASEwoLYWN0aXZlX29ubHkYBSABKAgiSAoSQWNjZXB0T3JkZXJSZXF1ZXN0EhQKAmlkGAEgASgJQgi6SAVyA7ABARIcCgphdHRlbXB0X2lkGAIgASgJQgi6SAVyA7ABASJrChBNYWtlT2ZmZXJSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARIYCgdjcmVkaXRzGAIgASgDQge6SAQiAiAAEiEKD2lkZW1wb3RlbmN5X2tleRgDIAEoCUIIukgFcgOwAQEiYAoRTGlzdE9mZmVyc1JlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBEi8KBnN0YXR1cxgCIAEoDjIVLm9yZGVyLnYxLk9mZmVyU3RhdHVzQgi6SAWCAQIQASIqChJBY2NlcHRPZmZlclJlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBIjIKFENvbmZpcm1QaWNrdXBSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASLNAQoYQ3JlYXRlUHJvb2ZVcGxvYWRSZXF1ZXN0EiAKCnNpemVfYnl0ZXMYBCABKANCDLpICSIHGICt4gQoARIaCghvcmRlcl9pZBgBIAEoCUIIukgFcgOwAQESGwoJdXBsb2FkX2lkGAIgASgJQgi6SAVyA7ABARJWCgxjb250ZW50X3R5cGUYAyABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYihQEKFkNvbmZpcm1EZWxpdmVyeVJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBEiQKCXByb29mX2lkcxgCIAMoCUIRukgOkgELEAUYASIFcgOwAQESEgoKdW5hdHRlbmRlZBgDIAEoCBIVCg13aXRob3V0X3Byb29mGAQgASgIIjMKFUNvbmZpcm1SZWNlaXB0UmVxdWVzdBIaCghvcmRlcl9pZBgBIAEoCUIIukgFcgOwAQEivQIKEkNhbmNlbE9yZGVyUmVxdWVzdBImCg9pZGVtcG90ZW5jeV9rZXkYAyABKAlCCLpIBXIDsAEBSACIAQESFAoCaWQYASABKAlCCLpIBXIDsAEBEqUBCgZyZWFzb24YAiABKAlCjwG6SIsBugGHAQoaY2FuY2VsX29yZGVyLnJlYXNvbl9sZW5ndGgST3JlYXNvbiBtdXN0IGJlIGF0IG1vc3QgNTAwIGNoYXJhY3RlcnMgZXhjbHVkaW5nIGxlYWRpbmcgYW5kIHRyYWlsaW5nIHdoaXRlc3BhY2UaGHNpemUodGhpcy50cmltKCkpIDw9IDUwMEgBiAEBEiIKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgDQge6SAQiAiAAQhIKEF9pZGVtcG90ZW5jeV9rZXlCCQoHX3JlYXNvbiKLAgoZUmVjb3JkSXRlbUxvY2F0aW9uUmVxdWVzdBIaCghvcmRlcl9pZBgBIAEoCUIIukgFcgOwAQES0QEKDWl0ZW1fbG9jYXRpb24YAiABKAlCuQG6SLUBugGxAQopcmVjb3JkX2l0ZW1fbG9jYXRpb24uaXRlbV9sb2NhdGlvbl9sZW5ndGgSUGl0ZW1fbG9jYXRpb24gbXVzdCBiZSAxLTUwMCBjaGFyYWN0ZXJzIGV4Y2x1ZGluZyBsZWFkaW5nIGFuZCB0cmFpbGluZyB3aGl0ZXNwYWNlGjJzaXplKHRoaXMudHJpbSgpKSA+PSAxICYmIHNpemUodGhpcy50cmltKCkpIDw9IDUwMCI1ChNDcmVhdGVPcmRlclJlc3BvbnNlEh4KBW9yZGVyGAEgASgLMg8ub3JkZXIudjEuT3JkZXIi/wEKHUNyZWF0ZUl0ZW1JbWFnZVVwbG9hZFJlc3BvbnNlElIKDnVwbG9hZF9oZWFkZXJzGAQgAygLMjoub3JkZXIudjEuQ3JlYXRlSXRlbUltYWdlVXBsb2FkUmVzcG9uc2UuVXBsb2FkSGVhZGVyc0VudHJ5EhAKCGltYWdlX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAaNAoSVXBsb2FkSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiMgoQR2V0T3JkZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyImAKFkxpc3RPcGVuT3JkZXJzUmVzcG9uc2USHwoGb3JkZXJzGAEgAygLMg8ub3JkZXIudjEuT3JkZXISJQoJcGFnZV9pbmZvGAIgASgLMhIub3JkZXIudjEuUGFnZUluZm8iXgoUTGlzdE15T3JkZXJzUmVzcG9uc2USHwoGb3JkZXJzGAEgAygLMg8ub3JkZXIudjEuT3JkZXISJQoJcGFnZV9pbmZvGAIgASgLMhIub3JkZXIudjEuUGFnZUluZm8iaQoTQWNjZXB0T3JkZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyEjIKB2F0dGVtcHQYAiABKAsyIS5vcmRlci52MS5Bc3NpZ25tZW50QXR0ZW1wdFJlc3VsdCIzChFNYWtlT2ZmZXJSZXNwb25zZRIeCgVvZmZlchgBIAEoCzIPLm9yZGVyLnYxLk9mZmVyIjUKEkxpc3RPZmZlcnNSZXNwb25zZRIfCgZvZmZlcnMYASADKAsyDy5vcmRlci52MS5PZmZlciKJAQoTQWNjZXB0T2ZmZXJSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyEh4KBW9mZmVyGAIgASgLMg8ub3JkZXIudjEuT2ZmZXISMgoHYXR0ZW1wdBgDIAEoCzIhLm9yZGVyLnYxLkFzc2lnbm1lbnRBdHRlbXB0UmVzdWx0IjcKFUNvbmZpcm1QaWNrdXBSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyIvcBChlDcmVhdGVQcm9vZlVwbG9hZFJlc3BvbnNlEk4KDnVwbG9hZF9oZWFkZXJzGAQgAygLMjYub3JkZXIudjEuQ3JlYXRlUHJvb2ZVcGxvYWRSZXNwb25zZS5VcGxvYWRIZWFkZXJzRW50cnkSEAoIcHJvb2ZfaWQYASABKAkSEgoKdXBsb2FkX3VybBgCIAEoCRIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBo0ChJVcGxvYWRIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI5ChdDb25maXJtRGVsaXZlcnlSZXNwb25zZRIeCgVvcmRlchgBIAEoCzIPLm9yZGVyLnYxLk9yZGVyIjgKFkNvbmZpcm1SZWNlaXB0UmVzcG9uc2USHgoFb3JkZXIYASABKAsyDy5vcmRlci52MS5PcmRlciJpChNDYW5jZWxPcmRlclJlc3BvbnNlEh4KBW9yZGVyGAEgASgLMg8ub3JkZXIudjEuT3JkZXISMgoMY2FuY2VsbGF0aW9uGAIgASgLMhwub3JkZXIudjEuQ2FuY2VsbGF0aW9uUmVzdWx0IjwKGlJlY29yZEl0ZW1Mb2NhdGlvblJlc3BvbnNlEh4KBW9yZGVyGAEgASgLMg8ub3JkZXIudjEuT3JkZXIiUgoYVmVyaWZ5UHJvb2ZVcGxvYWRSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARIaCghwcm9vZl9pZBgCIAEoCUIIukgFcgOwAQEiGwoZVmVyaWZ5UHJvb2ZVcGxvYWRSZXNwb25zZSJUChlBYmFuZG9uUHJvb2ZVcGxvYWRSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABARIbCgl1cGxvYWRfaWQYAiABKAlCCLpIBXIDsAEBIhwKGkFiYW5kb25Qcm9vZlVwbG9hZFJlc3BvbnNlIjUKF0dldERlbGl2ZXJ5UHJvb2ZSZXF1ZXN0EhoKCG9yZGVyX2lkGAEgASgJQgi6SAVyA7ABASKCAQoSRGVsaXZlcnlQcm9vZlBob3RvEhQKDGNvbnRlbnRfdHlwZRgEIAEoCRIQCghwcm9vZl9pZBgBIAEoCRIUCgxkb3dubG9hZF91cmwYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAijAEKG1BlbmRpbmdEZWxpdmVyeUNvbmZpcm1hdGlvbhIRCglwcm9vZl9pZHMYASADKAkSEgoKdW5hdHRlbmRlZBgCIAEoCBIVCg13aXRob3V0X3Byb29mGAMgASgIEi8KC3JlY2VpdmVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKXAQoYR2V0RGVsaXZlcnlQcm9vZlJlc3BvbnNlEiwKBnByb29mcxgBIAMoCzIcLm9yZGVyLnYxLkRlbGl2ZXJ5UHJvb2ZQaG90bxIVCg1vdXRhZ2VfcmVhc29uGAIgASgJEjYKB3BlbmRpbmcYAyABKAsyJS5vcmRlci52MS5QZW5kaW5nRGVsaXZlcnlDb25maXJtYXRpb24yig4KDE9yZGVyU2VydmljZRJqChRHZXRBc3NpZ25tZW50QXR0ZW1wdBIlLm9yZGVyLnYxLkdldEFzc2lnbm1lbnRBdHRlbXB0UmVxdWVzdBomLm9yZGVyLnYxLkdldEFzc2lnbm1lbnRBdHRlbXB0UmVzcG9uc2UiA5ACARJbCg9HZXRDYW5jZWxsYXRpb24SIC5vcmRlci52MS5HZXRDYW5jZWxsYXRpb25SZXF1ZXN0GiEub3JkZXIudjEuR2V0Q2FuY2VsbGF0aW9uUmVzcG9uc2UiA5ACARJMCgtDcmVhdGVPcmRlchIcLm9yZGVyLnYxLkNyZWF0ZU9yZGVyUmVxdWVzdBodLm9yZGVyLnYxLkNyZWF0ZU9yZGVyUmVzcG9uc2UiABJqChVDcmVhdGVJdGVtSW1hZ2VVcGxvYWQSJi5vcmRlci52MS5DcmVhdGVJdGVtSW1hZ2VVcGxvYWRSZXF1ZXN0Gicub3JkZXIudjEuQ3JlYXRlSXRlbUltYWdlVXBsb2FkUmVzcG9uc2UiABJGCghHZXRPcmRlchIZLm9yZGVyLnYxLkdldE9yZGVyUmVxdWVzdBoaLm9yZGVyLnYxLkdldE9yZGVyUmVzcG9uc2UiA5ACARJYCg5MaXN0T3Blbk9yZGVycxIfLm9yZGVyLnYxLkxpc3RPcGVuT3JkZXJzUmVxdWVzdBogLm9yZGVyLnYxLkxpc3RPcGVuT3JkZXJzUmVzcG9uc2UiA5ACARJSCgxMaXN0TXlPcmRlcnMSHS5vcmRlci52MS5MaXN0TXlPcmRlcnNSZXF1ZXN0Gh4ub3JkZXIudjEuTGlzdE15T3JkZXJzUmVzcG9uc2UiA5ACARJPCgtBY2NlcHRPcmRlchIcLm9yZGVyLnYxLkFjY2VwdE9yZGVyUmVxdWVzdBodLm9yZGVyLnYxLkFjY2VwdE9yZGVyUmVzcG9uc2UiA5ACAhJGCglNYWtlT2ZmZXISGi5vcmRlci52MS5NYWtlT2ZmZXJSZXF1ZXN0Ghsub3JkZXIudjEuTWFrZU9mZmVyUmVzcG9uc2UiABJMCgpMaXN0T2ZmZXJzEhsub3JkZXIudjEuTGlzdE9mZmVyc1JlcXVlc3QaHC5vcmRlci52MS5MaXN0T2ZmZXJzUmVzcG9uc2UiA5ACARJPCgtBY2NlcHRPZmZlchIcLm9yZGVyLnYxLkFjY2VwdE9mZmVyUmVxdWVzdBodLm9yZGVyLnYxLkFjY2VwdE9mZmVyUmVzcG9uc2UiA5ACAhJVCg1Db25maXJtUGlja3VwEh4ub3JkZXIudjEuQ29uZmlybVBpY2t1cFJlcXVlc3QaHy5vcmRlci52MS5Db25maXJtUGlja3VwUmVzcG9uc2UiA5ACAhJhChFDcmVhdGVQcm9vZlVwbG9hZBIiLm9yZGVyLnYxLkNyZWF0ZVByb29mVXBsb2FkUmVxdWVzdBojLm9yZGVyLnYxLkNyZWF0ZVByb29mVXBsb2FkUmVzcG9uc2UiA5ACAhJhChFWZXJpZnlQcm9vZlVwbG9hZBIiLm9yZGVyLnYxLlZlcmlmeVByb29mVXBsb2FkUmVxdWVzdBojLm9yZGVyLnYxLlZlcmlmeVByb29mVXBsb2FkUmVzcG9uc2UiA5ACAhJkChJBYmFuZG9uUHJvb2ZVcGxvYWQSIy5vcmRlci52MS5BYmFuZG9uUHJvb2ZVcGxvYWRSZXF1ZXN0GiQub3JkZXIudjEuQWJhbmRvblByb29mVXBsb2FkUmVzcG9uc2UiA5ACAhJeChBHZXREZWxpdmVyeVByb29mEiEub3JkZXIudjEuR2V0RGVsaXZlcnlQcm9vZlJlcXVlc3QaIi5vcmRlci52MS5HZXREZWxpdmVyeVByb29mUmVzcG9uc2UiA5ACARJbCg9Db25maXJtRGVsaXZlcnkSIC5vcmRlci52MS5Db25maXJtRGVsaXZlcnlSZXF1ZXN0GiEub3JkZXIudjEuQ29uZmlybURlbGl2ZXJ5UmVzcG9uc2UiA5ACAhJYCg5Db25maXJtUmVjZWlwdBIfLm9yZGVyLnYxLkNvbmZpcm1SZWNlaXB0UmVxdWVzdBogLm9yZGVyLnYxLkNvbmZpcm1SZWNlaXB0UmVzcG9uc2UiA5ACAhJMCgtDYW5jZWxPcmRlchIcLm9yZGVyLnYxLkNhbmNlbE9yZGVyUmVxdWVzdBodLm9yZGVyLnYxLkNhbmNlbE9yZGVyUmVzcG9uc2UiABJhChJSZWNvcmRJdGVtTG9jYXRpb24SIy5vcmRlci52MS5SZWNvcmRJdGVtTG9jYXRpb25SZXF1ZXN0GiQub3JkZXIudjEuUmVjb3JkSXRlbUxvY2F0aW9uUmVzcG9uc2UiAEKXAQoMY29tLm9yZGVyLnYxQgpPcmRlclByb3RvUAFaOmdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL29yZGVyL3YxO29yZGVydjGiAgNPWFiqAghPcmRlci5WMcoCCE9yZGVyXFYx4gIUT3JkZXJcVjFcR1BCTWV0YWRhdGHqAglPcmRlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_duration, file_google_protobuf_timestamp, file_order_v1_shared_types]);
+
+/**
+ * @generated from message order.v1.GetAssignmentAttemptRequest
+ */
+export type GetAssignmentAttemptRequest = Message<"order.v1.GetAssignmentAttemptRequest"> & {
+  /**
+   * @generated from field: string attempt_id = 1;
+   */
+  attemptId: string;
+};
+
+/**
+ * Describes the message order.v1.GetAssignmentAttemptRequest.
+ * Use `create(GetAssignmentAttemptRequestSchema)` to create a new message.
+ */
+export const GetAssignmentAttemptRequestSchema: GenMessage<GetAssignmentAttemptRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 0);
+
+/**
+ * @generated from message order.v1.GetAssignmentAttemptResponse
+ */
+export type GetAssignmentAttemptResponse = Message<"order.v1.GetAssignmentAttemptResponse"> & {
+  /**
+   * @generated from field: order.v1.AssignmentAttemptResult attempt = 1;
+   */
+  attempt?: AssignmentAttemptResult | undefined;
+};
+
+/**
+ * Describes the message order.v1.GetAssignmentAttemptResponse.
+ * Use `create(GetAssignmentAttemptResponseSchema)` to create a new message.
+ */
+export const GetAssignmentAttemptResponseSchema: GenMessage<GetAssignmentAttemptResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 1);
+
+/**
+ * @generated from message order.v1.GetCancellationRequest
+ */
+export type GetCancellationRequest = Message<"order.v1.GetCancellationRequest"> & {
+  /**
+   * @generated from field: string operation_id = 1;
+   */
+  operationId: string;
+};
+
+/**
+ * Describes the message order.v1.GetCancellationRequest.
+ * Use `create(GetCancellationRequestSchema)` to create a new message.
+ */
+export const GetCancellationRequestSchema: GenMessage<GetCancellationRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 2);
+
+/**
+ * @generated from message order.v1.GetCancellationResponse
+ */
+export type GetCancellationResponse = Message<"order.v1.GetCancellationResponse"> & {
+  /**
+   * @generated from field: order.v1.CancellationResult cancellation = 1;
+   */
+  cancellation?: CancellationResult | undefined;
+};
+
+/**
+ * Describes the message order.v1.GetCancellationResponse.
+ * Use `create(GetCancellationResponseSchema)` to create a new message.
+ */
+export const GetCancellationResponseSchema: GenMessage<GetCancellationResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 3);
 
 /**
  * Reserves reward_credits from the caller's available balance before the order
@@ -80,7 +148,7 @@ export type CreateOrderRequest = Message<"order.v1.CreateOrderRequest"> & {
  * Use `create(CreateOrderRequestSchema)` to create a new message.
  */
 export const CreateOrderRequestSchema: GenMessage<CreateOrderRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 0);
+  messageDesc(file_order_v1_order, 4);
 
 /**
  * @generated from message order.v1.DeliveryInput
@@ -106,7 +174,7 @@ export type DeliveryInput = Message<"order.v1.DeliveryInput"> & {
  * Use `create(DeliveryInputSchema)` to create a new message.
  */
 export const DeliveryInputSchema: GenMessage<DeliveryInput> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 1);
+  messageDesc(file_order_v1_order, 5);
 
 /**
  * Returns a signed URL for one item image. Upload with PUT and the same
@@ -133,7 +201,7 @@ export type CreateItemImageUploadRequest = Message<"order.v1.CreateItemImageUplo
  * Use `create(CreateItemImageUploadRequestSchema)` to create a new message.
  */
 export const CreateItemImageUploadRequestSchema: GenMessage<CreateItemImageUploadRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 2);
+  messageDesc(file_order_v1_order, 6);
 
 /**
  * Requester/current courier see exact delivery details. Browsers, former couriers
@@ -153,7 +221,7 @@ export type GetOrderRequest = Message<"order.v1.GetOrderRequest"> & {
  * Use `create(GetOrderRequestSchema)` to create a new message.
  */
 export const GetOrderRequestSchema: GenMessage<GetOrderRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 3);
+  messageDesc(file_order_v1_order, 7);
 
 /**
  * Awaiting Courier orders the caller could accept, newest first. Excludes the
@@ -204,7 +272,7 @@ export type ListOpenOrdersRequest = Message<"order.v1.ListOpenOrdersRequest"> & 
  * Use `create(ListOpenOrdersRequestSchema)` to create a new message.
  */
 export const ListOpenOrdersRequestSchema: GenMessage<ListOpenOrdersRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 4);
+  messageDesc(file_order_v1_order, 8);
 
 /**
  * Orders the caller requested or was ever assigned to, newest first.
@@ -235,6 +303,15 @@ export type ListMyOrdersRequest = Message<"order.v1.ListMyOrdersRequest"> & {
    * @generated from field: int32 page_size = 4;
    */
   pageSize: number;
+
+  /**
+   * Only orders the caller is part of now and whose lifecycle has not ended:
+   * not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+   * withdrew from as a courier are excluded. Combines with status and role.
+   *
+   * @generated from field: bool active_only = 5;
+   */
+  activeOnly: boolean;
 };
 
 /**
@@ -242,7 +319,7 @@ export type ListMyOrdersRequest = Message<"order.v1.ListMyOrdersRequest"> & {
  * Use `create(ListMyOrdersRequestSchema)` to create a new message.
  */
 export const ListMyOrdersRequestSchema: GenMessage<ListMyOrdersRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 5);
+  messageDesc(file_order_v1_order, 9);
 
 /**
  * Starts one immutable acceptance attempt at the current reward. The caller
@@ -269,7 +346,7 @@ export type AcceptOrderRequest = Message<"order.v1.AcceptOrderRequest"> & {
  * Use `create(AcceptOrderRequestSchema)` to create a new message.
  */
 export const AcceptOrderRequestSchema: GenMessage<AcceptOrderRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 6);
+  messageDesc(file_order_v1_order, 10);
 
 /**
  * A counteroffer above the current reward on an Awaiting Courier order. It may
@@ -301,7 +378,7 @@ export type MakeOfferRequest = Message<"order.v1.MakeOfferRequest"> & {
  * Use `create(MakeOfferRequestSchema)` to create a new message.
  */
 export const MakeOfferRequestSchema: GenMessage<MakeOfferRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 7);
+  messageDesc(file_order_v1_order, 11);
 
 /**
  * The requester sees every offer on the order; a courier sees only their own.
@@ -325,7 +402,7 @@ export type ListOffersRequest = Message<"order.v1.ListOffersRequest"> & {
  * Use `create(ListOffersRequestSchema)` to create a new message.
  */
 export const ListOffersRequestSchema: GenMessage<ListOffersRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 8);
+  messageDesc(file_order_v1_order, 12);
 
 /**
  * Requester only. Raises the reservation to the offer, assigns its courier and
@@ -346,7 +423,7 @@ export type AcceptOfferRequest = Message<"order.v1.AcceptOfferRequest"> & {
  * Use `create(AcceptOfferRequestSchema)` to create a new message.
  */
 export const AcceptOfferRequestSchema: GenMessage<AcceptOfferRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 9);
+  messageDesc(file_order_v1_order, 13);
 
 /**
  * Assigned courier only. Awaiting Pickup to Delivering.
@@ -365,15 +442,21 @@ export type ConfirmPickupRequest = Message<"order.v1.ConfirmPickupRequest"> & {
  * Use `create(ConfirmPickupRequestSchema)` to create a new message.
  */
 export const ConfirmPickupRequestSchema: GenMessage<ConfirmPickupRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 10);
+  messageDesc(file_order_v1_order, 14);
 
 /**
- * Assigned courier only, while Delivering. Repeating with the same upload_id
- * returns the same proof and URL.
+ * Assigned courier only, while Delivering. The same upload_id keeps one proof.
+ * The live signing generation replays its URL; expiry or credential/route rotation
+ * refreshes the grant without creating another proof.
  *
  * @generated from message order.v1.CreateProofUploadRequest
  */
 export type CreateProofUploadRequest = Message<"order.v1.CreateProofUploadRequest"> & {
+  /**
+   * @generated from field: int64 size_bytes = 4;
+   */
+  sizeBytes: bigint;
+
   /**
    * @generated from field: string order_id = 1;
    */
@@ -397,12 +480,13 @@ export type CreateProofUploadRequest = Message<"order.v1.CreateProofUploadReques
  * Use `create(CreateProofUploadRequestSchema)` to create a new message.
  */
 export const CreateProofUploadRequestSchema: GenMessage<CreateProofUploadRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 11);
+  messageDesc(file_order_v1_order, 15);
 
 /**
- * Assigned courier only. Delivering to Delivered. Every proof must be uploaded
- * already; otherwise the order stays Delivering and failed_precondition is
- * returned so the courier can retry.
+ * Assigned courier only. Proofs must be uploaded and server-verified first.
+ * On-time durable receipt preserves eligibility through delayed validation.
+ * Unavailable validation stays pending/Delivering; invalid proof rejects that
+ * submission without granting replacement photos its receipt time.
  *
  * @generated from message order.v1.ConfirmDeliveryRequest
  */
@@ -423,6 +507,13 @@ export type ConfirmDeliveryRequest = Message<"order.v1.ConfirmDeliveryRequest"> 
    * @generated from field: bool unattended = 3;
    */
   unattended: boolean;
+
+  /**
+   * Only server-confirmed upload outages permit zero proof IDs.
+   *
+   * @generated from field: bool without_proof = 4;
+   */
+  withoutProof: boolean;
 };
 
 /**
@@ -430,7 +521,7 @@ export type ConfirmDeliveryRequest = Message<"order.v1.ConfirmDeliveryRequest"> 
  * Use `create(ConfirmDeliveryRequestSchema)` to create a new message.
  */
 export const ConfirmDeliveryRequestSchema: GenMessage<ConfirmDeliveryRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 12);
+  messageDesc(file_order_v1_order, 16);
 
 /**
  * Requester only. Delivered to Completed, which settles the reward. Repeating
@@ -450,7 +541,7 @@ export type ConfirmReceiptRequest = Message<"order.v1.ConfirmReceiptRequest"> & 
  * Use `create(ConfirmReceiptRequestSchema)` to create a new message.
  */
 export const ConfirmReceiptRequestSchema: GenMessage<ConfirmReceiptRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 13);
+  messageDesc(file_order_v1_order, 17);
 
 /**
  * The outcome depends on who cancels and when:
@@ -493,7 +584,7 @@ export type CancelOrderRequest = Message<"order.v1.CancelOrderRequest"> & {
  * Use `create(CancelOrderRequestSchema)` to create a new message.
  */
 export const CancelOrderRequestSchema: GenMessage<CancelOrderRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 14);
+  messageDesc(file_order_v1_order, 18);
 
 /**
  * Courier only, after a cancellation following pickup.
@@ -517,7 +608,7 @@ export type RecordItemLocationRequest = Message<"order.v1.RecordItemLocationRequ
  * Use `create(RecordItemLocationRequestSchema)` to create a new message.
  */
 export const RecordItemLocationRequestSchema: GenMessage<RecordItemLocationRequest> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 15);
+  messageDesc(file_order_v1_order, 19);
 
 /**
  * @generated from message order.v1.CreateOrderResponse
@@ -534,7 +625,7 @@ export type CreateOrderResponse = Message<"order.v1.CreateOrderResponse"> & {
  * Use `create(CreateOrderResponseSchema)` to create a new message.
  */
 export const CreateOrderResponseSchema: GenMessage<CreateOrderResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 16);
+  messageDesc(file_order_v1_order, 20);
 
 /**
  * @generated from message order.v1.CreateItemImageUploadResponse
@@ -570,7 +661,7 @@ export type CreateItemImageUploadResponse = Message<"order.v1.CreateItemImageUpl
  * Use `create(CreateItemImageUploadResponseSchema)` to create a new message.
  */
 export const CreateItemImageUploadResponseSchema: GenMessage<CreateItemImageUploadResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 17);
+  messageDesc(file_order_v1_order, 21);
 
 /**
  * @generated from message order.v1.GetOrderResponse
@@ -587,7 +678,7 @@ export type GetOrderResponse = Message<"order.v1.GetOrderResponse"> & {
  * Use `create(GetOrderResponseSchema)` to create a new message.
  */
 export const GetOrderResponseSchema: GenMessage<GetOrderResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 18);
+  messageDesc(file_order_v1_order, 22);
 
 /**
  * @generated from message order.v1.ListOpenOrdersResponse
@@ -609,7 +700,7 @@ export type ListOpenOrdersResponse = Message<"order.v1.ListOpenOrdersResponse"> 
  * Use `create(ListOpenOrdersResponseSchema)` to create a new message.
  */
 export const ListOpenOrdersResponseSchema: GenMessage<ListOpenOrdersResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 19);
+  messageDesc(file_order_v1_order, 23);
 
 /**
  * @generated from message order.v1.ListMyOrdersResponse
@@ -631,7 +722,7 @@ export type ListMyOrdersResponse = Message<"order.v1.ListMyOrdersResponse"> & {
  * Use `create(ListMyOrdersResponseSchema)` to create a new message.
  */
 export const ListMyOrdersResponseSchema: GenMessage<ListMyOrdersResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 20);
+  messageDesc(file_order_v1_order, 24);
 
 /**
  * @generated from message order.v1.AcceptOrderResponse
@@ -656,7 +747,7 @@ export type AcceptOrderResponse = Message<"order.v1.AcceptOrderResponse"> & {
  * Use `create(AcceptOrderResponseSchema)` to create a new message.
  */
 export const AcceptOrderResponseSchema: GenMessage<AcceptOrderResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 21);
+  messageDesc(file_order_v1_order, 25);
 
 /**
  * @generated from message order.v1.MakeOfferResponse
@@ -673,7 +764,7 @@ export type MakeOfferResponse = Message<"order.v1.MakeOfferResponse"> & {
  * Use `create(MakeOfferResponseSchema)` to create a new message.
  */
 export const MakeOfferResponseSchema: GenMessage<MakeOfferResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 22);
+  messageDesc(file_order_v1_order, 26);
 
 /**
  * @generated from message order.v1.ListOffersResponse
@@ -690,7 +781,7 @@ export type ListOffersResponse = Message<"order.v1.ListOffersResponse"> & {
  * Use `create(ListOffersResponseSchema)` to create a new message.
  */
 export const ListOffersResponseSchema: GenMessage<ListOffersResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 23);
+  messageDesc(file_order_v1_order, 27);
 
 /**
  * @generated from message order.v1.AcceptOfferResponse
@@ -717,7 +808,7 @@ export type AcceptOfferResponse = Message<"order.v1.AcceptOfferResponse"> & {
  * Use `create(AcceptOfferResponseSchema)` to create a new message.
  */
 export const AcceptOfferResponseSchema: GenMessage<AcceptOfferResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 24);
+  messageDesc(file_order_v1_order, 28);
 
 /**
  * @generated from message order.v1.ConfirmPickupResponse
@@ -734,12 +825,17 @@ export type ConfirmPickupResponse = Message<"order.v1.ConfirmPickupResponse"> & 
  * Use `create(ConfirmPickupResponseSchema)` to create a new message.
  */
 export const ConfirmPickupResponseSchema: GenMessage<ConfirmPickupResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 25);
+  messageDesc(file_order_v1_order, 29);
 
 /**
  * @generated from message order.v1.CreateProofUploadResponse
  */
 export type CreateProofUploadResponse = Message<"order.v1.CreateProofUploadResponse"> & {
+  /**
+   * @generated from field: map<string, string> upload_headers = 4;
+   */
+  uploadHeaders: { [key: string]: string };
+
   /**
    * @generated from field: string proof_id = 1;
    */
@@ -763,7 +859,7 @@ export type CreateProofUploadResponse = Message<"order.v1.CreateProofUploadRespo
  * Use `create(CreateProofUploadResponseSchema)` to create a new message.
  */
 export const CreateProofUploadResponseSchema: GenMessage<CreateProofUploadResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 26);
+  messageDesc(file_order_v1_order, 30);
 
 /**
  * @generated from message order.v1.ConfirmDeliveryResponse
@@ -780,7 +876,7 @@ export type ConfirmDeliveryResponse = Message<"order.v1.ConfirmDeliveryResponse"
  * Use `create(ConfirmDeliveryResponseSchema)` to create a new message.
  */
 export const ConfirmDeliveryResponseSchema: GenMessage<ConfirmDeliveryResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 27);
+  messageDesc(file_order_v1_order, 31);
 
 /**
  * @generated from message order.v1.ConfirmReceiptResponse
@@ -797,7 +893,7 @@ export type ConfirmReceiptResponse = Message<"order.v1.ConfirmReceiptResponse"> 
  * Use `create(ConfirmReceiptResponseSchema)` to create a new message.
  */
 export const ConfirmReceiptResponseSchema: GenMessage<ConfirmReceiptResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 28);
+  messageDesc(file_order_v1_order, 32);
 
 /**
  * @generated from message order.v1.CancelOrderResponse
@@ -819,7 +915,7 @@ export type CancelOrderResponse = Message<"order.v1.CancelOrderResponse"> & {
  * Use `create(CancelOrderResponseSchema)` to create a new message.
  */
 export const CancelOrderResponseSchema: GenMessage<CancelOrderResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 29);
+  messageDesc(file_order_v1_order, 33);
 
 /**
  * @generated from message order.v1.RecordItemLocationResponse
@@ -836,7 +932,188 @@ export type RecordItemLocationResponse = Message<"order.v1.RecordItemLocationRes
  * Use `create(RecordItemLocationResponseSchema)` to create a new message.
  */
 export const RecordItemLocationResponseSchema: GenMessage<RecordItemLocationResponse> = /*@__PURE__*/
-  messageDesc(file_order_v1_order, 30);
+  messageDesc(file_order_v1_order, 34);
+
+/**
+ * @generated from message order.v1.VerifyProofUploadRequest
+ */
+export type VerifyProofUploadRequest = Message<"order.v1.VerifyProofUploadRequest"> & {
+  /**
+   * @generated from field: string order_id = 1;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: string proof_id = 2;
+   */
+  proofId: string;
+};
+
+/**
+ * Describes the message order.v1.VerifyProofUploadRequest.
+ * Use `create(VerifyProofUploadRequestSchema)` to create a new message.
+ */
+export const VerifyProofUploadRequestSchema: GenMessage<VerifyProofUploadRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 35);
+
+/**
+ * @generated from message order.v1.VerifyProofUploadResponse
+ */
+export type VerifyProofUploadResponse = Message<"order.v1.VerifyProofUploadResponse"> & {
+};
+
+/**
+ * Describes the message order.v1.VerifyProofUploadResponse.
+ * Use `create(VerifyProofUploadResponseSchema)` to create a new message.
+ */
+export const VerifyProofUploadResponseSchema: GenMessage<VerifyProofUploadResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 36);
+
+/**
+ * @generated from message order.v1.AbandonProofUploadRequest
+ */
+export type AbandonProofUploadRequest = Message<"order.v1.AbandonProofUploadRequest"> & {
+  /**
+   * @generated from field: string order_id = 1;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: string upload_id = 2;
+   */
+  uploadId: string;
+};
+
+/**
+ * Describes the message order.v1.AbandonProofUploadRequest.
+ * Use `create(AbandonProofUploadRequestSchema)` to create a new message.
+ */
+export const AbandonProofUploadRequestSchema: GenMessage<AbandonProofUploadRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 37);
+
+/**
+ * @generated from message order.v1.AbandonProofUploadResponse
+ */
+export type AbandonProofUploadResponse = Message<"order.v1.AbandonProofUploadResponse"> & {
+};
+
+/**
+ * Describes the message order.v1.AbandonProofUploadResponse.
+ * Use `create(AbandonProofUploadResponseSchema)` to create a new message.
+ */
+export const AbandonProofUploadResponseSchema: GenMessage<AbandonProofUploadResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 38);
+
+/**
+ * @generated from message order.v1.GetDeliveryProofRequest
+ */
+export type GetDeliveryProofRequest = Message<"order.v1.GetDeliveryProofRequest"> & {
+  /**
+   * @generated from field: string order_id = 1;
+   */
+  orderId: string;
+};
+
+/**
+ * Describes the message order.v1.GetDeliveryProofRequest.
+ * Use `create(GetDeliveryProofRequestSchema)` to create a new message.
+ */
+export const GetDeliveryProofRequestSchema: GenMessage<GetDeliveryProofRequest> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 39);
+
+/**
+ * @generated from message order.v1.DeliveryProofPhoto
+ */
+export type DeliveryProofPhoto = Message<"order.v1.DeliveryProofPhoto"> & {
+  /**
+   * @generated from field: string content_type = 4;
+   */
+  contentType: string;
+
+  /**
+   * @generated from field: string proof_id = 1;
+   */
+  proofId: string;
+
+  /**
+   * @generated from field: string download_url = 2;
+   */
+  downloadUrl: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message order.v1.DeliveryProofPhoto.
+ * Use `create(DeliveryProofPhotoSchema)` to create a new message.
+ */
+export const DeliveryProofPhotoSchema: GenMessage<DeliveryProofPhoto> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 40);
+
+/**
+ * @generated from message order.v1.PendingDeliveryConfirmation
+ */
+export type PendingDeliveryConfirmation = Message<"order.v1.PendingDeliveryConfirmation"> & {
+  /**
+   * @generated from field: repeated string proof_ids = 1;
+   */
+  proofIds: string[];
+
+  /**
+   * @generated from field: bool unattended = 2;
+   */
+  unattended: boolean;
+
+  /**
+   * @generated from field: bool without_proof = 3;
+   */
+  withoutProof: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp received_at = 4;
+   */
+  receivedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message order.v1.PendingDeliveryConfirmation.
+ * Use `create(PendingDeliveryConfirmationSchema)` to create a new message.
+ */
+export const PendingDeliveryConfirmationSchema: GenMessage<PendingDeliveryConfirmation> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 41);
+
+/**
+ * Participant-only proof access is independent of general order/history access.
+ * Pending input is returned only to its submitting courier, never role-only admin.
+ *
+ * @generated from message order.v1.GetDeliveryProofResponse
+ */
+export type GetDeliveryProofResponse = Message<"order.v1.GetDeliveryProofResponse"> & {
+  /**
+   * @generated from field: repeated order.v1.DeliveryProofPhoto proofs = 1;
+   */
+  proofs: DeliveryProofPhoto[];
+
+  /**
+   * @generated from field: string outage_reason = 2;
+   */
+  outageReason: string;
+
+  /**
+   * @generated from field: order.v1.PendingDeliveryConfirmation pending = 3;
+   */
+  pending?: PendingDeliveryConfirmation | undefined;
+};
+
+/**
+ * Describes the message order.v1.GetDeliveryProofResponse.
+ * Use `create(GetDeliveryProofResponseSchema)` to create a new message.
+ */
+export const GetDeliveryProofResponseSchema: GenMessage<GetDeliveryProofResponse> = /*@__PURE__*/
+  messageDesc(file_order_v1_order, 42);
 
 /**
  * Requester and courier operations. One account can be a requester on some
@@ -850,6 +1127,22 @@ export const RecordItemLocationResponseSchema: GenMessage<RecordItemLocationResp
  * @generated from service order.v1.OrderService
  */
 export const OrderService: GenService<{
+  /**
+   * @generated from rpc order.v1.OrderService.GetAssignmentAttempt
+   */
+  getAssignmentAttempt: {
+    methodKind: "unary";
+    input: typeof GetAssignmentAttemptRequestSchema;
+    output: typeof GetAssignmentAttemptResponseSchema;
+  },
+  /**
+   * @generated from rpc order.v1.OrderService.GetCancellation
+   */
+  getCancellation: {
+    methodKind: "unary";
+    input: typeof GetCancellationRequestSchema;
+    output: typeof GetCancellationResponseSchema;
+  },
   /**
    * @generated from rpc order.v1.OrderService.CreateOrder
    */
@@ -937,6 +1230,30 @@ export const OrderService: GenService<{
     methodKind: "unary";
     input: typeof CreateProofUploadRequestSchema;
     output: typeof CreateProofUploadResponseSchema;
+  },
+  /**
+   * @generated from rpc order.v1.OrderService.VerifyProofUpload
+   */
+  verifyProofUpload: {
+    methodKind: "unary";
+    input: typeof VerifyProofUploadRequestSchema;
+    output: typeof VerifyProofUploadResponseSchema;
+  },
+  /**
+   * @generated from rpc order.v1.OrderService.AbandonProofUpload
+   */
+  abandonProofUpload: {
+    methodKind: "unary";
+    input: typeof AbandonProofUploadRequestSchema;
+    output: typeof AbandonProofUploadResponseSchema;
+  },
+  /**
+   * @generated from rpc order.v1.OrderService.GetDeliveryProof
+   */
+  getDeliveryProof: {
+    methodKind: "unary";
+    input: typeof GetDeliveryProofRequestSchema;
+    output: typeof GetDeliveryProofResponseSchema;
   },
   /**
    * @generated from rpc order.v1.OrderService.ConfirmDelivery

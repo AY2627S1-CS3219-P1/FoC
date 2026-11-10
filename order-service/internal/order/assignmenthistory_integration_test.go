@@ -31,13 +31,19 @@ func TestAssignmentHistoryPrivacyAndAtomicity(t *testing.T) {
 	f.mustTransition(t, o.ID, ConfirmReceipt, Actor{Kind: User, ID: o.RequesterID})
 	for _, c := range []Caller{{ID: first.ID}, {ID: first.ID, Suspended: true}, {ID: uuid.NewString(), Admin: true}} {
 		got, err := s.GetOrder(f.ctx, c, o.ID)
-		if err != nil || got.Status != Completed || got.DeliveryInstructions != nil || got.Delivery.LocationID != "" || got.Delivery.BuildingName != "PGP" {
+		if err != nil || got.Status != Completed || got.DeliveryInstructions != nil || got.Delivery.LocationID != "" ||
+			got.Delivery.BuildingName != "PGP" {
 			t.Fatalf("historical/admin safe view: %+v %v", got, err)
 		}
 	}
 	for _, role := range []Role{AnyRole, CourierRole} {
-		page, err := s.ListMyOrders(f.ctx, Caller{ID: first.ID, Suspended: true}, ListRequest{Role: role, Status: Completed, Page: Page{Size: 1}})
-		if err != nil || page.PageInfo.Total != 1 || len(page.Orders) != 1 || page.Orders[0].DeliveryInstructions != nil {
+		page, err := s.ListMyOrders(
+			f.ctx,
+			Caller{ID: first.ID, Suspended: true},
+			ListRequest{Role: role, Status: Completed, Page: Page{Size: 1}},
+		)
+		if err != nil || page.PageInfo.Total != 1 || len(page.Orders) != 1 ||
+			page.Orders[0].DeliveryInstructions != nil {
 			t.Fatalf("duplicate or lost history: %+v %v", page, err)
 		}
 	}
@@ -55,14 +61,20 @@ func TestAssignmentHistoryPrivacyAndAtomicity(t *testing.T) {
 		t.Fatalf("history changed operational snapshot: %+v %v", raw, err)
 	}
 	var episodes, current int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*),count(*) FILTER(WHERE is_current) FROM order_assignment_history WHERE order_id=$1", o.ID).Scan(&episodes, &current); err != nil || episodes != 3 || current != 1 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*),count(*) FILTER(WHERE is_current) FROM order_assignment_history WHERE order_id=$1", o.ID).
+		Scan(&episodes, &current); err != nil ||
+		episodes != 3 ||
+		current != 1 {
 		t.Fatal(episodes, current, err)
 	}
 
 	// A failed history write must roll back Order/audit/outbox even if swallowed.
 	next := f.create(t)
 	f.mustTransition(t, next.ID, ConfirmReservation, Actor{Kind: System})
-	if _, err := f.pool.Exec(f.ctx, `CREATE FUNCTION reject_episode() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced episode write failure'; END $$; CREATE TRIGGER reject_episode BEFORE INSERT ON order_assignment_history FOR EACH ROW EXECUTE FUNCTION reject_episode()`); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`CREATE FUNCTION reject_episode() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced episode write failure'; END $$; CREATE TRIGGER reject_episode BEFORE INSERT ON order_assignment_history FOR EACH ROW EXECUTE FUNCTION reject_episode()`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	err = f.repo.Within(f.ctx, func(tx Tx) error {
@@ -91,7 +103,8 @@ func TestAssignmentHistoryPrivacyAndAtomicity(t *testing.T) {
 	}
 	raw, err = f.repo.Get(f.ctx, next.ID)
 	audit, outbox, _ := f.counts(t, next.ID)
-	if err != nil || raw.Revision != 2 || raw.CourierID != nil || raw.Status != AwaitingCourier || audit != 2 || outbox != 2 {
+	if err != nil || raw.Revision != 2 || raw.CourierID != nil || raw.Status != AwaitingCourier || audit != 2 ||
+		outbox != 2 {
 		t.Fatalf("partial assignment commit: %+v audit=%d outbox=%d err=%v", raw, audit, outbox, err)
 	}
 }
@@ -114,7 +127,14 @@ func TestCoarseDestinationFilter(t *testing.T) {
 	if err != nil || len(page.Orders) != 1 || page.PageInfo.Total != 2 || page.Orders[0].Delivery.LocationID != "" {
 		t.Fatal(page, err)
 	}
-	if _, err = s.ListOpenOrders(f.ctx, caller, ListRequest{DeliveryID: uuid.NewString()}); !errors.Is(err, ErrInvalid) {
+	if _, err = s.ListOpenOrders(
+		f.ctx,
+		caller,
+		ListRequest{DeliveryID: uuid.NewString()},
+	); !errors.Is(
+		err,
+		ErrInvalid,
+	) {
 		t.Fatal("exact filter accepted", err)
 	}
 	page, err = s.ListOpenOrders(f.ctx, caller, ListRequest{DeliveryBuildingName: "unknown"})
@@ -141,11 +161,21 @@ func TestAssignmentHistoryMigrationEvidence(t *testing.T) {
 	f.mustTransition(t, removed.ID, ConfirmReservation, Actor{Kind: System})
 	f.mustTransition(t, removed.ID, Assign, former)
 	f.mustTransition(t, removed.ID, Withdraw, former)
-	if _, err := f.pool.Exec(f.ctx, "DELETE FROM order_outbox WHERE order_id=$1 AND payload->>'status'='awaiting_pickup'", removed.ID); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		"DELETE FROM order_outbox WHERE order_id=$1 AND payload->>'status'='awaiting_pickup'",
+		removed.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	offerOnly := uuid.NewString()
-	if _, err := f.pool.Exec(f.ctx, "INSERT INTO offers VALUES($1,$2,$3,20,'accepted',now(),now())", uuid.NewString(), o.ID, offerOnly); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		"INSERT INTO offers VALUES($1,$2,$3,20,'accepted',now(),now())",
+		uuid.NewString(),
+		o.ID,
+		offerOnly,
+	); err != nil {
 		t.Fatal(err)
 	}
 	sqlDB, err := sql.Open("pgx", f.pool.Config().ConnString())
@@ -177,7 +207,9 @@ func TestAssignmentHistoryMigrationEvidence(t *testing.T) {
 		t.Fatal(page, err)
 	}
 	var unknown bool
-	if err = f.pool.QueryRow(f.ctx, "SELECT assigned_at IS NULL AND assigned_revision IS NULL AND ended_revision IS NOT NULL AND source='removal_fact' FROM order_assignment_history WHERE order_id=$1", removed.ID).Scan(&unknown); err != nil || !unknown {
+	if err = f.pool.QueryRow(f.ctx, "SELECT assigned_at IS NULL AND assigned_revision IS NULL AND ended_revision IS NOT NULL AND source='removal_fact' FROM order_assignment_history WHERE order_id=$1", removed.ID).
+		Scan(&unknown); err != nil ||
+		!unknown {
 		t.Fatal("fabricated assignment metadata", unknown, err)
 	}
 	// A migrated current snapshot can be removed through the same atomic hook.

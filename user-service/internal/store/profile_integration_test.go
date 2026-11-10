@@ -1,10 +1,11 @@
-// Store tests for profile updates, user deletion and warnings; see auth_integration_test.go for setup.
+// Store tests for profile updates and user deletion; see auth_integration_test.go for setup.
 
 package store
 
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -60,7 +61,10 @@ func TestUsersDelete(t *testing.T) {
 	user := createStoreUser(t, store, "user@example.com")
 
 	sessionHash := testDigest("delete-session")
-	if err := store.Sessions.Create(ctx, &models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}); err != nil {
+	if err := store.Sessions.Create(
+		ctx,
+		&models.Session{UserID: user.ID, TokenHash: sessionHash[:], LastSeenAt: now, ExpiresAt: now.Add(time.Hour)},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.AddFavourite(ctx, user.ID, uuid.New(), now); err != nil {
@@ -99,36 +103,29 @@ func TestUsersDelete(t *testing.T) {
 	createStoreUser(t, store, "user@example.com")
 }
 
-func TestAdminWarningsAndUserstamps(t *testing.T) {
-	store, _ := setupAuthStore(t)
-	admin := createStoreUser(t, store, "admin@example.com")
-	user := createStoreUser(t, store, "user@example.com")
+func TestUsersCountByRole(t *testing.T) {
 	ctx := context.Background()
-
-	ev := uuid.New()
-	first := &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "late", SourceEventID: &ev}
-	first.CreatedBy = &admin.ID
-	created, err := store.CreateWarning(ctx, first)
-	if err != nil || !created {
-		t.Fatalf("create warning: %v, %v", created, err)
+	s, db := setupAuthStore(t)
+	createStoreUser(t, s, "active@example.com")
+	suspended := createStoreUser(t, s, "suspended@example.com")
+	admin := createStoreUser(t, s, "admin@example.com")
+	deleted := createStoreUser(t, s, "deleted@example.com")
+	if err := db.Model(&suspended).Update("role", models.RoleSuspended).Error; err != nil {
+		t.Fatal(err)
 	}
-	if first.CreatedBy == nil || *first.CreatedBy != admin.ID {
-		t.Fatalf("created_by = %v, want %v", first.CreatedBy, admin.ID)
+	if err := db.Model(&admin).Update("role", models.RoleAdmin).Error; err != nil {
+		t.Fatal(err)
 	}
-
-	replay := &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "late", SourceEventID: &ev}
-	replay.ID = missingID
-	created, err = store.CreateWarning(ctx, replay)
-	if err != nil || created || replay.ID != first.ID {
-		t.Fatalf("replay: created=%v id=%v err=%v, want id %v", created, replay.ID, err, first.ID)
+	if err := s.Users.Delete(ctx, deleted.ID); err != nil {
+		t.Fatal(err)
 	}
 
-	reason := "overturned"
-	removed, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID)
-	if err != nil || removed.Status != models.WarningRemoved || removed.UpdatedBy == nil || *removed.UpdatedBy != admin.ID {
-		t.Fatalf("remove warning: %+v, %v", removed, err)
+	got, err := s.Users.CountByRole(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := store.RemoveWarning(ctx, first.ID, time.Now().UTC(), &reason, nil, &admin.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("repeated remove: %v", err)
+	want := map[models.RoleName]int64{models.RoleUser: 1, models.RoleSuspended: 1, models.RoleAdmin: 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("counts = %v, want %v", got, want)
 	}
 }

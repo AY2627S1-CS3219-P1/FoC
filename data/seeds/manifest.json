@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "files": [
+    { "file": "suppliers.sql", "database": "SUPPLIER_DB" }
+  ]
+}

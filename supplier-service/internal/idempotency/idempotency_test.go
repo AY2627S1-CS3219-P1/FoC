@@ -80,7 +80,8 @@ func TestRunCreateReplayConflictAndScope(t *testing.T) {
 	if err != nil || id != "resource-1" {
 		t.Fatalf("create = %q, %v", id, err)
 	}
-	if got := s.records[base]; got.ExpiresAt != now.UTC().Add(24*time.Hour) || got.Hash != "hash-1" || got.ResourceID != id {
+	if got := s.records[base]; got.ExpiresAt != now.UTC().Add(24*time.Hour) || got.Hash != "hash-1" ||
+		got.ResourceID != id {
 		t.Fatalf("record = %+v", got)
 	}
 	if got := strings.Join(s.events, ","); got != "lock,find,create,save" {
@@ -110,7 +111,12 @@ func TestRunExpiryAtExactBoundaryAndScopedDeletion(t *testing.T) {
 	r := New(func() time.Time { return now })
 	scope := Scope{Caller: "a", Method: "m", Key: testKey}
 	other := Scope{Caller: "b", Method: "m", Key: testKey}
-	s := &fakeStore{records: map[Scope]Record{scope: {Hash: "old", ResourceID: "old-id", ExpiresAt: now.Add(time.Hour)}, other: {Hash: "other", ResourceID: "other-id", ExpiresAt: now.Add(-time.Hour)}}}
+	s := &fakeStore{
+		records: map[Scope]Record{
+			scope: {Hash: "old", ResourceID: "old-id", ExpiresAt: now.Add(time.Hour)},
+			other: {Hash: "other", ResourceID: "other-id", ExpiresAt: now.Add(-time.Hour)},
+		},
+	}
 	create := func(time.Time) (string, error) { return "new-id", nil }
 	if id, err := r.Run(context.Background(), s, scope, "old", create); err != nil || id != "old-id" {
 		t.Fatalf("before expiry = %q, %v", id, err)
@@ -129,13 +135,25 @@ func TestRunCanonicalizesKeyBeforeLock(t *testing.T) {
 	r := New(func() time.Time { return now })
 	s := &fakeStore{}
 	for _, bad := range []string{"", "not-a-uuid", "  " + testKey, testKey + "x"} {
-		_, err := r.Run(context.Background(), s, Scope{Key: bad}, "h", func(time.Time) (string, error) { t.Fatal("created with invalid key"); return "", nil })
+		_, err := r.Run(
+			context.Background(),
+			s,
+			Scope{Key: bad},
+			"h",
+			func(time.Time) (string, error) { t.Fatal("created with invalid key"); return "", nil },
+		)
 		if !errors.Is(err, ErrInvalidKey) || len(s.events) != 0 {
 			t.Fatalf("key %q: %v, events %v", bad, err, s.events)
 		}
 	}
 	upper := "123E4567-E89B-12D3-A456-426614174000"
-	_, err := r.Run(context.Background(), s, Scope{Caller: "c", Method: "m", Key: upper}, "h", func(time.Time) (string, error) { return "id", nil })
+	_, err := r.Run(
+		context.Background(),
+		s,
+		Scope{Caller: "c", Method: "m", Key: upper},
+		"h",
+		func(time.Time) (string, error) { return "id", nil },
+	)
 	if err != nil || s.locked.Key != testKey {
 		t.Fatalf("canonical key = %+v, %v", s.locked, err)
 	}
@@ -175,7 +193,9 @@ func TestRunPropagatesFailures(t *testing.T) {
 				s.saveErr = boom
 			}
 			created := false
-			_, err := New(time.Now).Run(context.Background(), s, Scope{Key: testKey}, "h", func(time.Time) (string, error) {
+			_, err := New(
+				time.Now,
+			).Run(context.Background(), s, Scope{Key: testKey}, "h", func(time.Time) (string, error) {
 				created = true
 				if stage == "create" {
 					return "", boom

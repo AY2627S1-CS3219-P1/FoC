@@ -33,13 +33,17 @@ func TestOriginalIdentitiesAndMutations(t *testing.T) {
 func TestUploadLimitsAndFormats(t *testing.T) {
 	for _, media := range []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"} {
 		for _, size := range []int64{1, 10000000} {
-			if err := protovalidate.Validate(&order.CreateItemImageUploadRequest{ContentType: media, SizeBytes: size}); err != nil {
+			if err := protovalidate.Validate(
+				&order.CreateItemImageUploadRequest{ContentType: media, SizeBytes: size},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	for _, size := range []int64{-1, 0, 10000001} {
-		if err := protovalidate.Validate(&order.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: size}); err == nil {
+		if err := protovalidate.Validate(
+			&order.CreateItemImageUploadRequest{ContentType: "image/png", SizeBytes: size},
+		); err == nil {
 			t.Fatalf("accepted size %d", size)
 		}
 	}
@@ -57,7 +61,8 @@ func TestOutcomeKeepsOriginalWireFields(t *testing.T) {
 	if err := proto.Unmarshal(wire, &event); err != nil {
 		t.Fatal(err)
 	}
-	if event.EventId != "event" || event.OrderId != "order" || event.ReservedCredits != 13 || event.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED {
+	if event.EventId != "event" || event.OrderId != "order" || event.ReservedCredits != 13 ||
+		event.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED {
 		t.Fatal("outcome wire contract changed")
 	}
 }

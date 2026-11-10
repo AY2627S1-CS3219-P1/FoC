@@ -42,7 +42,16 @@ func TestMissingRootDispatchStoreFailsBeforeAdmission(t *testing.T) {
 			calls := 0
 			s := roleServiceWithoutRootDispatches(f, &calls)
 
-			if _, err := s.ChangeUserRole(context.Background(), actorID, targetID, to, "explicit decision"); !errors.Is(err, ErrRoleEffectsUnconfigured) {
+			if _, err := s.ChangeUserRole(
+				context.Background(),
+				actorID,
+				targetID,
+				to,
+				"explicit decision",
+			); !errors.Is(
+				err,
+				ErrRoleEffectsUnconfigured,
+			) {
 				t.Fatalf("missing dispatch store: %v", err)
 			}
 			if calls != 0 || len(f.dispatches) != 0 || len(f.changes) != 0 || f.users[targetID].Role != from {
@@ -103,7 +112,8 @@ func TestMissingRootDispatchStorePreservesExistingIntent(t *testing.T) {
 				if err := path.run(s, d); !errors.Is(err, ErrRoleEffectsUnconfigured) {
 					t.Fatalf("missing dispatch store: %v", err)
 				}
-				if calls != 0 || len(f.changes) != 0 || f.users[targetID].Role != from || len(f.dispatches) != 1 || f.dispatches[d.ID] != d {
+				if calls != 0 || len(f.changes) != 0 || f.users[targetID].Role != from || len(f.dispatches) != 1 ||
+					f.dispatches[d.ID] != d {
 					t.Fatal("incomplete setup dispatched or changed existing intent, role or audit")
 				}
 			})
@@ -127,7 +137,9 @@ func TestOrdinaryRoleChangesDoNotRequireRootDispatchStore(t *testing.T) {
 			s := roleServiceWithoutRootDispatches(f, &calls)
 
 			got, err := s.ChangeUserRole(context.Background(), actorID, targetID, to, "")
-			if err != nil || got.Role != to || f.users[targetID].Role != to || len(f.changes) != 1 || len(f.dispatches) != 0 || calls != 0 {
+			if err != nil || got.Role != to || f.users[targetID].Role != to || len(f.changes) != 1 ||
+				len(f.dispatches) != 0 ||
+				calls != 0 {
 				t.Fatalf("ordinary role change depended on suspension dispatch: %+v %v", got, err)
 			}
 		})

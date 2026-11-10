@@ -38,7 +38,12 @@ func NewItemImages(repository ItemImageRepository, storage images.ObjectStorage)
 	return &ItemImages{repository: repository, storage: storage, now: time.Now}
 }
 
-func (s *ItemImages) CreateUpload(ctx context.Context, caller Caller, contentType string, size int64) (ItemImageUpload, images.UploadGrant, error) {
+func (s *ItemImages) CreateUpload(
+	ctx context.Context,
+	caller Caller,
+	contentType string,
+	size int64,
+) (ItemImageUpload, images.UploadGrant, error) {
 	if caller.ID == "" || caller.Suspended {
 		return ItemImageUpload{}, images.UploadGrant{}, ErrForbidden
 	}
@@ -54,11 +59,23 @@ func (s *ItemImages) CreateUpload(ctx context.Context, caller Caller, contentTyp
 	}
 	now := s.now().UTC()
 	id := uuid.NewString()
-	image := ItemImageUpload{ID: id, OwnerID: owner.String(), Key: "order/item/" + id, ContentType: contentType, SizeBytes: size, State: "uploading", CreatedAt: now, UploadExpiresAt: now.Add(ImageUploadLifetime)}
+	image := ItemImageUpload{
+		ID:              id,
+		OwnerID:         owner.String(),
+		Key:             "order/item/" + id,
+		ContentType:     contentType,
+		SizeBytes:       size,
+		State:           "uploading",
+		CreatedAt:       now,
+		UploadExpiresAt: now.Add(ImageUploadLifetime),
+	}
 	if err := s.repository.SaveItemImage(ctx, image); err != nil {
 		return ItemImageUpload{}, images.UploadGrant{}, err
 	}
-	grant, err := s.storage.CreateUpload(ctx, images.UploadRequest{Key: image.Key, ContentType: contentType, SizeBytes: size})
+	grant, err := s.storage.CreateUpload(
+		ctx,
+		images.UploadRequest{Key: image.Key, ContentType: contentType, SizeBytes: size},
+	)
 	if err != nil {
 		return ItemImageUpload{}, images.UploadGrant{}, ErrUnavailable
 	}
@@ -108,7 +125,8 @@ func (s *ItemImages) Prepare(ctx context.Context, caller Caller, ids []string) (
 		if err != nil {
 			return nil, ErrUnavailable
 		}
-		if !info.Exists || info.Size != item.SizeBytes || info.Size < 1 || info.Size > MaxImageBytes || info.ContentType != item.ContentType {
+		if !info.Exists || info.Size != item.SizeBytes || info.Size < 1 || info.Size > MaxImageBytes ||
+			info.ContentType != item.ContentType {
 			return nil, ErrPrecondition
 		}
 		result = append(result, item)

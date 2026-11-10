@@ -39,7 +39,10 @@ func (r *PostgresRepository) WithinAccountSuspension(ctx context.Context, fn fun
 	})
 }
 
-func (t *accountSuspensionPostgresTx) AccountDecision(ctx context.Context, id string) (*AccountSuspensionDecision, error) {
+func (t *accountSuspensionPostgresTx) AccountDecision(
+	ctx context.Context,
+	id string,
+) (*AccountSuspensionDecision, error) {
 	row, err := t.q.AccountSuspension(ctx, uuid.MustParse(id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -100,7 +103,8 @@ func (t *postgresTx) checkSuspensionEligibility(ctx context.Context, c Change) e
 		}
 	}
 	for _, update := range c.Offers {
-		if update.Offer.Status == OfferOpen || update.Offer.Status == OfferAccepting || update.Offer.Status == OfferAccepted {
+		if update.Offer.Status == OfferOpen || update.Offer.Status == OfferAccepting ||
+			update.Offer.Status == OfferAccepted {
 			ids[update.Offer.CourierID] = true
 		}
 	}

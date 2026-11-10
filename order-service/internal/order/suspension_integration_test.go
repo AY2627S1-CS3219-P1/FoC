@@ -26,14 +26,24 @@ func TestPostgresSuspensionRemovalTargetsAssignmentAndReusesRecovery(t *testing.
 	if err != nil || assigned.Phase != AssignmentSucceeded {
 		t.Fatalf("assignment: %+v %v", assigned, err)
 	}
-	target := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier.ID, AssignmentID: assigned.AttemptID}
+	target := SuspensionRemoval{
+		DecisionID:   uuid.NewString(),
+		OrderID:      o.ID,
+		CourierID:    courier.ID,
+		AssignmentID: assigned.AttemptID,
+	}
 	canceller := NewCanceller(f.repo, credit, AssignmentOptions{Now: now})
 	wrongAssignment := target
 	wrongAssignment.AssignmentID = uuid.NewString()
 	if result, err := canceller.RemoveSuspendedAssignment(f.ctx, wrongAssignment); err != nil || result != nil {
 		t.Fatalf("unrelated assignment: %+v %v", result, err)
 	}
-	if result, err := NewCanceller(f.repo, nil, AssignmentOptions{Now: now}).RemoveSuspendedAssignment(f.ctx, target); !errors.Is(err, ErrPrecondition) || result != nil {
+	if result, err := NewCanceller(
+		f.repo,
+		nil,
+		AssignmentOptions{Now: now},
+	).RemoveSuspendedAssignment(f.ctx, target); !errors.Is(err, ErrPrecondition) ||
+		result != nil {
 		t.Fatalf("unconfigured recovery: %+v %v", result, err)
 	}
 	first, err := canceller.RemoveSuspendedAssignment(f.ctx, target)
@@ -68,7 +78,8 @@ func TestPostgresSuspensionRemovalTargetsAssignmentAndReusesRecovery(t *testing.
 	if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrPrecondition) && !errors.Is(err, ErrConflict) {
 		t.Fatalf("unexpected competing acceptance failure: %v", err)
 	}
-	if err == nil && (competing.Phase != AssignmentRejected || competing.Order.PendingCancellationID == nil || !competing.Order.IsAssignedTo(courier.ID)) {
+	if err == nil &&
+		(competing.Phase != AssignmentRejected || competing.Order.PendingCancellationID == nil || !competing.Order.IsAssignedTo(courier.ID)) {
 		t.Fatalf("accepted during recovery: %+v", competing)
 	}
 	if credit.adjusts != adjusts {
@@ -89,11 +100,18 @@ func TestPostgresSuspensionRemovalTargetsAssignmentAndReusesRecovery(t *testing.
 		t.Fatal(err)
 	}
 	reopened, err := f.repo.Get(f.ctx, o.ID)
-	if err != nil || reopened.Status != AwaitingCourier || reopened.CourierID != nil || reopened.PendingCancellationID != nil || reopened.RewardCredits != o.RewardCredits || reopened.ReservedCredits != o.ReservedCredits || !reopened.ExpiresAt.Equal(o.ExpiresAt) {
+	if err != nil || reopened.Status != AwaitingCourier || reopened.CourierID != nil ||
+		reopened.PendingCancellationID != nil ||
+		reopened.RewardCredits != o.RewardCredits ||
+		reopened.ReservedCredits != o.ReservedCredits ||
+		!reopened.ExpiresAt.Equal(o.ExpiresAt) {
 		t.Fatalf("restoration: %+v %v", reopened, err)
 	}
 	var kind, action string
-	if err := f.pool.QueryRow(f.ctx, "SELECT actor_kind,action FROM order_audit WHERE order_id=$1 ORDER BY revision DESC LIMIT 1", o.ID).Scan(&kind, &action); err != nil || kind != "system" || action != string(RemoveSuspendedCourier) {
+	if err := f.pool.QueryRow(f.ctx, "SELECT actor_kind,action FROM order_audit WHERE order_id=$1 ORDER BY revision DESC LIMIT 1", o.ID).
+		Scan(&kind, &action); err != nil ||
+		kind != "system" ||
+		action != string(RemoveSuspendedCourier) {
 		t.Fatalf("automatic-removal audit %s/%s: %v", kind, action, err)
 	}
 	replacement := Caller{ID: uuid.NewString()}
@@ -134,11 +152,20 @@ func TestPostgresPickupAndSuspensionRemovalShareParentLock(t *testing.T) {
 		_, now := assignmentClock(o)
 		credit := newAssignmentCredit(100, o)
 		courier := Caller{ID: uuid.NewString()}
-		assignment, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
+		assignment, err := NewAssigner(
+			f.repo,
+			credit,
+			AssignmentOptions{Now: now},
+		).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
 		if err != nil {
 			t.Fatal(err)
 		}
-		target := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier.ID, AssignmentID: assignment.AttemptID}
+		target := SuspensionRemoval{
+			DecisionID:   uuid.NewString(),
+			OrderID:      o.ID,
+			CourierID:    courier.ID,
+			AssignmentID: assignment.AttemptID,
+		}
 		canceller := NewCanceller(f.repo, credit, AssignmentOptions{Now: now})
 		progress := NewProgress(NewMutator(f.repo))
 		var pickupErr, removalErr error
@@ -155,7 +182,8 @@ func TestPostgresPickupAndSuspensionRemovalShareParentLock(t *testing.T) {
 			t.Fatal(err)
 		}
 		if pickupErr == nil {
-			if removal != nil || stored.Status != Delivering || stored.PendingCancellationID != nil || stored.PickedUpAt == nil {
+			if removal != nil || stored.Status != Delivering || stored.PendingCancellationID != nil ||
+				stored.PickedUpAt == nil {
 				t.Fatal("pickup won but automatic removal changed its delivery")
 			}
 		} else if !errors.Is(pickupErr, ErrPrecondition) || removal == nil || stored.Status != AwaitingPickup || stored.PendingCancellationID == nil || stored.PickedUpAt != nil {
@@ -171,7 +199,11 @@ func TestPostgresPickupAndSuspensionRemovalShareParentLock(t *testing.T) {
 	_, now := assignmentClock(o)
 	credit := newAssignmentCredit(100, o)
 	courier := Caller{ID: uuid.NewString()}
-	assignment, err := NewAssigner(f.repo, credit, AssignmentOptions{Now: now}).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
+	assignment, err := NewAssigner(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).AcceptOrder(f.ctx, courier, o.ID, uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,8 +211,18 @@ func TestPostgresPickupAndSuspensionRemovalShareParentLock(t *testing.T) {
 	if _, err := progress.ConfirmPickup(f.ctx, courier, o.ID); err != nil {
 		t.Fatal(err)
 	}
-	target := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier.ID, AssignmentID: assignment.AttemptID}
-	if result, err := NewCanceller(f.repo, credit, AssignmentOptions{Now: now}).RemoveSuspendedAssignment(f.ctx, target); err != nil || result != nil || credit.reverts != 0 {
+	target := SuspensionRemoval{
+		DecisionID:   uuid.NewString(),
+		OrderID:      o.ID,
+		CourierID:    courier.ID,
+		AssignmentID: assignment.AttemptID,
+	}
+	if result, err := NewCanceller(
+		f.repo,
+		credit,
+		AssignmentOptions{Now: now},
+	).RemoveSuspendedAssignment(f.ctx, target); err != nil || result != nil ||
+		credit.reverts != 0 {
 		t.Fatalf("after pickup: %+v %v, Credit calls %d", result, err, credit.reverts)
 	}
 }

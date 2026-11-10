@@ -90,7 +90,9 @@ func (s *LocationServer) ListCategories(
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}
-	return connect.NewResponse(&locationv1.ListCategoriesResponse{Categories: rpcshared.ToProtoCategories(categories)}), nil
+	return connect.NewResponse(
+		&locationv1.ListCategoriesResponse{Categories: rpcshared.ToProtoCategories(categories)},
+	), nil
 }
 
 var archiveFilters = map[locationv1.LocationStatusView]location.ArchiveFilter{

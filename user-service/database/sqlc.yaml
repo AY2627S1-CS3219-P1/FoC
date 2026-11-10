@@ -1,0 +1,43 @@
+version: "2"
+sql:
+  - name: "allowed_domains"
+    engine: "postgresql"
+    queries: "query/allowed_domains.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "alloweddomaindb"
+        out: "../internal/database/alloweddomaindb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "citext"
+            go_type: "string"
+  - name: "warnings"
+    engine: "postgresql"
+    queries: "query/warnings.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "warningdb"
+        out: "../internal/database/warningdb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "review"
+    engine: "postgresql"
+    queries:
+      - "query/reviews.sql"
+      - "query/review_moderation.sql"
+      - "query/review_photos.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "reviewdb"
+        out: "../internal/database/reviewdb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true

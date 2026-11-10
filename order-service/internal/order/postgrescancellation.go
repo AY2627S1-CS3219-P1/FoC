@@ -121,7 +121,10 @@ func (t *cancellationPostgresTx) FindCancellation(ctx context.Context, operation
 	return w, nil
 }
 
-func (t *cancellationPostgresTx) CurrentSuccessfulAssignment(ctx context.Context, orderID string) (*AssignmentAttempt, error) {
+func (t *cancellationPostgresTx) CurrentSuccessfulAssignment(
+	ctx context.Context,
+	orderID string,
+) (*AssignmentAttempt, error) {
 	id, err := parseID(orderID)
 	if err != nil {
 		return nil, err
@@ -174,6 +177,7 @@ func (t *cancellationPostgresTx) InsertCancellation(ctx context.Context, w Cance
 		return err
 	}
 	t.cancellations[w.ID], t.changed[w.OrderID] = w, true
+	t.markChanged(w.OrderID, false)
 	return nil
 }
 
@@ -182,8 +186,12 @@ func (t *cancellationPostgresTx) SaveCancellation(ctx context.Context, w Cancell
 	immutable := w
 	immutable.Status, immutable.Generation, immutable.Attempts = before.Status, before.Generation, before.Attempts
 	immutable.LeaseUntil, immutable.NextAttemptAt, immutable.UpdatedAt = before.LeaseUntil, before.NextAttemptAt, before.UpdatedAt
-	if !ok || before.Status != CancellationPending || before.Generation != expected || !reflect.DeepEqual(immutable, before) ||
-		w.Generation < expected || w.Generation > expected+1 || w.Attempts < before.Attempts || w.Attempts > before.Attempts+1 {
+	if !ok || before.Status != CancellationPending || before.Generation != expected ||
+		!reflect.DeepEqual(immutable, before) ||
+		w.Generation < expected ||
+		w.Generation > expected+1 ||
+		w.Attempts < before.Attempts ||
+		w.Attempts > before.Attempts+1 {
 		return t.writeResult(ErrConflict)
 	}
 	n, err := t.q.UpdateCancellation(ctx, db.UpdateCancellationParams{
@@ -203,6 +211,9 @@ func (t *cancellationPostgresTx) SaveCancellation(ctx context.Context, w Cancell
 		return err
 	}
 	t.cancellations[w.ID] = w
+	if before.Status != w.Status {
+		t.markChanged(w.OrderID, false)
+	}
 	if w.Status != CancellationPending {
 		t.changed[w.OrderID] = true
 	}

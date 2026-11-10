@@ -4,7 +4,9 @@ package order
 // boundary. Expected status alone is insufficient: changes must refer to the
 // stored courier/amount and to the initiating actor or immutable pending attempt.
 func validateAssignmentOffers(before Order, stored []Offer, change Change, attempt *AssignmentAttempt) error {
-	if change.Action != ProposeOffer && change.Action != BeginAssignment && change.Action != ResolveAssignment && change.Action != Assign && change.Action != AcceptCounteroffer {
+	if change.Action != ProposeOffer && change.Action != BeginAssignment && change.Action != ResolveAssignment &&
+		change.Action != Assign &&
+		change.Action != AcceptCounteroffer {
 		return nil
 	}
 	if change.Actor.Kind != User || change.Actor.ID == "" {
@@ -23,7 +25,8 @@ func validateAssignmentOffers(before Order, stored []Offer, change Change, attem
 		seen[f.ID] = true
 		old, exists := byID[f.ID]
 		if exists {
-			if update.ExpectedStatus != old.Status || old.CourierID != f.CourierID || old.Credits != f.Credits || !old.CreatedAt.Equal(f.CreatedAt) {
+			if update.ExpectedStatus != old.Status || old.CourierID != f.CourierID || old.Credits != f.Credits ||
+				!old.CreatedAt.Equal(f.CreatedAt) {
 				return ErrConflict
 			}
 		} else if update.ExpectedStatus != "" {
@@ -31,13 +34,17 @@ func validateAssignmentOffers(before Order, stored []Offer, change Change, attem
 		}
 		switch change.Action {
 		case ProposeOffer:
-			if before.Status != AwaitingCourier || before.IsRequestedBy(change.Actor.ID) || f.CourierID != change.Actor.ID ||
+			if before.Status != AwaitingCourier || before.IsRequestedBy(change.Actor.ID) ||
+				f.CourierID != change.Actor.ID ||
 				(!exists && (f.Status != OfferOpen || f.Credits <= before.RewardCredits)) ||
 				(exists && (old.Status != OfferOpen || f.Status != OfferVoid)) {
 				return ErrForbidden
 			}
 		case BeginAssignment:
-			if !matchesAttempt(attempt, before, change.Actor) || f.ID != attempt.OfferID || f.CourierID != attempt.CourierID || f.Credits != attempt.Amount || f.Status != OfferAccepting {
+			if !matchesAttempt(attempt, before, change.Actor) || f.ID != attempt.OfferID ||
+				f.CourierID != attempt.CourierID ||
+				f.Credits != attempt.Amount ||
+				f.Status != OfferAccepting {
 				return ErrForbidden
 			}
 			if attempt.Method == AcceptOrderMethod {
@@ -53,7 +60,8 @@ func validateAssignmentOffers(before Order, stored []Offer, change Change, attem
 				(f.Status != OfferOpen && f.Status != OfferVoid) || (old.Status == OfferVoid && f.Status != OfferVoid) {
 				return ErrForbidden
 			}
-			if f.Status == OfferOpen && (attempt.Method == AcceptOrderMethod || attempt.Rejection != "insufficient_credits") {
+			if f.Status == OfferOpen &&
+				(attempt.Method == AcceptOrderMethod || attempt.Rejection != "insufficient_credits") {
 				return ErrForbidden
 			}
 		case Assign, AcceptCounteroffer:
@@ -61,7 +69,8 @@ func validateAssignmentOffers(before Order, stored []Offer, change Change, attem
 				return ErrForbidden
 			}
 			if f.ID == attempt.OfferID {
-				if old.Status != OfferAccepting || f.Status != OfferAccepted || f.CourierID != attempt.CourierID || f.Credits != attempt.Amount {
+				if old.Status != OfferAccepting || f.Status != OfferAccepted || f.CourierID != attempt.CourierID ||
+					f.Credits != attempt.Amount {
 					return ErrForbidden
 				}
 			} else if old.Status != OfferOpen || f.Status != OfferVoid {

@@ -1,8 +1,8 @@
 # ADR: Immediate suspension, durable handoff and Order authority
 
 Date: 20 Oct 2026
-Status: implemented and locally verified. Production disabled pending #29.
-Dependency: B3 PR #179 for assignment-specific cancellation and recovery.
+Status: integrated with current main. Verification and deployment limits are recorded below.
+Dependency: existing assignment-specific cancellation and recovery on main.
 
 ## Approved behavior and scope
 
@@ -30,7 +30,10 @@ behavior. This change adds no timer/frontend business code or new microservice.
 ## Current-role authentication
 
 Shared `httpauth.Authenticator` verifies JWT identity, then resolves the persisted
-role through existing `GetMyProfile` on every protected Supplier/Order request.
+role through existing `GetMyProfile` on every protected shared-authenticator request.
+User's internal listener exposes only that bearer-authenticated self-profile method,
+using its local verifier and database authorization. Profile mutations remain on
+the public listener. The same internal origin serves public keys and current roles.
 Only the verified bearer is forwarded. Identity/session/timestamps remain from
 the JWT; role and admin authority come from the fresh profile. No role cache or
 fallback to stale privileges is permitted. Bad/missing account identity returns
@@ -48,7 +51,7 @@ requester receipt remain available.
 
 The existing `RoleService.ChangeUserRole` validates the admin, target and reason
 under User row locks. Before reading/writing decision relationships, it locks the
-target User. A suspension/reinstatement uses `role_dispatches` (migration 00007):
+target User. A suspension/reinstatement uses `role_dispatches` (migration 00014):
 immutable decision ID, user/admin IDs, original/destination role, per-user revision,
 reason and timestamps. No bearer credential is persisted.
 
@@ -63,9 +66,9 @@ A lost/uncertain reply retains durable intent and reports Unavailable. Changed
 pending intent is rejected. Definite Order rejections are recorded with
 `rejected_at`, reported as FailedPrecondition, and excluded from automatic recovery.
 They retain the immutable decision and block replacement/finalization until explicit
-reconciliation. Uncertain failures remain retryable. Migration 00008 guards rollback
+reconciliation. Uncertain failures remain retryable. Migration 00015 guards rollback
 past the dispatch history whenever any revision tombstone exists, including applied
-or rejected decisions. It does not rewrite applied migration 00007.
+or rejected decisions. It does not rewrite applied migration 00014.
 Bounded recovery retries use the same decision, never a saved human session.
 Reinstatement advances the revision; older delayed facts cannot undo it. This is
 immediate command recovery, not a policy to suspend after delivery or at a scheduled
@@ -82,7 +85,7 @@ the startup guard. A recovery item loaded before deletion rechecks the target
 before sending and finalizing.
 
 A live target's unfinished or rejected decision still fails closed when transport
-is unavailable. User Service cannot start in that state, affecting login and the
+configuration is absent. User Service cannot start in that state, affecting login and the
 fresh-role lookups used by Supplier and Order. This deliberately retains the
 fail-closed boundary rather than silently abandoning live intent.
 
@@ -126,9 +129,9 @@ RevertPending attempt whose offer is still accepting. Existing RevertPending wor
 retains its generation, lease and compensation owner. Suspension voids the in-flight offer, so an
 insufficient-credit compensation cannot reopen it even after reinstatement.
 
-Migration `20261020140000` adds the immutable suspension decision ID to B3's
-cancellation record. Timestamp versions avoid claiming B4's next Order migration
-number. Existing leases, generation fencing, retry backoff, startup recovery,
+Migration `00012` adds the immutable suspension decision ID to B3's
+cancellation record. Unpublished suspension migrations use Order versions 00012-00013 and User
+versions 00014-00015, after the migrations already on main. Existing leases, generation fencing, retry backoff, startup recovery,
 reservation checks and the central assignment-history writer are reused. Revert
 uses the original immutable assignment ID outside the transaction; acknowledged
 reversal plus a matching Held reservation at the original amount is required.
@@ -136,39 +139,49 @@ Only then does recovery re-lock/revalidate and restore reward/reservation, clear
 the assignment and reopen with unchanged expiry. No second financial worker exists.
 Database and RPC bindings are generated, not hand-edited.
 
-## Deferred service-auth dependency and production behavior
+## Istio workload authentication and User-only authorization
 
-The authenticated retry/trusted-caller dependency is deferred to
-[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29).
-Service-mesh integration in PR #167 provides context for separate service accounts,
-mandatory proxies, STRICT Istio mTLS and a private Order listener. A namespace-wide
-policy trusting all FoC workloads does not establish User-only authority for this
-mutation. Listener isolation and mTLS alone do not satisfy intended-caller
-authorization, and live deployment remains unverified.
+User dispatches to `ORDER_SERVICE_INTERNAL_URL` through the generated Order client.
+The composition root starts durable recovery when configured. Missing configuration
+still rejects suspension/reinstatement before new intent and refuses startup if a
+live target has unfinished intent. Network reachability is not a startup dependency:
+User must start before Order can fetch User's public keys. No human bearer token is
+stored or forwarded, and redirects are refused.
 
-Production deliberately leaves `RoleService.Effects` nil: suspension/reinstatement
-fails with FailedPrecondition BEFORE admitting a role/dispatch change. Startup
-also refuses to silently abandon an existing live-target unfinished dispatch if
-transport is unavailable. `SetupSuspension` requires BOTH authentication middleware and a
-User-only authorization interceptor, otherwise returns 503. It is not mounted in
-the public router or current production composition. Test identities exist only
-in tests. No plaintext fallback, trusted client header, Credit-token reuse,
-credential creation, persistent access or live policy change is introduced.
+The existing sidecars supply STRICT mTLS workload authentication. The
+`order-suspension-user-only` Istio DENY policy rejects calls to
+`/order.v1.OrderInternalService/ApplyAccountSuspension` on Order's internal port
+8081 unless the authenticated principal is `cluster.local/ns/foc/sa/user-service`.
+DENY takes precedence over the broad authenticated-namespace ALLOW. An arbitrary
+FoC workload, expired admin JWT, or forged identity header cannot grant access.
+No new workload credential system is introduced.
 
-To enable production, #29 must supply the authenticated retry client, intended-
-caller authorization, internal-listener composition and approved deployment
-configuration. Then inject the client/guards, start the existing dispatch recovery
-loop, and mount the private handler through #167's listener. Supplying an arbitrary
-HTTP client or trusting the current broad namespace policy is insufficient.
-These are explicit unmet deployment/transport dependencies, not passing live
-security evidence.
+Order mounts only this method from OrderInternalService on its internal listener.
+The public listener and Gateway do not expose it. The ordinary user-JWT middleware
+is not the service-only authorization mechanism. Kubernetes deployments must keep
+the sidecars, STRICT policy, and User-only DENY together with this application.
+The Compose private network is a local-development seam without workload identity;
+it is not production security evidence, and internal ports must not be published.
+
+This supplies the suspension-specific wiring required by
+[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29). Live mesh authorization
+and retry-after-expiry evidence remain a deployment verification gate. The code
+and scripted RPC tests do not establish that a deployed mesh enforces the policy.
+No cluster deployment or credential provisioning is performed by this change.
+
+## Existing suspended accounts at rollout
+
+The schema migrations create the new dispatch and Order-fence ledgers; they do not
+invent or replay administrator decisions for accounts suspended before this
+workflow existed. Fresh-role authentication applies to those accounts, but their
+old assignments are not automatically removed by migration. Reconcile existing
+suspensions and their original audit context before treating rollout as complete.
+This change does not perform a production data migration or backfill.
 
 ## Verification and remaining gates
 
-Local formatting, lint, module and focused PostgreSQL/race checks passed, including
-the insufficient-credit offer-retirement regression across reinstatement. See
+See
 [verification evidence and repeat commands](../testing/immediate-suspension.md).
 
 Passing local checks does not establish production authenticated suspension
-completion. B2 proof and B4 live timer behavior, real Credit, mesh enforcement and
-deployment remain uncertified.
+completion. Real Credit, live mesh enforcement, and deployment remain uncertified.

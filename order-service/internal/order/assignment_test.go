@@ -46,7 +46,12 @@ func (r *replayAssignmentRepository) LockIdempotencyCaller(context.Context, Idem
 	r.keysLocked = true
 	return nil
 }
-func (r *replayAssignmentRepository) FindIdempotencyKey(context.Context, IdempotencyScope, string) (*IdempotencyKey, error) {
+
+func (r *replayAssignmentRepository) FindIdempotencyKey(
+	context.Context,
+	IdempotencyScope,
+	string,
+) (*IdempotencyKey, error) {
 	return r.key, nil
 }
 func (r *replayAssignmentRepository) InsertIdempotencyKey(_ context.Context, key IdempotencyKey) error {
@@ -84,10 +89,41 @@ func replayAssignmentFixture() (*replayAssignmentRepository, Caller, string) {
 	now := time.Now().UTC()
 	caller := Caller{ID: uuid.NewString()}
 	key := uuid.NewString()
-	o := Order{ID: uuid.NewString(), RequesterID: uuid.NewString(), Status: AwaitingCourier, RewardCredits: 20, ReservedCredits: 20, Revision: 8, ExpiresAt: now.Add(time.Hour)}
+	o := Order{
+		ID:              uuid.NewString(),
+		RequesterID:     uuid.NewString(),
+		Status:          AwaitingCourier,
+		RewardCredits:   20,
+		ReservedCredits: 20,
+		Revision:        8,
+		ExpiresAt:       now.Add(time.Hour),
+	}
 	f := Offer{ID: uuid.NewString(), OrderID: o.ID, CourierID: caller.ID, Credits: 50, Status: OfferAccepted}
-	a := AssignmentAttempt{ID: uuid.NewString(), OrderID: o.ID, OfferID: f.ID, CallerID: caller.ID, CourierID: caller.ID, Method: AcceptOrderMethod, Key: key, RequestHash: assignmentHash(o.ID, 0), Phase: AssignmentSucceeded, Amount: 50, OriginalAmount: 20}
-	return &replayAssignmentRepository{order: o, offers: []Offer{f}, attempt: a, key: &IdempotencyKey{Scope: IdempotencyScope{CallerID: caller.ID, Method: AcceptOrderMethod}, Key: key, ResourceID: a.ID, RequestHash: a.RequestHash, ExpiresAt: now.Add(-48 * time.Hour)}}, caller, key
+	a := AssignmentAttempt{
+		ID:             uuid.NewString(),
+		OrderID:        o.ID,
+		OfferID:        f.ID,
+		CallerID:       caller.ID,
+		CourierID:      caller.ID,
+		Method:         AcceptOrderMethod,
+		Key:            key,
+		RequestHash:    assignmentHash(o.ID, 0),
+		Phase:          AssignmentSucceeded,
+		Amount:         50,
+		OriginalAmount: 20,
+	}
+	return &replayAssignmentRepository{
+		order:   o,
+		offers:  []Offer{f},
+		attempt: a,
+		key: &IdempotencyKey{
+			Scope:       IdempotencyScope{CallerID: caller.ID, Method: AcceptOrderMethod},
+			Key:         key,
+			ResourceID:  a.ID,
+			RequestHash: a.RequestHash,
+			ExpiresAt:   now.Add(-48 * time.Hour),
+		},
+	}, caller, key
 }
 
 func TestAcceptOrderHistoricalReplayDoesNotReassign(t *testing.T) {
@@ -98,7 +134,11 @@ func TestAcceptOrderHistoricalReplayDoesNotReassign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Phase != AssignmentSucceeded || result.AttemptID != r.attempt.ID || result.Order.Status != AwaitingCourier || result.Order.CourierID != nil || r.writes != 0 || !r.keysLocked {
+	if result.Phase != AssignmentSucceeded || result.AttemptID != r.attempt.ID ||
+		result.Order.Status != AwaitingCourier ||
+		result.Order.CourierID != nil ||
+		r.writes != 0 ||
+		!r.keysLocked {
 		t.Fatalf("replay performed or misrepresented assignment: %+v writes=%d", result, r.writes)
 	}
 }
@@ -149,7 +189,10 @@ func TestMakeOfferRetainedReplayDoesNotReplaceOffer(t *testing.T) {
 func TestRevertRequiresAcknowledgementBeforeHeldRead(t *testing.T) {
 	credit := &revertObservationCredit{}
 	s := NewAssigner(nil, credit, AssignmentOptions{})
-	observation := s.observeAssignment(context.Background(), AssignmentAttempt{ID: uuid.NewString(), OrderID: uuid.NewString(), Phase: RevertPending})
+	observation := s.observeAssignment(
+		context.Background(),
+		AssignmentAttempt{ID: uuid.NewString(), OrderID: uuid.NewString(), Phase: RevertPending},
+	)
 	if observation.reservation != nil || credit.reads != 0 {
 		t.Fatal("treated unacknowledged revert as fenced")
 	}
@@ -212,7 +255,11 @@ func TestAdmittedAssignmentProcessingFailureRemainsUnavailable(t *testing.T) {
 	r.attempt.Phase = AdjustmentPending
 	// This fixture intentionally reports no active owner, causing a processing
 	// conflict after admission. It does not simulate a completed Credit transfer.
-	_, err := NewAssigner(r, &revertObservationCredit{}, AssignmentOptions{}).resumeAssignment(context.Background(), caller, r.attempt)
+	_, err := NewAssigner(
+		r,
+		&revertObservationCredit{},
+		AssignmentOptions{},
+	).resumeAssignment(context.Background(), caller, r.attempt)
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("processing conflict became a definitive business rejection: %v", err)
 	}

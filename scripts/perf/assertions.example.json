@@ -1,0 +1,9 @@
+[
+  {
+    "name": "producer acknowledged event still lacks outbox confirmation",
+    "databaseEnv": "PERF_ORDER_DB",
+    "sql": "SELECT EXISTS(SELECT 1 FROM order_outbox WHERE event_id=$1::uuid AND published_at IS NULL)",
+    "args": ["REPLACE_WITH_EVENT_UUID_CORRELATED_TO_BROKER_ACKNOWLEDGEMENT"],
+    "expected": true
+  }
+]

@@ -10,6 +10,66 @@ import (
 	"github.com/google/uuid"
 )
 
+type ChatMessage struct {
+	ID          uuid.UUID
+	OrderID     uuid.UUID
+	SenderID    uuid.UUID
+	RecipientID uuid.UUID
+	Body        string
+	SentAt      time.Time
+}
+
+type ChatReplyTarget struct {
+	ChatID    int64
+	MessageID int64
+	OrderID   uuid.UUID
+	CreatedAt time.Time
+}
+
+type ChatSelection struct {
+	UserID     uuid.UUID
+	OrderID    uuid.UUID
+	SelectedAt time.Time
+}
+
+type NotificationEmail struct {
+	EventID          uuid.UUID
+	UserID           uuid.UUID
+	Body             string
+	CreatedAt        time.Time
+	AvailableAt      time.Time
+	Status           string
+	Attempts         int32
+	AttemptedAt      *time.Time
+	LastError        string
+	ExpiresAt        *time.Time
+	OrderID          *uuid.UUID
+	OrderRevision    *int64
+	UnlessReassigned bool
+}
+
+type NotificationsStart struct {
+	Singleton bool
+	StartedAt time.Time
+}
+
+type OrderNotificationsSent struct {
+	EventID uuid.UUID
+	UserID  uuid.UUID
+	SentAt  time.Time
+}
+
+type OrderParticipant struct {
+	OrderID            uuid.UUID
+	RequesterID        uuid.UUID
+	CourierID          *uuid.UUID
+	Status             string
+	Revision           int64
+	PickupLocationName string
+	EndedAt            *time.Time
+	UpdatedAt          time.Time
+}
+
 type TelegramLink struct {
 	UserID           uuid.UUID
 	ChatID           int64
@@ -22,5 +82,11 @@ type TelegramLinkCode struct {
 	UserID    uuid.UUID
 	ExpiresAt time.Time
 	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
+type UserEmail struct {
+	UserID    uuid.UUID
+	Email     string
 	CreatedAt time.Time
 }

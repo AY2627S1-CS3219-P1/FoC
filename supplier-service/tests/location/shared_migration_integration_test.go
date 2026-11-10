@@ -51,17 +51,39 @@ func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 
 			requestID := uuid.NewString()
 			auditTime := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
-			f.exec(t, `INSERT INTO location_addition_requests(id,submitted_by,name,is_supplier,building_id,coordinates,floor,updated_at)
-				VALUES($1,'owner','New Cafe',true,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography,'2',$3)`, requestID, postgresBuildingID, auditTime)
-			f.exec(t, `INSERT INTO location_addition_request_categories(request_id,category_id) VALUES($1,$2),($1,$3)`, requestID, postgresCategoryID, otherCategoryID)
-			f.exec(t, `UPDATE location_addition_requests SET details='Pickup upstairs',revision=revision+1 WHERE id=$1`, requestID)
+			f.exec(
+				t,
+				`INSERT INTO location_addition_requests(id,submitted_by,name,is_supplier,building_id,coordinates,floor,updated_at)
+				VALUES($1,'owner','New Cafe',true,$2,ST_SetSRID(ST_MakePoint(103.774,1.294),4326)::geography,'2',$3)`,
+				requestID,
+				postgresBuildingID,
+				auditTime,
+			)
+			f.exec(
+				t,
+				`INSERT INTO location_addition_request_categories(request_id,category_id) VALUES($1,$2),($1,$3)`,
+				requestID,
+				postgresCategoryID,
+				otherCategoryID,
+			)
+			f.exec(
+				t,
+				`UPDATE location_addition_requests SET details='Pickup upstairs',revision=revision+1 WHERE id=$1`,
+				requestID,
+			)
 			var categories int
 			var revision int64
 			var persistedTime time.Time
 			if err := f.pool.QueryRow(f.ctx, `SELECT revision,updated_at,
 				(SELECT count(*) FROM location_addition_request_categories WHERE request_id=r.id)
 				FROM location_addition_requests r WHERE id=$1`, requestID).Scan(&revision, &persistedTime, &categories); err != nil || revision != 2 || categories != 2 || !persistedTime.Equal(auditTime) {
-				t.Fatalf("request persistence: revision=%d categories=%d audit=%v error=%v", revision, categories, persistedTime, err)
+				t.Fatalf(
+					"request persistence: revision=%d categories=%d audit=%v error=%v",
+					revision,
+					categories,
+					persistedTime,
+					err,
+				)
 			}
 			for _, update := range []string{
 				`status='rejected',reviewed_by='admin',reviewed_at=now(),review_note='Duplicate'`,
@@ -79,7 +101,11 @@ func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 				{"floor length is bounded", `floor=repeat('x',51)`},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
-					_, err := f.pool.Exec(f.ctx, `UPDATE location_addition_requests SET `+tc.update+` WHERE id=$1`, requestID)
+					_, err := f.pool.Exec(
+						f.ctx,
+						`UPDATE location_addition_requests SET `+tc.update+` WHERE id=$1`,
+						requestID,
+					)
 					assertCheckViolation(t, err)
 				})
 			}
@@ -87,7 +113,11 @@ func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 			disablementID := uuid.NewString()
 			f.exec(t, `INSERT INTO location_disablements(id,location_id,starts_at,ends_at,reason,created_by)
 				VALUES($1,$2,'2026-09-01 10:00Z','2026-09-01 12:00Z','Maintenance','admin')`, disablementID, postgresLocationID)
-			f.exec(t, `UPDATE location_disablements SET ended_at='2026-09-01 11:00Z',revision=2 WHERE id=$1`, disablementID)
+			f.exec(
+				t,
+				`UPDATE location_disablements SET ended_at='2026-09-01 11:00Z',revision=2 WHERE id=$1`,
+				disablementID,
+			)
 			for _, tc := range []struct{ name, update string }{
 				{"disablement revision must be positive", `revision=0`},
 				{"disablement needs a reason", `reason=' '`},
@@ -97,11 +127,19 @@ func TestWorkflowSchemaFreshAndReplayPostGIS(t *testing.T) {
 				{"cancel must precede start", `ended_at=NULL,cancelled_at='2026-09-01 11:00Z'`},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
-					_, err := f.pool.Exec(f.ctx, `UPDATE location_disablements SET `+tc.update+` WHERE id=$1`, disablementID)
+					_, err := f.pool.Exec(
+						f.ctx,
+						`UPDATE location_disablements SET `+tc.update+` WHERE id=$1`,
+						disablementID,
+					)
 					assertCheckViolation(t, err)
 				})
 			}
-			f.exec(t, `UPDATE location_disablements SET ended_at=NULL,cancelled_at='2026-09-01 09:00Z' WHERE id=$1`, disablementID)
+			f.exec(
+				t,
+				`UPDATE location_disablements SET ended_at=NULL,cancelled_at='2026-09-01 09:00Z' WHERE id=$1`,
+				disablementID,
+			)
 		})
 	}
 }

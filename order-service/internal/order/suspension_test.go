@@ -19,7 +19,14 @@ func TestSuspensionRemovalRequiresSpecificDecisionAndAssignment(t *testing.T) {
 		{DecisionID: id, CourierID: id, AssignmentID: id},
 		{DecisionID: id, OrderID: id, CourierID: id, AssignmentID: uuid.Nil.String()},
 	} {
-		if _, err := NewCanceller(nil, nil, AssignmentOptions{}).RemoveSuspendedAssignment(context.Background(), target); !errors.Is(err, ErrInvalid) {
+		if _, err := NewCanceller(
+			nil,
+			nil,
+			AssignmentOptions{},
+		).RemoveSuspendedAssignment(context.Background(), target); !errors.Is(
+			err,
+			ErrInvalid,
+		) {
 			t.Fatalf("invalid target %+v: %v", target, err)
 		}
 	}
@@ -102,7 +109,13 @@ func TestSuspensionRemovalRestoresOnlyItsAssignment(t *testing.T) {
 		Status: AwaitingPickup, AssignedAt: &now, RewardCredits: 35, ReservedCredits: 35,
 		ExpiresAt: now.Add(time.Hour), CreatedAt: now, UpdatedAt: now, Revision: 3,
 	}
-	assignment := AssignmentAttempt{ID: uuid.NewString(), OrderID: o.ID, CourierID: courier, Phase: AssignmentSucceeded, OriginalAmount: 15}
+	assignment := AssignmentAttempt{
+		ID:             uuid.NewString(),
+		OrderID:        o.ID,
+		CourierID:      courier,
+		Phase:          AssignmentSucceeded,
+		OriginalAmount: 15,
+	}
 	m := &suspensionMemory{current: o, assignment: assignment, operations: map[string]Cancellation{}}
 	if _, _, err := Transition(o, RemoveSuspendedCourier, Actor{Kind: System}); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("automatic removal without recovery intent: %v", err)
@@ -112,14 +125,20 @@ func TestSuspensionRemovalRestoresOnlyItsAssignment(t *testing.T) {
 		State: "assigned", OfferID: assignment.ID, CourierID: courier,
 	}}
 	s := NewCanceller(m, credit, AssignmentOptions{Now: func() time.Time { return now }})
-	target := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier, AssignmentID: assignment.ID}
+	target := SuspensionRemoval{
+		DecisionID:   uuid.NewString(),
+		OrderID:      o.ID,
+		CourierID:    courier,
+		AssignmentID: assignment.ID,
+	}
 	first, err := s.RemoveSuspendedAssignment(ctx, target)
 	if err != nil || first == nil || first.Order.PendingCancellationID == nil || credit.calls != 0 {
 		t.Fatalf("admission: %+v %v calls=%d", first, err, credit.calls)
 	}
 	for range 3 {
 		repeat, err := s.RemoveSuspendedAssignment(ctx, target)
-		if err != nil || repeat == nil || repeat.OperationID != first.OperationID || len(m.changes) != 1 || credit.calls != 0 {
+		if err != nil || repeat == nil || repeat.OperationID != first.OperationID || len(m.changes) != 1 ||
+			credit.calls != 0 {
 			t.Fatalf("duplicate admission: %+v %v", repeat, err)
 		}
 	}
@@ -139,7 +158,10 @@ func TestSuspensionRemovalRestoresOnlyItsAssignment(t *testing.T) {
 	if err := restarted.ProcessCancellation(ctx, first.OperationID); err != nil {
 		t.Fatal(err)
 	}
-	if m.current.Status != AwaitingCourier || m.current.CourierID != nil || m.current.PendingCancellationID != nil || m.current.RewardCredits != 15 || m.current.ReservedCredits != 15 || !m.current.ExpiresAt.Equal(o.ExpiresAt) {
+	if m.current.Status != AwaitingCourier || m.current.CourierID != nil || m.current.PendingCancellationID != nil ||
+		m.current.RewardCredits != 15 ||
+		m.current.ReservedCredits != 15 ||
+		!m.current.ExpiresAt.Equal(o.ExpiresAt) {
 		t.Fatalf("restored order: %+v", m.current)
 	}
 	if len(m.changes) != 2 || m.changes[0].Actor.Kind != System || m.changes[1].Action != RemoveSuspendedCourier {

@@ -12,9 +12,10 @@ import (
 
 // RPCServices contains RPC servers constructed at the application composition root.
 type RPCServices struct {
-	Health orderv1connect.HealthServiceHandler
-	Order  orderv1connect.OrderServiceHandler
-	Admin  orderv1connect.OrderAdminServiceHandler
+	Health     orderv1connect.HealthServiceHandler
+	Order      orderv1connect.OrderServiceHandler
+	Admin      orderv1connect.OrderAdminServiceHandler
+	Suspension orderv1connect.OrderInternalServiceHandler
 }
 
 // Setup mounts the public health RPC and the protected order RPCs.

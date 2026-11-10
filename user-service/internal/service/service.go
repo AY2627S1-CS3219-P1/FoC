@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
@@ -35,18 +35,24 @@ type SessionStore interface {
 	RevokeAllForUser(context.Context, uuid.UUID, time.Time) (int64, error)
 }
 
-type DomainStore interface {
-	Allows(context.Context, string) (bool, error)
+// EmailDomainPolicy reports membership in the email-domain allowlist.
+type EmailDomainPolicy interface {
+	IsDomainAllowed(context.Context, string) (bool, error)
 }
 
-type Store struct {
-	Users      UserStore
-	AuthTokens AuthTokenStore
-	Sessions   SessionStore
-	Domains    DomainStore
+type UserCreatedEventStore interface {
+	Append(context.Context, userdomain.CreatedEvent) error
 }
 
-type WithTransaction func(context.Context, func(Store) error) error
+type Resources struct {
+	Users             UserStore
+	AuthTokens        AuthTokenStore
+	Sessions          SessionStore
+	DomainPolicy      EmailDomainPolicy
+	UserCreatedEvents UserCreatedEventStore
+}
+
+type WithTransaction func(context.Context, func(Resources) error) error
 
 // TokenCodec is the signing and verification logic consumed by Service.
 type TokenCodec interface {
@@ -55,11 +61,25 @@ type TokenCodec interface {
 	PublicKeys() jwt.JWKSet
 }
 
+// MagicLinkPurpose says whether a magic link signs in or finishes sign-up.
+type MagicLinkPurpose int
+
+const (
+	MagicLinkLogin MagicLinkPurpose = iota + 1
+	MagicLinkRegister
+)
+
+// MagicLinkSender delivers magic links. Communication Service sends and words
+// the email.
+type MagicLinkSender interface {
+	SendMagicLink(ctx context.Context, to, link string, purpose MagicLinkPurpose) error
+}
+
 type Dependencies struct {
-	Store           Store
+	Resources       Resources
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
-	EmailSender     email.EmailSender
+	MagicLinks      MagicLinkSender
 }
 
 type Config struct {

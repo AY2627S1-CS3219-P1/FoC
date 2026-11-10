@@ -9,13 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  performance-harness:
+    name: Performance harness checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache-dependency-path: |
+            scripts/go.sum
+            pkg/go.sum
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Verify workload, reporting and fault recovery
+        run: make perf-test
+
   go-tests:
     name: Go tests (${{ matrix.module }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, content-moderation-service]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -24,7 +45,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          cache-dependency-path: ${{ matrix.module }}/go.*
       - name: Run all Go tests
         run: GOWORK=off go test -mod=readonly ./...
 
@@ -34,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [pkg, user-service, supplier-service, order-service, communication-service]
+        module: [scripts, pkg, user-service, supplier-service, order-service, communication-service, credit-service, content-moderation-service]
     env:
       GOWORK: 'off'
       GOFLAGS: '-mod=readonly'
@@ -44,11 +65,14 @@ jobs:
         with:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: |
+            scripts/go.sum
             pkg/go.sum
             user-service/go.sum
             supplier-service/go.sum
             order-service/go.sum
             communication-service/go.sum
+            credit-service/go.sum
+            content-moderation-service/go.sum
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -97,6 +121,10 @@ jobs:
           cache-dependency-path: |
             supplier-service/go.sum
             pkg/go.sum
+      - name: Run seed runner integration tests
+        if: steps.changes.outputs.run == 'true'
+        working-directory: scripts
+        run: GOWORK=off go test -mod=readonly -tags=integration ./seed -count=1 -timeout=5m
       - name: Run Supplier database integration tests
         if: steps.changes.outputs.run == 'true'
         run: make test-integration
@@ -105,6 +133,20 @@ jobs:
     name: Order integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: foc
+          POSTGRES_PASSWORD: foc
+          POSTGRES_DB: suspension_order_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: order-service
@@ -116,8 +158,191 @@ jobs:
           cache-dependency-path: |
             order-service/go.sum
             pkg/go.sum
+      # The delivery-proof tests decode with the same pinned ImageMagick build
+      # as the Order images (order-service/scripts/build-imagemagick.sh). The
+      # build libraries are installed on cache hits too, for their runtime
+      # libraries and libheif's HEVC plugin.
+      - name: Install ImageMagick dependencies
+        run: |
+          . scripts/imagemagick-deps.sh
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends $IMAGEMAGICK_BUILD_DEPS
+      - name: Cache ImageMagick build
+        id: imagemagick
+        uses: actions/cache@v6
+        with:
+          path: /opt/imagemagick
+          key: ${{ runner.os }}-${{ runner.arch }}-imagemagick-${{ hashFiles('order-service/scripts/build-imagemagick.sh', 'order-service/scripts/imagemagick-deps.sh') }}
+      - name: Build ImageMagick
+        if: steps.imagemagick.outputs.cache-hit != 'true'
+        run: sudo sh scripts/build-imagemagick.sh
+      - name: Add ImageMagick to PATH
+        run: |
+          echo /opt/imagemagick/bin >> "$GITHUB_PATH"
+          /opt/imagemagick/bin/magick -version
       - name: Run Order database integration tests
         run: make test-integration
+      - name: Verify suspension fences and private RPC recovery
+        env:
+          SUSPENSION_TEST_DATABASE_URL: postgresql://foc:foc@localhost:5432/suspension_order_test?sslmode=disable
+        run: GOWORK=off go test -mod=readonly -p 1 -race ./internal/order ./internal/rpc/orderinternal -run 'Suspension|Suspended' -count=1 -timeout=10m
+
+  credit-integration:
+    name: Credit integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: credit-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: credit-service/go.mod
+          cache-dependency-path: credit-service/go.sum
+      - name: Run Credit database integration tests
+        if: steps.changes.outputs.run == 'true'
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
+
+  moderation-integration:
+    name: Moderation integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: content-moderation-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: foc
+          POSTGRES_PASSWORD: foc
+          POSTGRES_DB: moderation_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: content-moderation-service/go.mod
+          cache-dependency-path: |
+            content-moderation-service/go.sum
+            pkg/go.sum
+      - name: Run moderation database integration tests
+        if: steps.changes.outputs.run == 'true'
+        env:
+          TEST_DATABASE_URL: postgresql://foc:foc@localhost:5432/moderation_test?sslmode=disable
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
+
+  user-service-integration:
+    name: User-service integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: user-service
+    env:
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: foc
+          POSTGRES_PASSWORD: foc
+          POSTGRES_DB: user_service_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip documentation-only changes
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=$(git diff --name-only "$BASE_SHA" HEAD)
+          while IFS= read -r path; do
+            case "$path" in
+              ''|docs/*|*.md|*.mdx|LICENSE|LICENSE.*) ;;
+              *) echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+          done <<< "$paths"
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          go-version-file: user-service/go.mod
+          cache-dependency-path: user-service/go.sum
+      - name: Run user-service database integration tests
+        if: steps.changes.outputs.run == 'true'
+        env:
+          TEST_DATABASE_URL: postgresql://foc:foc@localhost:5432/user_service_test?sslmode=disable
+        run: go test -p 1 -race -tags=integration ./internal/... -count=1 -timeout=10m
 
   frontend:
     name: Frontend checks

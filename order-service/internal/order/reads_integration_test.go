@@ -4,6 +4,7 @@ package order
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,66 @@ func (f *fixture) seed(t *testing.T, o Order) {
 		t.Fatal(err)
 	}
 }
+func TestPostgresCountByStatus(t *testing.T) {
+	f := setup(t)
+	f.reset(t)
+
+	for _, status := range []Status{AwaitingCourier, AwaitingCourier, Delivering, Cancelled} {
+		o := sampleOrder()
+		o.Status = status
+		if status == Delivering {
+			courier := uuid.NewString()
+			o.CourierID = &courier
+		}
+		f.seed(t, o)
+	}
+
+	got, err := NewService(f.repo).CountOrdersByStatus(f.ctx, Caller{ID: uuid.NewString(), Admin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[Status]int64{AwaitingCourier: 2, Delivering: 1, Cancelled: 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("counts = %v, want %v", got, want)
+	}
+}
+
+func TestPostgresCountByDay(t *testing.T) {
+	f := setup(t)
+	f.reset(t)
+
+	// 23:59 and 00:01 Singapore time fall on different days.
+	for _, at := range []time.Time{
+		time.Date(2026, time.November, 9, 15, 59, 0, 0, time.UTC),
+		time.Date(2026, time.November, 9, 16, 1, 0, 0, time.UTC),
+		time.Date(2026, time.November, 9, 16, 2, 0, 0, time.UTC),
+		time.Date(2026, time.November, 12, 0, 0, 0, 0, time.UTC),
+	} {
+		o := sampleOrder()
+		o.CreatedAt = at
+		o.UpdatedAt = at
+		f.seed(t, o)
+	}
+
+	got, err := NewService(f.repo).CountOrdersByDay(
+		f.ctx,
+		Caller{ID: uuid.NewString(), Admin: true},
+		Date{2026, time.November, 9},
+		Date{2026, time.November, 11},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []DailyCount{
+		{Date{2026, time.November, 9}, 1},
+		{Date{2026, time.November, 10}, 2},
+		{Date{2026, time.November, 11}, 0},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("days = %v, want %v", got, want)
+	}
+}
+
 func TestPostgresReads(t *testing.T) {
 	f := setup(t)
 	service := NewService(f.repo)
@@ -57,11 +118,16 @@ func TestPostgresReads(t *testing.T) {
 		expired.Status = AwaitingCourier
 		expired.ExpiresAt = time.Now().Add(-time.Second)
 		f.seed(t, expired)
-		p, err := service.ListOpenOrders(f.ctx, caller, ListRequest{Page: Page{Size: 2}, PickupID: strings.ToUpper(pickup), DeliveryBuildingName: "PGP"})
+		p, err := service.ListOpenOrders(
+			f.ctx,
+			caller,
+			ListRequest{Page: Page{Size: 2}, PickupID: strings.ToUpper(pickup), DeliveryBuildingName: "PGP"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(p.Orders) != 2 || p.PageInfo.Total != 3 || p.PageInfo.Size != 2 || p.PageInfo.Number != 1 || p.PageInfo.TotalPages() != 2 {
+		if len(p.Orders) != 2 || p.PageInfo.Total != 3 || p.PageInfo.Size != 2 || p.PageInfo.Number != 1 ||
+			p.PageInfo.TotalPages() != 2 {
 			t.Fatalf("page %+v", p)
 		}
 		for _, o := range p.Orders {
@@ -72,14 +138,22 @@ func TestPostgresReads(t *testing.T) {
 		if p.Orders[0].ID <= p.Orders[1].ID {
 			t.Fatal("id tie ordering is not descending")
 		}
-		next, err := service.ListOpenOrders(f.ctx, caller, ListRequest{Page: Page{Number: 2, Size: 2}, PickupID: pickup})
+		next, err := service.ListOpenOrders(
+			f.ctx,
+			caller,
+			ListRequest{Page: Page{Number: 2, Size: 2}, PickupID: pickup},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(next.Orders) != 1 || next.Orders[0].ID >= p.Orders[1].ID {
 			t.Fatal(next)
 		}
-		empty, err := service.ListOpenOrders(f.ctx, caller, ListRequest{Page: Page{Number: 100, Size: 2}, PickupID: pickup})
+		empty, err := service.ListOpenOrders(
+			f.ctx,
+			caller,
+			ListRequest{Page: Page{Number: 100, Size: 2}, PickupID: pickup},
+		)
 		if err != nil || len(empty.Orders) != 0 || empty.PageInfo.Total != 3 {
 			t.Fatal(empty, err)
 		}
@@ -100,7 +174,12 @@ func TestPostgresReads(t *testing.T) {
 			}
 		}
 		// UUID user filtering uses typed equality, including uppercase valid inputs.
-		p, err = service.ListUserOrders(f.ctx, Caller{ID: uuid.NewString(), Admin: true}, strings.ToUpper(requester), ListRequest{Role: RequesterRole})
+		p, err = service.ListUserOrders(
+			f.ctx,
+			Caller{ID: uuid.NewString(), Admin: true},
+			strings.ToUpper(requester),
+			ListRequest{Role: RequesterRole},
+		)
 		if err != nil || p.PageInfo.Total != 12 || p.PageInfo.Size != 20 {
 			t.Fatal(p, err)
 		}
@@ -129,10 +208,24 @@ func TestPostgresReads(t *testing.T) {
 		if _, err := service.GetOrder(f.ctx, Caller{ID: uuid.NewString()}, o.ID); !errors.Is(err, ErrNotFound) {
 			t.Fatal(err)
 		}
-		if _, err := service.GetOrder(f.ctx, Caller{ID: o.RequesterID}, uuid.NewString()); !errors.Is(err, ErrNotFound) {
+		if _, err := service.GetOrder(
+			f.ctx,
+			Caller{ID: o.RequesterID},
+			uuid.NewString(),
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatal(err)
 		}
-		if _, err := service.ListOpenOrders(f.ctx, Caller{ID: courier, Suspended: true}, ListRequest{}); !errors.Is(err, ErrForbidden) {
+		if _, err := service.ListOpenOrders(
+			f.ctx,
+			Caller{ID: courier, Suspended: true},
+			ListRequest{},
+		); !errors.Is(
+			err,
+			ErrForbidden,
+		) {
 			t.Fatal(err)
 		}
 	})
@@ -149,7 +242,14 @@ func TestPostgresReads(t *testing.T) {
 			if i == 1 {
 				status = OfferVoid
 			}
-			if _, err := f.pool.Exec(f.ctx, "INSERT INTO offers VALUES($1,$2,$3,20,$4,now(),now())", uuid.NewString(), o.ID, courier, status); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"INSERT INTO offers VALUES($1,$2,$3,20,$4,now(),now())",
+				uuid.NewString(),
+				o.ID,
+				courier,
+				status,
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

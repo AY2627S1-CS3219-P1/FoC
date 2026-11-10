@@ -56,6 +56,10 @@ Triggered by User Service registration (U1).
 Order reserves/compensates via RPC and publishes terminal `order.outcome` through
 Kafka. Credit owns event consumption and settlement; Order never calls terminal
 settlement RPCs. See the [ADR](../docs/adr/order-credit-pubsub.md) and
-[conformance cases](../docs/testing/order-credit-pubsub.md). NFR-20, real financial
-effects, startup/five-minute reconciliation and mismatch alerts remain unverified
-until this service implements and tests them. Workload identity depends on #29.
+[conformance cases](../docs/testing/order-credit-pubsub.md). Credit serves the
+reservation RPCs and consumes `order.outcome` and `users.create`. Its tests cover
+settlement from a consumed outcome and harmless redelivery (NFR-04.2, NFR-11.7). A
+round trip with Order over a real broker (NFR-20), startup/five-minute
+reconciliation and mismatch alerts remain unverified. Mismatched outcomes are only
+logged so far. Workload identity depends on #29: until then, the reservation
+RPCs are served unauthenticated on an internal-only listener.

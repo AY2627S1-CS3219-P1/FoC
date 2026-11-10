@@ -12,6 +12,8 @@ import (
 
 type Operations interface {
 	ListUserOrders(context.Context, app.Caller, string, app.ListRequest) (app.OrderPage, error)
+	CountOrdersByStatus(context.Context, app.Caller) (map[app.Status]int64, error)
+	CountOrdersByDay(context.Context, app.Caller, app.Date, app.Date) ([]app.DailyCount, error)
 }
 
 type Server struct {
@@ -24,7 +26,10 @@ func NewServer(operations Operations, images shared.ItemImageViews) *Server {
 	return &Server{operations: operations, images: images}
 }
 
-func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.ListUserOrdersRequest]) (*connect.Response[pb.ListUserOrdersResponse], error) {
+func (s *Server) ListUserOrders(
+	ctx context.Context,
+	req *connect.Request[pb.ListUserOrdersRequest],
+) (*connect.Response[pb.ListUserOrdersResponse], error) {
 	m := req.Msg
 	r, err := shared.ListRequest(m.GetPage(), m.GetPageSize(), m.GetStatus(), m.GetRole())
 	if err != nil {
@@ -41,4 +46,29 @@ func (s *Server) ListUserOrders(ctx context.Context, req *connect.Request[pb.Lis
 		return nil, shared.ConnectError(ctx, err)
 	}
 	return connect.NewResponse(&pb.ListUserOrdersResponse{Orders: views, PageInfo: shared.PageInfo(p.PageInfo)}), nil
+}
+
+func (s *Server) GetOrderStats(
+	ctx context.Context,
+	_ *connect.Request[pb.GetOrderStatsRequest],
+) (*connect.Response[pb.GetOrderStatsResponse], error) {
+	counts, err := s.operations.CountOrdersByStatus(ctx, shared.Caller(ctx))
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+
+	return connect.NewResponse(&pb.GetOrderStatsResponse{StatusCounts: shared.OrderStatusCounts(counts)}), nil
+}
+
+func (s *Server) GetDailyOrderCounts(
+	ctx context.Context,
+	req *connect.Request[pb.GetDailyOrderCountsRequest],
+) (*connect.Response[pb.GetDailyOrderCountsResponse], error) {
+	start, end := shared.OrderDate(req.Msg.GetStartDate()), shared.OrderDate(req.Msg.GetEndDate())
+	days, err := s.operations.CountOrdersByDay(ctx, shared.Caller(ctx), start, end)
+	if err != nil {
+		return nil, shared.ConnectError(ctx, err)
+	}
+
+	return connect.NewResponse(&pb.GetDailyOrderCountsResponse{Days: shared.DailyOrderCounts(days)}), nil
 }

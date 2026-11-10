@@ -31,7 +31,12 @@ func (s *Admin) GetRoleDispatch(ctx context.Context, id uuid.UUID) (models.RoleD
 // Caller holds the target User row lock before these relationship reads/writes.
 func (s *Admin) PrepareRoleDispatch(ctx context.Context, d *models.RoleDispatch) error {
 	var revision int64
-	if err := s.db.WithContext(ctx).Model(&models.RoleDispatch{}).Select("COALESCE(MAX(revision),0)+1").Where("user_id = ?", d.UserID).Scan(&revision).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Model(&models.RoleDispatch{}).
+		Select("COALESCE(MAX(revision),0)+1").
+		Where("user_id = ?", d.UserID).
+		Scan(&revision).
+		Error; err != nil {
 		return err
 	}
 	d.Revision = revision
@@ -39,7 +44,10 @@ func (s *Admin) PrepareRoleDispatch(ctx context.Context, d *models.RoleDispatch)
 }
 
 func (s *Admin) CompleteRoleDispatch(ctx context.Context, id uuid.UUID, now time.Time) error {
-	res := s.db.WithContext(ctx).Model(&models.RoleDispatch{}).Where("id = ? AND applied_at IS NULL AND rejected_at IS NULL", id).Update("applied_at", now)
+	res := s.db.WithContext(ctx).
+		Model(&models.RoleDispatch{}).
+		Where("id = ? AND applied_at IS NULL AND rejected_at IS NULL", id).
+		Update("applied_at", now)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -61,7 +69,10 @@ func (s *Admin) PendingRoleDispatches(ctx context.Context, limit int) ([]models.
 // A rejected immutable decision stays pending for explicit reconciliation. It
 // cannot finalize a role, disappear, or be replaced by an automatic retry.
 func (s *Admin) RejectRoleDispatch(ctx context.Context, id uuid.UUID, now time.Time) error {
-	res := s.db.WithContext(ctx).Model(&models.RoleDispatch{}).Where("id = ? AND applied_at IS NULL", id).Update("rejected_at", now)
+	res := s.db.WithContext(ctx).
+		Model(&models.RoleDispatch{}).
+		Where("id = ? AND applied_at IS NULL", id).
+		Update("rejected_at", now)
 	if res.Error != nil {
 		return res.Error
 	}

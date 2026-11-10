@@ -2,5 +2,7 @@
 pkg/gen/** linguist-generated=true
 frontend/src/lib/gen/** linguist-generated=true whitespace=-blank-at-eof
 
-# Shell scripts run inside Linux containers; CRLF breaks them.
+# Shell scripts and the files they read run inside Linux containers; CRLF
+# breaks them.
 *.sh text eol=lf
+infra/kafka/topics.conf text eol=lf

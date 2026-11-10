@@ -33,8 +33,8 @@ type suspensionAuth struct {
 	codec *jwt.ES256Codec
 }
 
-// Test-only acknowledgment seam. Production has no such fallback; #29 must
-// supply authenticated User-to-Order transport before suspension is admitted.
+// Test-only acknowledgment seam. The real private RPC and mesh authorization
+// are exercised separately; this verifies User persistence and stale sessions.
 type suspensionEffects struct {
 	mu   sync.Mutex
 	fail bool
@@ -93,21 +93,53 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	effects := &suspensionEffects{}
-	roles := &service.RoleService{Users: persistence.Users, Dispatches: persistence.Admin, Effects: effects, WithTransaction: func(ctx context.Context, fn func(service.RoleStore) error) error {
-		return persistence.WithTransaction(ctx, func(tx *store.Store) error {
-			return fn(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Dispatches: tx.Admin})
-		})
-	}}
-	server := httptest.NewServer(router.Setup(testHealth(), &authhandler.Handler{Logic: &suspensionAuth{codec: codec}, AllowedOrigin: frontendOrigin}, router.ProtectedRoutes{
+	roles := &service.RoleService{
+		Users:      persistence.Users,
+		Dispatches: persistence.Admin,
+		Effects:    effects,
+		WithTransaction: func(ctx context.Context, fn func(service.RoleStore) error) error {
+			return persistence.WithTransaction(ctx, func(tx *store.Store) error {
+				return fn(service.RoleStore{Users: tx.Users, Admin: tx.Admin, Dispatches: tx.Admin})
+			})
+		},
+	}
+	authHandler := &authhandler.Handler{Logic: &suspensionAuth{codec: codec}, AllowedOrigin: frontendOrigin}
+	protectedRoutes := router.ProtectedRoutes{
 		Profile:      &profilehandler.Handler{Logic: &service.ProfileService{Users: persistence.Users}},
 		Admin:        &adminhandler.Handler{Logic: roles},
 		Authenticate: httpauth.AuthenticateLocal(codec.VerifyAccess), Users: persistence.Users,
-	}))
+	}
+	server := httptest.NewServer(router.Public(testHealth(), authHandler, protectedRoutes))
 	t.Cleanup(server.Close)
+	internal := httptest.NewServer(router.Internal(authHandler, protectedRoutes))
+	t.Cleanup(internal.Close)
+	// Reproduced bug: the key origin is the internal listener, not the public
+	// ProfileService origin. It must support only the authenticated self read.
+	response, err := internal.Client().
+		Post(internal.URL+userv1connect.ProfileServiceUpdateMyProfileProcedure, "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("private profile mutation exposed: %d", response.StatusCode)
+	}
+	_, err = userv1connect.NewProfileServiceClient(internal.Client(), internal.URL).
+		GetMyProfile(ctx, connect.NewRequest(&userv1.GetMyProfileRequest{}))
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("private self-profile accepted no bearer: %v", err)
+	}
 	adminClient := userv1connect.NewUserAdminServiceClient(server.Client(), server.URL)
 	adminToken := signedTestAccess(t, codec, admin.ID, jwt.RoleAdmin)
 	userToken := signedTestAccess(t, codec, user.ID, jwt.RoleUser)
-	authenticator, err := httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{UserServiceURL: server.URL, Issuer: httpauth.TokenIssuer, Audience: httpauth.TokenAudience})
+	authenticator, err := httpauth.NewAuthenticator(
+		ctx,
+		httpauth.AuthConfig{
+			UserServiceURL: internal.URL,
+			Issuer:         httpauth.TokenIssuer,
+			Audience:       httpauth.TokenAudience,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +154,8 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+userToken)
 		response := httptest.NewRecorder()
 		protected.ServeHTTP(response, req)
-		if response.Code != http.StatusNoContent || caller.ID != user.ID.String() || caller.Role != want || caller.Admin {
+		if response.Code != http.StatusNoContent || caller.ID != user.ID.String() || caller.Role != want ||
+			caller.Admin {
 			t.Fatalf("same session: HTTP %d, caller %+v; want role %s", response.Code, caller, want)
 		}
 	}
@@ -134,7 +167,12 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 	}
 	assertRole("user")
 	roles.Effects = nil
-	if err := change(userv1.UserRole_USER_ROLE_SUSPENDED_USER, "transport unavailable"); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+	if err := change(
+		userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+		"transport unavailable",
+	); connect.CodeOf(
+		err,
+	) != connect.CodeFailedPrecondition {
 		t.Fatalf("production default did not fail closed: %v", err)
 	}
 	if pending, err := persistence.Admin.PendingRoleDispatch(ctx, user.ID); err != nil || pending != nil {
@@ -142,12 +180,22 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 	}
 	roles.Effects = effects
 	for range 3 {
-		if _, err := persistence.Admin.CreateWarning(ctx, &models.AccountWarning{UserID: user.ID, RequestID: uuid.New(), Reason: "warning only"}); err != nil {
+		if err := db.Exec(
+			"INSERT INTO account_warnings(user_id,request_id,reason) VALUES(?,?,?)",
+			user.ID,
+			uuid.New(),
+			"warning only",
+		).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
 	assertRole("user")
-	if err := change(userv1.UserRole_USER_ROLE_SUSPENDED_USER, "  "); connect.CodeOf(err) != connect.CodeInvalidArgument {
+	if err := change(
+		userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+		"  ",
+	); connect.CodeOf(
+		err,
+	) != connect.CodeInvalidArgument {
 		t.Fatalf("blank suspension reason: %v", err)
 	}
 	assertRole("user")
@@ -156,7 +204,9 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 	}
 	assertRole("suspended_user")
 	changes, err := persistence.Admin.RoleChanges(ctx, user.ID)
-	if err != nil || len(changes) != 1 || changes[0].Reason == nil || *changes[0].Reason != "explicit admin decision" || changes[0].CreatedBy == nil || *changes[0].CreatedBy != admin.ID {
+	if err != nil || len(changes) != 1 || changes[0].Reason == nil || *changes[0].Reason != "explicit admin decision" ||
+		changes[0].CreatedBy == nil ||
+		*changes[0].CreatedBy != admin.ID {
 		t.Fatalf("suspension audit: %+v, %v", changes, err)
 	}
 	if err := change(userv1.UserRole_USER_ROLE_USER, "appeal granted"); err != nil {
@@ -166,7 +216,12 @@ func TestAdminSuspensionReachesExistingSession(t *testing.T) {
 	effects.mu.Lock()
 	effects.fail = true
 	effects.mu.Unlock()
-	if err := change(userv1.UserRole_USER_ROLE_SUSPENDED_USER, "lost Order acknowledgment"); connect.CodeOf(err) != connect.CodeUnavailable {
+	if err := change(
+		userv1.UserRole_USER_ROLE_SUSPENDED_USER,
+		"lost Order acknowledgment",
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnavailable {
 		t.Fatalf("uncertain dispatch: %v", err)
 	}
 	assertRole("user")

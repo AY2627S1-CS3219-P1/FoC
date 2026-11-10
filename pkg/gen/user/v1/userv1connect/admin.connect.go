@@ -23,6 +23,9 @@ const _ = connect.IsAtLeastVersion1_13_0
 const (
 	// UserAdminServiceName is the fully-qualified name of the UserAdminService service.
 	UserAdminServiceName = "user.v1.UserAdminService"
+	// AllowedDomainAdminServiceName is the fully-qualified name of the AllowedDomainAdminService
+	// service.
+	AllowedDomainAdminServiceName = "user.v1.AllowedDomainAdminService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -39,12 +42,29 @@ const (
 	// UserAdminServiceChangeUserRoleProcedure is the fully-qualified name of the UserAdminService's
 	// ChangeUserRole RPC.
 	UserAdminServiceChangeUserRoleProcedure = "/user.v1.UserAdminService/ChangeUserRole"
+	// UserAdminServiceGetUserProcedure is the fully-qualified name of the UserAdminService's GetUser
+	// RPC.
+	UserAdminServiceGetUserProcedure = "/user.v1.UserAdminService/GetUser"
+	// UserAdminServiceGetUserStatsProcedure is the fully-qualified name of the UserAdminService's
+	// GetUserStats RPC.
+	UserAdminServiceGetUserStatsProcedure = "/user.v1.UserAdminService/GetUserStats"
+	// AllowedDomainAdminServiceListAllowedDomainsProcedure is the fully-qualified name of the
+	// AllowedDomainAdminService's ListAllowedDomains RPC.
+	AllowedDomainAdminServiceListAllowedDomainsProcedure = "/user.v1.AllowedDomainAdminService/ListAllowedDomains"
+	// AllowedDomainAdminServiceAllowDomainProcedure is the fully-qualified name of the
+	// AllowedDomainAdminService's AllowDomain RPC.
+	AllowedDomainAdminServiceAllowDomainProcedure = "/user.v1.AllowedDomainAdminService/AllowDomain"
+	// AllowedDomainAdminServiceRemoveAllowedDomainProcedure is the fully-qualified name of the
+	// AllowedDomainAdminService's RemoveAllowedDomain RPC.
+	AllowedDomainAdminServiceRemoveAllowedDomainProcedure = "/user.v1.AllowedDomainAdminService/RemoveAllowedDomain"
 )
 
 // UserAdminServiceClient is a client for the user.v1.UserAdminService service.
 type UserAdminServiceClient interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error)
 }
 
 // NewUserAdminServiceClient constructs a client for the user.v1.UserAdminService service. By
@@ -70,6 +90,18 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 			connect.WithClientOptions(opts...),
 		),
+		getUser: connect.NewClient[v1.GetUserRequest, v1.GetUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceGetUserProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
+			connect.WithClientOptions(opts...),
+		),
+		getUserStats: connect.NewClient[v1.GetUserStatsRequest, v1.GetUserStatsResponse](
+			httpClient,
+			baseURL+UserAdminServiceGetUserStatsProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("GetUserStats")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -77,6 +109,8 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 type userAdminServiceClient struct {
 	getUserByEmail *connect.Client[v1.GetUserByEmailRequest, v1.GetUserByEmailResponse]
 	changeUserRole *connect.Client[v1.ChangeUserRoleRequest, v1.ChangeUserRoleResponse]
+	getUser        *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	getUserStats   *connect.Client[v1.GetUserStatsRequest, v1.GetUserStatsResponse]
 }
 
 // GetUserByEmail calls user.v1.UserAdminService.GetUserByEmail.
@@ -89,10 +123,22 @@ func (c *userAdminServiceClient) ChangeUserRole(ctx context.Context, req *connec
 	return c.changeUserRole.CallUnary(ctx, req)
 }
 
+// GetUser calls user.v1.UserAdminService.GetUser.
+func (c *userAdminServiceClient) GetUser(ctx context.Context, req *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return c.getUser.CallUnary(ctx, req)
+}
+
+// GetUserStats calls user.v1.UserAdminService.GetUserStats.
+func (c *userAdminServiceClient) GetUserStats(ctx context.Context, req *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error) {
+	return c.getUserStats.CallUnary(ctx, req)
+}
+
 // UserAdminServiceHandler is an implementation of the user.v1.UserAdminService service.
 type UserAdminServiceHandler interface {
 	GetUserByEmail(context.Context, *connect.Request[v1.GetUserByEmailRequest]) (*connect.Response[v1.GetUserByEmailResponse], error)
 	ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error)
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error)
 }
 
 // NewUserAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -114,12 +160,28 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 		connect.WithSchema(userAdminServiceMethods.ByName("ChangeUserRole")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userAdminServiceGetUserHandler := connect.NewUnaryHandler(
+		UserAdminServiceGetUserProcedure,
+		svc.GetUser,
+		connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceGetUserStatsHandler := connect.NewUnaryHandler(
+		UserAdminServiceGetUserStatsProcedure,
+		svc.GetUserStats,
+		connect.WithSchema(userAdminServiceMethods.ByName("GetUserStats")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.UserAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserAdminServiceGetUserByEmailProcedure:
 			userAdminServiceGetUserByEmailHandler.ServeHTTP(w, r)
 		case UserAdminServiceChangeUserRoleProcedure:
 			userAdminServiceChangeUserRoleHandler.ServeHTTP(w, r)
+		case UserAdminServiceGetUserProcedure:
+			userAdminServiceGetUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceGetUserStatsProcedure:
+			userAdminServiceGetUserStatsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +197,135 @@ func (UnimplementedUserAdminServiceHandler) GetUserByEmail(context.Context, *con
 
 func (UnimplementedUserAdminServiceHandler) ChangeUserRole(context.Context, *connect.Request[v1.ChangeUserRoleRequest]) (*connect.Response[v1.ChangeUserRoleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.ChangeUserRole is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.GetUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) GetUserStats(context.Context, *connect.Request[v1.GetUserStatsRequest]) (*connect.Response[v1.GetUserStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserAdminService.GetUserStats is not implemented"))
+}
+
+// AllowedDomainAdminServiceClient is a client for the user.v1.AllowedDomainAdminService service.
+type AllowedDomainAdminServiceClient interface {
+	ListAllowedDomains(context.Context, *connect.Request[v1.ListAllowedDomainsRequest]) (*connect.Response[v1.ListAllowedDomainsResponse], error)
+	AllowDomain(context.Context, *connect.Request[v1.AllowDomainRequest]) (*connect.Response[v1.AllowDomainResponse], error)
+	RemoveAllowedDomain(context.Context, *connect.Request[v1.RemoveAllowedDomainRequest]) (*connect.Response[v1.RemoveAllowedDomainResponse], error)
+}
+
+// NewAllowedDomainAdminServiceClient constructs a client for the user.v1.AllowedDomainAdminService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewAllowedDomainAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) AllowedDomainAdminServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	allowedDomainAdminServiceMethods := v1.File_user_v1_admin_proto.Services().ByName("AllowedDomainAdminService").Methods()
+	return &allowedDomainAdminServiceClient{
+		listAllowedDomains: connect.NewClient[v1.ListAllowedDomainsRequest, v1.ListAllowedDomainsResponse](
+			httpClient,
+			baseURL+AllowedDomainAdminServiceListAllowedDomainsProcedure,
+			connect.WithSchema(allowedDomainAdminServiceMethods.ByName("ListAllowedDomains")),
+			connect.WithClientOptions(opts...),
+		),
+		allowDomain: connect.NewClient[v1.AllowDomainRequest, v1.AllowDomainResponse](
+			httpClient,
+			baseURL+AllowedDomainAdminServiceAllowDomainProcedure,
+			connect.WithSchema(allowedDomainAdminServiceMethods.ByName("AllowDomain")),
+			connect.WithClientOptions(opts...),
+		),
+		removeAllowedDomain: connect.NewClient[v1.RemoveAllowedDomainRequest, v1.RemoveAllowedDomainResponse](
+			httpClient,
+			baseURL+AllowedDomainAdminServiceRemoveAllowedDomainProcedure,
+			connect.WithSchema(allowedDomainAdminServiceMethods.ByName("RemoveAllowedDomain")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// allowedDomainAdminServiceClient implements AllowedDomainAdminServiceClient.
+type allowedDomainAdminServiceClient struct {
+	listAllowedDomains  *connect.Client[v1.ListAllowedDomainsRequest, v1.ListAllowedDomainsResponse]
+	allowDomain         *connect.Client[v1.AllowDomainRequest, v1.AllowDomainResponse]
+	removeAllowedDomain *connect.Client[v1.RemoveAllowedDomainRequest, v1.RemoveAllowedDomainResponse]
+}
+
+// ListAllowedDomains calls user.v1.AllowedDomainAdminService.ListAllowedDomains.
+func (c *allowedDomainAdminServiceClient) ListAllowedDomains(ctx context.Context, req *connect.Request[v1.ListAllowedDomainsRequest]) (*connect.Response[v1.ListAllowedDomainsResponse], error) {
+	return c.listAllowedDomains.CallUnary(ctx, req)
+}
+
+// AllowDomain calls user.v1.AllowedDomainAdminService.AllowDomain.
+func (c *allowedDomainAdminServiceClient) AllowDomain(ctx context.Context, req *connect.Request[v1.AllowDomainRequest]) (*connect.Response[v1.AllowDomainResponse], error) {
+	return c.allowDomain.CallUnary(ctx, req)
+}
+
+// RemoveAllowedDomain calls user.v1.AllowedDomainAdminService.RemoveAllowedDomain.
+func (c *allowedDomainAdminServiceClient) RemoveAllowedDomain(ctx context.Context, req *connect.Request[v1.RemoveAllowedDomainRequest]) (*connect.Response[v1.RemoveAllowedDomainResponse], error) {
+	return c.removeAllowedDomain.CallUnary(ctx, req)
+}
+
+// AllowedDomainAdminServiceHandler is an implementation of the user.v1.AllowedDomainAdminService
+// service.
+type AllowedDomainAdminServiceHandler interface {
+	ListAllowedDomains(context.Context, *connect.Request[v1.ListAllowedDomainsRequest]) (*connect.Response[v1.ListAllowedDomainsResponse], error)
+	AllowDomain(context.Context, *connect.Request[v1.AllowDomainRequest]) (*connect.Response[v1.AllowDomainResponse], error)
+	RemoveAllowedDomain(context.Context, *connect.Request[v1.RemoveAllowedDomainRequest]) (*connect.Response[v1.RemoveAllowedDomainResponse], error)
+}
+
+// NewAllowedDomainAdminServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewAllowedDomainAdminServiceHandler(svc AllowedDomainAdminServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	allowedDomainAdminServiceMethods := v1.File_user_v1_admin_proto.Services().ByName("AllowedDomainAdminService").Methods()
+	allowedDomainAdminServiceListAllowedDomainsHandler := connect.NewUnaryHandler(
+		AllowedDomainAdminServiceListAllowedDomainsProcedure,
+		svc.ListAllowedDomains,
+		connect.WithSchema(allowedDomainAdminServiceMethods.ByName("ListAllowedDomains")),
+		connect.WithHandlerOptions(opts...),
+	)
+	allowedDomainAdminServiceAllowDomainHandler := connect.NewUnaryHandler(
+		AllowedDomainAdminServiceAllowDomainProcedure,
+		svc.AllowDomain,
+		connect.WithSchema(allowedDomainAdminServiceMethods.ByName("AllowDomain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	allowedDomainAdminServiceRemoveAllowedDomainHandler := connect.NewUnaryHandler(
+		AllowedDomainAdminServiceRemoveAllowedDomainProcedure,
+		svc.RemoveAllowedDomain,
+		connect.WithSchema(allowedDomainAdminServiceMethods.ByName("RemoveAllowedDomain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/user.v1.AllowedDomainAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case AllowedDomainAdminServiceListAllowedDomainsProcedure:
+			allowedDomainAdminServiceListAllowedDomainsHandler.ServeHTTP(w, r)
+		case AllowedDomainAdminServiceAllowDomainProcedure:
+			allowedDomainAdminServiceAllowDomainHandler.ServeHTTP(w, r)
+		case AllowedDomainAdminServiceRemoveAllowedDomainProcedure:
+			allowedDomainAdminServiceRemoveAllowedDomainHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedAllowedDomainAdminServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedAllowedDomainAdminServiceHandler struct{}
+
+func (UnimplementedAllowedDomainAdminServiceHandler) ListAllowedDomains(context.Context, *connect.Request[v1.ListAllowedDomainsRequest]) (*connect.Response[v1.ListAllowedDomainsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AllowedDomainAdminService.ListAllowedDomains is not implemented"))
+}
+
+func (UnimplementedAllowedDomainAdminServiceHandler) AllowDomain(context.Context, *connect.Request[v1.AllowDomainRequest]) (*connect.Response[v1.AllowDomainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AllowedDomainAdminService.AllowDomain is not implemented"))
+}
+
+func (UnimplementedAllowedDomainAdminServiceHandler) RemoveAllowedDomain(context.Context, *connect.Request[v1.RemoveAllowedDomainRequest]) (*connect.Response[v1.RemoveAllowedDomainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.AllowedDomainAdminService.RemoveAllowedDomain is not implemented"))
 }

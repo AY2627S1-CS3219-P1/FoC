@@ -1,27 +1,29 @@
 # Immediate suspension: verification and remaining gates
 
-Depends on B3 PR #179. See [the architecture decision](../adr/immediate-suspension.md).
-Core behavior checks passed for the implementation in `b2a2f63`.
-The dispatch-store guard additionally passed User-scoped formatting/lint, the full
-User module suite and service race tests. Those guard checks required no database;
-the previously verified Order and database suites were not rerun.
-Production authenticated dispatch remains disabled pending
-[#29](https://github.com/AY2627S1-CS3219-P1/FoC/issues/29).
+See [the architecture decision](../adr/immediate-suspension.md).
+The current-main update wires the existing mesh boundary instead of leaving
+production dispatch disabled. Verification results for this update are recorded
+below. Earlier branch verification is not evidence for the integrated tree.
 
-## Verified checks
+## Current-main update checks
 
-Order bindings were regenerated with sqlc 1.30.0. Repository `make fmt-check` and
-`make lint` passed with golangci-lint 2.14.0. All four module suites passed:
-`pkg`, `user-service`, `supplier-service` and `order-service`.
+Local verification passed with Go 1.27.0 and disposable PostgreSQL 18 databases:
 
-Race checks passed for shared auth, User service logic, User PostgreSQL
-schema/store/mounted-router suites, and Order's full `./internal/order`,
-`./internal/rpc/order` and `./internal/rpc/orderinternal` suites. The Order run
-included `TestSuspensionDoesNotResurrectInsufficientCreditOfferDatabase`.
+- All eight module suites passed with `GOWORK=off`, `-mod=readonly`, `-p=2`
+  and `-count=1`: pkg, User, Order, Supplier, scripts, Communication, Credit
+  and Content Moderation.
+- Shared auth race tests, Order suspension/RPC PostgreSQL race tests and User
+  schema/store/router/service race tests passed. The lost-acknowledgment scenario
+  rebuilt the coordinator, restored the original reward once and preserved a
+  replacement courier against stale replay.
+- Formatting and lint passed for all eight modules, with zero issues per module.
+- Buf lint/RPC generation, sqlc generation and protobuf compatibility against
+  the integrated main baseline passed. Local and production dependency overlays
+  rendered with the User-only DENY intact.
 
-Checks used Go 1.27.0, `GOMAXPROCS=2`, `go test -p=2`, `GOWORK=off`,
-`-mod=readonly`, existing module dependencies and separate disposable PostgreSQL 18
-User and Order databases. No dependency or access denial occurred in these checks.
+The final constructor return-type/nil-interface correction was included in the
+lint/type checks, but its unit test was not rerun after that adjustment. Live mesh
+tests require a managed local Kubernetes context; none is configured here.
 
 ## Account fences and existing compensation
 
@@ -40,8 +42,8 @@ without a successful acknowledgment.
 ## Immutable role decisions and recovery
 
 `TestRoleDispatchReviewDatabase` exercises revisions 1-3, applied and rejected
-decisions, rollback refusal and retained identity. Migration 00008 protects
-revision tombstones without rewriting migration 00007.
+decisions, rollback refusal and retained identity. Migration 00015 protects
+revision tombstones without rewriting migration 00014.
 
 `TestRejectedRoleDecisionIsVisibleAndNotRetried` verifies that definite rejections
 remain visible, immutable and unfinalized without repeated dispatch. Persistence
@@ -80,10 +82,27 @@ financial attempt. A new offer after reinstatement assigns through a new attempt
 ## Authentication and transport seams
 
 `TestAdminSuspensionReachesExistingSession` covers durable handoff, fresh roles,
-admin reason validation and audit. `TestSuspensionRPCRequiresExplicitTrustedCallerBoundary`
-requires both internal-handler guards and rejects unintended fixture callers,
-including rejecting stale decisions without acknowledgment. These tests use
-scripted Credit or test-only role effects, not production service authentication.
+admin reason validation and audit through separate public and internal listeners.
+The internal self-profile read requires a bearer; profile mutations return 404.
+`TestSuspensionPrivateRPCContract` checks private method mounting, validation, and
+stale-decision rejection without a successful acknowledgment.
+
+`TestSuspensionRPCDatabaseLostReplyAndReplacement` uses actual HTTP, migrations,
+and PostgreSQL. A raised-reward assignment is suspended, the acknowledgment is
+lost after commit, and a reconstructed coordinator receives repeated delivery.
+It verifies one durable removal, pickup denial, original-reward restoration,
+unchanged expiry, and preservation of a replacement courier against an old decision.
+Credit is scripted. No mock workload header is treated as production identity.
+
+`TestOrderRoleTransportUsesNoHumanCredentialsOrRedirects` exercises the production
+private-client constructor with an expired bearer in context and rejects redirects.
+
+The existing `make k8s-smoke` command now probes the suspension method from User,
+another Order workload, a default FoC workload, ingress, and outsiders. User must
+reach validation (400 for empty input without a state change); other meshed callers
+must receive 403 even with forged headers. Plaintext transport must fail, and the
+public Order listener must return 404. This is live-mesh evidence only when actually
+run against a deployed cluster.
 
 ## Repeat the checks
 
@@ -93,8 +112,9 @@ From the repository root, with Go 1.27.0 and the pinned repository linter:
 export GOMAXPROCS=2 GOWORK=off
 unset TEST_DATABASE_URL SUSPENSION_TEST_DATABASE_URL
 make fmt-check
-make lint
-for module in pkg user-service supplier-service order-service; do
+make lint GO_MODULES='pkg user-service order-service supplier-service scripts communication-service credit-service content-moderation-service'
+for module in pkg user-service order-service supplier-service scripts \
+  communication-service credit-service content-moderation-service; do
   (cd "$module" && go test -mod=readonly -p=2 ./... -count=1)
 done
 (cd pkg && go test -mod=readonly -p=2 -race ./auth/... -count=1)
@@ -109,13 +129,12 @@ use shared data. The services have independent goose migration ledgers.
 From the repository root:
 
 ```sh
-(cd order-service && go test -mod=readonly -p=2 -race \
-  ./internal/order ./internal/rpc/order ./internal/rpc/orderinternal \
-  -count=1 -timeout=5m -v)
-for package in ./internal/models ./internal/store ./internal/router; do
-  (cd user-service && go test -mod=readonly -p=2 -race "$package" \
-    -count=1 -timeout=5m -v)
-done
+(cd order-service && go test -mod=readonly -p=1 -race \
+  ./internal/order ./internal/rpc/orderinternal \
+  -run 'Suspension|Suspended' -count=1 -timeout=10m -v)
+(cd user-service && go test -mod=readonly -p=1 -race \
+  ./internal/models ./internal/store ./internal/router ./internal/service \
+  -count=1 -timeout=10m -v)
 ```
 
 Run the User database packages serially. Do not supply `TEST_DATABASE_URL` to a
@@ -125,9 +144,11 @@ To regenerate Order bindings, run `make sqlc` inside `order-service` with sqlc 1
 ## Remaining gates
 
 Integration-tag container suites, real Credit settlement, live Kafka/mesh behavior,
-B2 proof, B4 deadlines and deployment are not certified by these checks. No new
-credentials, access policy or production transport was introduced. Missing
-assignment identity and definite decision rejection remain explicit reconciliation
+B2 proof, B4 deadlines and deployment are not certified by these checks. The new
+User-only access policy and private transport wiring have not been deployed. No
+credentials were provisioned. Existing pre-workflow suspensions are not automatically
+backfilled into Order fences or assignment removal. Production rollout must reconcile
+them using their original audit context. Missing assignment identity and definite decision rejection remain explicit reconciliation
 cases, not permission to infer financial identity or replace immutable intent.
 
 Passing local checks does not establish PR readiness or production authenticated

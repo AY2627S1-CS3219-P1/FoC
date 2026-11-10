@@ -20,11 +20,12 @@ export class ConnectTelegramLinkApi implements TelegramLinkApi {
 
 	async getStatus(): Promise<TelegramLinkStatus> {
 		const response = await this.#client.getTelegramLink({});
-		if (!response.linked) return { linked: false };
+		if (!response.linked) return { linked: false, botUrl: response.botUrl };
 		return {
 			linked: true,
 			username: response.telegramUsername,
-			linkedAt: response.linkedAt ? timestampDate(response.linkedAt) : undefined
+			linkedAt: response.linkedAt ? timestampDate(response.linkedAt) : undefined,
+			botUrl: response.botUrl
 		};
 	}
 

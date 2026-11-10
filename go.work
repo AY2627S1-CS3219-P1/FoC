@@ -2,9 +2,11 @@ go 1.27.0
 
 use (
 	./communication-service
+	./content-moderation-service
 	./credit-service
 	./order-service
 	./pkg
+	./scripts
 	./supplier-service
 	./user-service
 )

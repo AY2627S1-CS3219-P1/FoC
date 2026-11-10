@@ -25,7 +25,11 @@ func TestCancellationInvalidInputsDoNotReachPersistence(t *testing.T) {
 		{"invalid unicode", id, id, string([]byte{0xff}), "", ErrInvalid},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewCanceller(nil, nil, AssignmentOptions{}).Cancel(context.Background(), Caller{ID: tc.caller}, tc.order, tc.reason, tc.key)
+			_, err := NewCanceller(
+				nil,
+				nil,
+				AssignmentOptions{},
+			).Cancel(context.Background(), Caller{ID: tc.caller}, tc.order, tc.reason, tc.key)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v want %v", err, tc.want)
 			}

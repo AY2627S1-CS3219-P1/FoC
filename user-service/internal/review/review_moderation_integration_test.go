@@ -1,0 +1,617 @@
+package review
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"os"
+	"testing"
+	"time"
+
+	moderationeventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/moderation/events/v1"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+type moderationIntegrationStack struct {
+	service     *Service
+	completions *CompletionHandler
+	sqlDB       *sql.DB
+}
+
+func openModerationStack(t *testing.T) moderationIntegrationStack {
+	t.Helper()
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	db, err := database.Open(dsn, 5, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := database.Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	service, completions := buildReviewService(t, sqlDB)
+	return moderationIntegrationStack{service: service, completions: completions, sqlDB: sqlDB}
+}
+
+func submitReview(
+	t *testing.T,
+	ctx context.Context,
+	stack moderationIntegrationStack,
+	reviewerID, revieweeID uuid.UUID,
+	comment string,
+) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+	orderID := uuid.New()
+	if _, err := stack.service.SubmitReview(ctx, reviewerID, revieweeID, orderID,
+		ReviewSubmission{Rating: 3, Comment: comment}, nil); err != nil {
+		t.Fatalf("submit review: %v", err)
+	}
+	return reviewRowID(t, ctx, stack.sqlDB, orderID), orderID
+}
+
+func reviewModerationState(
+	t *testing.T,
+	ctx context.Context,
+	stack moderationIntegrationStack,
+	reviewID uuid.UUID,
+) (string, []string, int32) {
+	t.Helper()
+	var status string
+	var codes []string
+	var generation int32
+	if err := stack.sqlDB.QueryRowContext(ctx,
+		"SELECT moderation_status, reason_codes, applied_run_generation FROM reviews WHERE id = $1", reviewID,
+	).Scan(&status, pq.Array(&codes), &generation); err != nil {
+		t.Fatalf("read review %v: %v", reviewID, err)
+	}
+	return status, codes, generation
+}
+
+func processedEventCount(t *testing.T, ctx context.Context, stack moderationIntegrationStack) int64 {
+	t.Helper()
+	var count int64
+	if err := stack.sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM review_moderation_processed_events").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
+}
+
+func completionEvent(
+	reviewID, reviewerID, requestID uuid.UUID,
+	outcome moderationeventsv1.ModerationOutcomeType,
+	codes []string,
+	generation int32,
+) *moderationeventsv1.ReviewModerationFinished {
+	return &moderationeventsv1.ReviewModerationFinished{
+		EventId:             uuid.New().String(),
+		JobId:               uuid.New().String(),
+		ModerationRequestId: requestID.String(),
+		SourceEventId:       uuid.New().String(),
+		ReviewId:            reviewID.String(),
+		ReviewerId:          reviewerID.String(),
+		ContentRevision:     1,
+		RunGeneration:       generation,
+		PolicyVersion:       "review-text-v1",
+		Outcome:             outcome,
+		ReasonCodes:         codes,
+		FinishedAt:          timestamppb.New(time.Now().UTC()),
+	}
+}
+
+func applyCompletion(
+	t *testing.T,
+	ctx context.Context,
+	stack moderationIntegrationStack,
+	event *moderationeventsv1.ReviewModerationFinished,
+) error {
+	t.Helper()
+	return stack.completions.Handle(ctx, moderationMetadata(), event)
+}
+
+func requestIDOf(t *testing.T, ctx context.Context, stack moderationIntegrationStack, reviewID uuid.UUID) uuid.UUID {
+	t.Helper()
+	var requestID uuid.NullUUID
+	if err := stack.sqlDB.QueryRowContext(ctx,
+		"SELECT moderation_request_id FROM reviews WHERE id = $1", reviewID).Scan(&requestID); err != nil {
+		t.Fatal(err)
+	}
+	if !requestID.Valid {
+		t.Fatalf("review %v has no moderation request id", reviewID)
+	}
+	return requestID.UUID
+}
+
+func TestReviewModerationIntegration(t *testing.T) {
+	stack := openModerationStack(t)
+	ctx := context.Background()
+
+	type reviewCompletionRequest struct {
+		reviewID   uuid.UUID
+		reviewerID uuid.UUID
+		requestID  uuid.UUID
+	}
+
+	prepare := func(t *testing.T, reviewerID, revieweeID uuid.UUID, comment string) reviewCompletionRequest {
+		t.Helper()
+		reviewID, _ := submitReview(t, ctx, stack, reviewerID, revieweeID, comment)
+		return reviewCompletionRequest{
+			reviewID:   reviewID,
+			reviewerID: reviewerID,
+			requestID:  requestIDOf(t, ctx, stack, reviewID),
+		}
+	}
+
+	t.Run("historical reviews stay published while new ones wait for moderation", func(t *testing.T) {
+		reviewer1, reviewer2, reviewee := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer1, reviewer2, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+
+		// A row that existed before the moderation migration: approved by the
+		// column default, no moderation request, revision 1.
+		historicalOrder := uuid.New()
+		if _, err := stack.sqlDB.ExecContext(ctx,
+			`INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment)
+			 VALUES ($1, $2, $3, $4, 5, 'historical')`,
+			uuid.New(), reviewer1, reviewee, historicalOrder); err != nil {
+			t.Fatal(err)
+		}
+
+		pending := prepare(t, reviewer2, reviewee, "brand new")
+
+		received, err := stack.service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(received.Reviews) != 1 || received.Reviews[0].ReviewerID != reviewer1 {
+			t.Fatalf("pending review visible to the reviewee: %+v", received.Reviews)
+		}
+		if received.TotalItems() != 1 {
+			t.Fatalf("approved count = %d, want 1", received.TotalItems())
+		}
+		given, err := stack.service.ListReviewsFromUser(ctx, reviewer2, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(given.Reviews) != 0 {
+			t.Fatalf("pending review visible in the author's given list: %+v", given.Reviews)
+		}
+
+		recalcNow(t, ctx, stack.sqlDB, reviewee)
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || avg != 5 {
+			t.Fatalf("stats = (%d, %v), want (1, 5)", count, avg)
+		}
+
+		approveReview(t, ctx, stack.completions, stack.sqlDB, pending.reviewID)
+		received, err = stack.service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(received.Reviews) != 2 {
+			t.Fatalf("approved review not published: %+v", received.Reviews)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 2 || avg != 4 {
+			t.Fatalf("stats after approval = (%d, %v), want (2, 4)", count, avg)
+		}
+	})
+
+	t.Run("approval commits once and replays do not double count", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+		pending := prepare(t, reviewer, reviewee, "replay me")
+		event := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, 1)
+
+		if err := applyCompletion(t, ctx, stack, event); err != nil {
+			t.Fatalf("apply approval: %v", err)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || avg != 3 {
+			t.Fatalf("stats after approval = (%d, %v), want (1, 3)", count, avg)
+		}
+		before := processedEventCount(t, ctx, stack)
+
+		if err := applyCompletion(t, ctx, stack, event); err != nil {
+			t.Fatalf("replayed event must be acknowledged: %v", err)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || avg != 3 {
+			t.Fatalf("replay changed stats: (%d, %v)", count, avg)
+		}
+		if after := processedEventCount(t, ctx, stack); after != before {
+			t.Fatalf("replay recorded another processed event: %d -> %d", before, after)
+		}
+	})
+
+	t.Run("rejected and error outcomes stay unpublished", func(t *testing.T) {
+		reviewer1, reviewer2, reviewee := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer1, reviewer2, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+
+		rejected := prepare(t, reviewer1, reviewee, "reject me")
+		rejectedEvent := completionEvent(rejected.reviewID, rejected.reviewerID, rejected.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, []string{"HATE"}, 1)
+		if err := applyCompletion(t, ctx, stack, rejectedEvent); err != nil {
+			t.Fatalf("apply rejection: %v", err)
+		}
+		status, codes, generation := reviewModerationState(t, ctx, stack, rejected.reviewID)
+		if status != string(ModerationRejected) || len(codes) != 1 || codes[0] != "HATE" || generation != 1 {
+			t.Fatalf("rejected state = (%q, %v, %d)", status, codes, generation)
+		}
+
+		errored := prepare(t, reviewer2, reviewee, "error me")
+		erroredEvent := completionEvent(errored.reviewID, errored.reviewerID, errored.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, nil, 1)
+		if err := applyCompletion(t, ctx, stack, erroredEvent); err != nil {
+			t.Fatalf("apply error: %v", err)
+		}
+		status, codes, _ = reviewModerationState(t, ctx, stack, errored.reviewID)
+		if status != string(ModerationError) || len(codes) != 0 {
+			t.Fatalf("error state = (%q, %v)", status, codes)
+		}
+
+		received, err := stack.service.ListReviewsForUser(ctx, reviewee, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(received.Reviews) != 0 {
+			t.Fatalf("unpublished reviews visible to the reviewee: %+v", received.Reviews)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || avg != 0 {
+			t.Fatalf("stats = (%d, %v), want (0, 0)", count, avg)
+		}
+
+		list, err := stack.service.ListUnpublishedReviewsForUser(
+			ctx, reviewer1, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list.Reviews) != 1 || list.Reviews[0].ModerationStatus != ModerationRejected ||
+			len(list.Reviews[0].ModerationReasonCodes) != 1 || list.Reviews[0].ModerationReasonCodes[0] != "HATE" ||
+			list.Reviews[0].ModeratedAt.IsZero() || list.Reviews[0].AppliedRunGeneration != 1 {
+			t.Fatalf("unpublished list = %+v", list.Reviews)
+		}
+	})
+
+	t.Run("invalid outcomes never apply or record", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+		pending := prepare(t, reviewer, reviewee, "invalid outcomes")
+		before := processedEventCount(t, ctx, stack)
+
+		for _, tc := range []struct {
+			name    string
+			outcome moderationeventsv1.ModerationOutcomeType
+			codes   []string
+		}{
+			{"unspecified", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_UNSPECIFIED, nil},
+			{"rejected without codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, nil},
+			{"approved with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, []string{"HATE"}},
+			{"error with codes", moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, []string{"HATE"}},
+		} {
+			event := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID, tc.outcome, tc.codes, 1)
+			if err := applyCompletion(t, ctx, stack, event); err != nil {
+				t.Fatalf("%s must be acknowledged: %v", tc.name, err)
+			}
+		}
+
+		status, codes, generation := reviewModerationState(t, ctx, stack, pending.reviewID)
+		if status != string(ModerationPending) || len(codes) != 0 || generation != 0 {
+			t.Fatalf("invalid outcomes changed the review: (%q, %v, %d)", status, codes, generation)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || avg != 0 {
+			t.Fatalf("invalid outcomes changed stats: (%d, %v)", count, avg)
+		}
+		if after := processedEventCount(t, ctx, stack); after != before {
+			t.Fatalf("invalid outcomes recorded processed events: %d -> %d", before, after)
+		}
+	})
+
+	t.Run("a completion for another request never applies", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+		pending := prepare(t, reviewer, reviewee, "mismatched")
+		before := processedEventCount(t, ctx, stack)
+
+		event := completionEvent(pending.reviewID, pending.reviewerID, uuid.New(),
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, 1)
+		if err := applyCompletion(t, ctx, stack, event); err != nil {
+			t.Fatalf("mismatched completion must be acknowledged: %v", err)
+		}
+		status, _, _ := reviewModerationState(t, ctx, stack, pending.reviewID)
+		if status != string(ModerationPending) {
+			t.Fatalf("mismatched completion applied: %q", status)
+		}
+		if after := processedEventCount(t, ctx, stack); after != before+1 {
+			t.Fatalf("mismatched completion not recorded: %d -> %d", before, after)
+		}
+	})
+
+	t.Run("generations guard against stale verdicts", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+		pending := prepare(t, reviewer, reviewee, "generations")
+
+		errored := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, nil, 1)
+		if err := applyCompletion(t, ctx, stack, errored); err != nil {
+			t.Fatalf("apply error generation 1: %v", err)
+		}
+		status, _, generation := reviewModerationState(t, ctx, stack, pending.reviewID)
+		if status != string(ModerationError) || generation != 1 {
+			t.Fatalf("state = (%q, %d), want error generation 1", status, generation)
+		}
+
+		// The same generation replayed under a new event id cannot overwrite;
+		// neither can a stale generation 0.
+		for _, staleGeneration := range []int32{1, 0} {
+			stale := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
+				moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, staleGeneration)
+			if err := applyCompletion(t, ctx, stack, stale); err != nil {
+				t.Fatalf("stale generation %d must be acknowledged: %v", staleGeneration, err)
+			}
+			status, _, applied := reviewModerationState(t, ctx, stack, pending.reviewID)
+			if status != string(ModerationError) || applied != 1 {
+				t.Fatalf("stale generation %d applied: (%q, %d)", staleGeneration, status, applied)
+			}
+		}
+
+		retried := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, 2)
+		if err := applyCompletion(t, ctx, stack, retried); err != nil {
+			t.Fatalf("apply generation 2: %v", err)
+		}
+		status, codes, generation := reviewModerationState(t, ctx, stack, pending.reviewID)
+		if status != string(ModerationApproved) || len(codes) != 0 || generation != 2 {
+			t.Fatalf("retried state = (%q, %v, %d), want approved generation 2", status, codes, generation)
+		}
+		if count, avg := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || avg != 3 {
+			t.Fatalf("stats after retried approval = (%d, %v), want (1, 3)", count, avg)
+		}
+	})
+
+	t.Run("a removed review ignores completions", func(t *testing.T) {
+		reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+		pending := prepare(t, reviewer, reviewee, "removed before completion")
+		if err := stack.service.RemoveReview(ctx, pending.reviewID, "abuse", admin); err != nil {
+			t.Fatalf("remove review: %v", err)
+		}
+
+		approved := completionEvent(pending.reviewID, pending.reviewerID, pending.requestID,
+			moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED, nil, 1)
+		if err := applyCompletion(t, ctx, stack, approved); err != nil {
+			t.Fatalf("completion for a removed review must be acknowledged: %v", err)
+		}
+		var status string
+		var deletedAt sql.NullTime
+		if err := stack.sqlDB.QueryRowContext(ctx,
+			"SELECT moderation_status, deleted_at FROM reviews WHERE id = $1", pending.reviewID,
+		).Scan(&status, &deletedAt); err != nil {
+			t.Fatal(err)
+		}
+		if status != string(ModerationPending) || !deletedAt.Valid {
+			t.Fatalf("completion resurrected the removed review: (%q, deleted=%t)", status, deletedAt.Valid)
+		}
+	})
+
+	t.Run("unpublished list includes every status with aligned pagination totals", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{reviewer, reviewee} {
+			insertUser(t, ctx, stack.sqlDB, id)
+		}
+
+		pendingReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "still pending")
+		rejectedReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "rejected")
+		rejected := reviewCompletionRequest{
+			reviewID:   rejectedReview,
+			reviewerID: reviewer,
+			requestID:  requestIDOf(t, ctx, stack, rejectedReview),
+		}
+		if err := applyCompletion(
+			t,
+			ctx,
+			stack,
+			completionEvent(
+				rejected.reviewID,
+				rejected.reviewerID,
+				rejected.requestID,
+				moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED,
+				[]string{"SPAM"},
+				1,
+			),
+		); err != nil {
+			t.Fatal(err)
+		}
+		erroredReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "errored")
+		errored := reviewCompletionRequest{
+			reviewID:   erroredReview,
+			reviewerID: reviewer,
+			requestID:  requestIDOf(t, ctx, stack, erroredReview),
+		}
+		if err := applyCompletion(
+			t,
+			ctx,
+			stack,
+			completionEvent(errored.reviewID, errored.reviewerID, errored.requestID,
+				moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR, nil, 1),
+		); err != nil {
+			t.Fatal(err)
+		}
+		approvedReview, _ := submitReview(t, ctx, stack, reviewer, reviewee, "approved")
+		approveReview(t, ctx, stack.completions, stack.sqlDB, approvedReview)
+
+		unpublished, err := stack.service.ListUnpublishedReviewsForUser(
+			ctx, reviewer, mustPage(t, 1, 20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unpublished.TotalItems() != 3 {
+			t.Fatalf("total = %d, want the three unpublished reviews", unpublished.TotalItems())
+		}
+		if len(unpublished.Reviews) != 3 || unpublished.Reviews[0].ID != erroredReview {
+			t.Fatalf("unexpected order: %+v", unpublished.Reviews)
+		}
+		for i, status := range []ModerationStatus{ModerationError, ModerationRejected, ModerationPending} {
+			if unpublished.Reviews[i].ModerationStatus != status {
+				t.Fatalf("review %d status = %q, want %q", i, unpublished.Reviews[i].ModerationStatus, status)
+			}
+		}
+
+		paged, err := stack.service.ListUnpublishedReviewsForUser(
+			ctx, reviewer, mustPage(t, 2, 2))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if paged.TotalItems() != 3 || len(paged.Reviews) != 1 || paged.Reviews[0].ID != pendingReview {
+			t.Fatalf("second page = total %d reviews %+v", paged.TotalItems(), paged.Reviews)
+		}
+		if paged.Reviews[0].ReviewerName == "" || paged.Reviews[0].RevieweeName == "" {
+			t.Fatalf("display names not joined: %+v", paged.Reviews[0])
+		}
+	})
+}
+
+func recalcNow(t *testing.T, ctx context.Context, sqlDB *sql.DB, revieweeID uuid.UUID) {
+	t.Helper()
+	repo := NewPostgresRepository(reviewdb.New(sqlDB))
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := repo.RecalculateStats(ctx, reviewdb.New(tx), revieweeID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUnpublishedTransitionsDoNotLockRevieweeStatistics(t *testing.T) {
+	stack := openModerationStack(t)
+	ctx := context.Background()
+	reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+		insertUser(t, ctx, stack.sqlDB, id)
+	}
+	lock, err := stack.sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Rollback() }()
+	if _, err := lock.ExecContext(ctx, "SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE", reviewee); err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []ModerationStatus{ModerationPending, ModerationRejected, ModerationError} {
+		t.Run(string(status), func(t *testing.T) {
+			bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			reviewID, _ := submitReview(t, bounded, stack, reviewer, reviewee, "unpublished statistics regression")
+			if status != ModerationPending {
+				outcome := moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
+				var codes []string
+				if status == ModerationRejected {
+					outcome = moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
+					codes = []string{"SPAM"}
+				}
+				if err := applyCompletion(t, bounded, stack, completionEvent(
+					reviewID, reviewer, requestIDOf(t, bounded, stack, reviewID), outcome, codes, 1,
+				)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := stack.service.RemoveReview(bounded, reviewID, "abuse", admin); err != nil {
+				t.Fatal(err)
+			}
+			var audits int
+			if err := stack.sqlDB.QueryRowContext(bounded, "SELECT count(*) FROM review_removals WHERE review_id = $1", reviewID).
+				Scan(&audits); err != nil ||
+				audits != 1 {
+				t.Fatalf("removal audit count=%d err=%v", audits, err)
+			}
+		})
+	}
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || average != 0 {
+		t.Fatalf("unpublished transitions changed ratings: count=%d average=%v", count, average)
+	}
+	if err := lock.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	approved, _ := submitReview(t, ctx, stack, reviewer, reviewee, "approved statistics regression")
+	approveReview(t, ctx, stack.completions, stack.sqlDB, approved)
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 1 || average != 3 {
+		t.Fatalf("approval did not update ratings: count=%d average=%v", count, average)
+	}
+	if err := stack.service.RemoveReview(ctx, approved, "abuse", admin); err != nil {
+		t.Fatal(err)
+	}
+	if count, average := userStats(t, ctx, stack.sqlDB, reviewee); count != 0 || average != 0 {
+		t.Fatalf("approved removal did not update ratings: count=%d average=%v", count, average)
+	}
+}
+
+func TestRejectedReviewStillBlocksResubmission(t *testing.T) {
+	stack := openModerationStack(t)
+	ctx := context.Background()
+	reviewer, reviewee := uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee} {
+		insertUser(t, ctx, stack.sqlDB, id)
+	}
+	reviewID, orderID := submitReview(t, ctx, stack, reviewer, reviewee, "original review")
+	pending, err := stack.service.GetMyReviewForOrder(ctx, reviewer, orderID)
+	if err != nil || pending.ModerationStatus != ModerationPending {
+		t.Fatalf("pending owner lookup: %+v, %v", pending, err)
+	}
+	event := completionEvent(reviewID, reviewer, requestIDOf(t, ctx, stack, reviewID),
+		moderationeventsv1.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED, []string{"HATE"}, 1)
+	if err := applyCompletion(t, ctx, stack, event); err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := stack.service.GetMyReviewForOrder(ctx, reviewer, orderID)
+	if err != nil || rejected.ModerationStatus != ModerationRejected {
+		t.Fatalf("rejected owner lookup: %+v, %v", rejected, err)
+	}
+	statuses, err := stack.service.ListMyReviewsForOrders(ctx, reviewer, []uuid.UUID{orderID})
+	if err != nil || len(statuses.ReviewedOrderIDs) != 1 || statuses.ReviewedOrderIDs[0] != orderID {
+		t.Fatalf("rejected review no longer counts as left: %+v, %v", statuses, err)
+	}
+	_, err = stack.service.SubmitReview(
+		ctx,
+		reviewer,
+		reviewee,
+		orderID,
+		ReviewSubmission{Rating: 5, Comment: "replacement"},
+		nil,
+	)
+	if !errors.Is(err, errReviewAlreadyExists) {
+		t.Fatalf("rejected review allowed resubmission: %v", err)
+	}
+	var count int
+	if err := stack.sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM reviews WHERE reviewer_id = $1 AND order_id = $2", reviewer, orderID).
+		Scan(&count); err != nil ||
+		count != 1 {
+		t.Fatalf("review count = %d, error = %v", count, err)
+	}
+}

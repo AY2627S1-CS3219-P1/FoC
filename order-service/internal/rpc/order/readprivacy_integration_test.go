@@ -35,7 +35,14 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	defer cancel()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
-		container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("f0_read_test"), postgres.WithUsername("order"), postgres.WithPassword("order"), postgres.BasicWaitStrategies())
+		container, err := postgres.Run(
+			ctx,
+			"postgres:18",
+			postgres.WithDatabase("f0_read_test"),
+			postgres.WithUsername("order"),
+			postgres.WithPassword("order"),
+			postgres.BasicWaitStrategies(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +62,9 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	var version int
-	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").Scan(&version); err != nil || version < 180000 || version >= 190000 {
+	if err = pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").
+		Scan(&version); err != nil || version < 180000 ||
+		version >= 190000 {
 		t.Fatalf("requires disposable PostgreSQL18: %d %v", version, err)
 	}
 	if _, err = pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
@@ -77,7 +86,30 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	requester, former, current := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	secret := "Call Room 02-15"
-	o := app.Order{ID: uuid.NewString(), RequesterID: requester, Status: app.PendingReservation, Pickup: app.LocationSnapshot{LocationID: uuid.NewString(), Name: "Campus Cafe", BuildingName: "COM2"}, Delivery: app.LocationSnapshot{LocationID: uuid.NewString(), Name: "Room 02-15", BuildingName: "COM3"}, DeliveryInstructions: &secret, ItemDescription: "Two meals", RewardCredits: 20, ReservedCredits: 20, DeliveryDuration: 30 * time.Minute, ExpiresAt: now.Add(time.Hour), Revision: 1, CreatedAt: now, UpdatedAt: now}
+	o := app.Order{
+		ID:          uuid.NewString(),
+		RequesterID: requester,
+		Status:      app.PendingReservation,
+		Pickup: app.LocationSnapshot{
+			LocationID:   uuid.NewString(),
+			Name:         "Campus Cafe",
+			BuildingName: "COM2",
+		},
+		Delivery: app.LocationSnapshot{
+			LocationID:   uuid.NewString(),
+			Name:         "Room 02-15",
+			BuildingName: "COM3",
+		},
+		DeliveryInstructions: &secret,
+		ItemDescription:      "Two meals",
+		RewardCredits:        20,
+		ReservedCredits:      20,
+		DeliveryDuration:     30 * time.Minute,
+		ExpiresAt:            now.Add(time.Hour),
+		Revision:             1,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 	created, err := app.NewChange(nil, o, app.Actor{Kind: app.User, ID: requester}, app.Create, nil, uuid.NewString)
 	if err != nil {
 		t.Fatal(err)
@@ -121,13 +153,27 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	authenticate := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role := r.Header.Get("X-Test-Role")
-			r = r.WithContext(auth.WithCaller(r.Context(), auth.Caller{ID: r.Header.Get("X-Test-User"), Role: role, Admin: role == "admin"}))
+			r = r.WithContext(
+				auth.WithCaller(
+					r.Context(),
+					auth.Caller{ID: r.Header.Get("X-Test-User"), Role: role, Admin: role == "admin"},
+				),
+			)
 			next.ServeHTTP(w, r)
 		})
 	}
 	service := app.NewService(repo)
 	images := app.NewItemImages(repo, nil)
-	server := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: rpcorder.NewServer(service, nil, images), Admin: orderadmin.NewServer(service, images)}, authenticate))
+	server := httptest.NewServer(
+		router.Setup(
+			router.RPCServices{
+				Health: &orderv1connect.UnimplementedHealthServiceHandler{},
+				Order:  rpcorder.NewServer(service, nil, images),
+				Admin:  orderadmin.NewServer(service, images),
+			},
+			authenticate,
+		),
+	)
 	defer server.Close()
 	client := orderv1connect.NewOrderServiceClient(server.Client(), server.URL)
 	caller := func(id, role string) *connect.Request[pb.GetOrderRequest] {
@@ -141,7 +187,8 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	open.Header().Set("X-Test-User", browser)
 	open.Header().Set("X-Test-Role", "user")
 	listed, err := client.ListOpenOrders(ctx, open)
-	if err != nil || listed.Msg.PageInfo.TotalItems != 1 || listed.Msg.Orders[0].Delivery != nil || listed.Msg.Orders[0].DeliveryBuildingName != "COM3" {
+	if err != nil || listed.Msg.PageInfo.TotalItems != 1 || listed.Msg.Orders[0].Delivery != nil ||
+		listed.Msg.Orders[0].DeliveryBuildingName != "COM3" {
 		t.Fatalf("coarse RPC: %v %v", listed, err)
 	}
 	//nolint:staticcheck // Exercise rejection of the retained legacy wire field.
@@ -159,25 +206,33 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	step(app.ConfirmReceipt, app.Actor{Kind: app.User, ID: requester})
 	for _, c := range []struct{ id, role string }{{former, "suspended_user"}, {uuid.NewString(), "admin"}} {
 		response, err := client.GetOrder(ctx, caller(c.id, c.role))
-		if err != nil || response.Msg.Order.Delivery != nil || response.Msg.Order.DeliveryBuildingName != "COM3" || response.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_COMPLETED || len(response.Msg.Order.ItemImages) != 0 {
+		if err != nil || response.Msg.Order.Delivery != nil || response.Msg.Order.DeliveryBuildingName != "COM3" ||
+			response.Msg.Order.Status != pb.OrderStatus_ORDER_STATUS_COMPLETED ||
+			len(response.Msg.Order.ItemImages) != 0 {
 			t.Fatalf("redacted history/admin RPC: %v %v", response, err)
 		}
 	}
 	for _, id := range []string{requester, current} {
 		response, err := client.GetOrder(ctx, caller(id, "user"))
-		if err != nil || response.Msg.Order.GetDelivery().GetLocation().GetLocationId() != o.Delivery.LocationID || response.Msg.Order.GetDelivery().GetInstructions() != secret {
+		if err != nil || response.Msg.Order.GetDelivery().GetLocation().GetLocationId() != o.Delivery.LocationID ||
+			response.Msg.Order.GetDelivery().GetInstructions() != secret {
 			t.Fatalf("participant RPC: %v %v", response, err)
 		}
 	}
-	history := connect.NewRequest(&pb.ListMyOrdersRequest{Role: pb.ParticipantRole_PARTICIPANT_ROLE_COURIER, PageSize: 1})
+	history := connect.NewRequest(
+		&pb.ListMyOrdersRequest{Role: pb.ParticipantRole_PARTICIPANT_ROLE_COURIER, PageSize: 1},
+	)
 	history.Header().Set("X-Test-User", former)
 	history.Header().Set("X-Test-Role", "suspended_user")
 	page, err := client.ListMyOrders(ctx, history)
-	if err != nil || page.Msg.PageInfo.TotalItems != 1 || len(page.Msg.Orders) != 1 || page.Msg.Orders[0].Delivery != nil {
+	if err != nil || page.Msg.PageInfo.TotalItems != 1 || len(page.Msg.Orders) != 1 ||
+		page.Msg.Orders[0].Delivery != nil {
 		t.Fatalf("history RPC: %v %v", page, err)
 	}
 	adminClient := orderv1connect.NewOrderAdminServiceClient(server.Client(), server.URL)
-	adminHistory := connect.NewRequest(&pb.ListUserOrdersRequest{UserId: former, Role: pb.ParticipantRole_PARTICIPANT_ROLE_COURIER})
+	adminHistory := connect.NewRequest(
+		&pb.ListUserOrdersRequest{UserId: former, Role: pb.ParticipantRole_PARTICIPANT_ROLE_COURIER},
+	)
 	adminHistory.Header().Set("X-Test-User", uuid.NewString())
 	adminHistory.Header().Set("X-Test-Role", "admin")
 	adminPage, err := adminClient.ListUserOrders(ctx, adminHistory)
@@ -187,5 +242,7 @@ func TestReadPrivacyThroughConnectAndPostgres(t *testing.T) {
 	if _, err = client.GetOrder(ctx, caller(browser, "user")); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatal("stranger saw completed order", err)
 	}
-	t.Log("PASS: real PostgreSQL18 Apply/history -> mounted Connect -> generated client; coarse browse, exact-filter rejection, withdrawal/reassignment/completion, suspended former history, admin redaction, current exact access and stranger denial")
+	t.Log(
+		"PASS: real PostgreSQL18 Apply/history -> mounted Connect -> generated client; coarse browse, exact-filter rejection, withdrawal/reassignment/completion, suspended former history, admin redaction, current exact access and stranger denial",
+	)
 }

@@ -21,9 +21,23 @@ func TestOutcomeMapping(t *testing.T) {
 		after  bool
 		want   events.OrderOutcomeType
 	}{{app.Completed, true, events.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED}, {app.Cancelled, false, events.OrderOutcomeType_ORDER_OUTCOME_TYPE_CANCELLED_BEFORE_PICKUP}, {app.Cancelled, true, events.OrderOutcomeType_ORDER_OUTCOME_TYPE_CANCELLED_AFTER_PICKUP}, {app.Expired, false, events.OrderOutcomeType_ORDER_OUTCOME_TYPE_EXPIRED}, {app.Failed, true, events.OrderOutcomeType_ORDER_OUTCOME_TYPE_FAILED}} {
-		p := app.FactsPayload{OrderID: "order", Revision: 4, RequesterID: "requester", CourierID: &courier, Status: tc.status, AfterPickup: tc.after, PickedUpAt: &pickup, DeliveredAt: &now, DeliveryDurationNS: int64(time.Minute), ReservedCredits: 17, At: now}
+		p := app.FactsPayload{
+			OrderID:            "order",
+			Revision:           4,
+			RequesterID:        "requester",
+			CourierID:          &courier,
+			Status:             tc.status,
+			AfterPickup:        tc.after,
+			PickedUpAt:         &pickup,
+			DeliveredAt:        &now,
+			DeliveryDurationNS: int64(time.Minute),
+			ReservedCredits:    17,
+			At:                 now,
+		}
 		payload, _ := json.Marshal(p)
-		message, err := encode(Fact{ID: "event", OrderID: "order", Revision: 4, Kind: string(app.Outcome), Version: 1, Payload: payload})
+		message, err := encode(
+			Fact{ID: "event", OrderID: "order", Revision: 4, Kind: string(app.Outcome), Version: 1, Payload: payload},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,9 +96,28 @@ func (p *recordingPublisher) Publish(_ context.Context, _ string, key []byte, m 
 }
 
 func TestPublicationCrashReplaysOriginalIdentity(t *testing.T) {
-	payload, _ := json.Marshal(app.FactsPayload{OrderID: "order", Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: time.Now()})
+	payload, _ := json.Marshal(
+		app.FactsPayload{
+			OrderID:     "order",
+			Revision:    1,
+			RequesterID: "requester",
+			Status:      app.PendingReservation,
+			At:          time.Now(),
+		},
+	)
 	for _, localFailure := range []bool{false, true} {
-		store := &memoryFacts{fact: &Fact{ID: "stable-event", OrderID: "order", Revision: 1, Version: 1, Kind: string(app.StatusChanged), Payload: payload, ActorKind: "user"}, ackFailure: localFailure}
+		store := &memoryFacts{
+			fact: &Fact{
+				ID:        "stable-event",
+				OrderID:   "order",
+				Revision:  1,
+				Version:   1,
+				Kind:      string(app.StatusChanged),
+				Payload:   payload,
+				ActorKind: "user",
+			},
+			ackFailure: localFailure,
+		}
 		publisher := &recordingPublisher{fail: !localFailure}
 		if err := New(store, publisher).Drain(context.Background(), 1); err == nil || store.published {
 			t.Fatal("uncertain delivery was acknowledged")
@@ -140,7 +173,17 @@ func TestCourierRemovalPreservesPreviousRecipient(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			message, err := encode(Fact{ID: "removal", OrderID: "order", Revision: 2, Kind: string(app.StatusChanged), Version: 1, Payload: payload, ActorKind: actor})
+			message, err := encode(
+				Fact{
+					ID:        "removal",
+					OrderID:   "order",
+					Revision:  2,
+					Kind:      string(app.StatusChanged),
+					Version:   1,
+					Payload:   payload,
+					ActorKind: actor,
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -188,17 +231,41 @@ func (b *batchFacts) Retry(_ context.Context, f Fact, _ time.Time) error {
 
 func TestDeferredFactDoesNotStopIndependentOrder(t *testing.T) {
 	for _, invalidPayload := range []bool{false, true} {
-		payload, err := json.Marshal(app.FactsPayload{OrderID: "order", Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: time.Now()})
+		payload, err := json.Marshal(
+			app.FactsPayload{
+				OrderID:     "order",
+				Revision:    1,
+				RequesterID: "requester",
+				Status:      app.PendingReservation,
+				At:          time.Now(),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		first := Fact{ID: "deferred", OrderID: "order", Revision: 1, Version: 1, Kind: string(app.StatusChanged), Payload: payload, ActorKind: "user"}
+		first := Fact{
+			ID:        "deferred",
+			OrderID:   "order",
+			Revision:  1,
+			Version:   1,
+			Kind:      string(app.StatusChanged),
+			Payload:   payload,
+			ActorKind: "user",
+		}
 		if invalidPayload {
 			first.Version = 0
 		}
 		second := first
 		second.ID, second.OrderID, second.Version = "independent", "other-order", 1
-		second.Payload, err = json.Marshal(app.FactsPayload{OrderID: second.OrderID, Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: time.Now()})
+		second.Payload, err = json.Marshal(
+			app.FactsPayload{
+				OrderID:     second.OrderID,
+				Revision:    1,
+				RequesterID: "requester",
+				Status:      app.PendingReservation,
+				At:          time.Now(),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +274,8 @@ func TestDeferredFactDoesNotStopIndependentOrder(t *testing.T) {
 		if err := New(store, publisher).Drain(context.Background(), 3); err == nil {
 			t.Fatal("deferred publication error was lost")
 		}
-		if len(store.retried) != 1 || store.retried[0] != first.ID || len(store.published) != 1 || store.published[0] != second.ID {
+		if len(store.retried) != 1 || store.retried[0] != first.ID || len(store.published) != 1 ||
+			store.published[0] != second.ID {
 			t.Fatalf("retried=%v published=%v", store.retried, store.published)
 		}
 	}
@@ -265,11 +333,27 @@ func TestSlowFailureDoesNotReclaimDeferredFactInBatch(t *testing.T) {
 	now := time.Now().UTC()
 	store := &leaseOrderedFacts{leases: map[string]time.Time{}, published: map[string]bool{}}
 	for _, id := range []string{"invalid", "slow", "healthy"} {
-		payload, err := json.Marshal(app.FactsPayload{OrderID: id, Revision: 1, RequesterID: "requester", Status: app.PendingReservation, At: now})
+		payload, err := json.Marshal(
+			app.FactsPayload{
+				OrderID:     id,
+				Revision:    1,
+				RequesterID: "requester",
+				Status:      app.PendingReservation,
+				At:          now,
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fact := Fact{ID: id, OrderID: id, Revision: 1, Version: 1, Kind: string(app.StatusChanged), Payload: payload, ActorKind: "user"}
+		fact := Fact{
+			ID:        id,
+			OrderID:   id,
+			Revision:  1,
+			Version:   1,
+			Kind:      string(app.StatusChanged),
+			Payload:   payload,
+			ActorKind: "user",
+		}
 		if id == "invalid" {
 			fact.Version = 0
 		}

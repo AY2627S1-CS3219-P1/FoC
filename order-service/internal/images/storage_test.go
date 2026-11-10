@@ -20,7 +20,12 @@ func (f *fakeStorage) CreateUpload(ctx context.Context, req UploadRequest) (Uplo
 	if f.fail != nil {
 		return UploadGrant{}, f.fail
 	}
-	return UploadGrant{URL: "https://upload.test/temporary", Method: "PUT", Headers: map[string]string{"Content-Type": req.ContentType}, ExpiresAt: time.Now().Add(time.Minute)}, nil
+	return UploadGrant{
+		URL:       "https://upload.test/temporary",
+		Method:    "PUT",
+		Headers:   map[string]string{"Content-Type": req.ContentType},
+		ExpiresAt: time.Now().Add(time.Minute),
+	}, nil
 }
 
 func (f *fakeStorage) Inspect(ctx context.Context, key string) (ObjectInfo, error) {
@@ -73,7 +78,11 @@ func TestFakeStorageSemantics(t *testing.T) {
 	}
 	fail := errors.New("storage unavailable")
 	f.fail = fail
-	if _, err := f.Inspect(context.Background(), "order/one/front"); !errors.Is(err, fail) || errors.Is(err, ErrObjectNotFound) {
+	if _, err := f.Inspect(
+		context.Background(),
+		"order/one/front",
+	); !errors.Is(err, fail) ||
+		errors.Is(err, ErrObjectNotFound) {
 		t.Fatalf("storage failure = %v", err)
 	}
 	f.fail = nil
@@ -82,7 +91,13 @@ func TestFakeStorageSemantics(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.CreateUpload(ctx, UploadRequest{Key: "stable/key", ContentType: "image/png"}); !errors.Is(err, context.Canceled) {
+	if _, err := f.CreateUpload(
+		ctx,
+		UploadRequest{Key: "stable/key", ContentType: "image/png"},
+	); !errors.Is(
+		err,
+		context.Canceled,
+	) {
 		t.Fatalf("CreateUpload canceled context error = %v", err)
 	}
 }

@@ -31,7 +31,8 @@ func (s *Creator) ProcessCreation(ctx context.Context, orderID string) error {
 			return err
 		}
 		now := s.now().UTC()
-		if w.IsResolved() || w.LeaseUntil.After(now) || (w.NextAttemptAt.After(now) && (w.Phase != ReservePending || w.ExpiresAt.After(now))) {
+		if w.IsResolved() || w.LeaseUntil.After(now) ||
+			(w.NextAttemptAt.After(now) && (w.Phase != ReservePending || w.ExpiresAt.After(now))) {
 			return nil
 		}
 		if o.Status != PendingReservation {
@@ -70,7 +71,8 @@ func (s *Creator) ProcessCreation(ctx context.Context, orderID string) error {
 			return err
 		}
 		now := s.now().UTC()
-		if w.ID != claimed.ID || w.Generation != claimed.Generation || w.Phase != claimed.Phase || w.IsResolved() || !w.LeaseUntil.After(now) {
+		if w.ID != claimed.ID || w.Generation != claimed.Generation || w.Phase != claimed.Phase || w.IsResolved() ||
+			!w.LeaseUntil.After(now) {
 			return nil
 		}
 		if o.Status != PendingReservation {
@@ -127,7 +129,8 @@ func (s *Creator) ProcessCreation(ctx context.Context, orderID string) error {
 
 		w.LeaseUntil, w.UpdatedAt = now, now
 		w.LastError = observation.diagnostic
-		if !w.IsResolved() && observation.view != nil && !isMatchingHold(*observation.view, w) && !isReleased(*observation.view, w.OrderID) {
+		if !w.IsResolved() && observation.view != nil && !isMatchingHold(*observation.view, w) &&
+			!isReleased(*observation.view, w.OrderID) {
 			w.LastError = "reservation_mismatch"
 		}
 		if w.IsResolved() {
@@ -143,7 +146,22 @@ func (s *Creator) ProcessCreation(ctx context.Context, orderID string) error {
 		if err := tx.SaveCreation(ctx, w, w.Generation); err != nil {
 			return err
 		}
-		slog.InfoContext(ctx, "Creation financial step", "order_id", w.OrderID, "workflow_id", w.ID, "phase", w.Phase, "attempt", w.Attempts, "diagnostic", w.LastError, "age_seconds", now.Sub(w.CreatedAt).Seconds())
+		slog.InfoContext(
+			ctx,
+			"Creation financial step",
+			"order_id",
+			w.OrderID,
+			"workflow_id",
+			w.ID,
+			"phase",
+			w.Phase,
+			"attempt",
+			w.Attempts,
+			"diagnostic",
+			w.LastError,
+			"age_seconds",
+			now.Sub(w.CreatedAt).Seconds(),
+		)
 		return nil
 	})
 	if err != nil {
@@ -188,7 +206,9 @@ func (s *Creator) observeCreation(ctx context.Context, w CreationWorkflow) creat
 }
 
 func isMatchingHold(v ReservationView, w CreationWorkflow) bool {
-	return v.State == ReservationHeld && v.OrderID == w.OrderID && v.RequesterID == w.RequesterID && v.OriginalAmount == w.Amount && v.ReservedAmount == w.Amount
+	return v.State == ReservationHeld && v.OrderID == w.OrderID && v.RequesterID == w.RequesterID &&
+		v.OriginalAmount == w.Amount &&
+		v.ReservedAmount == w.Amount
 }
 
 func isReleased(v ReservationView, id string) bool {

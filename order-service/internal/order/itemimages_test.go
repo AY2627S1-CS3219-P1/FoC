@@ -49,7 +49,13 @@ func TestItemImagesForOrderVisibility(t *testing.T) {
 			service := NewItemImages(repository, storage)
 			for _, status := range []Status{AwaitingCourier, AwaitingPickup, Completed} {
 				for _, expiry := range []time.Time{time.Now().Add(time.Hour), time.Now().Add(-time.Hour)} {
-					o := Order{ID: "order", RequesterID: "requester", CourierID: &courier, Status: status, ExpiresAt: expiry}
+					o := Order{
+						ID:          "order",
+						RequesterID: "requester",
+						CourierID:   &courier,
+						Status:      status,
+						ExpiresAt:   expiry,
+					}
 					views, err := service.ForOrder(context.Background(), tc.caller, o)
 					if err != nil || (len(views) == 1) != tc.want {
 						t.Fatalf("status %s: views=%v err=%v", status, views, err)

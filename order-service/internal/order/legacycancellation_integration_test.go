@@ -23,7 +23,8 @@ func assertLegacyCancellationKey(t *testing.T, f *fixture, caller, key, orderID,
 	}
 	digest := sha256.Sum256(wire)
 	var stored string
-	if err := f.pool.QueryRow(f.ctx, "SELECT request_hash FROM order_idempotency_keys WHERE caller_id=$1 AND method=$2 AND idempotency_key=$3", caller, CancelOrderMethod, key).Scan(&stored); err != nil {
+	if err := f.pool.QueryRow(f.ctx, "SELECT request_hash FROM order_idempotency_keys WHERE caller_id=$1 AND method=$2 AND idempotency_key=$3", caller, CancelOrderMethod, key).
+		Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored != hex.EncodeToString(digest[:]) {
@@ -48,13 +49,43 @@ func TestPostgresLegacyCancellationUpgradeReplay(t *testing.T) {
 		if err != nil || replay.OperationID != first.OperationID || replay.Status != CancellationSucceeded {
 			t.Fatalf("upgraded terminal replay: %+v %v", replay, err)
 		}
-		if _, err := after.CancelConfirmed(f.ctx, Caller{ID: courier}, o.ID, "changed", key, o.Revision); !errors.Is(err, ErrAlreadyExists) {
+		if _, err := after.CancelConfirmed(
+			f.ctx,
+			Caller{ID: courier},
+			o.ID,
+			"changed",
+			key,
+			o.Revision,
+		); !errors.Is(
+			err,
+			ErrAlreadyExists,
+		) {
 			t.Fatalf("legacy key accepted changed reason: %v", err)
 		}
-		if _, err := after.CancelConfirmed(f.ctx, Caller{ID: courier}, uuid.NewString(), "leave", key, o.Revision); !errors.Is(err, ErrAlreadyExists) {
+		if _, err := after.CancelConfirmed(
+			f.ctx,
+			Caller{ID: courier},
+			uuid.NewString(),
+			"leave",
+			key,
+			o.Revision,
+		); !errors.Is(
+			err,
+			ErrAlreadyExists,
+		) {
 			t.Fatalf("legacy key accepted changed missing order: %v", err)
 		}
-		if _, err := after.CancelConfirmed(f.ctx, Caller{ID: uuid.NewString()}, o.ID, "leave", key, o.Revision); !errors.Is(err, ErrForbidden) {
+		if _, err := after.CancelConfirmed(
+			f.ctx,
+			Caller{ID: uuid.NewString()},
+			o.ID,
+			"leave",
+			key,
+			o.Revision,
+		); !errors.Is(
+			err,
+			ErrForbidden,
+		) {
 			t.Fatalf("legacy key escaped caller scope: %v", err)
 		}
 		if a, n, _ := f.counts(t, o.ID); a != audit || n != facts {
@@ -62,10 +93,27 @@ func TestPostgresLegacyCancellationUpgradeReplay(t *testing.T) {
 		}
 		assertLegacyCancellationKey(t, f, courier, key, o.ID, "leave")
 		// Corrupting a retained pointer is an integrity error, never a new intent.
-		if _, err := f.pool.Exec(f.ctx, "UPDATE order_idempotency_keys SET resource_id=$1 WHERE caller_id=$2 AND method=$3 AND idempotency_key=$4", uuid.NewString(), courier, CancelOrderMethod, key); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE order_idempotency_keys SET resource_id=$1 WHERE caller_id=$2 AND method=$3 AND idempotency_key=$4",
+			uuid.NewString(),
+			courier,
+			CancelOrderMethod,
+			key,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := after.CancelConfirmed(f.ctx, Caller{ID: courier}, o.ID, "leave", key, o.Revision); !errors.Is(err, ErrIdempotencyIntegrity) {
+		if _, err := after.CancelConfirmed(
+			f.ctx,
+			Caller{ID: courier},
+			o.ID,
+			"leave",
+			key,
+			o.Revision,
+		); !errors.Is(
+			err,
+			ErrIdempotencyIntegrity,
+		) {
 			t.Fatalf("legacy key lost resource integrity: %v", err)
 		}
 	})
@@ -80,7 +128,12 @@ func TestPostgresLegacyCancellationUpgradeReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if assigned, err := assigner.AcceptOffer(f.ctx, Caller{ID: o.RequesterID}, offer.ID); err != nil || assigned.Phase != AssignmentSucceeded {
+		if assigned, err := assigner.AcceptOffer(
+			f.ctx,
+			Caller{ID: o.RequesterID},
+			offer.ID,
+		); err != nil ||
+			assigned.Phase != AssignmentSucceeded {
 			t.Fatalf("counteroffer: %+v %v", assigned, err)
 		}
 		confirmed, err := f.repo.Get(f.ctx, o.ID)
@@ -111,8 +164,17 @@ func TestPostgresLegacyCancellationUpgradeReplay(t *testing.T) {
 			t.Fatalf("replacement: %+v %v", assigned, err)
 		}
 		audit, facts, _ := f.counts(t, o.ID)
-		replay, err := after.CancelConfirmed(f.ctx, Caller{ID: courier.ID, Suspended: true}, o.ID, "leave", key, confirmed.Revision)
-		if err != nil || replay.OperationID != first.OperationID || replay.Status != CancellationSucceeded || !replay.Order.IsAssignedTo(replacement.ID) || replay.Order.RewardCredits != o.RewardCredits {
+		replay, err := after.CancelConfirmed(
+			f.ctx,
+			Caller{ID: courier.ID, Suspended: true},
+			o.ID,
+			"leave",
+			key,
+			confirmed.Revision,
+		)
+		if err != nil || replay.OperationID != first.OperationID || replay.Status != CancellationSucceeded ||
+			!replay.Order.IsAssignedTo(replacement.ID) ||
+			replay.Order.RewardCredits != o.RewardCredits {
 			t.Fatalf("legacy replay affected replacement: %+v %v", replay, err)
 		}
 		if a, n, _ := f.counts(t, o.ID); a != audit || n != facts {
@@ -120,5 +182,7 @@ func TestPostgresLegacyCancellationUpgradeReplay(t *testing.T) {
 		}
 		assertLegacyCancellationKey(t, f, courier.ID, key, o.ID, "leave")
 	})
-	t.Log("PASS upgrade: terminal and pending legacy keys replay, raised reward recovers, replacement survives, changed payload/caller and corrupt pointer fail closed")
+	t.Log(
+		"PASS upgrade: terminal and pending legacy keys replay, raised reward recovers, replacement survives, changed payload/caller and corrupt pointer fail closed",
+	)
 }

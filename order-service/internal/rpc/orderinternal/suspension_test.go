@@ -27,87 +27,66 @@ func (o *operations) Apply(_ context.Context, d app.AccountSuspensionDecision) e
 	return o.err
 }
 
-type fixtureIdentity struct{}
-
-// This identity injection exists only in tests. It is not an implementation of
-// #29's production workload authentication or authorization boundary.
-func testAuthentication(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), fixtureIdentity{}, r.Header.Get("X-Test-Workload"))
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-func testAuthorization() connect.Interceptor {
-	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			if ctx.Value(fixtureIdentity{}) != "user-service" {
-				return nil, connect.NewError(connect.CodePermissionDenied, nil)
-			}
-			return next(ctx, req)
-		}
-	})
-}
-
-func TestSuspensionRPCRequiresExplicitTrustedCallerBoundary(t *testing.T) {
+// Source: the suspension contract requires private mounting, validated immutable
+// decisions, and no acknowledgment on stale revisions. Workload authentication
+// is enforced by Istio and separately exercised by the live mesh smoke suite.
+func TestSuspensionPrivateRPCContract(t *testing.T) {
 	op := &operations{}
-	server := httptest.NewServer(router.SetupSuspension(&rpc.Server{Operations: op}, testAuthentication, testAuthorization()))
+	services := router.RPCServices{
+		Health:     &orderv1connect.UnimplementedHealthServiceHandler{},
+		Order:      &orderv1connect.UnimplementedOrderServiceHandler{},
+		Admin:      &orderv1connect.UnimplementedOrderAdminServiceHandler{},
+		Suspension: &rpc.Server{Operations: op},
+	}
+	authenticate := func(h http.Handler) http.Handler { return h }
+	server := httptest.NewServer(router.Internal(services, authenticate))
 	defer server.Close()
 	client := orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL)
-	message := &pb.ApplyAccountSuspensionRequest{DecisionId: uuid.NewString(), UserId: uuid.NewString(), AdminId: uuid.NewString(), Revision: 1, Suspended: true, Reason: "explicit decision"}
-	for _, identity := range []string{"", "admin", "order-service", "credit-service"} {
-		req := connect.NewRequest(message)
-		req.Header().Set("X-Test-Workload", identity)
-		req.Header().Set("Authorization", "Bearer expired-admin-token")
-		if _, err := client.ApplyAccountSuspension(context.Background(), req); connect.CodeOf(err) != connect.CodePermissionDenied || op.calls != 0 {
-			t.Fatalf("identity %q: %v calls=%d", identity, err, op.calls)
-		}
+	message := &pb.ApplyAccountSuspensionRequest{
+		DecisionId: uuid.NewString(),
+		UserId:     uuid.NewString(),
+		AdminId:    uuid.NewString(),
+		Revision:   1,
+		Suspended:  true,
+		Reason:     "explicit decision",
 	}
 	for range 2 {
-		req := connect.NewRequest(message)
-		req.Header().Set("X-Test-Workload", "user-service")
-		// No admin token is present: durable dispatch uses the injected workload.
-		response, err := client.ApplyAccountSuspension(context.Background(), req)
-		if err != nil || response.Msg.DecisionId != message.DecisionId || op.decision.UserID != message.UserId || op.decision.Revision != 1 {
-			t.Fatalf("workload dispatch: %+v %v", response, err)
+		// No admin token: authorization comes from the workload boundary, not JWTs.
+		response, err := client.ApplyAccountSuspension(context.Background(), connect.NewRequest(message))
+		if err != nil || response.Msg.DecisionId != message.DecisionId || op.decision.UserID != message.UserId ||
+			op.decision.Revision != 1 {
+			t.Fatalf("private dispatch: %+v %v", response, err)
 		}
 	}
-	// A skipped stale revision must not echo a successful acknowledgment that
-	// lets User finalize a role without the corresponding Order fence.
 	op.err = app.ErrConflict
-	req := connect.NewRequest(message)
-	req.Header().Set("X-Test-Workload", "user-service")
-	if response, err := client.ApplyAccountSuspension(context.Background(), req); response != nil || connect.CodeOf(err) != connect.CodeAborted {
+	if response, err := client.ApplyAccountSuspension(
+		context.Background(),
+		connect.NewRequest(message),
+	); response != nil ||
+		connect.CodeOf(err) != connect.CodeAborted {
 		t.Fatalf("stale decision acknowledged: %+v %v", response, err)
 	}
-	op.err = nil
-
-	for _, missing := range []bool{true, false} {
-		var authenticate func(http.Handler) http.Handler = testAuthentication
-		var authorize connect.Interceptor = testAuthorization()
-		if missing {
-			authenticate = nil
-		} else {
-			authorize = nil
-		}
-		closed := httptest.NewServer(router.SetupSuspension(&rpc.Server{Operations: op}, authenticate, authorize))
-		resp, err := closed.Client().Post(closed.URL+orderv1connect.OrderInternalServiceApplyAccountSuspensionProcedure, "application/json", nil)
+	message.Revision = 0
+	if _, err := client.ApplyAccountSuspension(
+		context.Background(),
+		connect.NewRequest(message),
+	); connect.CodeOf(err) != connect.CodeInvalidArgument ||
+		op.calls != 3 {
+		t.Fatalf("invalid decision reached operation: %v, calls=%d", err, op.calls)
+	}
+	public := httptest.NewServer(router.Setup(services, authenticate))
+	defer public.Close()
+	for _, endpoint := range []struct{ base, path string }{
+		{public.URL, orderv1connect.OrderInternalServiceApplyAccountSuspensionProcedure},
+		{server.URL, orderv1connect.OrderInternalServiceGetOrderParticipantsProcedure},
+	} {
+		resp, err := server.Client().Post(endpoint.base+endpoint.path, "application/json", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_ = resp.Body.Close()
-		closed.Close()
-		if resp.StatusCode != http.StatusServiceUnavailable || op.calls != 3 {
-			t.Fatalf("unconfigured boundary: HTTP %d calls=%d", resp.StatusCode, op.calls)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("unexpected exposure %s: HTTP %d", endpoint.path, resp.StatusCode)
 		}
-	}
-	public := httptest.NewServer(router.Setup(router.RPCServices{Health: &orderv1connect.UnimplementedHealthServiceHandler{}, Order: &orderv1connect.UnimplementedOrderServiceHandler{}, Admin: &orderv1connect.UnimplementedOrderAdminServiceHandler{}}, func(h http.Handler) http.Handler { return h }))
-	defer public.Close()
-	resp, err := public.Client().Post(public.URL+orderv1connect.OrderInternalServiceApplyAccountSuspensionProcedure, "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("internal RPC exposed publicly: HTTP %d", resp.StatusCode)
 	}
 }

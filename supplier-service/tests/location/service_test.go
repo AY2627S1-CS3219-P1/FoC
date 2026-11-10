@@ -20,7 +20,17 @@ func TestPermissionsAndValidation(t *testing.T) {
 	now := time.Now().UTC()
 	app := newTestService(repo, func() time.Time { return now })
 	for _, c := range []additionrequest.Caller{{}, owner, {ID: "suspended", Role: "suspended_user"}, {ID: "super", Role: "super_admin"}, admin} {
-		_, e := app.CreateDisablement(ctx, c, disablement.CreateDisablement{LocationID: locationID, StartsAt: ptr(now.Add(time.Duration(len(repo.disablements)+1) * time.Hour)), EndsAt: ptr(now.Add(time.Duration(len(repo.disablements)+2) * time.Hour)), Reason: "maintenance", Key: uuid.NewString()})
+		_, e := app.CreateDisablement(
+			ctx,
+			c,
+			disablement.CreateDisablement{
+				LocationID: locationID,
+				StartsAt:   ptr(now.Add(time.Duration(len(repo.disablements)+1) * time.Hour)),
+				EndsAt:     ptr(now.Add(time.Duration(len(repo.disablements)+2) * time.Hour)),
+				Reason:     "maintenance",
+				Key:        uuid.NewString(),
+			},
+		)
 		switch {
 		case c.ID == "":
 			expectError(t, e, additionrequest.ErrUnauthenticated)
@@ -29,7 +39,11 @@ func TestPermissionsAndValidation(t *testing.T) {
 		case e != nil:
 			t.Fatal(e)
 		}
-		_, e = app.SubmitRequest(ctx, c, additionrequest.SubmitRequest{Proposal: validProposal(), Key: uuid.NewString()})
+		_, e = app.SubmitRequest(
+			ctx,
+			c,
+			additionrequest.SubmitRequest{Proposal: validProposal(), Key: uuid.NewString()},
+		)
 		switch {
 		case c.ID == "":
 			expectError(t, e, additionrequest.ErrUnauthenticated)
@@ -60,12 +74,28 @@ func TestPermissionsAndValidation(t *testing.T) {
 		expectError(t, e, additionrequest.ErrInvalidArgument)
 	}
 	repo.locations[locationID] = additionrequest.Location{ID: locationID, ArchivedAt: &now}
-	_, e = app.CreateDisablement(ctx, admin, disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: uuid.NewString()})
+	_, e = app.CreateDisablement(
+		ctx,
+		admin,
+		disablement.CreateDisablement{LocationID: locationID, Reason: "closure", Key: uuid.NewString()},
+	)
 	expectError(t, e, additionrequest.ErrFailedPrecondition)
 }
 
 func validProposal() additionrequest.Proposal {
-	return additionrequest.Proposal{Name: " Cafe ", IsSupplier: true, CategoryIDs: []string{categoryID}, BuildingID: buildingID, Floor: ptr(" B1 "), Latitude: 1.294, Longitude: 103.774, OpenFrom: ptr(int64(22 * 3600000000)), OpenTo: ptr(int64(2 * 3600000000)), Contact: ptr(" contact "), Details: " directions "}
+	return additionrequest.Proposal{
+		Name:        " Cafe ",
+		IsSupplier:  true,
+		CategoryIDs: []string{categoryID},
+		BuildingID:  buildingID,
+		Floor:       ptr(" B1 "),
+		Latitude:    1.294,
+		Longitude:   103.774,
+		OpenFrom:    ptr(int64(22 * 3600000000)),
+		OpenTo:      ptr(int64(2 * 3600000000)),
+		Contact:     ptr(" contact "),
+		Details:     " directions ",
+	}
 }
 
 func expectError(t *testing.T, got, want error) {

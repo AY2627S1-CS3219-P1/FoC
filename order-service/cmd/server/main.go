@@ -20,6 +20,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/order"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/router"
+	internalrpc "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/orderinternal"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,8 +71,9 @@ func run(ctx context.Context) error {
 
 	repository := order.NewPostgresRepository(pool)
 	var storage images.ObjectStorage
+	var proofStorage *images.S3
 	if config.S3Bucket != "" {
-		storage, err = images.NewS3(startupCtx, images.S3Config{
+		proofStorage, err = images.NewS3(startupCtx, images.S3Config{
 			Bucket:         config.S3Bucket,
 			Region:         config.AWSRegion,
 			Endpoint:       config.S3Endpoint,
@@ -80,8 +82,10 @@ func run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("initialize image storage: %w", err)
 		}
+		storage = proofStorage
 	}
 	itemImages := order.NewItemImages(repository, storage)
+	proofs := newProofRuntime(startupCtx, repository, proofStorage)
 	creator, recoverCreations, err := newCreator(startupCtx, repository, config, itemImages)
 	if err != nil {
 		return fmt.Errorf("initialize creation: %w", err)
@@ -104,6 +108,8 @@ func run(ctx context.Context) error {
 	}
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
+	proofs.start(workerCtx, &workers)
+	startLifecycleTimers(workerCtx, &workers, repository)
 	if recoverCreations {
 		workers.Go(func() { creator.RecoverCreations(workerCtx) })
 	}
@@ -122,26 +128,36 @@ func run(ctx context.Context) error {
 	}
 	defer func() { stopWorkers(); workers.Wait() }()
 
-	authenticator, err := newAuthenticator(startupCtx, 2*time.Second, func(ctx context.Context) (*httpauth.Authenticator, error) {
-		return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
-			UserServiceURL: config.UserServiceURL,
-			Issuer:         httpauth.TokenIssuer,
-			Audience:       httpauth.TokenAudience,
-		})
-	})
+	authenticator, err := newAuthenticator(
+		startupCtx,
+		2*time.Second,
+		func(ctx context.Context) (*httpauth.Authenticator, error) {
+			return httpauth.NewAuthenticator(ctx, httpauth.AuthConfig{
+				UserServiceURL: config.UserServiceURL,
+				Issuer:         httpauth.TokenIssuer,
+				Audience:       httpauth.TokenAudience,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
 	}
 
-	services := newRPCServices(pool, creator, itemImages, assigner, canceller)
+	services := newRPCServices(pool, creator, itemImages, assigner, canceller, proofs)
+	services.Suspension = &internalrpc.Server{Operations: order.NewAccountSuspender(repository,
+		cancellationCredit(config.CreditServiceURL), order.AssignmentOptions{})}
 
 	routes := router.Setup(services, authenticator.Authenticate)
 	handler := getCorsConfig().Handler(routes)
 
-	server := newServer(":"+config.Port, handler)
-	server.BaseContext = func(net.Listener) context.Context { return ctx }
+	// Suspension coordination is private and authorized by the mesh's
+	// User-only method policy; public JWT middleware does not authorize it.
+	public := newServer(":"+config.Port, handler)
+	public.BaseContext = func(net.Listener) context.Context { return ctx }
+	internal := newServer(":"+config.InternalPort, router.Internal(services, authenticator.Authenticate))
+	internal.BaseContext = func(net.Listener) context.Context { return ctx }
 
-	return serve(ctx, server)
+	return serve(ctx, public, internal)
 }
 
 func getCorsConfig() *cors.Cors {
@@ -185,10 +201,12 @@ func newServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-func serve(ctx context.Context, server *http.Server) error {
-	stopped := make(chan error, 1)
-	go func() { stopped <- server.ListenAndServe() }()
-	slog.InfoContext(ctx, "Listening", "address", server.Addr)
+func serve(ctx context.Context, servers ...*http.Server) error {
+	stopped := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { stopped <- server.ListenAndServe() }()
+		slog.InfoContext(ctx, "Listening", "address", server.Addr)
+	}
 
 	select {
 	case err := <-stopped:
@@ -202,13 +220,21 @@ func serve(ctx context.Context, server *http.Server) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
-			return fmt.Errorf("shutdown server: %w", err)
+		var failures []error
+		for _, server := range servers {
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				_ = server.Close()
+				failures = append(failures, fmt.Errorf("shutdown server %s: %w", server.Addr, err))
+			}
+		}
+		if len(failures) > 0 {
+			return errors.Join(failures...)
 		}
 
-		if err := <-stopped; !errors.Is(err, http.ErrServerClosed) {
-			return err
+		for range servers {
+			if err := <-stopped; !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
 		}
 
 		return nil
@@ -217,7 +243,11 @@ func serve(ctx context.Context, server *http.Server) error {
 
 // newAuthenticator bounds both network attempts and waits by the caller's
 // startup context; callbacks are construction attempts, never transactions.
-func newAuthenticator(ctx context.Context, interval time.Duration, build func(context.Context) (*httpauth.Authenticator, error)) (*httpauth.Authenticator, error) {
+func newAuthenticator(
+	ctx context.Context,
+	interval time.Duration,
+	build func(context.Context) (*httpauth.Authenticator, error),
+) (*httpauth.Authenticator, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 

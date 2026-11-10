@@ -36,7 +36,13 @@ func (r *PostgresRepository) Within(ctx context.Context, f func(Tx) error) error
 		return mapError(err)
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck
-	if err = f(&transaction{q: db.New(tx), clock: r.clock, retryStore: mappedIdempotencyStore{idempotency.NewPostgresStore(tx)}}); err != nil {
+	if err = f(
+		&transaction{
+			q:          db.New(tx),
+			clock:      r.clock,
+			retryStore: mappedIdempotencyStore{idempotency.NewPostgresStore(tx)},
+		},
+	); err != nil {
 		return err
 	}
 	return mapError(tx.Commit(ctx))
@@ -92,7 +98,19 @@ func timePointer(v pgtype.Timestamptz) *time.Time {
 	return &t
 }
 func disablement(v db.LocationDisablement) Disablement {
-	return Disablement{ID: idString(v.ID), LocationID: idString(v.LocationID), StartsAt: v.StartsAt.Time.UTC(), EndsAt: timePointer(v.EndsAt), EndedAt: timePointer(v.EndedAt), CancelledAt: timePointer(v.CancelledAt), Reason: v.Reason, CreatedBy: v.CreatedBy, Revision: v.Revision, CreatedAt: v.CreatedAt.Time.UTC(), UpdatedAt: v.UpdatedAt.Time.UTC()}
+	return Disablement{
+		ID:          idString(v.ID),
+		LocationID:  idString(v.LocationID),
+		StartsAt:    v.StartsAt.Time.UTC(),
+		EndsAt:      timePointer(v.EndsAt),
+		EndedAt:     timePointer(v.EndedAt),
+		CancelledAt: timePointer(v.CancelledAt),
+		Reason:      v.Reason,
+		CreatedBy:   v.CreatedBy,
+		Revision:    v.Revision,
+		CreatedAt:   v.CreatedAt.Time.UTC(),
+		UpdatedAt:   v.UpdatedAt.Time.UTC(),
+	}
 }
 func (t *transaction) Location(ctx context.Context, resourceID string) (Location, error) {
 	v, err := t.q.LockWorkflowLocation(ctx, id(resourceID))
@@ -104,9 +122,37 @@ func (t *transaction) Disablement(ctx context.Context, resourceID string) (Disab
 }
 func (t *transaction) SaveDisablement(ctx context.Context, d Disablement, expected int64) error {
 	if expected == 0 {
-		return mapError(t.q.InsertWorkflowDisablement(ctx, db.InsertWorkflowDisablementParams{ID: id(d.ID), LocationID: id(d.LocationID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt), Reason: d.Reason, CreatedBy: d.CreatedBy, Revision: d.Revision, CreatedAt: stamp(d.CreatedAt), UpdatedAt: stamp(d.UpdatedAt)}))
+		return mapError(
+			t.q.InsertWorkflowDisablement(
+				ctx,
+				db.InsertWorkflowDisablementParams{
+					ID:         id(d.ID),
+					LocationID: id(d.LocationID),
+					StartsAt:   stamp(d.StartsAt),
+					EndsAt:     optionalStamp(d.EndsAt),
+					Reason:     d.Reason,
+					CreatedBy:  d.CreatedBy,
+					Revision:   d.Revision,
+					CreatedAt:  stamp(d.CreatedAt),
+					UpdatedAt:  stamp(d.UpdatedAt),
+				},
+			),
+		)
 	}
-	n, e := t.q.UpdateWorkflowDisablement(ctx, db.UpdateWorkflowDisablementParams{ID: id(d.ID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt), EndedAt: optionalStamp(d.EndedAt), CancelledAt: optionalStamp(d.CancelledAt), Reason: d.Reason, Revision: d.Revision, UpdatedAt: stamp(d.UpdatedAt), ExpectedRevision: expected})
+	n, e := t.q.UpdateWorkflowDisablement(
+		ctx,
+		db.UpdateWorkflowDisablementParams{
+			ID:               id(d.ID),
+			StartsAt:         stamp(d.StartsAt),
+			EndsAt:           optionalStamp(d.EndsAt),
+			EndedAt:          optionalStamp(d.EndedAt),
+			CancelledAt:      optionalStamp(d.CancelledAt),
+			Reason:           d.Reason,
+			Revision:         d.Revision,
+			UpdatedAt:        stamp(d.UpdatedAt),
+			ExpectedRevision: expected,
+		},
+	)
 	if e != nil {
 		return mapError(e)
 	}
@@ -116,15 +162,42 @@ func (t *transaction) SaveDisablement(ctx context.Context, d Disablement, expect
 	return nil
 }
 func (t *transaction) Overlaps(ctx context.Context, d Disablement) (bool, error) {
-	v, e := t.q.WorkflowDisablementOverlap(ctx, db.WorkflowDisablementOverlapParams{LocationID: id(d.LocationID), ID: id(d.ID), StartsAt: stamp(d.StartsAt), EndsAt: optionalStamp(d.EndsAt)})
+	v, e := t.q.WorkflowDisablementOverlap(
+		ctx,
+		db.WorkflowDisablementOverlapParams{
+			LocationID: id(d.LocationID),
+			ID:         id(d.ID),
+			StartsAt:   stamp(d.StartsAt),
+			EndsAt:     optionalStamp(d.EndsAt),
+		},
+	)
 	return v, mapError(e)
 }
-func (t *transaction) ListDisablements(ctx context.Context, locationID string, state DisablementState, now time.Time, p Page) ([]Disablement, int64, error) {
-	rows, e := t.q.ListWorkflowDisablements(ctx, db.ListWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now), PageSize: p.Size, PageOffset: int64(p.Number-1) * int64(p.Size)})
+
+func (t *transaction) ListDisablements(
+	ctx context.Context,
+	locationID string,
+	state DisablementState,
+	now time.Time,
+	p Page,
+) ([]Disablement, int64, error) {
+	rows, e := t.q.ListWorkflowDisablements(
+		ctx,
+		db.ListWorkflowDisablementsParams{
+			LocationID: id(locationID),
+			State:      string(state),
+			NowAt:      stamp(now),
+			PageSize:   p.Size,
+			PageOffset: int64(p.Number-1) * int64(p.Size),
+		},
+	)
 	if e != nil {
 		return nil, 0, mapError(e)
 	}
-	n, e := t.q.CountWorkflowDisablements(ctx, db.CountWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now)})
+	n, e := t.q.CountWorkflowDisablements(
+		ctx,
+		db.CountWorkflowDisablementsParams{LocationID: id(locationID), State: string(state), NowAt: stamp(now)},
+	)
 	out := make([]Disablement, len(rows))
 	for i, v := range rows {
 		out[i] = disablement(v)
@@ -139,7 +212,12 @@ type mappedIdempotencyStore struct{ idempotency.Store }
 func (s mappedIdempotencyStore) Lock(ctx context.Context, scope idempotency.Scope) error {
 	return mapError(s.Store.Lock(ctx, scope))
 }
-func (s mappedIdempotencyStore) Find(ctx context.Context, scope idempotency.Scope, now time.Time) (*idempotency.Record, error) {
+
+func (s mappedIdempotencyStore) Find(
+	ctx context.Context,
+	scope idempotency.Scope,
+	now time.Time,
+) (*idempotency.Record, error) {
 	record, err := s.Store.Find(ctx, scope, now)
 	return record, mapError(err)
 }

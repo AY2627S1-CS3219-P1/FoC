@@ -62,10 +62,20 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		otherCaller := uuid.NewString()
-		second, err := s.creator.Create(auth.WithUserBearer(f.ctx, "Bearer user-token"), app.Caller{ID: otherCaller}, app.CreateInput{
-			Key: in.IdempotencyKey, PickupID: pickupID, DeliveryID: deliveryID, Instructions: in.Delivery.Instructions,
-			ItemDescription: in.ItemDescription, RewardCredits: in.RewardCredits, DeliveryDuration: in.DeliveryDuration.AsDuration(), ExpiresAt: in.ExpiresAt.AsTime(),
-		})
+		second, err := s.creator.Create(
+			auth.WithUserBearer(f.ctx, "Bearer user-token"),
+			app.Caller{ID: otherCaller},
+			app.CreateInput{
+				Key:              in.IdempotencyKey,
+				PickupID:         pickupID,
+				DeliveryID:       deliveryID,
+				Instructions:     in.Delivery.Instructions,
+				ItemDescription:  in.ItemDescription,
+				RewardCredits:    in.RewardCredits,
+				DeliveryDuration: in.DeliveryDuration.AsDuration(),
+				ExpiresAt:        in.ExpiresAt.AsTime(),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,8 +97,14 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := q.InsertOrderIdempotencyKey(f.ctx, db.InsertOrderIdempotencyKeyParams{
-			CallerID: uuid.MustParse(requester), Method: makeOfferMethod, IdempotencyKey: uuid.MustParse(in.IdempotencyKey),
-			ResourceID: offerID, RequestHash: offerHash, ExpiresAt: s.clock.Now().Add(24 * time.Hour),
+			CallerID: uuid.MustParse(
+				requester,
+			),
+			Method:         makeOfferMethod,
+			IdempotencyKey: uuid.MustParse(in.IdempotencyKey),
+			ResourceID:     offerID,
+			RequestHash:    offerHash,
+			ExpiresAt:      s.clock.Now().Add(24 * time.Hour),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -98,13 +114,20 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 
 		createScope := app.IdempotencyScope{CallerID: requester, Method: app.CreateOrderMethod}
 		creation := storedKey(t, f, createScope, in.IdempotencyKey)
-		other := storedKey(t, f, app.IdempotencyScope{CallerID: otherCaller, Method: app.CreateOrderMethod}, in.IdempotencyKey)
+		other := storedKey(
+			t,
+			f,
+			app.IdempotencyScope{CallerID: otherCaller, Method: app.CreateOrderMethod},
+			in.IdempotencyKey,
+		)
 		offer := storedKey(t, f, app.IdempotencyScope{CallerID: requester, Method: makeOfferMethod}, in.IdempotencyKey)
 		workflow, err := f.repo.Creation(f.ctx, first.Id)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if creation == nil || other == nil || offer == nil || creation.ResourceID != workflow.ID || other.ResourceID == creation.ResourceID || offer.ResourceID != offerID.String() {
+		if creation == nil || other == nil || offer == nil || creation.ResourceID != workflow.ID ||
+			other.ResourceID == creation.ResourceID ||
+			offer.ResourceID != offerID.String() {
 			t.Fatal("resource/caller/method scope was conflated")
 		}
 		if creation.RequestHash != workflow.Hash || offer.RequestHash != offerHash {
@@ -130,7 +153,14 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if storedKey(t, f, offerScope, in.IdempotencyKey) != nil || storedKey(t, f, createScope, in.IdempotencyKey) == nil || storedKey(t, f, app.IdempotencyScope{CallerID: otherCaller, Method: app.CreateOrderMethod}, in.IdempotencyKey) == nil {
+		if storedKey(t, f, offerScope, in.IdempotencyKey) != nil ||
+			storedKey(t, f, createScope, in.IdempotencyKey) == nil ||
+			storedKey(
+				t,
+				f,
+				app.IdempotencyScope{CallerID: otherCaller, Method: app.CreateOrderMethod},
+				in.IdempotencyKey,
+			) == nil {
 			t.Fatal("deletion crossed caller or method scopes")
 		}
 	})
@@ -147,10 +177,31 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 		}
 		q := db.New(tx)
 		offer := uuid.New()
-		if err := q.InsertOffer(f.ctx, db.InsertOfferParams{ID: offer, OrderID: uuid.MustParse(order.Id), CourierID: uuid.New(), Credits: 11, Status: "open", CreatedAt: s.clock.Now(), UpdatedAt: s.clock.Now()}); err != nil {
+		if err := q.InsertOffer(
+			f.ctx,
+			db.InsertOfferParams{
+				ID:        offer,
+				OrderID:   uuid.MustParse(order.Id),
+				CourierID: uuid.New(),
+				Credits:   11,
+				Status:    "open",
+				CreatedAt: s.clock.Now(),
+				UpdatedAt: s.clock.Now(),
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
-		if err := q.InsertOrderIdempotencyKey(f.ctx, db.InsertOrderIdempotencyKeyParams{CallerID: uuid.New(), Method: makeOfferMethod, IdempotencyKey: uuid.New(), ResourceID: offer, RequestHash: strings.Repeat("c", 64), ExpiresAt: s.clock.Now().Add(time.Hour)}); err != nil {
+		if err := q.InsertOrderIdempotencyKey(
+			f.ctx,
+			db.InsertOrderIdempotencyKeyParams{
+				CallerID:       uuid.New(),
+				Method:         makeOfferMethod,
+				IdempotencyKey: uuid.New(),
+				ResourceID:     offer,
+				RequestHash:    strings.Repeat("c", 64),
+				ExpiresAt:      s.clock.Now().Add(time.Hour),
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := tx.Rollback(f.ctx); err != nil {
@@ -174,11 +225,19 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := f.pool.Exec(f.ctx, "DELETE FROM order_creation_workflows WHERE order_id=$1", order.Id); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"DELETE FROM order_creation_workflows WHERE order_id=$1",
+				order.Id,
+			); err != nil {
 				t.Fatal(err)
 			}
 			if expired {
-				if _, err := f.pool.Exec(f.ctx, "UPDATE order_idempotency_keys SET expires_at=$1", s.clock.Now().Add(-time.Hour)); err != nil {
+				if _, err := f.pool.Exec(
+					f.ctx,
+					"UPDATE order_idempotency_keys SET expires_at=$1",
+					s.clock.Now().Add(-time.Hour),
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -189,7 +248,10 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 				t.Fatalf("dangling key replay=%v", err)
 			}
 			if err := f.repo.WithinCreation(f.ctx, func(tx app.CreationTx) error {
-				if err := tx.LockIdempotencyCaller(f.ctx, app.IdempotencyScope{CallerID: requester, Method: app.CreateOrderMethod}); err != nil {
+				if err := tx.LockIdempotencyCaller(
+					f.ctx,
+					app.IdempotencyScope{CallerID: requester, Method: app.CreateOrderMethod},
+				); err != nil {
 					return err
 				}
 				_, err := tx.FindCreationKey(f.ctx, requester, in.IdempotencyKey, s.clock.Now())
@@ -199,7 +261,9 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			}
 			s.remotes.mu.Lock()
 			defer s.remotes.mu.Unlock()
-			if f.count(t, "orders") != 1 || f.count(t, "order_idempotency_keys") != 1 || s.remotes.locationCalls != locations || s.remotes.reserveCalls != reserves {
+			if f.count(t, "orders") != 1 || f.count(t, "order_idempotency_keys") != 1 ||
+				s.remotes.locationCalls != locations ||
+				s.remotes.reserveCalls != reserves {
 				t.Fatal("dangling key re-executed creation or was retired")
 			}
 		})
@@ -219,7 +283,11 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 					return err
 				}
 				defer tx.Rollback(context.Background())
-				if _, err := tx.Exec(f.ctx, "DELETE FROM order_creation_workflows WHERE order_id=$1", order.Id); err != nil {
+				if _, err := tx.Exec(
+					f.ctx,
+					"DELETE FROM order_creation_workflows WHERE order_id=$1",
+					order.Id,
+				); err != nil {
 					return err
 				}
 				if resource == "orders" {
@@ -263,7 +331,13 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.pool.Exec(f.ctx, "UPDATE order_idempotency_keys SET resource_id=$1 WHERE caller_id=$2 AND method=$3", workflow.ID, requester, app.CreateOrderMethod); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE order_idempotency_keys SET resource_id=$1 WHERE caller_id=$2 AND method=$3",
+			workflow.ID,
+			requester,
+			app.CreateOrderMethod,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := create(c, f.ctx, in); connect.CodeOf(err) != connect.CodeInternal {
@@ -281,7 +355,11 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 		if _, err := create(c, f.ctx, in); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.pool.Exec(f.ctx, "UPDATE order_idempotency_keys SET request_hash=$1", strings.Repeat("d", 64)); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE order_idempotency_keys SET request_hash=$1",
+			strings.Repeat("d", 64),
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := create(c, f.ctx, in); connect.CodeOf(err) != connect.CodeInternal {
@@ -298,7 +376,16 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 			if err := tx.LockIdempotencyCaller(f.ctx, scope); err != nil {
 				return err
 			}
-			_ = tx.InsertIdempotencyKey(f.ctx, app.IdempotencyKey{Scope: scope, Key: uuid.NewString(), ResourceID: uuid.NewString(), RequestHash: "invalid", ExpiresAt: s.clock.Now().Add(time.Hour)})
+			_ = tx.InsertIdempotencyKey(
+				f.ctx,
+				app.IdempotencyKey{
+					Scope:       scope,
+					Key:         uuid.NewString(),
+					ResourceID:  uuid.NewString(),
+					RequestHash: "invalid",
+					ExpiresAt:   s.clock.Now().Add(time.Hour),
+				},
+			)
 			return nil
 		})
 		if !errors.Is(err, app.ErrPrecondition) || f.count(t, "order_idempotency_keys") != 0 {
@@ -310,15 +397,21 @@ func TestSharedIdempotencyStorage(t *testing.T) {
 func TestSharedIdempotencySchema(t *testing.T) {
 	f := databaseFixture(t)
 	var nullable string
-	if err := f.pool.QueryRow(f.ctx, "SELECT is_nullable FROM information_schema.columns WHERE table_name='order_idempotency_keys' AND column_name='request_hash'").Scan(&nullable); err != nil || nullable != "NO" {
+	if err := f.pool.QueryRow(f.ctx, "SELECT is_nullable FROM information_schema.columns WHERE table_name='order_idempotency_keys' AND column_name='request_hash'").
+		Scan(&nullable); err != nil ||
+		nullable != "NO" {
 		t.Fatal("request hash is nullable")
 	}
 	var foreignKeys int
-	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM pg_constraint WHERE conrelid='order_idempotency_keys'::regclass AND contype='f'").Scan(&foreignKeys); err != nil || foreignKeys != 0 {
+	if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM pg_constraint WHERE conrelid='order_idempotency_keys'::regclass AND contype='f'").
+		Scan(&foreignKeys); err != nil ||
+		foreignKeys != 0 {
 		t.Fatal("generic resource still has a foreign key")
 	}
 	var primaryKey []string
-	if err := f.pool.QueryRow(f.ctx, `SELECT array_agg(a.attname::text ORDER BY position) FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS columns(attnum,position) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=columns.attnum WHERE c.conrelid='order_idempotency_keys'::regclass AND c.contype='p'`).Scan(&primaryKey); err != nil || strings.Join(primaryKey, ",") != "caller_id,method,idempotency_key" {
+	if err := f.pool.QueryRow(f.ctx, `SELECT array_agg(a.attname::text ORDER BY position) FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS columns(attnum,position) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=columns.attnum WHERE c.conrelid='order_idempotency_keys'::regclass AND c.contype='p'`).
+		Scan(&primaryKey); err != nil ||
+		strings.Join(primaryKey, ",") != "caller_id,method,idempotency_key" {
 		t.Fatalf("primary key changed: %v %v", primaryKey, err)
 	}
 }

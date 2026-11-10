@@ -1,0 +1,119 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: user-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /user.v1.AuthService}
+        - path: {type: PathPrefix, value: /user.v1.HealthService}
+        - path: {type: PathPrefix, value: /user.v1.ProfileService}
+        - path: {type: PathPrefix, value: /user.v1.UserAdminService}
+        - path: {type: PathPrefix, value: /user.v1.AllowedDomainAdminService}
+        - path: {type: PathPrefix, value: /user.review.v1.ReviewService}
+        - path: {type: PathPrefix, value: /user.warning.v1.WarningService}
+        - path: {type: PathPrefix, value: /user.warning.v1.WarningAdminService}
+      backendRefs:
+        - name: user-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: supplier-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /supplier.v1.HealthService}
+        - path: {type: PathPrefix, value: /supplier.location.v1.LocationAdminService}
+        - path: {type: PathPrefix, value: /supplier.location.v1.LocationAdditionRequestService}
+        - path: {type: PathPrefix, value: /supplier.location.v1.LocationDisablementService}
+        - path: {type: PathPrefix, value: /supplier.location.v1.LocationDiscoveryService}
+      backendRefs:
+        - name: supplier-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: order-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /order.v1.HealthService}
+        - path: {type: PathPrefix, value: /order.v1.OrderAdminService}
+        - path: {type: PathPrefix, value: /order.v1.OrderService}
+      backendRefs:
+        - name: order-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: communication-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /communication.v1.RealtimeService}
+      timeouts:
+        request: 0s
+        backendRequest: 0s
+      backendRefs:
+        - name: communication-service-external
+          port: 8080
+    - matches:
+        - path: {type: PathPrefix, value: /communication.v1.HealthService}
+        - path: {type: PathPrefix, value: /communication.v1.TelegramLinkService}
+      backendRefs:
+        - name: communication-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: credit-service
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /credit.v1.CreditAdminService}
+        - path: {type: PathPrefix, value: /credit.v1.CreditAccountService}
+        - path: {type: PathPrefix, value: /grpc.health.v1.Health}
+      backendRefs:
+        - name: credit-service-external
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend
+spec:
+  parentRefs:
+    - name: foc-public
+      namespace: istio-ingress
+      sectionName: https
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - name: frontend
+          port: 3000

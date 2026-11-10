@@ -51,7 +51,17 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 			if l.ArchivedAt != nil {
 				return "", ErrFailedPrecondition
 			}
-			d := Disablement{ID: uuid.NewString(), LocationID: in.LocationID, StartsAt: now, EndsAt: in.EndsAt, Reason: in.Reason, CreatedBy: c.ID, Revision: 1, CreatedAt: now, UpdatedAt: now}
+			d := Disablement{
+				ID:         uuid.NewString(),
+				LocationID: in.LocationID,
+				StartsAt:   now,
+				EndsAt:     in.EndsAt,
+				Reason:     in.Reason,
+				CreatedBy:  c.ID,
+				Revision:   1,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
 			if in.StartsAt != nil {
 				d.StartsAt = *in.StartsAt
 			}
@@ -76,7 +86,13 @@ func (s *Service) CreateDisablement(ctx context.Context, c Caller, in CreateDisa
 	return out, err
 }
 
-func (s *Service) ListDisablements(ctx context.Context, c Caller, locationID string, state DisablementState, p Page) (out DisablementPage, err error) {
+func (s *Service) ListDisablements(
+	ctx context.Context,
+	c Caller,
+	locationID string,
+	state DisablementState,
+	p Page,
+) (out DisablementPage, err error) {
 	if err = requireAdmin(c); err != nil {
 		return out, err
 	}
@@ -168,7 +184,12 @@ func (s *Service) CancelDisablement(ctx context.Context, c Caller, id string) (D
 	return s.transitionDisablement(ctx, c, id, Cancelled)
 }
 
-func (s *Service) transitionDisablement(ctx context.Context, c Caller, id string, target DisablementState) (out Disablement, err error) {
+func (s *Service) transitionDisablement(
+	ctx context.Context,
+	c Caller,
+	id string,
+	target DisablementState,
+) (out Disablement, err error) {
 	if err = requireAdmin(c); err != nil {
 		return out, err
 	}

@@ -1,0 +1,33 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict
+spec:
+  mtls: {mode: STRICT}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: loki-clients
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/foc-observability/sa/alloy
+              - cluster.local/ns/foc-observability/sa/grafana
+      to:
+        - operation:
+            ports: ["3100"]
+    - from:
+        - source:
+            principals: [cluster.local/ns/foc-observability/sa/loki]

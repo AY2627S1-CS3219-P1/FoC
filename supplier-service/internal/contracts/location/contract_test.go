@@ -31,7 +31,9 @@ func TestDisablementFieldCompatibility(t *testing.T) {
 	if err := proto.Unmarshal(wire, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Id != "interval-id" || !proto.Equal(got.StartsAt, start) || !proto.Equal(got.EndsAt, end) || got.Reason != "Maintenance" || got.LocationId != "" {
+	if got.Id != "interval-id" || !proto.Equal(got.StartsAt, start) || !proto.Equal(got.EndsAt, end) ||
+		got.Reason != "Maintenance" ||
+		got.LocationId != "" {
 		t.Fatalf("discovery resource changed meaning: %v", &got)
 	}
 	fields := got.ProtoReflect().Descriptor().Fields()
@@ -110,7 +112,10 @@ func TestSharedLocationInputValidation(t *testing.T) {
 				t.Fatalf("expected valid=%v, got %v", row.valid, err)
 			}
 			if request, ok := row.message.(*pb.CreateLocationRequest); ok {
-				submitted := &pb.SubmitLocationAdditionRequestRequest{Proposal: proto.Clone(request.Location).(*pb.LocationInput), IdempotencyKey: id}
+				submitted := &pb.SubmitLocationAdditionRequestRequest{
+					Proposal:       proto.Clone(request.Location).(*pb.LocationInput),
+					IdempotencyKey: id,
+				}
 				if err := validator.Validate(submitted); (err == nil) != row.valid {
 					t.Fatalf("addition request validation diverged from admin input: %v", err)
 				}
@@ -138,7 +143,12 @@ func TestDisablementUpdateValidation(t *testing.T) {
 		{"reject empty mask", []string{}, "", false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			request := &pb.UpdateDisablementRequest{Id: id, ExpectedRevision: 1, Reason: row.reason, UpdateMask: &fieldmaskpb.FieldMask{Paths: row.paths}}
+			request := &pb.UpdateDisablementRequest{
+				Id:               id,
+				ExpectedRevision: 1,
+				Reason:           row.reason,
+				UpdateMask:       &fieldmaskpb.FieldMask{Paths: row.paths},
+			}
 			if err := validator.Validate(request); (err == nil) != row.valid {
 				t.Fatalf("expected valid=%v, got %v", row.valid, err)
 			}

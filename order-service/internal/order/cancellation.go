@@ -53,7 +53,12 @@ type cancellationRepository struct{ tx CancellationTx }
 
 func (r cancellationRepository) Within(_ context.Context, fn func(Tx) error) error { return fn(r.tx) }
 
-func (s *Canceller) mutate(ctx context.Context, id string, requestKey *cancellationRequestKey, fn func(CancellationTx, Order, []Offer) (*Change, error)) error {
+func (s *Canceller) mutate(
+	ctx context.Context,
+	id string,
+	requestKey *cancellationRequestKey,
+	fn func(CancellationTx, Order, []Offer) (*Change, error),
+) error {
 	return s.repository.WithinCancellation(ctx, func(tx CancellationTx) error {
 		if requestKey != nil {
 			if err := tx.LockIdempotencyCaller(ctx, requestKey.Scope); err != nil {
@@ -71,7 +76,9 @@ func (s *Canceller) mutate(ctx context.Context, id string, requestKey *cancellat
 				}
 			}
 		}
-		return NewMutator(cancellationRepository{tx}).Mutate(ctx, id, func(o Order, offers []Offer) (*Change, error) { return fn(tx, o, offers) })
+		return NewMutator(
+			cancellationRepository{tx},
+		).Mutate(ctx, id, func(o Order, offers []Offer) (*Change, error) { return fn(tx, o, offers) })
 	})
 }
 
@@ -89,20 +96,34 @@ func cancellationHash(id, reason string, revision ...int64) string {
 }
 
 // Cancel admits intent before any Credit call. Suspension does not remove participant rights.
-func (s *Canceller) Cancel(ctx context.Context, caller Caller, orderID, reason, key string) (CancellationResult, error) {
+func (s *Canceller) Cancel(
+	ctx context.Context,
+	caller Caller,
+	orderID, reason, key string,
+) (CancellationResult, error) {
 	return s.cancel(ctx, caller, orderID, reason, key, nil)
 }
 
 // CancelConfirmed binds new intent to the revision confirmed by the participant.
 // Retained matching operations replay before checking the current revision.
-func (s *Canceller) CancelConfirmed(ctx context.Context, caller Caller, orderID, reason, key string, revision int64) (CancellationResult, error) {
+func (s *Canceller) CancelConfirmed(
+	ctx context.Context,
+	caller Caller,
+	orderID, reason, key string,
+	revision int64,
+) (CancellationResult, error) {
 	if revision <= 0 {
 		return CancellationResult{}, ErrInvalid
 	}
 	return s.cancel(ctx, caller, orderID, reason, key, []int64{revision})
 }
 
-func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, key string, revision []int64) (CancellationResult, error) {
+func (s *Canceller) cancel(
+	ctx context.Context,
+	caller Caller,
+	orderID, reason, key string,
+	revision []int64,
+) (CancellationResult, error) {
 	cid, err := parseID(caller.ID)
 	if err != nil {
 		return CancellationResult{}, ErrForbidden
@@ -211,7 +232,9 @@ func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, 
 				// dependency reply after a durable withdrawal has started.
 				return nil, ErrPrecondition
 			}
-			operation.Status, operation.CourierID, operation.AssignedAt = CancellationPending, caller.ID, clonePointer(o.AssignedAt)
+			operation.Status, operation.CourierID, operation.AssignedAt = CancellationPending, caller.ID, clonePointer(
+				o.AssignedAt,
+			)
 			assignment, err := tx.CurrentSuccessfulAssignment(ctx, o.ID)
 			if err != nil {
 				return nil, err
@@ -260,7 +283,9 @@ func (s *Canceller) cancel(ctx context.Context, caller Caller, orderID, reason, 
 		if err := retain(); err != nil {
 			return nil, err
 		}
-		details, _ := json.Marshal(map[string]any{"operation_id": operation.ID, "reason": reason, "courier_holds_item": o.PickedUpAt != nil})
+		details, _ := json.Marshal(
+			map[string]any{"operation_id": operation.ID, "reason": reason, "courier_holds_item": o.PickedUpAt != nil},
+		)
 		change, err := NewChange(&o, after, Actor{Kind: User, ID: caller.ID}, action, details, s.newID)
 		if err != nil {
 			return nil, err

@@ -142,7 +142,8 @@ func TestSuspensionDoesNotResurrectInsufficientCreditOfferDatabase(t *testing.T)
 		t.Fatal(err)
 	}
 	assigned, err := assigner.AcceptOffer(ctx, requester, fresh.ID)
-	if err != nil || assigned.Phase != AssignmentSucceeded || assigned.AttemptID == result.AttemptID || !assigned.Order.IsAssignedTo(courier.ID) {
+	if err != nil || assigned.Phase != AssignmentSucceeded || assigned.AttemptID == result.AttemptID ||
+		!assigned.Order.IsAssignedTo(courier.ID) {
 		t.Fatalf("fresh reinstated acceptance failed: %+v %v", assigned, err)
 	}
 }

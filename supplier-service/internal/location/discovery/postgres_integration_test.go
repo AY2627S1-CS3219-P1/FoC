@@ -109,10 +109,30 @@ func TestPostgresReader(t *testing.T) {
 		req    ListRequest
 		want   []string
 	}{
-		{"default excludes archived, name ascending", user, ListRequest{}, []string{"Lounge", "NUS Co-op", "Supper Stretch", "The Cafe"}},
-		{"name descending", user, ListRequest{Descending: true}, []string{"The Cafe", "Supper Stretch", "NUS Co-op", "Lounge"}},
-		{"building ascending then name", user, ListRequest{Sort: SortByBuilding}, []string{"Lounge", "NUS Co-op", "Supper Stretch", "The Cafe"}},
-		{"building descending", user, ListRequest{Sort: SortByBuilding, Descending: true}, []string{"The Cafe", "Supper Stretch", "NUS Co-op", "Lounge"}},
+		{
+			"default excludes archived, name ascending",
+			user,
+			ListRequest{},
+			[]string{"Lounge", "NUS Co-op", "Supper Stretch", "The Cafe"},
+		},
+		{
+			"name descending",
+			user,
+			ListRequest{Descending: true},
+			[]string{"The Cafe", "Supper Stretch", "NUS Co-op", "Lounge"},
+		},
+		{
+			"building ascending then name",
+			user,
+			ListRequest{Sort: SortByBuilding},
+			[]string{"Lounge", "NUS Co-op", "Supper Stretch", "The Cafe"},
+		},
+		{
+			"building descending",
+			user,
+			ListRequest{Sort: SortByBuilding, Descending: true},
+			[]string{"The Cafe", "Supper Stretch", "NUS Co-op", "Lounge"},
+		},
 		{"case-insensitive substring", user, ListRequest{Search: "co-OP"}, []string{"NUS Co-op"}},
 		{"fuzzy typo", user, ListRequest{Search: "supper strech"}, []string{"Supper Stretch"}},
 		{"wildcards match literally", user, ListRequest{Search: "%"}, nil},
@@ -120,7 +140,12 @@ func TestPostgresReader(t *testing.T) {
 		{"category filter", user, ListRequest{CategoryID: ptr(coffeeID)}, []string{"Supper Stretch", "The Cafe"}},
 		{"suppliers only", user, ListRequest{SuppliersOnly: true}, []string{"NUS Co-op", "Supper Stretch", "The Cafe"}},
 		{"archived only", admin, ListRequest{Archive: ArchiveArchived}, []string{"Old Stall"}},
-		{"all", admin, ListRequest{Archive: ArchiveAll}, []string{"Lounge", "NUS Co-op", "Old Stall", "Supper Stretch", "The Cafe"}},
+		{
+			"all",
+			admin,
+			ListRequest{Archive: ArchiveAll},
+			[]string{"Lounge", "NUS Co-op", "Old Stall", "Supper Stretch", "The Cafe"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -151,7 +176,8 @@ func TestPostgresReader(t *testing.T) {
 
 	t.Run("reference data", func(t *testing.T) {
 		buildings, err := service.ListBuildings(ctx)
-		if err != nil || len(buildings) != 2 || buildings[0].Name != "COM2" || buildings[0].Center.Longitude != 103.774 {
+		if err != nil || len(buildings) != 2 || buildings[0].Name != "COM2" ||
+			buildings[0].Center.Longitude != 103.774 {
 			t.Fatalf("buildings = %+v, err %v", buildings, err)
 		}
 		categories, err := service.ListCategories(ctx)

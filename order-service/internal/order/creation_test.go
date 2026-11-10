@@ -11,7 +11,15 @@ import (
 )
 
 func creationInput() CreateInput {
-	return CreateInput{Key: uuid.NewString(), PickupID: uuid.NewString(), DeliveryID: uuid.NewString(), ItemDescription: "Book", RewardCredits: 10, DeliveryDuration: 10 * time.Minute, ExpiresAt: time.Date(2026, 10, 20, 1, 2, 3, 456, time.UTC)}
+	return CreateInput{
+		Key:              uuid.NewString(),
+		PickupID:         uuid.NewString(),
+		DeliveryID:       uuid.NewString(),
+		ItemDescription:  "Book",
+		RewardCredits:    10,
+		DeliveryDuration: 10 * time.Minute,
+		ExpiresAt:        time.Date(2026, 10, 20, 1, 2, 3, 456, time.UTC),
+	}
 }
 
 func TestCreationCanonicalPayload(t *testing.T) {

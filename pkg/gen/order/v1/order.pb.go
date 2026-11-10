@@ -24,6 +24,182 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetAssignmentAttemptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AttemptId     string                 `protobuf:"bytes,1,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssignmentAttemptRequest) Reset() {
+	*x = GetAssignmentAttemptRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssignmentAttemptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssignmentAttemptRequest) ProtoMessage() {}
+
+func (x *GetAssignmentAttemptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssignmentAttemptRequest.ProtoReflect.Descriptor instead.
+func (*GetAssignmentAttemptRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetAssignmentAttemptRequest) GetAttemptId() string {
+	if x != nil {
+		return x.AttemptId
+	}
+	return ""
+}
+
+type GetAssignmentAttemptResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Attempt       *AssignmentAttemptResult `protobuf:"bytes,1,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssignmentAttemptResponse) Reset() {
+	*x = GetAssignmentAttemptResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssignmentAttemptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssignmentAttemptResponse) ProtoMessage() {}
+
+func (x *GetAssignmentAttemptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssignmentAttemptResponse.ProtoReflect.Descriptor instead.
+func (*GetAssignmentAttemptResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetAssignmentAttemptResponse) GetAttempt() *AssignmentAttemptResult {
+	if x != nil {
+		return x.Attempt
+	}
+	return nil
+}
+
+type GetCancellationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCancellationRequest) Reset() {
+	*x = GetCancellationRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCancellationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCancellationRequest) ProtoMessage() {}
+
+func (x *GetCancellationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCancellationRequest.ProtoReflect.Descriptor instead.
+func (*GetCancellationRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetCancellationRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+type GetCancellationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cancellation  *CancellationResult    `protobuf:"bytes,1,opt,name=cancellation,proto3" json:"cancellation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCancellationResponse) Reset() {
+	*x = GetCancellationResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCancellationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCancellationResponse) ProtoMessage() {}
+
+func (x *GetCancellationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCancellationResponse.ProtoReflect.Descriptor instead.
+func (*GetCancellationResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetCancellationResponse) GetCancellation() *CancellationResult {
+	if x != nil {
+		return x.Cancellation
+	}
+	return nil
+}
+
 // Reserves reward_credits from the caller's available balance before the order
 // opens. If Credit refuses, the order is Rejected and failed_precondition is
 // returned. If the reservation can't be confirmed in time, the order stays
@@ -48,7 +224,7 @@ type CreateOrderRequest struct {
 
 func (x *CreateOrderRequest) Reset() {
 	*x = CreateOrderRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[0]
+	mi := &file_order_v1_order_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60,7 +236,7 @@ func (x *CreateOrderRequest) String() string {
 func (*CreateOrderRequest) ProtoMessage() {}
 
 func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[0]
+	mi := &file_order_v1_order_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -73,7 +249,7 @@ func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderRequest.ProtoReflect.Descriptor instead.
 func (*CreateOrderRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{0}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CreateOrderRequest) GetPickupLocationId() string {
@@ -144,7 +320,7 @@ type DeliveryInput struct {
 
 func (x *DeliveryInput) Reset() {
 	*x = DeliveryInput{}
-	mi := &file_order_v1_order_proto_msgTypes[1]
+	mi := &file_order_v1_order_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -156,7 +332,7 @@ func (x *DeliveryInput) String() string {
 func (*DeliveryInput) ProtoMessage() {}
 
 func (x *DeliveryInput) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[1]
+	mi := &file_order_v1_order_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -169,7 +345,7 @@ func (x *DeliveryInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryInput.ProtoReflect.Descriptor instead.
 func (*DeliveryInput) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{1}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeliveryInput) GetLocationId() string {
@@ -199,7 +375,7 @@ type CreateItemImageUploadRequest struct {
 
 func (x *CreateItemImageUploadRequest) Reset() {
 	*x = CreateItemImageUploadRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[2]
+	mi := &file_order_v1_order_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -211,7 +387,7 @@ func (x *CreateItemImageUploadRequest) String() string {
 func (*CreateItemImageUploadRequest) ProtoMessage() {}
 
 func (x *CreateItemImageUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[2]
+	mi := &file_order_v1_order_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -224,7 +400,7 @@ func (x *CreateItemImageUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateItemImageUploadRequest.ProtoReflect.Descriptor instead.
 func (*CreateItemImageUploadRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{2}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateItemImageUploadRequest) GetSizeBytes() int64 {
@@ -252,7 +428,7 @@ type GetOrderRequest struct {
 
 func (x *GetOrderRequest) Reset() {
 	*x = GetOrderRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[3]
+	mi := &file_order_v1_order_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +440,7 @@ func (x *GetOrderRequest) String() string {
 func (*GetOrderRequest) ProtoMessage() {}
 
 func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[3]
+	mi := &file_order_v1_order_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +453,7 @@ func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderRequest.ProtoReflect.Descriptor instead.
 func (*GetOrderRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{3}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetOrderRequest) GetId() string {
@@ -309,7 +485,7 @@ type ListOpenOrdersRequest struct {
 
 func (x *ListOpenOrdersRequest) Reset() {
 	*x = ListOpenOrdersRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[4]
+	mi := &file_order_v1_order_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -321,7 +497,7 @@ func (x *ListOpenOrdersRequest) String() string {
 func (*ListOpenOrdersRequest) ProtoMessage() {}
 
 func (x *ListOpenOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[4]
+	mi := &file_order_v1_order_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -334,7 +510,7 @@ func (x *ListOpenOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOpenOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListOpenOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{4}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListOpenOrdersRequest) GetPickupLocationId() string {
@@ -381,14 +557,18 @@ type ListMyOrdersRequest struct {
 	// One-based; zero means 1.
 	Page int32 `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	// Zero means 20; maximum 100.
-	PageSize      int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Only orders the caller is part of now and whose lifecycle has not ended:
+	// not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+	// withdrew from as a courier are excluded. Combines with status and role.
+	ActiveOnly    bool `protobuf:"varint,5,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListMyOrdersRequest) Reset() {
 	*x = ListMyOrdersRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[5]
+	mi := &file_order_v1_order_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +580,7 @@ func (x *ListMyOrdersRequest) String() string {
 func (*ListMyOrdersRequest) ProtoMessage() {}
 
 func (x *ListMyOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[5]
+	mi := &file_order_v1_order_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +593,7 @@ func (x *ListMyOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListMyOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{5}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListMyOrdersRequest) GetRole() ParticipantRole {
@@ -444,6 +624,13 @@ func (x *ListMyOrdersRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *ListMyOrdersRequest) GetActiveOnly() bool {
+	if x != nil {
+		return x.ActiveOnly
+	}
+	return false
+}
+
 // Starts one immutable acceptance attempt at the current reward. The caller
 // generates attempt_id once and reuses it after an uncertain result. An
 // intentional new attempt requires a new UUID, including after withdrawal.
@@ -458,7 +645,7 @@ type AcceptOrderRequest struct {
 
 func (x *AcceptOrderRequest) Reset() {
 	*x = AcceptOrderRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[6]
+	mi := &file_order_v1_order_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -470,7 +657,7 @@ func (x *AcceptOrderRequest) String() string {
 func (*AcceptOrderRequest) ProtoMessage() {}
 
 func (x *AcceptOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[6]
+	mi := &file_order_v1_order_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +670,7 @@ func (x *AcceptOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptOrderRequest.ProtoReflect.Descriptor instead.
 func (*AcceptOrderRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{6}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AcceptOrderRequest) GetId() string {
@@ -514,7 +701,7 @@ type MakeOfferRequest struct {
 
 func (x *MakeOfferRequest) Reset() {
 	*x = MakeOfferRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[7]
+	mi := &file_order_v1_order_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -526,7 +713,7 @@ func (x *MakeOfferRequest) String() string {
 func (*MakeOfferRequest) ProtoMessage() {}
 
 func (x *MakeOfferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[7]
+	mi := &file_order_v1_order_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -539,7 +726,7 @@ func (x *MakeOfferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOfferRequest.ProtoReflect.Descriptor instead.
 func (*MakeOfferRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{7}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *MakeOfferRequest) GetOrderId() string {
@@ -574,7 +761,7 @@ type ListOffersRequest struct {
 
 func (x *ListOffersRequest) Reset() {
 	*x = ListOffersRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[8]
+	mi := &file_order_v1_order_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -586,7 +773,7 @@ func (x *ListOffersRequest) String() string {
 func (*ListOffersRequest) ProtoMessage() {}
 
 func (x *ListOffersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[8]
+	mi := &file_order_v1_order_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -599,7 +786,7 @@ func (x *ListOffersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOffersRequest.ProtoReflect.Descriptor instead.
 func (*ListOffersRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{8}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListOffersRequest) GetOrderId() string {
@@ -628,7 +815,7 @@ type AcceptOfferRequest struct {
 
 func (x *AcceptOfferRequest) Reset() {
 	*x = AcceptOfferRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[9]
+	mi := &file_order_v1_order_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -640,7 +827,7 @@ func (x *AcceptOfferRequest) String() string {
 func (*AcceptOfferRequest) ProtoMessage() {}
 
 func (x *AcceptOfferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[9]
+	mi := &file_order_v1_order_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -653,7 +840,7 @@ func (x *AcceptOfferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptOfferRequest.ProtoReflect.Descriptor instead.
 func (*AcceptOfferRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{9}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AcceptOfferRequest) GetId() string {
@@ -673,7 +860,7 @@ type ConfirmPickupRequest struct {
 
 func (x *ConfirmPickupRequest) Reset() {
 	*x = ConfirmPickupRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[10]
+	mi := &file_order_v1_order_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -685,7 +872,7 @@ func (x *ConfirmPickupRequest) String() string {
 func (*ConfirmPickupRequest) ProtoMessage() {}
 
 func (x *ConfirmPickupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[10]
+	mi := &file_order_v1_order_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -698,7 +885,7 @@ func (x *ConfirmPickupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmPickupRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmPickupRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{10}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ConfirmPickupRequest) GetOrderId() string {
@@ -708,11 +895,13 @@ func (x *ConfirmPickupRequest) GetOrderId() string {
 	return ""
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 type CreateProofUploadRequest struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	OrderId string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SizeBytes int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	OrderId   string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	// Client-generated UUID identifying this upload attempt.
 	UploadId      string `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	ContentType   string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
@@ -722,7 +911,7 @@ type CreateProofUploadRequest struct {
 
 func (x *CreateProofUploadRequest) Reset() {
 	*x = CreateProofUploadRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[11]
+	mi := &file_order_v1_order_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +923,7 @@ func (x *CreateProofUploadRequest) String() string {
 func (*CreateProofUploadRequest) ProtoMessage() {}
 
 func (x *CreateProofUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[11]
+	mi := &file_order_v1_order_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +936,14 @@ func (x *CreateProofUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateProofUploadRequest.ProtoReflect.Descriptor instead.
 func (*CreateProofUploadRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{11}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CreateProofUploadRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
 }
 
 func (x *CreateProofUploadRequest) GetOrderId() string {
@@ -771,22 +967,25 @@ func (x *CreateProofUploadRequest) GetContentType() string {
 	return ""
 }
 
-// Assigned courier only. Delivering to Delivered. Every proof must be uploaded
-// already; otherwise the order stays Delivering and failed_precondition is
-// returned so the courier can retry.
+// Assigned courier only. Proofs must be uploaded and server-verified first.
+// On-time durable receipt preserves eligibility through delayed validation.
+// Unavailable validation stays pending/Delivering; invalid proof rejects that
+// submission without granting replacement photos its receipt time.
 type ConfirmDeliveryRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	OrderId  string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	ProofIds []string               `protobuf:"bytes,2,rep,name=proof_ids,json=proofIds,proto3" json:"proof_ids,omitempty"`
 	// The requester was unreachable, so the item was left with proof.
-	Unattended    bool `protobuf:"varint,3,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	Unattended bool `protobuf:"varint,3,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	// Only server-confirmed upload outages permit zero proof IDs.
+	WithoutProof  bool `protobuf:"varint,4,opt,name=without_proof,json=withoutProof,proto3" json:"without_proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfirmDeliveryRequest) Reset() {
 	*x = ConfirmDeliveryRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[12]
+	mi := &file_order_v1_order_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -798,7 +997,7 @@ func (x *ConfirmDeliveryRequest) String() string {
 func (*ConfirmDeliveryRequest) ProtoMessage() {}
 
 func (x *ConfirmDeliveryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[12]
+	mi := &file_order_v1_order_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -811,7 +1010,7 @@ func (x *ConfirmDeliveryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmDeliveryRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmDeliveryRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{12}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ConfirmDeliveryRequest) GetOrderId() string {
@@ -835,6 +1034,13 @@ func (x *ConfirmDeliveryRequest) GetUnattended() bool {
 	return false
 }
 
+func (x *ConfirmDeliveryRequest) GetWithoutProof() bool {
+	if x != nil {
+		return x.WithoutProof
+	}
+	return false
+}
+
 // Requester only. Delivered to Completed, which settles the reward. Repeating
 // returns the completed order without settling again.
 type ConfirmReceiptRequest struct {
@@ -846,7 +1052,7 @@ type ConfirmReceiptRequest struct {
 
 func (x *ConfirmReceiptRequest) Reset() {
 	*x = ConfirmReceiptRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[13]
+	mi := &file_order_v1_order_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -858,7 +1064,7 @@ func (x *ConfirmReceiptRequest) String() string {
 func (*ConfirmReceiptRequest) ProtoMessage() {}
 
 func (x *ConfirmReceiptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[13]
+	mi := &file_order_v1_order_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,7 +1077,7 @@ func (x *ConfirmReceiptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmReceiptRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmReceiptRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{13}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ConfirmReceiptRequest) GetOrderId() string {
@@ -902,7 +1108,7 @@ type CancelOrderRequest struct {
 
 func (x *CancelOrderRequest) Reset() {
 	*x = CancelOrderRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[14]
+	mi := &file_order_v1_order_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -914,7 +1120,7 @@ func (x *CancelOrderRequest) String() string {
 func (*CancelOrderRequest) ProtoMessage() {}
 
 func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[14]
+	mi := &file_order_v1_order_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -927,7 +1133,7 @@ func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderRequest.ProtoReflect.Descriptor instead.
 func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{14}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CancelOrderRequest) GetIdempotencyKey() string {
@@ -969,7 +1175,7 @@ type RecordItemLocationRequest struct {
 
 func (x *RecordItemLocationRequest) Reset() {
 	*x = RecordItemLocationRequest{}
-	mi := &file_order_v1_order_proto_msgTypes[15]
+	mi := &file_order_v1_order_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -981,7 +1187,7 @@ func (x *RecordItemLocationRequest) String() string {
 func (*RecordItemLocationRequest) ProtoMessage() {}
 
 func (x *RecordItemLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[15]
+	mi := &file_order_v1_order_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -994,7 +1200,7 @@ func (x *RecordItemLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordItemLocationRequest.ProtoReflect.Descriptor instead.
 func (*RecordItemLocationRequest) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{15}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RecordItemLocationRequest) GetOrderId() string {
@@ -1020,7 +1226,7 @@ type CreateOrderResponse struct {
 
 func (x *CreateOrderResponse) Reset() {
 	*x = CreateOrderResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[16]
+	mi := &file_order_v1_order_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1032,7 +1238,7 @@ func (x *CreateOrderResponse) String() string {
 func (*CreateOrderResponse) ProtoMessage() {}
 
 func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[16]
+	mi := &file_order_v1_order_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1045,7 +1251,7 @@ func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderResponse.ProtoReflect.Descriptor instead.
 func (*CreateOrderResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{16}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateOrderResponse) GetOrder() *Order {
@@ -1069,7 +1275,7 @@ type CreateItemImageUploadResponse struct {
 
 func (x *CreateItemImageUploadResponse) Reset() {
 	*x = CreateItemImageUploadResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[17]
+	mi := &file_order_v1_order_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1081,7 +1287,7 @@ func (x *CreateItemImageUploadResponse) String() string {
 func (*CreateItemImageUploadResponse) ProtoMessage() {}
 
 func (x *CreateItemImageUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[17]
+	mi := &file_order_v1_order_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1094,7 +1300,7 @@ func (x *CreateItemImageUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateItemImageUploadResponse.ProtoReflect.Descriptor instead.
 func (*CreateItemImageUploadResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{17}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateItemImageUploadResponse) GetUploadHeaders() map[string]string {
@@ -1134,7 +1340,7 @@ type GetOrderResponse struct {
 
 func (x *GetOrderResponse) Reset() {
 	*x = GetOrderResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[18]
+	mi := &file_order_v1_order_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1352,7 @@ func (x *GetOrderResponse) String() string {
 func (*GetOrderResponse) ProtoMessage() {}
 
 func (x *GetOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[18]
+	mi := &file_order_v1_order_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1365,7 @@ func (x *GetOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderResponse.ProtoReflect.Descriptor instead.
 func (*GetOrderResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{18}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetOrderResponse) GetOrder() *Order {
@@ -1179,7 +1385,7 @@ type ListOpenOrdersResponse struct {
 
 func (x *ListOpenOrdersResponse) Reset() {
 	*x = ListOpenOrdersResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[19]
+	mi := &file_order_v1_order_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1191,7 +1397,7 @@ func (x *ListOpenOrdersResponse) String() string {
 func (*ListOpenOrdersResponse) ProtoMessage() {}
 
 func (x *ListOpenOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[19]
+	mi := &file_order_v1_order_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1204,7 +1410,7 @@ func (x *ListOpenOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOpenOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListOpenOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{19}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListOpenOrdersResponse) GetOrders() []*Order {
@@ -1231,7 +1437,7 @@ type ListMyOrdersResponse struct {
 
 func (x *ListMyOrdersResponse) Reset() {
 	*x = ListMyOrdersResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[20]
+	mi := &file_order_v1_order_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1243,7 +1449,7 @@ func (x *ListMyOrdersResponse) String() string {
 func (*ListMyOrdersResponse) ProtoMessage() {}
 
 func (x *ListMyOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[20]
+	mi := &file_order_v1_order_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1256,7 +1462,7 @@ func (x *ListMyOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListMyOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{20}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListMyOrdersResponse) GetOrders() []*Order {
@@ -1285,7 +1491,7 @@ type AcceptOrderResponse struct {
 
 func (x *AcceptOrderResponse) Reset() {
 	*x = AcceptOrderResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[21]
+	mi := &file_order_v1_order_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1503,7 @@ func (x *AcceptOrderResponse) String() string {
 func (*AcceptOrderResponse) ProtoMessage() {}
 
 func (x *AcceptOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[21]
+	mi := &file_order_v1_order_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1310,7 +1516,7 @@ func (x *AcceptOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptOrderResponse.ProtoReflect.Descriptor instead.
 func (*AcceptOrderResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{21}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AcceptOrderResponse) GetOrder() *Order {
@@ -1336,7 +1542,7 @@ type MakeOfferResponse struct {
 
 func (x *MakeOfferResponse) Reset() {
 	*x = MakeOfferResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[22]
+	mi := &file_order_v1_order_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1348,7 +1554,7 @@ func (x *MakeOfferResponse) String() string {
 func (*MakeOfferResponse) ProtoMessage() {}
 
 func (x *MakeOfferResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[22]
+	mi := &file_order_v1_order_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1361,7 +1567,7 @@ func (x *MakeOfferResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOfferResponse.ProtoReflect.Descriptor instead.
 func (*MakeOfferResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{22}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MakeOfferResponse) GetOffer() *Offer {
@@ -1380,7 +1586,7 @@ type ListOffersResponse struct {
 
 func (x *ListOffersResponse) Reset() {
 	*x = ListOffersResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[23]
+	mi := &file_order_v1_order_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1392,7 +1598,7 @@ func (x *ListOffersResponse) String() string {
 func (*ListOffersResponse) ProtoMessage() {}
 
 func (x *ListOffersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[23]
+	mi := &file_order_v1_order_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1405,7 +1611,7 @@ func (x *ListOffersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOffersResponse.ProtoReflect.Descriptor instead.
 func (*ListOffersResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{23}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListOffersResponse) GetOffers() []*Offer {
@@ -1426,7 +1632,7 @@ type AcceptOfferResponse struct {
 
 func (x *AcceptOfferResponse) Reset() {
 	*x = AcceptOfferResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[24]
+	mi := &file_order_v1_order_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1438,7 +1644,7 @@ func (x *AcceptOfferResponse) String() string {
 func (*AcceptOfferResponse) ProtoMessage() {}
 
 func (x *AcceptOfferResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[24]
+	mi := &file_order_v1_order_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1451,7 +1657,7 @@ func (x *AcceptOfferResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptOfferResponse.ProtoReflect.Descriptor instead.
 func (*AcceptOfferResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{24}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AcceptOfferResponse) GetOrder() *Order {
@@ -1484,7 +1690,7 @@ type ConfirmPickupResponse struct {
 
 func (x *ConfirmPickupResponse) Reset() {
 	*x = ConfirmPickupResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[25]
+	mi := &file_order_v1_order_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1496,7 +1702,7 @@ func (x *ConfirmPickupResponse) String() string {
 func (*ConfirmPickupResponse) ProtoMessage() {}
 
 func (x *ConfirmPickupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[25]
+	mi := &file_order_v1_order_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1509,7 +1715,7 @@ func (x *ConfirmPickupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmPickupResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmPickupResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{25}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ConfirmPickupResponse) GetOrder() *Order {
@@ -1520,8 +1726,9 @@ func (x *ConfirmPickupResponse) GetOrder() *Order {
 }
 
 type CreateProofUploadResponse struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	ProofId string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UploadHeaders map[string]string      `protobuf:"bytes,4,rep,name=upload_headers,json=uploadHeaders,proto3" json:"upload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProofId       string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
 	// PUT the image here before it expires.
 	UploadUrl     string                 `protobuf:"bytes,2,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -1531,7 +1738,7 @@ type CreateProofUploadResponse struct {
 
 func (x *CreateProofUploadResponse) Reset() {
 	*x = CreateProofUploadResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[26]
+	mi := &file_order_v1_order_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1543,7 +1750,7 @@ func (x *CreateProofUploadResponse) String() string {
 func (*CreateProofUploadResponse) ProtoMessage() {}
 
 func (x *CreateProofUploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[26]
+	mi := &file_order_v1_order_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1556,7 +1763,14 @@ func (x *CreateProofUploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateProofUploadResponse.ProtoReflect.Descriptor instead.
 func (*CreateProofUploadResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{26}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *CreateProofUploadResponse) GetUploadHeaders() map[string]string {
+	if x != nil {
+		return x.UploadHeaders
+	}
+	return nil
 }
 
 func (x *CreateProofUploadResponse) GetProofId() string {
@@ -1589,7 +1803,7 @@ type ConfirmDeliveryResponse struct {
 
 func (x *ConfirmDeliveryResponse) Reset() {
 	*x = ConfirmDeliveryResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[27]
+	mi := &file_order_v1_order_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1601,7 +1815,7 @@ func (x *ConfirmDeliveryResponse) String() string {
 func (*ConfirmDeliveryResponse) ProtoMessage() {}
 
 func (x *ConfirmDeliveryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[27]
+	mi := &file_order_v1_order_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1614,7 +1828,7 @@ func (x *ConfirmDeliveryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmDeliveryResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmDeliveryResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{27}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ConfirmDeliveryResponse) GetOrder() *Order {
@@ -1633,7 +1847,7 @@ type ConfirmReceiptResponse struct {
 
 func (x *ConfirmReceiptResponse) Reset() {
 	*x = ConfirmReceiptResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[28]
+	mi := &file_order_v1_order_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1645,7 +1859,7 @@ func (x *ConfirmReceiptResponse) String() string {
 func (*ConfirmReceiptResponse) ProtoMessage() {}
 
 func (x *ConfirmReceiptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[28]
+	mi := &file_order_v1_order_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1658,7 +1872,7 @@ func (x *ConfirmReceiptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmReceiptResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmReceiptResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{28}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ConfirmReceiptResponse) GetOrder() *Order {
@@ -1678,7 +1892,7 @@ type CancelOrderResponse struct {
 
 func (x *CancelOrderResponse) Reset() {
 	*x = CancelOrderResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[29]
+	mi := &file_order_v1_order_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1904,7 @@ func (x *CancelOrderResponse) String() string {
 func (*CancelOrderResponse) ProtoMessage() {}
 
 func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[29]
+	mi := &file_order_v1_order_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1917,7 @@ func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderResponse.ProtoReflect.Descriptor instead.
 func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{29}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CancelOrderResponse) GetOrder() *Order {
@@ -1729,7 +1943,7 @@ type RecordItemLocationResponse struct {
 
 func (x *RecordItemLocationResponse) Reset() {
 	*x = RecordItemLocationResponse{}
-	mi := &file_order_v1_order_proto_msgTypes[30]
+	mi := &file_order_v1_order_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1741,7 +1955,7 @@ func (x *RecordItemLocationResponse) String() string {
 func (*RecordItemLocationResponse) ProtoMessage() {}
 
 func (x *RecordItemLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_order_proto_msgTypes[30]
+	mi := &file_order_v1_order_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1754,7 +1968,7 @@ func (x *RecordItemLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordItemLocationResponse.ProtoReflect.Descriptor instead.
 func (*RecordItemLocationResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_order_proto_rawDescGZIP(), []int{30}
+	return file_order_v1_order_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RecordItemLocationResponse) GetOrder() *Order {
@@ -1764,11 +1978,438 @@ func (x *RecordItemLocationResponse) GetOrder() *Order {
 	return nil
 }
 
+type VerifyProofUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	ProofId       string                 `protobuf:"bytes,2,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyProofUploadRequest) Reset() {
+	*x = VerifyProofUploadRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyProofUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyProofUploadRequest) ProtoMessage() {}
+
+func (x *VerifyProofUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyProofUploadRequest.ProtoReflect.Descriptor instead.
+func (*VerifyProofUploadRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *VerifyProofUploadRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *VerifyProofUploadRequest) GetProofId() string {
+	if x != nil {
+		return x.ProofId
+	}
+	return ""
+}
+
+type VerifyProofUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyProofUploadResponse) Reset() {
+	*x = VerifyProofUploadResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyProofUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyProofUploadResponse) ProtoMessage() {}
+
+func (x *VerifyProofUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyProofUploadResponse.ProtoReflect.Descriptor instead.
+func (*VerifyProofUploadResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{36}
+}
+
+type AbandonProofUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonProofUploadRequest) Reset() {
+	*x = AbandonProofUploadRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonProofUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonProofUploadRequest) ProtoMessage() {}
+
+func (x *AbandonProofUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonProofUploadRequest.ProtoReflect.Descriptor instead.
+func (*AbandonProofUploadRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *AbandonProofUploadRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *AbandonProofUploadRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+type AbandonProofUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonProofUploadResponse) Reset() {
+	*x = AbandonProofUploadResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonProofUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonProofUploadResponse) ProtoMessage() {}
+
+func (x *AbandonProofUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonProofUploadResponse.ProtoReflect.Descriptor instead.
+func (*AbandonProofUploadResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{38}
+}
+
+type GetDeliveryProofRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDeliveryProofRequest) Reset() {
+	*x = GetDeliveryProofRequest{}
+	mi := &file_order_v1_order_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeliveryProofRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeliveryProofRequest) ProtoMessage() {}
+
+func (x *GetDeliveryProofRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeliveryProofRequest.ProtoReflect.Descriptor instead.
+func (*GetDeliveryProofRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *GetDeliveryProofRequest) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+type DeliveryProofPhoto struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	ProofId       string                 `protobuf:"bytes,1,opt,name=proof_id,json=proofId,proto3" json:"proof_id,omitempty"`
+	DownloadUrl   string                 `protobuf:"bytes,2,opt,name=download_url,json=downloadUrl,proto3" json:"download_url,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeliveryProofPhoto) Reset() {
+	*x = DeliveryProofPhoto{}
+	mi := &file_order_v1_order_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeliveryProofPhoto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeliveryProofPhoto) ProtoMessage() {}
+
+func (x *DeliveryProofPhoto) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeliveryProofPhoto.ProtoReflect.Descriptor instead.
+func (*DeliveryProofPhoto) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *DeliveryProofPhoto) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetProofId() string {
+	if x != nil {
+		return x.ProofId
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+func (x *DeliveryProofPhoto) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type PendingDeliveryConfirmation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProofIds      []string               `protobuf:"bytes,1,rep,name=proof_ids,json=proofIds,proto3" json:"proof_ids,omitempty"`
+	Unattended    bool                   `protobuf:"varint,2,opt,name=unattended,proto3" json:"unattended,omitempty"`
+	WithoutProof  bool                   `protobuf:"varint,3,opt,name=without_proof,json=withoutProof,proto3" json:"without_proof,omitempty"`
+	ReceivedAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=received_at,json=receivedAt,proto3" json:"received_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PendingDeliveryConfirmation) Reset() {
+	*x = PendingDeliveryConfirmation{}
+	mi := &file_order_v1_order_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingDeliveryConfirmation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingDeliveryConfirmation) ProtoMessage() {}
+
+func (x *PendingDeliveryConfirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PendingDeliveryConfirmation.ProtoReflect.Descriptor instead.
+func (*PendingDeliveryConfirmation) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *PendingDeliveryConfirmation) GetProofIds() []string {
+	if x != nil {
+		return x.ProofIds
+	}
+	return nil
+}
+
+func (x *PendingDeliveryConfirmation) GetUnattended() bool {
+	if x != nil {
+		return x.Unattended
+	}
+	return false
+}
+
+func (x *PendingDeliveryConfirmation) GetWithoutProof() bool {
+	if x != nil {
+		return x.WithoutProof
+	}
+	return false
+}
+
+func (x *PendingDeliveryConfirmation) GetReceivedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReceivedAt
+	}
+	return nil
+}
+
+// Participant-only proof access is independent of general order/history access.
+// Pending input is returned only to its submitting courier, never role-only admin.
+type GetDeliveryProofResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Proofs        []*DeliveryProofPhoto        `protobuf:"bytes,1,rep,name=proofs,proto3" json:"proofs,omitempty"`
+	OutageReason  string                       `protobuf:"bytes,2,opt,name=outage_reason,json=outageReason,proto3" json:"outage_reason,omitempty"`
+	Pending       *PendingDeliveryConfirmation `protobuf:"bytes,3,opt,name=pending,proto3" json:"pending,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDeliveryProofResponse) Reset() {
+	*x = GetDeliveryProofResponse{}
+	mi := &file_order_v1_order_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeliveryProofResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeliveryProofResponse) ProtoMessage() {}
+
+func (x *GetDeliveryProofResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_order_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeliveryProofResponse.ProtoReflect.Descriptor instead.
+func (*GetDeliveryProofResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_order_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *GetDeliveryProofResponse) GetProofs() []*DeliveryProofPhoto {
+	if x != nil {
+		return x.Proofs
+	}
+	return nil
+}
+
+func (x *GetDeliveryProofResponse) GetOutageReason() string {
+	if x != nil {
+		return x.OutageReason
+	}
+	return ""
+}
+
+func (x *GetDeliveryProofResponse) GetPending() *PendingDeliveryConfirmation {
+	if x != nil {
+		return x.Pending
+	}
+	return nil
+}
+
 var File_order_v1_order_proto protoreflect.FileDescriptor
 
 const file_order_v1_order_proto_rawDesc = "" +
 	"\n" +
-	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"\xba\x06\n" +
+	"\x14order/v1/order.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1border/v1/shared_types.proto\"F\n" +
+	"\x1bGetAssignmentAttemptRequest\x12'\n" +
+	"\n" +
+	"attempt_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tattemptId\"[\n" +
+	"\x1cGetAssignmentAttemptResponse\x12;\n" +
+	"\aattempt\x18\x01 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\"E\n" +
+	"\x16GetCancellationRequest\x12+\n" +
+	"\foperation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\voperationId\"[\n" +
+	"\x17GetCancellationResponse\x12@\n" +
+	"\fcancellation\x18\x01 \x01(\v2\x1c.order.v1.CancellationResultR\fcancellation\"\xba\x06\n" +
 	"\x12CreateOrderRequest\x126\n" +
 	"\x12pickup_location_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x10pickupLocationId\x12;\n" +
 	"\bdelivery\x18\x02 \x01(\v2\x17.order.v1.DeliveryInputB\x06\xbaH\x03\xc8\x01\x01R\bdelivery\x12\xe5\x01\n" +
@@ -1805,12 +2446,14 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
 	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSizeB\x15\n" +
 	"\x13_pickup_location_idB\x17\n" +
-	"\x15_delivery_location_id\"\xcc\x01\n" +
+	"\x15_delivery_location_id\"\xed\x01\n" +
 	"\x13ListMyOrdersRequest\x127\n" +
 	"\x04role\x18\x01 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x15.order.v1.OrderStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\x12\x1b\n" +
 	"\x04page\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x04page\x12&\n" +
-	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\"W\n" +
+	"\tpage_size\x18\x04 \x01(\x05B\t\xbaH\x06\x1a\x04\x18d(\x00R\bpageSize\x12\x1f\n" +
+	"\vactive_only\x18\x05 \x01(\bR\n" +
+	"activeOnly\"W\n" +
 	"\x12AcceptOrderRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12'\n" +
 	"\n" +
@@ -1825,21 +2468,24 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x12AcceptOfferRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
 	"\x14ConfirmPickupRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xcb\x01\n" +
-	"\x18CreateProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xf8\x01\n" +
+	"\x18CreateProofUploadRequest\x12+\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x03B\f\xbaH\t\"\a\x18\x80\xad\xe2\x04(\x01R\tsizeBytes\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12%\n" +
 	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\x12c\n" +
 	"\fcontent_type\x18\x03 \x01(\tB@\xbaH=r;R\n" +
 	"image/jpegR\timage/pngR\n" +
 	"image/webpR\n" +
 	"image/heicR\n" +
-	"image/heifR\vcontentType\"\x8f\x01\n" +
+	"image/heifR\vcontentType\"\xb2\x01\n" +
 	"\x16ConfirmDeliveryRequest\x12#\n" +
-	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x120\n" +
-	"\tproof_ids\x18\x02 \x03(\tB\x13\xbaH\x10\x92\x01\r\b\x01\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\bproofIds\x12\x1e\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12.\n" +
+	"\tproof_ids\x18\x02 \x03(\tB\x11\xbaH\x0e\x92\x01\v\x10\x05\x18\x01\"\x05r\x03\xb0\x01\x01R\bproofIds\x12\x1e\n" +
 	"\n" +
 	"unattended\x18\x03 \x01(\bR\n" +
-	"unattended\"<\n" +
+	"unattended\x12#\n" +
+	"\rwithout_proof\x18\x04 \x01(\bR\fwithoutProof\"<\n" +
 	"\x15ConfirmReceiptRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xeb\x02\n" +
 	"\x12CancelOrderRequest\x126\n" +
@@ -1886,13 +2532,17 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x05offer\x18\x02 \x01(\v2\x0f.order.v1.OfferR\x05offer\x12;\n" +
 	"\aattempt\x18\x03 \x01(\v2!.order.v1.AssignmentAttemptResultR\aattempt\">\n" +
 	"\x15ConfirmPickupResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\x90\x01\n" +
-	"\x19CreateProofUploadResponse\x12\x19\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"\xb1\x02\n" +
+	"\x19CreateProofUploadResponse\x12]\n" +
+	"\x0eupload_headers\x18\x04 \x03(\v26.order.v1.CreateProofUploadResponse.UploadHeadersEntryR\ruploadHeaders\x12\x19\n" +
 	"\bproof_id\x18\x01 \x01(\tR\aproofId\x12\x1d\n" +
 	"\n" +
 	"upload_url\x18\x02 \x01(\tR\tuploadUrl\x129\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"@\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x1a@\n" +
+	"\x12UploadHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
 	"\x17ConfirmDeliveryResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"?\n" +
 	"\x16ConfirmReceiptResponse\x12%\n" +
@@ -1901,9 +2551,38 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\x12@\n" +
 	"\fcancellation\x18\x02 \x01(\v2\x1c.order.v1.CancellationResultR\fcancellation\"C\n" +
 	"\x1aRecordItemLocationResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\x98\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"d\n" +
+	"\x18VerifyProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12#\n" +
+	"\bproof_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aproofId\"\x1b\n" +
+	"\x19VerifyProofUploadResponse\"g\n" +
+	"\x19AbandonProofUploadRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12%\n" +
+	"\tupload_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\buploadId\"\x1c\n" +
+	"\x1aAbandonProofUploadResponse\">\n" +
+	"\x17GetDeliveryProofRequest\x12#\n" +
+	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"\xb0\x01\n" +
+	"\x12DeliveryProofPhoto\x12!\n" +
+	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x12\x19\n" +
+	"\bproof_id\x18\x01 \x01(\tR\aproofId\x12!\n" +
+	"\fdownload_url\x18\x02 \x01(\tR\vdownloadUrl\x129\n" +
 	"\n" +
-	"\fOrderService\x12L\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xbc\x01\n" +
+	"\x1bPendingDeliveryConfirmation\x12\x1b\n" +
+	"\tproof_ids\x18\x01 \x03(\tR\bproofIds\x12\x1e\n" +
+	"\n" +
+	"unattended\x18\x02 \x01(\bR\n" +
+	"unattended\x12#\n" +
+	"\rwithout_proof\x18\x03 \x01(\bR\fwithoutProof\x12;\n" +
+	"\vreceived_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"receivedAt\"\xb6\x01\n" +
+	"\x18GetDeliveryProofResponse\x124\n" +
+	"\x06proofs\x18\x01 \x03(\v2\x1c.order.v1.DeliveryProofPhotoR\x06proofs\x12#\n" +
+	"\routage_reason\x18\x02 \x01(\tR\foutageReason\x12?\n" +
+	"\apending\x18\x03 \x01(\v2%.order.v1.PendingDeliveryConfirmationR\apending2\x8a\x0e\n" +
+	"\fOrderService\x12j\n" +
+	"\x14GetAssignmentAttempt\x12%.order.v1.GetAssignmentAttemptRequest\x1a&.order.v1.GetAssignmentAttemptResponse\"\x03\x90\x02\x01\x12[\n" +
+	"\x0fGetCancellation\x12 .order.v1.GetCancellationRequest\x1a!.order.v1.GetCancellationResponse\"\x03\x90\x02\x01\x12L\n" +
 	"\vCreateOrder\x12\x1c.order.v1.CreateOrderRequest\x1a\x1d.order.v1.CreateOrderResponse\"\x00\x12j\n" +
 	"\x15CreateItemImageUpload\x12&.order.v1.CreateItemImageUploadRequest\x1a'.order.v1.CreateItemImageUploadResponse\"\x00\x12F\n" +
 	"\bGetOrder\x12\x19.order.v1.GetOrderRequest\x1a\x1a.order.v1.GetOrderResponse\"\x03\x90\x02\x01\x12X\n" +
@@ -1915,7 +2594,10 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"ListOffers\x12\x1b.order.v1.ListOffersRequest\x1a\x1c.order.v1.ListOffersResponse\"\x03\x90\x02\x01\x12O\n" +
 	"\vAcceptOffer\x12\x1c.order.v1.AcceptOfferRequest\x1a\x1d.order.v1.AcceptOfferResponse\"\x03\x90\x02\x02\x12U\n" +
 	"\rConfirmPickup\x12\x1e.order.v1.ConfirmPickupRequest\x1a\x1f.order.v1.ConfirmPickupResponse\"\x03\x90\x02\x02\x12a\n" +
-	"\x11CreateProofUpload\x12\".order.v1.CreateProofUploadRequest\x1a#.order.v1.CreateProofUploadResponse\"\x03\x90\x02\x02\x12[\n" +
+	"\x11CreateProofUpload\x12\".order.v1.CreateProofUploadRequest\x1a#.order.v1.CreateProofUploadResponse\"\x03\x90\x02\x02\x12a\n" +
+	"\x11VerifyProofUpload\x12\".order.v1.VerifyProofUploadRequest\x1a#.order.v1.VerifyProofUploadResponse\"\x03\x90\x02\x02\x12d\n" +
+	"\x12AbandonProofUpload\x12#.order.v1.AbandonProofUploadRequest\x1a$.order.v1.AbandonProofUploadResponse\"\x03\x90\x02\x02\x12^\n" +
+	"\x10GetDeliveryProof\x12!.order.v1.GetDeliveryProofRequest\x1a\".order.v1.GetDeliveryProofResponse\"\x03\x90\x02\x01\x12[\n" +
 	"\x0fConfirmDelivery\x12 .order.v1.ConfirmDeliveryRequest\x1a!.order.v1.ConfirmDeliveryResponse\"\x03\x90\x02\x02\x12X\n" +
 	"\x0eConfirmReceipt\x12\x1f.order.v1.ConfirmReceiptRequest\x1a .order.v1.ConfirmReceiptResponse\"\x03\x90\x02\x02\x12L\n" +
 	"\vCancelOrder\x12\x1c.order.v1.CancelOrderRequest\x1a\x1d.order.v1.CancelOrderResponse\"\x00\x12a\n" +
@@ -1935,115 +2617,145 @@ func file_order_v1_order_proto_rawDescGZIP() []byte {
 	return file_order_v1_order_proto_rawDescData
 }
 
-var file_order_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_order_v1_order_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_order_v1_order_proto_goTypes = []any{
-	(*CreateOrderRequest)(nil),            // 0: order.v1.CreateOrderRequest
-	(*DeliveryInput)(nil),                 // 1: order.v1.DeliveryInput
-	(*CreateItemImageUploadRequest)(nil),  // 2: order.v1.CreateItemImageUploadRequest
-	(*GetOrderRequest)(nil),               // 3: order.v1.GetOrderRequest
-	(*ListOpenOrdersRequest)(nil),         // 4: order.v1.ListOpenOrdersRequest
-	(*ListMyOrdersRequest)(nil),           // 5: order.v1.ListMyOrdersRequest
-	(*AcceptOrderRequest)(nil),            // 6: order.v1.AcceptOrderRequest
-	(*MakeOfferRequest)(nil),              // 7: order.v1.MakeOfferRequest
-	(*ListOffersRequest)(nil),             // 8: order.v1.ListOffersRequest
-	(*AcceptOfferRequest)(nil),            // 9: order.v1.AcceptOfferRequest
-	(*ConfirmPickupRequest)(nil),          // 10: order.v1.ConfirmPickupRequest
-	(*CreateProofUploadRequest)(nil),      // 11: order.v1.CreateProofUploadRequest
-	(*ConfirmDeliveryRequest)(nil),        // 12: order.v1.ConfirmDeliveryRequest
-	(*ConfirmReceiptRequest)(nil),         // 13: order.v1.ConfirmReceiptRequest
-	(*CancelOrderRequest)(nil),            // 14: order.v1.CancelOrderRequest
-	(*RecordItemLocationRequest)(nil),     // 15: order.v1.RecordItemLocationRequest
-	(*CreateOrderResponse)(nil),           // 16: order.v1.CreateOrderResponse
-	(*CreateItemImageUploadResponse)(nil), // 17: order.v1.CreateItemImageUploadResponse
-	(*GetOrderResponse)(nil),              // 18: order.v1.GetOrderResponse
-	(*ListOpenOrdersResponse)(nil),        // 19: order.v1.ListOpenOrdersResponse
-	(*ListMyOrdersResponse)(nil),          // 20: order.v1.ListMyOrdersResponse
-	(*AcceptOrderResponse)(nil),           // 21: order.v1.AcceptOrderResponse
-	(*MakeOfferResponse)(nil),             // 22: order.v1.MakeOfferResponse
-	(*ListOffersResponse)(nil),            // 23: order.v1.ListOffersResponse
-	(*AcceptOfferResponse)(nil),           // 24: order.v1.AcceptOfferResponse
-	(*ConfirmPickupResponse)(nil),         // 25: order.v1.ConfirmPickupResponse
-	(*CreateProofUploadResponse)(nil),     // 26: order.v1.CreateProofUploadResponse
-	(*ConfirmDeliveryResponse)(nil),       // 27: order.v1.ConfirmDeliveryResponse
-	(*ConfirmReceiptResponse)(nil),        // 28: order.v1.ConfirmReceiptResponse
-	(*CancelOrderResponse)(nil),           // 29: order.v1.CancelOrderResponse
-	(*RecordItemLocationResponse)(nil),    // 30: order.v1.RecordItemLocationResponse
-	nil,                                   // 31: order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
-	(*durationpb.Duration)(nil),           // 32: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),         // 33: google.protobuf.Timestamp
-	(ParticipantRole)(0),                  // 34: order.v1.ParticipantRole
-	(OrderStatus)(0),                      // 35: order.v1.OrderStatus
-	(OfferStatus)(0),                      // 36: order.v1.OfferStatus
-	(*Order)(nil),                         // 37: order.v1.Order
-	(*PageInfo)(nil),                      // 38: order.v1.PageInfo
-	(*AssignmentAttemptResult)(nil),       // 39: order.v1.AssignmentAttemptResult
-	(*Offer)(nil),                         // 40: order.v1.Offer
-	(*CancellationResult)(nil),            // 41: order.v1.CancellationResult
+	(*GetAssignmentAttemptRequest)(nil),   // 0: order.v1.GetAssignmentAttemptRequest
+	(*GetAssignmentAttemptResponse)(nil),  // 1: order.v1.GetAssignmentAttemptResponse
+	(*GetCancellationRequest)(nil),        // 2: order.v1.GetCancellationRequest
+	(*GetCancellationResponse)(nil),       // 3: order.v1.GetCancellationResponse
+	(*CreateOrderRequest)(nil),            // 4: order.v1.CreateOrderRequest
+	(*DeliveryInput)(nil),                 // 5: order.v1.DeliveryInput
+	(*CreateItemImageUploadRequest)(nil),  // 6: order.v1.CreateItemImageUploadRequest
+	(*GetOrderRequest)(nil),               // 7: order.v1.GetOrderRequest
+	(*ListOpenOrdersRequest)(nil),         // 8: order.v1.ListOpenOrdersRequest
+	(*ListMyOrdersRequest)(nil),           // 9: order.v1.ListMyOrdersRequest
+	(*AcceptOrderRequest)(nil),            // 10: order.v1.AcceptOrderRequest
+	(*MakeOfferRequest)(nil),              // 11: order.v1.MakeOfferRequest
+	(*ListOffersRequest)(nil),             // 12: order.v1.ListOffersRequest
+	(*AcceptOfferRequest)(nil),            // 13: order.v1.AcceptOfferRequest
+	(*ConfirmPickupRequest)(nil),          // 14: order.v1.ConfirmPickupRequest
+	(*CreateProofUploadRequest)(nil),      // 15: order.v1.CreateProofUploadRequest
+	(*ConfirmDeliveryRequest)(nil),        // 16: order.v1.ConfirmDeliveryRequest
+	(*ConfirmReceiptRequest)(nil),         // 17: order.v1.ConfirmReceiptRequest
+	(*CancelOrderRequest)(nil),            // 18: order.v1.CancelOrderRequest
+	(*RecordItemLocationRequest)(nil),     // 19: order.v1.RecordItemLocationRequest
+	(*CreateOrderResponse)(nil),           // 20: order.v1.CreateOrderResponse
+	(*CreateItemImageUploadResponse)(nil), // 21: order.v1.CreateItemImageUploadResponse
+	(*GetOrderResponse)(nil),              // 22: order.v1.GetOrderResponse
+	(*ListOpenOrdersResponse)(nil),        // 23: order.v1.ListOpenOrdersResponse
+	(*ListMyOrdersResponse)(nil),          // 24: order.v1.ListMyOrdersResponse
+	(*AcceptOrderResponse)(nil),           // 25: order.v1.AcceptOrderResponse
+	(*MakeOfferResponse)(nil),             // 26: order.v1.MakeOfferResponse
+	(*ListOffersResponse)(nil),            // 27: order.v1.ListOffersResponse
+	(*AcceptOfferResponse)(nil),           // 28: order.v1.AcceptOfferResponse
+	(*ConfirmPickupResponse)(nil),         // 29: order.v1.ConfirmPickupResponse
+	(*CreateProofUploadResponse)(nil),     // 30: order.v1.CreateProofUploadResponse
+	(*ConfirmDeliveryResponse)(nil),       // 31: order.v1.ConfirmDeliveryResponse
+	(*ConfirmReceiptResponse)(nil),        // 32: order.v1.ConfirmReceiptResponse
+	(*CancelOrderResponse)(nil),           // 33: order.v1.CancelOrderResponse
+	(*RecordItemLocationResponse)(nil),    // 34: order.v1.RecordItemLocationResponse
+	(*VerifyProofUploadRequest)(nil),      // 35: order.v1.VerifyProofUploadRequest
+	(*VerifyProofUploadResponse)(nil),     // 36: order.v1.VerifyProofUploadResponse
+	(*AbandonProofUploadRequest)(nil),     // 37: order.v1.AbandonProofUploadRequest
+	(*AbandonProofUploadResponse)(nil),    // 38: order.v1.AbandonProofUploadResponse
+	(*GetDeliveryProofRequest)(nil),       // 39: order.v1.GetDeliveryProofRequest
+	(*DeliveryProofPhoto)(nil),            // 40: order.v1.DeliveryProofPhoto
+	(*PendingDeliveryConfirmation)(nil),   // 41: order.v1.PendingDeliveryConfirmation
+	(*GetDeliveryProofResponse)(nil),      // 42: order.v1.GetDeliveryProofResponse
+	nil,                                   // 43: order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	nil,                                   // 44: order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	(*AssignmentAttemptResult)(nil),       // 45: order.v1.AssignmentAttemptResult
+	(*CancellationResult)(nil),            // 46: order.v1.CancellationResult
+	(*durationpb.Duration)(nil),           // 47: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),         // 48: google.protobuf.Timestamp
+	(ParticipantRole)(0),                  // 49: order.v1.ParticipantRole
+	(OrderStatus)(0),                      // 50: order.v1.OrderStatus
+	(OfferStatus)(0),                      // 51: order.v1.OfferStatus
+	(*Order)(nil),                         // 52: order.v1.Order
+	(*PageInfo)(nil),                      // 53: order.v1.PageInfo
+	(*Offer)(nil),                         // 54: order.v1.Offer
 }
 var file_order_v1_order_proto_depIdxs = []int32{
-	1,  // 0: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
-	32, // 1: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
-	33, // 2: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
-	34, // 3: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
-	35, // 4: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
-	36, // 5: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
-	37, // 6: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
-	31, // 7: order.v1.CreateItemImageUploadResponse.upload_headers:type_name -> order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
-	33, // 8: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	37, // 9: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
-	37, // 10: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
-	38, // 11: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	37, // 12: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
-	38, // 13: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	37, // 14: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
-	39, // 15: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
-	40, // 16: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
-	40, // 17: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
-	37, // 18: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
-	40, // 19: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
-	39, // 20: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
-	37, // 21: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
-	33, // 22: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
-	37, // 23: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
-	37, // 24: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
-	37, // 25: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
-	41, // 26: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
-	37, // 27: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
-	0,  // 28: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
-	2,  // 29: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
-	3,  // 30: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
-	4,  // 31: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
-	5,  // 32: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
-	6,  // 33: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
-	7,  // 34: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
-	8,  // 35: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
-	9,  // 36: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
-	10, // 37: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
-	11, // 38: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
-	12, // 39: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
-	13, // 40: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
-	14, // 41: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
-	15, // 42: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
-	16, // 43: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
-	17, // 44: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
-	18, // 45: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
-	19, // 46: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
-	20, // 47: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
-	21, // 48: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
-	22, // 49: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
-	23, // 50: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
-	24, // 51: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
-	25, // 52: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
-	26, // 53: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
-	27, // 54: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
-	28, // 55: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
-	29, // 56: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
-	30, // 57: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
-	43, // [43:58] is the sub-list for method output_type
-	28, // [28:43] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	45, // 0: order.v1.GetAssignmentAttemptResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	46, // 1: order.v1.GetCancellationResponse.cancellation:type_name -> order.v1.CancellationResult
+	5,  // 2: order.v1.CreateOrderRequest.delivery:type_name -> order.v1.DeliveryInput
+	47, // 3: order.v1.CreateOrderRequest.delivery_duration:type_name -> google.protobuf.Duration
+	48, // 4: order.v1.CreateOrderRequest.expires_at:type_name -> google.protobuf.Timestamp
+	49, // 5: order.v1.ListMyOrdersRequest.role:type_name -> order.v1.ParticipantRole
+	50, // 6: order.v1.ListMyOrdersRequest.status:type_name -> order.v1.OrderStatus
+	51, // 7: order.v1.ListOffersRequest.status:type_name -> order.v1.OfferStatus
+	52, // 8: order.v1.CreateOrderResponse.order:type_name -> order.v1.Order
+	43, // 9: order.v1.CreateItemImageUploadResponse.upload_headers:type_name -> order.v1.CreateItemImageUploadResponse.UploadHeadersEntry
+	48, // 10: order.v1.CreateItemImageUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	52, // 11: order.v1.GetOrderResponse.order:type_name -> order.v1.Order
+	52, // 12: order.v1.ListOpenOrdersResponse.orders:type_name -> order.v1.Order
+	53, // 13: order.v1.ListOpenOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	52, // 14: order.v1.ListMyOrdersResponse.orders:type_name -> order.v1.Order
+	53, // 15: order.v1.ListMyOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	52, // 16: order.v1.AcceptOrderResponse.order:type_name -> order.v1.Order
+	45, // 17: order.v1.AcceptOrderResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	54, // 18: order.v1.MakeOfferResponse.offer:type_name -> order.v1.Offer
+	54, // 19: order.v1.ListOffersResponse.offers:type_name -> order.v1.Offer
+	52, // 20: order.v1.AcceptOfferResponse.order:type_name -> order.v1.Order
+	54, // 21: order.v1.AcceptOfferResponse.offer:type_name -> order.v1.Offer
+	45, // 22: order.v1.AcceptOfferResponse.attempt:type_name -> order.v1.AssignmentAttemptResult
+	52, // 23: order.v1.ConfirmPickupResponse.order:type_name -> order.v1.Order
+	44, // 24: order.v1.CreateProofUploadResponse.upload_headers:type_name -> order.v1.CreateProofUploadResponse.UploadHeadersEntry
+	48, // 25: order.v1.CreateProofUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	52, // 26: order.v1.ConfirmDeliveryResponse.order:type_name -> order.v1.Order
+	52, // 27: order.v1.ConfirmReceiptResponse.order:type_name -> order.v1.Order
+	52, // 28: order.v1.CancelOrderResponse.order:type_name -> order.v1.Order
+	46, // 29: order.v1.CancelOrderResponse.cancellation:type_name -> order.v1.CancellationResult
+	52, // 30: order.v1.RecordItemLocationResponse.order:type_name -> order.v1.Order
+	48, // 31: order.v1.DeliveryProofPhoto.expires_at:type_name -> google.protobuf.Timestamp
+	48, // 32: order.v1.PendingDeliveryConfirmation.received_at:type_name -> google.protobuf.Timestamp
+	40, // 33: order.v1.GetDeliveryProofResponse.proofs:type_name -> order.v1.DeliveryProofPhoto
+	41, // 34: order.v1.GetDeliveryProofResponse.pending:type_name -> order.v1.PendingDeliveryConfirmation
+	0,  // 35: order.v1.OrderService.GetAssignmentAttempt:input_type -> order.v1.GetAssignmentAttemptRequest
+	2,  // 36: order.v1.OrderService.GetCancellation:input_type -> order.v1.GetCancellationRequest
+	4,  // 37: order.v1.OrderService.CreateOrder:input_type -> order.v1.CreateOrderRequest
+	6,  // 38: order.v1.OrderService.CreateItemImageUpload:input_type -> order.v1.CreateItemImageUploadRequest
+	7,  // 39: order.v1.OrderService.GetOrder:input_type -> order.v1.GetOrderRequest
+	8,  // 40: order.v1.OrderService.ListOpenOrders:input_type -> order.v1.ListOpenOrdersRequest
+	9,  // 41: order.v1.OrderService.ListMyOrders:input_type -> order.v1.ListMyOrdersRequest
+	10, // 42: order.v1.OrderService.AcceptOrder:input_type -> order.v1.AcceptOrderRequest
+	11, // 43: order.v1.OrderService.MakeOffer:input_type -> order.v1.MakeOfferRequest
+	12, // 44: order.v1.OrderService.ListOffers:input_type -> order.v1.ListOffersRequest
+	13, // 45: order.v1.OrderService.AcceptOffer:input_type -> order.v1.AcceptOfferRequest
+	14, // 46: order.v1.OrderService.ConfirmPickup:input_type -> order.v1.ConfirmPickupRequest
+	15, // 47: order.v1.OrderService.CreateProofUpload:input_type -> order.v1.CreateProofUploadRequest
+	35, // 48: order.v1.OrderService.VerifyProofUpload:input_type -> order.v1.VerifyProofUploadRequest
+	37, // 49: order.v1.OrderService.AbandonProofUpload:input_type -> order.v1.AbandonProofUploadRequest
+	39, // 50: order.v1.OrderService.GetDeliveryProof:input_type -> order.v1.GetDeliveryProofRequest
+	16, // 51: order.v1.OrderService.ConfirmDelivery:input_type -> order.v1.ConfirmDeliveryRequest
+	17, // 52: order.v1.OrderService.ConfirmReceipt:input_type -> order.v1.ConfirmReceiptRequest
+	18, // 53: order.v1.OrderService.CancelOrder:input_type -> order.v1.CancelOrderRequest
+	19, // 54: order.v1.OrderService.RecordItemLocation:input_type -> order.v1.RecordItemLocationRequest
+	1,  // 55: order.v1.OrderService.GetAssignmentAttempt:output_type -> order.v1.GetAssignmentAttemptResponse
+	3,  // 56: order.v1.OrderService.GetCancellation:output_type -> order.v1.GetCancellationResponse
+	20, // 57: order.v1.OrderService.CreateOrder:output_type -> order.v1.CreateOrderResponse
+	21, // 58: order.v1.OrderService.CreateItemImageUpload:output_type -> order.v1.CreateItemImageUploadResponse
+	22, // 59: order.v1.OrderService.GetOrder:output_type -> order.v1.GetOrderResponse
+	23, // 60: order.v1.OrderService.ListOpenOrders:output_type -> order.v1.ListOpenOrdersResponse
+	24, // 61: order.v1.OrderService.ListMyOrders:output_type -> order.v1.ListMyOrdersResponse
+	25, // 62: order.v1.OrderService.AcceptOrder:output_type -> order.v1.AcceptOrderResponse
+	26, // 63: order.v1.OrderService.MakeOffer:output_type -> order.v1.MakeOfferResponse
+	27, // 64: order.v1.OrderService.ListOffers:output_type -> order.v1.ListOffersResponse
+	28, // 65: order.v1.OrderService.AcceptOffer:output_type -> order.v1.AcceptOfferResponse
+	29, // 66: order.v1.OrderService.ConfirmPickup:output_type -> order.v1.ConfirmPickupResponse
+	30, // 67: order.v1.OrderService.CreateProofUpload:output_type -> order.v1.CreateProofUploadResponse
+	36, // 68: order.v1.OrderService.VerifyProofUpload:output_type -> order.v1.VerifyProofUploadResponse
+	38, // 69: order.v1.OrderService.AbandonProofUpload:output_type -> order.v1.AbandonProofUploadResponse
+	42, // 70: order.v1.OrderService.GetDeliveryProof:output_type -> order.v1.GetDeliveryProofResponse
+	31, // 71: order.v1.OrderService.ConfirmDelivery:output_type -> order.v1.ConfirmDeliveryResponse
+	32, // 72: order.v1.OrderService.ConfirmReceipt:output_type -> order.v1.ConfirmReceiptResponse
+	33, // 73: order.v1.OrderService.CancelOrder:output_type -> order.v1.CancelOrderResponse
+	34, // 74: order.v1.OrderService.RecordItemLocation:output_type -> order.v1.RecordItemLocationResponse
+	55, // [55:75] is the sub-list for method output_type
+	35, // [35:55] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_order_proto_init() }
@@ -2052,16 +2764,16 @@ func file_order_v1_order_proto_init() {
 		return
 	}
 	file_order_v1_shared_types_proto_init()
-	file_order_v1_order_proto_msgTypes[1].OneofWrappers = []any{}
-	file_order_v1_order_proto_msgTypes[4].OneofWrappers = []any{}
-	file_order_v1_order_proto_msgTypes[14].OneofWrappers = []any{}
+	file_order_v1_order_proto_msgTypes[5].OneofWrappers = []any{}
+	file_order_v1_order_proto_msgTypes[8].OneofWrappers = []any{}
+	file_order_v1_order_proto_msgTypes[18].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_order_proto_rawDesc), len(file_order_v1_order_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   32,
+			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

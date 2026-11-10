@@ -62,7 +62,9 @@ func TestPostgresProgress(t *testing.T) {
 			t.Fatalf("repeat wrote audit %d->%d outbox %d->%d", audit, a, outbox, n)
 		}
 		var outcomes int
-		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).Scan(&outcomes); err != nil || outcomes != 1 {
+		if err = f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE order_id=$1 AND kind='order.outcome'", o.ID).
+			Scan(&outcomes); err != nil ||
+			outcomes != 1 {
 			t.Fatalf("outcomes = %d, %v", outcomes, err)
 		}
 	})
@@ -86,7 +88,8 @@ func TestPostgresProgress(t *testing.T) {
 			}
 		}
 		var pickups int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='pickup'", o.ID).Scan(&pickups); err != nil {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_audit WHERE order_id=$1 AND action='pickup'", o.ID).
+			Scan(&pickups); err != nil {
 			t.Fatal(err)
 		}
 		if pickups != 1 {
@@ -99,7 +102,14 @@ func TestPostgresProgress(t *testing.T) {
 		if _, err := progress.ConfirmPickup(f.ctx, Caller{ID: uuid.NewString()}, o.ID); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
-		if _, err := progress.ConfirmPickup(f.ctx, Caller{ID: uuid.NewString()}, uuid.NewString()); !errors.Is(err, ErrNotFound) {
+		if _, err := progress.ConfirmPickup(
+			f.ctx,
+			Caller{ID: uuid.NewString()},
+			uuid.NewString(),
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("missing order err = %v", err)
 		}
 	})

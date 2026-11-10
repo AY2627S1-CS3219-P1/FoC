@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: foc
+components:
+  - ../../components/workload
+resources:
+  - user-service.yaml
+  - supplier-service.yaml
+  - order-service.yaml
+  - credit-service.yaml
+  - frontend.yaml
+  - gateway.yaml
+  - communication-service.yaml
+patches:
+  # Match Order's existing Compose budget for the application and its two
+  # bounded native proof decoders; the shared Go default is only 256Mi.
+  - target:
+      kind: Deployment
+      name: order-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits
+        value:
+          cpu: "2"
+          memory: 3Gi

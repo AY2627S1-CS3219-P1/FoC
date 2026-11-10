@@ -128,7 +128,12 @@ func TestDeletedTargetDispatchRetainsHistoryWithoutBlockingStartup(t *testing.T)
 		t.Fatalf("deleted target dispatched: %+v %v", rows, err)
 	}
 	stored, err := s.Admin.GetRoleDispatch(ctx, abandoned.ID)
-	if err != nil || stored.ID != abandoned.ID || stored.UserID != abandoned.UserID || stored.AdminID != abandoned.AdminID || stored.Revision != abandoned.Revision || stored.Reason != abandoned.Reason || stored.AppliedAt != nil || stored.RejectedAt != nil {
+	if err != nil || stored.ID != abandoned.ID || stored.UserID != abandoned.UserID ||
+		stored.AdminID != abandoned.AdminID ||
+		stored.Revision != abandoned.Revision ||
+		stored.Reason != abandoned.Reason ||
+		stored.AppliedAt != nil ||
+		stored.RejectedAt != nil {
 		t.Fatalf("deleted intent lost or forged acknowledgment: %+v %v", stored, err)
 	}
 	current := prepare(live.ID)

@@ -9,7 +9,10 @@ import (
 )
 
 func (r *PostgresRepository) SaveItemImage(ctx context.Context, image ItemImageUpload) error {
-	return persistenceError(db.New(r.pool).InsertItemImage(ctx, db.InsertItemImageParams{ID: uuid.MustParse(image.ID), OwnerID: uuid.MustParse(image.OwnerID), ObjectKey: image.Key, ContentType: image.ContentType, SizeBytes: image.SizeBytes, CreatedAt: image.CreatedAt, UploadExpiresAt: image.UploadExpiresAt}))
+	return persistenceError(
+		db.New(r.pool).
+			InsertItemImage(ctx, db.InsertItemImageParams{ID: uuid.MustParse(image.ID), OwnerID: uuid.MustParse(image.OwnerID), ObjectKey: image.Key, ContentType: image.ContentType, SizeBytes: image.SizeBytes, CreatedAt: image.CreatedAt, UploadExpiresAt: image.UploadExpiresAt}),
+	)
 }
 
 func (r *PostgresRepository) ItemImage(ctx context.Context, owner, id string) (ItemImageUpload, error) {
@@ -54,7 +57,8 @@ func (r *PostgresRepository) DeleteOrphanImage(ctx context.Context, id string) e
 }
 
 func (t *postgresTx) AttachCreationImages(ctx context.Context, owner, orderID string, items []ItemImageUpload) error {
-	if len(items) > 5 || !t.idempotencyCallers[IdempotencyScope{CallerID: owner, Method: CreateOrderMethod}] || !t.applied[orderID] {
+	if len(items) > 5 || !t.idempotencyCallers[IdempotencyScope{CallerID: owner, Method: CreateOrderMethod}] ||
+		!t.applied[orderID] {
 		return t.writeResult(ErrPrecondition)
 	}
 	for i, item := range items {
@@ -63,7 +67,18 @@ func (t *postgresTx) AttachCreationImages(ctx context.Context, owner, orderID st
 		if item.OwnerID != owner || item.State != "uploading" {
 			return t.writeResult(ErrPrecondition)
 		}
-		n, err := t.q.AttachItemImage(ctx, db.AttachItemImageParams{ID: uuid.MustParse(item.ID), OwnerID: uuid.MustParse(owner), OrderID: &orderUUID, Ordinal: &ordinal, ObjectKey: item.Key, SizeBytes: item.SizeBytes, ContentType: item.ContentType})
+		n, err := t.q.AttachItemImage(
+			ctx,
+			db.AttachItemImageParams{
+				ID:          uuid.MustParse(item.ID),
+				OwnerID:     uuid.MustParse(owner),
+				OrderID:     &orderUUID,
+				Ordinal:     &ordinal,
+				ObjectKey:   item.Key,
+				SizeBytes:   item.SizeBytes,
+				ContentType: item.ContentType,
+			},
+		)
 		if err != nil {
 			return t.writeResult(err)
 		}
@@ -75,7 +90,16 @@ func (t *postgresTx) AttachCreationImages(ctx context.Context, owner, orderID st
 }
 
 func fromItemImage(row db.OrderItemImage) ItemImageUpload {
-	return ItemImageUpload{ID: row.ID.String(), OwnerID: row.OwnerID.String(), Key: row.ObjectKey, ContentType: row.ContentType, State: row.State, SizeBytes: row.SizeBytes, CreatedAt: row.CreatedAt, UploadExpiresAt: row.UploadExpiresAt}
+	return ItemImageUpload{
+		ID:              row.ID.String(),
+		OwnerID:         row.OwnerID.String(),
+		Key:             row.ObjectKey,
+		ContentType:     row.ContentType,
+		State:           row.State,
+		SizeBytes:       row.SizeBytes,
+		CreatedAt:       row.CreatedAt,
+		UploadExpiresAt: row.UploadExpiresAt,
+	}
 }
 
 func fromItemImages(rows []db.OrderItemImage) []ItemImageUpload {

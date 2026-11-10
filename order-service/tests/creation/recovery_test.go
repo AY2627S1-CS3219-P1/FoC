@@ -28,7 +28,10 @@ type failApply struct {
 }
 
 func (r *failLocalCommit) WithinCreation(ctx context.Context, build func(app.CreationTx) error) error {
-	return r.CreationRepository.WithinCreation(ctx, func(tx app.CreationTx) error { return build(failApply{CreationTx: tx, repository: r}) })
+	return r.CreationRepository.WithinCreation(
+		ctx,
+		func(tx app.CreationTx) error { return build(failApply{CreationTx: tx, repository: r}) },
+	)
 }
 
 func (t failApply) Apply(ctx context.Context, c app.Change) error {
@@ -47,14 +50,20 @@ func TestCreationCrashRecovery(t *testing.T) {
 		s := newScenario(t, f)
 		broken := &failLocalCommit{CreationRepository: f.repo, status: app.AwaitingCourier}
 		broken.armed.Store(true)
-		creator := app.NewCreator(broken, s.locations, s.credit, app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now})
+		creator := app.NewCreator(
+			broken,
+			s.locations,
+			s.credit,
+			app.CreationOptions{AdmissionsEnabled: true, Now: s.clock.Now},
+		)
 		c := mount(t, f, creator)
 		in := input(s.clock.Now())
 		if _, err := create(c, f.ctx, in); connect.CodeOf(err) != connect.CodeInternal {
 			t.Fatalf("injected failure=%v", err)
 		}
 		id := f.onlyOrder(t)
-		if get(t, c, id).Status != orderpb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION || f.count(t, "order_audit") != 1 {
+		if get(t, c, id).Status != orderpb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION ||
+			f.count(t, "order_audit") != 1 {
 			t.Fatal("partial local confirmation committed")
 		}
 		s.clock.Advance(16 * time.Second)
@@ -62,7 +71,8 @@ func TestCreationCrashRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		replay, err := create(mount(t, f, s.restart()), f.ctx, in)
-		if err != nil || replay.Id != id || replay.Status != orderpb.OrderStatus_ORDER_STATUS_AWAITING_COURIER || f.count(t, "order_audit") != 2 {
+		if err != nil || replay.Id != id || replay.Status != orderpb.OrderStatus_ORDER_STATUS_AWAITING_COURIER ||
+			f.count(t, "order_audit") != 2 {
 			t.Fatalf("recovery=%v err=%v", replay, err)
 		}
 		s.remotes.mu.Lock()
@@ -88,7 +98,8 @@ func TestCreationCrashRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		w, err := f.repo.Creation(f.ctx, pending.Id)
-		if err != nil || w.Phase != app.AbortPending || get(t, c, pending.Id).Status != orderpb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION {
+		if err != nil || w.Phase != app.AbortPending ||
+			get(t, c, pending.Id).Status != orderpb.OrderStatus_ORDER_STATUS_PENDING_RESERVATION {
 			t.Fatalf("abort durability=%+v err=%v", w, err)
 		}
 		s.clock.Advance(16 * time.Second)
@@ -107,16 +118,28 @@ func TestCreationCrashRecovery(t *testing.T) {
 	})
 	t.Run("admission failure rolls back Order mapping audit and facts", func(t *testing.T) {
 		s := newScenario(t, f)
-		_, err := f.pool.Exec(f.ctx, `CREATE FUNCTION fail_creation_mapping() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected admission failure'; END; $$; CREATE TRIGGER fail_creation_mapping BEFORE INSERT ON order_idempotency_keys FOR EACH ROW EXECUTE FUNCTION fail_creation_mapping();`)
+		_, err := f.pool.Exec(
+			f.ctx,
+			`CREATE FUNCTION fail_creation_mapping() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected admission failure'; END; $$; CREATE TRIGGER fail_creation_mapping BEFORE INSERT ON order_idempotency_keys FOR EACH ROW EXECUTE FUNCTION fail_creation_mapping();`,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			if _, err := f.pool.Exec(f.ctx, "DROP TRIGGER fail_creation_mapping ON order_idempotency_keys; DROP FUNCTION fail_creation_mapping()"); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				"DROP TRIGGER fail_creation_mapping ON order_idempotency_keys; DROP FUNCTION fail_creation_mapping()",
+			); err != nil {
 				t.Error(err)
 			}
 		}()
-		if _, err := create(mount(t, f, s.creator), f.ctx, input(s.clock.Now())); connect.CodeOf(err) != connect.CodeInternal {
+		if _, err := create(
+			mount(t, f, s.creator),
+			f.ctx,
+			input(s.clock.Now()),
+		); connect.CodeOf(
+			err,
+		) != connect.CodeInternal {
 			t.Fatalf("admission failure=%v", err)
 		}
 		for _, table := range []string{"orders", "order_creation_workflows", "order_idempotency_keys", "order_audit", "order_outbox"} {

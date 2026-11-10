@@ -39,7 +39,9 @@ func suspensionDatabase(t *testing.T) (context.Context, *pgxpool.Pool, *Postgres
 	}
 	t.Cleanup(pool.Close)
 	var version int
-	if err := pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").Scan(&version); err != nil || version < 180000 || version >= 190000 {
+	if err := pool.QueryRow(ctx, "SELECT current_setting('server_version_num')::integer").
+		Scan(&version); err != nil || version < 180000 ||
+		version >= 190000 {
 		t.Fatalf("requires disposable PostgreSQL 18: %d %v", version, err)
 	}
 	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
@@ -87,7 +89,15 @@ func TestSuspensionRemovalDatabase(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	credit := &suspensionCredit{view: AssignmentReservation{OrderID: o.ID, RequesterID: o.RequesterID, OriginalAmount: 15, ReservedAmount: 15, State: "held"}}
+	credit := &suspensionCredit{
+		view: AssignmentReservation{
+			OrderID:        o.ID,
+			RequesterID:    o.RequesterID,
+			OriginalAmount: 15,
+			ReservedAmount: 15,
+			State:          "held",
+		},
+	}
 	assigner := NewAssigner(repo, credit, AssignmentOptions{Now: func() time.Time { return now }})
 	courier := Caller{ID: uuid.NewString()}
 	offer, err := assigner.MakeOffer(ctx, courier, o.ID, 35, uuid.NewString())
@@ -98,7 +108,12 @@ func TestSuspensionRemovalDatabase(t *testing.T) {
 	if err != nil || assigned.Phase != AssignmentSucceeded {
 		t.Fatalf("assign: %+v %v", assigned, err)
 	}
-	target := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier.ID, AssignmentID: assigned.AttemptID}
+	target := SuspensionRemoval{
+		DecisionID:   uuid.NewString(),
+		OrderID:      o.ID,
+		CourierID:    courier.ID,
+		AssignmentID: assigned.AttemptID,
+	}
 	s := NewCanceller(repo, credit, AssignmentOptions{Now: func() time.Time { return now }})
 	first, err := s.RemoveSuspendedAssignment(ctx, target)
 	if err != nil || first == nil {
@@ -136,7 +151,11 @@ func TestSuspensionRemovalDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored, err := repo.Get(ctx, o.ID)
-	if err != nil || stored.Status != AwaitingCourier || stored.CourierID != nil || stored.PendingCancellationID != nil || stored.RewardCredits != 15 || stored.ReservedCredits != 15 || !stored.ExpiresAt.Equal(o.ExpiresAt) {
+	if err != nil || stored.Status != AwaitingCourier || stored.CourierID != nil ||
+		stored.PendingCancellationID != nil ||
+		stored.RewardCredits != 15 ||
+		stored.ReservedCredits != 15 ||
+		!stored.ExpiresAt.Equal(o.ExpiresAt) {
 		t.Fatalf("restoration: %+v %v", stored, err)
 	}
 	for _, nextCourier := range []Caller{{ID: uuid.NewString()}, courier} {
@@ -152,7 +171,8 @@ func TestSuspensionRemovalDatabase(t *testing.T) {
 			t.Fatal(err)
 		}
 		after, err := repo.Get(ctx, o.ID)
-		if err != nil || !after.IsAssignedTo(nextCourier.ID) || after.Revision != assignment.Order.Revision || credit.calls != calls {
+		if err != nil || !after.IsAssignedTo(nextCourier.ID) || after.Revision != assignment.Order.Revision ||
+			credit.calls != calls {
 			t.Fatalf("changed replacement: %+v %v", after, err)
 		}
 		if _, err := restarted.Cancel(ctx, nextCourier, o.ID, "withdraw", uuid.NewString()); err != nil {
@@ -169,9 +189,18 @@ func TestSuspensionRemovalDatabase(t *testing.T) {
 	if _, err := progress.ConfirmPickup(ctx, courier, o.ID); err != nil {
 		t.Fatal(err)
 	}
-	postPickup := SuspensionRemoval{DecisionID: uuid.NewString(), OrderID: o.ID, CourierID: courier.ID, AssignmentID: assigned.AttemptID}
+	postPickup := SuspensionRemoval{
+		DecisionID:   uuid.NewString(),
+		OrderID:      o.ID,
+		CourierID:    courier.ID,
+		AssignmentID: assigned.AttemptID,
+	}
 	calls := credit.calls
-	if result, err := restarted.RemoveSuspendedAssignment(ctx, postPickup); err != nil || result != nil || credit.calls != calls {
+	if result, err := restarted.RemoveSuspendedAssignment(
+		ctx,
+		postPickup,
+	); err != nil || result != nil ||
+		credit.calls != calls {
 		t.Fatalf("removal after pickup: %+v %v", result, err)
 	}
 	if _, err := progress.ConfirmPickup(ctx, Caller{ID: courier.ID, Suspended: true}, o.ID); err != nil {
@@ -218,18 +247,40 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 	}
 	o := createOpen(uuid.NewString())
 	other := createOpen(uuid.NewString())
-	credit := &suspensionCredit{view: AssignmentReservation{OrderID: o.ID, RequesterID: o.RequesterID, OriginalAmount: 15, ReservedAmount: 15, State: "held"}}
+	credit := &suspensionCredit{
+		view: AssignmentReservation{
+			OrderID:        o.ID,
+			RequesterID:    o.RequesterID,
+			OriginalAmount: 15,
+			ReservedAmount: 15,
+			State:          "held",
+		},
+	}
 	assigner := NewAssigner(repo, credit, AssignmentOptions{Now: func() time.Time { return now }})
 	assigned, err := assigner.AcceptOrder(ctx, courier, o.ID, uuid.NewString())
 	if err != nil || assigned.Phase != AssignmentSucceeded {
 		t.Fatalf("assignment: %+v %v", assigned, err)
 	}
-	decision := AccountSuspensionDecision{ID: uuid.NewString(), UserID: courier.ID, AdminID: uuid.NewString(), Reason: "explicit admin decision", Revision: 1, Suspended: true}
+	decision := AccountSuspensionDecision{
+		ID:        uuid.NewString(),
+		UserID:    courier.ID,
+		AdminID:   uuid.NewString(),
+		Reason:    "explicit admin decision",
+		Revision:  1,
+		Suspended: true,
+	}
 	retainedOffer, err := assigner.MakeOffer(ctx, courier, other.ID, 25, uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := NewAccountSuspender(repo, nil, AssignmentOptions{}).Apply(ctx, decision); !errors.Is(err, ErrPrecondition) {
+	if err := NewAccountSuspender(
+		repo,
+		nil,
+		AssignmentOptions{},
+	).Apply(ctx, decision); !errors.Is(
+		err,
+		ErrPrecondition,
+	) {
 		t.Fatalf("unconfigured recovery accepted account decision: %v", err)
 	}
 	coordinator := NewAccountSuspender(repo, credit, AssignmentOptions{Now: func() time.Time { return now }})
@@ -251,7 +302,14 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 	if _, err := assigner.AcceptOrder(ctx, courier, other.ID, uuid.NewString()); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("stale acceptance: %v", err)
 	}
-	if _, err := assigner.AcceptOffer(ctx, Caller{ID: other.RequesterID}, retainedOffer.ID); !errors.Is(err, ErrForbidden) {
+	if _, err := assigner.AcceptOffer(
+		ctx,
+		Caller{ID: other.RequesterID},
+		retainedOffer.ID,
+	); !errors.Is(
+		err,
+		ErrForbidden,
+	) {
 		t.Fatalf("requester accepted suspended courier's old offer: %v", err)
 	}
 	newRequest := cloneOrder(o)
@@ -275,7 +333,11 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 		t.Fatal("downgrade discarded account authority")
 	}
 	operation := *stored.PendingCancellationID
-	if err := NewCanceller(repo, credit, AssignmentOptions{Now: func() time.Time { return now }}).ProcessCancellation(ctx, operation); err != nil {
+	if err := NewCanceller(
+		repo,
+		credit,
+		AssignmentOptions{Now: func() time.Time { return now }},
+	).ProcessCancellation(ctx, operation); err != nil {
 		t.Fatal(err)
 	}
 	newer := decision
@@ -287,7 +349,13 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 		t.Fatalf("stale decision acknowledged as applied: %v", err)
 	}
 	// Old delivery must not undo reinstatement or act on a later assignment.
-	if result, err := assigner.AcceptOrder(ctx, courier, o.ID, uuid.NewString()); err != nil || result.Phase != AssignmentSucceeded {
+	if result, err := assigner.AcceptOrder(
+		ctx,
+		courier,
+		o.ID,
+		uuid.NewString(),
+	); err != nil ||
+		result.Phase != AssignmentSucceeded {
 		t.Fatalf("reinstated: %+v %v", result, err)
 	}
 	if _, err := NewProgress(NewMutator(repo)).ConfirmPickup(ctx, courier, o.ID); err != nil {
@@ -298,7 +366,8 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, err := repo.Get(ctx, o.ID)
-	if err != nil || after.Status != Delivering || after.PendingCancellationID != nil || !after.IsAssignedTo(courier.ID) {
+	if err != nil || after.Status != Delivering || after.PendingCancellationID != nil ||
+		!after.IsAssignedTo(courier.ID) {
 		t.Fatalf("pickup-first changed custody: %+v %v", after, err)
 	}
 
@@ -306,7 +375,19 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 	// Suspension must fence that exact generation before the late reply arrives.
 	inflight := createOpen(uuid.NewString())
 	victim := Caller{ID: uuid.NewString()}
-	paused := &pausedSuspensionCredit{suspensionCredit: &suspensionCredit{view: AssignmentReservation{OrderID: inflight.ID, RequesterID: inflight.RequesterID, OriginalAmount: 15, ReservedAmount: 15, State: "held"}}, entered: make(chan struct{}), release: make(chan struct{})}
+	paused := &pausedSuspensionCredit{
+		suspensionCredit: &suspensionCredit{
+			view: AssignmentReservation{
+				OrderID:        inflight.ID,
+				RequesterID:    inflight.RequesterID,
+				OriginalAmount: 15,
+				ReservedAmount: 15,
+				State:          "held",
+			},
+		},
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
 	inflightAssigner := NewAssigner(repo, paused, AssignmentOptions{Now: func() time.Time { return now }})
 	type answer struct {
 		result AssignmentResult
@@ -324,8 +405,19 @@ func TestAccountSuspensionFenceDatabase(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Adjust did not start")
 	}
-	inflightDecision := AccountSuspensionDecision{ID: uuid.NewString(), UserID: victim.ID, AdminID: decision.AdminID, Reason: "explicit suspension during Adjust", Revision: 1, Suspended: true}
-	applyErr := NewAccountSuspender(repo, paused, AssignmentOptions{Now: func() time.Time { return now }}).Apply(ctx, inflightDecision)
+	inflightDecision := AccountSuspensionDecision{
+		ID:        uuid.NewString(),
+		UserID:    victim.ID,
+		AdminID:   decision.AdminID,
+		Reason:    "explicit suspension during Adjust",
+		Revision:  1,
+		Suspended: true,
+	}
+	applyErr := NewAccountSuspender(
+		repo,
+		paused,
+		AssignmentOptions{Now: func() time.Time { return now }},
+	).Apply(ctx, inflightDecision)
 	close(paused.release)
 	if applyErr != nil {
 		t.Fatal(applyErr)

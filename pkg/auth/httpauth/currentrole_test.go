@@ -14,13 +14,28 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
 )
 
-type profileServiceFunc func(context.Context, *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error)
-
-func (f profileServiceFunc) GetMyProfile(ctx context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
-	return f(ctx, req)
+type profileService struct {
+	userv1connect.UnimplementedProfileServiceHandler
+	lookup func(context.Context, *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error)
 }
 
-func (f profileServiceFunc) UpdateMyProfile(context.Context, *connect.Request[userv1.UpdateMyProfileRequest]) (*connect.Response[userv1.UpdateMyProfileResponse], error) {
+func profileServiceFunc(
+	f func(context.Context, *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error),
+) profileService {
+	return profileService{lookup: f}
+}
+
+func (f profileService) GetMyProfile(
+	ctx context.Context,
+	req *connect.Request[userv1.GetMyProfileRequest],
+) (*connect.Response[userv1.GetMyProfileResponse], error) {
+	return f.lookup(ctx, req)
+}
+
+func (f profileService) UpdateMyProfile(
+	context.Context,
+	*connect.Request[userv1.UpdateMyProfileRequest],
+) (*connect.Response[userv1.UpdateMyProfileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("unused"))
 }
 
@@ -37,16 +52,22 @@ func TestCurrentRoleOverridesExistingSession(t *testing.T) {
 	lookups := 0
 	mux := http.NewServeMux()
 	mux.Handle(userv1connect.NewPublicKeyServiceHandler(keys))
-	mux.Handle(userv1connect.NewProfileServiceHandler(profileServiceFunc(func(_ context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
-		lookups++
-		if req.Header().Get("Authorization") == "" || req.Header().Get("Cookie") != "" {
-			t.Error("lookup must forward only bearer credentials")
-		}
-		if lookupErr != nil {
-			return nil, lookupErr
-		}
-		return connect.NewResponse(&userv1.GetMyProfileResponse{Profile: profile}), nil
-	})))
+	mux.Handle(
+		userv1connect.NewProfileServiceHandler(
+			profileServiceFunc(
+				func(_ context.Context, req *connect.Request[userv1.GetMyProfileRequest]) (*connect.Response[userv1.GetMyProfileResponse], error) {
+					lookups++
+					if req.Header().Get("Authorization") == "" || req.Header().Get("Cookie") != "" {
+						t.Error("lookup must forward only bearer credentials")
+					}
+					if lookupErr != nil {
+						return nil, lookupErr
+					}
+					return connect.NewResponse(&userv1.GetMyProfileResponse{Profile: profile}), nil
+				},
+			),
+		),
+	)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	a := newAuthenticator(t, server.URL)
@@ -83,10 +104,14 @@ func TestCurrentRoleOverridesExistingSession(t *testing.T) {
 		{userv1.UserRole_USER_ROLE_SUPER_ADMIN, "super_admin", true},
 	} {
 		profile.Role = tc.role
-		if code := request(token); code != http.StatusNoContent || !called || caller.Role != tc.want || caller.Admin != tc.admin {
+		if code := request(
+			token,
+		); code != http.StatusNoContent || !called || caller.Role != tc.want ||
+			caller.Admin != tc.admin {
 			t.Fatalf("current role %v: HTTP %d, caller %+v", tc.role, code, caller)
 		}
-		if caller.ID != "user-1" || caller.SessionID != "session-1" || caller.TokenID != "token-1" || !caller.IssuedAt.Equal(now) {
+		if caller.ID != "user-1" || caller.SessionID != "session-1" || caller.TokenID != "token-1" ||
+			!caller.IssuedAt.Equal(now) {
 			t.Fatalf("role lookup changed verified identity: %+v", caller)
 		}
 	}
@@ -139,7 +164,12 @@ func TestCurrentRoleDoesNotFollowRedirects(t *testing.T) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	a := newAuthenticator(t, server.URL)
-	if _, err := a.currentRole(context.Background(), "token", "user-1"); !errors.Is(err, errRoleUnavailable) || redirected {
+	if _, err := a.currentRole(
+		context.Background(),
+		"token",
+		"user-1",
+	); !errors.Is(err, errRoleUnavailable) ||
+		redirected {
 		t.Fatalf("role redirect: error %v, target contacted %v", err, redirected)
 	}
 }

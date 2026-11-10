@@ -85,9 +85,13 @@ func isActionAllowed(s Status, a Action, k ActorKind, requester, courier bool) b
 	case PendingReservation:
 		return k == System && (a == ConfirmReservation || a == RefuseReservation)
 	case AwaitingCourier:
-		return (a == Assign && k == User && !requester) || (a == AcceptCounteroffer && requester) || (a == Cancel && (requester || k == Admin)) || (a == Expire && k == System)
+		return (a == Assign && k == User && !requester) || (a == AcceptCounteroffer && requester) ||
+			(a == Cancel && (requester || k == Admin)) ||
+			(a == Expire && k == System)
 	case AwaitingPickup:
-		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) || (a == Unassign && k == Admin) || (a == RemoveSuspendedCourier && k == System)
+		return (a == Pickup && courier) || (a == Cancel && (requester || k == Admin)) || (a == Withdraw && courier) ||
+			(a == Unassign && k == Admin) ||
+			(a == RemoveSuspendedCourier && k == System)
 	case Delivering:
 		return (a == Deliver && courier) || (a == Cancel && (requester || courier)) || (a == Timeout && k == System)
 	case Delivered:

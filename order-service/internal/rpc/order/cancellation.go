@@ -13,7 +13,14 @@ type CancellationOperations interface {
 	CancelConfirmed(context.Context, app.Caller, string, string, string, int64) (app.CancellationResult, error)
 }
 
-func NewServerWithCancellation(operations Operations, creator CreationOperations, images ImageOperations, assignments AssignmentOperations, cancellations CancellationOperations, progress ...ProgressOperations) *Server {
+func NewServerWithCancellation(
+	operations Operations,
+	creator CreationOperations,
+	images ImageOperations,
+	assignments AssignmentOperations,
+	cancellations CancellationOperations,
+	progress ...ProgressOperations,
+) *Server {
 	s := NewServer(operations, creator, images, assignments)
 	s.cancellations = cancellations
 	if len(progress) > 0 {
@@ -22,7 +29,10 @@ func NewServerWithCancellation(operations Operations, creator CreationOperations
 	return s
 }
 
-func (s *Server) CancelOrder(ctx context.Context, req *connect.Request[pb.CancelOrderRequest]) (*connect.Response[pb.CancelOrderResponse], error) {
+func (s *Server) CancelOrder(
+	ctx context.Context,
+	req *connect.Request[pb.CancelOrderRequest],
+) (*connect.Response[pb.CancelOrderResponse], error) {
 	caller := shared.Caller(ctx)
 	if caller.ID == "" {
 		return nil, shared.ConnectError(ctx, app.ErrForbidden)
@@ -34,7 +44,14 @@ func (s *Server) CancelOrder(ctx context.Context, req *connect.Request[pb.Cancel
 	if req.Msg.IdempotencyKey != nil && req.Msg.GetIdempotencyKey() == "" {
 		return nil, shared.ConnectError(ctx, app.ErrInvalid)
 	}
-	result, err := s.cancellations.CancelConfirmed(ctx, caller, req.Msg.Id, req.Msg.GetReason(), req.Msg.GetIdempotencyKey(), req.Msg.GetExpectedRevision())
+	result, err := s.cancellations.CancelConfirmed(
+		ctx,
+		caller,
+		req.Msg.Id,
+		req.Msg.GetReason(),
+		req.Msg.GetIdempotencyKey(),
+		req.Msg.GetExpectedRevision(),
+	)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)
 	}
@@ -55,5 +72,10 @@ func (s *Server) CancelOrder(ctx context.Context, req *connect.Request[pb.Cancel
 	if !ok {
 		return nil, shared.ConnectError(ctx, app.ErrUnavailable)
 	}
-	return connect.NewResponse(&pb.CancelOrderResponse{Order: view, Cancellation: &pb.CancellationResult{OperationId: result.OperationID, Status: status}}), nil
+	return connect.NewResponse(
+		&pb.CancelOrderResponse{
+			Order:        view,
+			Cancellation: &pb.CancellationResult{OperationId: result.OperationID, Status: status},
+		},
+	), nil
 }

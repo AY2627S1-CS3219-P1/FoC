@@ -18,5 +18,8 @@ type testDomainServices struct {
 }
 
 func newTestDomainServices(pool *pgxpool.Pool, clock func() time.Time) *testDomainServices {
-	return &testDomainServices{d.NewService(d.NewPostgresRepository(pool, clock), clock), r.NewService(r.NewPostgresRepository(pool, clock), clock)}
+	return &testDomainServices{
+		d.NewService(d.NewPostgresRepository(pool, clock), clock),
+		r.NewService(r.NewPostgresRepository(pool, clock), clock),
+	}
 }

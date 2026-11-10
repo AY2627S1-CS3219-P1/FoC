@@ -38,7 +38,11 @@ type AccountSuspender struct {
 	options    AssignmentOptions
 }
 
-func NewAccountSuspender(repository AccountSuspensionRepository, credit CancellationCredit, options AssignmentOptions) *AccountSuspender {
+func NewAccountSuspender(
+	repository AccountSuspensionRepository,
+	credit CancellationCredit,
+	options AssignmentOptions,
+) *AccountSuspender {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -58,7 +62,9 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 			return ErrInvalid
 		}
 	}
-	if decision.Revision <= 0 || strings.TrimSpace(decision.Reason) == "" || utf8.RuneCountInString(decision.Reason) > 2000 || !utf8.ValidString(decision.Reason) {
+	if decision.Revision <= 0 || strings.TrimSpace(decision.Reason) == "" ||
+		utf8.RuneCountInString(decision.Reason) > 2000 ||
+		!utf8.ValidString(decision.Reason) {
 		return ErrInvalid
 	}
 
@@ -133,7 +139,8 @@ func (s *AccountSuspender) Apply(ctx context.Context, decision AccountSuspension
 			if err != nil {
 				return err
 			}
-			if active == nil || (active.Phase != AdjustmentPending && active.Phase != RevertPending) || (active.CourierID != decision.UserID && active.CallerID != decision.UserID) {
+			if active == nil || (active.Phase != AdjustmentPending && active.Phase != RevertPending) ||
+				(active.CourierID != decision.UserID && active.CallerID != decision.UserID) {
 				continue
 			}
 			now := s.options.Now().UTC()

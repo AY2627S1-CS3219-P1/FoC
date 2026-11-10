@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countOrders = `-- name: CountOrders :one
@@ -19,8 +20,9 @@ SELECT count(*) FROM orders WHERE
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'building_name' = $8::text)
+ AND (NOT $7::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF($4::text,'')::uuid OR courier_id = NULLIF($4::text,'')::uuid)))
+ AND ($8::text = '' OR pickup->>'location_id' = $8::text)
+ AND ($9::text = '' OR delivery->>'building_name' = $9::text)
 `
 
 type CountOrdersParams struct {
@@ -30,6 +32,7 @@ type CountOrdersParams struct {
 	UserID               string
 	Role                 string
 	StatusFilter         string
+	ActiveOnly           bool
 	PickupID             string
 	DeliveryBuildingName string
 }
@@ -42,12 +45,81 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 		arg.UserID,
 		arg.Role,
 		arg.StatusFilter,
+		arg.ActiveOnly,
 		arg.PickupID,
 		arg.DeliveryBuildingName,
 	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countOrdersByDay = `-- name: CountOrdersByDay :many
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
+GROUP BY day
+ORDER BY day
+`
+
+type CountOrdersByDayParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type CountOrdersByDayRow struct {
+	Day   pgtype.Date
+	Total int64
+}
+
+// Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+func (q *Queries) CountOrdersByDay(ctx context.Context, arg CountOrdersByDayParams) ([]CountOrdersByDayRow, error) {
+	rows, err := q.db.Query(ctx, countOrdersByDay, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOrdersByDayRow
+	for rows.Next() {
+		var i CountOrdersByDayRow
+		if err := rows.Scan(&i.Day, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countOrdersByStatus = `-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status
+`
+
+type CountOrdersByStatusRow struct {
+	Status string
+	Total  int64
+}
+
+func (q *Queries) CountOrdersByStatus(ctx context.Context) ([]CountOrdersByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countOrdersByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOrdersByStatusRow
+	for rows.Next() {
+		var i CountOrdersByStatusRow
+		if err := rows.Scan(&i.Status, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getOrder = `-- name: GetOrder :one
@@ -241,8 +313,9 @@ SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instruct
    (($5::text IN ('','requester') AND requester_id = NULLIF($4::text,'')::uuid) OR
     ($5::text IN ('','courier') AND (courier_id = NULLIF($4::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF($4::text,'')::uuid)))))
  AND ($6::text = '' OR status = $6)
- AND ($7::text = '' OR pickup->>'location_id' = $7::text)
- AND ($8::text = '' OR delivery->>'building_name' = $8::text) ORDER BY created_at DESC,id DESC LIMIT $10 OFFSET $9::bigint
+ AND (NOT $7::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF($4::text,'')::uuid OR courier_id = NULLIF($4::text,'')::uuid)))
+ AND ($8::text = '' OR pickup->>'location_id' = $8::text)
+ AND ($9::text = '' OR delivery->>'building_name' = $9::text) ORDER BY created_at DESC,id DESC LIMIT $11 OFFSET $10::bigint
 `
 
 type ListOrdersParams struct {
@@ -252,6 +325,7 @@ type ListOrdersParams struct {
 	UserID               string
 	Role                 string
 	StatusFilter         string
+	ActiveOnly           bool
 	PickupID             string
 	DeliveryBuildingName string
 	PageOffset           int64
@@ -266,6 +340,7 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		arg.UserID,
 		arg.Role,
 		arg.StatusFilter,
+		arg.ActiveOnly,
 		arg.PickupID,
 		arg.DeliveryBuildingName,
 		arg.PageOffset,

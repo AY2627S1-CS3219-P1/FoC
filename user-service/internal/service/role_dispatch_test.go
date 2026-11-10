@@ -21,12 +21,21 @@ func (f roleEffectsFunc) ApplyRoleDecision(ctx context.Context, d models.RoleDis
 func TestRoleDecisionWaitsForOrderAndRecoversSameIdentity(t *testing.T) {
 	ctx := context.Background()
 	adminID, userID := uuid.New(), uuid.New()
-	f := &accountFixture{users: map[uuid.UUID]models.User{adminID: {ID: adminID, Role: models.RoleAdmin}, userID: {ID: userID, Role: models.RoleUser}}}
+	f := &accountFixture{
+		users: map[uuid.UUID]models.User{
+			adminID: {ID: adminID, Role: models.RoleAdmin},
+			userID:  {ID: userID, Role: models.RoleUser},
+		},
+	}
 	calls := 0
 	var dispatched []models.RoleDispatch
-	s := &RoleService{Users: f, Dispatches: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-		return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
-	}}
+	s := &RoleService{
+		Users:      f,
+		Dispatches: f,
+		WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+			return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
+		},
+	}
 	s.Effects = roleEffectsFunc(func(_ context.Context, d models.RoleDispatch) error {
 		calls++
 		dispatched = append(dispatched, d)
@@ -38,13 +47,29 @@ func TestRoleDecisionWaitsForOrderAndRecoversSameIdentity(t *testing.T) {
 		}
 		return nil
 	})
-	if _, err := s.ChangeUserRole(ctx, adminID, userID, models.RoleSuspended, "investigation"); !errors.Is(err, ErrRoleEffectsUnavailable) {
+	if _, err := s.ChangeUserRole(
+		ctx,
+		adminID,
+		userID,
+		models.RoleSuspended,
+		"investigation",
+	); !errors.Is(
+		err,
+		ErrRoleEffectsUnavailable,
+	) {
 		t.Fatal(err)
 	}
 	if f.users[userID].Role != models.RoleUser || len(f.changes) != 0 || len(f.dispatches) != 1 {
 		t.Fatal("uncertain handoff finalized role or lost durable intent")
 	}
-	if _, err := s.ChangeUserRole(ctx, adminID, userID, models.RoleSuspended, "different reason"); !errors.Is(err, ErrConcurrentRoleEdit) || calls != 1 {
+	if _, err := s.ChangeUserRole(
+		ctx,
+		adminID,
+		userID,
+		models.RoleSuspended,
+		"different reason",
+	); !errors.Is(err, ErrConcurrentRoleEdit) ||
+		calls != 1 {
 		t.Fatalf("changed pending intent: %v", err)
 	}
 	// A replacement service instance retains only dependencies, not request state.
@@ -52,7 +77,8 @@ func TestRoleDecisionWaitsForOrderAndRecoversSameIdentity(t *testing.T) {
 	if err := restarted.RecoverRoleDispatchesOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if f.users[userID].Role != models.RoleSuspended || len(f.changes) != 1 || dispatched[0].ID != dispatched[1].ID || dispatched[0].Revision != dispatched[1].Revision {
+	if f.users[userID].Role != models.RoleSuspended || len(f.changes) != 1 || dispatched[0].ID != dispatched[1].ID ||
+		dispatched[0].Revision != dispatched[1].Revision {
 		t.Fatal("recovery changed identity or failed to audit once")
 	}
 	if err := restarted.RecoverRoleDispatchesOnce(ctx); err != nil || calls != 2 {
@@ -68,11 +94,29 @@ func TestRoleDecisionWaitsForOrderAndRecoversSameIdentity(t *testing.T) {
 
 func TestUnconfiguredRoleEffectsFailBeforeAdmission(t *testing.T) {
 	adminID, userID := uuid.New(), uuid.New()
-	f := &accountFixture{users: map[uuid.UUID]models.User{adminID: {ID: adminID, Role: models.RoleAdmin}, userID: {ID: userID, Role: models.RoleUser}}}
-	s := &RoleService{Users: f, Dispatches: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-		return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
-	}}
-	if _, err := s.ChangeUserRole(context.Background(), adminID, userID, models.RoleSuspended, "explicit decision"); !errors.Is(err, ErrRoleEffectsUnconfigured) {
+	f := &accountFixture{
+		users: map[uuid.UUID]models.User{
+			adminID: {ID: adminID, Role: models.RoleAdmin},
+			userID:  {ID: userID, Role: models.RoleUser},
+		},
+	}
+	s := &RoleService{
+		Users:      f,
+		Dispatches: f,
+		WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+			return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
+		},
+	}
+	if _, err := s.ChangeUserRole(
+		context.Background(),
+		adminID,
+		userID,
+		models.RoleSuspended,
+		"explicit decision",
+	); !errors.Is(
+		err,
+		ErrRoleEffectsUnconfigured,
+	) {
 		t.Fatal(err)
 	}
 	if len(f.dispatches) != 0 || len(f.changes) != 0 || f.users[userID].Role != models.RoleUser {
@@ -104,7 +148,16 @@ func TestRejectedRoleDecisionIsVisibleAndNotRetried(t *testing.T) {
 				}),
 			}
 
-			if _, err := s.ChangeUserRole(ctx, adminID, userID, models.RoleSuspended, "explicit reason"); !errors.Is(err, ErrRoleEffectsRejected) {
+			if _, err := s.ChangeUserRole(
+				ctx,
+				adminID,
+				userID,
+				models.RoleSuspended,
+				"explicit reason",
+			); !errors.Is(
+				err,
+				ErrRoleEffectsRejected,
+			) {
 				t.Fatalf("rejection hidden: %v", err)
 			}
 			pending, err := f.PendingRoleDispatch(ctx, userID)
@@ -118,7 +171,16 @@ func TestRejectedRoleDecisionIsVisibleAndNotRetried(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := s.ChangeUserRole(ctx, adminID, userID, models.RoleSuspended, "explicit reason"); !errors.Is(err, ErrRoleEffectsRejected) {
+			if _, err := s.ChangeUserRole(
+				ctx,
+				adminID,
+				userID,
+				models.RoleSuspended,
+				"explicit reason",
+			); !errors.Is(
+				err,
+				ErrRoleEffectsRejected,
+			) {
 				t.Fatalf("repeat rejection hidden: %v", err)
 			}
 			if _, err := s.ChangeUserRole(ctx, adminID, userID, models.RoleUser, "replace"); err == nil {
@@ -128,7 +190,8 @@ func TestRejectedRoleDecisionIsVisibleAndNotRetried(t *testing.T) {
 			if pending == nil {
 				t.Fatal("lost rejected decision")
 			}
-			if calls != 1 || pending.ID != identity || len(f.dispatches) != 1 || len(f.changes) != 0 || f.users[userID].Role != models.RoleUser {
+			if calls != 1 || pending.ID != identity || len(f.dispatches) != 1 || len(f.changes) != 0 ||
+				f.users[userID].Role != models.RoleUser {
 				t.Fatal("rejected intent retried, replaced or finalized")
 			}
 		})
@@ -157,13 +220,18 @@ func TestDeletedRoleTargetIsNotDispatchedOrFinalized(t *testing.T) {
 			}
 			f.dispatches = map[uuid.UUID]models.RoleDispatch{d.ID: d}
 			calls := 0
-			s := &RoleService{Users: f, Dispatches: f, WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
-				return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
-			}, Effects: roleEffectsFunc(func(context.Context, models.RoleDispatch) error {
-				calls++
-				delete(f.users, userID)
-				return nil
-			})}
+			s := &RoleService{
+				Users:      f,
+				Dispatches: f,
+				WithTransaction: func(_ context.Context, fn func(RoleStore) error) error {
+					return fn(RoleStore{Users: f, Admin: f, Dispatches: f})
+				},
+				Effects: roleEffectsFunc(func(context.Context, models.RoleDispatch) error {
+					calls++
+					delete(f.users, userID)
+					return nil
+				}),
+			}
 			if !deleteDuringCall {
 				delete(f.users, userID)
 				d.FromRole, d.ToRole = models.RoleSuspended, models.RoleUser

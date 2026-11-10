@@ -117,7 +117,11 @@ func loadBuildings(path string) ([]building, map[string]string, error) {
 				return nil, nil, pathError(path, record.line, errors.New("Aliases contains an empty alias"))
 			}
 			if existing, exists := aliases[normalized]; exists && existing != key {
-				return nil, nil, pathError(path, record.line, fmt.Errorf("Building alias %q already belongs to %q", alias, existing))
+				return nil, nil, pathError(
+					path,
+					record.line,
+					fmt.Errorf("Building alias %q already belongs to %q", alias, existing),
+				)
 			}
 			aliases[normalized] = key
 		}
@@ -152,7 +156,11 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 			return nil, nil, nil, pathError(path, record.line, err)
 		}
 		if firstLine, exists := sourceKeys[key]; exists {
-			return nil, nil, nil, pathError(path, record.line, fmt.Errorf("SourceKey %q duplicates line %d", key, firstLine))
+			return nil, nil, nil, pathError(
+				path,
+				record.line,
+				fmt.Errorf("SourceKey %q duplicates line %d", key, firstLine),
+			)
 		}
 		sourceKeys[key] = record.line
 
@@ -162,7 +170,11 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 		}
 		buildingKey, exists := aliases[normalizeAlias(buildingAlias)]
 		if !exists {
-			return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Building %q has no explicit alias", buildingAlias))
+			return nil, nil, nil, pathError(
+				path,
+				record.line,
+				fmt.Errorf("Building %q has no explicit alias", buildingAlias),
+			)
 		}
 
 		parsed, err := parseLocation(record, key, buildingKey, true)
@@ -192,7 +204,11 @@ func loadSuppliers(path string, aliases map[string]string) ([]location, []catego
 			}
 			definition, exists := categoryDefinitions[normalized]
 			if !exists {
-				return nil, nil, nil, pathError(path, record.line, fmt.Errorf("Type Category %q has no explicit stable source key", name))
+				return nil, nil, nil, pathError(
+					path,
+					record.line,
+					fmt.Errorf("Type Category %q has no explicit stable source key", name),
+				)
 			}
 			seenCategories[normalized] = struct{}{}
 			usedCategories[normalized] = struct{}{}
@@ -237,7 +253,11 @@ func loadOrdinaryLocations(path string, buildings []building, sourceKeys map[str
 			return nil, pathError(path, record.line, err)
 		}
 		if firstLine, exists := sourceKeys[key]; exists {
-			return nil, pathError(path, record.line, fmt.Errorf("SourceKey %q duplicates line %d in another Location input", key, firstLine))
+			return nil, pathError(
+				path,
+				record.line,
+				fmt.Errorf("SourceKey %q duplicates line %d in another Location input", key, firstLine),
+			)
 		}
 		sourceKeys[key] = record.line
 

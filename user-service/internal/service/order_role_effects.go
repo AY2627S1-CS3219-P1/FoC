@@ -9,13 +9,15 @@ import (
 )
 
 type OrderRoleClient interface {
-	ApplyAccountSuspension(context.Context, *connect.Request[pb.ApplyAccountSuspensionRequest]) (*connect.Response[pb.ApplyAccountSuspensionResponse], error)
+	ApplyAccountSuspension(
+		context.Context,
+		*connect.Request[pb.ApplyAccountSuspensionRequest],
+	) (*connect.Response[pb.ApplyAccountSuspensionResponse], error)
 }
 
-// OrderRoleEffects consumes a client constructed with the authenticated #29
-// transport. It owns no credential, reads no admin bearer and has no fallback
-// client. The composition root deliberately leaves this absent in production
-// until the separate trusted-caller dependency is available.
+// OrderRoleEffects uses the private Order origin. Istio authenticates User's
+// workload and authorizes only User at the suspension method boundary. No admin
+// bearer or credential is persisted or forwarded, including during recovery.
 type OrderRoleEffects struct{ Client OrderRoleClient }
 
 func (s *OrderRoleEffects) ApplyRoleDecision(ctx context.Context, d models.RoleDispatch) error {

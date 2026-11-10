@@ -51,14 +51,14 @@ export function recoverSubmission(storage: Storage, callerId: string, now = Date
 		if (!raw) return { state: 'none' };
 		const result = savedSchema.safeParse(JSON.parse(raw));
 		if (!result.success || result.data.callerId !== callerId) {
-			return { state: 'blocked', message: 'Saved submission cannot be read safely. Check My Orders before starting another order.' };
+			return { state: 'blocked', message: 'Could not restore your last order. Check My Orders before creating another order.' };
 		}
 		if (now - result.data.submittedAt >= retryLifetime || result.data.submittedAt > now) {
-			return { state: 'blocked', message: 'The saved submission is outside its safe retry period. Check My Orders; do not automatically resubmit.' };
+			return { state: 'blocked', message: 'This order cannot be retried. Check My Orders before creating another order.' };
 		}
 		return { state: 'ready', submission: result.data };
 	} catch {
-		return { state: 'blocked', message: 'Submission recovery is unavailable. Enable tab storage before submitting an order.' };
+		return { state: 'blocked', message: 'Your browser could not restore your last order. Allow website storage and check My Orders before trying again.' };
 	}
 }
 

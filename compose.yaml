@@ -13,6 +13,8 @@ services:
       PUBLIC_USER_SERVICE_URL: ${PUBLIC_USER_SERVICE_URL:-http://localhost:${USER_PORT:-8081}}
       PUBLIC_SUPPLIER_SERVICE_URL: ${PUBLIC_SUPPLIER_SERVICE_URL:-http://localhost:${SUPPLIER_PORT:-8082}}
       PUBLIC_COMMUNICATION_SERVICE_URL: ${PUBLIC_COMMUNICATION_SERVICE_URL:-http://localhost:${COMMUNICATION_PORT:-8084}}
+      PUBLIC_MODERATION_SERVICE_URL: ${PUBLIC_MODERATION_SERVICE_URL:-http://localhost:${MODERATION_PORT:-8086}}
+      PUBLIC_TELEGRAM_BOT_URL: ${PUBLIC_TELEGRAM_BOT_URL:-}
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
@@ -30,6 +32,7 @@ services:
       ORDER_DB: ${ORDER_DB:-order_dev}
       CREDIT_DB: ${CREDIT_DB:-credit_dev}
       COMMUNICATION_DB: ${COMMUNICATION_DB:-communication_dev}
+      MODERATION_DB: ${MODERATION_DB:-moderation_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -120,6 +123,8 @@ services:
     command: ["go", "run", "./cmd/storage-init"]
     environment:
       APP_ENV: local
+      # Browser origin allowed to upload images, in addition to the default port.
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       ORDER_S3_BUCKET: ${ORDER_S3_BUCKET:-order-images}
       ORDER_S3_ENDPOINT: http://floci:4566
       AWS_REGION: us-east-1
@@ -143,16 +148,44 @@ services:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
     restart: unless-stopped
 
+  # Provisions the local review photo bucket and browser CORS policy.
+  user-storage-init:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile.dev
+    working_dir: /app
+    command: ["go", "run", "./cmd/storage-init"]
+    environment:
+      APP_ENV: local
+      # Browser origin allowed to upload review photos, in addition to the
+      # default port.
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
+      USER_S3_BUCKET: ${USER_S3_BUCKET:-user-images}
+      USER_S3_ENDPOINT: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ./user-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+    depends_on:
+      floci:
+        condition: service_started
+    restart: "no"
+
   user-service:
     build:
       context: .
       dockerfile: user-service/Dockerfile.dev
     container_name: foc-user-service
     ports:
-      - "${USER_PORT:-8081}:8080"
+      - "${USER_PORT:-8081}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
+      KAFKA_BROKERS: kafka:9092
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
@@ -160,10 +193,17 @@ services:
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
       BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-}
       BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: ${BOOTSTRAP_SUPERADMIN_DISPLAY_NAME:-}
-      SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
-      SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Communication's internal listener sends magic links. Communication
+      # starts after User Service, so it isn't a startup dependency.
+      COMMUNICATION_SERVICE_BASE_URL: ${COMMUNICATION_SERVICE_BASE_URL:-http://communication-service:8081}
+      # Local-only private network. Istio supplies User-only identity in Kubernetes.
+      ORDER_SERVICE_INTERNAL_URL: ${ORDER_SERVICE_INTERNAL_URL:-http://order-service:8081}
+      USER_S3_BUCKET: ${USER_S3_BUCKET:-user-images}
+      USER_S3_ENDPOINT: http://floci:4566
+      USER_S3_PUBLIC_ENDPOINT: http://localhost:${FLOCI_PORT:-4566}
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     volumes:
       - ./user-service:/app
       - ./pkg:/pkg
@@ -173,8 +213,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   supplier-service:
@@ -183,12 +223,13 @@ services:
       dockerfile: supplier-service/Dockerfile.dev
     container_name: foc-supplier-service
     ports:
-      - "${SUPPLIER_PORT:-8082}:8080"
+      - "${SUPPLIER_PORT:-8082}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${SUPPLIER_DATABASE_URL:?set SUPPLIER_DATABASE_URL in .env}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
@@ -208,17 +249,20 @@ services:
       context: .
       dockerfile: order-service/Dockerfile.dev
     container_name: foc-order-service
+    mem_limit: 3g
+    cpus: 2.0
+    pids_limit: 128
     ports:
-      - "${ORDER_PORT:-8083}:8080"
+      - "${ORDER_PORT:-8083}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: ${ORDER_DATABASE_URL:?set ORDER_DATABASE_URL in .env}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
-      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL:-}
-      CREDIT_WORKLOAD_TOKEN_FILE: ${CREDIT_WORKLOAD_TOKEN_FILE:-}
+      CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL-http://credit-service:8081}
       KAFKA_BROKERS: kafka:9092
       ORDER_S3_BUCKET: ${ORDER_S3_BUCKET:-order-images}
       ORDER_S3_ENDPOINT: http://floci:4566
@@ -244,18 +288,26 @@ services:
       dockerfile: communication-service/Dockerfile.dev
     container_name: foc-communication-service
     ports:
-      - "${COMMUNICATION_PORT:-8084}:8080"
+      - "${COMMUNICATION_PORT:-8084}:${PORT:-8080}"
     environment:
-      PORT: "8080"
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       APP_ENV: ${APP_ENV:-local}
       # Defaults to the shared Postgres so existing .env files keep working.
       DATABASE_URL: ${COMMUNICATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${COMMUNICATION_DB:-communication_dev}?sslmode=disable}
-      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Empty means the public Bot API; set it to point at a fake server.
       TELEGRAM_API_URL: ${TELEGRAM_API_URL:-}
+      # Order notifications use Telegram, or email for users it can't reach.
+      KAFKA_BROKERS: kafka:9092
+      # Magic links and email notifications. Empty SMTP_ADDR disables email.
+      SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
+      SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
       - ./communication-service:/app
       - ./pkg:/pkg
@@ -266,6 +318,78 @@ services:
         condition: service_healthy
       user-service:
         condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  credit-service:
+    build:
+      context: .
+      dockerfile: credit-service/Dockerfile.dev
+    container_name: foc-credit-service
+    # Only the public listener is published. Order's reservation RPCs use the
+    # internal listener, reachable only on the Compose network.
+    ports:
+      - "${CREDIT_PORT:-8085}:${PORT:-8080}"
+    environment:
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
+      APP_ENV: ${APP_ENV:-local}
+      # Defaults to the shared Postgres so existing .env files keep working.
+      DATABASE_URL: ${CREDIT_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${CREDIT_DB:-credit_dev}?sslmode=disable}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      KAFKA_BROKERS: kafka:9092
+    volumes:
+      - ./credit-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      user-service:
+        condition: service_started
+    restart: unless-stopped
+
+  content-moderation-service:
+    build:
+      context: .
+      dockerfile: content-moderation-service/Dockerfile.dev
+    container_name: foc-content-moderation-service
+    # Only the public listener is published. No service calls CMS internally.
+    ports:
+      - "${MODERATION_PORT:-8086}:${PORT:-8080}"
+    environment:
+      PORT: ${PORT:-8080}
+      INTERNAL_PORT: ${INTERNAL_PORT:-8081}
+      APP_ENV: ${APP_ENV:-local}
+      # Defaults to the shared Postgres so existing .env files keep working.
+      DATABASE_URL: ${MODERATION_DATABASE_URL:-postgresql://${POSTGRES_USER:-foc}:${POSTGRES_PASSWORD}@postgres:5432/${MODERATION_DB:-moderation_dev}?sslmode=disable}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      KAFKA_BROKERS: kafka:9092
+      CMS_LOGGING_INTERVAL: ${CMS_LOGGING_INTERVAL:-5m}
+      # OpenAI-compatible inference. The key stays server-side; an empty key
+      # starts the service degraded: submissions queue, admin APIs and setup
+      # status still work, no inference attempts are burned.
+      CMS_LLM_BASE_URL: ${CMS_LLM_BASE_URL:-https://soclaas-api.comp.nus.edu.sg/v1}
+      CMS_LLM_MODEL_ID: ${CMS_LLM_MODEL_ID:-gemma4:26b}
+      CMS_LLM_API_KEY: ${CMS_LLM_API_KEY:-}
+    volumes:
+      - ./content-moderation-service:/app
+      - ./pkg:/pkg
+      - go-modules:/go/pkg/mod
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

@@ -16,12 +16,15 @@ import (
 )
 
 var ErrRoleEffectsUnconfigured = errs.NewFailedPreconditionError("authenticated Order role effects are not configured")
-var ErrRoleEffectsRejected = errs.NewFailedPreconditionError("Order rejected the role decision; reconciliation is required")
+
+var ErrRoleEffectsRejected = errs.NewFailedPreconditionError(
+	"Order rejected the role decision; reconciliation is required",
+)
 var ErrRoleEffectsUnavailable = errs.NewUnavailableError("role decision outcome is uncertain; retry the same decision")
 
-// RoleEffects is supplied only with an authenticated User-to-Order transport.
-// Production provisioning/authorization is tracked in #29. A nil dependency
-// refuses suspension/reinstatement BEFORE admitting any role or dispatch change.
+// RoleEffects is supplied with the private, mesh-authorized User-to-Order client.
+// A nil dependency refuses suspension/reinstatement before admitting any role
+// or dispatch change.
 type RoleEffects interface {
 	ApplyRoleDecision(context.Context, models.RoleDispatch) error
 }
@@ -57,7 +60,10 @@ func (s *RoleService) applyRoleDispatch(ctx context.Context, d models.RoleDispat
 			return models.User{}, ErrRoleEffectsUnconfigured
 		}
 		switch connect.CodeOf(err) {
-		case connect.CodeInvalidArgument, connect.CodeFailedPrecondition, connect.CodeAborted, connect.CodeAlreadyExists:
+		case connect.CodeInvalidArgument,
+			connect.CodeFailedPrecondition,
+			connect.CodeAborted,
+			connect.CodeAlreadyExists:
 			// A definite rejection cannot be retried into a different immutable
 			// decision. Retain it for reconciliation without blocking the worker.
 			if saveErr := s.Dispatches.RejectRoleDispatch(ctx, d.ID, time.Now().UTC()); saveErr != nil {

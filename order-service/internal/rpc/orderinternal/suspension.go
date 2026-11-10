@@ -19,7 +19,10 @@ type Server struct {
 	Operations SuspensionOperations
 }
 
-func (s *Server) ApplyAccountSuspension(ctx context.Context, req *connect.Request[pb.ApplyAccountSuspensionRequest]) (*connect.Response[pb.ApplyAccountSuspensionResponse], error) {
+func (s *Server) ApplyAccountSuspension(
+	ctx context.Context,
+	req *connect.Request[pb.ApplyAccountSuspensionRequest],
+) (*connect.Response[pb.ApplyAccountSuspensionResponse], error) {
 	if s.Operations == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, nil)
 	}

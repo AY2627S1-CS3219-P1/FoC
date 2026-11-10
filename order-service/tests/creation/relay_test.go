@@ -58,7 +58,16 @@ func topicOffset(t *testing.T, address, topic string) int64 {
 
 func topicMessages(t *testing.T, address, topic string, offset int64, n int) []kafkago.Message {
 	t.Helper()
-	reader := kafkago.NewReader(kafkago.ReaderConfig{Brokers: []string{address}, Topic: topic, Partition: 0, MinBytes: 1, MaxBytes: 1000000, MaxWait: 100 * time.Millisecond})
+	reader := kafkago.NewReader(
+		kafkago.ReaderConfig{
+			Brokers:   []string{address},
+			Topic:     topic,
+			Partition: 0,
+			MinBytes:  1,
+			MaxBytes:  1000000,
+			MaxWait:   100 * time.Millisecond,
+		},
+	)
 	defer reader.Close()
 	if err := reader.SetOffset(offset); err != nil {
 		t.Fatal(err)
@@ -105,7 +114,10 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 	defer publisher.Close()
 	store := outbox.NewPostgres(f.pool)
 	reopen := func() {
-		if _, err := f.pool.Exec(f.ctx, "UPDATE order_outbox SET lease_until=now()-interval '1 second' WHERE published_at IS NULL"); err != nil {
+		if _, err := f.pool.Exec(
+			f.ctx,
+			"UPDATE order_outbox SET lease_until=now()-interval '1 second' WHERE published_at IS NULL",
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -128,7 +140,8 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 			if err := proto.Unmarshal(message.Value, &status); err != nil {
 				t.Fatal(err)
 			}
-			if status.OrderId != order.Id || string(message.Key) != order.Id || status.Revision != int64(i+1) || status.PickupLocationName != "Campus location" {
+			if status.OrderId != order.Id || string(message.Key) != order.Id || status.Revision != int64(i+1) ||
+				status.PickupLocationName != "Campus location" {
 				t.Fatalf("incorrect status fact: %+v", &status)
 			}
 		}
@@ -137,11 +150,15 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 		if err := proto.Unmarshal(message.Value, &outcome); err != nil {
 			t.Fatal(err)
 		}
-		if string(message.Key) != order.Id || outcome.OrderId != order.Id || outcome.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_EXPIRED || outcome.ReservedCredits != 10 {
+		if string(message.Key) != order.Id || outcome.OrderId != order.Id ||
+			outcome.Outcome != events.OrderOutcomeType_ORDER_OUTCOME_TYPE_EXPIRED ||
+			outcome.ReservedCredits != 10 {
 			t.Fatalf("incorrect outcome: %+v", &outcome)
 		}
 		var pending int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE published_at IS NULL").Scan(&pending); err != nil || pending != 0 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE published_at IS NULL").
+			Scan(&pending); err != nil ||
+			pending != 0 {
 			t.Fatal("unpublished facts remain")
 		}
 		if s.remotes.releaseCalls != 0 {
@@ -197,7 +214,9 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 			t.Fatal("unavailable broker acknowledged")
 		}
 		var published int
-		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE published_at IS NOT NULL").Scan(&published); err != nil || published != 0 {
+		if err := f.pool.QueryRow(f.ctx, "SELECT count(*) FROM order_outbox WHERE published_at IS NOT NULL").
+			Scan(&published); err != nil ||
+			published != 0 {
 			t.Fatal("lost pending facts")
 		}
 		reopen()
@@ -234,7 +253,16 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 			t.Fatal(err)
 		}
 		ids := map[string]bool{}
+		changes := map[string]bool{}
 		for fact := range claims {
+			// Advisory changes can be claimed independently of business facts.
+			if fact.Kind == "order.changed" {
+				if changes[fact.ID] {
+					t.Fatal("claimed the same change event twice")
+				}
+				changes[fact.ID] = true
+				continue
+			}
 			if ids[fact.OrderID] || fact.Revision != 1 {
 				t.Fatal("published past an outstanding earlier fact")
 			}
@@ -242,6 +270,9 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 		}
 		if len(ids) != 2 {
 			t.Fatalf("claimed %d Orders", len(ids))
+		}
+		if len(changes) != 4 {
+			t.Fatalf("claimed %d change events, want 4", len(changes))
 		}
 		reopen()
 		if err := outbox.New(store, publisher).Drain(f.ctx, 50); err != nil {

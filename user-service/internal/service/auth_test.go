@@ -14,21 +14,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	storepkg "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 	"github.com/google/uuid"
 )
 
 type fakeStore struct {
-	mu             sync.Mutex
-	users          map[uuid.UUID]models.User
-	logins         map[[32]byte]models.AuthToken
-	registrations  map[[32]byte]models.AuthToken
-	sessions       map[uuid.UUID]models.Session
-	allowedDomains map[string]struct{}
-	failSession    bool
+	mu               sync.Mutex
+	users            map[uuid.UUID]models.User
+	logins           map[[32]byte]models.AuthToken
+	registrations    map[[32]byte]models.AuthToken
+	sessions         map[uuid.UUID]models.Session
+	createdEvents    []userdomain.CreatedEvent
+	allowedDomains   map[string]struct{}
+	domainErr        error
+	failCreatedEvent error
+	failSession      bool
 }
 
 func newFakeStore() *fakeStore {
@@ -70,6 +73,9 @@ func (f *fakeStore) CreateUser(_ context.Context, user *models.User) error {
 	if user.ID == uuid.Nil {
 		user.ID = uuid.New()
 	}
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now().UTC()
+	}
 	f.users[user.ID] = *user
 	return nil
 }
@@ -89,7 +95,12 @@ func (f *fakeStore) CreateToken(_ context.Context, challenge *models.AuthToken) 
 	return nil
 }
 
-func (f *fakeStore) ConsumeToken(_ context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+func (f *fakeStore) ConsumeToken(
+	_ context.Context,
+	digest [32]byte,
+	purpose models.TokenPurpose,
+	now time.Time,
+) (*models.AuthToken, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	challenges := f.registrations
@@ -173,7 +184,12 @@ func (f fakeAuthTokens) Create(ctx context.Context, token *models.AuthToken) err
 	return f.CreateToken(ctx, token)
 }
 
-func (f fakeAuthTokens) Consume(ctx context.Context, digest [32]byte, purpose models.TokenPurpose, now time.Time) (*models.AuthToken, error) {
+func (f fakeAuthTokens) Consume(
+	ctx context.Context,
+	digest [32]byte,
+	purpose models.TokenPurpose,
+	now time.Time,
+) (*models.AuthToken, error) {
 	return f.ConsumeToken(ctx, digest, purpose, now)
 }
 
@@ -197,39 +213,58 @@ func (f fakeSessions) RevokeAllForUser(ctx context.Context, userID uuid.UUID, no
 
 type fakeDomains struct{ *fakeStore }
 
-func (f fakeDomains) Allows(_ context.Context, domain string) (bool, error) {
+func (f fakeDomains) IsDomainAllowed(_ context.Context, domain string) (bool, error) {
+	if f.domainErr != nil {
+		return false, f.domainErr
+	}
 	_, ok := f.allowedDomains[strings.ToLower(domain)]
 	return ok, nil
 }
 
-func (f *fakeStore) stores() Store {
-	return Store{
-		Users:      fakeUsers{f},
-		AuthTokens: fakeAuthTokens{f},
-		Sessions:   fakeSessions{f},
-		Domains:    fakeDomains{f},
+type fakeUserCreatedEvents struct{ *fakeStore }
+
+func (f fakeUserCreatedEvents) Append(_ context.Context, event userdomain.CreatedEvent) error {
+	if f.failCreatedEvent != nil {
+		return f.failCreatedEvent
+	}
+	f.createdEvents = append(f.createdEvents, event)
+	return nil
+}
+
+func (f *fakeStore) resources() Resources {
+	return Resources{
+		Users:             fakeUsers{f},
+		AuthTokens:        fakeAuthTokens{f},
+		Sessions:          fakeSessions{f},
+		DomainPolicy:      fakeDomains{f},
+		UserCreatedEvents: fakeUserCreatedEvents{f},
 	}
 }
 
-func (f *fakeStore) withTransaction(ctx context.Context, operation func(Store) error) error {
+func (f *fakeStore) withTransaction(ctx context.Context, operation func(Resources) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tx := &fakeStore{
-		users:          cloneMap(f.users),
-		logins:         cloneMap(f.logins),
-		registrations:  cloneMap(f.registrations),
-		sessions:       cloneMap(f.sessions),
-		allowedDomains: cloneMap(f.allowedDomains),
-		failSession:    f.failSession,
+		users:            cloneMap(f.users),
+		logins:           cloneMap(f.logins),
+		registrations:    cloneMap(f.registrations),
+		sessions:         cloneMap(f.sessions),
+		createdEvents:    append([]userdomain.CreatedEvent(nil), f.createdEvents...),
+		allowedDomains:   cloneMap(f.allowedDomains),
+		domainErr:        f.domainErr,
+		failCreatedEvent: f.failCreatedEvent,
+		failSession:      f.failSession,
 	}
-	if err := operation(tx.stores()); err != nil {
+	if err := operation(tx.resources()); err != nil {
 		return err
 	}
 	f.users = tx.users
 	f.logins = tx.logins
 	f.registrations = tx.registrations
 	f.sessions = tx.sessions
+	f.createdEvents = tx.createdEvents
 	f.allowedDomains = tx.allowedDomains
+	f.failCreatedEvent = tx.failCreatedEvent
 	return nil
 }
 
@@ -247,17 +282,22 @@ func bytesToDigest(value []byte) [32]byte {
 	return digest
 }
 
-type mockEmailSender struct{ messages []email.Email }
+type sentLink struct {
+	to, link string
+	purpose  MagicLinkPurpose
+}
 
-func (e *mockEmailSender) Send(_ context.Context, message email.Email) error {
-	e.messages = append(e.messages, message)
+type mockMagicLinks struct{ messages []sentLink }
+
+func (m *mockMagicLinks) SendMagicLink(_ context.Context, to, link string, purpose MagicLinkPurpose) error {
+	m.messages = append(m.messages, sentLink{to, link, purpose})
 	return nil
 }
 
-func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, sender email.EmailSender) *Service {
+func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, sender MagicLinkSender) *Service {
 	t.Helper()
 	if sender == nil {
-		sender = &mockEmailSender{}
+		sender = &mockMagicLinks{}
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -275,8 +315,8 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Store: store.stores(), WithTransaction: store.withTransaction,
-		TokenCodec: codec, EmailSender: sender},
+	service, err := NewService(Dependencies{Resources: store.resources(), WithTransaction: store.withTransaction,
+		TokenCodec: codec, MagicLinks: sender},
 		Config{FrontendBaseURL: *frontendURL, LocalDevelopment: dev,
 			Now: func() time.Time { return *clock }})
 	if err != nil {
@@ -287,7 +327,7 @@ func setupService(t *testing.T, store *fakeStore, clock *time.Time, dev bool, se
 
 func requestLink(t *testing.T, service *Service, email string) string {
 	t.Helper()
-	sender := service.deps.EmailSender.(*mockEmailSender)
+	sender := service.deps.MagicLinks.(*mockMagicLinks)
 	before := len(sender.messages)
 	if err := service.RequestLink(context.Background(), email); err != nil {
 		t.Fatal(err)
@@ -295,8 +335,7 @@ func requestLink(t *testing.T, service *Service, email string) string {
 	if len(sender.messages) != before+1 {
 		t.Fatal("magic link was not sent")
 	}
-	return strings.TrimSpace(strings.TrimPrefix(sender.messages[before].TextBody,
-		"Use this link to sign in or create an account:"))
+	return sender.messages[before].link
 }
 
 func linkToken(t *testing.T, link string) string {
@@ -322,7 +361,14 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 		t.Fatal("user was created before verification")
 	}
 	token := linkToken(t, link)
-	if _, _, err := service.Register(ctx, "not-a-token", jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(
+		ctx,
+		"not-a-token",
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		jwt.ErrRegistrationFailed,
+	) {
 		t.Fatalf("malformed registration token: %v", err)
 	}
 	user, session, err := service.Register(ctx, token, jwt.Profile{DisplayName: " New ", PhoneNumber: " 9123 4567 "})
@@ -334,7 +380,22 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	if stored.PhoneNumber == nil || *stored.PhoneNumber != "+6591234567" {
 		t.Fatalf("registration contacts not persisted: %+v", stored)
 	}
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if len(store.createdEvents) != 1 {
+		t.Fatalf("registration emitted %d user-created events, want 1", len(store.createdEvents))
+	}
+	event := store.createdEvents[0]
+	if event.EventID == uuid.Nil || event.UserID != user.ID || event.Email != user.Email ||
+		event.DisplayName != user.DisplayName || event.CreatedAt.IsZero() || !event.CreatedAt.Equal(user.CreatedAt) {
+		t.Fatalf("unexpected user-created event: %+v for user %+v", event, user)
+	}
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		jwt.ErrRegistrationFailed,
+	) {
 		t.Fatalf("reused registration token: %v", err)
 	}
 	oldRefresh := session.RefreshToken
@@ -361,6 +422,47 @@ func TestRegistrationAndRefreshLifecycle(t *testing.T) {
 	}
 	if err := service.Logout(ctx, rotated.RefreshToken); err != nil {
 		t.Fatalf("idempotent logout: %v", err)
+	}
+}
+
+func TestUserCreatedOutboxFailureRollsBackRegistration(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	service := setupService(t, store, &now, true, nil)
+	ctx := context.Background()
+	registration := requestLink(t, service, "new@example.com")
+	store.failCreatedEvent = errors.New("outbox unavailable")
+
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, registration),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); err == nil {
+		t.Fatal("registration succeeded despite outbox failure")
+	}
+	if len(store.users) != 0 || len(store.sessions) != 0 || len(store.createdEvents) != 0 {
+		t.Fatalf(
+			"failed registration left partial state: users=%d sessions=%d events=%d",
+			len(store.users),
+			len(store.sessions),
+			len(store.createdEvents),
+		)
+	}
+
+	store.failCreatedEvent = nil
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, registration),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); err != nil {
+		t.Fatalf("registration token was consumed by failed outbox write: %v", err)
+	}
+	if len(store.users) != 1 || len(store.createdEvents) != 1 {
+		t.Fatalf(
+			"retry did not commit registration and event: users=%d events=%d",
+			len(store.users),
+			len(store.createdEvents),
+		)
 	}
 }
 
@@ -458,7 +560,7 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 	store := newFakeStore()
 	user := testModelUser("user@example.com", models.RoleSuspended)
 	store.users[user.ID] = user
-	service := setupService(t, store, &now, false, &mockEmailSender{})
+	service := setupService(t, store, &now, false, &mockMagicLinks{})
 	link := requestLink(t, service, "user@example.com")
 	_, tokens, err := service.Login(context.Background(), linkToken(t, link))
 	if err != nil {
@@ -487,13 +589,12 @@ func TestSuspendedUserCanAuthenticateAndRefreshRole(t *testing.T) {
 func TestProductionLinkIsEmailOnly(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore()
-	sender := &mockEmailSender{}
+	sender := &mockMagicLinks{}
 	service := setupService(t, store, &now, false, sender)
 	if err := service.RequestLink(context.Background(), "user@example.com"); err != nil || len(sender.messages) != 1 {
 		t.Fatalf("production email failed: %v", err)
 	}
-	digest := sha256.Sum256([]byte(linkToken(t, strings.TrimSpace(strings.TrimPrefix(sender.messages[0].TextBody,
-		"Use this link to sign in or create an account:")))))
+	digest := sha256.Sum256([]byte(linkToken(t, sender.messages[0].link)))
 	if _, ok := store.registrations[digest]; !ok {
 		t.Fatal("emailed token digest was not stored")
 	}
@@ -509,7 +610,11 @@ func TestProductionLinkIsEmailOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("local email-only mode rejected: %v", err)
 	}
-	if err := localEmailOnly.RequestLink(context.Background(), "another@example.com"); err != nil || len(sender.messages) != 2 {
+	if err := localEmailOnly.RequestLink(
+		context.Background(),
+		"another@example.com",
+	); err != nil ||
+		len(sender.messages) != 2 {
 		t.Fatalf("local email mode: %v", err)
 	}
 }
@@ -524,30 +629,83 @@ func TestInvalidProfileAndDuplicateRegistration(t *testing.T) {
 	}
 	first := requestLink(t, service, "new@example.com")
 	second := requestLink(t, service, "new@example.com")
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " ", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: " ", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("invalid profile: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: strings.Repeat("x", 101), PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: strings.Repeat("x", 101), PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("display name exceeding database limit: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New"},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("missing phone number: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "   "}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "   "},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("blank phone number: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: "12345"}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "12345"},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("invalid phone number: %v", err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: "New", PhoneNumber: strings.Repeat("1", 21)}); !errors.Is(err, jwt.ErrInvalidProfile) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: "New", PhoneNumber: strings.Repeat("1", 21)},
+	); !errors.Is(
+		err,
+		jwt.ErrInvalidProfile,
+	) {
 		t.Fatalf("phone number exceeding database limit: %v", err)
 	}
 	validName := strings.Repeat("x", MaxDisplayNameLength)
-	user, _, err := service.Register(ctx, linkToken(t, first), jwt.Profile{DisplayName: " " + validName + " ", PhoneNumber: "+6591234567"})
+	user, _, err := service.Register(
+		ctx,
+		linkToken(t, first),
+		jwt.Profile{DisplayName: " " + validName + " ", PhoneNumber: "+6591234567"},
+	)
 	if err != nil || user.DisplayName != validName {
 		t.Fatalf("100-character name after trimming: %+v, %v", user, err)
 	}
-	if _, _, err := service.Register(ctx, linkToken(t, second), jwt.Profile{DisplayName: "Again", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrAlreadyRegistered) {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, second),
+		jwt.Profile{DisplayName: "Again", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		jwt.ErrAlreadyRegistered,
+	) {
 		t.Fatalf("duplicate registration: %v", err)
 	}
 }
@@ -560,7 +718,14 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	ctx := context.Background()
 	token := addRegistrationChallenge(t, store, now)
 
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); !errors.Is(err, jwt.ErrRegistrationFailed) {
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); !errors.Is(
+		err,
+		ErrEmailDomainNotAllowed,
+	) {
 		t.Fatalf("registration with a disallowed domain: %v", err)
 	}
 	if len(store.users) != 0 {
@@ -571,7 +736,11 @@ func TestRegistrationRequiresAllowedDomain(t *testing.T) {
 	}
 
 	store.allowedDomains["example.com"] = struct{}{}
-	if _, _, err := service.Register(ctx, token, jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err != nil {
+	if _, _, err := service.Register(
+		ctx,
+		token,
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); err != nil {
 		t.Fatalf("registration after allowing the domain: %v", err)
 	}
 }
@@ -583,14 +752,22 @@ func TestSessionStorageFailurePreservesMagicLink(t *testing.T) {
 	ctx := context.Background()
 	registration := requestLink(t, service, "new@example.com")
 	store.failSession = true
-	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err == nil {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, registration),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); err == nil {
 		t.Fatal("registration succeeded despite session storage failure")
 	}
 	if len(store.users) != 0 {
 		t.Fatal("failed registration created a user")
 	}
 	store.failSession = false
-	if _, _, err := service.Register(ctx, linkToken(t, registration), jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"}); err != nil {
+	if _, _, err := service.Register(
+		ctx,
+		linkToken(t, registration),
+		jwt.Profile{DisplayName: "New", PhoneNumber: "+6591234567"},
+	); err != nil {
 		t.Fatalf("registration link lost after storage failure: %v", err)
 	}
 	login := requestLink(t, service, "new@example.com")
@@ -652,14 +829,14 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 		return setupService(t, store, &now, true, nil)
 	}
 
-	t.Run("email sender", func(t *testing.T) {
+	t.Run("magic link sender", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.EmailSender = nil
+		service.deps.MagicLinks = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("auth store while requesting link", func(t *testing.T) {
 		service := newService(t, newFakeStore())
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _ = service.RequestLink(ctx, "new@example.com") })
 	})
 	t.Run("transaction runner while completing login", func(t *testing.T) {
@@ -701,7 +878,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while refreshing", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Users = nil
+		service.deps.Resources.Users = nil
 		assertPanics(t, func() { _, _, _ = service.Refresh(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while refreshing", func(t *testing.T) {
@@ -716,7 +893,7 @@ func TestMissingAuthDependenciesPanic(t *testing.T) {
 	})
 	t.Run("auth store while logging out", func(t *testing.T) {
 		service, _, refreshToken := serviceWithRefreshToken(t, now)
-		service.deps.Store.Sessions = nil
+		service.deps.Resources.Sessions = nil
 		assertPanics(t, func() { _ = service.Logout(ctx, refreshToken) })
 	})
 	t.Run("transaction runner while logging out everywhere", func(t *testing.T) {
@@ -739,8 +916,13 @@ func addLoginChallenge(t *testing.T, store *fakeStore, now time.Time) string {
 	}
 	user := testModelUser("user@example.com", models.RoleUser)
 	store.users[user.ID] = user
-	store.logins[digest] = models.AuthToken{TokenHash: append([]byte(nil), digest[:]...), Purpose: models.TokenPurposeLogin,
-		Email: user.Email, UserID: &user.ID, ExpiresAt: now.Add(MagicLinkLifetime)}
+	store.logins[digest] = models.AuthToken{
+		TokenHash: append([]byte(nil), digest[:]...),
+		Purpose:   models.TokenPurposeLogin,
+		Email:     user.Email,
+		UserID:    &user.ID,
+		ExpiresAt: now.Add(MagicLinkLifetime),
+	}
 	return token
 }
 
@@ -782,4 +964,23 @@ func assertPanics(t *testing.T, call func()) {
 		}
 	}()
 	call()
+}
+
+func TestRequestLinkPurposeFollowsAccountExistence(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore()
+	user := testModelUser("existing@example.com", models.RoleUser)
+	store.users[user.ID] = user
+	sender := &mockMagicLinks{}
+	service := setupService(t, store, &now, false, sender)
+	for _, address := range []string{"existing@example.com", "new@example.com"} {
+		if err := service.RequestLink(context.Background(), address); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(sender.messages) != 2 || sender.messages[0].purpose != MagicLinkLogin ||
+		!strings.Contains(sender.messages[0].link, "/login?token=") ||
+		sender.messages[1].purpose != MagicLinkRegister || !strings.Contains(sender.messages[1].link, "/register?token=") {
+		t.Fatalf("sent = %+v", sender.messages)
+	}
 }

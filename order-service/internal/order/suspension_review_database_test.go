@@ -56,7 +56,11 @@ func TestAccountSuspensionReviewDatabase(t *testing.T) {
 			ReservedAmount: 15,
 			State:          "held",
 		}
-		a, err := NewAssigner(repo, credit, AssignmentOptions{Now: func() time.Time { return now }}).AcceptOrder(ctx, courier, o.ID, uuid.NewString())
+		a, err := NewAssigner(
+			repo,
+			credit,
+			AssignmentOptions{Now: func() time.Time { return now }},
+		).AcceptOrder(ctx, courier, o.ID, uuid.NewString())
 		if err != nil || a.Phase != AssignmentSucceeded {
 			t.Fatalf("assignment: %+v %v", a, err)
 		}
@@ -66,7 +70,11 @@ func TestAccountSuspensionReviewDatabase(t *testing.T) {
 	missing, _ := assigned()
 	// Model a legacy snapshot without the matching successful attempt. Do not
 	// synthesize another identity or infer a financial reversal from the Order.
-	if _, err := pool.Exec(ctx, "UPDATE orders SET assigned_at=assigned_at + interval '1 microsecond' WHERE id=$1", missing.ID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		"UPDATE orders SET assigned_at=assigned_at + interval '1 microsecond' WHERE id=$1",
+		missing.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,7 +89,13 @@ func TestAccountSuspensionReviewDatabase(t *testing.T) {
 		if _, err := pool.Exec(ctx, "UPDATE orders SET status=$2 WHERE id=$1", o.ID, string(status)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pool.Exec(ctx, "UPDATE order_assignment_attempts SET phase=$2, generation=7, lease_until=$3 WHERE id=$1", a.AttemptID, phase, now.Add(time.Hour)); err != nil {
+		if _, err := pool.Exec(
+			ctx,
+			"UPDATE order_assignment_attempts SET phase=$2, generation=7, lease_until=$3 WHERE id=$1",
+			a.AttemptID,
+			phase,
+			now.Add(time.Hour),
+		); err != nil {
 			t.Fatal(err)
 		}
 		untouched = append(untouched, a.AttemptID)
@@ -121,7 +135,8 @@ func TestAccountSuspensionReviewDatabase(t *testing.T) {
 	for _, id := range untouched {
 		var generation int64
 		var lease time.Time
-		if err := pool.QueryRow(ctx, "SELECT generation,lease_until FROM order_assignment_attempts WHERE id=$1", id).Scan(&generation, &lease); err != nil {
+		if err := pool.QueryRow(ctx, "SELECT generation,lease_until FROM order_assignment_attempts WHERE id=$1", id).
+			Scan(&generation, &lease); err != nil {
 			t.Fatal(err)
 		}
 		if generation != 7 || !lease.Equal(now.Add(time.Hour)) {

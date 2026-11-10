@@ -74,10 +74,20 @@ func TestCreateTelegramLinkWhileBotDisabled(t *testing.T) {
 func TestRequiresCaller(t *testing.T) {
 	h := handler(&fakeLogic{}, "foc_bot")
 	ctx := auth.WithCaller(context.Background(), auth.Caller{ID: "not-a-uuid"})
-	if _, err := h.GetTelegramLink(ctx, connect.NewRequest(&communicationv1.GetTelegramLinkRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := h.GetTelegramLink(
+		ctx,
+		connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("bad caller ID: err = %v", err)
 	}
-	if _, err := h.UnlinkTelegram(context.Background(), connect.NewRequest(&communicationv1.UnlinkTelegramRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := h.UnlinkTelegram(
+		context.Background(),
+		connect.NewRequest(&communicationv1.UnlinkTelegramRequest{}),
+	); connect.CodeOf(
+		err,
+	) != connect.CodeUnauthenticated {
 		t.Fatalf("no caller: err = %v", err)
 	}
 }
@@ -89,7 +99,8 @@ func TestGetTelegramLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.Msg.GetLinked() || resp.Msg.GetTelegramUsername() != "kevin" || !resp.Msg.GetLinkedAt().AsTime().Equal(linkedAt) {
+	if !resp.Msg.GetLinked() || resp.Msg.GetTelegramUsername() != "kevin" ||
+		!resp.Msg.GetLinkedAt().AsTime().Equal(linkedAt) {
 		t.Fatalf("linked response = %+v", resp.Msg)
 	}
 
@@ -116,5 +127,23 @@ func TestStorageErrorsStayInternal(t *testing.T) {
 		GetTelegramLink(signedIn(), connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}))
 	if connect.CodeOf(err) != connect.CodeInternal || strings.Contains(err.Error(), "10.0.0.5") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestGetTelegramLinkReportsTheRunningBot(t *testing.T) {
+	for name, tc := range map[string]struct {
+		logic *fakeLogic
+		bot   string
+		want  string
+	}{
+		"linked":       {&fakeLogic{link: linking.Link{LinkedAt: time.Now()}}, "foc_bot", "https://t.me/foc_bot"},
+		"unlinked":     {&fakeLogic{err: linking.ErrNotLinked}, "foc_bot", "https://t.me/foc_bot"},
+		"bot disabled": {&fakeLogic{err: linking.ErrNotLinked}, "", ""},
+	} {
+		resp, err := handler(tc.logic, tc.bot).
+			GetTelegramLink(signedIn(), connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}))
+		if err != nil || resp.Msg.GetBotUrl() != tc.want || (tc.want == "") != (resp.Msg.BotUrl == nil) {
+			t.Fatalf("%s: bot URL = %v, %v", name, resp.Msg.BotUrl, err)
+		}
 	}
 }

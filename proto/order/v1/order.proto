@@ -15,6 +15,8 @@ import "order/v1/shared_types.proto";
 // has no right to act on the order, failed_precondition when the order's
 // status doesn't allow the action, not_found for unknown or invisible orders.
 service OrderService {
+  rpc GetAssignmentAttempt(GetAssignmentAttemptRequest) returns (GetAssignmentAttemptResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+  rpc GetCancellation(GetCancellationRequest) returns (GetCancellationResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {}
   rpc CreateItemImageUpload(CreateItemImageUploadRequest) returns (CreateItemImageUploadResponse) {}
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
@@ -28,11 +30,27 @@ service OrderService {
 
   rpc ConfirmPickup(ConfirmPickupRequest) returns (ConfirmPickupResponse) { option idempotency_level = IDEMPOTENT; }
   rpc CreateProofUpload(CreateProofUploadRequest) returns (CreateProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc VerifyProofUpload(VerifyProofUploadRequest) returns (VerifyProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc AbandonProofUpload(AbandonProofUploadRequest) returns (AbandonProofUploadResponse) { option idempotency_level = IDEMPOTENT; }
+  rpc GetDeliveryProof(GetDeliveryProofRequest) returns (GetDeliveryProofResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
   rpc ConfirmDelivery(ConfirmDeliveryRequest) returns (ConfirmDeliveryResponse) { option idempotency_level = IDEMPOTENT; }
   rpc ConfirmReceipt(ConfirmReceiptRequest) returns (ConfirmReceiptResponse) { option idempotency_level = IDEMPOTENT; }
 
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse) {}
   rpc RecordItemLocation(RecordItemLocationRequest) returns (RecordItemLocationResponse) {}
+}
+
+message GetAssignmentAttemptRequest {
+  string attempt_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetAssignmentAttemptResponse {
+  AssignmentAttemptResult attempt = 1;
+}
+message GetCancellationRequest {
+  string operation_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetCancellationResponse {
+  CancellationResult cancellation = 1;
 }
 
 // Reserves reward_credits from the caller's available balance before the order
@@ -137,6 +155,10 @@ message ListMyOrdersRequest {
     gte: 0
     lte: 100
   }];
+  // Only orders the caller is part of now and whose lifecycle has not ended:
+  // not Completed, Cancelled, Expired, Failed or Rejected. Orders the caller
+  // withdrew from as a courier are excluded. Combines with status and role.
+  bool active_only = 5;
 }
 
 // Starts one immutable acceptance attempt at the current reward. The caller
@@ -175,9 +197,11 @@ message ConfirmPickupRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-// Assigned courier only, while Delivering. Repeating with the same upload_id
-// returns the same proof and URL.
+// Assigned courier only, while Delivering. The same upload_id keeps one proof.
+// The live signing generation replays its URL; expiry or credential/route rotation
+// refreshes the grant without creating another proof.
 message CreateProofUploadRequest {
+  int64 size_bytes = 4 [(buf.validate.field).int64 = {gte: 1, lte: 10000000}];
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   // Client-generated UUID identifying this upload attempt.
   string upload_id = 2 [(buf.validate.field).string.uuid = true];
@@ -192,19 +216,21 @@ message CreateProofUploadRequest {
   }];
 }
 
-// Assigned courier only. Delivering to Delivered. Every proof must be uploaded
-// already; otherwise the order stays Delivering and failed_precondition is
-// returned so the courier can retry.
+// Assigned courier only. Proofs must be uploaded and server-verified first.
+// On-time durable receipt preserves eligibility through delayed validation.
+// Unavailable validation stays pending/Delivering; invalid proof rejects that
+// submission without granting replacement photos its receipt time.
 message ConfirmDeliveryRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
   repeated string proof_ids = 2 [(buf.validate.field).repeated = {
-    min_items: 1
     max_items: 5
     unique: true
     items: {string: {uuid: true}}
   }];
   // The requester was unreachable, so the item was left with proof.
   bool unattended = 3;
+  // Only server-confirmed upload outages permit zero proof IDs.
+  bool without_proof = 4;
 }
 
 // Requester only. Delivered to Completed, which settles the reward. Repeating
@@ -286,6 +312,7 @@ message ConfirmPickupResponse {
   Order order = 1;
 }
 message CreateProofUploadResponse {
+  map<string, string> upload_headers = 4;
   string proof_id = 1;
   // PUT the image here before it expires.
   string upload_url = 2;
@@ -303,4 +330,37 @@ message CancelOrderResponse {
 }
 message RecordItemLocationResponse {
   Order order = 1;
+}
+
+message VerifyProofUploadRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string proof_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message VerifyProofUploadResponse {}
+message AbandonProofUploadRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string upload_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message AbandonProofUploadResponse {}
+message GetDeliveryProofRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message DeliveryProofPhoto {
+  string content_type = 4;
+  string proof_id = 1;
+  string download_url = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message PendingDeliveryConfirmation {
+  repeated string proof_ids = 1;
+  bool unattended = 2;
+  bool without_proof = 3;
+  google.protobuf.Timestamp received_at = 4;
+}
+// Participant-only proof access is independent of general order/history access.
+// Pending input is returned only to its submitting courier, never role-only admin.
+message GetDeliveryProofResponse {
+  repeated DeliveryProofPhoto proofs = 1;
+  string outage_reason = 2;
+  PendingDeliveryConfirmation pending = 3;
 }

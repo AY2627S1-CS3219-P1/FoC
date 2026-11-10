@@ -17,6 +17,7 @@ SELECT * FROM orders WHERE
    ((sqlc.arg(role)::text IN ('','requester') AND requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid) OR
     (sqlc.arg(role)::text IN ('','courier') AND (courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF(sqlc.arg(user_id)::text,'')::uuid)))))
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
+ AND (NOT sqlc.arg(active_only)::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
  AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
 
@@ -27,8 +28,20 @@ SELECT count(*) FROM orders WHERE
    ((sqlc.arg(role)::text IN ('','requester') AND requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid) OR
     (sqlc.arg(role)::text IN ('','courier') AND (courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR EXISTS (SELECT 1 FROM order_assignment_history h WHERE h.order_id=orders.id AND h.courier_id=NULLIF(sqlc.arg(user_id)::text,'')::uuid)))))
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
+ AND (NOT sqlc.arg(active_only)::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
  AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text);
+
+-- name: CountOrdersByStatus :many
+SELECT status, count(*) AS total FROM orders GROUP BY status;
+
+-- name: CountOrdersByDay :many
+-- Orders created in [from_at, to_at), by Asia/Singapore calendar day.
+SELECT (created_at AT TIME ZONE 'Asia/Singapore')::date AS day, count(*) AS total
+FROM orders
+WHERE created_at >= sqlc.arg(from_at)::timestamptz AND created_at < sqlc.arg(to_at)::timestamptz
+GROUP BY day
+ORDER BY day;
 
 -- name: OrderOffers :many
 SELECT * FROM offers WHERE order_id = $1 ORDER BY created_at DESC,id DESC;

@@ -8,19 +8,16 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 )
 
-// SetupSuspension mounts only behind the #29 workload authentication AND
-// User-only authorization boundary. Neither user JWTs nor client-supplied
-// identity headers satisfy that boundary. Default construction is fail-closed.
-// Production composition does not call this until #29 is supplied; the public
-// router never exposes this service. Tests inject temporary identities here.
-func SetupSuspension(service orderv1connect.OrderInternalServiceHandler, authenticate func(http.Handler) http.Handler, authorize connect.Interceptor) http.Handler {
-	if service == nil || authenticate == nil || authorize == nil {
-		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "authenticated User-to-Order boundary is not configured", http.StatusServiceUnavailable)
-		})
+// Internal keeps the public RPC behavior on the internal listener and adds only
+// suspension coordination. Istio STRICT mTLS authenticates workloads, and the
+// order-suspension-user-only DENY policy restricts this method to User Service.
+// Never mount this handler publicly or trust a client-supplied identity header.
+func Internal(services RPCServices, authenticate func(http.Handler) http.Handler) http.Handler {
+	mux := Setup(services, authenticate)
+	if services.Suspension != nil {
+		_, handler := orderv1connect.NewOrderInternalServiceHandler(services.Suspension,
+			connect.WithInterceptors(validate.NewInterceptor()), connect.WithReadMaxBytes(1<<20))
+		mux.Handle(orderv1connect.OrderInternalServiceApplyAccountSuspensionProcedure, handler)
 	}
-	path, handler := orderv1connect.NewOrderInternalServiceHandler(service, connect.WithInterceptors(authorize, validate.NewInterceptor()))
-	mux := http.NewServeMux()
-	mux.Handle(path, authenticate(handler))
 	return mux
 }

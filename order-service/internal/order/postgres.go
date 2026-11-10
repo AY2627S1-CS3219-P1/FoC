@@ -65,6 +65,9 @@ func (r *PostgresRepository) withSuspensionGate(ctx context.Context, exclusive b
 	if t.failed != nil {
 		return t.failed
 	}
+	if err := t.flushChanges(ctx); err != nil {
+		return persistenceError(err)
+	}
 
 	return persistenceError(tx.Commit(ctx))
 }
@@ -84,6 +87,7 @@ type postgresTx struct {
 	failed             error
 	idempotencyCallers map[IdempotencyScope]bool
 	creationBaselines  map[string]CreationWorkflow
+	changes            map[string]bool
 }
 
 // LockOrder keeps an independent baseline for validating the eventual change.
@@ -306,6 +310,7 @@ func (t *postgresTx) Apply(ctx context.Context, c Change) (err error) {
 	}
 
 	t.applied[o.ID] = true
+	t.markChanged(o.ID, before != nil && before.Status == AwaitingCourier || o.Status == AwaitingCourier)
 	return nil
 }
 
@@ -321,7 +326,10 @@ func validateChange(before *Order, c Change) error {
 	if err != nil {
 		return err
 	}
-	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus || expected.Audit.Status != c.Audit.Status || !expected.Audit.At.Equal(c.Audit.At) || len(expected.Facts) != len(c.Facts) {
+	if expected.ExpectedRevision != c.ExpectedRevision || expected.Audit.PreviousStatus != c.Audit.PreviousStatus ||
+		expected.Audit.Status != c.Audit.Status ||
+		!expected.Audit.At.Equal(c.Audit.At) ||
+		len(expected.Facts) != len(c.Facts) {
 		return ErrInvalid
 	}
 
@@ -334,7 +342,8 @@ func validateChange(before *Order, c Change) error {
 			return ErrInvalid
 		}
 		seen[f.ID] = true
-		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version || !jsonEqual(f.Payload, expected.Facts[i].Payload) {
+		if f.Kind != expected.Facts[i].Kind || f.Version != expected.Facts[i].Version ||
+			!jsonEqual(f.Payload, expected.Facts[i].Payload) {
 			return ErrInvalid
 		}
 	}

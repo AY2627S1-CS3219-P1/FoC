@@ -23,7 +23,10 @@ type SuspensionRemoval struct {
 // pickup already won, the assignment changed, or there is no assignment to remove.
 // Pending work uses B3's existing cancellation recovery; no Credit call happens
 // in the transaction or on a duplicate/delayed instruction.
-func (s *Canceller) RemoveSuspendedAssignment(ctx context.Context, target SuspensionRemoval) (*CancellationResult, error) {
+func (s *Canceller) RemoveSuspendedAssignment(
+	ctx context.Context,
+	target SuspensionRemoval,
+) (*CancellationResult, error) {
 	for _, id := range []string{target.DecisionID, target.OrderID, target.CourierID, target.AssignmentID} {
 		if parsed, err := parseID(id); err != nil || parsed.String() != id {
 			return nil, ErrInvalid
@@ -49,7 +52,8 @@ func (s *Canceller) RemoveSuspendedAssignment(ctx context.Context, target Suspen
 			if err != nil {
 				return nil, err
 			}
-			if pending.Status != CancellationPending || !matchesWithdrawal(o, pending) || pending.AssignmentID != target.AssignmentID {
+			if pending.Status != CancellationPending || !matchesWithdrawal(o, pending) ||
+				pending.AssignmentID != target.AssignmentID {
 				return nil, ErrConflict
 			}
 			result = &CancellationResult{Order: o, OperationID: pending.ID, Status: pending.Status}

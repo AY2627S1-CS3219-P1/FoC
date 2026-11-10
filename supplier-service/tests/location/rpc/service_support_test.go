@@ -22,7 +22,11 @@ type testServers struct {
 	*requestServer
 }
 
-func newTestServers(ops testOperations, principal func(context.Context) domain.Caller, clock func() time.Time) *testServers {
+func newTestServers(
+	ops testOperations,
+	principal func(context.Context) domain.Caller,
+	clock func() time.Time,
+) *testServers {
 	return &testServers{d.NewServer(ops, principal, clock), r.NewServer(ops, principal, clock)}
 }
 func mountTestServices(mux *http.ServeMux, h *testServers, auth func(http.Handler) http.Handler) error {
@@ -35,7 +39,10 @@ func mountTestServices(mux *http.ServeMux, h *testServers, auth func(http.Handle
 // Only the generated discovery/admin stubs use this test policy. Each real server mounts its own policy.
 func testCallerPolicy(c domain.Caller, procedure string) error {
 	switch procedure {
-	case locationv1connect.LocationAdminServiceCreateLocationProcedure, locationv1connect.LocationAdminServiceUpdateLocationProcedure, locationv1connect.LocationAdminServiceArchiveLocationProcedure, locationv1connect.LocationAdminServiceUnarchiveLocationProcedure:
+	case locationv1connect.LocationAdminServiceCreateLocationProcedure,
+		locationv1connect.LocationAdminServiceUpdateLocationProcedure,
+		locationv1connect.LocationAdminServiceArchiveLocationProcedure,
+		locationv1connect.LocationAdminServiceUnarchiveLocationProcedure:
 		if !c.IsAdmin() {
 			return domain.ErrAccessDenied
 		}
