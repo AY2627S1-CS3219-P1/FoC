@@ -302,7 +302,7 @@
 
 	@media (max-width: 60rem) {
 		.layout { grid-template-columns: minmax(0, 1fr); }
-		.map { grid-column: 1; grid-row: 1; position: static; height: 14rem; }
+		.map { grid-column: 1; grid-row: 1; position: relative; height: 14rem; }
 		.form-card { grid-row: 2; }
 	}
 	@media (max-width: 36rem) {
