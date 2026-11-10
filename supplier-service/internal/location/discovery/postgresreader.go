@@ -67,17 +67,23 @@ func (r *PostgresReader) ListLocations(ctx context.Context, query Query) ([]Loca
 	if err != nil {
 		return nil, 0, fmt.Errorf("count locations: %w", err)
 	}
+	var origin Coordinates
+	if query.Origin != nil {
+		origin = *query.Origin
+	}
 	rows, err := r.queries.ListLocations(ctx, locationdb.ListLocationsParams{
-		Search:        filters.Search,
-		RawSearch:     filters.RawSearch,
-		BuildingID:    filters.BuildingID,
-		CategoryID:    filters.CategoryID,
-		SuppliersOnly: filters.SuppliersOnly,
-		ArchiveFilter: filters.ArchiveFilter,
-		SortField:     string(query.Sort),
-		Descending:    query.Descending,
-		PageOffset:    query.Offset,
-		PageLimit:     query.Limit,
+		OriginLatitude:  origin.Latitude,
+		OriginLongitude: origin.Longitude,
+		Search:          filters.Search,
+		RawSearch:       filters.RawSearch,
+		BuildingID:      filters.BuildingID,
+		CategoryID:      filters.CategoryID,
+		SuppliersOnly:   filters.SuppliersOnly,
+		ArchiveFilter:   filters.ArchiveFilter,
+		SortField:       string(query.Sort),
+		Descending:      query.Descending,
+		PageOffset:      query.Offset,
+		PageLimit:       query.Limit,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list locations: %w", err)

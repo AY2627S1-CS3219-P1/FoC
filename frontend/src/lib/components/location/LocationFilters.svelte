@@ -69,6 +69,7 @@
 		...categories.map((c) => ({ value: c.id, text: c.name }))
 	]);
 	const sortOptions = [
+	{ value: 'proximity-asc', text: 'Nearest first' },
 		{ value: 'name-asc', text: 'Name (A–Z)' },
 		{ value: 'name-desc', text: 'Name (Z–A)' },
 		{ value: 'building-asc', text: 'Building (A–Z)' },

@@ -125,6 +125,17 @@ func (s *Server) ListOpenOrders(
 		DeliveryBuildingName: m.GetDeliveryBuildingName(),
 	}
 
+	switch m.Sort {
+	case pb.OpenOrderSort_OPEN_ORDER_SORT_UNSPECIFIED, pb.OpenOrderSort_OPEN_ORDER_SORT_NEWEST:
+		r.Sort = app.SortNewest
+	case pb.OpenOrderSort_OPEN_ORDER_SORT_PROXIMITY:
+		r.Sort = app.SortProximity
+	default:
+		return nil, shared.ConnectError(ctx, app.ErrInvalid)
+	}
+	if m.Origin != nil {
+		r.Origin = &app.Coordinates{Latitude: m.Origin.Latitude, Longitude: m.Origin.Longitude}
+	}
 	p, err := s.operations.ListOpenOrders(ctx, shared.Caller(ctx), r)
 	if err != nil {
 		return nil, shared.ConnectError(ctx, err)

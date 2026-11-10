@@ -19,7 +19,8 @@
 		"test:realtime": "node scripts/check-realtime.mjs",
 		"test:profile-pictures": "node scripts/check-profile-pictures.mjs",
 		"buf:lint": "cd .. && buf lint",
-		"buf:generate": "cd .. && buf generate"
+		"buf:generate": "cd .. && buf generate",
+		"test:proximity": "node scripts/check-proximity.mjs"
 	},
 	"devDependencies": {
 		"@bufbuild/protoc-gen-es": "2.15.0",

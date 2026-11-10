@@ -1,6 +1,6 @@
 import type { Client } from '@connectrpc/connect';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
-import { OrderService } from '$lib/gen/order/v1/order_pb';
+import { OpenOrderSort, OrderService } from '$lib/gen/order/v1/order_pb';
 import type { Order, PageInfo } from '$lib/gen/order/v1/shared_types_pb';
 import type { CreateOrderInput, ItemImageGrant, OrderApi, OrderPage, OrderQuery } from './orderApi.ts';
 
@@ -25,6 +25,8 @@ export class ConnectOrderApi implements OrderApi {
 
 	async listOpenOrders(query: OrderQuery): Promise<OrderPage> {
 		const request = {
+			sort: query.sort === 'proximity' ? OpenOrderSort.PROXIMITY : OpenOrderSort.NEWEST,
+			origin: query.origin,
 			page: query.page ?? 1, pageSize: query.pageSize ?? 20,
 			pickupLocationId: query.pickupLocationId || undefined,
 			deliveryBuildingName: query.deliveryBuildingName ?? ''

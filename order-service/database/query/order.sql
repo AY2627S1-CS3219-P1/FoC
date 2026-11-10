@@ -19,7 +19,14 @@ SELECT * FROM orders WHERE
  AND (sqlc.arg(status_filter)::text = '' OR status = sqlc.arg(status_filter))
  AND (NOT sqlc.arg(active_only)::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid OR courier_id = NULLIF(sqlc.arg(user_id)::text,'')::uuid)))
  AND (sqlc.arg(pickup_id)::text = '' OR pickup->>'location_id' = sqlc.arg(pickup_id)::text)
- AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
+ AND (sqlc.arg(delivery_building_name)::text = '' OR delivery->>'building_name' = sqlc.arg(delivery_building_name)::text) ORDER BY
+ CASE WHEN sqlc.arg(proximity)::boolean AND pickup->'coordinates'->>'latitude' IS NOT NULL AND pickup->'coordinates'->>'longitude' IS NOT NULL THEN
+  2 * 6371000 * asin(sqrt(least(1.0, greatest(0.0,
+   power(sin(radians((pickup->'coordinates'->>'latitude')::double precision - sqlc.arg(origin_latitude)::double precision)/2), 2) +
+   cos(radians(sqlc.arg(origin_latitude)::double precision)) * cos(radians((pickup->'coordinates'->>'latitude')::double precision)) *
+   power(sin(radians((pickup->'coordinates'->>'longitude')::double precision - sqlc.arg(origin_longitude)::double precision)/2), 2)
+  )))) END ASC NULLS LAST,
+ created_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset)::bigint;
 
 -- name: CountOrders :one
 SELECT count(*) FROM orders WHERE

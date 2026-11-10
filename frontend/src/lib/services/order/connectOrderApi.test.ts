@@ -44,3 +44,15 @@ it('sends the coarse destination contract without an exact destination ID', asyn
  expect(listOpenOrders).toHaveBeenCalledWith(expect.objectContaining({ deliveryBuildingName: 'COM3' }));
  expect(listOpenOrders.mock.calls[0]?.[0]).not.toHaveProperty('deliveryLocationId');
 });
+
+it('sends zero coordinates and proximity sort with each paginated request', async () => {
+	const listOpenOrders = vi.fn(async (_request: unknown) => ({ orders: [], pageInfo: create(PageInfoSchema) }));
+	const api = new ConnectOrderApi({ listOpenOrders } as unknown as Client<typeof OrderService>);
+	const origin = { latitude: 0, longitude: 0 };
+	await api.listOpenOrders({ sort: 'proximity', origin, page: 1 });
+	await api.listOpenOrders({ sort: 'proximity', origin, page: 2 });
+	expect(listOpenOrders.mock.calls.map(([request]) => request)).toEqual([
+		expect.objectContaining({ origin, sort: 2, page: 1 }),
+		expect.objectContaining({ origin, sort: 2, page: 2 })
+	]);
+});

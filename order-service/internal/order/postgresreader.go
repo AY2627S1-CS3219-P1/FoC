@@ -127,7 +127,14 @@ func (r *PostgresRepository) List(ctx context.Context, q ReadQuery) (OrderPage, 
 		}
 	}
 
+	var origin Coordinates
+	if q.ListRequest.Origin != nil {
+		origin = *q.ListRequest.Origin
+	}
 	args := db.ListOrdersParams{
+		Proximity:            q.ListRequest.Sort == SortProximity,
+		OriginLatitude:       origin.Latitude,
+		OriginLongitude:      origin.Longitude,
 		OpenOnly:             q.Open,
 		CallerID:             caller,
 		NowAt:                time.Now(),

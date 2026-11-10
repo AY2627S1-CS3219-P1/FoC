@@ -46,11 +46,24 @@ func (s Status) IsTerminal() bool {
 	return s == Completed || s == Cancelled || s == Expired || s == Failed || s == Rejected
 }
 
+type Coordinates struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+type OpenOrderSort string
+
+const (
+	SortNewest    OpenOrderSort = "newest"
+	SortProximity OpenOrderSort = "proximity"
+)
+
 type LocationSnapshot struct {
-	LocationID   string  `json:"location_id"`
-	Name         string  `json:"name"`
-	BuildingName string  `json:"building_name"`
-	Floor        *string `json:"floor,omitempty"`
+	Coordinates  *Coordinates `json:"coordinates,omitempty"`
+	LocationID   string       `json:"location_id"`
+	Name         string       `json:"name"`
+	BuildingName string       `json:"building_name"`
+	Floor        *string      `json:"floor,omitempty"`
 }
 
 type Order struct {
@@ -181,6 +194,8 @@ func (p PageInfo) TotalPages() int32 {
 }
 
 type ListRequest struct {
+	Sort                 OpenOrderSort
+	Origin               *Coordinates
 	Page                 Page
 	Status               Status
 	Role                 Role

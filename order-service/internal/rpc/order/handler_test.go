@@ -240,6 +240,8 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 		ctx,
 		connect.NewRequest(
 			&pb.ListOpenOrdersRequest{
+				Sort:                 pb.OpenOrderSort_OPEN_ORDER_SORT_PROXIMITY,
+				Origin:               &pb.Coordinates{},
 				PickupLocationId:     proto.String(locationID),
 				DeliveryBuildingName: "COM3",
 				Page:                 3,
@@ -249,6 +251,7 @@ func TestReadRPCConversionAndFilters(t *testing.T) {
 	)
 	if err != nil || f.called != "open" || f.request.PickupID != locationID ||
 		f.request.DeliveryBuildingName != "COM3" ||
+		f.request.Sort != app.SortProximity || f.request.Origin == nil || *f.request.Origin != (app.Coordinates{}) ||
 		f.request.Page.Number != 3 ||
 		f.request.Page.Size != 10 {
 		t.Fatalf("open filters: %+v err=%v", f, err)

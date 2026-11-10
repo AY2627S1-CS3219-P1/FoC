@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { Code, ConnectError } from '@connectrpc/connect';
+	import { untrack } from 'svelte';
+	import { Proximity } from '$lib/components/map/proximity.svelte';
+	import LocationStatus from '$lib/components/map/LocationStatus.svelte';
+	import { distanceLabel, distanceMetres } from '$lib/components/map/geo';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
@@ -18,9 +21,14 @@
 
 	const suspended = $derived(authService.user?.role === UserRole.SUSPENDED_USER);
 	const selectedId = $derived(page.url.searchParams.get('selected') ?? '');
+	const proximity = new Proximity();
+	$effect(() => {
+		if (authService.user?.id && query.sort === 'proximity' && !proximity.attempted) void untrack(() => proximity.locate());
+	});
 	const query: OrderQuery = $derived({
 		page: Math.max(1, Number(page.url.searchParams.get('page')) || 1),
 		pickupLocationId: page.url.searchParams.get('pickup') || undefined,
+		sort: page.url.searchParams.get('sort') === 'proximity' ? 'proximity' : 'newest',
 		deliveryBuildingName: page.url.searchParams.get('destination') || undefined
 	});
 
@@ -58,7 +66,10 @@
 
 	$effect(() => {
 		const identity = authService.user?.id;
-		const current = query;
+		const requested = query;
+		const origin = proximity.origin;
+		if (requested.sort === 'proximity' && (!proximity.attempted || proximity.locating)) return;
+		const current = { ...requested, sort: requested.sort === 'proximity' && !origin ? 'newest' as const : requested.sort, origin: origin ?? undefined };
 		void revision;
 		void listRevision;
 		error = '';
@@ -83,7 +94,7 @@
 	// Only the id drives this effect; reading `selected` here would re-run it on every fetch.
 	let selected = $state<Order | null>(null);
 	let selectedError = $state('');
- let selectedCaller: string | undefined;
+	let selectedCaller: string | undefined;
 	$effect(() => {
 		const id = selectedId;
 		const user = authService.user?.id;
@@ -107,7 +118,6 @@
             }));
 		return () => { stale = true; stop(); };
 	});
-
 
 	async function refreshSelected() {
 		if (!selectedId) return;
@@ -160,7 +170,14 @@
 		{:else if suspended}
 			<p class="notice">Your account is suspended, so you can't deliver requests. You can still read <a href="/orders/mine">your orders</a>.</p>
 		{:else}
+			<LocationStatus {proximity} fallback="Showing newest requests." />
 			<div class="filters">
+				<SelectOutlined
+					label="Sort by"
+					value={query.sort ?? 'newest'}
+					options={[{ value: 'newest', text: 'Newest first' }, { value: 'proximity', text: 'Nearest first' }]}
+					onchange={(e) => update('sort', e.currentTarget.value)}
+				/>
 				<SelectOutlined
 					label="Destination"
 					width="100%"
@@ -207,7 +224,7 @@
 									data-sveltekit-keepfocus
 								>
 									<span class="title-line">
-										<span class="title">{order.itemDescription}</span>
+										<span class="title">{order.itemDescription}{proximity.origin && order.pickup?.coordinates ? ' · ' + distanceLabel(distanceMetres(proximity.origin, order.pickup.coordinates)) : ''}</span>
 										<span class="reward">{order.rewardCredits.toString()} credits</span>
 									</span>
 									<span class="meta">From {order.pickup?.name ?? 'pickup'} to {order.deliveryBuildingName || 'an unlisted area'}</span>

@@ -1,4 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { Proximity } from '$lib/components/map/proximity.svelte';
+	import LocationStatus from '$lib/components/map/LocationStatus.svelte';
+	import { distanceLabel, distanceMetres } from '$lib/components/map/geo';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
@@ -14,6 +18,10 @@
 	import { formatOpeningHours } from '$lib/services/location/format';
 	import { paramsFromQuery, queryFromParams } from '$lib/services/location/query';
 
+	const proximity = new Proximity();
+	$effect(() => {
+		if (authService.user?.id && query.sort === 'proximity' && !proximity.attempted) void untrack(() => proximity.locate());
+	});
 	const query = $derived(queryFromParams(page.url.searchParams));
 	const selectedId = $derived(page.url.searchParams.get('selected') ?? '');
 	const isAdmin = $derived(
@@ -50,7 +58,10 @@
 
 	// Refetch whenever the URL query changes; ignore responses that arrive late.
 	$effect(() => {
-		const current = query;
+		const requested = query;
+		const origin = proximity.origin;
+		if (requested.sort === 'proximity' && (!proximity.attempted || proximity.locating)) return;
+		const current = { ...requested, sort: requested.sort === 'proximity' && !origin ? 'name' as const : requested.sort, origin: origin ?? undefined };
 		void reload;
 		let stale = false;
 		loading = true;
@@ -128,7 +139,8 @@
 			<p class="notice error" role="alert">{referenceError}</p>
 			<Button variant="text" onclick={() => referenceReload++}>Retry filters</Button>
 		{/if}
-		<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
+		<LocationStatus {proximity} fallback="Showing suppliers by name." />
+	<LocationFilters {query} {buildings} {categories} {isAdmin} onchange={update} />
 
 		<div class="results" aria-live="polite">
 			{#if error}
@@ -165,7 +177,7 @@
 							>
 								<span class="title">{location.name}</span>
 								<span class="meta">
-									{location.building?.name ?? ''}{location.floor ? ', ' + location.floor : ''}
+									{location.building?.name ?? ''}{proximity.origin && location.coordinates ? ', ' + distanceLabel(distanceMetres(proximity.origin, location.coordinates)) + ' away' : ''}{location.floor ? ', ' + location.floor : ''}
 								</span>
 								<span class="meta">{formatOpeningHours(location.opensAt, location.closesAt)}</span>
 								{#if location.currentDisablement}<span class="closed">Temporarily closed</span>{/if}

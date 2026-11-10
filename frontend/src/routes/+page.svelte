@@ -1,17 +1,20 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { Proximity } from '$lib/components/map/proximity.svelte';
+	import LocationStatus from '$lib/components/map/LocationStatus.svelte';
 	import { goto } from '$app/navigation';
-	import { Button, Card, LoadingIndicator, TextFieldOutlined } from 'm3-svelte';
+	import { Button, Card, LoadingIndicator, SelectOutlined, TextFieldOutlined } from 'm3-svelte';
 	import type { Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { ParticipantRole } from '$lib/gen/order/v1/shared_types_pb';
 	import type { Building, Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
 	import { UserRole } from '$lib/gen/user/v1/auth_pb';
-	import { authService, locationApi, orderApi } from '$lib/services';
+	import { authService, locationApi, orderApi, realtimeService } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { describeLocationError } from '$lib/services/location/errors';
 	import iconSearch from '@ktibow/iconset-material-symbols/search';
 	import iconHourglass from '@ktibow/iconset-material-symbols/hourglass-empty';
 	import CampusMap, { type MapMarker } from '$lib/components/map/CampusMap.svelte';
-	import { currentPosition, distanceLabel, distanceMetres, type Point } from '$lib/components/map/geo';
+	import { distanceLabel, distanceMetres, type Point } from '$lib/components/map/geo';
 
 	$effect(() => {
 		if (!authService.isAuthenticated) void goto('/login', { replaceState: true });
@@ -36,48 +39,68 @@
 	let openLoading = $state(true);
 	let recentPickupIds = $state<string[]>([]);
 
-	// Pickup locations that are not suppliers (or beyond the first page) are fetched on demand.
+	// Recent pickups outside the supplier page are fetched on demand.
 	let extraLocations = $state<Record<string, Location>>({});
-	let origin = $state<Point | null>(null);
-	let locating = $state(false);
-	let locateError = $state('');
+	const proximity = new Proximity();
+	const origin = $derived(proximity.origin);
+	let requestSort = $state<'newest' | 'proximity'>('proximity');
+	let supplierSort = $state<'name' | 'proximity'>('proximity');
+	$effect(() => { if (authService.user?.id && !proximity.attempted) void untrack(() => proximity.locate()); });
 
 	const suspended = $derived(authService.user?.role === UserRole.SUSPENDED_USER);
 
-	// Initial data: suppliers and building centres for the map, open requests,
-	// and the caller's recent pickups for the "recent suppliers" stub (#236).
+	// Recent history keeps its own order, independent of either proximity control.
 	$effect(() => {
-		const caller = authService.user?.id;
-		if (!caller) return;
+		if (!authService.user?.id) return;
 		let active = true;
-
-		suppliersLoading = true;
-		locationApi
-			.listLocations({ suppliersOnly: true, pageSize: 100, sort: 'name' })
-			.then((page) => { if (active) suppliers = page.locations; })
-			.catch((cause) => { if (active) supplierError = describeLocationError(cause); })
-			.finally(() => { if (active) suppliersLoading = false; });
 		locationApi.listBuildings().then((values) => { if (active) buildings = values; }, () => {});
+		orderApi.listMyOrders({ role: ParticipantRole.REQUESTER, pageSize: 20 }).then((page) => {
+			if (!active) return;
+			const ids = page.orders.map((order) => order.pickup?.locationId).filter((id) => id !== undefined);
+			recentPickupIds = [...new Set(ids)].slice(0, 4);
+		}, () => {});
+		return () => { active = false; };
+	});
 
-		if (!suspended) {
-			openLoading = true;
-			orderApi
-				.listOpenOrders({ pageSize: 20 })
-				.then((page) => { if (active) openOrders = page.orders; })
-				.catch((cause) => { if (active) openError = describeOrderError(cause, 'load open requests'); })
-				.finally(() => { if (active) openLoading = false; });
-		} else {
-			openLoading = false;
-		}
+	$effect(() => {
+		if (!authService.user?.id || !proximity.attempted || proximity.locating) return;
+		if (suspended) { openLoading = false; return; }
+		const query = { pageSize: 20, sort: origin ? requestSort : 'newest' as const, origin: origin ?? undefined };
+		let active = true;
+		openLoading = true;
+		openError = '';
+		const stop = realtimeService.subscribe(['openOrders'], () => orderApi.listOpenOrders(query)
+			.then((page) => { if (active) { openOrders = page.orders; openError = ''; } })
+			.catch((cause) => { if (active) openError = describeOrderError(cause, 'load open requests'); })
+			.finally(() => { if (active) openLoading = false; }));
+		return () => { active = false; stop(); };
+	});
 
-		orderApi
-			.listMyOrders({ role: ParticipantRole.REQUESTER, pageSize: 20 })
+	let submittedSearch = $state('');
+	let searchRevision = $state(0);
+	$effect(() => {
+		if (!authService.user?.id || !proximity.attempted || proximity.locating) return;
+		const term = submittedSearch;
+		void searchRevision;
+		const query = { suppliersOnly: true, pageSize: term ? 20 : 100,
+			search: term, sort: origin ? supplierSort : 'name' as const, origin: origin ?? undefined };
+		let active = true;
+		suppliersLoading = true;
+		searching = Boolean(term);
+		supplierError = '';
+		locationApi.listLocations(query)
 			.then((page) => {
 				if (!active) return;
-				const ids = page.orders.map((order) => order.pickup?.locationId).filter((id) => id !== undefined);
-				recentPickupIds = [...new Set(ids)].slice(0, 4);
-			}, () => {});
-
+				if (term) {
+					searchResults = page.locations;
+					selection = page.locations[0] ? { kind: 'supplier', id: page.locations[0].id } : null;
+				} else {
+					suppliers = page.locations;
+					searchResults = null;
+				}
+			})
+			.catch((cause) => { if (active) supplierError = describeLocationError(cause); })
+			.finally(() => { if (active) { suppliersLoading = false; searching = false; } });
 		return () => { active = false; };
 	});
 
@@ -85,10 +108,10 @@
 		new Map([...suppliers, ...Object.values(extraLocations)].map((location) => [location.id, location]))
 	);
 
-	// Resolve recent pickups and map coordinates beyond the first supplier page.
+	// Resolve recent pickups beyond the supplier page.
 	$effect(() => {
 		const known = locationsById;
-		const ids = [...recentPickupIds, ...openOrders.map((order) => order.pickup?.locationId)];
+		const ids = recentPickupIds;
 		const missing = [...new Set(ids)].filter(
 			(id): id is string => Boolean(id) && !known.has(id!)
 		);
@@ -106,7 +129,7 @@
 	});
 
 	function pickupPoint(order: Order): Point | undefined {
-		const coordinates = locationsById.get(order.pickup?.locationId ?? '')?.coordinates;
+		const coordinates = order.pickup?.coordinates;
 		return coordinates ? { latitude: coordinates.latitude, longitude: coordinates.longitude } : undefined;
 	}
 
@@ -119,16 +142,7 @@
 		selection?.kind === 'request' ? openOrders.find((order) => order.id === selection!.id) : undefined
 	);
 
-	// Proximity sort is page-local until Order Service supports it (#235).
-	const sortedOrders = $derived.by(() => {
-		if (!origin) return openOrders;
-		const from = origin;
-		const distance = (order: Order) => {
-			const point = pickupPoint(order);
-			return point ? distanceMetres(from, point) : Number.POSITIVE_INFINITY;
-		};
-		return [...openOrders].sort((a, b) => distance(a) - distance(b));
-	});
+	const sortedOrders = $derived(openOrders);
 
 	const visibleSuppliers = $derived(searchResults ?? suppliers);
 	const recentSuppliers = $derived(
@@ -150,7 +164,8 @@
 				return point ? [{ id: order.id, ...point, kind: 'pickup' as const, label: order.itemDescription }] : [];
 			});
 		}
-		return visibleSuppliers.flatMap((location) =>
+		const displayed = searchResults ? visibleSuppliers : [...recentSuppliers, ...visibleSuppliers];
+		return [...new Map(displayed.map((location) => [location.id, location])).values()].flatMap((location) =>
 			location.coordinates
 				? [{ id: location.id, latitude: location.coordinates.latitude, longitude: location.coordinates.longitude, kind: 'supplier' as const, label: location.name }]
 				: []
@@ -177,45 +192,19 @@
 		selection = null;
 	}
 
-	// Searching zooms the map to the top supplier result.
-	async function findSuppliers(event?: SubmitEvent) {
+	function findSuppliers(event?: SubmitEvent) {
 		event?.preventDefault();
-		const term = search.trim();
-		if (!term) {
-			searchResults = null;
-			return;
-		}
-		searching = true;
-		supplierError = '';
-		try {
-			const page = await locationApi.listLocations({ search: term, suppliersOnly: true, pageSize: 20 });
-			searchResults = page.locations;
-			mode = 'suppliers';
-			selection = page.locations[0] ? { kind: 'supplier', id: page.locations[0].id } : null;
-		} catch (cause) {
-			supplierError = describeLocationError(cause);
-		} finally {
-			searching = false;
-		}
+		submittedSearch = search.trim();
+		searchRevision++;
+		mode = 'suppliers';
+		selection = null;
 	}
 
 	function clearSearch() {
 		search = '';
+		submittedSearch = '';
 		searchResults = null;
 		selection = null;
-	}
-
-	async function sortByDistance() {
-		locating = true;
-		locateError = '';
-		try {
-			origin = await currentPosition();
-			mode = 'requests';
-		} catch (cause) {
-			locateError = cause instanceof Error ? cause.message : 'Could not get your location.';
-		} finally {
-			locating = false;
-		}
 	}
 
 	function distanceTo(order: Order): string {
@@ -231,7 +220,7 @@
 	<li class="row" class:selected>
 		<button type="button" class="row-main" aria-pressed={selected} onclick={() => selectSupplier(location.id)}>
 			<span class="title">{location.name}</span>
-			<span class="meta">{location.building?.name ?? ''}{location.floor ? ', ' + location.floor : ''}</span>
+			<span class="meta">{location.building?.name ?? ''}{origin && location.coordinates ? ', ' + distanceLabel(distanceMetres(origin, location.coordinates)) + ' away' : ''}{location.floor ? ', ' + location.floor : ''}</span>
 			{#if location.currentDisablement}<span class="closed">Closed now</span>{/if}
 		</button>
 		{#if location.archivedAt}
@@ -245,6 +234,7 @@
 {#if authService.user}
 	<section class="home" aria-labelledby="home-title">
 		<h1 id="home-title" class="visually-hidden">Home</h1>
+	{#if proximity.locating || proximity.error}<div class="location-status"><LocationStatus {proximity} /></div>{/if}
 
 		<div class="map-panel">
 			<CampusMap
@@ -268,11 +258,16 @@
 				<header class="panel-head">
 					<h2 id="open-title">Open requests</h2>
 					<div class="panel-actions">
-						<Button variant={origin ? 'tonal' : 'text'} size="s" aria-pressed={Boolean(origin)} disabled={locating || suspended || !openOrders.length} onclick={() => void (origin ? (origin = null) : sortByDistance())}>{locating ? 'Finding you…' : 'Nearest first'}</Button>
-						<Button variant="text" size="s" href="/orders">See all</Button>
+						<SelectOutlined
+							label="Request order"
+							value={requestSort}
+							options={[{ value: 'proximity', text: 'Nearest first' }, { value: 'newest', text: 'Newest first' }]}
+							onchange={(e) => requestSort = e.currentTarget.value as typeof requestSort}
+						/>
+						<Button variant="text" size="s" href={'/orders?sort=' + (origin ? requestSort : 'newest')}>See all</Button>
 					</div>
 				</header>
-				{#if locateError}<p class="notice" role="status">{locateError}</p>{/if}
+
 				{#if suspended}
 					<p class="notice">Your account is suspended, so you can't deliver requests.</p>
 				{:else if openLoading}
@@ -302,13 +297,21 @@
 			<div class="panel" aria-labelledby="request-title">
 				<header class="panel-head">
 					<h2 id="request-title">Request delivery</h2>
-					<Button variant="text" size="s" href="/suppliers">All suppliers</Button>
+					<div class="panel-actions">
+						<SelectOutlined
+							label="Supplier order"
+							value={supplierSort}
+							options={[{ value: 'proximity', text: 'Nearest first' }, { value: 'name', text: 'Name (A–Z)' }]}
+							onchange={(e) => supplierSort = e.currentTarget.value as typeof supplierSort}
+						/>
+						<Button variant="text" size="s" href={'/suppliers?suppliers=1&sort=' + (origin ? supplierSort : 'name')}>All suppliers</Button>
+					</div>
 				</header>
-				<form class="search" role="search" onsubmit={(event) => void findSuppliers(event)}>
+				<form class="search" role="search" onsubmit={(event) => findSuppliers(event)}>
 					<TextFieldOutlined
 						label="Search suppliers"
 						bind:value={search}
-						trailing={{ icon: searching ? iconHourglass : iconSearch, 'aria-label': 'Search', disabled: searching, onclick: () => void findSuppliers() }}
+						trailing={{ icon: searching ? iconHourglass : iconSearch, 'aria-label': 'Search', disabled: searching, onclick: () => findSuppliers() }}
 					/>
 				</form>
 				{#if supplierError}<p class="notice error" role="alert">{supplierError}</p>{/if}
@@ -337,10 +340,10 @@
 
 <style>
 	/* Wireframe: map across the top, open requests and request delivery side by side. */
+	.location-status { grid-column: 1 / -1; }
 	.home {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		grid-template-rows: minmax(16rem, 42vh) minmax(0, 1fr);
 		gap: 1rem;
 		max-width: 76rem;
 		margin: 0 auto;
@@ -350,6 +353,7 @@
 		grid-column: 1 / -1;
 		position: relative;
 		min-height: 16rem;
+		height: 42vh;
 	}
 
 	.map-toggle {
@@ -409,7 +413,7 @@
 
 	.panel-head h2 { white-space: nowrap; }
 
-	.panel-actions { display: flex; gap: 0.25rem; white-space: nowrap; }
+	.panel-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
 
 	h2 { margin: 0; font-size: 1.15rem; }
 
@@ -508,9 +512,9 @@
 	}
 
 	@media (max-width: 60rem) {
+		.map-panel { height: 18rem; }
 		.home {
 			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: 18rem auto auto;
 		}
 	}
 </style>
