@@ -148,6 +148,8 @@
 
 <style>
 	.campus-map {
+		/* Positioned so the z-index below applies: contains Leaflet's high panes inside this panel. */
+		position: relative;
 		width: 100%;
 		height: 100%;
 		min-height: 12rem;
