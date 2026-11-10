@@ -207,8 +207,9 @@ func (ReportOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_user_report_v1_report_proto_rawDescGZIP(), []int{2}
 }
 
-// An order and the other participant the reporter is reporting. Order
-// participation is not verified across services yet.
+// An order and the other participant the reporter is reporting. Both must be
+// the order's requester and current courier; SubmitReport is UNAVAILABLE while
+// Order cannot confirm them.
 type OrderTarget struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Opaque order id owned by the order service; no foreign key here.
